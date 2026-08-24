@@ -4,12 +4,33 @@
   "version": "1.0.0",
   "publisher": "Arxis Labs",
   "description": "Пример внешнего плагина: панель и команда",
-  "sdk": { "min": "1.0" },
+  "sdk": {
+    "min": "1.0"
+  },
   "entry": "bin/Arxis.HelloPlugin.dll",
   "contributions": {
-    "commands": [ { "id": "hello.greet", "title": "Поздороваться" } ],
-    "menus": [ { "path": "Tools/Hello/Поздороваться", "command": "hello.greet" } ],
-    "toolWindows": [ { "id": "hello.panel", "title": "Hello", "zone": "right" } ]
+    "commands": [
+      {
+        "id": "hello.greet",
+        "title": "Поздороваться"
+      }
+    ],
+    "menus": [
+      {
+        "path": "Tools/Hello/Поздороваться",
+        "command": "hello.greet"
+      }
+    ],
+    "toolWindows": [
+      {
+        "id": "hello.panel",
+        "title": "Hello",
+        "zone": "right"
+      }
+    ]
   },
-  "activation": [ "onStartup" ]
+  "activation": [
+    "onCommand:hello.greet",
+    "onToolWindow:hello.panel"
+  ]
 }

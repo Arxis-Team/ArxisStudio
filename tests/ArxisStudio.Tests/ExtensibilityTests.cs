@@ -94,7 +94,7 @@ public class ExtensibilityTests : IDisposable
 
         using var host = new PluginHost(new StudioContextFactory(new StudioLog(), new StudioCommands(), null));
 
-        var loaded = Assert.Single(host.LoadAll(catalog.Scan()));
+        var loaded = Assert.Single(host.LoadStartup(catalog.Scan()));
 
         Assert.False(loaded.IsLoaded);
         Assert.NotNull(loaded.Error);
@@ -110,7 +110,7 @@ public class ExtensibilityTests : IDisposable
 
         using var host = new PluginHost(new StudioContextFactory(new StudioLog(), new StudioCommands(), null));
 
-        Assert.Empty(host.LoadAll(catalog.Scan()));
+        Assert.Empty(host.LoadStartup(catalog.Scan()));
     }
 
     [Fact]

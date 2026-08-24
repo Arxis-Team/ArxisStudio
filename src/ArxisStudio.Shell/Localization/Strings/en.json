@@ -123,5 +123,7 @@
   "action.find": "Find",
   "action.collapse": "Collapse the panel",
   "action.options": "Panel options",
-  "console.clear": "Clear"
+  "console.clear": "Clear",
+  "menu.tools": "Plugin commands",
+  "menu.activating": "Loading the plugin"
 }

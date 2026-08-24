@@ -22,6 +22,7 @@ namespace ArxisStudio.Extensibility;
 public sealed class PluginHost : IDisposable
 {
     private readonly List<LoadedPlugin> _loaded = [];
+    private readonly List<InstalledPlugin> _deferred = [];
     private readonly IStudioContextFactory _contexts;
 
     /// <summary>Создаёт хост.</summary>
@@ -36,19 +37,61 @@ public sealed class PluginHost : IDisposable
     /// <summary>Поднятые плагины.</summary>
     public IReadOnlyList<LoadedPlugin> Loaded => _loaded;
 
+    /// <summary>Плагины, ждущие своего события.</summary>
+    public IReadOnlyList<InstalledPlugin> Deferred => _deferred;
+
     /// <summary>
-    /// Поднимает все включённые плагины каталога.
+    /// Принимает каталог и поднимает то, что просит подняться сразу.
     /// </summary>
     /// <param name="plugins">Что нашёл каталог.</param>
-    /// <returns>Результаты по каждому включённому плагину.</returns>
-    public IReadOnlyList<LoadedPlugin> LoadAll(IEnumerable<InstalledPlugin> plugins)
+    /// <returns>Результаты по поднятым плагинам.</returns>
+    /// <remarks>
+    /// Остальные остаются в списке ждущих: их меню и панели студия покажет по
+    /// манифесту, а сборка поднимется, когда придёт объявленное событие.
+    /// </remarks>
+    public IReadOnlyList<LoadedPlugin> LoadStartup(IEnumerable<InstalledPlugin> plugins)
     {
         ArgumentNullException.ThrowIfNull(plugins);
 
-        foreach (var plugin in plugins.Where(candidate => candidate is { IsEnabled: true, IsValid: true }))
-            _loaded.Add(Load(plugin));
+        var enabled = plugins.Where(candidate => candidate is { IsEnabled: true, IsValid: true }).ToList();
+        var raised = new List<LoadedPlugin>();
 
-        return _loaded;
+        foreach (var plugin in enabled)
+        {
+            if (PluginActivation.IsEager(plugin.Manifest))
+                raised.Add(Add(plugin));
+            else
+                _deferred.Add(plugin);
+        }
+
+        return raised;
+    }
+
+    /// <summary>
+    /// Поднимает ждущий плагин.
+    /// </summary>
+    /// <param name="pluginId">Идентификатор плагина.</param>
+    /// <returns>
+    /// Поднятый плагин или null, если такого среди ждущих нет — он либо уже
+    /// поднят, либо выключен.
+    /// </returns>
+    public LoadedPlugin? Activate(string pluginId)
+    {
+        var waiting = _deferred.FirstOrDefault(plugin => plugin.Id == pluginId);
+
+        if (waiting is null)
+            return null;
+
+        _deferred.Remove(waiting);
+        return Add(waiting);
+    }
+
+    private LoadedPlugin Add(InstalledPlugin installed)
+    {
+        var loaded = Load(installed);
+
+        _loaded.Add(loaded);
+        return loaded;
     }
 
     /// <summary>Опускает все поднятые плагины.</summary>
@@ -58,6 +101,7 @@ public sealed class PluginHost : IDisposable
             plugin.Unload();
 
         _loaded.Clear();
+        _deferred.Clear();
     }
 
     private LoadedPlugin Load(InstalledPlugin installed)

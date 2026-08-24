@@ -25,6 +25,14 @@
           </Border>
           <TextBlock x:Name="ProjectName" Text="{loc:Loc studio.noproject}" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center"/>
           <TextBlock Classes="dim" Text="{loc:Loc studio.configuration}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0"/>
+
+          <!-- Команды плагинов; кнопки нет, пока никто ничего не добавил. -->
+          <ax:AxButton x:Name="MenuButton" Classes="icon" IsVisible="False" Margin="8,0,0,0"
+                       AutomationProperties.Name="{loc:Loc menu.tools}"
+                       ToolTip.Tip="{loc:Loc menu.tools}"
+                       Click="OnMenuClick">
+            <ax:AxIcon Data="M 3 5 H 13 M 3 8 H 13 M 3 11 H 13" Width="13" Height="13" StrokeThickness="1.3"/>
+          </ax:AxButton>
         </StackPanel>
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center">
           <Border Background="{DynamicResource AxBg1Brush}" BorderBrush="{DynamicResource AxBrdBrush}"

@@ -8,6 +8,7 @@ using ArxisStudio.Shell.Localization;
 using ArxisStudio.Shell.Settings;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -33,6 +34,8 @@ public partial class MainWindow : Window
     private readonly StudioCommands _commands = new();
     private readonly StudioRunner _runner;
     private PluginHost? _plugins;
+    private IReadOnlyList<InstalledPlugin> _installed = [];
+    private IReadOnlyList<StudioMenuItem> _menu = [];
     private readonly PluginContributionRegistry _contributions = new();
 
     // Панели плагинов, разложенные по нижним вкладкам: вкладка знает свой
@@ -201,6 +204,10 @@ public partial class MainWindow : Window
         }
 
         StatusText.Text = Localizer.Instance["editor.loading"];
+
+        // Открытие файла — тоже событие: плагин, объявивший его тип, ждал
+        // именно этого.
+        Activate(waiting => PluginActivation.WaitsForFileType(waiting.Manifest, IOPath.GetExtension(filePath)));
 
         // Живые объекты создаются на потоке интерфейса — иначе загрузчик
         // откажется их отдавать.
@@ -397,9 +404,10 @@ public partial class MainWindow : Window
         var host = new PluginHost(new StudioContextFactory(_log, _commands, ProjectPath));
 
         _plugins = host;
+        _installed = catalog.Scan();
         _contributions.Conflict += (_, message) => _log.Write(StudioLogLevel.Warning, "Plugins", message);
 
-        foreach (var loaded in host.LoadAll(catalog.Scan()))
+        foreach (var loaded in host.LoadStartup(_installed))
         {
             if (loaded.Error is { } error)
             {
@@ -408,6 +416,89 @@ public partial class MainWindow : Window
             }
 
             _log.Write(StudioLogLevel.Info, "Plugins", $"{loaded.Installed.DisplayName} поднят");
+
+            _contributions.Add(loaded);
+            MountPanels(loaded);
+        }
+
+        foreach (var waiting in host.Deferred)
+            _log.Write(StudioLogLevel.Debug, "Plugins", $"{waiting.DisplayName} ждёт своего события");
+
+        ShowMenu();
+    }
+
+    /// <summary>
+    /// Собирает меню студии; кнопка появляется, только если есть что показать.
+    /// </summary>
+    private void ShowMenu()
+    {
+        _menu = StudioMenu.Build(_installed);
+        MenuButton.IsVisible = _menu.Count > 0;
+    }
+
+    private void OnMenuClick(object? sender, RoutedEventArgs e)
+    {
+        if (_menu.Count == 0)
+            return;
+
+        var flyout = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedLeft };
+
+        foreach (var item in _menu)
+            flyout.Items.Add(Build(item));
+
+        flyout.ShowAt(MenuButton);
+
+        MenuItem Build(StudioMenuItem source)
+        {
+            var item = new MenuItem { Header = source.Title };
+
+            if (source.IsCommand)
+                item.Click += (_, _) => Run(source);
+
+            foreach (var child in source.Children)
+                item.Items.Add(Build(child));
+
+            return item;
+        }
+    }
+
+    /// <summary>
+    /// Выполняет команду пункта меню, подняв плагин, если тот ещё ждал.
+    /// </summary>
+    /// <remarks>
+    /// Плагин, объявивший <c>onCommand:</c>, до этого момента не был загружен —
+    /// значит и обработчика команды пока нет, и поднять его нужно раньше вызова.
+    /// </remarks>
+    private void Run(StudioMenuItem item)
+    {
+        if (item.CommandId is not { } command)
+            return;
+
+        Activate(waiting => PluginActivation.WaitsForCommand(waiting.Manifest, command));
+
+        if (!_commands.Invoke(command))
+            _log.Write(StudioLogLevel.Warning, "Plugins", $"Команду {command} никто не обрабатывает");
+    }
+
+    /// <summary>Поднимает ждущие плагины, которым подошло событие.</summary>
+    /// <param name="matches">Какое событие произошло.</param>
+    private void Activate(Func<InstalledPlugin, bool> matches)
+    {
+        if (_plugins is not { } host)
+            return;
+
+        foreach (var waiting in host.Deferred.Where(matches).ToList())
+        {
+            _log.Write(StudioLogLevel.Info, "Plugins", $"{Localizer.Instance["menu.activating"]}: {waiting.DisplayName}");
+
+            if (host.Activate(waiting.Id) is not { } loaded)
+                continue;
+
+            if (loaded.Error is { } error)
+            {
+                _log.Write(StudioLogLevel.Error, "Plugins", $"{loaded.Installed.DisplayName}: {error}");
+                continue;
+            }
 
             _contributions.Add(loaded);
             MountPanels(loaded);

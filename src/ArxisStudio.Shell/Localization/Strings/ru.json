@@ -123,5 +123,7 @@
   "action.find": "Найти",
   "action.collapse": "Свернуть панель",
   "action.options": "Настройки панели",
-  "console.clear": "Очистить"
+  "console.clear": "Очистить",
+  "menu.tools": "Команды плагинов",
+  "menu.activating": "Поднимаю плагин"
 }
