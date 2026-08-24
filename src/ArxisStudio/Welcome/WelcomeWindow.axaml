@@ -9,9 +9,18 @@
         x:DataType="vm:WelcomeViewModel"
         Title="{loc:Loc welcome.title}"
         Width="1100" Height="720"
-        MinWidth="900" MinHeight="600">
+        MinWidth="900" MinHeight="600"
+        WindowDecorations="BorderOnly">
 
-  <Grid ColumnDefinitions="230,*">
+  <DockPanel>
+
+    <!-- Полоса заголовка: подпись слева, кнопки окна справа. -->
+    <ax:AxTitleBar DockPanel.Dock="Top" Height="38">
+      <TextBlock Classes="dimmer" Text="{loc:Loc welcome.title}" FontSize="11.5"
+                 VerticalAlignment="Center" Margin="14,0"/>
+    </ax:AxTitleBar>
+
+    <Grid ColumnDefinitions="230,*">
 
     <!-- Sidebar 230px: логотип, разделы, Settings, пользователь. -->
     <Border Grid.Column="0" Background="{DynamicResource AxBg2Brush}"
@@ -357,6 +366,7 @@
         </Panel>
       </ScrollViewer>
     </DockPanel>
-  </Grid>
+    </Grid>
+  </DockPanel>
 
 </Window>

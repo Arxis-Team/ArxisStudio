@@ -6,13 +6,15 @@
         x:Class="ArxisStudio.MainWindow"
         Title="ArxisStudio"
         Width="1440" Height="900"
-        MinWidth="1360" MinHeight="700">
+        MinWidth="1360" MinHeight="700"
+        WindowDecorations="BorderOnly">
 
   <shell:StudioShell>
 
     <!-- Верхний тулбар (42px): логотип, проект, конфигурация, run-группа. -->
     <shell:StudioShell.TopBar>
-      <DockPanel Height="42" Margin="10,0">
+      <ax:AxTitleBar BorderThickness="0">
+        <DockPanel Margin="10,0">
         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
           <Border Width="24" Height="24" CornerRadius="6" Background="{DynamicResource AxAccBrush}">
             <TextBlock Text="Ax" FontSize="10.5" FontWeight="Bold" Foreground="#FFFFFF"
@@ -38,8 +40,9 @@
             <ax:AxSegmentItem Content="{loc:Loc settings.theme.light}"/>
           </ax:AxSegmentedControl>
         </StackPanel>
-        <Panel/>
-      </DockPanel>
+          <Panel/>
+        </DockPanel>
+      </ax:AxTitleBar>
     </shell:StudioShell.TopBar>
 
     <!-- Левая зона: Hierarchy + Toolbox (заглушки M1). -->
