@@ -17,6 +17,17 @@
         <ProjectReference Include="../../src/ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
     </ItemGroup>
 
+    <!--
+        Анализатор SDK приходится подключать отдельно: через цепочку
+        ProjectReference анализаторы не передаются — так умеют только пакеты.
+        Плагину, поставленному пакетом SDK, эта строка не понадобится.
+    -->
+    <ItemGroup>
+        <ProjectReference Include="../../src/ArxisStudio.Sdk.Analyzers/ArxisStudio.Sdk.Analyzers.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false"/>
+    </ItemGroup>
+
     <!-- Манифест ложится рядом с bin/: package/ и есть папка плагина. -->
     <Target Name="CopyPluginManifest" AfterTargets="Build">
         <Copy SourceFiles="plugin.json" DestinationFolder="$(MSBuildProjectDirectory)/package/"/>

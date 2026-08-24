@@ -4,7 +4,13 @@
         <IsTestProject>true</IsTestProject>
     </PropertyGroup>
 
+    <!-- Анализатор проверяется как обычная библиотека: тест сам собирает код. -->
     <ItemGroup>
+        <ProjectReference Include="../../src/ArxisStudio.Sdk.Analyzers/ArxisStudio.Sdk.Analyzers.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp"/>
         <PackageReference Include="Avalonia.Headless.XUnit"/>
         <PackageReference Include="Avalonia.Themes.Fluent"/>
         <PackageReference Include="Avalonia.Fonts.Inter"/>

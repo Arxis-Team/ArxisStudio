@@ -15,4 +15,15 @@
         <ProjectReference Include="../../external/ArxisStudio.Controls/src/ArxisStudio.Controls.csproj"/>
     </ItemGroup>
 
+    <!--
+        Анализатор едет вместе с SDK: правило «интерфейс плагина строится на
+        Ax*» должно проверяться при сборке плагина, а не при взгляде на готовую
+        панель. Сборкой он не является — плагину его не с чем связывать.
+    -->
+    <ItemGroup>
+        <ProjectReference Include="../ArxisStudio.Sdk.Analyzers/ArxisStudio.Sdk.Analyzers.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false"/>
+    </ItemGroup>
+
 </Project>
