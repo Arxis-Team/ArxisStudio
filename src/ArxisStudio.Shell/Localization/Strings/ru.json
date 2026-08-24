@@ -118,5 +118,9 @@
   "view.design": "Дизайн",
   "view.xaml": "XAML",
   "view.split": "Вместе",
-  "xaml.applied": "Разметка применена"
+  "xaml.applied": "Разметка применена",
+  "action.add": "Добавить",
+  "action.find": "Найти",
+  "action.collapse": "Свернуть панель",
+  "action.options": "Настройки панели"
 }

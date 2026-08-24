@@ -118,5 +118,9 @@
   "view.design": "Design",
   "view.xaml": "XAML",
   "view.split": "Split",
-  "xaml.applied": "Markup applied"
+  "xaml.applied": "Markup applied",
+  "action.add": "Add",
+  "action.find": "Find",
+  "action.collapse": "Collapse the panel",
+  "action.options": "Panel options"
 }

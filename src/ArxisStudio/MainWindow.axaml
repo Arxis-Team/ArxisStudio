@@ -30,10 +30,12 @@
           <Border Background="{DynamicResource AxBg1Brush}" BorderBrush="{DynamicResource AxBrdBrush}"
                   BorderThickness="1" CornerRadius="7" Padding="2">
             <StackPanel Orientation="Horizontal" Spacing="2">
-              <ax:AxButton Classes="icon" ToolTip.Tip="{loc:Loc studio.run}">
+              <ax:AxButton Classes="icon" ToolTip.Tip="{loc:Loc studio.run}"
+                           AutomationProperties.Name="{loc:Loc studio.run}">
                 <ax:AxIcon Data="{x:Static ax:AxIcons.Play}" IsFilled="True" Width="13" Height="13" Foreground="{DynamicResource AxGrnBrush}"/>
               </ax:AxButton>
-              <ax:AxButton Classes="icon" ToolTip.Tip="{loc:Loc studio.stop}" IsEnabled="False">
+              <ax:AxButton Classes="icon" ToolTip.Tip="{loc:Loc studio.stop}" IsEnabled="False"
+                           AutomationProperties.Name="{loc:Loc studio.stop}">
                 <ax:AxIcon Data="M 4 4 H 12 V 12 H 4 Z" IsFilled="True" Width="10" Height="10" Foreground="{DynamicResource AxFg3Brush}"/>
               </ax:AxButton>
             </StackPanel>
@@ -54,10 +56,10 @@
         <ax:AxToolWindow Grid.Row="0" Title="{loc:Loc panel.hierarchy}">
           <ax:AxToolWindow.Actions>
             <StackPanel Orientation="Horizontal" Spacing="2">
-              <ax:AxButton Classes="icon">
+              <ax:AxButton Classes="icon" AutomationProperties.Name="{loc:Loc action.add}">
                 <ax:AxIcon Data="{x:Static ax:AxIcons.Plus}" Width="13" Height="13"/>
               </ax:AxButton>
-              <ax:AxButton Classes="icon">
+              <ax:AxButton Classes="icon" AutomationProperties.Name="{loc:Loc action.find}">
                 <ax:AxIcon Data="{x:Static ax:AxIcons.Search}" Width="13" Height="13"/>
               </ax:AxButton>
             </StackPanel>
@@ -66,6 +68,13 @@
             <TextBlock x:Name="HierarchyEmpty" Classes="dimmer" Text="{loc:Loc panel.hierarchy.empty}" FontSize="12"
                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
             <ax:AxTreeView x:Name="HierarchyTree" SelectionChanged="OnHierarchySelectionChanged">
+              <!-- Строка дерева объявляет себя тем, что показывает: у контейнера
+                   своего текста нет, и диктор без этого говорит «treeitem». -->
+              <ax:AxTreeView.Styles>
+                <Style Selector="ax|AxTreeViewItem" x:DataType="svc:HierarchyNode">
+                  <Setter Property="AutomationProperties.Name" Value="{Binding DisplayName}"/>
+                </Style>
+              </ax:AxTreeView.Styles>
               <ax:AxTreeView.ItemTemplate>
                 <TreeDataTemplate x:DataType="svc:HierarchyNode" ItemsSource="{Binding Children}">
                   <StackPanel Orientation="Horizontal" Spacing="6">
@@ -207,7 +216,7 @@
           </ax:AxTabStrip>
         </ax:AxToolWindow.Tabs>
         <ax:AxToolWindow.Actions>
-          <ax:AxButton Classes="icon">
+          <ax:AxButton Classes="icon" AutomationProperties.Name="{loc:Loc action.collapse}">
             <ax:AxIcon Data="M 4 8 H 12" Width="13" Height="13" StrokeThickness="1.3"/>
           </ax:AxButton>
         </ax:AxToolWindow.Actions>
@@ -215,6 +224,11 @@
           <TextBlock x:Name="ProjectEmpty" Classes="dimmer" Text="{loc:Loc panel.project.empty}" FontSize="12"
                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
           <ax:AxTreeView x:Name="ProjectTreeView" DoubleTapped="OnProjectTreeDoubleTapped">
+            <ax:AxTreeView.Styles>
+              <Style Selector="ax|AxTreeViewItem" x:DataType="svc:ProjectNode">
+                <Setter Property="AutomationProperties.Name" Value="{Binding Name}"/>
+              </Style>
+            </ax:AxTreeView.Styles>
             <ax:AxTreeView.ItemTemplate>
               <TreeDataTemplate x:DataType="svc:ProjectNode" ItemsSource="{Binding Children}">
                 <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
@@ -229,7 +243,7 @@
     <shell:StudioShell.RightPane>
       <ax:AxToolWindow Title="{loc:Loc panel.inspector}">
         <ax:AxToolWindow.Actions>
-          <ax:AxButton Classes="icon">
+          <ax:AxButton Classes="icon" AutomationProperties.Name="{loc:Loc action.options}">
             <ax:AxIcon Data="{x:Static ax:AxIcons.Settings}" Width="13" Height="13"/>
           </ax:AxButton>
         </ax:AxToolWindow.Actions>
