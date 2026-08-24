@@ -37,6 +37,7 @@
 
         <StackPanel DockPanel.Dock="Bottom" Spacing="8">
           <ToggleButton Classes="nav" IsChecked="{Binding IsSettings, Mode=OneWay}"
+                        AutomationProperties.Name="{loc:Loc welcome.nav.settings}"
                         Click="OnSettingsClick">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <ax:AxIcon Data="{x:Static ax:AxIcons.Settings}" Width="15" Height="15"/>
@@ -53,25 +54,29 @@
         </StackPanel>
 
         <StackPanel Spacing="2">
-          <ToggleButton Classes="nav" IsChecked="{Binding IsProjects, Mode=OneWay}" Click="OnProjectsClick">
+          <ToggleButton Classes="nav" IsChecked="{Binding IsProjects, Mode=OneWay}"
+                        AutomationProperties.Name="{loc:Loc welcome.nav.projects}" Click="OnProjectsClick">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <ax:AxIcon Data="{x:Static ax:AxIcons.Folder}" Width="15" Height="15"/>
               <TextBlock Text="{loc:Loc welcome.nav.projects}" VerticalAlignment="Center"/>
             </StackPanel>
           </ToggleButton>
-          <ToggleButton Classes="nav" IsChecked="{Binding IsTemplates, Mode=OneWay}" Click="OnTemplatesClick">
+          <ToggleButton Classes="nav" IsChecked="{Binding IsTemplates, Mode=OneWay}"
+                        AutomationProperties.Name="{loc:Loc welcome.nav.templates}" Click="OnTemplatesClick">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <ax:AxIcon Data="{x:Static ax:AxIcons.Template}" Width="15" Height="15"/>
               <TextBlock Text="{loc:Loc welcome.nav.templates}" VerticalAlignment="Center"/>
             </StackPanel>
           </ToggleButton>
-          <ToggleButton Classes="nav" IsChecked="{Binding IsLearn, Mode=OneWay}" Click="OnLearnClick">
+          <ToggleButton Classes="nav" IsChecked="{Binding IsLearn, Mode=OneWay}"
+                        AutomationProperties.Name="{loc:Loc welcome.nav.learn}" Click="OnLearnClick">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <ax:AxIcon Data="{x:Static ax:AxIcons.Play}" Width="15" Height="15"/>
               <TextBlock Text="{loc:Loc welcome.nav.learn}" VerticalAlignment="Center"/>
             </StackPanel>
           </ToggleButton>
-          <ToggleButton Classes="nav" IsChecked="{Binding IsPlugins, Mode=OneWay}" Click="OnPluginsClick">
+          <ToggleButton Classes="nav" IsChecked="{Binding IsPlugins, Mode=OneWay}"
+                        AutomationProperties.Name="{loc:Loc welcome.nav.plugins}" Click="OnPluginsClick">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <ax:AxIcon Data="{x:Static ax:AxIcons.Package}" Width="15" Height="15"/>
               <TextBlock Text="{loc:Loc welcome.nav.plugins}" VerticalAlignment="Center"/>
