@@ -272,6 +272,66 @@ public sealed class DesignDocument : IAsyncDisposable
         return await ApplyAsync(_workspace.Apply(editor, description), _workspace.Undo, cancellationToken);
     }
 
+    /// <summary>Вставляет разметку внутрь элемента.</summary>
+    /// <param name="parent">Узел, внутрь которого вставляем.</param>
+    /// <param name="index">Место среди детей; -1 — в конец.</param>
+    /// <param name="markup">Разметка вставляемого элемента.</param>
+    /// <param name="description">Чем эта правка называется в истории.</param>
+    /// <param name="cancellationToken">Токен отмены.</param>
+    /// <returns>null, если правка применилась, иначе — почему нет.</returns>
+    public Task<string?> InsertAsync(
+        HierarchyNode parent,
+        int index,
+        string markup,
+        string description,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parent);
+        ArgumentException.ThrowIfNullOrWhiteSpace(markup);
+
+        return EditAsync(
+            parent,
+            (editor, element) => editor.InsertElement(
+                element,
+                index < 0 ? element.ContentElements.Count() : index,
+                markup),
+            description,
+            cancellationToken);
+    }
+
+    /// <summary>Убирает элемент из документа.</summary>
+    /// <param name="node">Узел, который убираем.</param>
+    /// <param name="cancellationToken">Токен отмены.</param>
+    /// <returns>null, если правка применилась, иначе — почему нет.</returns>
+    public Task<string?> RemoveAsync(HierarchyNode node, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+
+        return EditAsync(
+            node,
+            (editor, element) => editor.RemoveElement(element),
+            $"Удалить {node.DisplayName}",
+            cancellationToken);
+    }
+
+    /// <summary>Переставляет элемент среди детей его родителя.</summary>
+    /// <param name="node">Узел, который переставляем.</param>
+    /// <param name="index">Новое место среди детей.</param>
+    /// <param name="cancellationToken">Токен отмены.</param>
+    /// <returns>null, если правка применилась, иначе — почему нет.</returns>
+    public Task<string?> MoveAsync(HierarchyNode node, int index, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+
+        return EditAsync(
+            node,
+            (editor, element) => element.Parent is XamlElement parent
+                ? editor.MoveElement(element, parent, index)
+                : editor,
+            $"Переставить {node.DisplayName}",
+            cancellationToken);
+    }
+
     /// <summary>Отменяет последнюю правку.</summary>
     /// <param name="cancellationToken">Токен отмены.</param>
     /// <returns>null, если отмена применилась, иначе — почему нет.</returns>
@@ -324,6 +384,16 @@ public sealed class DesignDocument : IAsyncDisposable
 
             return null;
         }
+    }
+
+    /// <summary>Находит узел по пути, пережившему переразбор документа.</summary>
+    /// <param name="path">Путь к элементу.</param>
+    public HierarchyNode? FindByPath(XamlElementPath? path)
+    {
+        if (path is null)
+            return null;
+
+        return Flatten(Nodes).FirstOrDefault(node => path.Equals(node.Path));
     }
 
     /// <summary>Возвращает путь от корня документа до узла контрола.</summary>
@@ -391,6 +461,45 @@ public sealed class DesignDocument : IAsyncDisposable
             _assemblies.Dispose();
             _assemblies = null;
         }
+    }
+
+    /// <summary>
+    /// Правка, меняющая строение документа: вставка, удаление, перестановка.
+    /// </summary>
+    /// <param name="node">Узел, чей элемент правим.</param>
+    /// <param name="edit">Что сделать с элементом.</param>
+    /// <param name="description">Чем эта правка называется в истории.</param>
+    /// <param name="cancellationToken">Токен отмены.</param>
+    /// <remarks>
+    /// Проверять тут нечего — в отличие от значения свойства, разметка либо
+    /// разберётся, либо нет, и об этом скажет сам разбор.
+    /// </remarks>
+    private async Task<string?> EditAsync(
+        HierarchyNode node,
+        Func<XamlDocumentEditor, XamlElement, XamlDocumentEditor> edit,
+        string description,
+        CancellationToken cancellationToken)
+    {
+        if (_workspace is null || _session is null)
+            return "Документ закрыт";
+
+        var document = _workspace.GetDocument(_documentId);
+
+        if (node.Path?.Resolve(document) is not { } element)
+            return "Элемент больше не существует";
+
+        XamlDocument edited;
+
+        try
+        {
+            edited = _workspace.Apply(edit(document.Edit(), element), description);
+        }
+        catch (Exception e) when (e is ArgumentException or InvalidOperationException)
+        {
+            return e.Message;
+        }
+
+        return await ApplyAsync(edited, _workspace.Undo, cancellationToken);
     }
 
     private async Task<string?> StepHistoryAsync(bool undo, CancellationToken cancellationToken)
@@ -505,10 +614,21 @@ public sealed class DesignDocument : IAsyncDisposable
 
         foreach (var node in Flatten(Nodes))
         {
-            if (node.Path?.Resolve(document) is { } element)
-                node.Retarget(element, _session?.GetObject(element) as Control);
-            else
+            if (node.Path?.Resolve(document) is not { } element)
+            {
+                // Узел не нашёлся по своему пути: элемент убрали.
                 structural = true;
+                continue;
+            }
+
+            // Путь — это индексы, поэтому у элемента, к которому добавили или у
+            // которого убрали ребёнка, пути детей ведут уже не туда. Считать
+            // такое перенацеливанием нельзя: дерево показывало бы прежний набор
+            // узлов с чужими элементами за ними.
+            if (node.Children.Count != element.ContentElements.Count())
+                structural = true;
+
+            node.Retarget(element, _session?.GetObject(element) as Control);
         }
 
         if (!structural)

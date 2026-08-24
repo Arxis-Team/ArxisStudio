@@ -81,14 +81,49 @@
         <ax:AxDivider Grid.Row="1"/>
 
         <ax:AxToolWindow Grid.Row="2" Title="{loc:Loc panel.toolbox}">
-          <ax:AxToolWindow.Actions>
-            <ax:AxButton Classes="icon">
-              <ax:AxIcon Data="{x:Static ax:AxIcons.Search}" Width="13" Height="13"/>
-            </ax:AxButton>
-          </ax:AxToolWindow.Actions>
-          <TextBlock Classes="dimmer" Text="{loc:Loc panel.toolbox.empty}" FontSize="12"
-                     HorizontalAlignment="Center" VerticalAlignment="Center"
-                     TextWrapping="Wrap" TextAlignment="Center" Margin="20,0"/>
+          <Panel>
+            <TextBlock x:Name="ToolboxEmpty" Classes="dimmer" Text="{loc:Loc panel.toolbox.empty}" FontSize="12"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       TextWrapping="Wrap" TextAlignment="Center" Margin="20,0"/>
+
+            <DockPanel x:Name="ToolboxBody" IsVisible="False">
+              <ax:AxSearchField x:Name="ToolboxSearch" DockPanel.Dock="Top" Margin="8,6"
+                                PlaceholderText="{loc:Loc toolbox.search}"
+                                TextChanged="OnToolboxSearchChanged"/>
+
+              <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl x:Name="ToolboxGroups">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="svc:ToolboxGroup">
+                      <StackPanel>
+                        <Border Height="24" Padding="12,0" Background="{DynamicResource AxBg2Brush}">
+                          <TextBlock Text="{Binding Title.Value}" FontWeight="SemiBold" FontSize="11.5"
+                                     VerticalAlignment="Center"/>
+                        </Border>
+
+                        <ItemsControl ItemsSource="{Binding Items}" Margin="0,2,0,6">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="svc:ToolboxItem">
+                              <Border Classes="toolbox" Padding="12,4" Background="Transparent"
+                                      PointerPressed="OnToolboxItemPressed"
+                                      ToolTip.Tip="{loc:Loc toolbox.hint}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                  <ax:AxIcon Data="{x:Static ax:AxIcons.Plus}" Width="11" Height="11"
+                                             Foreground="{DynamicResource AxFg3Brush}"
+                                             VerticalAlignment="Center"/>
+                                  <TextBlock Text="{Binding TypeName}" FontSize="11.5" VerticalAlignment="Center"/>
+                                </StackPanel>
+                              </Border>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </DockPanel>
+          </Panel>
         </ax:AxToolWindow>
       </Grid>
     </shell:StudioShell.LeftPane>
@@ -108,8 +143,11 @@
                                ShowRulers="False"
                                ShowGuides="False"
                                ShowGrid="False"
+                               DragDrop.AllowDrop="True"
                                DesignSelectionChanged="OnDesignerSelectionChanged"
-                               EditCompleted="OnDesignerEditCompleted">
+                               EditCompleted="OnDesignerEditCompleted"
+                               DeleteRequested="OnDesignerDeleteRequested"
+                               ReorderRequested="OnDesignerReorderRequested">
             <design:DesignEditorItem x:Name="DesignerForm"
                                      ContentMode="Loaded"
                                      Location="0,0"

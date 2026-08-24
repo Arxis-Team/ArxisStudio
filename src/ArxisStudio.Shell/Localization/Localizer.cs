@@ -62,8 +62,12 @@ public sealed class Localizer : INotifyPropertyChanged
     /// Заводит строку, которая обновляется при смене языка. Ссылка на неё слабая:
     /// строка живёт, пока на неё смотрит привязка, и уходит вместе с окном.
     /// </summary>
+    /// <remarks>
+    /// Разметке хватает <c>{loc:Loc}</c>, но интерфейс, собранный кодом, — списки,
+    /// разделы, пункты меню — заводит свои строки сам.
+    /// </remarks>
     /// <param name="key">Ключ строки.</param>
-    internal LocalizedString Track(string key)
+    public LocalizedString Track(string key)
     {
         var tracked = new LocalizedString(key);
 

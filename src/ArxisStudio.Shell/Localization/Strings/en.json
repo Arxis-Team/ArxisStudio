@@ -103,5 +103,16 @@
   "inspector.redo": "Redo",
   "inspector.save": "Save",
   "inspector.reset": "Remove the value from the markup",
-  "inspector.saved": "Saved"
+  "inspector.saved": "Saved",
+  "toolbox.search": "Find a control",
+  "toolbox.hint": "Double-click drops the control into the selected element; drag drops it where you let go",
+  "toolbox.inserted": "Inserted",
+  "toolbox.nowhere": "Nothing here can hold a control — pick a panel or a container",
+  "structure.deleted": "Deleted",
+  "structure.moved": "Reordered",
+  "toolbox.group.layout": "Layout",
+  "toolbox.group.input": "Input",
+  "toolbox.group.display": "Display",
+  "toolbox.group.studio": "ArxisStudio",
+  "toolbox.nonamespace": "The document does not declare this control's library"
 }

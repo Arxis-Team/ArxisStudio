@@ -103,5 +103,16 @@
   "inspector.redo": "Вернуть",
   "inspector.save": "Сохранить",
   "inspector.reset": "Убрать значение из разметки",
-  "inspector.saved": "Сохранено"
+  "inspector.saved": "Сохранено",
+  "toolbox.search": "Поиск контрола",
+  "toolbox.hint": "Двойной щелчок кладёт контрол в выделенный элемент; перетаскивание — туда, куда отпустите",
+  "toolbox.inserted": "Вставлен",
+  "toolbox.nowhere": "Здесь контрол разместить некуда — выберите панель или контейнер",
+  "structure.deleted": "Удалено",
+  "structure.moved": "Переставлено",
+  "toolbox.group.layout": "Раскладка",
+  "toolbox.group.input": "Ввод",
+  "toolbox.group.display": "Показ",
+  "toolbox.group.studio": "ArxisStudio",
+  "toolbox.nonamespace": "Документ не объявил библиотеку этого контрола"
 }
