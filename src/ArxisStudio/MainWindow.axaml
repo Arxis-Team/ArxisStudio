@@ -26,10 +26,10 @@
                   BorderThickness="1" CornerRadius="7" Padding="2">
             <StackPanel Orientation="Horizontal" Spacing="2">
               <ax:AxButton Classes="icon" ToolTip.Tip="{loc:Loc studio.run}">
-                <Path Data="M 5.2 3.4 V 12.6 L 13 8 Z" Fill="{DynamicResource AxGrnBrush}" Width="14" Height="14" Stretch="Uniform"/>
+                <ax:AxIcon Data="{x:Static ax:AxIcons.Play}" IsFilled="True" Width="13" Height="13" Foreground="{DynamicResource AxGrnBrush}"/>
               </ax:AxButton>
               <ax:AxButton Classes="icon" ToolTip.Tip="{loc:Loc studio.stop}" IsEnabled="False">
-                <Path Data="M 4 4 H 12 V 12 H 4 Z" Fill="{DynamicResource AxFg3Brush}" Width="11" Height="11" Stretch="Uniform"/>
+                <ax:AxIcon Data="M 4 4 H 12 V 12 H 4 Z" IsFilled="True" Width="10" Height="10" Foreground="{DynamicResource AxFg3Brush}"/>
               </ax:AxButton>
             </StackPanel>
           </Border>
@@ -45,21 +45,33 @@
     <!-- Левая зона: Hierarchy + Toolbox (заглушки M1). -->
     <shell:StudioShell.LeftPane>
       <Grid RowDefinitions="*,1,*">
-        <DockPanel Grid.Row="0">
-          <Border DockPanel.Dock="Top" Classes="tool-window-header">
-            <TextBlock Classes="title" Text="{loc:Loc panel.hierarchy}"/>
-          </Border>
+        <ax:AxToolWindow Grid.Row="0" Title="{loc:Loc panel.hierarchy}">
+          <ax:AxToolWindow.Actions>
+            <StackPanel Orientation="Horizontal" Spacing="2">
+              <ax:AxButton Classes="icon">
+                <ax:AxIcon Data="{x:Static ax:AxIcons.Plus}" Width="13" Height="13"/>
+              </ax:AxButton>
+              <ax:AxButton Classes="icon">
+                <ax:AxIcon Data="{x:Static ax:AxIcons.Search}" Width="13" Height="13"/>
+              </ax:AxButton>
+            </StackPanel>
+          </ax:AxToolWindow.Actions>
           <TextBlock Classes="dimmer" Text="{loc:Loc panel.hierarchy.empty}" FontSize="12"
                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
-        </DockPanel>
-        <Border Grid.Row="1" Background="{DynamicResource AxBrdBrush}"/>
-        <DockPanel Grid.Row="2">
-          <Border DockPanel.Dock="Top" Classes="tool-window-header">
-            <TextBlock Classes="title" Text="{loc:Loc panel.toolbox}"/>
-          </Border>
+        </ax:AxToolWindow>
+
+        <ax:AxDivider Grid.Row="1"/>
+
+        <ax:AxToolWindow Grid.Row="2" Title="{loc:Loc panel.toolbox}">
+          <ax:AxToolWindow.Actions>
+            <ax:AxButton Classes="icon">
+              <ax:AxIcon Data="{x:Static ax:AxIcons.Search}" Width="13" Height="13"/>
+            </ax:AxButton>
+          </ax:AxToolWindow.Actions>
           <TextBlock Classes="dimmer" Text="{loc:Loc panel.toolbox.empty}" FontSize="12"
-                     HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" Margin="20,0"/>
-        </DockPanel>
+                     HorizontalAlignment="Center" VerticalAlignment="Center"
+                     TextWrapping="Wrap" TextAlignment="Center" Margin="20,0"/>
+        </ax:AxToolWindow>
       </Grid>
     </shell:StudioShell.LeftPane>
 
@@ -77,31 +89,35 @@
 
     <!-- Нижняя зона: вкладки панелей (заглушки M1). -->
     <shell:StudioShell.BottomPane>
-      <DockPanel>
-        <Border DockPanel.Dock="Top" Height="32" BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,0,0,1" Padding="6,0">
-          <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-            <TextBlock Text="{loc:Loc panel.project}" FontSize="12" FontWeight="Medium" VerticalAlignment="Center" Margin="12,0"/>
-            <TextBlock Classes="dim" Text="{loc:Loc panel.console}" FontSize="12" VerticalAlignment="Center" Margin="12,0"/>
-            <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center" Margin="12,0">
-              <TextBlock Classes="dim" Text="{loc:Loc panel.problems}" FontSize="12" VerticalAlignment="Center"/>
-              <TextBlock Classes="dimmer" Text="0" FontSize="11" VerticalAlignment="Center"/>
-            </StackPanel>
-          </StackPanel>
-        </Border>
+      <ax:AxToolWindow>
+        <ax:AxToolWindow.Tabs>
+          <ax:AxTabStrip Theme="{StaticResource AxToolWindowTabStrip}" SelectedIndex="0">
+            <ax:AxTabItem Classes="compact" IsClosable="False" Content="{loc:Loc panel.project}"/>
+            <ax:AxTabItem Classes="compact" IsClosable="False" Content="{loc:Loc panel.console}"/>
+            <ax:AxTabItem Classes="compact" IsClosable="False" Content="{loc:Loc panel.problems}"/>
+          </ax:AxTabStrip>
+        </ax:AxToolWindow.Tabs>
+        <ax:AxToolWindow.Actions>
+          <ax:AxButton Classes="icon">
+            <ax:AxIcon Data="M 4 8 H 12" Width="13" Height="13" StrokeThickness="1.3"/>
+          </ax:AxButton>
+        </ax:AxToolWindow.Actions>
         <TextBlock Classes="dimmer" Text="{loc:Loc panel.project.empty}" FontSize="12"
                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
-      </DockPanel>
+      </ax:AxToolWindow>
     </shell:StudioShell.BottomPane>
 
     <!-- Правая зона: Inspector (заглушка M1). -->
     <shell:StudioShell.RightPane>
-      <DockPanel>
-        <Border DockPanel.Dock="Top" Classes="tool-window-header">
-          <TextBlock Classes="title" Text="{loc:Loc panel.inspector}"/>
-        </Border>
+      <ax:AxToolWindow Title="{loc:Loc panel.inspector}">
+        <ax:AxToolWindow.Actions>
+          <ax:AxButton Classes="icon">
+            <ax:AxIcon Data="{x:Static ax:AxIcons.Settings}" Width="13" Height="13"/>
+          </ax:AxButton>
+        </ax:AxToolWindow.Actions>
         <TextBlock Classes="dimmer" Text="{loc:Loc panel.inspector.empty}" FontSize="12"
                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
-      </DockPanel>
+      </ax:AxToolWindow>
     </shell:StudioShell.RightPane>
 
     <!-- Статус-бар (26px). -->
