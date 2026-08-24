@@ -122,5 +122,6 @@
   "action.add": "Добавить",
   "action.find": "Найти",
   "action.collapse": "Свернуть панель",
-  "action.options": "Настройки панели"
+  "action.options": "Настройки панели",
+  "console.clear": "Очистить"
 }

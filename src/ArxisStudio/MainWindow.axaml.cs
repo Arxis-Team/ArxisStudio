@@ -1,5 +1,8 @@
 using System.Collections.ObjectModel;
+using System.Reflection;
 using ArxisStudio.Controls;
+using ArxisStudio.Extensibility;
+using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using ArxisStudio.Shell.Localization;
 using ArxisStudio.Shell.Settings;
@@ -26,6 +29,14 @@ public partial class MainWindow : Window
     private readonly StudioWorkspace _workspace = new();
     private readonly List<DesignDocument> _documents = [];
     private readonly ObservableCollection<InspectorSection> _inspector = [];
+    private readonly StudioLog _log = new();
+    private readonly StudioCommands _commands = new();
+    private readonly StudioRunner _runner;
+    private PluginHost? _plugins;
+
+    // Панели плагинов, разложенные по нижним вкладкам: вкладка знает свой
+    // номер, а содержимое лежит в общем месте и показывается по очереди.
+    private readonly Dictionary<int, Control> _bottomPanels = [];
 
     /// <summary>
     /// Под каким именем контрол палитры едет в перетаскивании.
@@ -59,9 +70,19 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        // Выбранная вкладка ставится здесь, а не в разметке: заданная там, она
+        // поднимает событие ещё во время разбора, когда полей окна нет и в
+        // помине.
         ThemeSwitch.SelectedIndex = Application.Current?.ActualThemeVariant == ThemeVariant.Light ? 1 : 0;
         ViewSwitch.SelectedIndex = 0;
+        BottomTabs.SelectedIndex = 0;
         InspectorSections.ItemsSource = _inspector;
+
+        _runner = new StudioRunner(_log);
+        _runner.StateChanged += (_, _) => UpdateRunButtons();
+
+        ConsoleList.ItemsSource = _log.Entries;
+        _log.Entries.CollectionChanged += (_, _) => ConsoleScroll.ScrollToEnd();
 
         // Приём перетаскивания — присоединённые события, и в разметке их
         // атрибутом не назначить.
@@ -83,7 +104,12 @@ public partial class MainWindow : Window
         Opened += (_, _) => StudioWindowChrome.Apply(
             this, _settings?.Current.Theme ?? StudioTheme.Dark);
 
-        Closed += async (_, _) => await CloseDocumentsAsync();
+        Closed += async (_, _) =>
+        {
+            _runner.Dispose();
+            _plugins?.Dispose();
+            await CloseDocumentsAsync();
+        };
     }
 
     /// <summary>Создаёт окно для открытого проекта.</summary>
@@ -137,6 +163,9 @@ public partial class MainWindow : Window
         }, DispatcherPriority.Background);
 
         StatusText.Text = path;
+
+        LoadPlugins();
+        UpdateRunButtons();
     }
 
     private async void OnProjectTreeDoubleTapped(object? sender, TappedEventArgs e)
@@ -352,6 +381,159 @@ public partial class MainWindow : Window
         }
 
         UpdateHistoryButtons();
+    }
+
+    /// <summary>
+    /// Поднимает включённые плагины.
+    /// </summary>
+    /// <remarks>
+    /// Плагины поднимаются после того, как проект открыт: контекст сообщает им
+    /// путь проекта, и поднимать их раньше значило бы отдавать пустой.
+    /// </remarks>
+    private void LoadPlugins()
+    {
+        var catalog = new PluginCatalog();
+        var host = new PluginHost(new StudioContextFactory(_log, _commands, ProjectPath));
+
+        _plugins = host;
+
+        foreach (var loaded in host.LoadAll(catalog.Scan()))
+        {
+            if (loaded.Error is { } error)
+            {
+                _log.Write(StudioLogLevel.Error, "Plugins", $"{loaded.Installed.DisplayName}: {error}");
+                continue;
+            }
+
+            _log.Write(StudioLogLevel.Info, "Plugins", $"{loaded.Installed.DisplayName} поднят");
+            MountPanels(loaded);
+        }
+    }
+
+    /// <summary>
+    /// Ставит панели плагина в объявленные зоны.
+    /// </summary>
+    /// <remarks>
+    /// Зону и заголовок берём из манифеста, а сам класс панели — из сборки по
+    /// атрибуту: манифест студия читает, не загружая сборку, и список панелей у
+    /// неё есть раньше, чем атрибут вообще становится виден.
+    /// </remarks>
+    private void MountPanels(LoadedPlugin loaded)
+    {
+        if (loaded.Installed.Manifest is not { } manifest || loaded.Context is null)
+            return;
+
+        var panels = loaded.Context.Assemblies
+            .SelectMany(assembly => assembly.GetTypes())
+            .Where(type => type is { IsAbstract: false, IsPublic: true } && typeof(Sdk.ToolWindow).IsAssignableFrom(type))
+            .Select(type => (Type: type, Attribute: type.GetCustomAttribute<ToolWindowAttribute>()))
+            .Where(found => found.Attribute is not null)
+            .ToDictionary(found => found.Attribute!.Id, found => found.Type, StringComparer.Ordinal);
+
+        foreach (var declared in manifest.Contributions.ToolWindows)
+        {
+            if (!panels.TryGetValue(declared.Id, out var type))
+            {
+                _log.Write(StudioLogLevel.Warning, "Plugins",
+                    $"Панель {declared.Id} объявлена в манифесте, но в сборке её нет");
+                continue;
+            }
+
+            if (Activator.CreateInstance(type) is not Sdk.ToolWindow panel)
+                continue;
+
+            panel.Attach(new StudioContext(_log, _commands, ProjectPath, loaded.Installed.Directory));
+            Mount(declared.Zone, declared.Title, panel.Content);
+        }
+    }
+
+    /// <summary>Ставит содержимое панели в зону студии.</summary>
+    private void Mount(string zone, string title, Control content)
+    {
+        var window = new AxToolWindow { Title = title, Content = content };
+
+        switch (zone.ToLowerInvariant())
+        {
+            case "bottom":
+                var tab = new AxTabItem { Classes = { "compact" }, IsClosable = false, Content = title };
+
+                BottomTabs.Items.Add(tab);
+                BottomPluginHost.Children.Add(content);
+
+                content.IsVisible = false;
+                _bottomPanels[BottomTabs.Items.Count - 1] = content;
+                break;
+
+            case "left":
+                Append(LeftZone, window);
+                break;
+
+            default:
+                Append(RightZone, window);
+                break;
+        }
+
+        _log.Write(StudioLogLevel.Debug, "Plugins", $"Панель «{title}» встала в зону {zone}");
+    }
+
+    /// <summary>
+    /// Добавляет панель новой строкой сетки, отделив её от соседей.
+    /// </summary>
+    private static void Append(Grid zone, Control panel)
+    {
+        zone.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        zone.RowDefinitions.Add(new RowDefinition(new GridLength(1, GridUnitType.Star)));
+
+        var divider = new AxDivider();
+
+        Grid.SetRow(divider, zone.RowDefinitions.Count - 2);
+        Grid.SetRow(panel, zone.RowDefinitions.Count - 1);
+
+        zone.Children.Add(divider);
+        zone.Children.Add(panel);
+    }
+
+    private void OnBottomTabChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        var tab = BottomTabs.SelectedIndex;
+
+        ProjectTreeView.IsVisible = tab == 0;
+        ProjectEmpty.IsVisible = tab == 0 && ProjectTreeView.ItemsSource is null;
+        ConsolePane.IsVisible = tab == 1;
+        ProblemsEmpty.IsVisible = tab == 2;
+
+        foreach (var (index, panel) in _bottomPanels)
+            panel.IsVisible = index == tab;
+    }
+
+    private void OnConsoleClear(object? sender, RoutedEventArgs e) => _log.Clear();
+
+    private async void OnRunClick(object? sender, RoutedEventArgs e)
+    {
+        if (ProjectPath is not { } path || _workspace.Snapshot is not { } snapshot)
+            return;
+
+        // Вывод сборки и запуска идёт в журнал, и смотреть на него человек
+        // должен без лишнего щелчка.
+        BottomTabs.SelectedIndex = 1;
+        RunButton.IsEnabled = false;
+
+        try
+        {
+            await _runner.RunAsync(snapshot, path);
+        }
+        finally
+        {
+            UpdateRunButtons();
+        }
+    }
+
+    private void OnStopClick(object? sender, RoutedEventArgs e) => _runner.Stop();
+
+    private void UpdateRunButtons()
+    {
+        RunButton.IsEnabled = ProjectPath is not null && !_runner.IsRunning;
+        StopButton.IsEnabled = _runner.IsRunning;
     }
 
     /// <summary>Показывает канву, текст разметки или то и другое.</summary>

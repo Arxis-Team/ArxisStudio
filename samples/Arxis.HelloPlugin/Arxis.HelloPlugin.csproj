@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+        Пример внешнего плагина: ссылается только на SDK, ничего не знает о
+        студии и собирается в раскладку, которую студия умеет устанавливать —
+        plugin.json рядом с bin/.
+    -->
+    <PropertyGroup>
+        <RootNamespace>Arxis.HelloPlugin</RootNamespace>
+        <AssemblyName>Arxis.HelloPlugin</AssemblyName>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <OutputPath>$(MSBuildProjectDirectory)/package/bin/</OutputPath>
+        <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../../src/ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
+    </ItemGroup>
+
+    <!-- Манифест ложится рядом с bin/: package/ и есть папка плагина. -->
+    <Target Name="CopyPluginManifest" AfterTargets="Build">
+        <Copy SourceFiles="plugin.json" DestinationFolder="$(MSBuildProjectDirectory)/package/"/>
+    </Target>
+
+</Project>

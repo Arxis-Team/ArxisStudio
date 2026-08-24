@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Text.Json;
 using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Shell;
@@ -93,6 +94,87 @@ public sealed class PluginCatalog
 
         CopyDirectory(sourceDirectory, target);
         return (Read(target, Path.Combine(target, "plugin.json")), null);
+    }
+
+    /// <summary>
+    /// Устанавливает плагин из архива <c>.axplugin</c> — это обычный zip с той
+    /// же папкой внутри.
+    /// </summary>
+    /// <param name="archivePath">Путь к архиву.</param>
+    /// <returns>Установленный плагин или сообщение, почему установка не состоялась.</returns>
+    /// <remarks>
+    /// Архив распаковывается во временную папку и оттуда устанавливается тем же
+    /// путём, что и папка: проверка манифеста, занятости идентификатора и
+    /// копирование — одни на оба способа, и расходиться им незачем.
+    /// <para>
+    /// Записи, ведущие за пределы папки назначения, отбрасываются: архив —
+    /// файл из чужих рук, и путь вида <c>../../</c> в нём означает не установку,
+    /// а запись куда попало.
+    /// </para>
+    /// </remarks>
+    public (InstalledPlugin? Plugin, string? Error) InstallFromArchive(string archivePath)
+    {
+        if (!File.Exists(archivePath))
+            return (null, $"Архив не найден: {archivePath}");
+
+        var staging = Path.Combine(Path.GetTempPath(), "arxis-plugin-" + Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(staging);
+
+            if (Unpack(archivePath, staging) is { } unpackError)
+                return (null, unpackError);
+
+            // Архив мог быть собран как «папка внутри архива» — тогда манифест
+            // лежит на уровень глубже, и устанавливать надо именно её.
+            var source = File.Exists(Path.Combine(staging, "plugin.json"))
+                ? staging
+                : Directory.GetDirectories(staging).FirstOrDefault(directory =>
+                    File.Exists(Path.Combine(directory, "plugin.json")));
+
+            return source is null
+                ? (null, "В архиве нет plugin.json")
+                : InstallFromDirectory(source);
+        }
+        finally
+        {
+            if (Directory.Exists(staging))
+                Directory.Delete(staging, recursive: true);
+        }
+    }
+
+    private static string? Unpack(string archivePath, string destination)
+    {
+        var root = Path.GetFullPath(destination) + Path.DirectorySeparatorChar;
+
+        try
+        {
+            using var archive = ZipFile.OpenRead(archivePath);
+
+            foreach (var entry in archive.Entries)
+            {
+                var target = Path.GetFullPath(Path.Combine(destination, entry.FullName));
+
+                if (!target.StartsWith(root, StringComparison.Ordinal))
+                    continue;
+
+                if (entry.Name.Length == 0)
+                {
+                    Directory.CreateDirectory(target);
+                    continue;
+                }
+
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                entry.ExtractToFile(target, overwrite: true);
+            }
+
+            return null;
+        }
+        catch (Exception e) when (e is InvalidDataException or IOException or UnauthorizedAccessException)
+        {
+            return $"Архив не читается: {e.Message}";
+        }
     }
 
     /// <summary>Удаляет плагин вместе с его папкой.</summary>

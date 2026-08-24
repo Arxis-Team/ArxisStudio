@@ -1,0 +1,67 @@
+namespace ArxisStudio.Sdk;
+
+/// <summary>
+/// Что студия даёт плагину: журнал, команды и сведения об открытом проекте.
+/// </summary>
+/// <remarks>
+/// Контекст — единственная дорога от плагина к студии. Плагин не ссылается ни
+/// на приложение, ни на его внутренние типы: всё, что ему позволено, перечислено
+/// здесь, и потому список услуг можно расширять, не ломая уже написанные
+/// плагины.
+/// </remarks>
+public interface IStudioContext
+{
+    /// <summary>Журнал студии — то, что видно в панели «Консоль».</summary>
+    IStudioLog Log { get; }
+
+    /// <summary>Команды: регистрация своих и вызов чужих.</summary>
+    IStudioCommands Commands { get; }
+
+    /// <summary>Путь к открытому решению или проекту; null, если проект не открыт.</summary>
+    string? ProjectPath { get; }
+
+    /// <summary>Папка самого плагина — рядом с ней лежат его ресурсы.</summary>
+    string PluginDirectory { get; }
+}
+
+/// <summary>Уровень записи в журнале.</summary>
+public enum StudioLogLevel
+{
+    /// <summary>Подробности для отладки.</summary>
+    Debug,
+
+    /// <summary>Обычное сообщение.</summary>
+    Info,
+
+    /// <summary>Предупреждение.</summary>
+    Warning,
+
+    /// <summary>Ошибка.</summary>
+    Error,
+}
+
+/// <summary>Журнал студии.</summary>
+public interface IStudioLog
+{
+    /// <summary>Пишет строку в журнал.</summary>
+    /// <param name="level">Уровень записи.</param>
+    /// <param name="source">Кто пишет: имя плагина или подсистемы.</param>
+    /// <param name="message">Сообщение.</param>
+    void Write(StudioLogLevel level, string source, string message);
+}
+
+/// <summary>Команды студии.</summary>
+public interface IStudioCommands
+{
+    /// <summary>
+    /// Заявляет обработчик команды, объявленной в манифесте.
+    /// </summary>
+    /// <param name="id">Идентификатор команды.</param>
+    /// <param name="handler">Что сделать по команде.</param>
+    void Register(string id, Action handler);
+
+    /// <summary>Вызывает команду.</summary>
+    /// <param name="id">Идентификатор команды.</param>
+    /// <returns>Нашёлся ли обработчик.</returns>
+    bool Invoke(string id);
+}

@@ -30,12 +30,12 @@
           <Border Background="{DynamicResource AxBg1Brush}" BorderBrush="{DynamicResource AxBrdBrush}"
                   BorderThickness="1" CornerRadius="7" Padding="2">
             <StackPanel Orientation="Horizontal" Spacing="2">
-              <ax:AxButton Classes="icon" ToolTip.Tip="{loc:Loc studio.run}"
-                           AutomationProperties.Name="{loc:Loc studio.run}">
+              <ax:AxButton x:Name="RunButton" Classes="icon" ToolTip.Tip="{loc:Loc studio.run}"
+                           AutomationProperties.Name="{loc:Loc studio.run}" Click="OnRunClick">
                 <ax:AxIcon Data="{x:Static ax:AxIcons.Play}" IsFilled="True" Width="13" Height="13" Foreground="{DynamicResource AxGrnBrush}"/>
               </ax:AxButton>
-              <ax:AxButton Classes="icon" ToolTip.Tip="{loc:Loc studio.stop}" IsEnabled="False"
-                           AutomationProperties.Name="{loc:Loc studio.stop}">
+              <ax:AxButton x:Name="StopButton" Classes="icon" ToolTip.Tip="{loc:Loc studio.stop}" IsEnabled="False"
+                           AutomationProperties.Name="{loc:Loc studio.stop}" Click="OnStopClick">
                 <ax:AxIcon Data="M 4 4 H 12 V 12 H 4 Z" IsFilled="True" Width="10" Height="10" Foreground="{DynamicResource AxFg3Brush}"/>
               </ax:AxButton>
             </StackPanel>
@@ -52,7 +52,7 @@
 
     <!-- Левая зона: Hierarchy + Toolbox (заглушки M1). -->
     <shell:StudioShell.LeftPane>
-      <Grid RowDefinitions="*,1,*">
+      <Grid x:Name="LeftZone" RowDefinitions="*,1,*">
         <ax:AxToolWindow Grid.Row="0" Title="{loc:Loc panel.hierarchy}">
           <ax:AxToolWindow.Actions>
             <StackPanel Orientation="Horizontal" Spacing="2">
@@ -209,7 +209,8 @@
     <shell:StudioShell.BottomPane>
       <ax:AxToolWindow>
         <ax:AxToolWindow.Tabs>
-          <ax:AxTabStrip Theme="{StaticResource AxToolWindowTabStrip}" SelectedIndex="0">
+          <ax:AxTabStrip x:Name="BottomTabs" Theme="{StaticResource AxToolWindowTabStrip}"
+                         SelectionChanged="OnBottomTabChanged">
             <ax:AxTabItem Classes="compact" IsClosable="False" Content="{loc:Loc panel.project}"/>
             <ax:AxTabItem Classes="compact" IsClosable="False" Content="{loc:Loc panel.console}"/>
             <ax:AxTabItem Classes="compact" IsClosable="False" Content="{loc:Loc panel.problems}"/>
@@ -221,6 +222,37 @@
           </ax:AxButton>
         </ax:AxToolWindow.Actions>
         <Panel>
+          <!-- Журнал студии: сборка, запуск и всё, что пишут плагины. -->
+          <DockPanel x:Name="ConsolePane" IsVisible="False">
+            <ax:AxButton DockPanel.Dock="Top" Classes="compact ghost" HorizontalAlignment="Left"
+                         Margin="8,6,0,0" Content="{loc:Loc console.clear}" Click="OnConsoleClear"/>
+            <ScrollViewer x:Name="ConsoleScroll">
+              <ItemsControl x:Name="ConsoleList" Margin="10,4">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="svc:StudioLogEntry">
+                    <StackPanel Orientation="Horizontal" Spacing="8" Height="18">
+                      <TextBlock Classes="mono dimmer" FontSize="11.5" Width="56" Text="{Binding Stamp}"/>
+                      <TextBlock Classes="mono" FontSize="11.5" Width="48" FontWeight="SemiBold"
+                                 Text="{Binding LevelName}"
+                                 Classes.ok="{Binding IsInfo}"
+                                 Classes.warn="{Binding IsWarning}"
+                                 Classes.bad="{Binding IsError}"/>
+                      <TextBlock Classes="mono" FontSize="11.5" Text="{Binding Source}" Width="52"
+                                 Foreground="{DynamicResource AxFg3Brush}"/>
+                      <TextBlock Classes="mono" FontSize="11.5" Text="{Binding Message}"
+                                 TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </DockPanel>
+
+          <TextBlock x:Name="ProblemsEmpty" Classes="dimmer" Text="{loc:Loc panel.problems.none}" FontSize="12"
+                     IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+          <Panel x:Name="BottomPluginHost"/>
+
           <TextBlock x:Name="ProjectEmpty" Classes="dimmer" Text="{loc:Loc panel.project.empty}" FontSize="12"
                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
           <ax:AxTreeView x:Name="ProjectTreeView" DoubleTapped="OnProjectTreeDoubleTapped">
@@ -239,9 +271,10 @@
       </ax:AxToolWindow>
     </shell:StudioShell.BottomPane>
 
-    <!-- Правая зона: Inspector — свойства выделенного элемента. -->
+    <!-- Правая зона: Inspector и панели плагинов под ним. -->
     <shell:StudioShell.RightPane>
-      <ax:AxToolWindow Title="{loc:Loc panel.inspector}">
+      <Grid x:Name="RightZone" RowDefinitions="*">
+      <ax:AxToolWindow Grid.Row="0" Title="{loc:Loc panel.inspector}">
         <ax:AxToolWindow.Actions>
           <ax:AxButton Classes="icon" AutomationProperties.Name="{loc:Loc action.options}">
             <ax:AxIcon Data="{x:Static ax:AxIcons.Settings}" Width="13" Height="13"/>
@@ -334,6 +367,7 @@
           </DockPanel>
         </Panel>
       </ax:AxToolWindow>
+      </Grid>
     </shell:StudioShell.RightPane>
 
     <!-- Статус-бар (26px). -->

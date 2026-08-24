@@ -70,3 +70,6 @@ artifacts/
 # кроме личных переопределений.
 .claude/settings.local.json
 artifacts/
+
+# Собранный пример плагина — раскладка папки плагина, не исходник.
+samples/**/package/

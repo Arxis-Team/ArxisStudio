@@ -122,5 +122,6 @@
   "action.add": "Add",
   "action.find": "Find",
   "action.collapse": "Collapse the panel",
-  "action.options": "Panel options"
+  "action.options": "Panel options",
+  "console.clear": "Clear"
 }
