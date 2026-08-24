@@ -4,7 +4,7 @@ using ArxisStudio.Markup.Xaml;
 using ArxisStudio.Markup.Xaml.Loader;
 using Avalonia.Controls;
 
-namespace ArxisStudio.Services;
+namespace ArxisStudio.Modules.Designer;
 
 /// <summary>Чем правится значение в строке инспектора.</summary>
 public enum InspectorRowKind

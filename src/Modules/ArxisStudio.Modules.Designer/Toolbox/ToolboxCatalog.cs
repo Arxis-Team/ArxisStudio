@@ -1,7 +1,7 @@
 using ArxisStudio.Markup.Xaml;
 using ArxisStudio.Shell.Localization;
 
-namespace ArxisStudio.Services;
+namespace ArxisStudio.Modules.Designer;
 
 /// <summary>Контрол, который палитра умеет вставлять в документ.</summary>
 /// <param name="TypeName">Имя типа, как оно пишется в разметке.</param>

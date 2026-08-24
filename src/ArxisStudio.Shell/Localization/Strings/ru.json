@@ -125,5 +125,8 @@
   "action.options": "Настройки панели",
   "console.clear": "Очистить",
   "menu.tools": "Команды плагинов",
-  "menu.activating": "Поднимаю плагин"
+  "menu.activating": "Поднимаю плагин",
+  "canvas.grid": "Сетка",
+  "canvas.snap": "Привязка",
+  "canvas.zoomreset": "Вернуть 100%"
 }

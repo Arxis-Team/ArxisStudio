@@ -16,6 +16,7 @@ public sealed class PluginContributionRegistry
 {
     private readonly Dictionary<Type, Registration<PropertyDrawer>> _drawers = [];
     private readonly Dictionary<Type, Registration<InspectorEditor>> _inspectors = [];
+    private readonly List<DocumentEditor> _editors = [];
 
     /// <summary>Кто-то попытался занять уже занятый тип.</summary>
     public event EventHandler<string>? Conflict;
@@ -31,8 +32,7 @@ public sealed class PluginContributionRegistry
     {
         ArgumentNullException.ThrowIfNull(plugin);
 
-        if (plugin.Context is not null)
-            Add(plugin.Installed.Id, plugin.Installed.DisplayName, plugin.Context.Assemblies);
+        Add(plugin.Installed.Id, plugin.Installed.DisplayName, plugin.Assemblies, plugin.Installed.Directory, plugin.Studio);
     }
 
     /// <summary>
@@ -41,7 +41,14 @@ public sealed class PluginContributionRegistry
     /// <param name="pluginId">Идентификатор плагина.</param>
     /// <param name="displayName">Как плагин называется в сообщениях.</param>
     /// <param name="assemblies">Сборки, в которых искать вклады.</param>
-    public void Add(string pluginId, string displayName, IEnumerable<Assembly> assemblies)
+    /// <param name="directory">Папка плагина; null, если её нет.</param>
+    /// <param name="studio">Контекст, который получат редакторы документов.</param>
+    public void Add(
+        string pluginId,
+        string displayName,
+        IEnumerable<Assembly> assemblies,
+        string? directory = null,
+        IStudioContext? studio = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
         ArgumentNullException.ThrowIfNull(assemblies);
@@ -54,15 +61,36 @@ public sealed class PluginContributionRegistry
             if (type.GetCustomAttribute<PropertyDrawerAttribute>() is { } drawer &&
                 typeof(PropertyDrawer).IsAssignableFrom(type))
             {
-                Register(_drawers, drawer.ValueType, type, pluginId, displayName, "рисовальщик");
+                Register(_drawers, drawer.ValueType, type, pluginId, displayName, directory, "рисовальщик");
             }
 
             if (type.GetCustomAttribute<CustomInspectorAttribute>() is { } inspector &&
                 typeof(InspectorEditor).IsAssignableFrom(type))
             {
-                Register(_inspectors, inspector.TargetType, type, pluginId, displayName, "инспектор");
+                Register(_inspectors, inspector.TargetType, type, pluginId, displayName, directory, "инспектор");
+            }
+
+            // Редактор документов — единственный вклад, живущий экземпляром:
+            // студия спрашивает его о каждом открываемом файле.
+            if (typeof(DocumentEditor).IsAssignableFrom(type) &&
+                Activator.CreateInstance(type) is DocumentEditor editor)
+            {
+                if (studio is not null)
+                    editor.Attach(studio);
+
+                _editors.Add(editor);
             }
         }
+    }
+
+    /// <summary>Находит редактор, который берётся за файл.</summary>
+    /// <param name="filePath">Путь к файлу.</param>
+    /// <returns>Редактор или null, если за файл никто не взялся.</returns>
+    public DocumentEditor? EditorFor(string filePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+
+        return _editors.FirstOrDefault(editor => editor.CanOpen(filePath));
     }
 
     /// <summary>Убирает вклады плагина, который выключают.</summary>
@@ -109,7 +137,7 @@ public sealed class PluginContributionRegistry
             if (_inspectors.TryGetValue(type, out var registration) &&
                 Activator.CreateInstance(registration.Type) is InspectorEditor editor)
             {
-                return new InspectorMatch(editor, registration.PluginId);
+                return new InspectorMatch(editor, registration.PluginId, registration.Directory);
             }
         }
 
@@ -127,6 +155,7 @@ public sealed class PluginContributionRegistry
         Type type,
         string pluginId,
         string displayName,
+        string? directory,
         string what)
         where T : class
     {
@@ -136,13 +165,14 @@ public sealed class PluginContributionRegistry
             return;
         }
 
-        registry[key] = new Registration<T>(pluginId, type);
+        registry[key] = new Registration<T>(pluginId, type, directory);
     }
 
-    private readonly record struct Registration<T>(string PluginId, Type Type) where T : class;
+    private readonly record struct Registration<T>(string PluginId, Type Type, string? Directory) where T : class;
 }
 
 /// <summary>Найденный инспектор и плагин, который его дал.</summary>
 /// <param name="Editor">Свежий инспектор.</param>
 /// <param name="PluginId">Идентификатор плагина-хозяина.</param>
-public sealed record InspectorMatch(InspectorEditor Editor, string PluginId);
+/// <param name="PluginDirectory">Папка плагина-хозяина, если она известна.</param>
+public sealed record InspectorMatch(InspectorEditor Editor, string PluginId, string? PluginDirectory);

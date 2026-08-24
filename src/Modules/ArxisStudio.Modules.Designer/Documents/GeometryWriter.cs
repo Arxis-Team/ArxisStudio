@@ -3,7 +3,7 @@ using ArxisStudio.Markup.Xaml;
 using Avalonia;
 using Avalonia.Controls;
 
-namespace ArxisStudio.Services;
+namespace ArxisStudio.Modules.Designer;
 
 /// <summary>
 /// Переводит жест на канве в свойства разметки.

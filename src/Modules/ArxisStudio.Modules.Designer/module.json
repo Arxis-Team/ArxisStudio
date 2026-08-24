@@ -1,0 +1,16 @@
+{
+  "id": "arxis.designer",
+  "name": "Дизайнер форм",
+  "version": "1.0.0",
+  "publisher": "Arxis",
+  "description": "Канва с живыми объектами, иерархия, палитра, инспектор и вкладка XAML",
+  "contributions": {
+    "toolWindows": [
+      { "id": "designer.hierarchy", "title": "%panel.hierarchy%", "zone": "left" },
+      { "id": "designer.toolbox", "title": "%panel.toolbox%", "zone": "left" },
+      { "id": "designer.inspector", "title": "%panel.inspector%", "zone": "right" }
+    ],
+    "fileTypes": [ { "ext": ".axaml", "name": "Разметка Avalonia" } ]
+  },
+  "activation": [ "onStartup" ]
+}

@@ -22,6 +22,25 @@ public interface IStudioContext
 
     /// <summary>Папка самого плагина — рядом с ней лежат его ресурсы.</summary>
     string PluginDirectory { get; }
+
+    /// <summary>
+    /// Достаёт службу студии по типу.
+    /// </summary>
+    /// <typeparam name="T">Тип службы — интерфейс или класс.</typeparam>
+    /// <returns>Служба или null, если студия такой не предоставляет.</returns>
+    /// <remarks>
+    /// Так расширяется то, что студия даёт плагину: новая служба — новая
+    /// регистрация, а не новое свойство контекста, ломающее каждую реализацию.
+    /// </remarks>
+    T? GetService<T>() where T : class;
+}
+
+/// <summary>Строка состояния студии.</summary>
+public interface IStudioStatus
+{
+    /// <summary>Показывает сообщение в строке состояния.</summary>
+    /// <param name="message">Что показать.</param>
+    void Show(string message);
 }
 
 /// <summary>Уровень записи в журнале.</summary>

@@ -1,4 +1,5 @@
 using ArxisStudio.Markup.Xaml;
+using ArxisStudio.Modules.Designer;
 using ArxisStudio.Services;
 using Xunit;
 

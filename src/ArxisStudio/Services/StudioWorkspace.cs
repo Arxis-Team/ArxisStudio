@@ -11,7 +11,7 @@ namespace ArxisStudio.Services;
 /// проект за раз и простые ответы — снапшот, диагностики, состояние загрузки.
 /// Всё остальное (провайдеры, запросы, версии) остаётся внутри.
 /// </remarks>
-public sealed class StudioWorkspace : IAsyncDisposable
+public sealed class StudioWorkspace : IAsyncDisposable, Modules.Designer.IDesignerWorkspace
 {
     private readonly ProjectWorkspace _workspace = new(new MSBuildProjectProvider());
 

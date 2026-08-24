@@ -7,7 +7,7 @@ using ArxisStudio.ProjectSystem;
 using ArxisStudio.ProjectSystem.Markup.Xaml;
 using Avalonia.Controls;
 
-namespace ArxisStudio.Services;
+namespace ArxisStudio.Modules.Designer;
 
 /// <summary>
 /// Открытый в дизайнере документ: разметка, живые объекты, дерево элементов и

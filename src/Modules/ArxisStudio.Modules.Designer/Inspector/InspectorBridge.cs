@@ -1,6 +1,6 @@
 using ArxisStudio.Sdk;
 
-namespace ArxisStudio.Services;
+namespace ArxisStudio.Modules.Designer;
 
 /// <summary>
 /// Строка инспектора в том виде, в каком её видит плагин.

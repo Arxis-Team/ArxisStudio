@@ -1,3 +1,4 @@
+using ArxisStudio.Modules.Designer;
 using ArxisStudio.Services;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;

@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.Reflection;
 using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
@@ -9,66 +8,48 @@ using ArxisStudio.Shell.Settings;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
-using Avalonia.VisualTree;
-using AvaloniaEdit.Highlighting;
 using IOPath = System.IO.Path;
 
 namespace ArxisStudio;
 
 /// <summary>
-/// Главное окно студии: панели, канва дизайнера и открытые документы.
+/// Главное окно студии — оболочка: зоны, вкладки документов, панель проекта,
+/// консоль и запуск.
 /// </summary>
+/// <remarks>
+/// Всё, что умеет редактировать, оболочка получает от модулей и плагинов через
+/// SDK: редактор документов открывает вкладки, панели встают в зоны. Дизайнер
+/// форм — встроенный модуль и проходит тем же путём, что и внешний плагин, —
+/// это и есть проверка контракта на себе.
+/// </remarks>
 public partial class MainWindow : Window
 {
+    /// <summary>Сборки встроенных модулей — состав студии.</summary>
+    private static readonly Assembly[] BuiltInModules =
+    [
+        typeof(Modules.Designer.DesignerModule).Assembly,
+    ];
+
     private readonly ISettingsStore? _settings;
     private readonly StudioWorkspace _workspace = new();
-    private readonly List<DesignDocument> _documents = [];
-    private readonly ObservableCollection<InspectorSection> _inspector = [];
+    private readonly List<OpenDocument> _documents = [];
     private readonly StudioLog _log = new();
     private readonly StudioCommands _commands = new();
     private readonly StudioRunner _runner;
+    private readonly PluginContributionRegistry _contributions = new();
     private PluginHost? _plugins;
     private IReadOnlyList<InstalledPlugin> _installed = [];
     private IReadOnlyList<StudioMenuItem> _menu = [];
-    private readonly PluginContributionRegistry _contributions = new();
+    private DocumentView? _active;
 
     // Панели плагинов, разложенные по нижним вкладкам: вкладка знает свой
     // номер, а содержимое лежит в общем месте и показывается по очереди.
     private readonly Dictionary<int, Control> _bottomPanels = [];
-
-    /// <summary>
-    /// Под каким именем контрол палитры едет в перетаскивании.
-    /// </summary>
-    /// <remarks>
-    /// Формат внутрипроцессный: палитра и канва — одно окно, и превращать
-    /// контрол в текст ради дороги длиной в сантиметр незачем.
-    /// </remarks>
-    private static readonly DataFormat<ToolboxItem> ToolboxFormat =
-        DataFormat.CreateInProcessFormat<ToolboxItem>("arxis.toolbox.item");
-
-    // Выбор в дереве и на канве синхронизируются в обе стороны, и каждый из них
-    // поднимает событие другого. Флаг гасит это эхо.
-    private bool _syncingSelection;
-
-    // Заполнение полей инспектора поднимает те же события, что и правка
-    // человеком. Флаг отличает одно от другого.
-    private bool _fillingInspector;
-
-    private HierarchyNode? _selected;
-
-    // Правка текста доходит до документа не с каждым нажатием клавиши: пока
-    // человек набирает, разметка почти всегда сломана.
-    private readonly DispatcherTimer _xamlIdle = new() { Interval = TimeSpan.FromMilliseconds(700) };
-
-    // Текст в редакторе и текст документа обновляют друг друга, и каждое
-    // обновление поднимает событие другого. Флаг гасит это эхо.
-    private bool _fillingEditor;
 
     /// <summary>Создаёт окно без проекта — состояние каркаса.</summary>
     public MainWindow()
@@ -78,30 +59,13 @@ public partial class MainWindow : Window
         // поднимает событие ещё во время разбора, когда полей окна нет и в
         // помине.
         ThemeSwitch.SelectedIndex = Application.Current?.ActualThemeVariant == ThemeVariant.Light ? 1 : 0;
-        ViewSwitch.SelectedIndex = 0;
         BottomTabs.SelectedIndex = 0;
-        InspectorSections.ItemsSource = _inspector;
 
         _runner = new StudioRunner(_log);
         _runner.StateChanged += (_, _) => UpdateRunButtons();
 
         ConsoleList.ItemsSource = _log.Entries;
         _log.Entries.CollectionChanged += (_, _) => ConsoleScroll.ScrollToEnd();
-
-        // Приём перетаскивания — присоединённые события, и в разметке их
-        // атрибутом не назначить.
-        DragDrop.AddDragOverHandler(Designer, OnDesignerDragOver);
-        DragDrop.AddDropHandler(Designer, OnDesignerDrop);
-
-        XamlEditor.TextChanged += OnXamlTextChanged;
-        XamlEditor.LostFocus += OnXamlLostFocus;
-        _xamlIdle.Tick += async (_, _) => await ApplyXamlAsync();
-
-        ApplyXamlColors();
-        ActualThemeVariantChanged += (_, _) => ApplyXamlColors();
-
-        CanvasDots.Loaded += (_, _) => ApplyDotGrid();
-        ActualThemeVariantChanged += (_, _) => ApplyDotGrid();
 
         // Системная рамка окна красится отдельно от содержимого: сама она
         // цвета темы не знает.
@@ -133,11 +97,6 @@ public partial class MainWindow : Window
     /// <summary>Путь к открытому решению или проекту; null, если проект не открыт.</summary>
     public string? ProjectPath { get; }
 
-    private DesignDocument? ActiveDocument =>
-        DocumentTabs.SelectedIndex >= 0 && DocumentTabs.SelectedIndex < _documents.Count
-            ? _documents[DocumentTabs.SelectedIndex]
-            : null;
-
     private async Task OpenProjectAsync(string path)
     {
         StatusText.Text = Localizer.Instance["editor.opening"];
@@ -168,8 +127,59 @@ public partial class MainWindow : Window
 
         StatusText.Text = path;
 
-        LoadPlugins();
+        LoadModulesAndPlugins();
         UpdateRunButtons();
+    }
+
+    /// <summary>
+    /// Поднимает встроенные модули, а за ними — включённые плагины.
+    /// </summary>
+    /// <remarks>
+    /// Путь у них один: и модуль, и плагин активируются общим контрактом,
+    /// заявляют панели и редакторы, попадают в реестр вкладов. Разница только в
+    /// доставке — модуль приезжает со студией и живёт в основном контексте.
+    /// </remarks>
+    private void LoadModulesAndPlugins()
+    {
+        var services = new Dictionary<Type, object>
+        {
+            [typeof(Modules.Designer.IDesignerWorkspace)] = _workspace,
+            [typeof(IStudioStatus)] = new StatusSink(StatusText),
+            [typeof(PluginContributionRegistry)] = _contributions,
+        };
+
+        var catalog = new PluginCatalog();
+        var host = new PluginHost(new StudioContextFactory(_log, _commands, ProjectPath, services));
+
+        _plugins = host;
+        _installed = catalog.Scan();
+        _contributions.Conflict += (_, message) => _log.Write(StudioLogLevel.Warning, "Plugins", message);
+
+        var raised = BuiltInModules.Select(host.LoadBuiltIn)
+            .Concat(host.LoadStartup(_installed));
+
+        foreach (var loaded in raised)
+            Accept(loaded);
+
+        foreach (var waiting in host.Deferred)
+            _log.Write(StudioLogLevel.Debug, "Plugins", $"{waiting.DisplayName} ждёт своего события");
+
+        ShowMenu();
+    }
+
+    /// <summary>Принимает поднятый модуль или плагин: вклады и панели.</summary>
+    private void Accept(LoadedPlugin loaded)
+    {
+        if (loaded.Error is { } error)
+        {
+            _log.Write(StudioLogLevel.Error, "Plugins", $"{loaded.Installed.DisplayName}: {error}");
+            return;
+        }
+
+        _log.Write(StudioLogLevel.Info, "Plugins", $"{loaded.Installed.DisplayName} поднят");
+
+        _contributions.Add(loaded);
+        MountPanels(loaded);
     }
 
     private async void OnProjectTreeDoubleTapped(object? sender, TappedEventArgs e)
@@ -177,19 +187,13 @@ public partial class MainWindow : Window
         if (ProjectTreeView.SelectedItem is not ProjectNode { IsFile: true } node)
             return;
 
-        if (!node.IsDesignable)
-        {
-            StatusText.Text = Localizer.Instance["editor.nodesigner"];
-            return;
-        }
-
         await OpenDocumentAsync(node.FullPath);
     }
 
     private async Task OpenDocumentAsync(string filePath)
     {
-        var existing = _documents.FindIndex(d =>
-            string.Equals(d.FilePath, filePath, StringComparison.OrdinalIgnoreCase));
+        var existing = _documents.FindIndex(document =>
+            string.Equals(document.Path, filePath, StringComparison.OrdinalIgnoreCase));
 
         if (existing >= 0)
         {
@@ -197,35 +201,31 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_workspace.Snapshot is not { } snapshot || _workspace.FindProjectForFile(filePath) is not { } project)
+        // Открытие файла — тоже событие: плагин, объявивший его тип, ждал
+        // именно этого.
+        Activate(waiting => PluginActivation.WaitsForFileType(waiting.Manifest, IOPath.GetExtension(filePath)));
+
+        if (_contributions.EditorFor(filePath) is not { } editor)
         {
-            StatusText.Text = Localizer.Instance["editor.loadfailed"];
+            StatusText.Text = Localizer.Instance["editor.nodesigner"];
             return;
         }
 
         StatusText.Text = Localizer.Instance["editor.loading"];
 
-        // Открытие файла — тоже событие: плагин, объявивший его тип, ждал
-        // именно этого.
-        Activate(waiting => PluginActivation.WaitsForFileType(waiting.Manifest, IOPath.GetExtension(filePath)));
+        var (view, error) = await editor.OpenAsync(filePath);
 
-        // Живые объекты создаются на потоке интерфейса — иначе загрузчик
-        // откажется их отдавать.
-        var (document, error) = await DesignDocument.OpenAsync(filePath, snapshot, project);
-
-        if (document is null)
+        if (view is null)
         {
             StatusText.Text = $"{Localizer.Instance["editor.loadfailed"]}: {error}";
             return;
         }
 
-        _documents.Add(document);
-        document.Reloaded += OnDocumentReloaded;
-        document.Changed += OnDocumentChanged;
+        _documents.Add(new OpenDocument(filePath, view));
 
         DocumentTabs.Items.Add(new AxTabItem
         {
-            Content = document.FileName,
+            Content = view.Title,
             Icon = AxIcons.Window,
             IconBrush = this.FindResource("AxAccBrush") as IBrush,
         });
@@ -238,193 +238,23 @@ public partial class MainWindow : Window
 
     private void ShowActiveDocument()
     {
-        ShowInspector(null);
-        ShowToolbox();
+        var view = DocumentTabs.SelectedIndex >= 0 && DocumentTabs.SelectedIndex < _documents.Count
+            ? _documents[DocumentTabs.SelectedIndex].View
+            : null;
 
-        if (ActiveDocument is not { } document)
-        {
-            DesignerForm.Content = null;
-            Designer.IsVisible = false;
-            ViewBar.IsVisible = false;
-            CanvasHint.IsVisible = true;
-            HierarchyTree.ItemsSource = null;
-            HierarchyEmpty.IsVisible = true;
-            return;
-        }
-
-        DesignerForm.Content = document.Surface;
-        DesignerForm.Width = double.IsNaN(document.Surface.Width) ? 1280 : document.Surface.Width;
-        DesignerForm.Height = double.IsNaN(document.Surface.Height) ? 800 : document.Surface.Height;
-
-        Designer.IsVisible = true;
-        CanvasHint.IsVisible = document.IsEmpty;
-
-        HierarchyTree.ItemsSource = document.Nodes;
-        HierarchyEmpty.IsVisible = document.Nodes.Count == 0;
-
-        ExpandHierarchyRoot(document);
-
-        ViewBar.IsVisible = true;
-        FormSize.Text = $"{DesignerForm.Width:0} × {DesignerForm.Height:0}";
-        ApplyView();
-
-        StatusText.Text = document.FilePath;
-    }
-
-    private void OnDesignerSelectionChanged(object? sender, DesignSelectionChangedEventArgs e)
-    {
-        if (_syncingSelection || ActiveDocument is not { } document)
+        if (ReferenceEquals(_active, view))
             return;
 
-        _syncingSelection = true;
-        try
-        {
-            if (e.NewPrimary is { } target)
-            {
-                var path = document.FindPath(target.Target);
+        _active?.OnDeactivated();
+        _active = view;
 
-                RevealInHierarchy(path);
-                ShowInspector(path.Count > 0 ? path[^1] : null);
-                StatusText.Text = $"{Localizer.Instance["status.selected"]}: {target.DisplayName}";
-            }
-            else
-            {
-                HierarchyTree.SelectedItem = null;
-                ShowInspector(null);
-                StatusText.Text = document.FilePath;
-            }
-        }
-        finally
-        {
-            _syncingSelection = false;
-        }
-    }
+        DocumentHost.Content = view?.Content;
+        CanvasHint.IsVisible = view is null;
 
-    /// <summary>
-    /// Показывает узел в дереве: раскрывает предков и выделяет сам узел.
-    /// Контейнеры строк создаются по мере раскрытия, поэтому спускаться
-    /// приходится шаг за шагом.
-    /// </summary>
-    private void RevealInHierarchy(IReadOnlyList<HierarchyNode> path)
-    {
-        if (path.Count == 0)
-        {
-            HierarchyTree.SelectedItem = null;
-            return;
-        }
+        view?.OnActivated();
 
-        ItemsControl parent = HierarchyTree;
-
-        for (var i = 0; i < path.Count - 1; i++)
-        {
-            if (parent.ContainerFromItem(path[i]) is not TreeViewItem container)
-                break;
-
-            container.IsExpanded = true;
-            container.UpdateLayout();
-            parent = container;
-        }
-
-        HierarchyTree.SelectedItem = path[^1];
-    }
-
-    private void OnHierarchySelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_syncingSelection || HierarchyTree.SelectedItem is not HierarchyNode node)
-            return;
-
-        _syncingSelection = true;
-        try
-        {
-            ShowInspector(node);
-
-            if (node.Control is { } control)
-                Designer.SelectDesignTarget(control);
-        }
-        finally
-        {
-            _syncingSelection = false;
-        }
-    }
-
-    /// <summary>
-    /// Жест на канве закончился: переносим новую геометрию в разметку.
-    /// </summary>
-    /// <remarks>
-    /// Канва уже подвинула объекты — событие приходит после, а не вместо. Наше
-    /// дело записать то же самое в документ, иначе перетаскивание жило бы до
-    /// первой пересборки.
-    /// </remarks>
-    private async void OnDesignerEditCompleted(object? sender, DesignEditCompletedEventArgs e)
-    {
-        if (ActiveDocument is not { } document)
-            return;
-
-        foreach (var change in e.Changes.OfType<DesignGeometryChange>())
-        {
-            if (document.FindNode(change.Target) is not { } node)
-                continue;
-
-            var values = GeometryWriter.Describe(node, change.OldBounds, change.NewBounds);
-
-            if (values.Count == 0)
-                continue;
-
-            var error = await document.SetAttributesAsync(node, values, $"{node.DisplayName}: {e.Kind}");
-
-            StatusText.Text = error ?? $"{node.DisplayName}: {string.Join(", ", values.Select(value => $"{value.Name}={value.Text}"))}";
-        }
-
-        if (_selected is { } selected)
-        {
-            _fillingInspector = true;
-            try
-            {
-                InspectorModel.Refresh(_inspector, selected, document.Session);
-            }
-            finally
-            {
-                _fillingInspector = false;
-            }
-        }
-
-        UpdateHistoryButtons();
-    }
-
-    /// <summary>
-    /// Поднимает включённые плагины.
-    /// </summary>
-    /// <remarks>
-    /// Плагины поднимаются после того, как проект открыт: контекст сообщает им
-    /// путь проекта, и поднимать их раньше значило бы отдавать пустой.
-    /// </remarks>
-    private void LoadPlugins()
-    {
-        var catalog = new PluginCatalog();
-        var host = new PluginHost(new StudioContextFactory(_log, _commands, ProjectPath));
-
-        _plugins = host;
-        _installed = catalog.Scan();
-        _contributions.Conflict += (_, message) => _log.Write(StudioLogLevel.Warning, "Plugins", message);
-
-        foreach (var loaded in host.LoadStartup(_installed))
-        {
-            if (loaded.Error is { } error)
-            {
-                _log.Write(StudioLogLevel.Error, "Plugins", $"{loaded.Installed.DisplayName}: {error}");
-                continue;
-            }
-
-            _log.Write(StudioLogLevel.Info, "Plugins", $"{loaded.Installed.DisplayName} поднят");
-
-            _contributions.Add(loaded);
-            MountPanels(loaded);
-        }
-
-        foreach (var waiting in host.Deferred)
-            _log.Write(StudioLogLevel.Debug, "Plugins", $"{waiting.DisplayName} ждёт своего события");
-
-        ShowMenu();
+        if (view is not null)
+            StatusText.Text = _documents[DocumentTabs.SelectedIndex].Path;
     }
 
     /// <summary>
@@ -491,22 +321,13 @@ public partial class MainWindow : Window
         {
             _log.Write(StudioLogLevel.Info, "Plugins", $"{Localizer.Instance["menu.activating"]}: {waiting.DisplayName}");
 
-            if (host.Activate(waiting.Id) is not { } loaded)
-                continue;
-
-            if (loaded.Error is { } error)
-            {
-                _log.Write(StudioLogLevel.Error, "Plugins", $"{loaded.Installed.DisplayName}: {error}");
-                continue;
-            }
-
-            _contributions.Add(loaded);
-            MountPanels(loaded);
+            if (host.Activate(waiting.Id) is { } loaded)
+                Accept(loaded);
         }
     }
 
     /// <summary>
-    /// Ставит панели плагина в объявленные зоны.
+    /// Ставит панели модуля или плагина в объявленные зоны.
     /// </summary>
     /// <remarks>
     /// Зону и заголовок берём из манифеста, а сам класс панели — из сборки по
@@ -515,10 +336,10 @@ public partial class MainWindow : Window
     /// </remarks>
     private void MountPanels(LoadedPlugin loaded)
     {
-        if (loaded.Installed.Manifest is not { } manifest || loaded.Context is null)
+        if (loaded.Installed.Manifest is not { } manifest || loaded.Studio is not { } studio)
             return;
 
-        var panels = loaded.Context.Assemblies
+        var panels = loaded.Assemblies
             .SelectMany(assembly => assembly.GetTypes())
             .Where(type => type is { IsAbstract: false, IsPublic: true } && typeof(Sdk.ToolWindow).IsAssignableFrom(type))
             .Select(type => (Type: type, Attribute: type.GetCustomAttribute<ToolWindowAttribute>()))
@@ -537,7 +358,7 @@ public partial class MainWindow : Window
             if (Activator.CreateInstance(type) is not Sdk.ToolWindow panel)
                 continue;
 
-            panel.Attach(new StudioContext(_log, _commands, ProjectPath, loaded.Installed.Directory));
+            panel.Attach(studio);
             Mount(declared.Zone, declared.Title, panel.Content);
         }
     }
@@ -545,13 +366,16 @@ public partial class MainWindow : Window
     /// <summary>Ставит содержимое панели в зону студии.</summary>
     private void Mount(string zone, string title, Control content)
     {
-        var window = new AxToolWindow { Title = title, Content = content };
+        var window = new AxToolWindow { Content = content };
+
+        SetTitle(window, title);
 
         switch (zone.ToLowerInvariant())
         {
             case "bottom":
-                var tab = new AxTabItem { Classes = { "compact" }, IsClosable = false, Content = title };
+                var tab = new AxTabItem { Classes = { "compact" }, IsClosable = false };
 
+                SetTabTitle(tab, title);
                 BottomTabs.Items.Add(tab);
                 BottomPluginHost.Children.Add(content);
 
@@ -568,23 +392,67 @@ public partial class MainWindow : Window
                 break;
         }
 
-        _log.Write(StudioLogLevel.Debug, "Plugins", $"Панель «{title}» встала в зону {zone}");
+        _log.Write(StudioLogLevel.Debug, "Plugins", $"Панель «{Resolve(title)}» встала в зону {zone}");
     }
+
+    /// <summary>
+    /// Ставит заголовок панели, переводя ключ вида <c>%panel.hierarchy%</c>.
+    /// </summary>
+    /// <remarks>
+    /// Заголовок из манифеста — единственный текст панели, который пишет не её
+    /// автор, а студия, поэтому и переводить его при смене языка — забота студии.
+    /// </remarks>
+    private static void SetTitle(AxToolWindow window, string title)
+    {
+        if (Key(title) is { } key)
+        {
+            window.Bind(
+                AxToolWindow.TitleProperty,
+                new Avalonia.Data.Binding(nameof(LocalizedString.Value)) { Source = Localizer.Instance.Track(key) });
+        }
+        else
+        {
+            window.Title = title;
+        }
+    }
+
+    private static void SetTabTitle(AxTabItem tab, string title)
+    {
+        if (Key(title) is { } key)
+        {
+            tab.Bind(
+                ContentControl.ContentProperty,
+                new Avalonia.Data.Binding(nameof(LocalizedString.Value)) { Source = Localizer.Instance.Track(key) });
+        }
+        else
+        {
+            tab.Content = title;
+        }
+    }
+
+    private static string? Key(string title) =>
+        title.Length > 2 && title[0] == '%' && title[^1] == '%' ? title[1..^1] : null;
+
+    private static string Resolve(string title) =>
+        Key(title) is { } key ? Localizer.Instance[key] : title;
 
     /// <summary>
     /// Добавляет панель новой строкой сетки, отделив её от соседей.
     /// </summary>
     private static void Append(Grid zone, Control panel)
     {
-        zone.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        if (zone.RowDefinitions.Count > 0)
+        {
+            zone.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+
+            var divider = new AxDivider();
+
+            Grid.SetRow(divider, zone.RowDefinitions.Count - 1);
+            zone.Children.Add(divider);
+        }
+
         zone.RowDefinitions.Add(new RowDefinition(new GridLength(1, GridUnitType.Star)));
-
-        var divider = new AxDivider();
-
-        Grid.SetRow(divider, zone.RowDefinitions.Count - 2);
         Grid.SetRow(panel, zone.RowDefinitions.Count - 1);
-
-        zone.Children.Add(divider);
         zone.Children.Add(panel);
     }
 
@@ -631,669 +499,16 @@ public partial class MainWindow : Window
         StopButton.IsEnabled = _runner.IsRunning;
     }
 
-    /// <summary>Показывает канву, текст разметки или то и другое.</summary>
-    private void OnViewChanged(object? sender, SelectionChangedEventArgs e) => ApplyView();
-
-    private void ApplyView()
-    {
-        var mode = ViewSwitch.SelectedIndex;
-        var design = mode != 1;
-        var xaml = mode != 0;
-
-        EditorSplit.ColumnDefinitions[0].Width = new GridLength(design ? 1 : 0, design ? GridUnitType.Star : GridUnitType.Pixel);
-        EditorSplit.ColumnDefinitions[1].Width = new GridLength(design && xaml ? 4 : 0, GridUnitType.Pixel);
-        EditorSplit.ColumnDefinitions[2].Width = new GridLength(xaml ? 1 : 0, xaml ? GridUnitType.Star : GridUnitType.Pixel);
-
-        XamlSplitter.IsVisible = design && xaml;
-        XamlHost.IsVisible = xaml;
-
-        if (xaml)
-            ShowXaml();
-    }
-
-    /// <summary>Перечитывает текст редактора из документа.</summary>
-    /// <remarks>
-    /// Позиция каретки восстанавливается: правка из инспектора не должна
-    /// уводить взгляд с того места, где человек читал разметку.
-    /// </remarks>
-    private void ShowXaml()
-    {
-        if (ActiveDocument is not { } document)
-            return;
-
-        var text = document.Text;
-
-        if (string.Equals(XamlEditor.Text, text, StringComparison.Ordinal))
-            return;
-
-        var caret = XamlEditor.CaretOffset;
-
-        _fillingEditor = true;
-        try
-        {
-            XamlEditor.Text = text;
-            XamlEditor.CaretOffset = Math.Min(caret, text.Length);
-        }
-        finally
-        {
-            _fillingEditor = false;
-        }
-    }
-
-    private void OnXamlTextChanged(object? sender, EventArgs e)
-    {
-        if (_fillingEditor)
-            return;
-
-        _xamlIdle.Stop();
-        _xamlIdle.Start();
-    }
-
-    private async void OnXamlLostFocus(object? sender, RoutedEventArgs e) => await ApplyXamlAsync();
-
-    private async Task ApplyXamlAsync()
-    {
-        _xamlIdle.Stop();
-
-        if (_fillingEditor || ActiveDocument is not { } document)
-            return;
-
-        var error = await document.SetTextAsync(XamlEditor.Text, "Правка разметки");
-
-        if (error is not null)
-        {
-            StatusText.Text = error;
-            return;
-        }
-
-        StatusText.Text = Localizer.Instance["xaml.applied"];
-        UpdateHistoryButtons();
-    }
-
-    /// <summary>
-    /// Красит разметку в цвета темы.
-    /// </summary>
-    /// <remarks>
-    /// Готовая подсветка XML приходит со своими цветами, рассчитанными на белый
-    /// фон, и рядом с тёмной темой студии выглядит чужой. Сами правила разбора
-    /// при этом верные, поэтому меняются только цвета — и меняются заново при
-    /// каждой смене темы.
-    /// </remarks>
-    private void ApplyXamlColors()
-    {
-        if (HighlightingManager.Instance.GetDefinition("XML") is not { } definition)
-            return;
-
-        Paint(definition, "Comment", "AxFg3Brush");
-        Paint(definition, "XmlTag", "AxAccBrush");
-        Paint(definition, "AttributeName", "AxPurBrush");
-        Paint(definition, "AttributeValue", "AxGrnBrush");
-        Paint(definition, "XmlDeclaration", "AxFg3Brush");
-        Paint(definition, "DocType", "AxFg3Brush");
-        Paint(definition, "CData", "AxYelBrush");
-        Paint(definition, "Entity", "AxYelBrush");
-
-        XamlEditor.SyntaxHighlighting = definition;
-
-        void Paint(IHighlightingDefinition target, string name, string resource)
-        {
-            if (target.GetNamedColor(name) is { } color &&
-                this.TryFindResource(resource, ActualThemeVariant, out var value) &&
-                value is ISolidColorBrush brush)
-            {
-                color.Foreground = new SimpleHighlightingBrush(brush.Color);
-            }
-        }
-    }
-
-    /// <summary>Перечитывает палитру под открытый документ.</summary>
-    private void ShowToolbox()
-    {
-        var root = ActiveDocument?.Document?.Root;
-        var groups = ToolboxCatalog.For(root, ToolboxSearch.Text);
-
-        ToolboxGroups.ItemsSource = groups;
-        ToolboxBody.IsVisible = root is not null;
-        ToolboxEmpty.IsVisible = root is null;
-    }
-
-    private void OnToolboxSearchChanged(object? sender, TextChangedEventArgs e) => ShowToolbox();
-
-    /// <summary>
-    /// Пускает контрол палитры в дело: двойным щелчком — в выделенный элемент,
-    /// перетаскиванием — туда, куда его отпустят.
-    /// </summary>
-    /// <remarks>
-    /// Оба способа начинаются здесь, потому что перетаскивание можно начать
-    /// только с события нажатия, а начатое — оно забирает указатель себе, и
-    /// второй щелчок до палитры уже не доходит. Поэтому нажатия и различаются
-    /// по счётчику: двойное — вставка, одиночное — начало перетаскивания.
-    /// </remarks>
-    private async void OnToolboxItemPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (sender is not Control { DataContext: ToolboxItem item })
-            return;
-
-        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
-            return;
-
-        if (e.ClickCount >= 2)
-        {
-            await InsertAsync(item, _selected ?? ActiveDocument?.Nodes.FirstOrDefault(), placement: "");
-            return;
-        }
-
-        var transfer = new DataTransfer();
-        transfer.Add(DataTransferItem.Create(ToolboxFormat, item));
-
-        await DragDrop.DoDragDropAsync(e, transfer, DragDropEffects.Copy);
-    }
-
-    private void OnDesignerDragOver(object? sender, DragEventArgs e) =>
-        e.DragEffects = e.DataTransfer.Contains(ToolboxFormat) && ActiveDocument is not null
-            ? DragDropEffects.Copy
-            : DragDropEffects.None;
-
-    private async void OnDesignerDrop(object? sender, DragEventArgs e)
-    {
-        if (e.DataTransfer.TryGetValue(ToolboxFormat) is not { } item || ActiveDocument is not { } document)
-            return;
-
-        var point = e.GetPosition(DesignerForm);
-        var target = FindDropTarget(document, point);
-
-        if (target is null)
-        {
-            StatusText.Text = Localizer.Instance["toolbox.nowhere"];
-            return;
-        }
-
-        // На Canvas контрол ложится туда, где его отпустили; в остальных
-        // раскладках место ему отводит родитель, и координаты только мешали бы.
-        var placement = "";
-
-        if (target.Control is Canvas canvas && PointIn(document, canvas, point) is { } local)
-            placement = $"Canvas.Left=\"{Math.Round(local.X)}\" Canvas.Top=\"{Math.Round(local.Y)}\"";
-
-        await InsertAsync(item, target, placement);
-    }
-
-    private async Task InsertAsync(ToolboxItem item, HierarchyNode? parent, string placement)
-    {
-        if (ActiveDocument is not { } document || parent is null)
-            return;
-
-        if (!CanHold(parent))
-        {
-            StatusText.Text = Localizer.Instance["toolbox.nowhere"];
-            return;
-        }
-
-        if (ToolboxCatalog.Markup(item, parent.Element, placement) is not { } markup)
-        {
-            StatusText.Text = $"{Localizer.Instance["toolbox.nonamespace"]}: {item.TypeName}";
-            return;
-        }
-
-        var path = parent.Path;
-        var error = await document.InsertAsync(parent, -1, markup, $"Вставить {item.TypeName}");
-
-        StatusText.Text = error
-            ?? $"{Localizer.Instance["toolbox.inserted"]}: {item.TypeName} → {parent.DisplayName}";
-
-        // Вставка перестраивает дерево, поэтому прежние узлы больше не те:
-        // родителя приходится искать заново, зато вставленный контрол сразу
-        // виден и выделен — иначе после вставки не за что взяться.
-        if (error is null && document.FindByPath(path)?.Children.LastOrDefault() is { } inserted)
-            Select(inserted);
-
-        UpdateHistoryButtons();
-    }
-
-    /// <summary>Выделяет узел и на канве, и в дереве.</summary>
-    private void Select(HierarchyNode node)
-    {
-        _syncingSelection = true;
-        try
-        {
-            RevealInHierarchy(ActiveDocument?.FindPath(node.Control) ?? []);
-            ShowInspector(node);
-
-            if (node.Control is { } control)
-                Designer.SelectDesignTarget(control);
-        }
-        finally
-        {
-            _syncingSelection = false;
-        }
-    }
-
-    /// <summary>
-    /// Находит элемент документа под точкой канвы.
-    /// </summary>
-    /// <remarks>
-    /// Обычная проверка попадания тут не работает: в режиме показа готовой формы
-    /// её содержимое не участвует в проверке попадания — иначе документ ловил бы
-    /// щелчки вместо редактора. Поэтому попадание считается по прямоугольникам,
-    /// как это делает и сама канва, и побеждает самый глубокий элемент, который
-    /// вообще может кого-то в себе держать.
-    /// </remarks>
-    private HierarchyNode? FindDropTarget(DesignDocument document, Point point)
-    {
-        HierarchyNode? found = null;
-
-        Walk(document.Nodes);
-        return found;
-
-        void Walk(IEnumerable<HierarchyNode> nodes)
-        {
-            foreach (var node in nodes)
-            {
-                // Корень документа — окно, а окно частью чужого дерева не
-                // бывает: на канве лежит его содержимое. Точку к нему не
-                // пересчитать, но идти вглубь это не мешает.
-                if (node.Control is { IsVisible: true } control &&
-                    PointIn(document, control, point) is { } local)
-                {
-                    if (!new Rect(control.Bounds.Size).Contains(local))
-                        continue;
-
-                    if (CanHold(node))
-                        found = node;
-                }
-
-                Walk(node.Children);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Пересчитывает точку формы в координаты контрола документа.
-    /// </summary>
-    /// <param name="document">Открытый документ — он владеет поверхностью показа.</param>
-    /// <param name="control">Контрол внутри показанной формы.</param>
-    /// <param name="point">Точка в координатах <c>DesignerForm</c>.</param>
-    /// <returns>Точка в координатах контрола или null, если он не в этой форме.</returns>
-    /// <remarks>
-    /// Готовый пересчёт координат тут неприменим: содержимое документа
-    /// принадлежит своему окну, а не нашему, и <c>TranslatePoint</c> через эту
-    /// границу возвращает пустоту. Зато внутри самого документа прямоугольник
-    /// каждого контрола задан относительно его визуального родителя, и цепочку
-    /// до поверхности можно сложить самим. Дальше поверхности идти не нужно и
-    /// нельзя: она занимает форму целиком, а выше начинается чужая система
-    /// координат, к которой эти прямоугольники отношения не имеют.
-    /// </remarks>
-    private static Point? PointIn(DesignDocument document, Control control, Point point)
-    {
-        var offset = new Point();
-
-        for (Visual? visual = control; visual is not null; visual = visual.GetVisualParent())
-        {
-            if (ReferenceEquals(visual, document.Surface))
-                return point - offset;
-
-            offset += visual.Bounds.Position;
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Может ли элемент принять в себя ещё один контрол.
-    /// </summary>
-    /// <remarks>
-    /// Панель держит сколько угодно детей, а рамка и контрол с содержимым —
-    /// ровно одного, и то если он ещё не занят: ни вложенным элементом, ни
-    /// значением, записанным атрибутом.
-    /// </remarks>
-    private static bool CanHold(HierarchyNode node) => node.Control switch
-    {
-        Panel => true,
-        Decorator => IsFree(node, "Child"),
-        ContentControl => IsFree(node, "Content"),
-        _ => false,
-    };
-
-    private static bool IsFree(HierarchyNode node, string member) =>
-        !node.Element.ContentElements.Any() &&
-        node.Element.GetAttribute(member) is null;
-
-    private async void OnDesignerDeleteRequested(object? sender, DesignEditorDeleteRequestedEventArgs e)
-    {
-        if (ActiveDocument is not { } document)
-            return;
-
-        // Флаг читают сразу после возврата из обработчика, то есть до первого
-        // ожидания: поставить его позже — значит не поставить вовсе.
-        e.Handled = true;
-
-        foreach (var target in e.Targets)
-        {
-            if (document.FindNode(target.Target) is not { } node)
-                continue;
-
-            var error = await document.RemoveAsync(node);
-
-            StatusText.Text = error ?? $"{Localizer.Instance["structure.deleted"]}: {node.DisplayName}";
-        }
-
-        UpdateHistoryButtons();
-    }
-
-    private async void OnDesignerReorderRequested(object? sender, DesignEditorReorderRequestedEventArgs e)
-    {
-        if (ActiveDocument is not { } document || document.FindNode(e.Target) is not { } node)
-            return;
-
-        e.Handled = true;
-
-        var error = await document.MoveAsync(node, e.NewIndex);
-
-        StatusText.Text = error ?? $"{Localizer.Instance["structure.moved"]}: {node.DisplayName}";
-        UpdateHistoryButtons();
-    }
-
-    /// <summary>Показывает в инспекторе свойства узла; null очищает панель.</summary>
-    private void ShowInspector(HierarchyNode? node)
-    {
-        _selected = node;
-        _inspector.Clear();
-
-        // Панель плагина живёт ровно одно выделение: следующий элемент может
-        // быть другого типа, и чужой инспектор о нём ничего не знает.
-        InspectorCustom.Content = null;
-        InspectorCustom.IsVisible = false;
-        InspectorSections.IsVisible = true;
-
-        if (node is null || ActiveDocument is not { } document)
-        {
-            InspectorBody.IsVisible = false;
-            InspectorEmpty.IsVisible = true;
-            return;
-        }
-
-        _fillingInspector = true;
-        try
-        {
-            foreach (var section in InspectorModel.Build(node, document.Session))
-                _inspector.Add(section);
-
-            Draw(node);
-        }
-        finally
-        {
-            _fillingInspector = false;
-        }
-
-        InspectorTitle.Text = node.DisplayName;
-        InspectorType.Text = node.Control?.GetType().FullName ?? node.TypeName;
-
-        InspectorBody.IsVisible = true;
-        InspectorEmpty.IsVisible = false;
-
-        UpdateHistoryButtons();
-    }
-
-    /// <summary>
-    /// Отдаёт строки рисовальщикам плагинов.
-    /// </summary>
-    /// <remarks>
-    /// Рисовальщик получает не копию значения, а саму строку: правка из его
-    /// контрола идёт тем же путём, что и правка из поля ввода — через документ,
-    /// с проверкой и в общую историю.
-    /// </remarks>
-    private void Draw(HierarchyNode node)
-    {
-        if (_contributions.DrawnTypes.Count == 0)
-            return;
-
-        var contexts = new List<Sdk.IPropertyContext>();
-
-        foreach (var row in _inspector.SelectMany(section => section.Rows))
-        {
-            var context = new RowPropertyContext(row, CommitAsync);
-
-            contexts.Add(context);
-
-            if (row.ValueType is { } type && _contributions.DrawerFor(type) is { } drawer)
-                row.Drawer = Safely(() => drawer.Build(context), row.Name);
-        }
-
-        ShowCustomInspector(node, contexts);
-    }
-
-    /// <summary>
-    /// Подменяет содержимое инспектора панелью плагина, если он взялся за этот
-    /// тип контрола.
-    /// </summary>
-    /// <remarks>
-    /// Рисовальщик меняет одну строку, а инспектор — весь разговор о выделенном
-    /// элементе, поэтому общие разделы при этом не показываются: две панели об
-    /// одном и том же рядом означали бы два места, где правится одно свойство.
-    /// </remarks>
-    private void ShowCustomInspector(HierarchyNode node, IReadOnlyList<Sdk.IPropertyContext> properties)
-    {
-        if (node.Control?.GetType() is not { } type || _contributions.InspectorFor(type) is not { } match)
-            return;
-
-        // Контекст указывает на папку того плагина, чей это инспектор: свои
-        // ресурсы он ищет рядом с собой.
-        var directory = _plugins?.Loaded
-            .FirstOrDefault(loaded => loaded.Installed.Id == match.PluginId)?.Installed.Directory;
-
-        var studio = new StudioContext(_log, _commands, ProjectPath, directory ?? AppContext.BaseDirectory);
-
-        if (Safely(() => match.Editor.Build(new ElementInspectorContext(node, properties, studio)), node.TypeName) is not { } content)
-            return;
-
-        InspectorCustom.Content = content;
-        InspectorCustom.IsVisible = true;
-        InspectorSections.IsVisible = false;
-    }
-
-    /// <summary>
-    /// Строит контрол плагина, не давая его сбою утащить с собой инспектор.
-    /// </summary>
-    private Control? Safely(Func<Control> build, string what)
-    {
-        try
-        {
-            return build();
-        }
-        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
-        {
-            _log.Write(StudioLogLevel.Error, "Plugins", $"Рисовальщик свойства {what} упал: {e.Message}");
-            return null;
-        }
-    }
-
-    private async void OnInspectorKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Key is Key.Enter)
-            await CommitAsync(sender);
-    }
-
-    private async void OnInspectorLostFocus(object? sender, RoutedEventArgs e) => await CommitAsync(sender);
-
-    private async void OnInspectorToggled(object? sender, RoutedEventArgs e) => await CommitAsync(sender);
-
-    private async void OnInspectorChoice(object? sender, SelectionChangedEventArgs e) => await CommitAsync(sender);
-
-    private async void OnInspectorReset(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Control { DataContext: InspectorRow row })
-            await CommitAsync(row, null);
-    }
-
-    private async Task CommitAsync(object? sender)
-    {
-        if (_fillingInspector || sender is not Control { DataContext: InspectorRow row })
-            return;
-
-        await CommitAsync(row, row.Value);
-    }
-
-    /// <summary>
-    /// Доводит правку строки до документа и показывает, что из этого вышло.
-    /// </summary>
-    /// <remarks>
-    /// Строки перечитываются в любом случае: и когда правка прошла — значение
-    /// могло нормализоваться, — и когда нет, чтобы поле не осталось показывать
-    /// то, чего в документе нет.
-    /// </remarks>
-    private async Task CommitAsync(InspectorRow row, string? text)
-    {
-        if (_selected is not { } node || ActiveDocument is not { } document)
-            return;
-
-        var error = await document.SetAttributeAsync(node, row.Name, text);
-
-        StatusText.Text = error is null
-            ? $"{node.DisplayName}.{row.Name} = {text ?? "—"}"
-            : error;
-
-        _fillingInspector = true;
-        try
-        {
-            InspectorModel.Refresh(_inspector, node, document.Session);
-        }
-        finally
-        {
-            _fillingInspector = false;
-        }
-
-        UpdateHistoryButtons();
-    }
-
-    private async void OnUndoClick(object? sender, RoutedEventArgs e) => await StepHistoryAsync(undo: true);
-
-    private async void OnRedoClick(object? sender, RoutedEventArgs e) => await StepHistoryAsync(undo: false);
-
-    private async Task StepHistoryAsync(bool undo)
-    {
-        if (ActiveDocument is not { } document)
-            return;
-
-        var error = undo ? await document.UndoAsync() : await document.RedoAsync();
-
-        if (error is not null)
-            StatusText.Text = error;
-
-        if (_selected is { } node)
-        {
-            _fillingInspector = true;
-            try
-            {
-                InspectorModel.Refresh(_inspector, node, document.Session);
-            }
-            finally
-            {
-                _fillingInspector = false;
-            }
-        }
-
-        UpdateHistoryButtons();
-    }
-
-    private async void OnSaveClick(object? sender, RoutedEventArgs e)
-    {
-        if (ActiveDocument is not { } document)
-            return;
-
-        await document.SaveAsync();
-        StatusText.Text = $"{Localizer.Instance["inspector.saved"]}: {document.FilePath}";
-        UpdateHistoryButtons();
-    }
-
-    /// <summary>Текст документа изменился — показываем его в редакторе.</summary>
-    private void OnDocumentChanged(object? sender, EventArgs e)
-    {
-        if (ReferenceEquals(sender, ActiveDocument) && XamlHost.IsVisible)
-            ShowXaml();
-    }
-
-    private void OnDocumentReloaded(object? sender, EventArgs e)
-    {
-        if (sender is not DesignDocument document || !ReferenceEquals(document, ActiveDocument))
-            return;
-
-        // Дерево пересобрано: прежний узел больше не тот объект, что лежит в
-        // дереве, и держаться за него нельзя.
-        HierarchyTree.ItemsSource = document.Nodes;
-        HierarchyEmpty.IsVisible = document.Nodes.Count == 0;
-        ShowInspector(null);
-        ExpandHierarchyRoot(document);
-    }
-
-    /// <summary>Раскрывает корень дерева документа.</summary>
-    /// <remarks>
-    /// Раскрывать можно только после того, как дерево создало контейнеры строк,
-    /// поэтому не сразу.
-    /// </remarks>
-    private void ExpandHierarchyRoot(DesignDocument document) => Dispatcher.UIThread.Post(
-        () =>
-        {
-            if (document.Nodes.FirstOrDefault() is { } root &&
-                HierarchyTree.TreeContainerFromItem(root) is TreeViewItem container)
-            {
-                container.IsExpanded = true;
-            }
-        },
-        DispatcherPriority.Background);
-
-    private void UpdateHistoryButtons()
-    {
-        var document = ActiveDocument;
-
-        UndoButton.IsEnabled = document?.CanUndo ?? false;
-        RedoButton.IsEnabled = document?.CanRedo ?? false;
-        SaveButton.IsEnabled = document?.IsModified ?? false;
-    }
-
     private async Task CloseDocumentsAsync()
     {
+        _active?.OnDeactivated();
+        _active = null;
+
         foreach (var document in _documents)
-        {
-            document.Reloaded -= OnDocumentReloaded;
-            document.Changed -= OnDocumentChanged;
-            await document.DisposeAsync();
-        }
+            await document.View.DisposeAsync();
 
         _documents.Clear();
         await _workspace.DisposeAsync();
-    }
-
-    private void ApplyDotGrid()
-    {
-        var showGrid = _settings?.Current.ShowCanvasGrid ?? true;
-        if (!showGrid)
-        {
-            CanvasDots.Background = null;
-            return;
-        }
-
-        if (this.TryFindResource("AxDotColor", ActualThemeVariant, out var value) && value is Color color)
-        {
-            CanvasDots.Background = new VisualBrush
-            {
-                TileMode = TileMode.Tile,
-                Stretch = Stretch.None,
-                DestinationRect = new RelativeRect(0, 0, 20, 20, RelativeUnit.Absolute),
-                Visual = new Border
-                {
-                    Width = 20,
-                    Height = 20,
-                    Child = new Ellipse
-                    {
-                        Width = 2,
-                        Height = 2,
-                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-                        VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                        Fill = new SolidColorBrush(color),
-                    },
-                },
-            };
-        }
     }
 
     private void OnThemeChanged(object? sender, SelectionChangedEventArgs e)
@@ -1306,5 +521,18 @@ public partial class MainWindow : Window
             _settings.Current.Theme = theme;
             _settings.Save();
         }
+    }
+
+    /// <summary>Открытая вкладка: путь файла и представление от редактора.</summary>
+    /// <param name="Path">Путь к файлу.</param>
+    /// <param name="View">Представление документа.</param>
+    private sealed record OpenDocument(string Path, DocumentView View);
+
+    /// <summary>Строка состояния как служба для модулей и плагинов.</summary>
+    /// <param name="target">Куда писать.</param>
+    private sealed class StatusSink(TextBlock target) : IStudioStatus
+    {
+        /// <inheritdoc/>
+        public void Show(string message) => target.Text = message;
     }
 }

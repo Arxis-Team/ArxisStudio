@@ -1,0 +1,99 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ax="using:ArxisStudio.Controls"
+             xmlns:loc="using:ArxisStudio.Shell.Localization"
+             xmlns:design="clr-namespace:ArxisStudio;assembly=ArxisStudio.DesignEditor"
+             xmlns:dc="clr-namespace:ArxisStudio.Controls;assembly=ArxisStudio.DesignEditor"
+             xmlns:ae="using:AvaloniaEdit"
+             x:Class="ArxisStudio.Modules.Designer.DesignerViewHost">
+
+  <DockPanel>
+    <!-- Полоса вида: чем смотреть на документ и как близко. -->
+    <Border DockPanel.Dock="Top" Height="34" Padding="10,0"
+            BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,0,0,1">
+      <DockPanel>
+        <ax:AxSegmentedControl x:Name="ViewSwitch" VerticalAlignment="Center"
+                               SelectionChanged="OnViewChanged">
+          <ax:AxSegmentItem Content="{loc:Loc view.design}"/>
+          <ax:AxSegmentItem Content="{loc:Loc view.xaml}"/>
+          <ax:AxSegmentItem Content="{loc:Loc view.split}"/>
+        </ax:AxSegmentedControl>
+
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <ax:AxCheckBox x:Name="GridToggle" Content="{loc:Loc canvas.grid}" FontSize="11.5"
+                         IsChecked="{Binding #Canvas.ShowGrid, Mode=TwoWay}"/>
+          <ax:AxCheckBox Content="{loc:Loc canvas.snap}" FontSize="11.5"
+                         IsChecked="{Binding #Canvas.InteractionOptions.IsSnapToGridEnabled, Mode=TwoWay}"/>
+
+          <ax:AxDivider Height="16" Width="1"/>
+
+          <ax:AxSlider Width="90" VerticalAlignment="Center"
+                       Minimum="{Binding #Canvas.MinZoom}"
+                       Maximum="{Binding #Canvas.MaxZoom}"
+                       Value="{Binding #Canvas.ViewportZoom, Mode=TwoWay}"/>
+          <ax:AxButton Classes="compact ghost" MinWidth="52" Click="OnZoomReset"
+                       ToolTip.Tip="{loc:Loc canvas.zoomreset}"
+                       Content="{Binding #Canvas.ViewportZoom, StringFormat='{}{0:P0}'}"/>
+
+          <ax:AxDivider Height="16" Width="1"/>
+
+          <TextBlock x:Name="FormSize" Classes="dim mono" FontSize="11" VerticalAlignment="Center"/>
+        </StackPanel>
+        <Panel/>
+      </DockPanel>
+    </Border>
+
+    <Grid x:Name="EditorSplit" ColumnDefinitions="*,0,0">
+      <Border Grid.Column="0" Background="{DynamicResource AxCanvasBrush}">
+        <!-- Линейки стоят рядом с канвой, как в демо: слой внутри шаблона
+             сдвинул бы соответствие точки ввода и точки канвы. -->
+        <Grid RowDefinitions="Auto,*" ColumnDefinitions="Auto,*">
+          <Border Grid.Row="0" Grid.Column="0"
+                  Background="{DynamicResource AxBg2Brush}"
+                  BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,0,1,1"/>
+
+          <dc:DesignRuler Grid.Row="0" Grid.Column="1" Orientation="Horizontal"
+                          Editor="{Binding #Canvas}"/>
+          <dc:DesignRuler Grid.Row="1" Grid.Column="0" Orientation="Vertical"
+                          Editor="{Binding #Canvas}"/>
+
+          <Panel Grid.Row="1" Grid.Column="1">
+            <design:DesignEditor x:Name="Canvas"
+                                 ShowRulers="True"
+                                 ShowGuides="False"
+                                 ShowGrid="True"
+                                 DragDrop.AllowDrop="True"
+                                 DesignSelectionChanged="OnCanvasSelectionChanged"
+                                 EditCompleted="OnEditCompleted"
+                                 DeleteRequested="OnDeleteRequested"
+                                 ReorderRequested="OnReorderRequested">
+              <design:DesignEditorItem x:Name="Form"
+                                       ContentMode="Loaded"
+                                       Location="40,40"
+                                       Width="1280" Height="800"
+                                       HorizontalAlignment="Left" VerticalAlignment="Top"/>
+            </design:DesignEditor>
+
+            <TextBlock x:Name="EmptyHint" Classes="dimmer" FontSize="12" IsVisible="False"
+                       Text="{loc:Loc studio.canvas.hint}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Panel>
+        </Grid>
+      </Border>
+
+      <GridSplitter Grid.Column="1" Classes="shell-v" IsVisible="False" x:Name="XamlSplitter"/>
+
+      <Border Grid.Column="2" x:Name="XamlHost" IsVisible="False"
+              Background="{DynamicResource AxBg1Brush}">
+        <ae:TextEditor x:Name="XamlEditor"
+                       ShowLineNumbers="True"
+                       WordWrap="False"
+                       FontFamily="{DynamicResource AxFontFamilyMono}"
+                       FontSize="12.5"
+                       Background="Transparent"
+                       Foreground="{DynamicResource AxFgBrush}"
+                       Padding="8,6"/>
+      </Border>
+    </Grid>
+  </DockPanel>
+</UserControl>

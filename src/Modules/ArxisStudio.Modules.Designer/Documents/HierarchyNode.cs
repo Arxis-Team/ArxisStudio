@@ -3,7 +3,7 @@ using System.ComponentModel;
 using ArxisStudio.Markup.Xaml;
 using Avalonia.Controls;
 
-namespace ArxisStudio.Services;
+namespace ArxisStudio.Modules.Designer;
 
 /// <summary>
 /// Узел дерева документа: элемент разметки и объект, который он породил.

@@ -119,15 +119,63 @@ public sealed class PluginHost : IDisposable
         try
         {
             var assembly = context.LoadFromAssemblyPath(Path.GetFullPath(assemblyPath));
-            var studio = _contexts.Create(installed);
 
-            var entries = assembly.GetTypes()
+            return Raise(installed, context, [assembly], _contexts.Create(installed));
+        }
+        catch (Exception e) when (e is ReflectionTypeLoadException or BadImageFormatException
+            or FileLoadException or MissingMethodException or TargetInvocationException or InvalidOperationException)
+        {
+            context.Unload();
+            return LoadedPlugin.Failed(installed, Describe(e));
+        }
+    }
+
+    /// <summary>
+    /// Поднимает встроенный модуль: те же точки входа и тот же контракт, но в
+    /// основном контексте загрузки и без выгрузки.
+    /// </summary>
+    /// <param name="assembly">Сборка модуля со встроенным <c>module.json</c>.</param>
+    /// <returns>Результат — как у обычного плагина.</returns>
+    /// <remarks>
+    /// Модуль отличается от плагина только способом доставки: путь подъёма
+    /// один, поэтому код между режимами переносим. Сбой модуля точно так же
+    /// остаётся записью, а не падением студии.
+    /// </remarks>
+    public LoadedPlugin LoadBuiltIn(Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+
+        var (manifest, error) = ModuleManifest.Load(assembly);
+
+        var installed = new InstalledPlugin(
+            AppContext.BaseDirectory,
+            manifest,
+            error,
+            IsEnabled: true);
+
+        var loaded = manifest is null
+            ? LoadedPlugin.Failed(installed, error ?? "Манифест модуля не разобрался")
+            : Raise(installed, context: null, [assembly], _contexts.Create(installed));
+
+        _loaded.Add(loaded);
+        return loaded;
+    }
+
+    private static LoadedPlugin Raise(
+        InstalledPlugin installed,
+        PluginLoadContext? context,
+        IReadOnlyList<Assembly> assemblies,
+        IStudioContext studio)
+    {
+        try
+        {
+            var entries = assemblies.SelectMany(assembly => assembly.GetTypes())
                 .Where(type => type is { IsAbstract: false, IsPublic: true } && typeof(StudioPlugin).IsAssignableFrom(type))
                 .Select(Activator.CreateInstance)
                 .OfType<StudioPlugin>()
                 .ToList();
 
-            var services = assembly.GetTypes()
+            var services = assemblies.SelectMany(assembly => assembly.GetTypes())
                 .Where(type => type is { IsAbstract: false, IsPublic: true } && typeof(StudioService).IsAssignableFrom(type))
                 .Select(Activator.CreateInstance)
                 .OfType<StudioService>()
@@ -139,12 +187,12 @@ public sealed class PluginHost : IDisposable
             foreach (var service in services)
                 service.Start(studio);
 
-            return new LoadedPlugin(installed, context, entries, services, null);
+            return new LoadedPlugin(installed, context, assemblies, studio, entries, services, null);
         }
         catch (Exception e) when (e is ReflectionTypeLoadException or BadImageFormatException
             or FileLoadException or MissingMethodException or TargetInvocationException or InvalidOperationException)
         {
-            context.Unload();
+            context?.Unload();
             return LoadedPlugin.Failed(installed, Describe(e));
         }
     }
@@ -163,13 +211,20 @@ public interface IStudioContextFactory
 
 /// <summary>Поднятый плагин или причина, почему он не поднялся.</summary>
 /// <param name="Installed">Плагин каталога.</param>
-/// <param name="Context">Контекст загрузки; null, если поднять не удалось.</param>
+/// <param name="Context">
+/// Выгружаемый контекст загрузки; null у встроенного модуля — его сборки живут
+/// в основном контексте и не выгружаются.
+/// </param>
+/// <param name="Assemblies">Сборки плагина.</param>
+/// <param name="Studio">Контекст, выданный плагину при подъёме.</param>
 /// <param name="Entries">Точки входа плагина.</param>
 /// <param name="Services">Службы плагина.</param>
 /// <param name="Error">Почему плагин не поднялся; null, если поднялся.</param>
 public sealed record LoadedPlugin(
     InstalledPlugin Installed,
     AssemblyLoadContext? Context,
+    IReadOnlyList<Assembly> Assemblies,
+    IStudioContext? Studio,
     IReadOnlyList<StudioPlugin> Entries,
     IReadOnlyList<StudioService> Services,
     string? Error)
@@ -181,7 +236,7 @@ public sealed record LoadedPlugin(
     /// <param name="installed">Плагин каталога.</param>
     /// <param name="error">Почему не удалось.</param>
     public static LoadedPlugin Failed(InstalledPlugin installed, string error) =>
-        new(installed, null, [], [], error);
+        new(installed, null, [], null, [], [], error);
 
     /// <summary>Останавливает плагин и выгружает его сборки.</summary>
     public void Unload()

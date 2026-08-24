@@ -18,7 +18,6 @@
         <PackageReference Include="Avalonia.Desktop"/>
         <PackageReference Include="Avalonia.Fonts.Inter"/>
         <PackageReference Include="Avalonia.Themes.Fluent"/>
-        <PackageReference Include="Avalonia.AvaloniaEdit"/>
     </ItemGroup>
 
     <!--
@@ -37,6 +36,7 @@
 
     <ItemGroup>
         <ProjectReference Include="../ArxisStudio.Shell/ArxisStudio.Shell.csproj"/>
+        <ProjectReference Include="../Modules/ArxisStudio.Modules.Designer/ArxisStudio.Modules.Designer.csproj"/>
         <ProjectReference Include="../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
         <ProjectReference Include="../ArxisStudio.Extensibility/ArxisStudio.Extensibility.csproj"/>
         <ProjectReference Include="../../external/ArxisStudio.Themes.Arxis/src/ArxisStudio.Themes.Arxis.csproj"/>
@@ -49,9 +49,6 @@
     -->
     <ItemGroup>
         <ProjectReference Include="../../external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem.MSBuild/ArxisStudio.ProjectSystem.MSBuild.csproj"/>
-        <ProjectReference Include="../../external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem.Markup.Xaml/ArxisStudio.ProjectSystem.Markup.Xaml.csproj"/>
-        <ProjectReference Include="../../external/ArxisStudio.Markup/src/ArxisStudio.Markup.Xaml.Design/ArxisStudio.Markup.Xaml.Design.csproj"/>
-        <ProjectReference Include="../../external/ArxisStudio.DesignEditor/src/ArxisStudio.DesignEditor.csproj"/>
     </ItemGroup>
 
 </Project>
