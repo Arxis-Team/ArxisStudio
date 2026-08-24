@@ -114,5 +114,9 @@
   "toolbox.group.input": "Ввод",
   "toolbox.group.display": "Показ",
   "toolbox.group.studio": "ArxisStudio",
-  "toolbox.nonamespace": "Документ не объявил библиотеку этого контрола"
+  "toolbox.nonamespace": "Документ не объявил библиотеку этого контрола",
+  "view.design": "Дизайн",
+  "view.xaml": "XAML",
+  "view.split": "Вместе",
+  "xaml.applied": "Разметка применена"
 }

@@ -12,6 +12,7 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using AvaloniaEdit.Highlighting;
 using IOPath = System.IO.Path;
 
 namespace ArxisStudio;
@@ -46,17 +47,33 @@ public partial class MainWindow : Window
 
     private HierarchyNode? _selected;
 
+    // Правка текста доходит до документа не с каждым нажатием клавиши: пока
+    // человек набирает, разметка почти всегда сломана.
+    private readonly DispatcherTimer _xamlIdle = new() { Interval = TimeSpan.FromMilliseconds(700) };
+
+    // Текст в редакторе и текст документа обновляют друг друга, и каждое
+    // обновление поднимает событие другого. Флаг гасит это эхо.
+    private bool _fillingEditor;
+
     /// <summary>Создаёт окно без проекта — состояние каркаса.</summary>
     public MainWindow()
     {
         InitializeComponent();
         ThemeSwitch.SelectedIndex = Application.Current?.ActualThemeVariant == ThemeVariant.Light ? 1 : 0;
+        ViewSwitch.SelectedIndex = 0;
         InspectorSections.ItemsSource = _inspector;
 
         // Приём перетаскивания — присоединённые события, и в разметке их
         // атрибутом не назначить.
         DragDrop.AddDragOverHandler(Designer, OnDesignerDragOver);
         DragDrop.AddDropHandler(Designer, OnDesignerDrop);
+
+        XamlEditor.TextChanged += OnXamlTextChanged;
+        XamlEditor.LostFocus += OnXamlLostFocus;
+        _xamlIdle.Tick += async (_, _) => await ApplyXamlAsync();
+
+        ApplyXamlColors();
+        ActualThemeVariantChanged += (_, _) => ApplyXamlColors();
 
         CanvasDots.Loaded += (_, _) => ApplyDotGrid();
         ActualThemeVariantChanged += (_, _) => ApplyDotGrid();
@@ -167,6 +184,7 @@ public partial class MainWindow : Window
 
         _documents.Add(document);
         document.Reloaded += OnDocumentReloaded;
+        document.Changed += OnDocumentChanged;
 
         DocumentTabs.Items.Add(new AxTabItem
         {
@@ -190,6 +208,7 @@ public partial class MainWindow : Window
         {
             DesignerForm.Content = null;
             Designer.IsVisible = false;
+            ViewBar.IsVisible = false;
             CanvasHint.IsVisible = true;
             HierarchyTree.ItemsSource = null;
             HierarchyEmpty.IsVisible = true;
@@ -207,6 +226,10 @@ public partial class MainWindow : Window
         HierarchyEmpty.IsVisible = document.Nodes.Count == 0;
 
         ExpandHierarchyRoot(document);
+
+        ViewBar.IsVisible = true;
+        FormSize.Text = $"{DesignerForm.Width:0} × {DesignerForm.Height:0}";
+        ApplyView();
 
         StatusText.Text = document.FilePath;
     }
@@ -329,6 +352,121 @@ public partial class MainWindow : Window
         }
 
         UpdateHistoryButtons();
+    }
+
+    /// <summary>Показывает канву, текст разметки или то и другое.</summary>
+    private void OnViewChanged(object? sender, SelectionChangedEventArgs e) => ApplyView();
+
+    private void ApplyView()
+    {
+        var mode = ViewSwitch.SelectedIndex;
+        var design = mode != 1;
+        var xaml = mode != 0;
+
+        EditorSplit.ColumnDefinitions[0].Width = new GridLength(design ? 1 : 0, design ? GridUnitType.Star : GridUnitType.Pixel);
+        EditorSplit.ColumnDefinitions[1].Width = new GridLength(design && xaml ? 4 : 0, GridUnitType.Pixel);
+        EditorSplit.ColumnDefinitions[2].Width = new GridLength(xaml ? 1 : 0, xaml ? GridUnitType.Star : GridUnitType.Pixel);
+
+        XamlSplitter.IsVisible = design && xaml;
+        XamlHost.IsVisible = xaml;
+
+        if (xaml)
+            ShowXaml();
+    }
+
+    /// <summary>Перечитывает текст редактора из документа.</summary>
+    /// <remarks>
+    /// Позиция каретки восстанавливается: правка из инспектора не должна
+    /// уводить взгляд с того места, где человек читал разметку.
+    /// </remarks>
+    private void ShowXaml()
+    {
+        if (ActiveDocument is not { } document)
+            return;
+
+        var text = document.Text;
+
+        if (string.Equals(XamlEditor.Text, text, StringComparison.Ordinal))
+            return;
+
+        var caret = XamlEditor.CaretOffset;
+
+        _fillingEditor = true;
+        try
+        {
+            XamlEditor.Text = text;
+            XamlEditor.CaretOffset = Math.Min(caret, text.Length);
+        }
+        finally
+        {
+            _fillingEditor = false;
+        }
+    }
+
+    private void OnXamlTextChanged(object? sender, EventArgs e)
+    {
+        if (_fillingEditor)
+            return;
+
+        _xamlIdle.Stop();
+        _xamlIdle.Start();
+    }
+
+    private async void OnXamlLostFocus(object? sender, RoutedEventArgs e) => await ApplyXamlAsync();
+
+    private async Task ApplyXamlAsync()
+    {
+        _xamlIdle.Stop();
+
+        if (_fillingEditor || ActiveDocument is not { } document)
+            return;
+
+        var error = await document.SetTextAsync(XamlEditor.Text, "Правка разметки");
+
+        if (error is not null)
+        {
+            StatusText.Text = error;
+            return;
+        }
+
+        StatusText.Text = Localizer.Instance["xaml.applied"];
+        UpdateHistoryButtons();
+    }
+
+    /// <summary>
+    /// Красит разметку в цвета темы.
+    /// </summary>
+    /// <remarks>
+    /// Готовая подсветка XML приходит со своими цветами, рассчитанными на белый
+    /// фон, и рядом с тёмной темой студии выглядит чужой. Сами правила разбора
+    /// при этом верные, поэтому меняются только цвета — и меняются заново при
+    /// каждой смене темы.
+    /// </remarks>
+    private void ApplyXamlColors()
+    {
+        if (HighlightingManager.Instance.GetDefinition("XML") is not { } definition)
+            return;
+
+        Paint(definition, "Comment", "AxFg3Brush");
+        Paint(definition, "XmlTag", "AxAccBrush");
+        Paint(definition, "AttributeName", "AxPurBrush");
+        Paint(definition, "AttributeValue", "AxGrnBrush");
+        Paint(definition, "XmlDeclaration", "AxFg3Brush");
+        Paint(definition, "DocType", "AxFg3Brush");
+        Paint(definition, "CData", "AxYelBrush");
+        Paint(definition, "Entity", "AxYelBrush");
+
+        XamlEditor.SyntaxHighlighting = definition;
+
+        void Paint(IHighlightingDefinition target, string name, string resource)
+        {
+            if (target.GetNamedColor(name) is { } color &&
+                this.TryFindResource(resource, ActualThemeVariant, out var value) &&
+                value is ISolidColorBrush brush)
+            {
+                color.Foreground = new SimpleHighlightingBrush(brush.Color);
+            }
+        }
     }
 
     /// <summary>Перечитывает палитру под открытый документ.</summary>
@@ -709,6 +847,13 @@ public partial class MainWindow : Window
         UpdateHistoryButtons();
     }
 
+    /// <summary>Текст документа изменился — показываем его в редакторе.</summary>
+    private void OnDocumentChanged(object? sender, EventArgs e)
+    {
+        if (ReferenceEquals(sender, ActiveDocument) && XamlHost.IsVisible)
+            ShowXaml();
+    }
+
     private void OnDocumentReloaded(object? sender, EventArgs e)
     {
         if (sender is not DesignDocument document || !ReferenceEquals(document, ActiveDocument))
@@ -752,6 +897,7 @@ public partial class MainWindow : Window
         foreach (var document in _documents)
         {
             document.Reloaded -= OnDocumentReloaded;
+            document.Changed -= OnDocumentChanged;
             await document.DisposeAsync();
         }
 

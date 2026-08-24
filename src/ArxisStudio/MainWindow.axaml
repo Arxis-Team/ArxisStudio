@@ -5,6 +5,7 @@
         xmlns:loc="using:ArxisStudio.Shell.Localization"
         xmlns:design="clr-namespace:ArxisStudio;assembly=ArxisStudio.DesignEditor"
         xmlns:svc="using:ArxisStudio.Services"
+        xmlns:ae="using:AvaloniaEdit"
         x:Class="ArxisStudio.MainWindow"
         Title="ArxisStudio"
         Width="1440" Height="900"
@@ -128,13 +129,29 @@
       </Grid>
     </shell:StudioShell.LeftPane>
 
-    <!-- Центр: вкладки открытых документов и канва дизайнера. -->
+    <!-- Центр: вкладки документов, переключатель вида, канва и текст разметки. -->
     <DockPanel>
       <ax:AxTabStrip x:Name="DocumentTabs" DockPanel.Dock="Top"
                      IsVisible="False"
                      SelectionChanged="OnDocumentTabChanged"/>
 
-      <Border Background="{DynamicResource AxCanvasBrush}">
+      <Border x:Name="ViewBar" DockPanel.Dock="Top" Height="34" Padding="10,0" IsVisible="False"
+              BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,0,0,1">
+        <DockPanel>
+          <ax:AxSegmentedControl x:Name="ViewSwitch" VerticalAlignment="Center"
+                                 SelectionChanged="OnViewChanged">
+            <ax:AxSegmentItem Content="{loc:Loc view.design}"/>
+            <ax:AxSegmentItem Content="{loc:Loc view.xaml}"/>
+            <ax:AxSegmentItem Content="{loc:Loc view.split}"/>
+          </ax:AxSegmentedControl>
+          <TextBlock x:Name="FormSize" DockPanel.Dock="Right" Classes="dim mono" FontSize="11"
+                     VerticalAlignment="Center"/>
+          <Panel/>
+        </DockPanel>
+      </Border>
+
+      <Grid x:Name="EditorSplit" ColumnDefinitions="*,0,0">
+      <Border Grid.Column="0" Background="{DynamicResource AxCanvasBrush}">
         <Panel>
           <Panel x:Name="CanvasDots"/>
 
@@ -162,6 +179,21 @@
           </StackPanel>
         </Panel>
       </Border>
+
+      <GridSplitter Grid.Column="1" Classes="shell-v" IsVisible="False" x:Name="XamlSplitter"/>
+
+      <Border Grid.Column="2" x:Name="XamlHost" IsVisible="False"
+              Background="{DynamicResource AxBg1Brush}">
+        <ae:TextEditor x:Name="XamlEditor"
+                       ShowLineNumbers="True"
+                       WordWrap="False"
+                       FontFamily="{DynamicResource AxFontFamilyMono}"
+                       FontSize="12.5"
+                       Background="Transparent"
+                       Foreground="{DynamicResource AxFgBrush}"
+                       Padding="8,6"/>
+      </Border>
+      </Grid>
     </DockPanel>
 
     <!-- Нижняя зона: вкладки панелей (заглушки M1). -->

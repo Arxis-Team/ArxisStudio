@@ -16,6 +16,8 @@
   <!-- FluentTheme — базовый слой M0 для не-Ax примитивов; поверх — тема и стили студии. -->
   <Application.Styles>
     <FluentTheme/>
+    <!-- Текстовый редактор XAML-вкладки приходит со своей темой. -->
+    <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml"/>
     <themes:ArxisTheme/>
     <shell:ShellStyles/>
   </Application.Styles>

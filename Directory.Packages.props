@@ -11,6 +11,10 @@
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.1" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Текстовый редактор XAML-вкладки. -->
+    <PackageVersion Include="Avalonia.AvaloniaEdit" Version="12.0.0" />
+  </ItemGroup>
+  <ItemGroup>
     <!-- Инструменты отладки интерфейса; подключаются только в Debug. -->
     <PackageVersion Include="AvaDevTools" Version="12.1.7" />
   </ItemGroup>

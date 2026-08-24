@@ -46,6 +46,9 @@ public sealed class DesignDocument : IAsyncDisposable
     /// <summary>Содержимое документа заменилось целиком: дерево нужно перечитать.</summary>
     public event EventHandler? Reloaded;
 
+    /// <summary>Текст документа изменился — любой правкой, отменой или возвратом.</summary>
+    public event EventHandler? Changed;
+
     /// <summary>Путь к файлу разметки.</summary>
     public string FilePath { get; }
 
@@ -270,6 +273,50 @@ public sealed class DesignDocument : IAsyncDisposable
             return null;
 
         return await ApplyAsync(_workspace.Apply(editor, description), _workspace.Undo, cancellationToken);
+    }
+
+    /// <summary>Текст документа со всеми применёнными правками.</summary>
+    public string Text => Document?.GetText() ?? string.Empty;
+
+    /// <summary>
+    /// Заменяет текст документа целиком — правка со стороны XAML-вкладки.
+    /// </summary>
+    /// <param name="text">Новый текст.</param>
+    /// <param name="description">Чем эта правка называется в истории.</param>
+    /// <param name="cancellationToken">Токен отмены.</param>
+    /// <returns>null, если правка применилась, иначе — почему нет.</returns>
+    /// <remarks>
+    /// Разметка проверяется разбором до того, как попадёт в рабочую область:
+    /// текст, набранный наполовину, разбирается с ошибками, и принять его —
+    /// значит откатить документ у человека под руками посреди набора.
+    /// </remarks>
+    public async Task<string?> SetTextAsync(
+        string text,
+        string description,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        if (_workspace is null || _session is null)
+            return "Документ закрыт";
+
+        var current = _workspace.GetDocument(_documentId);
+
+        if (string.Equals(current.GetText(), text, StringComparison.Ordinal))
+            return null;
+
+        var parsed = XamlDocument.Parse(text, new XamlParseOptions { DocumentUri = new Uri(FilePath) });
+
+        if (!parsed.IsWellFormed)
+            return parsed.GetDiagnostics().First(diagnostic => diagnostic.IsError).ToString();
+
+        using (var transaction = _workspace.Workspace.BeginTransaction(description))
+        {
+            transaction.UpdateDocument(_documentId, SourceText.From(text, current.SourceText.Encoding));
+            transaction.Commit();
+        }
+
+        return await ApplyAsync(_workspace.GetDocument(_documentId), _workspace.Undo, cancellationToken);
     }
 
     /// <summary>Вставляет разметку внутрь элемента.</summary>
@@ -550,12 +597,14 @@ public sealed class DesignDocument : IAsyncDisposable
         {
             IsModified = true;
             Retarget(edited);
+            Changed?.Invoke(this, EventArgs.Empty);
             return null;
         }
 
         if (await RecreateSessionAsync(edited, cancellationToken) is null)
         {
             IsModified = true;
+            Changed?.Invoke(this, EventArgs.Empty);
             return null;
         }
 
@@ -569,6 +618,7 @@ public sealed class DesignDocument : IAsyncDisposable
         await _population.SetDocumentAsync(restored, cancellationToken);
         await RecreateSessionAsync(restored, cancellationToken);
 
+        Changed?.Invoke(this, EventArgs.Empty);
         return error;
     }
 

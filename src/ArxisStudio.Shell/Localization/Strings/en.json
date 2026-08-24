@@ -114,5 +114,9 @@
   "toolbox.group.input": "Input",
   "toolbox.group.display": "Display",
   "toolbox.group.studio": "ArxisStudio",
-  "toolbox.nonamespace": "The document does not declare this control's library"
+  "toolbox.nonamespace": "The document does not declare this control's library",
+  "view.design": "Design",
+  "view.xaml": "XAML",
+  "view.split": "Split",
+  "xaml.applied": "Markup applied"
 }
