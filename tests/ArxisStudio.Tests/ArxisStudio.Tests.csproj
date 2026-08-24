@@ -13,6 +13,17 @@
         <PackageReference Include="xunit.runner.visualstudio"/>
     </ItemGroup>
 
+    <!--
+        Подопытный проект дизайнера: собирается вместе с тестами, но в процесс
+        тестов не подгружается — дизайнер должен найти его сборки сам, как нашёл
+        бы проект пользователя.
+    -->
+    <ItemGroup>
+        <ProjectReference Include="../fixtures/DesignFixtureApp/DesignFixtureApp.csproj"
+                          ReferenceOutputAssembly="false"
+                          SkipGetTargetFrameworkProperties="true"/>
+    </ItemGroup>
+
     <ItemGroup>
         <ProjectReference Include="../../src/ArxisStudio/ArxisStudio.csproj"/>
         <ProjectReference Include="../../src/ArxisStudio.Extensibility/ArxisStudio.Extensibility.csproj"/>

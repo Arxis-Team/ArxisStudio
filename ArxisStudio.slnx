@@ -17,4 +17,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/ArxisStudio.Tests/ArxisStudio.Tests.csproj" />
   </Folder>
+  <Folder Name="/tests/fixtures/">
+    <Project Path="tests/fixtures/DesignFixtureApp/DesignFixtureApp.csproj" />
+  </Folder>
 </Solution>

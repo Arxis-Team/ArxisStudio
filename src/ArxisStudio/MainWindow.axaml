@@ -3,6 +3,8 @@
         xmlns:ax="using:ArxisStudio.Controls"
         xmlns:shell="using:ArxisStudio.Shell"
         xmlns:loc="using:ArxisStudio.Shell.Localization"
+        xmlns:design="clr-namespace:ArxisStudio;assembly=ArxisStudio.DesignEditor"
+        xmlns:svc="using:ArxisStudio.Services"
         x:Class="ArxisStudio.MainWindow"
         Title="ArxisStudio"
         Width="1440" Height="900"
@@ -59,8 +61,21 @@
               </ax:AxButton>
             </StackPanel>
           </ax:AxToolWindow.Actions>
-          <TextBlock Classes="dimmer" Text="{loc:Loc panel.hierarchy.empty}" FontSize="12"
-                     HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          <Panel>
+            <TextBlock x:Name="HierarchyEmpty" Classes="dimmer" Text="{loc:Loc panel.hierarchy.empty}" FontSize="12"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <ax:AxTreeView x:Name="HierarchyTree" SelectionChanged="OnHierarchySelectionChanged">
+              <ax:AxTreeView.ItemTemplate>
+                <TreeDataTemplate x:DataType="svc:HierarchyNode" ItemsSource="{Binding Children}">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center"/>
+                    <TextBlock Classes="dimmer" FontSize="11" VerticalAlignment="Center"
+                               Text="{Binding TypeHint}"/>
+                  </StackPanel>
+                </TreeDataTemplate>
+              </ax:AxTreeView.ItemTemplate>
+            </ax:AxTreeView>
+          </Panel>
         </ax:AxToolWindow>
 
         <ax:AxDivider Grid.Row="1"/>
@@ -78,17 +93,37 @@
       </Grid>
     </shell:StudioShell.LeftPane>
 
-    <!-- Центр: канва (пока пустая, с точечной сеткой по мокапу). -->
-    <Border Background="{DynamicResource AxCanvasBrush}">
-      <Panel>
-        <Panel x:Name="CanvasDots"/>
-        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
-          <TextBlock Classes="dim" Text="ArxisStudio" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-          <TextBlock Classes="dimmer" Text="{loc:Loc studio.canvas.hint}"
-                     FontSize="12" HorizontalAlignment="Center"/>
-        </StackPanel>
-      </Panel>
-    </Border>
+    <!-- Центр: вкладки открытых документов и канва дизайнера. -->
+    <DockPanel>
+      <ax:AxTabStrip x:Name="DocumentTabs" DockPanel.Dock="Top"
+                     IsVisible="False"
+                     SelectionChanged="OnDocumentTabChanged"/>
+
+      <Border Background="{DynamicResource AxCanvasBrush}">
+        <Panel>
+          <Panel x:Name="CanvasDots"/>
+
+          <design:DesignEditor x:Name="Designer"
+                               IsVisible="False"
+                               ShowRulers="False"
+                               ShowGuides="False"
+                               ShowGrid="False"
+                               DesignSelectionChanged="OnDesignerSelectionChanged">
+            <design:DesignEditorItem x:Name="DesignerForm"
+                                     ContentMode="Loaded"
+                                     Location="0,0"
+                                     Width="1280" Height="800"
+                                     HorizontalAlignment="Left" VerticalAlignment="Top"/>
+          </design:DesignEditor>
+
+          <StackPanel x:Name="CanvasHint" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+            <TextBlock Classes="dim" Text="ArxisStudio" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+            <TextBlock Classes="dimmer" Text="{loc:Loc studio.canvas.hint}"
+                       FontSize="12" HorizontalAlignment="Center"/>
+          </StackPanel>
+        </Panel>
+      </Border>
+    </DockPanel>
 
     <!-- Нижняя зона: вкладки панелей (заглушки M1). -->
     <shell:StudioShell.BottomPane>
@@ -105,8 +140,17 @@
             <ax:AxIcon Data="M 4 8 H 12" Width="13" Height="13" StrokeThickness="1.3"/>
           </ax:AxButton>
         </ax:AxToolWindow.Actions>
-        <TextBlock Classes="dimmer" Text="{loc:Loc panel.project.empty}" FontSize="12"
-                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        <Panel>
+          <TextBlock x:Name="ProjectEmpty" Classes="dimmer" Text="{loc:Loc panel.project.empty}" FontSize="12"
+                     HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          <ax:AxTreeView x:Name="ProjectTreeView" DoubleTapped="OnProjectTreeDoubleTapped">
+            <ax:AxTreeView.ItemTemplate>
+              <TreeDataTemplate x:DataType="svc:ProjectNode" ItemsSource="{Binding Children}">
+                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+              </TreeDataTemplate>
+            </ax:AxTreeView.ItemTemplate>
+          </ax:AxTreeView>
+        </Panel>
       </ax:AxToolWindow>
     </shell:StudioShell.BottomPane>
 

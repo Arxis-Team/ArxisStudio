@@ -1,14 +1,12 @@
 {
   "app.name": "ArxisStudio",
   "app.tagline": "Application development environment",
-
   "welcome.title": "ArxisStudio — Welcome",
   "welcome.nav.projects": "Projects",
   "welcome.nav.templates": "Templates",
   "welcome.nav.learn": "Learn",
   "welcome.nav.plugins": "Plugins",
   "welcome.nav.settings": "Settings",
-
   "projects.search": "Search projects",
   "projects.new": "New Project",
   "projects.open": "Open",
@@ -17,7 +15,6 @@
   "projects.empty": "No projects yet — create a new one or open an existing project",
   "projects.remove": "Remove from list",
   "projects.missing": "folder not found",
-
   "templates.search": "Search templates",
   "templates.title": "Project templates",
   "templates.subtitle": "Templates come from installed dotnet new packages",
@@ -25,7 +22,6 @@
   "templates.create": "Create",
   "templates.refresh": "Refresh",
   "templates.loading": "Reading installed templates…",
-
   "newproject.title": "New project",
   "newproject.name": "Project name",
   "newproject.location": "Location",
@@ -34,14 +30,12 @@
   "newproject.create": "Create",
   "newproject.cancel": "Cancel",
   "newproject.creating": "Creating project…",
-
   "learn.title": "Learn",
   "learn.subtitle": "Documentation and materials on building with ArxisStudio",
   "learn.docs": "Documentation",
   "learn.api": "API Reference",
   "learn.samples": "Samples",
   "learn.community": "Community",
-
   "plugins.search": "Search plugins",
   "plugins.title": "Plugins",
   "plugins.subtitle": "Studio extensions from the plugin folder",
@@ -55,7 +49,6 @@
   "plugins.broken": "Manifest error",
   "plugins.openfolder": "Open plugin folder",
   "plugins.installed.suffix": "— installed",
-
   "settings.title": "Settings",
   "settings.subtitle": "Global studio settings",
   "settings.appearance": "Appearance",
@@ -74,14 +67,12 @@
   "settings.language": "Interface language",
   "settings.channel": "Update channel",
   "settings.checkupdates": "Check for updates",
-
   "studio.noproject": "No project",
   "studio.configuration": "Desktop · Debug",
   "studio.run": "Run",
   "studio.stop": "Stop",
   "studio.ready": "Ready",
   "studio.canvas.hint": "Open an .axaml document — the form designer appears here",
-
   "panel.hierarchy": "Hierarchy",
   "panel.hierarchy.empty": "No document open",
   "panel.toolbox": "Toolbox",
@@ -92,10 +83,20 @@
   "panel.project.empty": "The project panel arrives when a solution is opened",
   "panel.console": "Console",
   "panel.problems": "Problems",
-
   "vcs.clone.later": "Cloning from Git arrives with version control integration.",
-
   "common.cancel": "Cancel",
   "common.close": "Close",
-  "common.error": "Error"
+  "common.error": "Error",
+  "editor.opening": "Opening project…",
+  "editor.openfailed": "Could not open the project",
+  "editor.loading": "Loading document…",
+  "editor.loadfailed": "Could not load the document",
+  "editor.nodesigner": "No designer for this file — open an .axaml",
+  "editor.window.hint": "The window is shown as a form: it has no frame because the frame is drawn by the system",
+  "panel.project.files": "Files",
+  "panel.problems.none": "No problems",
+  "hierarchy.root": "Document",
+  "document.unsaved": "Unsaved changes",
+  "status.selected": "Selected",
+  "status.noselection": "Nothing selected"
 }

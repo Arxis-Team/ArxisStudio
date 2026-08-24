@@ -14,6 +14,8 @@ ArxisStudio — кроссплатформенный «движок разраб
 - .NET **net10.0**, **Avalonia 12.1.x** (мокап упоминает «Avalonia 11.3 / net9.0» — это
   декоративный текст, не требование).
 - Текстовый редактор XAML — **AvaloniaEdit**.
+- Отладка интерфейса самой студии — **AvaDevTools** (Debug-only, с конечной точкой MCP
+  на петле): [devtools.md](devtools.md).
 - Существующие и новые базовые библиотеки подключаются как **git-субмодули** с ProjectReference:
   - `ArxisStudio.Markup` — lossless XAML DOM, загрузка живых объектов, round-trip;
   - `ArxisStudio.ProjectSystem` — модель solution, MSBuild-операции, NuGet, watcher,
@@ -231,8 +233,17 @@ Ax*-контролов + палитры **dark/light по токенам мок�
    `PluginCatalog`, `Localizer` с i18n-каркасом (ru/en) и `StudioTheming`.
    Первые проекты `ArxisStudio.Sdk` (модель манифеста плагина) и
    `ArxisStudio.Extensibility` (каталог плагинов). 31 тест.
-4. **M3 — ядро Editor**: открытие проекта → Project-панель; открытие .axaml → канва с
-   живыми объектами; Hierarchy из дерева Markup; синхронизация выделения канва↔дерево.
+4. **M3 — ядро Editor** ✅ *(2026-08-24)*: открытие проекта → Project-панель; открытие
+   .axaml → канва с живыми объектами; Hierarchy из дерева Markup; синхронизация
+   выделения канва↔дерево в обе стороны. Сервисы: `StudioWorkspace` (обёртка над
+   `ProjectWorkspace`), `ProjectTree` (иерархия из плоского списка элементов MSBuild,
+   с отсевом служебных записей обращением к диску), `DesignDocument` (разбор разметки,
+   `ProjectXamlPopulation` для документов с `x:Class`, поверхность показа и порядок
+   разрушения), `HierarchyNode`. Подопытный проект `tests/fixtures/DesignFixtureApp`
+   собирается вместе с тестами и открывается дизайнером как настоящий. 35 тестов.
+   Известное ограничение: если открываемый проект содержит сборки, уже загруженные в
+   процесс самой студии (например галерея ArxisStudio.Controls), загрузчик не находит
+   их типы. Проекты пользователя это не задевает; лечится в M7 вместе с изоляцией.
 5. **M4 — Inspector**: property grid по выделению, геометрия через шов DesignEditor,
    запись свойств в XAML через Markup, undo/redo.
 6. **M5 — Toolbox и структура**: палитра контролов, drag на канву → вставка в XAML;

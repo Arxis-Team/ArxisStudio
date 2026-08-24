@@ -1,14 +1,12 @@
 {
   "app.name": "ArxisStudio",
   "app.tagline": "Среда разработки приложений",
-
   "welcome.title": "ArxisStudio — Добро пожаловать",
   "welcome.nav.projects": "Проекты",
   "welcome.nav.templates": "Шаблоны",
   "welcome.nav.learn": "Обучение",
   "welcome.nav.plugins": "Плагины",
   "welcome.nav.settings": "Настройки",
-
   "projects.search": "Поиск проектов",
   "projects.new": "Новый проект",
   "projects.open": "Открыть",
@@ -17,7 +15,6 @@
   "projects.empty": "Пока нет ни одного проекта — создайте новый или откройте существующий",
   "projects.remove": "Убрать из списка",
   "projects.missing": "папка не найдена",
-
   "templates.search": "Поиск шаблонов",
   "templates.title": "Шаблоны проектов",
   "templates.subtitle": "Шаблоны берутся из установленных пакетов dotnet new",
@@ -25,7 +22,6 @@
   "templates.create": "Создать",
   "templates.refresh": "Обновить список",
   "templates.loading": "Читаю установленные шаблоны…",
-
   "newproject.title": "Новый проект",
   "newproject.name": "Имя проекта",
   "newproject.location": "Расположение",
@@ -34,14 +30,12 @@
   "newproject.create": "Создать",
   "newproject.cancel": "Отмена",
   "newproject.creating": "Создаю проект…",
-
   "learn.title": "Обучение",
   "learn.subtitle": "Документация и материалы по разработке в ArxisStudio",
   "learn.docs": "Документация",
   "learn.api": "Справочник API",
   "learn.samples": "Примеры",
   "learn.community": "Сообщество",
-
   "plugins.search": "Поиск плагинов",
   "plugins.title": "Плагины",
   "plugins.subtitle": "Расширения студии из каталога плагинов",
@@ -55,7 +49,6 @@
   "plugins.broken": "Ошибка манифеста",
   "plugins.openfolder": "Открыть каталог плагинов",
   "plugins.installed.suffix": "— установлен",
-
   "settings.title": "Настройки",
   "settings.subtitle": "Глобальные настройки студии",
   "settings.appearance": "Оформление",
@@ -74,14 +67,12 @@
   "settings.language": "Язык интерфейса",
   "settings.channel": "Канал обновлений",
   "settings.checkupdates": "Проверить обновления",
-
   "studio.noproject": "Без проекта",
   "studio.configuration": "Desktop · Отладка",
   "studio.run": "Запустить",
   "studio.stop": "Остановить",
   "studio.ready": "Готово",
   "studio.canvas.hint": "Откройте документ .axaml — здесь появится дизайнер форм",
-
   "panel.hierarchy": "Иерархия",
   "panel.hierarchy.empty": "Нет открытого документа",
   "panel.toolbox": "Палитра",
@@ -92,10 +83,20 @@
   "panel.project.empty": "Панель проекта появится с открытием решения",
   "panel.console": "Консоль",
   "panel.problems": "Проблемы",
-
   "vcs.clone.later": "Клонирование из Git появится вместе с интеграцией систем контроля версий.",
-
   "common.cancel": "Отмена",
   "common.close": "Закрыть",
-  "common.error": "Ошибка"
+  "common.error": "Ошибка",
+  "editor.opening": "Открываю проект…",
+  "editor.openfailed": "Не удалось открыть проект",
+  "editor.loading": "Загружаю документ…",
+  "editor.loadfailed": "Не удалось загрузить документ",
+  "editor.nodesigner": "Для этого файла дизайнер недоступен — откройте .axaml",
+  "editor.window.hint": "Окно показано как форма: у него нет рамки, потому что рамку рисует система",
+  "panel.project.files": "Файлы",
+  "panel.problems.none": "Проблем нет",
+  "hierarchy.root": "Документ",
+  "document.unsaved": "Есть несохранённые правки",
+  "status.selected": "Выбрано",
+  "status.noselection": "Ничего не выбрано"
 }

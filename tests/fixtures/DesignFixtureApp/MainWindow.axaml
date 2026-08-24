@@ -1,0 +1,17 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="DesignFixtureApp.MainWindow"
+        Width="520" Height="360"
+        Title="Список заметок">
+  <DockPanel Margin="12">
+    <TextBlock DockPanel.Dock="Top" Text="Мои заметки" FontSize="18" Margin="0,0,0,12"/>
+
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
+      <TextBox x:Name="Input" Width="320" PlaceholderText="Новая заметка"/>
+      <Button x:Name="AddButton" Content="Добавить"/>
+      <Button x:Name="ClearButton" Content="Очистить"/>
+    </StackPanel>
+
+    <ListBox x:Name="Notes"/>
+  </DockPanel>
+</Window>

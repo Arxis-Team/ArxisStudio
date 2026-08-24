@@ -21,7 +21,11 @@ public class App : Application
     private PluginCatalog _plugins = null!;
 
     /// <inheritdoc/>
-    public override void Initialize() => AvaloniaXamlLoader.Load(this);
+    public override void Initialize()
+    {
+        AvaloniaXamlLoader.Load(this);
+        StudioDevTools.Attach(this);
+    }
 
     /// <inheritdoc/>
     public override void OnFrameworkInitializationCompleted()

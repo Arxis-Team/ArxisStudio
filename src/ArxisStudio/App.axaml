@@ -4,6 +4,15 @@
              xmlns:shell="using:ArxisStudio.Shell"
              x:Class="ArxisStudio.App"
              RequestedThemeVariant="Dark">
+  <!-- Канва дизайнера приходит со своей темой: без неё контролы редактора не рисуются. -->
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://ArxisStudio.DesignEditor/Themes/ArxisStudioDesignEditorTheme.axaml"/>
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
+
   <!-- FluentTheme — базовый слой M0 для не-Ax примитивов; поверх — тема и стили студии. -->
   <Application.Styles>
     <FluentTheme/>

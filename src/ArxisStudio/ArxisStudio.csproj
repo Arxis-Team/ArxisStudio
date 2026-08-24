@@ -4,6 +4,13 @@
         <OutputType>WinExe</OutputType>
         <RootNamespace>ArxisStudio</RootNamespace>
         <AssemblyName>ArxisStudio</AssemblyName>
+        <!--
+            AVLN3001 предупреждает, что окно без конструктора без аргументов не
+            поднять загрузчиком разметки во время выполнения. Окна студии
+            создаются кодом и получают сервисы через конструктор; загрузчик
+            здесь работает только с документами открытого проекта.
+        -->
+        <NoWarn>$(NoWarn);AVLN3001</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>
@@ -11,6 +18,15 @@
         <PackageReference Include="Avalonia.Desktop"/>
         <PackageReference Include="Avalonia.Fonts.Inter"/>
         <PackageReference Include="Avalonia.Themes.Fluent"/>
+    </ItemGroup>
+
+    <!--
+        AvaDevTools — инспектор дерева, стилей и раскладки прямо в процессе
+        студии, с конечной точкой MCP на петле. Отладочный инструмент: в
+        Release пакета нет, поэтому и код обращения к нему под #if DEBUG.
+    -->
+    <ItemGroup Condition="'$(Configuration)' == 'Debug'">
+        <PackageReference Include="AvaDevTools"/>
     </ItemGroup>
 
     <!-- Разбор вывода dotnet new закрыт от плагинов, но проверяется тестами. -->
@@ -23,6 +39,18 @@
         <ProjectReference Include="../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
         <ProjectReference Include="../ArxisStudio.Extensibility/ArxisStudio.Extensibility.csproj"/>
         <ProjectReference Include="../../external/ArxisStudio.Themes.Arxis/src/ArxisStudio.Themes.Arxis.csproj"/>
+    </ItemGroup>
+
+    <!--
+        Библиотеки редактора: модель решения, работа с разметкой и канва.
+        Адаптер ProjectSystem.Markup.Xaml связывает первые две и требует, чтобы
+        репозитории лежали рядом, — в external/ так и есть.
+    -->
+    <ItemGroup>
+        <ProjectReference Include="../../external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem.MSBuild/ArxisStudio.ProjectSystem.MSBuild.csproj"/>
+        <ProjectReference Include="../../external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem.Markup.Xaml/ArxisStudio.ProjectSystem.Markup.Xaml.csproj"/>
+        <ProjectReference Include="../../external/ArxisStudio.Markup/src/ArxisStudio.Markup.Xaml.Design/ArxisStudio.Markup.Xaml.Design.csproj"/>
+        <ProjectReference Include="../../external/ArxisStudio.DesignEditor/src/ArxisStudio.DesignEditor.csproj"/>
     </ItemGroup>
 
 </Project>
