@@ -5,7 +5,8 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="ArxisStudio.Shell.ShellStyles"
-        xmlns:sh="using:ArxisStudio.Shell">
+        xmlns:sh="using:ArxisStudio.Shell"
+        xmlns:ax="using:ArxisStudio.Controls">
 
   <Styles.Resources>
     <ResourceDictionary>
@@ -114,6 +115,87 @@
     <Setter Property="FontSize" Value="12"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
     <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+
+  <!-- Строка навигации: 30px, выбранная — заливка выделения и полужирный текст. -->
+  <Style Selector="ToggleButton.nav">
+    <Setter Property="Height" Value="30"/>
+    <Setter Property="Padding" Value="10,0"/>
+    <Setter Property="CornerRadius" Value="6"/>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Foreground" Value="{DynamicResource AxFg2Brush}"/>
+    <Setter Property="FontSize" Value="13"/>
+    <Setter Property="HorizontalAlignment" Value="Stretch"/>
+    <Setter Property="HorizontalContentAlignment" Value="Left"/>
+    <Setter Property="VerticalContentAlignment" Value="Center"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="Template">
+      <ControlTemplate>
+        <ContentPresenter x:Name="PART_ContentPresenter"
+                          Background="{TemplateBinding Background}"
+                          CornerRadius="{TemplateBinding CornerRadius}"
+                          Content="{TemplateBinding Content}"
+                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                          Padding="{TemplateBinding Padding}"
+                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"/>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="ToggleButton.nav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AxBg3Brush}"/>
+  </Style>
+  <Style Selector="ToggleButton.nav:checked /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AxSelBrush}"/>
+  </Style>
+  <Style Selector="ToggleButton.nav:checked">
+    <Setter Property="Foreground" Value="{DynamicResource AxFgBrush}"/>
+    <Setter Property="FontWeight" Value="Medium"/>
+  </Style>
+
+  <!-- Кликабельная строка списка: подсветка под курсором. -->
+  <Style Selector="Border.row">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Cursor" Value="Hand"/>
+  </Style>
+  <Style Selector="Border.row:pointerover">
+    <Setter Property="Background" Value="{DynamicResource AxBg2Brush}"/>
+  </Style>
+
+  <!-- Строка настроек: 44px с разделителем; первая в карточке — без него. -->
+  <Style Selector="DockPanel.settings-row">
+    <Setter Property="Height" Value="44"/>
+  </Style>
+  <Style Selector="StackPanel > DockPanel.settings-row">
+    <Setter Property="Height" Value="44"/>
+  </Style>
+
+  <!-- Ссылка и строка-ссылка. -->
+  <Style Selector="TextBlock.link">
+    <Setter Property="Foreground" Value="{DynamicResource AxLinkBrush}"/>
+    <Setter Property="Cursor" Value="Hand"/>
+  </Style>
+  <Style Selector="TextBlock.link:pointerover">
+    <Setter Property="Foreground" Value="{DynamicResource AxLinkHoverBrush}"/>
+  </Style>
+  <Style Selector="Border.link-row">
+    <Setter Property="Height" Value="40"/>
+    <Setter Property="Padding" Value="12,0"/>
+    <Setter Property="CornerRadius" Value="6"/>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Cursor" Value="Hand"/>
+  </Style>
+  <Style Selector="Border.link-row:pointerover">
+    <Setter Property="Background" Value="{DynamicResource AxBg3Brush}"/>
+  </Style>
+
+  <!-- Карточка, реагирующая на курсор: рамка становится акцентной. -->
+  <Style Selector="ax|AxCard.hoverable">
+    <Setter Property="Cursor" Value="Hand"/>
+  </Style>
+  <Style Selector="ax|AxCard.hoverable:pointerover">
+    <Setter Property="BorderBrush" Value="{DynamicResource AxAccBrush}"/>
   </Style>
 
 </Styles>

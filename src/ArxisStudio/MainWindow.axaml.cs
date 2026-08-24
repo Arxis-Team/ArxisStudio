@@ -1,25 +1,56 @@
+using ArxisStudio.Shell.Settings;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
+using IOPath = System.IO.Path;
 using Avalonia.Media;
 using Avalonia.Styling;
 
 namespace ArxisStudio;
 
+/// <summary>
+/// Главное окно студии: каркас с зонами панелей и канвой. Панели наполняются
+/// начиная с M3, когда появится модель открытого проекта.
+/// </summary>
 public partial class MainWindow : Window
 {
+    private readonly ISettingsStore? _settings;
+
+    /// <summary>Создаёт окно без проекта — состояние каркаса.</summary>
     public MainWindow()
     {
         InitializeComponent();
-        ThemeSwitch.SelectedIndex = 0;
+        ThemeSwitch.SelectedIndex = Application.Current?.ActualThemeVariant == ThemeVariant.Light ? 1 : 0;
 
-        // Точечная сетка канвы: тайл 20×20 с точкой 1px (docs/design-spec.md §3).
         CanvasDots.Loaded += (_, _) => ApplyDotGrid();
         ActualThemeVariantChanged += (_, _) => ApplyDotGrid();
     }
 
+    /// <summary>Создаёт окно для открытого проекта.</summary>
+    /// <param name="settings">Настройки студии.</param>
+    /// <param name="projectPath">Путь к решению или проекту.</param>
+    public MainWindow(ISettingsStore settings, string projectPath) : this()
+    {
+        _settings = settings;
+        ProjectPath = projectPath;
+
+        ProjectName.Text = IOPath.GetFileNameWithoutExtension(projectPath);
+        StatusText.Text = projectPath;
+        Title = $"{IOPath.GetFileNameWithoutExtension(projectPath)} — ArxisStudio";
+    }
+
+    /// <summary>Путь к открытому решению или проекту; null, если проект не открыт.</summary>
+    public string? ProjectPath { get; }
+
     private void ApplyDotGrid()
     {
+        var showGrid = _settings?.Current.ShowCanvasGrid ?? true;
+        if (!showGrid)
+        {
+            CanvasDots.Background = null;
+            return;
+        }
+
         if (this.TryFindResource("AxDotColor", ActualThemeVariant, out var value) && value is Color color)
         {
             CanvasDots.Background = new VisualBrush
@@ -46,7 +77,13 @@ public partial class MainWindow : Window
 
     private void OnThemeChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (Application.Current is { } app)
-            app.RequestedThemeVariant = ThemeSwitch.SelectedIndex == 1 ? ThemeVariant.Light : ThemeVariant.Dark;
+        var theme = ThemeSwitch.SelectedIndex == 1 ? StudioTheme.Light : StudioTheme.Dark;
+        StudioTheming.Apply(theme);
+
+        if (_settings is not null)
+        {
+            _settings.Current.Theme = theme;
+            _settings.Save();
+        }
     }
 }

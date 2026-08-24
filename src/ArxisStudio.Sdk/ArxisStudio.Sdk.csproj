@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <RootNamespace>ArxisStudio.Sdk</RootNamespace>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <!--
+        SDK — контракт, на который ссылаются плагины, поэтому здесь не должно
+        появиться ни реализации студии, ни ссылок на её проекты. Пока контракту
+        хватает базовой библиотеки: UI-части (ToolWindow, drawer'ы) придут в M7
+        вместе с ссылкой на ArxisStudio.Controls.
+    -->
+
+</Project>

@@ -9,7 +9,12 @@
     <Project Path="external/ArxisStudio.Themes.Arxis/src/ArxisStudio.Themes.Arxis.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/ArxisStudio.Extensibility/ArxisStudio.Extensibility.csproj" />
+    <Project Path="src/ArxisStudio.Sdk/ArxisStudio.Sdk.csproj" />
     <Project Path="src/ArxisStudio.Shell/ArxisStudio.Shell.csproj" />
     <Project Path="src/ArxisStudio/ArxisStudio.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ArxisStudio.Tests/ArxisStudio.Tests.csproj" />
   </Folder>
 </Solution>

@@ -9,6 +9,18 @@
     </ItemGroup>
 
     <!--
+        Словари локализации читаются из ресурсов сборки, а не с диска.
+        Имя задано явно: файл вида Strings.ru.json MSBuild принимает за
+        сателлитный ресурс культуры и уносит в подпапку ru, после чего
+        GetManifestResourceStream не находит ничего.
+    -->
+    <ItemGroup>
+        <EmbeddedResource Include="Localization/Strings/*.json" WithCulture="false">
+            <LogicalName>ArxisStudio.Shell.Localization.Strings.%(Filename).json</LogicalName>
+        </EmbeddedResource>
+    </ItemGroup>
+
+    <!--
         Shell строится на контролах студии; контролы приходят субмодулем этого же
         репозитория, поэтому ссылка не требует соседей на диске.
     -->
