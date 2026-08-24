@@ -1,0 +1,221 @@
+# ArxisStudio — дизайн-спецификация (из мокапа ArxisStudio.dc.html)
+
+Источник: Claude Design проект `9b997186-4b89-4743-b752-1d385beb684a`, файл
+`ArxisStudio.dc.html` (разобран полностью; `support.js` — рантайм просмотрщика,
+дизайн-контента не содержит). Это входные данные для M0 (ArxisStudio.Controls +
+ArxisStudio.Themes.Arxis) и всех экранов студии.
+
+> В мокапе есть верхняя чёрная панель навигации по экранам (01/02/03, Dark/Light) с
+> собственными цветами (#0B0C0E, #17181C, #26282E, #8A8F9C…) — это хром **просмотрщика
+> мокапа**, в студию не переносится. Всё остальное — дизайн студии.
+
+## 1. Шрифты
+
+| Роль | Шрифт | Начертания |
+|---|---|---|
+| UI | **Inter** (fallback: system-ui, sans-serif) | 400, 500, 600, 700 |
+| Код, пути, значения, метрики | **JetBrains Mono** (fallback: monospace) | 400, 500, 600 |
+
+- База: `font-size: 13px`, `line-height: 1.45`, antialiased.
+- Употребляемые размеры: 9 / 9.5 / 10 / 10.5 / 11 / 11.5 / 12 / 12.5 / **13** / 13.5 / 15 / 16 px.
+- Заголовки секций (SECTION HEADER): `600 11px Inter`, `letter-spacing: .6px`, UPPERCASE, цвет `fg3`.
+- Моноширинным набираются: пути проектов, типы контролов (`Button · Avalonia.Controls`),
+  значения полей (Width `104`), логи, watch-значения, версии, метки размеров на канве.
+
+## 2. Палитры (токены темы)
+
+| Токен | Dark | Light | Назначение |
+|---|---|---|---|
+| `bg1` | `#1E1F22` | `#FFFFFF` | основной фон окна/контента |
+| `bg2` | `#2B2D30` | `#F7F8FA` | панели, тулбары, карточки |
+| `bg3` | `#393B40` | `#EBECF0` | hover, чипы, вторичные плитки |
+| `bg4` | `#43454A` | `#DFE1E5` | scrollbar thumb, выключенный toggle |
+| `brd` | `#393B40` | `#EBECF0` | основные разделители/рамки |
+| `brd2` | `#4E5157` | `#C9CCD6` | рамки инпутов и кнопок-outline |
+| `fg` | `#DFE1E5` | `#27282E` | основной текст |
+| `fg2` | `#9DA0A8` | `#6C707E` | вторичный текст, иконки |
+| `fg3` | `#6F737A` | `#A8ADBD` | третичный текст, подписи, плейсхолдеры |
+| `acc` | `#3574F0` | `#3574F0` | акцент (кнопки, выделение, ссылки-действия) |
+| `accH` | `#4682FA` | `#2E5FD3` | акцент hover |
+| `onacc` | `#FFFFFF` | `#FFFFFF` | текст на акценте |
+| `sel` | `#2E436E` | `#D4E2FF` | фон выделенной строки/элемента |
+| `canvas` | `#191A1D` | `#EDEEF1` | фон канвы дизайнера |
+| `dot` | `#33353A` | `#D5D7DE` | точки сетки канвы |
+| `inp` | `#1E1F22` | `#FFFFFF` | фон полей ввода |
+| `grn` | `#5FAD65` | `#1E8934` | успех, run, INFO, «в сети» |
+| `red` | `#E55765` | `#CC3B49` | ошибки, stop, close-hover |
+| `yel` | `#D6AE58` | `#9E6C00` | предупреждения (WARN) |
+| `org` | `#E08855` | `#BD5B15` | оранжевая семантика (layout-контролы, строки в watch) |
+| `pur` | `#9A7CF7` | `#6F4FD9` | фиолетовая семантика (TextBox/ComboBox/DataGrid) |
+| `shadow` | `rgba(0,0,0,.45)` | `rgba(0,0,0,.14)` | тени попапов/оверлеев |
+| `abshadow` | `rgba(0,0,0,.55)` | `rgba(30,40,60,.18)` | тень «окна» на канве |
+
+- Ссылки: `#548AF7`, hover `#6B9BFF` (в тёмной; в светлой допустимо `acc`/`accH`).
+- Варианты акцента в Settings: `#3574F0` (по умолчанию), `#9A7CF7`, `#5FAD65`, `#E08855`.
+- Цвета аватаров/плиток проектов: `#3574F0`, `#E08855`, `#5FAD65`, `#9A7CF7`, `#E55765`.
+- Семантическая раскраска иконок контролов в Hierarchy/Toolbox:
+  `Grid`,`TextBlock`,`Path` → `fg2` · `StackPanel`,`DockPanel`,`Border`,`Image`,`Header` → `org` ·
+  `ScrollViewer`,`ListBox`,`CheckBox`,`ToggleSwitch`,`ItemsControl` → `grn` ·
+  `TextBox`,`ComboBox`,`DataGrid` → `pur` · `Button`,`TabControl`,`Slider`,`ProgressBar`,`Window` → `acc`.
+
+## 3. Метрики и геометрия
+
+### Общие
+- Минимальная ширина окна: **1360px**.
+- Радиусы: 3.5–4 (мелкие сегменты/чекбоксы), 5 (инпуты, мелкие кнопки), 6 (кнопки,
+  сегмент-контейнеры), 7 (run-группа, чипы-кнопки), 8 (строки-карточки), 9 (плитки
+  иконок), 10 (карточки/панели), 13–16 (pill-чипы), 50% (аватары, точки).
+- Scrollbar: 8px, thumb `bg4` radius 4, track прозрачный (`scrollbar-width: thin`).
+- Hover-фон почти всюду: `bg3`; hover акцентной кнопки: `accH`; hover кнопки
+  закрытия окна: `red` + белая иконка.
+
+### Высоты полос (сверху вниз, экран Editor)
+| Элемент | Высота |
+|---|---|
+| Главный тулбар IDE | 42px |
+| Вкладки документов | 36px |
+| Breadcrumbs + переключатель Design/XAML/Split | 32px |
+| Заголовок tool window (Hierarchy, Inspector…) | 34px |
+| Вкладки нижней панели | 32px |
+| Нижняя панель целиком | 212px |
+| Статус-бар | 26px |
+
+### Ширины панелей
+| Панель | Ширина |
+|---|---|
+| Левая (Hierarchy + Toolbox) | 262px |
+| Правая (Inspector / Debug) | 302px |
+| Sidebar Welcome | 230px |
+| Колонка папок в Project-панели | 198px |
+
+### Ряды и элементы
+- Строка Hierarchy / дерева папок: **24px**; шаг отступа вложенности **14px**
+  (8 → 22 → 36 → 50 → 64); chevron 13px, иконка 14px, тип справа `11px fg3`.
+- Строка Toolbox: 26px, сетка 2 колонки; строка списка чатов/плагинов: ~36–58px.
+- Кнопки: основная 30px (padding 0 14px), в тулбаре 28px, малые 26px, icon-button
+  30×26 или 24×22; инпуты 26–32px.
+- Toggle: 30×17, knob 13px; чекбокс 14×14 radius 3.5.
+- Сегменты (Design/XAML/Split): контейнер `bg1`/рамка `brd` radius 6 padding 2,
+  активный сегмент `acc` radius 4, текст 11px.
+- Строка настроек в карточке Settings: 44px; карточка radius 10, padding 2px 16px.
+- Welcome-контент: max-width 980px, отступы 28px 36px.
+
+### Канва дизайнера
+- Фон `canvas`, точечная сетка: radial-gradient точка 1px, шаг **20×20px** (в Run
+  сетка выключена).
+- «Окно» приложения: radius 10, рамка `brd`, тень `0 18px 50px abshadow`; заголовок
+  36px с тремя точками-«светофорами» `bg4` 10px.
+- Метка над окном (design-режим): `⌖ MainWindow` `acc` + `1280 × 800 · 100%`,
+  `500 11px JetBrains Mono`, `fg3`.
+- **Selection adorner**: рамка 1.5px `acc` с отступом 3px наружу, radius +2; 6 ручек
+  7×7 (углы + середины верх/низ), белые с рамкой 1.5px `acc`, radius 1.5; лейбл над
+  рамкой: фон `acc`, белый `500 10px JetBrains Mono`, padding 2px 7px, radius 4 —
+  формат `ИмяКонтрола · Ш×В`.
+- Зум-контрол: правый нижний угол, `bg2` + `brd`, radius 7, тень `0 4px 14px shadow`,
+  кнопки −/+ 28×26, значение 11.5px.
+
+## 4. Иконография
+
+- Стиль: контурные SVG 16×16 viewBox, stroke `currentColor` 1.1–1.5 (обычно 1.2–1.3),
+  `stroke-linecap/linejoin: round`, без заливки (исключения: play/stop/пауза — fill).
+- Отрисовка в UI: 11–20px по контексту (13–15 типичные).
+- В мокапе заданы path'ы для: window, grid, border, textbox, listbox, stackpanel,
+  scrollviewer, dockpanel, button, tabcontrol, checkbox, combobox, slider, toggle,
+  textblock, image, datagrid, progressbar, path, play, branch, box, hex, doc, bubble,
+  dash(board), media, поиск, плюс, настройки-слайдеры, git-ветка, стрелки-chevron,
+  закрыть/свернуть/развернуть окно.
+
+## 5. Анимации
+
+> **Решение 2026-08-24: анимации в текущем этапе не реализуются.** Индикаторы
+> отображаются статично (точка без пульса, каретка системная). Таблица сохранена
+> как справка на будущее.
+
+| Имя | Параметры | Где |
+|---|---|---|
+| `axPulse` | opacity .25→1→.25 | 1.6s infinite — точка «Running»/«Live»/«в сети»; 1.2s с задержками 0/.2s/.4s — три точки «печатает» |
+| `axCaret` | мигание 1↔0 (50%/50%) | 1.1s infinite — каретка ввода (1.5×14px `acc`), курсор консоли (7×13px `fg3`) |
+
+## 6. Инвентарь экранов и состояний
+
+### 01 Welcome
+- Тайтл-бар 38px: `ArxisStudio 2026.2 — Welcome`, кнопки свернуть/развернуть/закрыть.
+- Sidebar: логотип Ax 34px radius 9 `acc` + «ArxisStudio / 2026.2 · Avalonia 11.3»,
+  навигация Projects / Templates / Learn / Plugins (строки 30px radius 6, активная —
+  `sel` + 500), внизу Settings и карточка пользователя (аватар-инициалы 22px `pur`).
+- **Projects**: поиск (340px) + New Project (`acc`) + Open + Clone from Git (outline);
+  секция Recent — строки 58px (плитка 36px с инициалами, имя, mono-путь, чип версии
+  Avalonia, дата 96px справа); секция Start from template — 4 карточки по 180px
+  (hover: рамка `acc`).
+- **Templates**: поиск + чипы-фильтры (активный `bg3`, счётчик «Все · 8»); грид
+  `auto-fill minmax(216px, 1fr)` карточек: плитка-иконка 38px, имя, описание, тег-чип,
+  «Создать →» (`acc`).
+- **Learn**: 3 карточки быстрых стартов (кружок 34px `sel`+`acc`-иконка, длительность-чип);
+  курс: прогресс-бар 4px (42% `acc`), уроки 42px — номер в кружке 24px (done: `sel`/`acc`;
+  now: `acc`/белый; todo: `bg3`/`fg2`), галочка `grn` у пройденных; строка ресурсов-ссылок.
+- **Plugins**: поиск + чипы (Все / Установленные · 2 / Обновления с бейджем `acc`);
+  список: плитка-иконка 36px, имя + автор, описание (ellipsis), загрузки, версия mono,
+  кнопка состояния — «Установлено» (текст `fg3`), «Обновить» (`acc`), «Установить»
+  (outline `brd2`); мин. ширина кнопки 96px.
+- **Settings**: секции-карточки Appearance (Theme — сегменты Dark/Light; Accent color —
+  4 свотча 16px, активный с двойным кольцом; Density — комбо «Compact»), Editor
+  (UI font «Inter · 13», тогглы: сетка канваса, автосохранение «каждые 30 секунд и при
+  запуске», подсказки в дизайнере), Behavior (открывать последний проект — выкл,
+  Interface language «Русский», Update channel «Stable» + кнопка «Проверить обновления»).
+
+### 02 Editor
+- Тулбар 42px: логотип 24px; селектор проекта «ВолнаЧат» (600 12.5px + chevron);
+  git-виджет «main ↑2»; конфигурация «Desktop · Debug»; поиск; run-группа в рамке
+  (`bg1` + `brd` radius 7): Run (`grn` play), Restart, цель «ВолнаЧат.Desktop»;
+  настройки; разделитель 1×18; окно-кнопки.
+- Левая панель: **Hierarchy** (заголовок 34px с + и поиском; дерево из
+  Window→Grid→…→Button с выделенным SendButton) и **Toolbox** (заголовок с
+  поиском 104px; группы Layout / Input / Display, элементы — cursor:grab).
+- Центр: вкладка `MainWindow.axaml` (активная: `bg1` + inset -2px `acc`, иконка `acc`,
+  крестик `fg3`); breadcrumbs `MainWindow › Root › Composer › SendButton`
+  (текущий — `fg` 500, разделители `fg3`); сегменты Design/XAML/Split; выбор размера
+  «1280 × 800»; канва (см. §3).
+- Нижняя панель: вкладки Project (активная — inset -2px `acc`) / Console / Problems `0`
+  / Build Output; **Project**: дерево папок (ВолнаЧат → Views(выбр)/ViewModels/Models/
+  Services/Assets/Styles) + плитки файлов 92px (иконка 26px, имя 10.5px; .axaml —
+  `acc`-окно, .cs — `grn`-док, .ico — `org`-img).
+- Правая панель **Inspector**: шапка — плитка-иконка 30px `sel`/`acc`, «SendButton» 600,
+  `Button · Avalonia.Controls` mono `fg3`, чекбокс; чипы `style: Primary`, `IsDefault`,
+  `x:Name`; секции (заголовок 26px 600 12px + chevron):
+  - **Layout**: грид 2 колонки — Width `104`, Height `32`, Margin `8,0,0,0` (mono),
+    Dock `Right` (комбо); VerticalAlignment — 4 сегмента (Top/Center*/Bottom/Stretch);
+  - **Appearance**: Background — свотч 16px + `#3574F0` mono + чип «Accent»
+    (`sel`/`acc`); Foreground `#FFFFFF`; CornerRadius `7`; FontSize `12.5`;
+  - **Content & Interaction**: Content «Отправить»; Command — поле с рамкой `acc` и
+    иконкой связи + `SendMessageCommand` mono `acc` (индикация binding); HotKey — kbd-чип
+    `Enter`; IsEnabled — чекбокс;
+  - кнопка **Add Behavior** — пунктирная рамка `brd2` radius 6, текст `acc`
+    (hover: `sel` + рамка `acc`).
+- Статус-бар: слева «Ready · автосохранение включено · выбран SendButton»; справа
+  «Avalonia 11.3.2 · net9.0 · main ↑2 · UTF-8 · 100%» (разделители-точки `fg3`).
+
+### 03 Run / Debug
+- Run-группа тулбара → «Running · 00:14» (`grn` + пульс), Restart / Pause / Stop (`red`).
+- У вкладок документов появляется чип «Приложение запущено · Hot Reload» (`bg3`, `grn`,
+  пульс-точка).
+- Канва: сетка и adorner скрыты, приложение «живое» (индикатор набора, каретка,
+  дополнительное сообщение).
+- Нижняя панель → **Console** (бейдж `7` на вкладке): строки 20px mono 11.5px —
+  время `fg3`, уровень 600 (INFO `grn` / DEBUG `fg3` / WARN `yel`), сообщение `fg2`;
+  мигающий блок-курсор.
+- Правая панель → **Debug**: шапка ChatViewModel (`grn` play-плитка, `live ·
+  ВолнаЧат.Desktop` mono, чип «Live» с пульсом); **Watch** — строки 26px: ключ mono
+  `fg2`, значение mono цветом по типу (строка `org`, число `grn`, bool `red`,
+  Online `grn`); **Сессия** — 3 стат-плитки `bg3` radius 7 (значение 600 16px +
+  подпись 10.5px `fg3`); кнопки «Снимок состояния» и «Остановить» (`red`).
+
+## 7. Замечания для реализации
+
+- Текст «2026.2», «Avalonia 11.3», «net9.0» в мокапе — декоративный; реальный стек:
+  net10.0, Avalonia 12.1.x (см. plan.md).
+- Переключение темы — мгновенная смена словаря токенов (в мокапе — класс `axL`);
+  в Themes.Arxis это ThemeVariant dark/light с одинаковыми именами ресурсов.
+- Плейсхолдеры инпутов — цвет `fg3`; заполненный текст — `fg`.
+- Бейджи-счётчики: min-width 15px, height 15px, radius 8, `acc`/белый `600 9.5px`.
+- Демо-контент (ВолнаЧат, чаты, сообщения, рецензии проектов) — не часть студии,
+  пригодится для sample-проекта и скриншотов.

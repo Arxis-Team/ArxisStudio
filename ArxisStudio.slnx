@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/external/" />
+  <Folder Name="/external/ArxisStudio.Controls/" />
+  <Folder Name="/external/ArxisStudio.Controls/src/">
+    <Project Path="external/ArxisStudio.Controls/src/ArxisStudio.Controls.csproj" />
+  </Folder>
+  <Folder Name="/external/ArxisStudio.Themes.Arxis/" />
+  <Folder Name="/external/ArxisStudio.Themes.Arxis/src/">
+    <Project Path="external/ArxisStudio.Themes.Arxis/src/ArxisStudio.Themes.Arxis.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/ArxisStudio.Shell/ArxisStudio.Shell.csproj" />
+    <Project Path="src/ArxisStudio/ArxisStudio.csproj" />
+  </Folder>
+</Solution>

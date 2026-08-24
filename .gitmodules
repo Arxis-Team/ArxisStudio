@@ -1,0 +1,15 @@
+[submodule "external/ArxisStudio.Markup"]
+	path = external/ArxisStudio.Markup
+	url = https://github.com/Arxis-Team/ArxisStudio.Markup.git
+[submodule "external/ArxisStudio.ProjectSystem"]
+	path = external/ArxisStudio.ProjectSystem
+	url = https://github.com/Arxis-Team/ArxisStudio.ProjectSystem.git
+[submodule "external/ArxisStudio.DesignEditor"]
+	path = external/ArxisStudio.DesignEditor
+	url = https://github.com/Arxis-Team/ArxisStudio.DesignEditor.git
+[submodule "external/ArxisStudio.Controls"]
+	path = external/ArxisStudio.Controls
+	url = https://github.com/Arxis-Team/ArxisStudio.Controls.git
+[submodule "external/ArxisStudio.Themes.Arxis"]
+	path = external/ArxisStudio.Themes.Arxis
+	url = https://github.com/Arxis-Team/ArxisStudio.Themes.Arxis.git

@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <RootNamespace>ArxisStudio.Shell</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Avalonia"/>
+    </ItemGroup>
+
+    <!--
+        Shell строится на контролах студии; контролы приходят субмодулем этого же
+        репозитория, поэтому ссылка не требует соседей на диске.
+    -->
+    <ItemGroup>
+        <ProjectReference Include="../../external/ArxisStudio.Controls/src/ArxisStudio.Controls.csproj"/>
+    </ItemGroup>
+
+</Project>

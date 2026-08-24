@@ -1,0 +1,72 @@
+## --- СБОРКА И БИНАРНИКИ ---
+# Игнорировать папки сборки (Debug/Release)
+[Bb]in/
+[Oo]bj/
+
+## --- VISUAL STUDIO ---
+# Временные файлы и настройки пользователя
+.vs/
+*.user
+*.userosscache
+*.sln.docstates
+*.suo
+*.cache
+*.docstates
+
+## --- VISUAL STUDIO CODE ---
+.vscode/
+
+## --- JETBRAINS RIDER ---
+.idea/
+*.sln.iml
+
+## --- ЗАВИСИМОСТИ (NUGET) ---
+# Обычно пакеты восстанавливаются, хранить их не нужно
+*.nupkg
+*.snupkg
+# Папка packages игнорируется, если вы используете PackageReference (стандарт для .NET Core+)
+**/packages/*
+# Но файл конфигурации пакетов оставляем
+!**/packages/build/
+*.nuget.props
+*.nuget.targets
+
+## --- ТЕСТЫ И ЛОГИ ---
+TestResults/
+*.log
+
+## --- ОПЕРАЦИОННЫЕ СИСТЕМЫ ---
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+## --- КОНФИГУРАЦИЯ И СЕКРЕТЫ (ВАЖНО) ---
+appsettings.Development.json
+appsettings.local.json
+.env
+
+# Файлы crash dumps
+*.dmp
+
+## --- ДРУГОЕ ---
+# Файлы блокировки проекта (иногда полезно игнорировать, но зависит от команды)
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Visual Studio Code history
+.history/
+
+## --- ФАЙЛЫ АГЕНТОВ ---
+# CLAUDE.md коммитится: это накопленные заметки по архитектуре,
+# и они нужны на любой машине, где идёт разработка.
+# .claude/ тоже коммитится (скиллы и permissions — часть тулинга проекта),
+# кроме личных переопределений.
+.claude/settings.local.json
+artifacts/

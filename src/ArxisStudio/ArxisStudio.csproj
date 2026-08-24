@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <RootNamespace>ArxisStudio</RootNamespace>
+        <AssemblyName>ArxisStudio</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Avalonia"/>
+        <PackageReference Include="Avalonia.Desktop"/>
+        <PackageReference Include="Avalonia.Fonts.Inter"/>
+        <PackageReference Include="Avalonia.Themes.Fluent"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../ArxisStudio.Shell/ArxisStudio.Shell.csproj"/>
+        <ProjectReference Include="../../external/ArxisStudio.Themes.Arxis/src/ArxisStudio.Themes.Arxis.csproj"/>
+    </ItemGroup>
+
+</Project>
