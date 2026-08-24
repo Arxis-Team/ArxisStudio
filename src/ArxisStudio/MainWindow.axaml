@@ -108,7 +108,8 @@
                                ShowRulers="False"
                                ShowGuides="False"
                                ShowGrid="False"
-                               DesignSelectionChanged="OnDesignerSelectionChanged">
+                               DesignSelectionChanged="OnDesignerSelectionChanged"
+                               EditCompleted="OnDesignerEditCompleted">
             <design:DesignEditorItem x:Name="DesignerForm"
                                      ContentMode="Loaded"
                                      Location="0,0"
@@ -154,7 +155,7 @@
       </ax:AxToolWindow>
     </shell:StudioShell.BottomPane>
 
-    <!-- Правая зона: Inspector (заглушка M1). -->
+    <!-- Правая зона: Inspector — свойства выделенного элемента. -->
     <shell:StudioShell.RightPane>
       <ax:AxToolWindow Title="{loc:Loc panel.inspector}">
         <ax:AxToolWindow.Actions>
@@ -162,8 +163,92 @@
             <ax:AxIcon Data="{x:Static ax:AxIcons.Settings}" Width="13" Height="13"/>
           </ax:AxButton>
         </ax:AxToolWindow.Actions>
-        <TextBlock Classes="dimmer" Text="{loc:Loc panel.inspector.empty}" FontSize="12"
-                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        <Panel>
+          <TextBlock x:Name="InspectorEmpty" Classes="dimmer" Text="{loc:Loc panel.inspector.empty}" FontSize="12"
+                     HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+          <DockPanel x:Name="InspectorBody" IsVisible="False">
+            <!-- Шапка: что именно сейчас правится. -->
+            <Border DockPanel.Dock="Top" Padding="12,10"
+                    BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,0,0,1">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <Border Width="30" Height="30" CornerRadius="6" Background="{DynamicResource AxSelBrush}">
+                  <ax:AxIcon Data="{x:Static ax:AxIcons.Window}" Width="15" Height="15"
+                             Foreground="{DynamicResource AxAccBrush}"/>
+                </Border>
+                <StackPanel VerticalAlignment="Center" Spacing="1">
+                  <TextBlock x:Name="InspectorTitle" FontWeight="SemiBold" FontSize="12.5"/>
+                  <TextBlock x:Name="InspectorType" Classes="mono dimmer" FontSize="11"/>
+                </StackPanel>
+              </StackPanel>
+            </Border>
+
+            <!-- Подвал: отмена, возврат и сохранение — правки идут в файл. -->
+            <Border DockPanel.Dock="Bottom" Padding="10,8"
+                    BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,1,0,0">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <ax:AxButton x:Name="UndoButton" Classes="compact" IsEnabled="False"
+                             Content="{loc:Loc inspector.undo}" Click="OnUndoClick"/>
+                <ax:AxButton x:Name="RedoButton" Classes="compact" IsEnabled="False"
+                             Content="{loc:Loc inspector.redo}" Click="OnRedoClick"/>
+                <ax:AxButton x:Name="SaveButton" Classes="compact accent" IsEnabled="False"
+                             Content="{loc:Loc inspector.save}" Click="OnSaveClick"/>
+              </StackPanel>
+            </Border>
+
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+              <ItemsControl x:Name="InspectorSections">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="svc:InspectorSection">
+                    <StackPanel>
+                      <Border Height="26" Padding="12,0" Background="{DynamicResource AxBg2Brush}">
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="12"
+                                   VerticalAlignment="Center"/>
+                      </Border>
+
+                      <ItemsControl ItemsSource="{Binding Rows}" Margin="12,6,12,10">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="svc:InspectorRow">
+                            <Grid ColumnDefinitions="96,*,Auto" Margin="0,0,0,5">
+                              <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="11.5"
+                                         VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                         Margin="0,0,8,0" ToolTip.Tip="{Binding Name}"
+                                         Classes.dim="{Binding !IsSet}"/>
+
+                              <ax:AxTextBox Grid.Column="1" IsVisible="{Binding IsText}"
+                                            Text="{Binding Value, Mode=TwoWay}"
+                                            PlaceholderText="{Binding Placeholder}"
+                                            FontSize="11.5"
+                                            KeyDown="OnInspectorKeyDown"
+                                            LostFocus="OnInspectorLostFocus"/>
+
+                              <ax:AxCheckBox Grid.Column="1" IsVisible="{Binding IsToggle}"
+                                             IsChecked="{Binding IsChecked, Mode=TwoWay}"
+                                             Click="OnInspectorToggled"/>
+
+                              <ax:AxComboBox Grid.Column="1" IsVisible="{Binding IsChoice}"
+                                             ItemsSource="{Binding Options}"
+                                             SelectedItem="{Binding Value, Mode=TwoWay}"
+                                             PlaceholderText="{Binding Placeholder}"
+                                             SelectionChanged="OnInspectorChoice"/>
+
+                              <ax:AxButton Grid.Column="2" Classes="icon" Margin="4,0,0,0"
+                                           IsVisible="{Binding IsSet}"
+                                           Click="OnInspectorReset"
+                                           ToolTip.Tip="{loc:Loc inspector.reset}">
+                                <ax:AxIcon Data="{x:Static ax:AxIcons.Close}" Width="11" Height="11"/>
+                              </ax:AxButton>
+                            </Grid>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </DockPanel>
+        </Panel>
       </ax:AxToolWindow>
     </shell:StudioShell.RightPane>
 

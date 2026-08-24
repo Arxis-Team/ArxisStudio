@@ -98,5 +98,10 @@
   "hierarchy.root": "Документ",
   "document.unsaved": "Есть несохранённые правки",
   "status.selected": "Выбрано",
-  "status.noselection": "Ничего не выбрано"
+  "status.noselection": "Ничего не выбрано",
+  "inspector.undo": "Отменить",
+  "inspector.redo": "Вернуть",
+  "inspector.save": "Сохранить",
+  "inspector.reset": "Убрать значение из разметки",
+  "inspector.saved": "Сохранено"
 }

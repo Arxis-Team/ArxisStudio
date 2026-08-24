@@ -98,5 +98,10 @@
   "hierarchy.root": "Document",
   "document.unsaved": "Unsaved changes",
   "status.selected": "Selected",
-  "status.noselection": "Nothing selected"
+  "status.noselection": "Nothing selected",
+  "inspector.undo": "Undo",
+  "inspector.redo": "Redo",
+  "inspector.save": "Save",
+  "inspector.reset": "Remove the value from the markup",
+  "inspector.saved": "Saved"
 }
