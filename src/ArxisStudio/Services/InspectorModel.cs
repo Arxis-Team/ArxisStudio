@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using ArxisStudio.Markup.Xaml;
 using ArxisStudio.Markup.Xaml.Loader;
+using Avalonia.Controls;
 
 namespace ArxisStudio.Services;
 
@@ -29,16 +30,25 @@ public sealed class InspectorRow : INotifyPropertyChanged
     /// <summary>Создаёт строку.</summary>
     /// <param name="name">Имя свойства, как оно пишется в разметке.</param>
     /// <param name="kind">Чем правится значение.</param>
+    /// <param name="valueType">Тип значения свойства; null, если тип неизвестен.</param>
     /// <param name="options">Варианты для выбора из списка.</param>
-    public InspectorRow(string name, InspectorRowKind kind, IReadOnlyList<string>? options = null)
+    public InspectorRow(
+        string name,
+        InspectorRowKind kind,
+        Type? valueType = null,
+        IReadOnlyList<string>? options = null)
     {
         Name = name;
         Kind = kind;
+        ValueType = valueType;
         Options = options ?? [];
     }
 
     /// <inheritdoc/>
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>Строку перечитали из документа.</summary>
+    internal event EventHandler? Refilled;
 
     /// <summary>Имя свойства.</summary>
     public string Name { get; }
@@ -46,17 +56,32 @@ public sealed class InspectorRow : INotifyPropertyChanged
     /// <summary>Чем правится значение.</summary>
     public InspectorRowKind Kind { get; }
 
+    /// <summary>Тип значения свойства; null, если тип неизвестен.</summary>
+    public Type? ValueType { get; }
+
+    /// <summary>
+    /// Редактор, который дал плагин; null, если строка правится сама.
+    /// </summary>
+    /// <remarks>
+    /// Строка с рисовальщиком не показывает ни поля, ни флажка, ни списка: всё,
+    /// чем правится значение, теперь внутри этого контрола.
+    /// </remarks>
+    public Control? Drawer { get; internal set; }
+
+    /// <summary>Строку рисует плагин.</summary>
+    public bool IsDrawn => Drawer is not null;
+
     /// <summary>Варианты для выбора из списка; пусто для остальных строк.</summary>
     public IReadOnlyList<string> Options { get; }
 
     /// <summary>Значение правится полем ввода.</summary>
-    public bool IsText => Kind == InspectorRowKind.Text;
+    public bool IsText => Kind == InspectorRowKind.Text && !IsDrawn;
 
     /// <summary>Значение правится флажком.</summary>
-    public bool IsToggle => Kind == InspectorRowKind.Toggle;
+    public bool IsToggle => Kind == InspectorRowKind.Toggle && !IsDrawn;
 
     /// <summary>Значение выбирается из списка.</summary>
-    public bool IsChoice => Kind == InspectorRowKind.Choice;
+    public bool IsChoice => Kind == InspectorRowKind.Choice && !IsDrawn;
 
     /// <summary>Значение, заданное в разметке; null, если свойство не задано.</summary>
     public string? Value
@@ -108,6 +133,10 @@ public sealed class InspectorRow : INotifyPropertyChanged
 
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Value)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsChecked)));
+
+        // Рисовальщик плагина о правках из разметки узнаёт только отсюда:
+        // привязок к строке у него нет.
+        Refilled?.Invoke(this, EventArgs.Empty);
     }
 
     private void Set<T>(ref T field, T value, [System.Runtime.CompilerServices.CallerMemberName] string? name = null)
@@ -255,11 +284,11 @@ public static class InspectorModel
         var type = Nullable.GetUnderlyingType(member.ValueType) ?? member.ValueType;
 
         if (type == typeof(bool))
-            return new InspectorRow(name, InspectorRowKind.Toggle);
+            return new InspectorRow(name, InspectorRowKind.Toggle, type);
 
         return type.IsEnum
-            ? new InspectorRow(name, InspectorRowKind.Choice, Enum.GetNames(type))
-            : new InspectorRow(name, InspectorRowKind.Text);
+            ? new InspectorRow(name, InspectorRowKind.Choice, type, Enum.GetNames(type))
+            : new InspectorRow(name, InspectorRowKind.Text, type);
     }
 
     private static void Fill(InspectorRow row, HierarchyNode node, XamlLoadSession? session)

@@ -33,6 +33,7 @@ public partial class MainWindow : Window
     private readonly StudioCommands _commands = new();
     private readonly StudioRunner _runner;
     private PluginHost? _plugins;
+    private readonly PluginContributionRegistry _contributions = new();
 
     // Панели плагинов, разложенные по нижним вкладкам: вкладка знает свой
     // номер, а содержимое лежит в общем месте и показывается по очереди.
@@ -396,6 +397,7 @@ public partial class MainWindow : Window
         var host = new PluginHost(new StudioContextFactory(_log, _commands, ProjectPath));
 
         _plugins = host;
+        _contributions.Conflict += (_, message) => _log.Write(StudioLogLevel.Warning, "Plugins", message);
 
         foreach (var loaded in host.LoadAll(catalog.Scan()))
         {
@@ -406,6 +408,8 @@ public partial class MainWindow : Window
             }
 
             _log.Write(StudioLogLevel.Info, "Plugins", $"{loaded.Installed.DisplayName} поднят");
+
+            _contributions.Add(loaded);
             MountPanels(loaded);
         }
     }
@@ -904,6 +908,12 @@ public partial class MainWindow : Window
         _selected = node;
         _inspector.Clear();
 
+        // Панель плагина живёт ровно одно выделение: следующий элемент может
+        // быть другого типа, и чужой инспектор о нём ничего не знает.
+        InspectorCustom.Content = null;
+        InspectorCustom.IsVisible = false;
+        InspectorSections.IsVisible = true;
+
         if (node is null || ActiveDocument is not { } document)
         {
             InspectorBody.IsVisible = false;
@@ -916,6 +926,8 @@ public partial class MainWindow : Window
         {
             foreach (var section in InspectorModel.Build(node, document.Session))
                 _inspector.Add(section);
+
+            Draw(node);
         }
         finally
         {
@@ -929,6 +941,79 @@ public partial class MainWindow : Window
         InspectorEmpty.IsVisible = false;
 
         UpdateHistoryButtons();
+    }
+
+    /// <summary>
+    /// Отдаёт строки рисовальщикам плагинов.
+    /// </summary>
+    /// <remarks>
+    /// Рисовальщик получает не копию значения, а саму строку: правка из его
+    /// контрола идёт тем же путём, что и правка из поля ввода — через документ,
+    /// с проверкой и в общую историю.
+    /// </remarks>
+    private void Draw(HierarchyNode node)
+    {
+        if (_contributions.DrawnTypes.Count == 0)
+            return;
+
+        var contexts = new List<Sdk.IPropertyContext>();
+
+        foreach (var row in _inspector.SelectMany(section => section.Rows))
+        {
+            var context = new RowPropertyContext(row, CommitAsync);
+
+            contexts.Add(context);
+
+            if (row.ValueType is { } type && _contributions.DrawerFor(type) is { } drawer)
+                row.Drawer = Safely(() => drawer.Build(context), row.Name);
+        }
+
+        ShowCustomInspector(node, contexts);
+    }
+
+    /// <summary>
+    /// Подменяет содержимое инспектора панелью плагина, если он взялся за этот
+    /// тип контрола.
+    /// </summary>
+    /// <remarks>
+    /// Рисовальщик меняет одну строку, а инспектор — весь разговор о выделенном
+    /// элементе, поэтому общие разделы при этом не показываются: две панели об
+    /// одном и том же рядом означали бы два места, где правится одно свойство.
+    /// </remarks>
+    private void ShowCustomInspector(HierarchyNode node, IReadOnlyList<Sdk.IPropertyContext> properties)
+    {
+        if (node.Control?.GetType() is not { } type || _contributions.InspectorFor(type) is not { } match)
+            return;
+
+        // Контекст указывает на папку того плагина, чей это инспектор: свои
+        // ресурсы он ищет рядом с собой.
+        var directory = _plugins?.Loaded
+            .FirstOrDefault(loaded => loaded.Installed.Id == match.PluginId)?.Installed.Directory;
+
+        var studio = new StudioContext(_log, _commands, ProjectPath, directory ?? AppContext.BaseDirectory);
+
+        if (Safely(() => match.Editor.Build(new ElementInspectorContext(node, properties, studio)), node.TypeName) is not { } content)
+            return;
+
+        InspectorCustom.Content = content;
+        InspectorCustom.IsVisible = true;
+        InspectorSections.IsVisible = false;
+    }
+
+    /// <summary>
+    /// Строит контрол плагина, не давая его сбою утащить с собой инспектор.
+    /// </summary>
+    private Control? Safely(Func<Control> build, string what)
+    {
+        try
+        {
+            return build();
+        }
+        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        {
+            _log.Write(StudioLogLevel.Error, "Plugins", $"Рисовальщик свойства {what} упал: {e.Message}");
+            return null;
+        }
     }
 
     private async void OnInspectorKeyDown(object? sender, KeyEventArgs e)

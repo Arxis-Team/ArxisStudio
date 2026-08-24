@@ -314,6 +314,10 @@
             </Border>
 
             <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+              <Panel>
+              <!-- Инспектор плагина, если он взялся за этот тип контрола. -->
+              <ContentControl x:Name="InspectorCustom" IsVisible="False"/>
+
               <ItemsControl x:Name="InspectorSections">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="svc:InspectorSection">
@@ -343,6 +347,10 @@
                                              IsChecked="{Binding IsChecked, Mode=TwoWay}"
                                              Click="OnInspectorToggled"/>
 
+                              <!-- Редактор из плагина заменяет собой всё, чем строка правилась бы сама. -->
+                              <ContentControl Grid.Column="1" IsVisible="{Binding IsDrawn}"
+                                              Content="{Binding Drawer}"/>
+
                               <ax:AxComboBox Grid.Column="1" IsVisible="{Binding IsChoice}"
                                              ItemsSource="{Binding Options}"
                                              SelectedItem="{Binding Value, Mode=TwoWay}"
@@ -363,6 +371,7 @@
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
+              </Panel>
             </ScrollViewer>
           </DockPanel>
         </Panel>
