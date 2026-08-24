@@ -22,6 +22,35 @@ ArxisStudio.Themes.Arxis) и всех экранов студии.
 - Моноширинным набираются: пути проектов, типы контролов (`Button · Avalonia.Controls`),
   значения полей (Width `104`), логи, watch-значения, версии, метки размеров на канве.
 
+## 1a. Первоисточник: Int UI
+
+Мокап нарисован по **Int UI** — дизайн-системе IntelliJ (кит
+`Int UI Kit (Ref)` из Figma). Поэтому тема студии берёт значения не «на глаз
+из картинки», а из первоисточника:
+
+- **палитра** — шкалы New UI IntelliJ (`expUI_dark.theme.json` /
+  `expUI_light.theme.json` в intellij-community): Gray 1…14, Blue 1…13,
+  Green / Red / Yellow / Orange / Purple / Teal;
+- **метрики и состояния** — Jewel, реализация Int UI от JetBrains
+  (`int-ui-standalone`): именно там значения заданы кодом.
+
+Метрики Int UI, принятые темой (`Metrics.axaml`):
+
+| Значение | Размер | Где |
+|---|---|---|
+| Строка списка / дерева / меню | **24** | `AxRowHeight` |
+| Контур фокуса | **2** | `AxFocusOutlineWidth` / `…Thickness` |
+| Скругление контрола | **4** | `AxCornerRadius` |
+| Скругление сегмента, мелких элементов | **3** | `AxCornerRadiusSmall` |
+| Кнопка | высота **28**, отступы **12×6**, минимум ширины **72** | `AxControlHeight`, `AxButtonPadding`, `AxButtonMinWidth` |
+| Поле ввода | высота **28**, отступ **9** (8 + рамка) | `AxTextFieldPadding` |
+| Выпадающий список | высота **24**, отступы **6×2** | `AxControlHeightCompact`, `AxComboBoxPadding` |
+| Флажок и переключатель | **16**, отступ до подписи **5** | `AxCheckboxSize`, `AxCheckboxGap` |
+
+Состояния, которые Int UI требует от каждого интерактивного контрола:
+обычное, наведение, нажатие, **фокус** (контур 2px, выходящий за границы
+контрола) и выключенное. Плюс у полей ввода — `error` и `warning`.
+
 ## 2. Палитры (токены темы)
 
 | Токен | Dark | Light | Назначение |
@@ -49,6 +78,13 @@ ArxisStudio.Themes.Arxis) и всех экранов студии.
 | `pur` | `#9A7CF7` | `#6F4FD9` | фиолетовая семантика (TextBox/ComboBox/DataGrid) |
 | `shadow` | `rgba(0,0,0,.45)` | `rgba(0,0,0,.14)` | тени попапов/оверлеев |
 | `abshadow` | `rgba(0,0,0,.55)` | `rgba(30,40,60,.18)` | тень «окна» на канве |
+
+Токены выше — семантический слой; под ним лежат шкалы Int UI
+(`AxGray1…AxGray14`, `AxBlue1…AxBlue13`, `AxGreen*`, `AxRed*`, `AxYellow*`,
+`AxOrange*`, `AxPurple*`, `AxTeal*`), доступные и плагинам. Сверх токенов
+мокапа тема добавляет: `AxAccPressed`, `AxFgDisabled`, `AxInpDisabled`,
+`AxSelInactive`, `AxOutlineFocused/Error/Warning`, `AxLinkVisited` и фоны
+сообщений `AxInfo/Success/Warning/ErrorBackground`.
 
 - Ссылки: `#548AF7`, hover `#6B9BFF` (в тёмной; в светлой допустимо `acc`/`accH`).
 - Варианты акцента в Settings: `#3574F0` (по умолчанию), `#9A7CF7`, `#5FAD65`, `#E08855`.
