@@ -3,8 +3,8 @@ using Avalonia.Data;
 namespace ArxisStudio.Shell.Localization;
 
 /// <summary>
-/// Разметочное расширение для строк интерфейса: <c>Text="{loc:Loc welcome.projects}"</c>.
-/// Возвращает привязку к индексатору <see cref="Localizer"/>, поэтому смена языка
+/// Разметочное расширение для строк интерфейса: <c>Text="{loc:Loc projects.open}"</c>.
+/// Возвращает привязку к <see cref="LocalizedString.Value"/>, поэтому смена языка
 /// перерисовывает уже показанный текст.
 /// </summary>
 public sealed class LocExtension
@@ -23,9 +23,10 @@ public sealed class LocExtension
 
     /// <summary>Возвращает привязку к строке текущего языка.</summary>
     /// <param name="serviceProvider">Контекст разметки; не используется.</param>
-    public Binding ProvideValue(IServiceProvider serviceProvider) => new($"[{Key}]")
-    {
-        Source = Localizer.Instance,
-        Mode = BindingMode.OneWay,
-    };
+    public Binding ProvideValue(IServiceProvider serviceProvider) =>
+        new(nameof(LocalizedString.Value))
+        {
+            Source = Localizer.Instance.Track(Key),
+            Mode = BindingMode.OneWay,
+        };
 }

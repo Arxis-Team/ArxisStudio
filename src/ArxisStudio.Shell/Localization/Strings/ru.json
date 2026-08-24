@@ -2,12 +2,12 @@
   "app.name": "ArxisStudio",
   "app.tagline": "Среда разработки приложений",
 
-  "welcome.title": "ArxisStudio — Welcome",
-  "welcome.nav.projects": "Projects",
-  "welcome.nav.templates": "Templates",
-  "welcome.nav.learn": "Learn",
-  "welcome.nav.plugins": "Plugins",
-  "welcome.nav.settings": "Settings",
+  "welcome.title": "ArxisStudio — Добро пожаловать",
+  "welcome.nav.projects": "Проекты",
+  "welcome.nav.templates": "Шаблоны",
+  "welcome.nav.learn": "Обучение",
+  "welcome.nav.plugins": "Плагины",
+  "welcome.nav.settings": "Настройки",
 
   "projects.search": "Поиск проектов",
   "projects.new": "Новый проект",
@@ -54,6 +54,7 @@
   "plugins.disabled": "Выключен",
   "plugins.broken": "Ошибка манифеста",
   "plugins.openfolder": "Открыть каталог плагинов",
+  "plugins.installed.suffix": "— установлен",
 
   "settings.title": "Настройки",
   "settings.subtitle": "Глобальные настройки студии",
@@ -73,6 +74,26 @@
   "settings.language": "Язык интерфейса",
   "settings.channel": "Канал обновлений",
   "settings.checkupdates": "Проверить обновления",
+
+  "studio.noproject": "Без проекта",
+  "studio.configuration": "Desktop · Отладка",
+  "studio.run": "Запустить",
+  "studio.stop": "Остановить",
+  "studio.ready": "Готово",
+  "studio.canvas.hint": "Откройте документ .axaml — здесь появится дизайнер форм",
+
+  "panel.hierarchy": "Иерархия",
+  "panel.hierarchy.empty": "Нет открытого документа",
+  "panel.toolbox": "Палитра",
+  "panel.toolbox.empty": "Палитра контролов появится вместе с дизайнером",
+  "panel.inspector": "Инспектор",
+  "panel.inspector.empty": "Ничего не выбрано",
+  "panel.project": "Проект",
+  "panel.project.empty": "Панель проекта появится с открытием решения",
+  "panel.console": "Консоль",
+  "panel.problems": "Проблемы",
+
+  "vcs.clone.later": "Клонирование из Git появится вместе с интеграцией систем контроля версий.",
 
   "common.cancel": "Отмена",
   "common.close": "Закрыть",

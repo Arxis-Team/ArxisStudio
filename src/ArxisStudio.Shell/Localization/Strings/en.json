@@ -54,6 +54,7 @@
   "plugins.disabled": "Disabled",
   "plugins.broken": "Manifest error",
   "plugins.openfolder": "Open plugin folder",
+  "plugins.installed.suffix": "— installed",
 
   "settings.title": "Settings",
   "settings.subtitle": "Global studio settings",
@@ -73,6 +74,26 @@
   "settings.language": "Interface language",
   "settings.channel": "Update channel",
   "settings.checkupdates": "Check for updates",
+
+  "studio.noproject": "No project",
+  "studio.configuration": "Desktop · Debug",
+  "studio.run": "Run",
+  "studio.stop": "Stop",
+  "studio.ready": "Ready",
+  "studio.canvas.hint": "Open an .axaml document — the form designer appears here",
+
+  "panel.hierarchy": "Hierarchy",
+  "panel.hierarchy.empty": "No document open",
+  "panel.toolbox": "Toolbox",
+  "panel.toolbox.empty": "The control palette arrives with the designer",
+  "panel.inspector": "Inspector",
+  "panel.inspector.empty": "Nothing selected",
+  "panel.project": "Project",
+  "panel.project.empty": "The project panel arrives when a solution is opened",
+  "panel.console": "Console",
+  "panel.problems": "Problems",
+
+  "vcs.clone.later": "Cloning from Git arrives with version control integration.",
 
   "common.cancel": "Cancel",
   "common.close": "Close",

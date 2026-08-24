@@ -7,16 +7,17 @@ namespace ArxisStudio.Shell.Localization;
 
 /// <summary>
 /// Строки интерфейса. Словари лежат ресурсами сборки
-/// (<c>Localization/Strings.&lt;код&gt;.json</c>); смена языка обновляет уже
-/// показанный интерфейс — привязки следят за индексатором.
+/// (<c>Localization/Strings/&lt;код&gt;.json</c>); смена языка обновляет уже
+/// показанный интерфейс.
 /// </summary>
 public sealed class Localizer : INotifyPropertyChanged
 {
     /// <summary>Локаль, на которую студия опирается, если строки нет в выбранной.</summary>
     public const string FallbackLanguage = "ru";
 
-    private FrozenDictionary<string, string> _strings = FrozenDictionary<string, string>.Empty;
-    private FrozenDictionary<string, string> _fallback = FrozenDictionary<string, string>.Empty;
+    private readonly List<WeakReference<LocalizedString>> _tracked = [];
+    private readonly FrozenDictionary<string, string> _fallback;
+    private FrozenDictionary<string, string> _strings;
 
     /// <summary>Общий экземпляр, к которому привязан интерфейс студии.</summary>
     public static Localizer Instance { get; } = new();
@@ -53,8 +54,41 @@ public sealed class Localizer : INotifyPropertyChanged
         _strings = LoadLanguage(language);
         Language = language;
 
-        // Пустое имя свойства — «перечитайте всё», в том числе индексатор.
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
+        RefreshTracked();
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Language)));
+    }
+
+    /// <summary>
+    /// Заводит строку, которая обновляется при смене языка. Ссылка на неё слабая:
+    /// строка живёт, пока на неё смотрит привязка, и уходит вместе с окном.
+    /// </summary>
+    /// <param name="key">Ключ строки.</param>
+    internal LocalizedString Track(string key)
+    {
+        var tracked = new LocalizedString(key);
+
+        lock (_tracked)
+            _tracked.Add(new WeakReference<LocalizedString>(tracked));
+
+        return tracked;
+    }
+
+    private void RefreshTracked()
+    {
+        LocalizedString[] alive;
+
+        lock (_tracked)
+        {
+            alive = _tracked
+                .Select(reference => reference.TryGetTarget(out var value) ? value : null)
+                .OfType<LocalizedString>()
+                .ToArray();
+
+            _tracked.RemoveAll(reference => !reference.TryGetTarget(out _));
+        }
+
+        foreach (var value in alive)
+            value.Refresh();
     }
 
     private static FrozenDictionary<string, string> LoadLanguage(string language)

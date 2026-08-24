@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ax="using:ArxisStudio.Controls"
         xmlns:shell="using:ArxisStudio.Shell"
+        xmlns:loc="using:ArxisStudio.Shell.Localization"
         x:Class="ArxisStudio.MainWindow"
         Title="ArxisStudio"
         Width="1440" Height="900"
@@ -17,24 +18,24 @@
             <TextBlock Text="Ax" FontSize="10.5" FontWeight="Bold" Foreground="#FFFFFF"
                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
           </Border>
-          <TextBlock x:Name="ProjectName" Text="Без проекта" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center"/>
-          <TextBlock Classes="dim" Text="Desktop · Debug" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0"/>
+          <TextBlock x:Name="ProjectName" Text="{loc:Loc studio.noproject}" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center"/>
+          <TextBlock Classes="dim" Text="{loc:Loc studio.configuration}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0"/>
         </StackPanel>
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center">
           <Border Background="{DynamicResource AxBg1Brush}" BorderBrush="{DynamicResource AxBrdBrush}"
                   BorderThickness="1" CornerRadius="7" Padding="2">
             <StackPanel Orientation="Horizontal" Spacing="2">
-              <ax:AxButton Classes="icon" ToolTip.Tip="Run">
+              <ax:AxButton Classes="icon" ToolTip.Tip="{loc:Loc studio.run}">
                 <Path Data="M 5.2 3.4 V 12.6 L 13 8 Z" Fill="{DynamicResource AxGrnBrush}" Width="14" Height="14" Stretch="Uniform"/>
               </ax:AxButton>
-              <ax:AxButton Classes="icon" ToolTip.Tip="Stop" IsEnabled="False">
+              <ax:AxButton Classes="icon" ToolTip.Tip="{loc:Loc studio.stop}" IsEnabled="False">
                 <Path Data="M 4 4 H 12 V 12 H 4 Z" Fill="{DynamicResource AxFg3Brush}" Width="11" Height="11" Stretch="Uniform"/>
               </ax:AxButton>
             </StackPanel>
           </Border>
           <ax:AxSegmentedControl x:Name="ThemeSwitch" SelectionChanged="OnThemeChanged">
-            <ax:AxSegmentItem>Dark</ax:AxSegmentItem>
-            <ax:AxSegmentItem>Light</ax:AxSegmentItem>
+            <ax:AxSegmentItem Content="{loc:Loc settings.theme.dark}"/>
+            <ax:AxSegmentItem Content="{loc:Loc settings.theme.light}"/>
           </ax:AxSegmentedControl>
         </StackPanel>
         <Panel/>
@@ -46,17 +47,17 @@
       <Grid RowDefinitions="*,1,*">
         <DockPanel Grid.Row="0">
           <Border DockPanel.Dock="Top" Classes="tool-window-header">
-            <TextBlock Classes="title" Text="Hierarchy"/>
+            <TextBlock Classes="title" Text="{loc:Loc panel.hierarchy}"/>
           </Border>
-          <TextBlock Classes="dimmer" Text="Нет открытого документа" FontSize="12"
+          <TextBlock Classes="dimmer" Text="{loc:Loc panel.hierarchy.empty}" FontSize="12"
                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
         </DockPanel>
         <Border Grid.Row="1" Background="{DynamicResource AxBrdBrush}"/>
         <DockPanel Grid.Row="2">
           <Border DockPanel.Dock="Top" Classes="tool-window-header">
-            <TextBlock Classes="title" Text="Toolbox"/>
+            <TextBlock Classes="title" Text="{loc:Loc panel.toolbox}"/>
           </Border>
-          <TextBlock Classes="dimmer" Text="Палитра контролов появится с дизайнером" FontSize="12"
+          <TextBlock Classes="dimmer" Text="{loc:Loc panel.toolbox.empty}" FontSize="12"
                      HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" Margin="20,0"/>
         </DockPanel>
       </Grid>
@@ -68,7 +69,7 @@
         <Panel x:Name="CanvasDots"/>
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
           <TextBlock Classes="dim" Text="ArxisStudio" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-          <TextBlock Classes="dimmer" Text="Откройте документ .axaml — дизайнер форм появится в M3"
+          <TextBlock Classes="dimmer" Text="{loc:Loc studio.canvas.hint}"
                      FontSize="12" HorizontalAlignment="Center"/>
         </StackPanel>
       </Panel>
@@ -79,15 +80,15 @@
       <DockPanel>
         <Border DockPanel.Dock="Top" Height="32" BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,0,0,1" Padding="6,0">
           <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-            <TextBlock Text="Project" FontSize="12" FontWeight="Medium" VerticalAlignment="Center" Margin="12,0"/>
-            <TextBlock Classes="dim" Text="Console" FontSize="12" VerticalAlignment="Center" Margin="12,0"/>
+            <TextBlock Text="{loc:Loc panel.project}" FontSize="12" FontWeight="Medium" VerticalAlignment="Center" Margin="12,0"/>
+            <TextBlock Classes="dim" Text="{loc:Loc panel.console}" FontSize="12" VerticalAlignment="Center" Margin="12,0"/>
             <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center" Margin="12,0">
-              <TextBlock Classes="dim" Text="Problems" FontSize="12" VerticalAlignment="Center"/>
+              <TextBlock Classes="dim" Text="{loc:Loc panel.problems}" FontSize="12" VerticalAlignment="Center"/>
               <TextBlock Classes="dimmer" Text="0" FontSize="11" VerticalAlignment="Center"/>
             </StackPanel>
           </StackPanel>
         </Border>
-        <TextBlock Classes="dimmer" Text="Панель проекта появится с открытием solution (M3)" FontSize="12"
+        <TextBlock Classes="dimmer" Text="{loc:Loc panel.project.empty}" FontSize="12"
                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
       </DockPanel>
     </shell:StudioShell.BottomPane>
@@ -96,9 +97,9 @@
     <shell:StudioShell.RightPane>
       <DockPanel>
         <Border DockPanel.Dock="Top" Classes="tool-window-header">
-          <TextBlock Classes="title" Text="Inspector"/>
+          <TextBlock Classes="title" Text="{loc:Loc panel.inspector}"/>
         </Border>
-        <TextBlock Classes="dimmer" Text="Ничего не выбрано" FontSize="12"
+        <TextBlock Classes="dimmer" Text="{loc:Loc panel.inspector.empty}" FontSize="12"
                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
       </DockPanel>
     </shell:StudioShell.RightPane>
@@ -106,7 +107,7 @@
     <!-- Статус-бар (26px). -->
     <shell:StudioShell.StatusBar>
       <DockPanel Height="26" Margin="12,0">
-        <TextBlock x:Name="StatusText" Classes="dim" Text="Ready" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+        <TextBlock x:Name="StatusText" Classes="dim" Text="{loc:Loc studio.ready}" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" VerticalAlignment="Center">
           <TextBlock Classes="dim" Text="Avalonia 12.1.1" FontSize="11"/>
           <TextBlock Classes="dimmer" Text="·" FontSize="11"/>

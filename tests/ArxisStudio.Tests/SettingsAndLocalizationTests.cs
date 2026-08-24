@@ -77,8 +77,44 @@ public class LocalizerTests
     {
         Localizer.Instance.SetLanguage("ru");
 
-        Assert.Equal("Projects", Localizer.Instance["welcome.nav.projects"]);
+        Assert.Equal("Проекты", Localizer.Instance["welcome.nav.projects"]);
         Assert.Equal("Открыть", Localizer.Instance["projects.open"]);
+    }
+
+    [Fact]
+    public void Russian_locale_has_no_english_labels()
+    {
+        Localizer.Instance.SetLanguage("ru");
+
+        Assert.Equal("Проекты", Localizer.Instance["welcome.nav.projects"]);
+        Assert.Equal("Шаблоны", Localizer.Instance["welcome.nav.templates"]);
+        Assert.Equal("Обучение", Localizer.Instance["welcome.nav.learn"]);
+        Assert.Equal("Плагины", Localizer.Instance["welcome.nav.plugins"]);
+        Assert.Equal("Настройки", Localizer.Instance["welcome.nav.settings"]);
+        Assert.Equal("Иерархия", Localizer.Instance["panel.hierarchy"]);
+        Assert.Equal("Инспектор", Localizer.Instance["panel.inspector"]);
+    }
+
+    [Fact]
+    public void Both_dictionaries_describe_the_same_keys()
+    {
+        Localizer.Instance.SetLanguage("ru");
+        var russian = Keys("ru");
+        var english = Keys("en");
+
+        Assert.Empty(russian.Except(english));
+        Assert.Empty(english.Except(russian));
+
+        static IReadOnlyCollection<string> Keys(string language)
+        {
+            var name = $"ArxisStudio.Shell.Localization.Strings.{language}.json";
+            using var stream = typeof(Localizer).Assembly.GetManifestResourceStream(name);
+            Assert.NotNull(stream);
+
+            return System.Text.Json.JsonSerializer
+                .Deserialize<Dictionary<string, string>>(stream)!
+                .Keys;
+        }
     }
 
     [Fact]

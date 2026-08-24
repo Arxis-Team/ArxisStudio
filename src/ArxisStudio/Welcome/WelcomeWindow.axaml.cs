@@ -98,7 +98,7 @@ public partial class WelcomeWindow : Window
     }
 
     private void OnCloneClick(object? sender, RoutedEventArgs e) =>
-        _model.Status = "Клонирование из Git появится вместе с интеграцией VCS.";
+        _model.Status = Localizer.Instance["vcs.clone.later"];
 
     private async void OnCreateFromTemplate(object? sender, PointerPressedEventArgs e)
     {
@@ -155,7 +155,7 @@ public partial class WelcomeWindow : Window
 
         _model.Status = plugin is null
             ? $"{Localizer.Instance["common.error"]}: {error}"
-            : $"{plugin.DisplayName} {plugin.Manifest?.Version} — установлен";
+            : $"{plugin.DisplayName} {plugin.Manifest?.Version} {Localizer.Instance["plugins.installed.suffix"]}";
 
         _model.RefreshPlugins();
     }
