@@ -24,6 +24,11 @@ public partial class MainWindow : Window
 
         CanvasDots.Loaded += (_, _) => ApplyDotGrid();
         ActualThemeVariantChanged += (_, _) => ApplyDotGrid();
+
+        // Системная рамка окна красится отдельно от содержимого: сама она
+        // цвета темы не знает.
+        Opened += (_, _) => StudioWindowChrome.Apply(
+            this, _settings?.Current.Theme ?? StudioTheme.Dark);
     }
 
     /// <summary>Создаёт окно для открытого проекта.</summary>

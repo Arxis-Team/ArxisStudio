@@ -32,6 +32,8 @@ public partial class WelcomeWindow : Window
 
         InitializeComponent();
         LoadSettingsIntoControls();
+
+        Opened += (_, _) => StudioWindowChrome.Apply(this, settings.Current.Theme);
     }
 
     /// <summary>Пользователь выбрал проект: путь к <c>.sln</c>, <c>.slnx</c> или <c>.csproj</c>.</summary>

@@ -29,7 +29,10 @@ public static class StudioTheming
         if (app.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             foreach (var window in desktop.Windows)
+            {
                 window.RequestedThemeVariant = variant;
+                StudioWindowChrome.Apply(window, theme);
+            }
         }
     }
 }
