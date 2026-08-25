@@ -62,6 +62,10 @@ public sealed class DesignerDocumentView : DocumentView
         Document.Reloaded -= OnReloaded;
         Document.Changed -= OnChanged;
 
+        // Закрытая вкладка не должна оставлять за собой находку: исправить её
+        // больше негде.
+        DesignerState.Instance.Problems(Document.FilePath, []);
+
         if (ReferenceEquals(DesignerState.Instance.Active, this))
             DesignerState.Instance.SetActive(null);
 

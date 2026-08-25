@@ -9,6 +9,14 @@ using Avalonia.Controls;
 
 namespace ArxisStudio.Modules.Designer;
 
+/// <summary>Что не так с разметкой документа.</summary>
+/// <param name="Code">Код разбора, например <c>AXM1011</c>.</param>
+/// <param name="Message">Объяснение для человека.</param>
+/// <param name="Line">Строка, считая с единицы; 0, если место неизвестно.</param>
+/// <param name="Column">Столбец, считая с единицы; 0, если место неизвестно.</param>
+/// <param name="IsError">Правку принять нельзя.</param>
+public sealed record DocumentProblem(string Code, string Message, int Line, int Column, bool IsError);
+
 /// <summary>
 /// Открытый в дизайнере документ: разметка, живые объекты, дерево элементов и
 /// правки с историей.
@@ -66,6 +74,15 @@ public sealed class DesignDocument : IAsyncDisposable
 
     /// <summary>В документе есть правки, не записанные на диск.</summary>
     public bool IsModified { get; private set; }
+
+    /// <summary>
+    /// Что не так с разметкой после последнего разбора текста.
+    /// </summary>
+    /// <remarks>
+    /// Разбор всё равно делается перед тем, как принять набранный текст, — и
+    /// его находки полезнее строки в статус-баре: у них есть код и место.
+    /// </remarks>
+    public IReadOnlyList<DocumentProblem> Problems { get; private set; } = [];
 
     /// <summary>Есть что отменить.</summary>
     public bool CanUndo => _workspace?.CanUndo ?? false;
@@ -303,12 +320,24 @@ public sealed class DesignDocument : IAsyncDisposable
         var current = _workspace.GetDocument(_documentId);
 
         if (string.Equals(current.GetText(), text, StringComparison.Ordinal))
+        {
+            // Набранное вернулось к тому, что в документе, — а он разбирается,
+            // иначе его бы здесь не было. Правки нет, но находки отвергнутой
+            // правки уже не про что: снять их надо и на этом пути.
+            Problems = [];
             return null;
+        }
 
         var parsed = XamlDocument.Parse(text, new XamlParseOptions { DocumentUri = new Uri(FilePath) });
 
+        Problems = Describe(parsed.GetDiagnostics(), text);
+
         if (!parsed.IsWellFormed)
-            return parsed.GetDiagnostics().First(diagnostic => diagnostic.IsError).ToString();
+        {
+            var first = Problems.FirstOrDefault(problem => problem.IsError);
+
+            return first is null ? "Разметка не разобралась" : $"{first.Code}: {first.Message}";
+        }
 
         using (var transaction = _workspace.Workspace.BeginTransaction(description))
         {
@@ -317,6 +346,60 @@ public sealed class DesignDocument : IAsyncDisposable
         }
 
         return await ApplyAsync(_workspace.GetDocument(_documentId), _workspace.Undo, cancellationToken);
+    }
+
+    /// <summary>
+    /// Переводит находки разбора в места в тексте.
+    /// </summary>
+    /// <remarks>
+    /// Разбор указывает смещение от начала текста, а человек ищет строку —
+    /// значит, строки кто-то должен посчитать, и делается это один раз здесь,
+    /// а не в каждой панели, которая захочет находку показать.
+    /// <para>
+    /// Одна и та же находка приходит от разбора и не по разу: незакрытый тег
+    /// сбивает его дважды на одном месте. В списке это была бы одна строка,
+    /// написанная дважды, — и от неё нельзя отличить две настоящие.
+    /// </para>
+    /// </remarks>
+    private static IReadOnlyList<DocumentProblem> Describe(
+        IEnumerable<MarkupDiagnostic> diagnostics,
+        string text) =>
+    [
+        .. diagnostics
+            .Where(diagnostic => diagnostic.Severity is not MarkupDiagnosticSeverity.Info)
+            .Select(diagnostic =>
+            {
+                var (line, column) = At(text, diagnostic.Span?.Start ?? -1);
+
+                return new DocumentProblem(
+                    diagnostic.Code,
+                    diagnostic.Message,
+                    line,
+                    column,
+                    diagnostic.IsError);
+            })
+            .Distinct(),
+    ];
+
+    /// <summary>Строка и столбец по смещению от начала текста.</summary>
+    private static (int Line, int Column) At(string text, int offset)
+    {
+        if (offset < 0 || offset > text.Length)
+            return (0, 0);
+
+        var line = 1;
+        var start = 0;
+
+        for (var i = 0; i < offset; i++)
+        {
+            if (text[i] != '\n')
+                continue;
+
+            line++;
+            start = i + 1;
+        }
+
+        return (line, offset - start + 1);
     }
 
     /// <summary>Вставляет разметку внутрь элемента.</summary>

@@ -371,6 +371,15 @@ internal sealed partial class DesignerViewHost : UserControl
         var error = await _document.SetTextAsync(XamlEditor.Text, "Правка разметки");
 
         State.Status(error ?? Localizer.Instance["xaml.applied"]);
+
+        // Разбор мог пройти, а применение — нет: движок обновлений не всегда
+        // умеет вернуть перестроенный элемент на место. Такая неудача места в
+        // тексте не имеет, но сказать о ней надо там же.
+        State.Problems(
+            _document.FilePath,
+            error is not null && _document.Problems.Count == 0
+                ? [new DocumentProblem("AXD0001", error, 0, 0, IsError: true)]
+                : _document.Problems);
     }
 
     /// <summary>

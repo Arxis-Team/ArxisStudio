@@ -79,6 +79,32 @@ internal sealed class DesignerState
     public void Log(StudioLogLevel level, string message) =>
         Context?.Log.Write(level, "Designer", message);
 
+    /// <summary>
+    /// Сообщает студии, что не так с разметкой документа.
+    /// </summary>
+    /// <remarks>
+    /// Источник назван по файлу: документов открыто несколько, и находка про
+    /// один не должна снимать находку про другой. Пустое сообщение снимает
+    /// прежнюю — разметка разобралась.
+    /// </remarks>
+    /// <param name="filePath">Файл документа.</param>
+    /// <param name="found">Находки разбора; пустой список снимает прежние.</param>
+    public void Problems(string filePath, IEnumerable<DocumentProblem> found)
+    {
+        if (Context?.GetService<IStudioProblems>() is not { } problems)
+            return;
+
+        problems.Report(
+            $"designer:{filePath}",
+            found.Select(problem => new StudioProblem(
+                problem.IsError ? StudioProblemSeverity.Error : StudioProblemSeverity.Warning,
+                problem.Code,
+                problem.Message,
+                filePath,
+                problem.Line,
+                problem.Column)));
+    }
+
     /// <summary>Объявляет активным другое представление документа.</summary>
     /// <param name="view">Представление или null, когда вкладок не осталось.</param>
     public void SetActive(DesignerDocumentView? view)

@@ -77,6 +77,60 @@ public class XamlTextTests
         Assert.Equal(history, document.CanUndo);
     }
 
+    /// <summary>
+    /// Отказ разбора — не строка в статус-баре, а находка с кодом и местом:
+    /// «где-то не то» ищут глазами по всему файлу.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_refused_edit_says_where_and_why()
+    {
+        var fixture = await DesignerFixture.OpenAsync();
+        var document = fixture.Document;
+        var before = document.Text;
+
+        var edited = before + "\n<Button";
+
+        Assert.NotNull(await document.SetTextAsync(edited, "плохая правка"));
+
+        var problem = document.Problems.First(found => found.IsError);
+
+        Assert.Equal("AXM1011", problem.Code);
+
+        // Ломаная строка — последняя: разбор указал смещение, а строку по нему
+        // считает документ.
+        Assert.Equal(edited.Count(symbol => symbol == '\n') + 1, problem.Line);
+
+        // Незакрытый тег сбивает разбор не по разу, но повтор одной и той же
+        // находки в списке не отличить от двух настоящих.
+        Assert.Equal(document.Problems.Count, document.Problems.Distinct().Count());
+
+        // Разобравшийся текст находку снимает — иначе исправленное осталось бы
+        // висеть в списке.
+        Assert.Null(await document.SetTextAsync(before + "\n", "починенная правка"));
+        Assert.Empty(document.Problems);
+
+        await DesignerFixture.RollbackAsync(document);
+    }
+
+    /// <summary>
+    /// Стереть набранное — самый обычный способ исправить: текст возвращается к
+    /// тому, что в документе, правки не выходит, и находка отвергнутой правки
+    /// осталась бы висеть, если снимать её только по успешной.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Taking_the_broken_text_back_takes_the_problem_back_too()
+    {
+        var fixture = await DesignerFixture.OpenAsync();
+        var document = fixture.Document;
+        var before = document.Text;
+
+        Assert.NotNull(await document.SetTextAsync(before + "<Button", "плохая правка"));
+        Assert.NotEmpty(document.Problems);
+
+        Assert.Null(await document.SetTextAsync(before, "стёрли набранное"));
+        Assert.Empty(document.Problems);
+    }
+
     [AvaloniaFact]
     public async Task The_same_text_is_not_an_edit()
     {

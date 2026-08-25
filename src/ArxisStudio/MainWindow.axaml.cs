@@ -46,6 +46,7 @@ public partial class MainWindow : Window
     private readonly StudioWorkspace _workspace = new();
     private readonly List<OpenDocument> _documents = [];
     private readonly StudioLog _log = new();
+    private readonly StudioProblems _problems = new();
     private readonly StudioCommands _commands = new();
     private readonly StudioRunner _runner;
     private readonly PluginContributionRegistry _contributions = new();
@@ -111,6 +112,10 @@ public partial class MainWindow : Window
 
         var error = await _workspace.OpenAsync(path);
 
+        // Модель решения может собраться и с замечаниями: часть проектов
+        // открылась, а про остальные надо где-то сказать.
+        _problems.Report("project", _workspace.Diagnostics.Select(StudioProblems.From));
+
         if (error is not null || !_workspace.IsLoaded)
         {
             StatusText.Text = $"{Localizer.Instance["editor.openfailed"]}: {error}";
@@ -138,6 +143,7 @@ public partial class MainWindow : Window
             [typeof(Modules.Designer.IDesignerWorkspace)] = _workspace,
             [typeof(Modules.Project.IProjectWorkspace)] = _workspace,
             [typeof(IStudioLogFeed)] = _log,
+            [typeof(IStudioProblems)] = _problems,
             [typeof(IStudioDocuments)] = new DocumentSink(this),
             [typeof(IStudioStatus)] = new StatusSink(StatusText),
             [typeof(PluginContributionRegistry)] = _contributions,
