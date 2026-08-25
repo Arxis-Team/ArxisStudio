@@ -1,0 +1,14 @@
+{
+  "id": "arxis.console",
+  "name": "Консоль",
+  "version": "1.0.0",
+  "publisher": "Arxis",
+  "description": "Журнал студии и список проблем проекта",
+  "contributions": {
+    "toolWindows": [
+      { "id": "console.log", "title": "%panel.console%", "zone": "bottom", "role": "output" },
+      { "id": "console.problems", "title": "%panel.problems%", "zone": "bottom" }
+    ]
+  },
+  "activation": [ "onStartup" ]
+}

@@ -32,7 +32,9 @@
 
     <ItemGroup>
         <ProjectReference Include="../../src/ArxisStudio/ArxisStudio.csproj"/>
+        <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Console/ArxisStudio.Modules.Console.csproj"/>
         <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Designer/ArxisStudio.Modules.Designer.csproj"/>
+        <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Project/ArxisStudio.Modules.Project.csproj"/>
         <ProjectReference Include="../../src/ArxisStudio.Extensibility/ArxisStudio.Extensibility.csproj"/>
         <ProjectReference Include="../../src/ArxisStudio.Shell/ArxisStudio.Shell.csproj"/>
     </ItemGroup>

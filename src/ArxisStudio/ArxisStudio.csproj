@@ -36,7 +36,9 @@
 
     <ItemGroup>
         <ProjectReference Include="../ArxisStudio.Shell/ArxisStudio.Shell.csproj"/>
+        <ProjectReference Include="../Modules/ArxisStudio.Modules.Console/ArxisStudio.Modules.Console.csproj"/>
         <ProjectReference Include="../Modules/ArxisStudio.Modules.Designer/ArxisStudio.Modules.Designer.csproj"/>
+        <ProjectReference Include="../Modules/ArxisStudio.Modules.Project/ArxisStudio.Modules.Project.csproj"/>
         <ProjectReference Include="../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
         <ProjectReference Include="../ArxisStudio.Extensibility/ArxisStudio.Extensibility.csproj"/>
         <ProjectReference Include="../../external/ArxisStudio.Themes.Arxis/src/ArxisStudio.Themes.Arxis.csproj"/>

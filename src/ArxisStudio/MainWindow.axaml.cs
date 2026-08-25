@@ -18,20 +18,27 @@ using IOPath = System.IO.Path;
 namespace ArxisStudio;
 
 /// <summary>
-/// Главное окно студии — оболочка: зоны, вкладки документов, панель проекта,
-/// консоль и запуск.
+/// Главное окно студии — оболочка: зоны, вкладки документов, заголовок и запуск.
 /// </summary>
 /// <remarks>
-/// Всё, что умеет редактировать, оболочка получает от модулей и плагинов через
-/// SDK: редактор документов открывает вкладки, панели встают в зоны. Дизайнер
-/// форм — встроенный модуль и проходит тем же путём, что и внешний плагин, —
-/// это и есть проверка контракта на себе.
+/// Панелей у оболочки нет ни одной: и дерево проекта, и консоль, и дизайнер форм
+/// приходят встроенными модулями через тот же SDK-контракт, что и внешние
+/// плагины. Оболочка знает только, что бывают зоны, вкладки и редакторы
+/// документов, — а какие именно, ей сообщают манифесты.
 /// </remarks>
 public partial class MainWindow : Window
 {
-    /// <summary>Сборки встроенных модулей — состав студии.</summary>
+    /// <summary>
+    /// Сборки встроенных модулей — состав студии.
+    /// </summary>
+    /// <remarks>
+    /// Порядок здесь виден человеку: модули встают в зоны по очереди, и вкладки
+    /// внизу идут в том же порядке, что строки этого списка.
+    /// </remarks>
     private static readonly Assembly[] BuiltInModules =
     [
+        typeof(Modules.Project.ProjectModule).Assembly,
+        typeof(Modules.Console.ConsoleModule).Assembly,
         typeof(Modules.Designer.DesignerModule).Assembly,
     ];
 
@@ -47,9 +54,14 @@ public partial class MainWindow : Window
     private IReadOnlyList<StudioMenuItem> _menu = [];
     private DocumentView? _active;
 
-    // Панели плагинов, разложенные по нижним вкладкам: вкладка знает свой
-    // номер, а содержимое лежит в общем месте и показывается по очереди.
+    // Панели модулей и плагинов, разложенные по нижним вкладкам: вкладка знает
+    // свой номер, а содержимое лежит в общем месте и показывается по очереди.
     private readonly Dictionary<int, Control> _bottomPanels = [];
+
+    // Вкладка, объявившая роль output. Вывод сборки и запуска идёт в журнал, и
+    // смотреть на него человек должен без лишнего щелчка — но какая именно
+    // панель этот журнал показывает, оболочка не знает и знать не должна.
+    private int _outputTab = -1;
 
     /// <summary>Создаёт окно без проекта — состояние каркаса.</summary>
     public MainWindow()
@@ -59,13 +71,9 @@ public partial class MainWindow : Window
         // поднимает событие ещё во время разбора, когда полей окна нет и в
         // помине.
         ThemeSwitch.SelectedIndex = Application.Current?.ActualThemeVariant == ThemeVariant.Light ? 1 : 0;
-        BottomTabs.SelectedIndex = 0;
 
         _runner = new StudioRunner(_log);
         _runner.StateChanged += (_, _) => UpdateRunButtons();
-
-        ConsoleList.ItemsSource = _log.Entries;
-        _log.Entries.CollectionChanged += (_, _) => ConsoleScroll.ScrollToEnd();
 
         // Системная рамка окна красится отдельно от содержимого: сама она
         // цвета темы не знает.
@@ -103,27 +111,11 @@ public partial class MainWindow : Window
 
         var error = await _workspace.OpenAsync(path);
 
-        if (error is not null || _workspace.Snapshot is not { } snapshot)
+        if (error is not null || !_workspace.IsLoaded)
         {
             StatusText.Text = $"{Localizer.Instance["editor.openfailed"]}: {error}";
             return;
         }
-
-        // Дерево спрашивает у диска, какие из объявленных файлов существуют,
-        // поэтому строится в фоне.
-        var tree = await Task.Run(() => ProjectTree.Build(snapshot));
-        ProjectTreeView.ItemsSource = tree.Children;
-        ProjectEmpty.IsVisible = false;
-
-        // Раскрывать узлы можно только после того, как дерево создало контейнеры.
-        Dispatcher.UIThread.Post(() =>
-        {
-            foreach (var project in tree.Children)
-            {
-                if (ProjectTreeView.TreeContainerFromItem(project) is TreeViewItem container)
-                    container.IsExpanded = true;
-            }
-        }, DispatcherPriority.Background);
 
         StatusText.Text = path;
 
@@ -144,6 +136,9 @@ public partial class MainWindow : Window
         var services = new Dictionary<Type, object>
         {
             [typeof(Modules.Designer.IDesignerWorkspace)] = _workspace,
+            [typeof(Modules.Project.IProjectWorkspace)] = _workspace,
+            [typeof(IStudioLogFeed)] = _log,
+            [typeof(IStudioDocuments)] = new DocumentSink(this),
             [typeof(IStudioStatus)] = new StatusSink(StatusText),
             [typeof(PluginContributionRegistry)] = _contributions,
         };
@@ -164,6 +159,13 @@ public partial class MainWindow : Window
         foreach (var waiting in host.Deferred)
             _log.Write(StudioLogLevel.Debug, "Plugins", $"{waiting.DisplayName} ждёт своего события");
 
+        // Вкладок до этого момента не было ни одной. Первая выбирается сама,
+        // едва появившись, — то есть раньше, чем к ней приложили содержимое, и
+        // события о выборе уже не будет: показывать панель приходится здесь.
+        if (BottomTabs.Items.Count > 0)
+            BottomTabs.SelectedIndex = 0;
+
+        ShowBottomPanel();
         ShowMenu();
     }
 
@@ -182,14 +184,15 @@ public partial class MainWindow : Window
         MountPanels(loaded);
     }
 
-    private async void OnProjectTreeDoubleTapped(object? sender, TappedEventArgs e)
-    {
-        if (ProjectTreeView.SelectedItem is not ProjectNode { IsFile: true } node)
-            return;
-
-        await OpenDocumentAsync(node.FullPath);
-    }
-
+    /// <summary>
+    /// Открывает файл во вкладке, спросив редактор у реестра вкладов.
+    /// </summary>
+    /// <remarks>
+    /// Оболочка не знает ни одного расширения: какой модуль возьмётся за файл,
+    /// решает объявленный им тип файла. Панель проекта просит «открой этот
+    /// путь» — и на этом её знание о содержимом кончается.
+    /// </remarks>
+    /// <param name="filePath">Путь к файлу.</param>
     private async Task OpenDocumentAsync(string filePath)
     {
         var existing = _documents.FindIndex(document =>
@@ -359,19 +362,23 @@ public partial class MainWindow : Window
                 continue;
 
             panel.Attach(studio);
-            Mount(declared.Zone, declared.Title, panel.Content);
+            Mount(declared, panel.Content);
         }
     }
 
     /// <summary>Ставит содержимое панели в зону студии.</summary>
-    private void Mount(string zone, string title, Control content)
+    /// <param name="declared">Объявление панели из манифеста.</param>
+    /// <param name="content">Построенное содержимое панели.</param>
+    private void Mount(Sdk.Plugins.PluginToolWindow declared, Control content)
     {
-        var window = new AxToolWindow { Content = content };
-
-        SetTitle(window, title);
+        var (zone, title) = (declared.Zone, declared.Title);
 
         switch (zone.ToLowerInvariant())
         {
+            // Внизу заголовок панели несёт вкладка, и своего окна панели не
+            // нужно. Заворачивать её в него «на всякий случай» нельзя: окно
+            // забрало бы себе логического родителя, а оно само никуда не
+            // встало бы — и стили до панели просто не дошли бы.
             case "bottom":
                 var tab = new AxTabItem { Classes = { "compact" }, IsClosable = false };
 
@@ -381,18 +388,33 @@ public partial class MainWindow : Window
 
                 content.IsVisible = false;
                 _bottomPanels[BottomTabs.Items.Count - 1] = content;
+
+                if (string.Equals(declared.Role, "output", StringComparison.OrdinalIgnoreCase))
+                    _outputTab = BottomTabs.Items.Count - 1;
+
                 break;
 
             case "left":
-                Append(LeftZone, window);
+                Append(LeftZone, Window(title, content));
                 break;
 
             default:
-                Append(RightZone, window);
+                Append(RightZone, Window(title, content));
                 break;
         }
 
         _log.Write(StudioLogLevel.Debug, "Plugins", $"Панель «{Resolve(title)}» встала в зону {zone}");
+    }
+
+    /// <summary>Заворачивает панель в окно инструментов с заголовком.</summary>
+    /// <param name="title">Заголовок из манифеста.</param>
+    /// <param name="content">Содержимое панели.</param>
+    private static AxToolWindow Window(string title, Control content)
+    {
+        var window = new AxToolWindow { Content = content };
+
+        SetTitle(window, title);
+        return window;
     }
 
     /// <summary>
@@ -456,29 +478,25 @@ public partial class MainWindow : Window
         zone.Children.Add(panel);
     }
 
-    private void OnBottomTabChanged(object? sender, SelectionChangedEventArgs e)
+    private void OnBottomTabChanged(object? sender, SelectionChangedEventArgs e) => ShowBottomPanel();
+
+    /// <summary>Показывает панель выбранной нижней вкладки, пряча остальные.</summary>
+    private void ShowBottomPanel()
     {
         var tab = BottomTabs.SelectedIndex;
-
-        ProjectTreeView.IsVisible = tab == 0;
-        ProjectEmpty.IsVisible = tab == 0 && ProjectTreeView.ItemsSource is null;
-        ConsolePane.IsVisible = tab == 1;
-        ProblemsEmpty.IsVisible = tab == 2;
 
         foreach (var (index, panel) in _bottomPanels)
             panel.IsVisible = index == tab;
     }
-
-    private void OnConsoleClear(object? sender, RoutedEventArgs e) => _log.Clear();
 
     private async void OnRunClick(object? sender, RoutedEventArgs e)
     {
         if (ProjectPath is not { } path || _workspace.Snapshot is not { } snapshot)
             return;
 
-        // Вывод сборки и запуска идёт в журнал, и смотреть на него человек
-        // должен без лишнего щелчка.
-        BottomTabs.SelectedIndex = 1;
+        if (_outputTab >= 0)
+            BottomTabs.SelectedIndex = _outputTab;
+
         RunButton.IsEnabled = false;
 
         try
@@ -534,5 +552,13 @@ public partial class MainWindow : Window
     {
         /// <inheritdoc/>
         public void Show(string message) => target.Text = message;
+    }
+
+    /// <summary>Открытие документов как служба для модулей и плагинов.</summary>
+    /// <param name="owner">Окно, которое ставит вкладки.</param>
+    private sealed class DocumentSink(MainWindow owner) : IStudioDocuments
+    {
+        /// <inheritdoc/>
+        public Task OpenAsync(string filePath) => owner.OpenDocumentAsync(filePath);
     }
 }

@@ -11,9 +11,14 @@ namespace ArxisStudio.Services;
 /// проект за раз и простые ответы — снапшот, диагностики, состояние загрузки.
 /// Всё остальное (провайдеры, запросы, версии) остаётся внутри.
 /// </remarks>
-public sealed class StudioWorkspace : IAsyncDisposable, Modules.Designer.IDesignerWorkspace
+public sealed class StudioWorkspace : IAsyncDisposable,
+    Modules.Designer.IDesignerWorkspace,
+    Modules.Project.IProjectWorkspace
 {
     private readonly ProjectWorkspace _workspace = new(new MSBuildProjectProvider());
+
+    /// <inheritdoc/>
+    public event EventHandler? SnapshotChanged;
 
     /// <summary>Путь к открытому решению или проекту; null, если ничего не открыто.</summary>
     public string? EntryPointPath { get; private set; }
@@ -48,6 +53,7 @@ public sealed class StudioWorkspace : IAsyncDisposable, Modules.Designer.IDesign
 
             Snapshot = result.Snapshot;
             Diagnostics = result.Diagnostics;
+            SnapshotChanged?.Invoke(this, EventArgs.Empty);
 
             // Снапшот с ошибками — всё ещё модель: часть проектов открылась, и
             // показать её полезнее, чем сообщить об отказе.

@@ -13,7 +13,9 @@
     <Project Path="src/ArxisStudio.Sdk/ArxisStudio.Sdk.csproj" />
     <Project Path="src/ArxisStudio.Sdk.Analyzers/ArxisStudio.Sdk.Analyzers.csproj" />
     <Project Path="src/ArxisStudio.Shell/ArxisStudio.Shell.csproj" />
+    <Project Path="src/Modules/ArxisStudio.Modules.Console/ArxisStudio.Modules.Console.csproj" />
     <Project Path="src/Modules/ArxisStudio.Modules.Designer/ArxisStudio.Modules.Designer.csproj" />
+    <Project Path="src/Modules/ArxisStudio.Modules.Project/ArxisStudio.Modules.Project.csproj" />
     <Project Path="src/ArxisStudio/ArxisStudio.csproj" />
   </Folder>
   <Folder Name="/samples/">

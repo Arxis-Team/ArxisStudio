@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+        Консоль — встроенный модуль. Ему хватает SDK и библиотеки контролов:
+        журнал он не ведёт, а читает через службу контекста, поэтому ни модели
+        решения, ни разметки здесь нет.
+    -->
+    <PropertyGroup>
+        <RootNamespace>ArxisStudio.Modules.Console</RootNamespace>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Avalonia"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
+        <ProjectReference Include="../../ArxisStudio.Shell/ArxisStudio.Shell.csproj"/>
+        <ProjectReference Include="../../../external/ArxisStudio.Controls/src/ArxisStudio.Controls.csproj"/>
+    </ItemGroup>
+
+    <!-- Манифест модуля живёт в сборке: своей папки у модуля нет. -->
+    <ItemGroup>
+        <EmbeddedResource Include="module.json"/>
+    </ItemGroup>
+
+</Project>

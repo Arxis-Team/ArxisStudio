@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
 using ArxisStudio.ProjectSystem;
 
-namespace ArxisStudio.Services;
+namespace ArxisStudio.Modules.Project;
 
 /// <summary>Что за узел показывает панель проекта.</summary>
 public enum ProjectNodeKind
@@ -30,9 +30,6 @@ public sealed record ProjectNode(ProjectNodeKind Kind, string Name, string FullP
 
     /// <summary>Расширение файла в нижнем регистре, с точкой.</summary>
     public string Extension => Path.GetExtension(Name).ToLowerInvariant();
-
-    /// <summary>Файл открывается дизайнером форм.</summary>
-    public bool IsDesignable => Kind == ProjectNodeKind.File && Extension == ".axaml";
 
     /// <summary>Узел показывает файл, который можно открыть.</summary>
     public bool IsFile => Kind == ProjectNodeKind.File;

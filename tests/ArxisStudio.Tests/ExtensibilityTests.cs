@@ -133,14 +133,14 @@ public class ExtensibilityTests : IDisposable
 
         log.Write(StudioLogLevel.Warning, "Build", "что-то не так");
 
-        var entry = Assert.Single(log.Entries);
+        var entry = Assert.Single(log.Records);
 
         Assert.Equal("WARN", entry.LevelName);
         Assert.True(entry.IsWarning);
         Assert.Equal("Build", entry.Source);
 
         log.Clear();
-        Assert.Empty(log.Entries);
+        Assert.Empty(log.Records);
     }
 
     private string PackSample(string id, string name)

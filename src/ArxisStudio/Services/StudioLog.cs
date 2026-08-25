@@ -3,35 +3,6 @@ using ArxisStudio.Sdk;
 
 namespace ArxisStudio.Services;
 
-/// <summary>Строка журнала студии.</summary>
-/// <param name="Time">Когда записано.</param>
-/// <param name="Level">Уровень записи.</param>
-/// <param name="Source">Кто написал.</param>
-/// <param name="Message">Сообщение.</param>
-public sealed record StudioLogEntry(DateTimeOffset Time, StudioLogLevel Level, string Source, string Message)
-{
-    /// <summary>Время в том виде, в каком его показывает панель.</summary>
-    public string Stamp => Time.ToString("HH:mm:ss");
-
-    /// <summary>Обычное сообщение.</summary>
-    public bool IsInfo => Level == StudioLogLevel.Info;
-
-    /// <summary>Предупреждение.</summary>
-    public bool IsWarning => Level == StudioLogLevel.Warning;
-
-    /// <summary>Ошибка.</summary>
-    public bool IsError => Level == StudioLogLevel.Error;
-
-    /// <summary>Уровень словом — так его печатает панель.</summary>
-    public string LevelName => Level switch
-    {
-        StudioLogLevel.Debug => "DEBUG",
-        StudioLogLevel.Warning => "WARN",
-        StudioLogLevel.Error => "ERROR",
-        _ => "INFO",
-    };
-}
-
 /// <summary>
 /// Журнал студии: то, что показывает панель «Консоль».
 /// </summary>
@@ -40,25 +11,39 @@ public sealed record StudioLogEntry(DateTimeOffset Time, StudioLogLevel Level, s
 /// запуском проекта. Разводить их по разным панелям значило бы заставить
 /// человека гадать, в какой смотреть.
 /// </remarks>
-public sealed class StudioLog : IStudioLog
+public sealed class StudioLog : IStudioLog, IStudioLogFeed
 {
     private const int Limit = 2000;
 
-    /// <summary>Записи журнала, от старых к новым.</summary>
-    public ObservableCollection<StudioLogEntry> Entries { get; } = [];
+    // Коллекция наблюдаемая: панель консоли — модуль и получает её службой,
+    // так что подписаться на изменения она может, а перестроить список по
+    // событию — уже нет, там нет ни одного её объекта.
+    private readonly ObservableCollection<StudioLogRecord> _records = [];
+
+    /// <inheritdoc/>
+    public event EventHandler? Changed;
+
+    /// <inheritdoc/>
+    public IReadOnlyList<StudioLogRecord> Records => _records;
 
     /// <inheritdoc/>
     public void Write(StudioLogLevel level, string source, string message)
     {
-        Entries.Add(new StudioLogEntry(DateTimeOffset.Now, level, source, message));
+        _records.Add(new StudioLogRecord(DateTimeOffset.Now, level, source, message));
 
         // Журнал долгого сеанса иначе растёт без конца; старое уходит первым.
-        while (Entries.Count > Limit)
-            Entries.RemoveAt(0);
+        while (_records.Count > Limit)
+            _records.RemoveAt(0);
+
+        Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Очищает журнал.</summary>
-    public void Clear() => Entries.Clear();
+    /// <inheritdoc/>
+    public void Clear()
+    {
+        _records.Clear();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
 }
 
 /// <summary>

@@ -3,7 +3,6 @@
         xmlns:ax="using:ArxisStudio.Controls"
         xmlns:shell="using:ArxisStudio.Shell"
         xmlns:loc="using:ArxisStudio.Shell.Localization"
-        xmlns:svc="using:ArxisStudio.Services"
         x:Class="ArxisStudio.MainWindow"
         Title="ArxisStudio"
         Width="1440" Height="900"
@@ -11,9 +10,9 @@
         WindowDecorations="BorderOnly">
 
   <!--
-      Окно — только оболочка: зоны, вкладки, проект, консоль и запуск.
-      Всё, что умеет редактировать, приходит модулями и плагинами через SDK;
-      дизайнер форм — первый из них, и здесь его разметки нет.
+      Окно — только оболочка: зоны, вкладки документов, заголовок и запуск.
+      Всё остальное приходит модулями и плагинами через SDK — и дизайнер форм,
+      и панель проекта, и консоль. Разметки ни одного из них здесь нет.
   -->
   <shell:StudioShell>
 
@@ -83,69 +82,22 @@
       </Panel>
     </DockPanel>
 
-    <!-- Нижняя зона: проект, консоль, проблемы и вкладки плагинов. -->
+    <!--
+        Нижняя зона: пустой набор вкладок. Проект, консоль и проблемы приходят
+        сюда модулями — оболочка знает только, что вкладки бывают.
+    -->
     <shell:StudioShell.BottomPane>
       <ax:AxToolWindow>
         <ax:AxToolWindow.Tabs>
           <ax:AxTabStrip x:Name="BottomTabs" Theme="{StaticResource AxToolWindowTabStrip}"
-                         SelectionChanged="OnBottomTabChanged">
-            <ax:AxTabItem Classes="compact" IsClosable="False" Content="{loc:Loc panel.project}"/>
-            <ax:AxTabItem Classes="compact" IsClosable="False" Content="{loc:Loc panel.console}"/>
-            <ax:AxTabItem Classes="compact" IsClosable="False" Content="{loc:Loc panel.problems}"/>
-          </ax:AxTabStrip>
+                         SelectionChanged="OnBottomTabChanged"/>
         </ax:AxToolWindow.Tabs>
         <ax:AxToolWindow.Actions>
           <ax:AxButton Classes="icon" AutomationProperties.Name="{loc:Loc action.collapse}">
             <ax:AxIcon Data="M 4 8 H 12" Width="13" Height="13" StrokeThickness="1.3"/>
           </ax:AxButton>
         </ax:AxToolWindow.Actions>
-        <Panel>
-          <!-- Журнал студии: сборка, запуск и всё, что пишут плагины. -->
-          <DockPanel x:Name="ConsolePane" IsVisible="False">
-            <ax:AxButton DockPanel.Dock="Top" Classes="compact ghost" HorizontalAlignment="Left"
-                         Margin="8,6,0,0" Content="{loc:Loc console.clear}" Click="OnConsoleClear"/>
-            <ScrollViewer x:Name="ConsoleScroll">
-              <ItemsControl x:Name="ConsoleList" Margin="10,4">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="svc:StudioLogEntry">
-                    <StackPanel Orientation="Horizontal" Spacing="8" Height="18">
-                      <TextBlock Classes="mono dimmer" FontSize="11.5" Width="56" Text="{Binding Stamp}"/>
-                      <TextBlock Classes="mono" FontSize="11.5" Width="48" FontWeight="SemiBold"
-                                 Text="{Binding LevelName}"
-                                 Classes.ok="{Binding IsInfo}"
-                                 Classes.warn="{Binding IsWarning}"
-                                 Classes.bad="{Binding IsError}"/>
-                      <TextBlock Classes="mono" FontSize="11.5" Text="{Binding Source}" Width="52"
-                                 Foreground="{DynamicResource AxFg3Brush}"/>
-                      <TextBlock Classes="mono" FontSize="11.5" Text="{Binding Message}"
-                                 TextTrimming="CharacterEllipsis"/>
-                    </StackPanel>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </ScrollViewer>
-          </DockPanel>
-
-          <TextBlock x:Name="ProblemsEmpty" Classes="dimmer" Text="{loc:Loc panel.problems.none}" FontSize="12"
-                     IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-
-          <Panel x:Name="BottomPluginHost"/>
-
-          <TextBlock x:Name="ProjectEmpty" Classes="dimmer" Text="{loc:Loc panel.project.empty}" FontSize="12"
-                     HorizontalAlignment="Center" VerticalAlignment="Center"/>
-          <ax:AxTreeView x:Name="ProjectTreeView" DoubleTapped="OnProjectTreeDoubleTapped">
-            <ax:AxTreeView.Styles>
-              <Style Selector="ax|AxTreeViewItem" x:DataType="svc:ProjectNode">
-                <Setter Property="AutomationProperties.Name" Value="{Binding Name}"/>
-              </Style>
-            </ax:AxTreeView.Styles>
-            <ax:AxTreeView.ItemTemplate>
-              <TreeDataTemplate x:DataType="svc:ProjectNode" ItemsSource="{Binding Children}">
-                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
-              </TreeDataTemplate>
-            </ax:AxTreeView.ItemTemplate>
-          </ax:AxTreeView>
-        </Panel>
+        <Panel x:Name="BottomPluginHost"/>
       </ax:AxToolWindow>
     </shell:StudioShell.BottomPane>
 

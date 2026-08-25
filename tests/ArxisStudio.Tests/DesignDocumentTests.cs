@@ -1,4 +1,5 @@
 using ArxisStudio.Modules.Designer;
+using ArxisStudio.Modules.Project;
 using ArxisStudio.Services;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
@@ -26,7 +27,7 @@ public class DesignDocumentTests
 
         // Панель проекта показывает файл, который мы открыли.
         var tree = ProjectTree.BuildProject(fixture.Project);
-        Assert.Contains(Flatten(tree), node => node.IsDesignable && node.Name == "MainWindow.axaml");
+        Assert.Contains(Flatten(tree), node => node.IsFile && node.Name == "MainWindow.axaml");
 
         // Корень документа — окно; на канве оно показывается своим содержимым,
         // поэтому поверхность обязана что-то содержать.

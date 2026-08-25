@@ -1,0 +1,13 @@
+{
+  "id": "arxis.project",
+  "name": "Проект",
+  "version": "1.0.0",
+  "publisher": "Arxis",
+  "description": "Дерево открытого решения: проекты, папки и файлы",
+  "contributions": {
+    "toolWindows": [
+      { "id": "project.tree", "title": "%panel.project%", "zone": "bottom" }
+    ]
+  },
+  "activation": [ "onStartup" ]
+}
