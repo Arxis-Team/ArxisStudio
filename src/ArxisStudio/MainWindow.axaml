@@ -108,9 +108,9 @@
       <Grid x:Name="RightZone"/>
     </shell:StudioShell.RightPane>
 
-    <!-- Статус-бар (26px). -->
+    <!-- Статус-бар: 24, как в макете экрана Editor. -->
     <shell:StudioShell.StatusBar>
-      <DockPanel Height="26" Margin="12,0">
+      <DockPanel Height="{DynamicResource AxControlHeightCompact}" Margin="12,0">
         <TextBlock x:Name="StatusText" Classes="dim" Text="{loc:Loc studio.ready}" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" VerticalAlignment="Center">
           <TextBlock Classes="dim" Text="Avalonia 12.1.1" FontSize="{DynamicResource AxFontSizeSmall}"/>

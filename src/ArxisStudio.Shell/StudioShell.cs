@@ -27,7 +27,7 @@ public class StudioShell : ContentControl
     public static readonly StyledProperty<object?> BottomPaneProperty =
         AvaloniaProperty.Register<StudioShell, object?>(nameof(BottomPane));
 
-    /// <summary>Содержимое статус-бара (26px).</summary>
+    /// <summary>Содержимое статус-бара (24px, высота компактного контрола).</summary>
     public static readonly StyledProperty<object?> StatusBarProperty =
         AvaloniaProperty.Register<StudioShell, object?>(nameof(StatusBar));
 
