@@ -3,6 +3,10 @@
     "arxisstudio-avadevtools": {
       "type": "http",
       "url": "http://127.0.0.1:5171/"
+    },
+    "arxisstudio-gallery": {
+      "type": "http",
+      "url": "http://127.0.0.1:5172/"
     }
   }
 }
