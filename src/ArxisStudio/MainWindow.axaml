@@ -21,32 +21,34 @@
       <ax:AxTitleBar BorderThickness="0">
         <DockPanel Margin="10,0">
         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <Border Width="24" Height="24" CornerRadius="6" Background="{DynamicResource AxAccBrush}">
-            <TextBlock Text="Ax" FontSize="10.5" FontWeight="Bold" Foreground="#FFFFFF"
+          <Border Width="24" Height="24" CornerRadius="{DynamicResource AxCornerRadius}"
+                  Background="{DynamicResource AxAccStrongBrush}">
+            <TextBlock Text="Ax" FontSize="{DynamicResource AxFontSizeCaption}" FontWeight="Bold"
+                       Foreground="{DynamicResource AxOnAccBrush}"
                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
           </Border>
-          <TextBlock x:Name="ProjectName" Text="{loc:Loc studio.noproject}" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center"/>
-          <TextBlock Classes="dim" Text="{loc:Loc studio.configuration}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0"/>
+          <TextBlock x:Name="ProjectName" Text="{loc:Loc studio.noproject}" FontSize="{DynamicResource AxFontSize}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+          <TextBlock Classes="dim" Text="{loc:Loc studio.configuration}" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center" Margin="8,0,0,0"/>
 
           <!-- Команды плагинов; кнопки нет, пока никто ничего не добавил. -->
           <ax:AxButton x:Name="MenuButton" Classes="icon" IsVisible="False" Margin="8,0,0,0"
                        AutomationProperties.Name="{loc:Loc menu.tools}"
                        ToolTip.Tip="{loc:Loc menu.tools}"
                        Click="OnMenuClick">
-            <ax:AxIcon Data="M 3 5 H 13 M 3 8 H 13 M 3 11 H 13" Width="13" Height="13" StrokeThickness="1.3"/>
+            <ax:AxIcon Data="{x:Static ax:AxIcons.MoreHorizontal}" IsFilled="True"/>
           </ax:AxButton>
         </StackPanel>
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center">
           <Border Background="{DynamicResource AxBg1Brush}" BorderBrush="{DynamicResource AxBrdBrush}"
-                  BorderThickness="1" CornerRadius="7" Padding="2">
+                  BorderThickness="1" CornerRadius="{DynamicResource AxCornerRadius}" Padding="2">
             <StackPanel Orientation="Horizontal" Spacing="2">
               <ax:AxButton x:Name="RunButton" Classes="icon" ToolTip.Tip="{loc:Loc studio.run}"
                            AutomationProperties.Name="{loc:Loc studio.run}" Click="OnRunClick">
-                <ax:AxIcon Data="{x:Static ax:AxIcons.Play}" IsFilled="True" Width="13" Height="13" Foreground="{DynamicResource AxGrnBrush}"/>
+                <ax:AxIcon Data="{x:Static ax:AxIcons.Play}" IsFilled="True" Foreground="{DynamicResource AxGrnBrush}"/>
               </ax:AxButton>
               <ax:AxButton x:Name="StopButton" Classes="icon" ToolTip.Tip="{loc:Loc studio.stop}" IsEnabled="False"
                            AutomationProperties.Name="{loc:Loc studio.stop}" Click="OnStopClick">
-                <ax:AxIcon Data="M 4 4 H 12 V 12 H 4 Z" IsFilled="True" Width="10" Height="10" Foreground="{DynamicResource AxFg3Brush}"/>
+                <ax:AxIcon Data="{x:Static ax:AxIcons.Stop}" IsFilled="True" Foreground="{DynamicResource AxFg3Brush}"/>
               </ax:AxButton>
             </StackPanel>
           </Border>
@@ -75,9 +77,9 @@
         <ContentControl x:Name="DocumentHost"/>
 
         <StackPanel x:Name="CanvasHint" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
-          <TextBlock Classes="dim" Text="ArxisStudio" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+          <TextBlock Classes="dim" Text="ArxisStudio" FontSize="{DynamicResource AxFontSizeTitle}" FontWeight="SemiBold" HorizontalAlignment="Center"/>
           <TextBlock Classes="dimmer" Text="{loc:Loc studio.canvas.hint}"
-                     FontSize="12" HorizontalAlignment="Center"/>
+                     FontSize="{DynamicResource AxFontSizeSmall}" HorizontalAlignment="Center"/>
         </StackPanel>
       </Panel>
     </DockPanel>
@@ -94,7 +96,7 @@
         </ax:AxToolWindow.Tabs>
         <ax:AxToolWindow.Actions>
           <ax:AxButton Classes="icon" AutomationProperties.Name="{loc:Loc action.collapse}">
-            <ax:AxIcon Data="M 4 8 H 12" Width="13" Height="13" StrokeThickness="1.3"/>
+            <ax:AxIcon Data="{x:Static ax:AxIcons.Minus}"/>
           </ax:AxButton>
         </ax:AxToolWindow.Actions>
         <Panel x:Name="BottomPluginHost"/>
@@ -109,15 +111,15 @@
     <!-- Статус-бар (26px). -->
     <shell:StudioShell.StatusBar>
       <DockPanel Height="26" Margin="12,0">
-        <TextBlock x:Name="StatusText" Classes="dim" Text="{loc:Loc studio.ready}" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+        <TextBlock x:Name="StatusText" Classes="dim" Text="{loc:Loc studio.ready}" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" VerticalAlignment="Center">
-          <TextBlock Classes="dim" Text="Avalonia 12.1.1" FontSize="11"/>
-          <TextBlock Classes="dimmer" Text="·" FontSize="11"/>
-          <TextBlock Classes="dim" Text="net10.0" FontSize="11"/>
-          <TextBlock Classes="dimmer" Text="·" FontSize="11"/>
-          <TextBlock Classes="dim" Text="UTF-8" FontSize="11"/>
-          <TextBlock Classes="dimmer" Text="·" FontSize="11"/>
-          <TextBlock Classes="dim" Text="100%" FontSize="11"/>
+          <TextBlock Classes="dim" Text="Avalonia 12.1.1" FontSize="{DynamicResource AxFontSizeSmall}"/>
+          <TextBlock Classes="dimmer" Text="·" FontSize="{DynamicResource AxFontSizeSmall}"/>
+          <TextBlock Classes="dim" Text="net10.0" FontSize="{DynamicResource AxFontSizeSmall}"/>
+          <TextBlock Classes="dimmer" Text="·" FontSize="{DynamicResource AxFontSizeSmall}"/>
+          <TextBlock Classes="dim" Text="UTF-8" FontSize="{DynamicResource AxFontSizeSmall}"/>
+          <TextBlock Classes="dimmer" Text="·" FontSize="{DynamicResource AxFontSizeSmall}"/>
+          <TextBlock Classes="dim" Text="100%" FontSize="{DynamicResource AxFontSizeSmall}"/>
         </StackPanel>
       </DockPanel>
     </shell:StudioShell.StatusBar>

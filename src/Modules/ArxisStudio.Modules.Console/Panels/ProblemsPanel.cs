@@ -23,8 +23,7 @@ public sealed class ProblemsPanel : Sdk.ToolWindow
     private readonly ListBox _list = new() { Background = Brushes.Transparent };
     private readonly TextBlock _empty = new()
     {
-        Classes = { "dimmer" },
-        FontSize = 12,
+        Classes = { "dimmer", "small" },
         HorizontalAlignment = HorizontalAlignment.Center,
         VerticalAlignment = VerticalAlignment.Center,
     };
@@ -75,7 +74,7 @@ public sealed class ProblemsPanel : Sdk.ToolWindow
         row.Children.Add(Cell(problem.Code, 64, "AxFg3Brush"));
         row.Children.Add(new TextBlock
         {
-            FontSize = 11.5,
+            Classes = { "small" },
             Text = problem.Message,
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
@@ -91,8 +90,7 @@ public sealed class ProblemsPanel : Sdk.ToolWindow
     {
         var cell = new TextBlock
         {
-            Classes = { "mono" },
-            FontSize = 11.5,
+            Classes = { "mono", "small" },
             Width = 48,
             FontWeight = FontWeight.SemiBold,
             VerticalAlignment = VerticalAlignment.Center,
@@ -118,8 +116,7 @@ public sealed class ProblemsPanel : Sdk.ToolWindow
     {
         var cell = new TextBlock
         {
-            Classes = { "mono" },
-            FontSize = 11.5,
+            Classes = { "mono", "small" },
             Text = text,
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,

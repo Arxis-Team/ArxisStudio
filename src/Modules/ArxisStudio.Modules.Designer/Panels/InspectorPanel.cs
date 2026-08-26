@@ -20,8 +20,8 @@ public sealed class InspectorPanel : Sdk.ToolWindow
     private readonly ObservableCollection<InspectorSection> _sections = [];
     private readonly ItemsControl _list = new();
     private readonly ContentControl _custom = new() { IsVisible = false };
-    private readonly TextBlock _title = new() { FontWeight = FontWeight.SemiBold, FontSize = 12.5 };
-    private readonly TextBlock _type = new() { Classes = { "mono", "dimmer" }, FontSize = 11 };
+    private readonly TextBlock _title = new() { FontWeight = FontWeight.SemiBold };
+    private readonly TextBlock _type = new() { Classes = { "mono", "dimmer", "small" } };
     private readonly AxButton _undo = new() { Classes = { "compact" }, IsEnabled = false };
     private readonly AxButton _redo = new() { Classes = { "compact" }, IsEnabled = false };
     private readonly AxButton _save = new() { Classes = { "compact", "accent" }, IsEnabled = false };
@@ -98,8 +98,7 @@ public sealed class InspectorPanel : Sdk.ToolWindow
 
         _empty = new TextBlock
         {
-            Classes = { "dimmer" },
-            FontSize = 12,
+            Classes = { "dimmer", "small" },
             Text = Localizer.Instance["panel.inspector.empty"],
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
@@ -319,7 +318,7 @@ public sealed class InspectorPanel : Sdk.ToolWindow
             {
                 Text = section.Title,
                 FontWeight = FontWeight.SemiBold,
-                FontSize = 12,
+                Classes = { "small" },
                 VerticalAlignment = VerticalAlignment.Center,
             },
         };
@@ -345,7 +344,7 @@ public sealed class InspectorPanel : Sdk.ToolWindow
 
         var name = new TextBlock
         {
-            FontSize = 11.5,
+            Classes = { "small" },
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
             Margin = new Avalonia.Thickness(0, 0, 8, 0),
@@ -372,7 +371,7 @@ public sealed class InspectorPanel : Sdk.ToolWindow
 
         var text = new AxTextBox
         {
-            FontSize = 11.5,
+            Classes = { "small" },
             [!AxTextBox.TextProperty] = Bind(row, nameof(InspectorRow.Value)),
             [!AxTextBox.PlaceholderTextProperty] = Bind(row, nameof(InspectorRow.Placeholder), twoWay: false),
             [!Avalonia.Visual.IsVisibleProperty] = Bind(row, nameof(InspectorRow.IsText), twoWay: false),

@@ -16,7 +16,7 @@
 
     <!-- Полоса заголовка: подпись слева, кнопки окна справа. -->
     <ax:AxTitleBar DockPanel.Dock="Top" Height="38">
-      <TextBlock Classes="dimmer" Text="{loc:Loc welcome.title}" FontSize="11.5"
+      <TextBlock Classes="dimmer" Text="{loc:Loc welcome.title}" FontSize="{DynamicResource AxFontSizeSmall}"
                  VerticalAlignment="Center" Margin="14,0"/>
     </ax:AxTitleBar>
 
@@ -28,10 +28,10 @@
       <DockPanel Margin="10,16,10,12">
 
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="8,0,8,16">
-          <ax:AxAvatar Width="34" Height="34" Initials="Ax" FontSize="15"/>
+          <ax:AxAvatar Width="34" Height="34" Initials="Ax" FontSize="{DynamicResource AxFontSizeTitle}"/>
           <StackPanel VerticalAlignment="Center">
-            <TextBlock Text="{loc:Loc app.name}" FontWeight="SemiBold" FontSize="13.5"/>
-            <TextBlock Classes="dimmer" Text="Avalonia 12.1 · net10.0" FontSize="11"/>
+            <TextBlock Text="{loc:Loc app.name}" FontWeight="SemiBold" FontSize="{DynamicResource AxFontSize}"/>
+            <TextBlock Classes="dimmer" Text="Avalonia 12.1 · net10.0" FontSize="{DynamicResource AxFontSizeSmall}"/>
           </StackPanel>
         </StackPanel>
 
@@ -46,9 +46,9 @@
           </ToggleButton>
           <Border BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,1,0,0" Padding="10,8,0,0">
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <ax:AxAvatar Classes="round" Width="22" Height="22" Initials="FF" FontSize="9.5"
+              <ax:AxAvatar Classes="round" Width="22" Height="22" Initials="FF" FontSize="{DynamicResource AxFontSizeCaption}"
                            TileBrush="{DynamicResource AxPurBrush}"/>
-              <TextBlock Classes="dim" Text="FibonacciFox" FontSize="12" VerticalAlignment="Center"/>
+              <TextBlock Classes="dim" Text="FibonacciFox" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center"/>
             </StackPanel>
           </Border>
         </StackPanel>
@@ -97,8 +97,8 @@
               Padding="24,10">
         <DockPanel>
           <ax:AxButton DockPanel.Dock="Right" Classes="ghost" Content="{loc:Loc common.close}"
-                       Click="OnDismissStatus" Height="24" FontSize="11.5"/>
-          <TextBlock Text="{Binding Status}" TextWrapping="Wrap" FontSize="12" VerticalAlignment="Center"/>
+                       Click="OnDismissStatus" Height="24" FontSize="{DynamicResource AxFontSizeSmall}"/>
+          <TextBlock Text="{Binding Status}" TextWrapping="Wrap" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center"/>
         </DockPanel>
       </Border>
 
@@ -120,26 +120,26 @@
 
             <TextBlock Classes="section" Text="{loc:Loc projects.recent}" Margin="0,26,0,8"/>
 
-            <TextBlock Classes="dimmer" FontSize="12" Margin="0,8"
+            <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,8"
                        Text="{loc:Loc projects.empty}"
                        IsVisible="{Binding HasNoRecent}"/>
 
             <ItemsControl ItemsSource="{Binding RecentProjects}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="svc:RecentProject">
-                  <Border Classes="row" Height="58" CornerRadius="8" Padding="12,0"
+                  <Border Classes="row" Height="58" CornerRadius="{DynamicResource AxCornerRadiusLarge}" Padding="12,0"
                           PointerPressed="OnRecentPressed" Tag="{Binding Path}">
                     <DockPanel>
                       <ax:AxAvatar DockPanel.Dock="Left" Initials="{Binding Initials}" Margin="0,0,12,0"/>
-                      <TextBlock DockPanel.Dock="Right" Classes="dimmer" FontSize="11.5" Width="120"
+                      <TextBlock DockPanel.Dock="Right" Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Width="120"
                                  TextAlignment="Right" VerticalAlignment="Center"
                                  Text="{Binding OpenedAt, StringFormat='{}{0:dd.MM.yyyy HH:mm}'}"/>
                       <ax:AxChip DockPanel.Dock="Right" VerticalAlignment="Center" Margin="8,0"
                                  Content="{loc:Loc projects.missing}"
                                  IsVisible="{Binding !Exists}"/>
                       <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Name}" FontWeight="Medium" FontSize="13"/>
-                        <TextBlock Classes="mono dimmer" Text="{Binding Path}" FontSize="11" Margin="0,1,0,0"
+                        <TextBlock Text="{Binding Name}" FontWeight="Medium" FontSize="{DynamicResource AxFontSize}"/>
+                        <TextBlock Classes="mono dimmer" Text="{Binding Path}" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,1,0,0"
                                    TextTrimming="CharacterEllipsis"/>
                       </StackPanel>
                     </DockPanel>
@@ -158,18 +158,18 @@
                                 Text="{Binding TemplateFilter, Mode=TwoWay}"/>
             </DockPanel>
 
-            <TextBlock Classes="dimmer" FontSize="12" Margin="0,14,0,0"
+            <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,14,0,0"
                        Text="{loc:Loc templates.subtitle}"/>
 
-            <TextBlock Classes="dim" FontSize="12" Margin="0,18,0,0"
+            <TextBlock Classes="dim" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,18,0,0"
                        Text="{loc:Loc templates.loading}"
                        IsVisible="{Binding IsLoadingTemplates}"/>
 
             <StackPanel IsVisible="{Binding HasNoTemplates}" Spacing="8" Margin="0,18,0,0">
-              <TextBlock Classes="dim" FontSize="12" Text="{loc:Loc templates.empty}"/>
+              <TextBlock Classes="dim" FontSize="{DynamicResource AxFontSizeSmall}" Text="{loc:Loc templates.empty}"/>
               <Border Background="{DynamicResource AxInpBrush}" BorderBrush="{DynamicResource AxBrd2Brush}"
-                      BorderThickness="1" CornerRadius="6" Padding="10,7" HorizontalAlignment="Left">
-                <SelectableTextBlock Classes="mono" FontSize="12"
+                      BorderThickness="1" CornerRadius="{DynamicResource AxCornerRadius}" Padding="10,7" HorizontalAlignment="Left">
+                <SelectableTextBlock Classes="mono" FontSize="{DynamicResource AxFontSizeSmall}"
                                      Text="dotnet new install Avalonia.Templates"/>
               </Border>
             </StackPanel>
@@ -185,20 +185,20 @@
                   <ax:AxCard Classes="hoverable" Width="228" Height="150" Margin="0,0,12,12" Padding="14">
                     <DockPanel>
                       <StackPanel DockPanel.Dock="Top" Spacing="9">
-                        <Border Width="38" Height="38" CornerRadius="9" Background="{DynamicResource AxBg3Brush}">
+                        <Border Width="38" Height="38" CornerRadius="{DynamicResource AxCornerRadiusLarge}" Background="{DynamicResource AxBg3Brush}">
                           <ax:AxIcon Width="20" Height="20"
                                      Data="{x:Static ax:AxIcons.Window}"
                                      Foreground="{DynamicResource AxAccBrush}"/>
                         </Border>
                         <StackPanel>
-                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"
+                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="{DynamicResource AxFontSize}"
                                      TextTrimming="CharacterEllipsis"/>
-                          <TextBlock Classes="mono dimmer" Text="{Binding ShortName}" FontSize="11" Margin="0,2,0,0"/>
+                          <TextBlock Classes="mono dimmer" Text="{Binding ShortName}" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,2,0,0"/>
                         </StackPanel>
                       </StackPanel>
                       <DockPanel DockPanel.Dock="Bottom" VerticalAlignment="Bottom">
                         <TextBlock DockPanel.Dock="Right" Classes="link" Text="{loc:Loc templates.create}"
-                                   FontSize="11.5" FontWeight="Medium" VerticalAlignment="Center"
+                                   FontSize="{DynamicResource AxFontSizeSmall}" FontWeight="Medium" VerticalAlignment="Center"
                                    PointerPressed="OnCreateFromTemplate" Tag="{Binding}"/>
                         <ax:AxChip Content="{Binding Category}" HorizontalAlignment="Left"/>
                       </DockPanel>
@@ -211,33 +211,33 @@
 
           <!-- ===== Learn ===== -->
           <StackPanel IsVisible="{Binding IsLearn}" Spacing="0" MaxWidth="760" HorizontalAlignment="Left">
-            <TextBlock Text="{loc:Loc learn.title}" FontSize="15" FontWeight="SemiBold"/>
-            <TextBlock Classes="dimmer" FontSize="12" Margin="0,2,0,0" Text="{loc:Loc learn.subtitle}"/>
+            <TextBlock Text="{loc:Loc learn.title}" FontSize="{DynamicResource AxFontSizeTitle}" FontWeight="SemiBold"/>
+            <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,2,0,0" Text="{loc:Loc learn.subtitle}"/>
 
             <ax:AxCard Margin="0,22,0,0" Padding="4,2">
               <StackPanel>
                 <Border Classes="link-row" Tag="https://github.com/Arxis-Team" PointerPressed="OnLinkPressed">
                   <DockPanel>
                     <ax:AxIcon DockPanel.Dock="Left" Data="{x:Static ax:AxIcons.Document}" Margin="0,0,10,0"/>
-                    <TextBlock Classes="link" Text="{loc:Loc learn.docs}" FontSize="12.5" VerticalAlignment="Center"/>
+                    <TextBlock Classes="link" Text="{loc:Loc learn.docs}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
                   </DockPanel>
                 </Border>
                 <Border Classes="link-row" Tag="https://github.com/Arxis-Team" PointerPressed="OnLinkPressed">
                   <DockPanel>
                     <ax:AxIcon DockPanel.Dock="Left" Data="{x:Static ax:AxIcons.List}" Margin="0,0,10,0"/>
-                    <TextBlock Classes="link" Text="{loc:Loc learn.api}" FontSize="12.5" VerticalAlignment="Center"/>
+                    <TextBlock Classes="link" Text="{loc:Loc learn.api}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
                   </DockPanel>
                 </Border>
                 <Border Classes="link-row" Tag="https://github.com/Arxis-Team" PointerPressed="OnLinkPressed">
                   <DockPanel>
                     <ax:AxIcon DockPanel.Dock="Left" Data="{x:Static ax:AxIcons.Package}" Margin="0,0,10,0"/>
-                    <TextBlock Classes="link" Text="{loc:Loc learn.samples}" FontSize="12.5" VerticalAlignment="Center"/>
+                    <TextBlock Classes="link" Text="{loc:Loc learn.samples}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
                   </DockPanel>
                 </Border>
                 <Border Classes="link-row" Tag="https://github.com/Arxis-Team" PointerPressed="OnLinkPressed">
                   <DockPanel>
                     <ax:AxIcon DockPanel.Dock="Left" Data="{x:Static ax:AxIcons.Bubble}" Margin="0,0,10,0"/>
-                    <TextBlock Classes="link" Text="{loc:Loc learn.community}" FontSize="12.5" VerticalAlignment="Center"/>
+                    <TextBlock Classes="link" Text="{loc:Loc learn.community}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
                   </DockPanel>
                 </Border>
               </StackPanel>
@@ -252,12 +252,12 @@
                 <ax:AxButton Content="{loc:Loc plugins.openfolder}" Click="OnOpenPluginFolderClick"/>
               </StackPanel>
               <StackPanel VerticalAlignment="Center">
-                <TextBlock Text="{loc:Loc plugins.title}" FontSize="15" FontWeight="SemiBold"/>
-                <TextBlock Classes="dimmer" FontSize="12" Margin="0,2,0,0" Text="{loc:Loc plugins.subtitle}"/>
+                <TextBlock Text="{loc:Loc plugins.title}" FontSize="{DynamicResource AxFontSizeTitle}" FontWeight="SemiBold"/>
+                <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,2,0,0" Text="{loc:Loc plugins.subtitle}"/>
               </StackPanel>
             </DockPanel>
 
-            <TextBlock Classes="dimmer" FontSize="12" Margin="0,22,0,0"
+            <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,22,0,0"
                        Text="{loc:Loc plugins.empty}" IsVisible="{Binding HasNoPlugins}"/>
 
             <ax:AxCard Margin="0,18,0,0" Padding="0" IsVisible="{Binding !HasNoPlugins}">
@@ -266,29 +266,29 @@
                   <DataTemplate x:DataType="ext:InstalledPlugin">
                     <Border Padding="16,12" BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,0,0,1">
                       <DockPanel>
-                        <Border DockPanel.Dock="Left" Width="36" Height="36" CornerRadius="9" Margin="0,0,12,0"
+                        <Border DockPanel.Dock="Left" Width="36" Height="36" CornerRadius="{DynamicResource AxCornerRadiusLarge}" Margin="0,0,12,0"
                                 Background="{DynamicResource AxBg3Brush}">
                           <ax:AxIcon Width="19" Height="19" Data="{x:Static ax:AxIcons.Package}"
                                      Foreground="{DynamicResource AxPurBrush}"/>
                         </Border>
-                        <ax:AxButton DockPanel.Dock="Right" MinWidth="96" Height="26" FontSize="11.5"
+                        <ax:AxButton DockPanel.Dock="Right" MinWidth="96" Height="26" FontSize="{DynamicResource AxFontSizeSmall}"
                                      VerticalAlignment="Center" Margin="10,0,0,0"
                                      Click="OnTogglePluginClick" Tag="{Binding}"
                                      Content="{Binding IsEnabled, Converter={x:Static vm:PluginToggleConverter.Instance}}"
                                      IsVisible="{Binding IsValid}"/>
-                        <TextBlock DockPanel.Dock="Right" Classes="mono dimmer" FontSize="11"
+                        <TextBlock DockPanel.Dock="Right" Classes="mono dimmer" FontSize="{DynamicResource AxFontSizeSmall}"
                                    VerticalAlignment="Center" Text="{Binding Manifest.Version}"/>
                         <StackPanel VerticalAlignment="Center">
                           <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="13"/>
-                            <TextBlock Classes="dimmer" FontSize="11" VerticalAlignment="Bottom"
+                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="{DynamicResource AxFontSize}"/>
+                            <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Bottom"
                                        Text="{Binding Manifest.Publisher}"/>
                             <ax:AxChip Content="{loc:Loc plugins.broken}" IsVisible="{Binding !IsValid}"/>
                           </StackPanel>
-                          <TextBlock Classes="dim" FontSize="11.5" Margin="0,1,0,0"
+                          <TextBlock Classes="dim" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,1,0,0"
                                      TextTrimming="CharacterEllipsis"
                                      Text="{Binding Manifest.Description}"/>
-                          <TextBlock Classes="dimmer" FontSize="11" Margin="0,1,0,0"
+                          <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,1,0,0"
                                      TextTrimming="CharacterEllipsis"
                                      Text="{Binding Error}" IsVisible="{Binding !IsValid}"/>
                         </StackPanel>
@@ -302,8 +302,8 @@
 
           <!-- ===== Settings ===== -->
           <StackPanel IsVisible="{Binding IsSettings}" Spacing="0" MaxWidth="640" HorizontalAlignment="Left">
-            <TextBlock Text="{loc:Loc settings.title}" FontSize="15" FontWeight="SemiBold"/>
-            <TextBlock Classes="dimmer" FontSize="12" Margin="0,2,0,0" Text="{loc:Loc settings.subtitle}"/>
+            <TextBlock Text="{loc:Loc settings.title}" FontSize="{DynamicResource AxFontSizeTitle}" FontWeight="SemiBold"/>
+            <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,2,0,0" Text="{loc:Loc settings.subtitle}"/>
 
             <TextBlock Classes="section" Text="{loc:Loc settings.appearance}" Margin="0,22,0,8"/>
             <ax:AxCard Padding="16,2">
@@ -313,7 +313,7 @@
                     <ax:AxSegmentItem Content="{loc:Loc settings.theme.dark}"/>
                     <ax:AxSegmentItem Content="{loc:Loc settings.theme.light}"/>
                   </ax:AxSegmentedControl>
-                  <TextBlock Text="{loc:Loc settings.theme}" FontSize="12.5" VerticalAlignment="Center"/>
+                  <TextBlock Text="{loc:Loc settings.theme}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
                 </DockPanel>
                 <ax:AxDivider/>
                 <DockPanel Classes="settings-row">
@@ -322,7 +322,7 @@
                     <ax:AxComboBoxItem Content="Русский" Tag="ru"/>
                     <ax:AxComboBoxItem Content="English" Tag="en"/>
                   </ax:AxComboBox>
-                  <TextBlock Text="{loc:Loc settings.language}" FontSize="12.5" VerticalAlignment="Center"/>
+                  <TextBlock Text="{loc:Loc settings.language}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
                 </DockPanel>
               </StackPanel>
             </ax:AxCard>
@@ -332,20 +332,20 @@
               <StackPanel>
                 <DockPanel Classes="settings-row">
                   <ax:AxToggleSwitch DockPanel.Dock="Right" x:Name="GridToggle" Click="OnSettingToggled"/>
-                  <TextBlock Text="{loc:Loc settings.canvasgrid}" FontSize="12.5" VerticalAlignment="Center"/>
+                  <TextBlock Text="{loc:Loc settings.canvasgrid}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
                 </DockPanel>
                 <ax:AxDivider/>
                 <DockPanel Classes="settings-row">
                   <ax:AxToggleSwitch DockPanel.Dock="Right" x:Name="AutoSaveToggle" Click="OnSettingToggled"/>
                   <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="{loc:Loc settings.autosave}" FontSize="12.5"/>
-                    <TextBlock Classes="dimmer" Text="{loc:Loc settings.autosave.hint}" FontSize="11"/>
+                    <TextBlock Text="{loc:Loc settings.autosave}" FontSize="{DynamicResource AxFontSize}"/>
+                    <TextBlock Classes="dimmer" Text="{loc:Loc settings.autosave.hint}" FontSize="{DynamicResource AxFontSizeSmall}"/>
                   </StackPanel>
                 </DockPanel>
                 <ax:AxDivider/>
                 <DockPanel Classes="settings-row">
                   <ax:AxToggleSwitch DockPanel.Dock="Right" x:Name="HintsToggle" Click="OnSettingToggled"/>
-                  <TextBlock Text="{loc:Loc settings.hints}" FontSize="12.5" VerticalAlignment="Center"/>
+                  <TextBlock Text="{loc:Loc settings.hints}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
                 </DockPanel>
               </StackPanel>
             </ax:AxCard>
@@ -355,7 +355,7 @@
               <StackPanel>
                 <DockPanel Classes="settings-row">
                   <ax:AxToggleSwitch DockPanel.Dock="Right" x:Name="OpenLastToggle" Click="OnSettingToggled"/>
-                  <TextBlock Text="{loc:Loc settings.openlast}" FontSize="12.5" VerticalAlignment="Center"/>
+                  <TextBlock Text="{loc:Loc settings.openlast}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
                 </DockPanel>
                 <ax:AxDivider/>
                 <DockPanel Classes="settings-row">
@@ -367,7 +367,7 @@
                     </ax:AxComboBox>
                     <ax:AxButton Classes="compact" Content="{loc:Loc settings.checkupdates}"/>
                   </StackPanel>
-                  <TextBlock Text="{loc:Loc settings.channel}" FontSize="12.5" VerticalAlignment="Center"/>
+                  <TextBlock Text="{loc:Loc settings.channel}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
                 </DockPanel>
               </StackPanel>
             </ax:AxCard>

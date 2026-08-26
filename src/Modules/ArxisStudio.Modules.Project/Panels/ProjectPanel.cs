@@ -26,8 +26,7 @@ public sealed class ProjectPanel : Sdk.ToolWindow
     private readonly AxTreeView _tree = new();
     private readonly TextBlock _empty = new()
     {
-        Classes = { "dimmer" },
-        FontSize = 12,
+        Classes = { "dimmer", "small" },
         HorizontalAlignment = HorizontalAlignment.Center,
         VerticalAlignment = VerticalAlignment.Center,
     };

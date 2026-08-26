@@ -66,8 +66,7 @@ public sealed class ConsolePanel : Sdk.ToolWindow
         row.Children.Add(Source(record.Source));
         row.Children.Add(new TextBlock
         {
-            Classes = { "mono" },
-            FontSize = 11.5,
+            Classes = { "mono", "small" },
             Text = record.Message,
             TextTrimming = TextTrimming.CharacterEllipsis,
         });
@@ -79,8 +78,7 @@ public sealed class ConsolePanel : Sdk.ToolWindow
     {
         var cell = new TextBlock
         {
-            Classes = { "mono" },
-            FontSize = 11.5,
+            Classes = { "mono", "small" },
             Width = width,
             Text = text,
         };
@@ -95,8 +93,7 @@ public sealed class ConsolePanel : Sdk.ToolWindow
     {
         var cell = new TextBlock
         {
-            Classes = { "mono" },
-            FontSize = 11.5,
+            Classes = { "mono", "small" },
             Width = 48,
             FontWeight = FontWeight.SemiBold,
             Text = record.LevelName,

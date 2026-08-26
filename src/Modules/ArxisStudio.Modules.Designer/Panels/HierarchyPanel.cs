@@ -16,8 +16,7 @@ public sealed class HierarchyPanel : Sdk.ToolWindow
     private readonly AxTreeView _tree = new();
     private readonly TextBlock _empty = new()
     {
-        Classes = { "dimmer" },
-        FontSize = 12,
+        Classes = { "dimmer", "small" },
         HorizontalAlignment = HorizontalAlignment.Center,
         VerticalAlignment = VerticalAlignment.Center,
     };
@@ -54,8 +53,7 @@ public sealed class HierarchyPanel : Sdk.ToolWindow
         });
         row.Children.Add(new TextBlock
         {
-            Classes = { "dimmer" },
-            FontSize = 11,
+            Classes = { "dimmer", "small" },
             VerticalAlignment = VerticalAlignment.Center,
             [!TextBlock.TextProperty] = new Avalonia.Data.Binding(nameof(HierarchyNode.TypeHint)),
         });

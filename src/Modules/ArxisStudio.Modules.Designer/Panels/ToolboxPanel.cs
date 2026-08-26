@@ -19,8 +19,7 @@ public sealed class ToolboxPanel : Sdk.ToolWindow
     private readonly DockPanel _body = new();
     private readonly TextBlock _empty = new()
     {
-        Classes = { "dimmer" },
-        FontSize = 12,
+        Classes = { "dimmer", "small" },
         TextWrapping = TextWrapping.Wrap,
         TextAlignment = TextAlignment.Center,
         Margin = new Avalonia.Thickness(20, 0),
@@ -76,7 +75,7 @@ public sealed class ToolboxPanel : Sdk.ToolWindow
             Child = new TextBlock
             {
                 FontWeight = FontWeight.SemiBold,
-                FontSize = 11.5,
+                Classes = { "small" },
                 VerticalAlignment = VerticalAlignment.Center,
                 [!TextBlock.TextProperty] = new Avalonia.Data.Binding("Title.Value") { Source = group },
             },
@@ -105,7 +104,7 @@ public sealed class ToolboxPanel : Sdk.ToolWindow
                 Children =
                 {
                     icon,
-                    new TextBlock { Text = item.TypeName, FontSize = 11.5, VerticalAlignment = VerticalAlignment.Center },
+                    new TextBlock { Text = item.TypeName, Classes = { "small" }, VerticalAlignment = VerticalAlignment.Center },
                 },
             },
         };
