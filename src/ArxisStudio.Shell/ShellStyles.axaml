@@ -163,12 +163,21 @@
     <Setter Property="Background" Value="{DynamicResource AxBg2Brush}"/>
   </Style>
 
-  <!-- Строка настроек: 44px с разделителем; первая в карточке — без него. -->
+  <!--
+      Строка настроек: 44 высотой. Разделители между строками ставит сама
+      разметка — штатным AxDivider, как нарисован экран Settings в макете.
+  -->
   <Style Selector="DockPanel.settings-row">
     <Setter Property="Height" Value="44"/>
   </Style>
-  <Style Selector="StackPanel > DockPanel.settings-row">
-    <Setter Property="Height" Value="44"/>
+  <!--
+      Контрол в строке настроек стоит по центру, а не тянется во всю её
+      высоту: строка 44, а поле, комбобокс и кнопка — свои 28 и 24.
+      DockPanel растягивает пристыкованное по поперечной оси, и без этого
+      комбобокс в строке становится ростом со строку.
+  -->
+  <Style Selector="DockPanel.settings-row > :is(Control)">
+    <Setter Property="VerticalAlignment" Value="Center"/>
   </Style>
 
   <!-- Ссылка и строка-ссылка. -->

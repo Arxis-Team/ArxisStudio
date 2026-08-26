@@ -28,7 +28,7 @@
       <DockPanel Margin="10,16,10,12">
 
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="8,0,8,16">
-          <ax:AxAvatar Width="34" Height="34" CornerRadius="9" Initials="Ax" FontSize="15"/>
+          <ax:AxAvatar Width="34" Height="34" Initials="Ax" FontSize="15"/>
           <StackPanel VerticalAlignment="Center">
             <TextBlock Text="{loc:Loc app.name}" FontWeight="SemiBold" FontSize="13.5"/>
             <TextBlock Classes="dimmer" Text="Avalonia 12.1 · net10.0" FontSize="11"/>
@@ -315,6 +315,7 @@
                   </ax:AxSegmentedControl>
                   <TextBlock Text="{loc:Loc settings.theme}" FontSize="12.5" VerticalAlignment="Center"/>
                 </DockPanel>
+                <ax:AxDivider/>
                 <DockPanel Classes="settings-row">
                   <ax:AxComboBox DockPanel.Dock="Right" x:Name="LanguageBox" Width="170"
                                  SelectionChanged="OnLanguageChanged">
@@ -333,6 +334,7 @@
                   <ax:AxToggleSwitch DockPanel.Dock="Right" x:Name="GridToggle" Click="OnSettingToggled"/>
                   <TextBlock Text="{loc:Loc settings.canvasgrid}" FontSize="12.5" VerticalAlignment="Center"/>
                 </DockPanel>
+                <ax:AxDivider/>
                 <DockPanel Classes="settings-row">
                   <ax:AxToggleSwitch DockPanel.Dock="Right" x:Name="AutoSaveToggle" Click="OnSettingToggled"/>
                   <StackPanel VerticalAlignment="Center">
@@ -340,6 +342,7 @@
                     <TextBlock Classes="dimmer" Text="{loc:Loc settings.autosave.hint}" FontSize="11"/>
                   </StackPanel>
                 </DockPanel>
+                <ax:AxDivider/>
                 <DockPanel Classes="settings-row">
                   <ax:AxToggleSwitch DockPanel.Dock="Right" x:Name="HintsToggle" Click="OnSettingToggled"/>
                   <TextBlock Text="{loc:Loc settings.hints}" FontSize="12.5" VerticalAlignment="Center"/>
@@ -354,13 +357,15 @@
                   <ax:AxToggleSwitch DockPanel.Dock="Right" x:Name="OpenLastToggle" Click="OnSettingToggled"/>
                   <TextBlock Text="{loc:Loc settings.openlast}" FontSize="12.5" VerticalAlignment="Center"/>
                 </DockPanel>
+                <ax:AxDivider/>
                 <DockPanel Classes="settings-row">
-                  <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                  <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8"
+                              Margin="12,0,0,0">
                     <ax:AxComboBox x:Name="ChannelBox" Width="120" SelectedIndex="0">
                       <ax:AxComboBoxItem Content="Stable"/>
                       <ax:AxComboBoxItem Content="Preview"/>
                     </ax:AxComboBox>
-                    <ax:AxButton Content="{loc:Loc settings.checkupdates}" Height="26" FontSize="11.5"/>
+                    <ax:AxButton Classes="compact" Content="{loc:Loc settings.checkupdates}"/>
                   </StackPanel>
                   <TextBlock Text="{loc:Loc settings.channel}" FontSize="12.5" VerticalAlignment="Center"/>
                 </DockPanel>
