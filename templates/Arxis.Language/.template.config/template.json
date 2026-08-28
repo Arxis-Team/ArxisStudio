@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Arxis",
+  "classifications": [ "ArxisStudio", "Localization" ],
+  "identity": "ArxisStudio.LanguagePack",
+  "name": "ArxisStudio language pack",
+  "description": "Перевод интерфейса ArxisStudio: манифест и словарь с полным списком ключей",
+  "shortName": "arxis-language",
+  "sourceName": "xx",
+  "preferNameDirectory": true,
+  "tags": {
+    "language": "JSON",
+    "type": "item"
+  },
+  "symbols": {
+    "display": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "New language",
+      "description": "Название языка на нём самом, например Deutsch",
+      "replaces": "LANGUAGE-NAME"
+    }
+  }
+}
