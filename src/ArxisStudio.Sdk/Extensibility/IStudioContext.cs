@@ -20,6 +20,9 @@ public interface IStudioContext
     /// <summary>Настройки плагина, объявленные в его манифесте.</summary>
     IStudioSettings Settings { get; }
 
+    /// <summary>Фоновые задачи: всё долгое делается здесь, а не в потоке интерфейса.</summary>
+    IStudioTasks Tasks { get; }
+
     /// <summary>Путь к открытому решению или проекту; null, если проект не открыт.</summary>
     string? ProjectPath { get; }
 

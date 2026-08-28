@@ -76,6 +76,7 @@
   "studio.noproject": "Без проекта",
   "studio.configuration": "Desktop · Отладка",
   "studio.ready": "Готово",
+  "task.cancel": "Отменить задачу",
   "studio.canvas.hint": "Здесь открываются документы — их приносят плагины",
   "vcs.clone.later": "Клонирование из Git появится вместе с интеграцией систем контроля версий.",
   "common.cancel": "Отмена",

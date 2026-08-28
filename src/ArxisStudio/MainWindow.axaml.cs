@@ -58,6 +58,7 @@ public partial class MainWindow : Window
     private readonly StudioLog _log = new(Console.Out);
     private readonly StudioProblems _problems = new();
     private readonly PluginGuard _guard = new();
+    private readonly StudioTaskRegistry _tasks = new();
     private readonly StudioCommands _commands;
     private readonly PluginContributionRegistry _contributions = new();
     private PluginHost? _plugins;
@@ -90,6 +91,9 @@ public partial class MainWindow : Window
             $"{Named(failure.PluginId)}: {failure.What} — {failure.Message}");
 
         _guard.Disabled += (_, failure) => Disable(failure);
+
+        // Задачи идут не в потоке интерфейса, а показывать их надо в нём.
+        _tasks.Changed += (_, _) => Dispatcher.UIThread.Post(ShowTasks);
 
         // Системная рамка окна красится отдельно от содержимого: сама она
         // цвета темы не знает.
@@ -150,7 +154,14 @@ public partial class MainWindow : Window
         };
 
         var catalog = new PluginCatalog();
-        var host = new PluginHost(new StudioContextFactory(_log, _commands, ProjectPath, services));
+        var host = new PluginHost(new StudioContextFactory(
+            _log,
+            _commands,
+            ProjectPath,
+            services,
+            settings: null,
+            tasks: _tasks,
+            guard: _guard));
 
         _plugins = host;
         _installed = catalog.Scan();
@@ -231,6 +242,43 @@ public partial class MainWindow : Window
         _guard.Report(plugin.Installed.Id, what, error);
 
         return true;
+    }
+
+    /// <summary>
+    /// Показывает в строке состояния, что делается в фоне.
+    /// </summary>
+    /// <remarks>
+    /// Показывается свежая задача: она та, ради которой человек только что
+    /// что-то нажал. Об остальных говорит счётчик — строка состояния узкая, а
+    /// список задач студии пока не нужен: заводить его стоит, когда задач
+    /// станет столько, что счётчик перестанет отвечать на вопрос.
+    /// </remarks>
+    private void ShowTasks()
+    {
+        var running = _tasks.Running;
+
+        TaskStrip.IsVisible = running.Count > 0;
+
+        if (running.Count == 0)
+            return;
+
+        var task = running[^1];
+
+        TaskTitle.Text = task.Title;
+        TaskMessage.Text = task.Message;
+        TaskProgress.IsIndeterminate = task.Fraction is null;
+        TaskProgress.Value = (task.Fraction ?? 0) * 100;
+        TaskCancel.IsEnabled = !task.IsCancelling;
+
+        TaskRest.IsVisible = running.Count > 1;
+        TaskRest.Text = $"+{running.Count - 1}";
+    }
+
+    /// <summary>Отменяет задачу, которую человек видит.</summary>
+    private void OnCancelTaskClick(object? sender, RoutedEventArgs e)
+    {
+        if (_tasks.Running is { Count: > 0 } running)
+            running[^1].Cancel();
     }
 
     /// <summary>Как плагин называется в сообщениях.</summary>
@@ -642,6 +690,11 @@ public partial class MainWindow : Window
             _log.Write(StudioLogLevel.Warning, "Plugins", $"Плагина {pluginId} больше нет в папке плагинов");
             return;
         }
+
+        // Задачи плагина держат его типы: не остановив их, мы выгрузим плагин
+        // только на словах — и сами же скажем человеку, что копия осталась.
+        if (!await _tasks.StopAsync(pluginId, TimeSpan.FromSeconds(5)))
+            _log.Write(StudioLogLevel.Warning, "Plugins", $"{Named(pluginId)}: фоновая задача не остановилась за пять секунд");
 
         await CloseDocumentsOfAsync(pluginId);
 

@@ -76,6 +76,7 @@
   "studio.noproject": "No project",
   "studio.configuration": "Desktop · Debug",
   "studio.ready": "Ready",
+  "task.cancel": "Cancel task",
   "studio.canvas.hint": "Documents open here — plugins bring them",
   "vcs.clone.later": "Cloning from Git arrives with version control integration.",
   "common.cancel": "Cancel",

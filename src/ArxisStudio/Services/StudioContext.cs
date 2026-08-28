@@ -14,6 +14,7 @@ namespace ArxisStudio.Services;
 /// <param name="Log">Журнал студии.</param>
 /// <param name="Commands">Команды студии.</param>
 /// <param name="Settings">Настройки этого плагина.</param>
+/// <param name="Tasks">Фоновые задачи этого плагина.</param>
 /// <param name="ProjectPath">Путь к открытому проекту или null.</param>
 /// <param name="PluginDirectory">Папка плагина.</param>
 /// <param name="Services">Службы студии по типу; null — служб нет.</param>
@@ -21,6 +22,7 @@ public sealed record StudioContext(
     IStudioLog Log,
     IStudioCommands Commands,
     IStudioSettings Settings,
+    IStudioTasks Tasks,
     string? ProjectPath,
     string PluginDirectory,
     IReadOnlyDictionary<Type, object>? Services = null) : IStudioContext
@@ -38,14 +40,24 @@ public sealed record StudioContext(
 /// <param name="settings">
 /// Хранилище настроек плагинов; null — завести своё, по стандартным путям.
 /// </param>
+/// <param name="tasks">Список фоновых задач; null — завести свой.</param>
+/// <param name="guard">Шов вызовов плагина; null — завести свой.</param>
 public sealed class StudioContextFactory(
     IStudioLog log,
     IStudioCommands commands,
     string? projectPath,
     IReadOnlyDictionary<Type, object>? services = null,
-    PluginSettingsStore? settings = null)
+    PluginSettingsStore? settings = null,
+    StudioTaskRegistry? tasks = null,
+    PluginGuard? guard = null)
     : IStudioContextFactory
 {
+    private readonly StudioTaskRegistry _tasks = tasks ?? new StudioTaskRegistry();
+    private readonly PluginGuard _guard = guard ?? new PluginGuard();
+
+    /// <summary>Задачи, о которых знает студия.</summary>
+    public StudioTaskRegistry Tasks => _tasks;
+
     private readonly PluginSettingsStore _settings = settings ?? new PluginSettingsStore(projectPath);
 
     /// <summary>Настройки, которые фабрика раздаёт плагинам.</summary>
@@ -81,6 +93,8 @@ public sealed class StudioContextFactory(
 
         _issued[plugin.Id] = settings;
 
-        return new StudioContext(log, own, settings, projectPath, plugin.Directory, services);
+        var tasks = new PluginTasks(plugin.Id, _tasks, _guard, log);
+
+        return new StudioContext(log, own, settings, tasks, projectPath, plugin.Directory, services);
     }
 }
