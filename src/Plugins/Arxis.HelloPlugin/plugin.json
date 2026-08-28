@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "publisher": "Arxis Labs",
   "description": "%plugin.description%",
+  "icon": "assets/icon.png",
   "sdk": {
     "min": "1.2"
   },

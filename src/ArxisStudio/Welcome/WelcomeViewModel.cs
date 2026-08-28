@@ -252,6 +252,18 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
                 PluginSettings.Add(new PluginSettingRow(plugin.Id, plugin.DisplayName, declared, store, plugin.Strings));
         }
 
+        foreach (var plugin in InstalledPlugins.Where(candidate => candidate.IconPath is not null))
+        {
+            if (PluginIcons.Instance.Of(plugin.IconPath) is null)
+            {
+                _log?.Write(
+                    StudioLogLevel.Warning,
+                    "Plugins",
+                    $"{plugin.DisplayName}: значок {plugin.Manifest?.Icon} не прочитался — " +
+                    "не картинка или больше мегабайта");
+            }
+        }
+
         Notify(nameof(HasNoPlugins));
         Notify(nameof(HasNoPluginSettings));
     }

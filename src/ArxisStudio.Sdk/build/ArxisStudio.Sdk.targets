@@ -46,6 +46,16 @@
     </PropertyGroup>
 
     <!--
+        Путь к значку достаётся из полного текста манифеста, а не из его
+        головы: голову считают только тогда, когда идентификатор не задан
+        снаружи. Спутать не с чем — значок в манифесте один, у панелей и
+        команд своего нет.
+    -->
+    <PropertyGroup Condition="'$(_AxPluginManifestText)' != '' And $([System.Text.RegularExpressions.Regex]::IsMatch($(_AxPluginManifestText), '&quot;icon&quot;\s*:\s*&quot;'))">
+        <AxPluginIcon>$([System.Text.RegularExpressions.Regex]::Replace($(_AxPluginManifestText), '^[\s\S]*?"icon"\s*:\s*"([^"]+)"[\s\S]*$', '$1'))</AxPluginIcon>
+    </PropertyGroup>
+
+    <!--
         Догадка помечается: имя архива она ещё спасёт, а имя папки установки —
         уже нет. Папка установленного плагина зовётся его идентификатором, и,
         назвав её иначе, мы получим второй экземпляр того же плагина, когда его
@@ -79,6 +89,9 @@
     </ItemGroup>
 
     <Target Name="AxPluginCheckManifest" BeforeTargets="Build">
+        <Error Code="AXP1004" Condition="'$(AxPluginIcon)' != '' And !Exists('$(MSBuildProjectDirectory)/$(AxPluginIcon)')"
+               Text="Значок объявлен в манифесте, но файла нет: ожидается '$(AxPluginIcon)' в папке плагина. Студия покажет вместо него общий значок, и автор узнает об этом от чужого пользователя. Положите файл или уберите поле icon." />
+
         <Error Code="AXP1001" Condition="!Exists('$(AxPluginManifest)')"
                Text="Плагину нужен манифест: ожидается '$(AxPluginManifest)'. Без него папка плагином не является — студия читает по манифесту и меню, и панели, ещё не загружая сборку. Создайте plugin.json или укажите другой путь свойством AxPluginManifest." />
     </Target>

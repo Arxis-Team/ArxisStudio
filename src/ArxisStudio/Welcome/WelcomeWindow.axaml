@@ -269,8 +269,19 @@
                       <DockPanel>
                         <Border DockPanel.Dock="Left" Width="36" Height="36" CornerRadius="{DynamicResource AxCornerRadiusLarge}" Margin="0,0,12,0"
                                 Background="{DynamicResource AxBg3Brush}">
-                          <ax:AxIcon Width="19" Height="19" Data="{x:Static ax:AxIcons.Package}"
-                                     Foreground="{DynamicResource AxPurBrush}"/>
+                          <Panel>
+                            <Image x:Name="PluginIcon" Width="24" Height="24"
+                                   RenderOptions.BitmapInterpolationMode="HighQuality"
+                                   Source="{Binding IconPath, Converter={x:Static vm:PluginIconConverter.Instance}}"/>
+                            <!-- Общий значок показывается тогда, когда картинки
+                                 нет: не объявлена, потерялась или не
+                                 прочиталась. Решает сама картинка, а не путь к
+                                 ней, — иначе объявленный и битый файл оставлял
+                                 бы на карточке пустое место. -->
+                            <ax:AxIcon Width="19" Height="19" Data="{x:Static ax:AxIcons.Package}"
+                                       Foreground="{DynamicResource AxPurBrush}"
+                                       IsVisible="{Binding #PluginIcon.Source, Converter={x:Static ObjectConverters.IsNull}}"/>
+                          </Panel>
                         </Border>
                         <ax:AxButton DockPanel.Dock="Right" Height="26" FontSize="{DynamicResource AxFontSizeSmall}"
                                      VerticalAlignment="Center" Margin="8,0,0,0"
