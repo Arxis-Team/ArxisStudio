@@ -114,5 +114,6 @@
   "canvas.snap": "Привязка",
   "canvas.zoomreset": "Вернуть 100%",
   "panel.crashed": "Панель аварийно завершилась",
-  "panel.reload": "Перезапустить"
+  "panel.reload": "Перезапустить",
+  "panel.sample": "Пример модуля"
 }

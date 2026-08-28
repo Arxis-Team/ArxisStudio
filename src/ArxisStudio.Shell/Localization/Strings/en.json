@@ -114,5 +114,6 @@
   "canvas.snap": "Snap",
   "canvas.zoomreset": "Reset to 100%",
   "panel.crashed": "The panel crashed",
-  "panel.reload": "Reload"
+  "panel.reload": "Reload",
+  "panel.sample": "Sample module"
 }

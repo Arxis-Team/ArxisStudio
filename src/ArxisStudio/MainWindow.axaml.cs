@@ -36,6 +36,20 @@ public partial class MainWindow : Window
     /// Порядок здесь виден человеку: модули встают в зоны по очереди, и вкладки
     /// внизу идут в том же порядке, что строки этого списка.
     /// </remarks>
+    /// <summary>
+    /// Модули, приезжающие вместе со студией.
+    /// </summary>
+    /// <remarks>
+    /// Список здесь, а не в настройках: встроенный модуль — часть поставки, и
+    /// выключать его отдельно нечем. Поднимаются они первыми, до внешних
+    /// плагинов: панели студии должны стоять на своих местах раньше, чем к ним
+    /// встанут чужие.
+    /// </remarks>
+    private static readonly Assembly[] BuiltInModules =
+    [
+        typeof(Modules.Sample.SampleModule).Assembly,
+    ];
+
     private readonly ISettingsStore? _settings;
     private readonly List<OpenDocument> _documents = [];
     private readonly StudioLog _log = new();
@@ -139,7 +153,10 @@ public partial class MainWindow : Window
         _installed = catalog.Scan();
         _contributions.Conflict += (_, message) => _log.Write(StudioLogLevel.Warning, "Plugins", message);
 
-        foreach (var loaded in host.LoadStartup(_installed))
+        var raised = BuiltInModules.Select(host.LoadBuiltIn)
+            .Concat(host.LoadStartup(_installed));
+
+        foreach (var loaded in raised)
             Accept(loaded);
 
         foreach (var waiting in host.Deferred)

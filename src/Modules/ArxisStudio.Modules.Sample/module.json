@@ -1,0 +1,19 @@
+{
+  "id": "arxis.sample",
+  "name": "Пример модуля",
+  "version": "1.0.0",
+  "publisher": "Arxis",
+  "description": "Встроенный модуль-образец: панель, команда и служба",
+  "contributions": {
+    "commands": [
+      { "id": "sample.about", "title": "О примере модуля" }
+    ],
+    "menus": [
+      { "path": "Tools/Пример/О модуле", "command": "sample.about" }
+    ],
+    "toolWindows": [
+      { "id": "sample.panel", "title": "%panel.sample%", "zone": "left" }
+    ]
+  },
+  "activation": [ "onStartup" ]
+}

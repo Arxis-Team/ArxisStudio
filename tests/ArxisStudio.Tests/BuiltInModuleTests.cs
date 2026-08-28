@@ -1,6 +1,8 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text;
 using ArxisStudio.Extensibility;
+using ArxisStudio.Modules.Sample;
+using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -12,15 +14,16 @@ namespace ArxisStudio.Tests;
 /// Встроенный модуль: второй способ доставки за тем же контрактом.
 /// </summary>
 /// <remarks>
-/// Модулей в репозитории больше нет — их удалили вместе с работой над проектом,
-/// — но способ остался: панель, приезжающая со студией, поднимается тем же
-/// хостом, что и внешний плагин, и отличается только тем, откуда взялся
-/// манифест и в каком контексте живут сборки.
+/// Панель, приезжающая вместе со студией, поднимается тем же хостом, что и
+/// внешний плагин, и отличается только тем, откуда взялся манифест и в каком
+/// контексте живут сборки.
 /// <para>
-/// Проверять это стало нечем, поэтому модуль собирается прямо здесь: сборка
-/// с встроенным <c>module.json</c> компилируется в память и подсовывается
-/// хосту. Так проверяется контракт, а не конкретный модуль, — а именно
-/// контракт и должен пережить удаление своих первых пользователей.
+/// Проверяется это дважды и по разным причинам. Сам контракт — на сборке,
+/// собранной прямо здесь, в память: она отвечает за случаи, которых у примера
+/// нет, вроде забытого манифеста. Поставляемый модуль
+/// <c>ArxisStudio.Modules.Sample</c> — на том, что его манифест и его код
+/// говорят одно и то же: разойтись они могут молча, и человек увидит пустое
+/// место в зоне вместо панели.
 /// </para>
 /// </remarks>
 public class BuiltInModuleTests
@@ -87,6 +90,60 @@ public class BuiltInModuleTests
         Assert.Null(loaded.Context);
         Assert.NotEmpty(loaded.Entries);
         Assert.Equal("arxis.probe", loaded.Installed.Id);
+    }
+
+    /// <summary>
+    /// У каждой панели, объявленной в манифесте примера, есть класс в сборке.
+    /// </summary>
+    /// <remarks>
+    /// Манифест и код — две записи об одном, и разойтись они могут молча:
+    /// панель переименовали в коде, а в манифесте забыли, — и человек увидит
+    /// пустое место в зоне вместо панели. Оболочка ищет класс по
+    /// идентификатору из манифеста, здесь тем же способом ищет и тест.
+    /// </remarks>
+    [Fact]
+    public void The_sample_module_carries_every_panel_it_declares()
+    {
+        var assembly = typeof(SampleModule).Assembly;
+        var (manifest, error) = ModuleManifest.Load(assembly);
+
+        Assert.Null(error);
+        Assert.NotNull(manifest);
+
+        var declared = manifest!.Contributions.ToolWindows.Select(panel => panel.Id).ToList();
+
+        Assert.NotEmpty(declared);
+
+        var built = assembly.GetTypes()
+            .Select(type => type.GetCustomAttribute<ToolWindowAttribute>()?.Id)
+            .OfType<string>()
+            .ToList();
+
+        Assert.All(declared, id => Assert.Contains(id, built));
+    }
+
+    /// <summary>
+    /// Пример поднимается как встроенный модуль и заявляет свою команду.
+    /// </summary>
+    /// <remarks>
+    /// Это тот же путь, которым его поднимает студия: манифест из ресурса,
+    /// сборка из основного контекста, команда — через контекст. Панель здесь
+    /// не строится: её строит оболочка, когда ставит в зону.
+    /// </remarks>
+    [Fact]
+    public void The_sample_module_rises_and_registers_its_command()
+    {
+        var commands = new StudioCommands();
+
+        using var host = new PluginHost(new StudioContextFactory(new StudioLog(), commands, null));
+
+        var loaded = host.LoadBuiltIn(typeof(SampleModule).Assembly);
+
+        Assert.True(loaded.IsLoaded, loaded.Error);
+        Assert.Null(loaded.Context);
+        Assert.Equal("arxis.sample", loaded.Installed.Id);
+        Assert.Contains(SampleModule.AboutCommand, commands.Registered);
+        Assert.NotEmpty(loaded.Services);
     }
 
     /// <summary>
