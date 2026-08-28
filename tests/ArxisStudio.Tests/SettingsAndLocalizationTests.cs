@@ -70,6 +70,7 @@ public class SettingsStoreTests : IDisposable
 }
 
 /// <summary>Словарь строк интерфейса.</summary>
+[Collection(LocalizationCollection.Name)]
 public class LocalizerTests
 {
     [Fact]
@@ -136,18 +137,38 @@ public class LocalizerTests
         Assert.Equal("!no.such.key!", Localizer.Instance["no.such.key"]);
     }
 
+    /// <summary>
+    /// Язык, для которого нет ни одного словаря, не выбирается.
+    /// </summary>
+    /// <remarks>
+    /// Выбрав его, студия показала бы весь интерфейс на запасном языке, а в
+    /// настройках — выбранным тот, которого нет. Случай не выдуманный: язык
+    /// записан в настройках, а словарь к нему могли удалить.
+    /// </remarks>
     [Fact]
-    public void An_unknown_language_falls_back_to_the_base_locale()
+    public void An_unknown_language_is_not_selected()
     {
         try
         {
-            Localizer.Instance.SetLanguage("xx");
+            Localizer.Instance.SetLanguage("ru");
 
+            Assert.False(Localizer.Instance.SetLanguage("xx"), "приняли язык без единого словаря");
+
+            Assert.Equal("ru", Localizer.Instance.Language);
             Assert.Equal("Открыть", Localizer.Instance["projects.open"]);
         }
         finally
         {
             Localizer.Instance.SetLanguage(Localizer.FallbackLanguage);
         }
+    }
+
+    /// <summary>
+    /// Непереведённое падает на английский — язык, на котором написана студия.
+    /// </summary>
+    [Fact]
+    public void What_is_not_translated_falls_into_english()
+    {
+        Assert.Equal("en", Localizer.FallbackLanguage);
     }
 }

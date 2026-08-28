@@ -1,4 +1,5 @@
 ﻿using ArxisStudio.Shell;
+using ArxisStudio.Shell.Localization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
@@ -17,6 +18,7 @@ namespace ArxisStudio.Tests;
 /// всеми открытыми документами. План поэтому и требует вставлять панель не
 /// прямо в дерево, а через защитный контейнер.
 /// </remarks>
+[Collection(LocalizationCollection.Name)]
 public class PluginSurfaceTests
 {
     /// <summary>Исправная панель проходит насквозь.</summary>
@@ -68,7 +70,10 @@ public class PluginSurfaceTests
 
         var texts = surface.GetVisualDescendants().OfType<TextBlock>().Select(text => text.Text).ToList();
 
-        Assert.Contains(texts, text => text is not null && text.Contains("аварийно"));
+        // Сверяемся со словарём, а не с русским словом: язык студии
+        // переключается, а правило «заглушка говорит, что случилось» от языка
+        // не зависит.
+        Assert.Contains(texts, text => text == Localizer.Instance["panel.crashed"]);
         Assert.Contains("панель сломана", texts);
         Assert.Single(surface.GetVisualDescendants().OfType<Button>());
 

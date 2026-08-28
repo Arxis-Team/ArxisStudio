@@ -1,4 +1,4 @@
-using ArxisStudio.Extensibility;
+﻿using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Services;
 using ArxisStudio.Shell.Localization;
@@ -16,6 +16,7 @@ namespace ArxisStudio.Tests;
 /// плагин впервые поднимут, — взять их из его кода неоткуда, и они читаются из
 /// словарей рядом с манифестом.
 /// </remarks>
+[Collection(LocalizationCollection.Name)]
 public class PluginStringsTests : IDisposable
 {
     private readonly List<string> _folders = [];
@@ -209,6 +210,8 @@ public class PluginStringsTests : IDisposable
         var plugin = Plugin(
             ("strings.json", """{ "panel.main": "Панель" }"""),
             ("strings.en.json", """{ "panel.main": "Panel" }"""));
+
+        Localizer.Instance.SetLanguage("ru");
 
         var text = new TextBlock();
 

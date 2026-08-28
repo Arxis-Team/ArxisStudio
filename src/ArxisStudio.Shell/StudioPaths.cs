@@ -23,6 +23,15 @@ public static class StudioPaths
     /// <summary>Каталог установленных плагинов: одна папка на плагин.</summary>
     public static string Plugins => Path.Combine(UserData, "plugins");
 
+    /// <summary>
+    /// Каталог словарей пользователя: <c>lang/&lt;код&gt;.json</c>.
+    /// </summary>
+    /// <remarks>
+    /// Словарь, положенный сюда, сильнее поставляемого со студией: правят
+    /// его, а в папку установки на общей машине может быть и не записать.
+    /// </remarks>
+    public static string Languages => Path.Combine(UserData, "lang");
+
     /// <summary>Создаёт каталог пользовательских данных, если его ещё нет.</summary>
     public static void EnsureUserData() => Directory.CreateDirectory(UserData);
 }

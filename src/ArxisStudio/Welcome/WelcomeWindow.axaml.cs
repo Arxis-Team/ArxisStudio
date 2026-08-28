@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Services;
 using ArxisStudio.Shell;
@@ -43,7 +44,57 @@ public partial class WelcomeWindow : Window
 
     private void OnLearnClick(object? sender, RoutedEventArgs e) => Select(WelcomeSection.Learn);
 
-    private void OnSettingsClick(object? sender, RoutedEventArgs e) => Select(WelcomeSection.Settings);
+    private void OnSettingsClick(object? sender, RoutedEventArgs e)
+    {
+        // Словари лежат файлами, и файл могли положить только что: список
+        // языков собирается при каждом заходе в настройки, а не один раз при
+        // запуске — иначе добавленный язык ждал бы перезапуска студии.
+        Localizer.Instance.Reload();
+        ShowLanguages();
+
+        Select(WelcomeSection.Settings);
+    }
+
+    /// <summary>
+    /// Заполняет список языков тем, что студия сейчас умеет показать.
+    /// </summary>
+    /// <remarks>
+    /// Выбранным отмечается язык, на котором интерфейс говорит на самом деле,
+    /// а не записанный в настройках: словарь могли удалить, и тогда студия
+    /// осталась на запасном — показать в списке отсутствующий язык значило бы
+    /// соврать.
+    /// </remarks>
+    private void ShowLanguages()
+    {
+        // Признак сохраняется и возвращается, а не гасится: список языков
+        // заполняют и при заходе в настройки, и посреди общей загрузки
+        // контролов — сбросив его здесь, мы приняли бы остаток той загрузки
+        // за правку человека.
+        var loading = _loadingSettings;
+
+        _loadingSettings = true;
+        try
+        {
+            LanguageBox.Items.Clear();
+
+            foreach (var language in Localizer.Instance.Languages)
+            {
+                LanguageBox.Items.Add(new AxComboBoxItem
+                {
+                    Content = language.Name,
+                    Tag = language.Code,
+                });
+            }
+
+            LanguageBox.SelectedItem = LanguageBox.Items
+                .OfType<AxComboBoxItem>()
+                .FirstOrDefault(item => (string?)item.Tag == Localizer.Instance.Language);
+        }
+        finally
+        {
+            _loadingSettings = loading;
+        }
+    }
 
     private void OnPluginsClick(object? sender, RoutedEventArgs e)
     {
@@ -295,7 +346,7 @@ public partial class WelcomeWindow : Window
             var settings = _model.SettingsStore.Current;
 
             ThemeSwitch.SelectedIndex = settings.Theme == StudioTheme.Light ? 1 : 0;
-            LanguageBox.SelectedIndex = settings.Language == "en" ? 1 : 0;
+            ShowLanguages();
             GridToggle.IsChecked = settings.ShowCanvasGrid;
             AutoSaveToggle.IsChecked = settings.AutoSave;
             HintsToggle.IsChecked = settings.DesignerHints;

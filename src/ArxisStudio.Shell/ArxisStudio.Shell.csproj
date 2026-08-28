@@ -9,15 +9,27 @@
     </ItemGroup>
 
     <!--
-        Словари локализации читаются из ресурсов сборки, а не с диска.
-        Имя задано явно: файл вида Strings.ru.json MSBuild принимает за
-        сателлитный ресурс культуры и уносит в подпапку ru, после чего
-        GetManifestResourceStream не находит ничего.
+        Словари локализации едут дважды, и это не дублирование, а два разных
+        обещания.
+
+        Ресурсом сборки — основание: студия обязана говорить даже тогда, когда
+        рядом с ней не осталось ни одного файла. Имя задано явно: файл вида
+        Strings.ru.json MSBuild принимает за сателлитный ресурс культуры и
+        уносит в подпапку ru, после чего GetManifestResourceStream не находит
+        ничего.
+
+        Файлом в lang/ — то, с чего переводчик начинает: список ключей и наш
+        текст рядом с ними. Он же читается поверх встроенного, поэтому
+        исправленная там строка работает — файл рядом со студией, который никто
+        не читает, был бы ловушкой.
     -->
     <ItemGroup>
         <EmbeddedResource Include="Localization/Strings/*.json" WithCulture="false">
             <LogicalName>ArxisStudio.Shell.Localization.Strings.%(Filename).json</LogicalName>
         </EmbeddedResource>
+        <None Include="Localization/Strings/*.json"
+              Link="lang/%(Filename)%(Extension)"
+              CopyToOutputDirectory="PreserveNewest"/>
     </ItemGroup>
 
     <!--

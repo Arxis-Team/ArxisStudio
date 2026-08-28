@@ -322,11 +322,10 @@
                 </DockPanel>
                 <ax:AxDivider/>
                 <DockPanel Classes="settings-row">
+                  <!-- Пункты собираются из найденных словарей: список языков
+                       студия узнаёт на ходу, а не знает наперёд. -->
                   <ax:AxComboBox DockPanel.Dock="Right" x:Name="LanguageBox" Width="170"
-                                 SelectionChanged="OnLanguageChanged">
-                    <ax:AxComboBoxItem Content="Русский" Tag="ru"/>
-                    <ax:AxComboBoxItem Content="English" Tag="en"/>
-                  </ax:AxComboBox>
+                                 SelectionChanged="OnLanguageChanged"/>
                   <TextBlock Text="{loc:Loc settings.language}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
                 </DockPanel>
               </StackPanel>
