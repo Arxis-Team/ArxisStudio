@@ -1,4 +1,4 @@
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
@@ -141,6 +141,48 @@ public class ExtensibilityTests : IDisposable
 
         log.Clear();
         Assert.Empty(log.Records);
+    }
+
+    /// <summary>
+    /// Журнал отражается в поток тем же видом, каким его показала бы панель.
+    /// </summary>
+    /// <remarks>
+    /// Панели, которая показывала бы журнал, в студии нет, и без отражения он
+    /// виден только сам себе: студия пишет о сбое плагина, а прочесть это
+    /// негде. Проверяется, что в строку попало всё, по чему потом ищут: время,
+    /// уровень, источник и сообщение.
+    /// </remarks>
+    [Fact]
+    public void The_journal_echoes_to_the_stream_it_was_given()
+    {
+        var stream = new StringWriter();
+        var log = new StudioLog(stream);
+
+        log.Write(StudioLogLevel.Error, "Plugins", "Figma Import: панель figma.panel — объект не создан");
+
+        var line = stream.ToString().TrimEnd();
+
+        Assert.Contains("ERROR", line);
+        Assert.Contains("Plugins", line);
+        Assert.Contains("figma.panel", line);
+        Assert.Contains(Assert.Single(log.Records).Stamp, line);
+    }
+
+    /// <summary>
+    /// Без потока журнал никуда не пишет.
+    /// </summary>
+    /// <remarks>
+    /// Считать за библиотеку, что у процесса есть консоль, нельзя: решает это
+    /// приложение. Тесты — тот самый случай, когда лишний вывод только мешает.
+    /// </remarks>
+    [Fact]
+    public void Without_a_stream_the_journal_stays_silent()
+    {
+        var log = new StudioLog();
+
+        log.Write(StudioLogLevel.Info, "Plugins", "молча");
+
+        Assert.Single(log.Records);
     }
 
     private string PackSample(string id, string name)

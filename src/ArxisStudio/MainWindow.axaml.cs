@@ -52,7 +52,10 @@ public partial class MainWindow : Window
 
     private readonly ISettingsStore? _settings;
     private readonly List<OpenDocument> _documents = [];
-    private readonly StudioLog _log = new();
+    // Журнал отражается в стандартный вывод: панели, которая показывала бы его,
+    // в студии нет, и без этого о сбое плагина не узнает никто. Запущенной без
+    // терминала студии писать некуда — и это ровно то, что нужно.
+    private readonly StudioLog _log = new(Console.Out);
     private readonly StudioProblems _problems = new();
     private readonly PluginGuard _guard = new();
     private readonly StudioCommands _commands;

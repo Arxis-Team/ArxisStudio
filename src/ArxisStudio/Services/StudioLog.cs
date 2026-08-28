@@ -8,11 +8,22 @@ namespace ArxisStudio.Services;
 /// Журнал студии: то, что показывает панель «Консоль».
 /// </summary>
 /// <remarks>
-/// Журнал один на всю студию: в него пишут и плагины через SDK, и сборка с
-/// запуском проекта. Разводить их по разным панелям значило бы заставить
-/// человека гадать, в какой смотреть.
+/// Журнал один на всю студию: в него пишут и плагины через SDK, и сама
+/// оболочка — о подъёме плагинов, их сбоях и отключениях. Разводить это по
+/// разным местам значило бы заставить человека гадать, в какое смотреть.
+/// <para>
+/// Записи можно отражать в поток — обычно это стандартный вывод процесса.
+/// Панели, которая показывала бы журнал, в студии сейчас нет, и без такого
+/// отражения он виден только сам себе: студия пишет о сбое плагина, а прочесть
+/// это негде. Поток — не замена панели, а канал для того, кто запускает студию
+/// из терминала: разработчика студии и автора плагина.
+/// </para>
 /// </remarks>
-public sealed class StudioLog : IStudioLog, IStudioLogFeed
+/// <param name="echo">
+/// Куда отражать записи; null — никуда. Решает это приложение: библиотеке не
+/// положено считать, что у процесса есть консоль.
+/// </param>
+public sealed class StudioLog(TextWriter? echo = null) : IStudioLog, IStudioLogFeed
 {
     private const int Limit = 2000;
 
@@ -30,13 +41,43 @@ public sealed class StudioLog : IStudioLog, IStudioLogFeed
     /// <inheritdoc/>
     public void Write(StudioLogLevel level, string source, string message)
     {
-        _records.Add(new StudioLogRecord(DateTimeOffset.Now, level, source, message));
+        var record = new StudioLogRecord(DateTimeOffset.Now, level, source, message);
+
+        _records.Add(record);
+        Echo(record);
 
         // Журнал долгого сеанса иначе растёт без конца; старое уходит первым.
         while (_records.Count > Limit)
             _records.RemoveAt(0);
 
         Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Отражает запись в поток тем же видом, каким её показала бы панель.
+    /// </summary>
+    /// <remarks>
+    /// Время, уровень и источник берутся у самой записи: панель и поток должны
+    /// говорить одно и то же, иначе искать по журналу придётся дважды.
+    /// <para>
+    /// Отсутствие консоли — не ошибка: приложение с графическим интерфейсом
+    /// запускают и без терминала, и тогда написанное просто некуда деть. А вот
+    /// уронить студию из-за того, что журнал не смог напечатать строку, было бы
+    /// нелепо вдвойне.
+    /// </para>
+    /// </remarks>
+    private void Echo(StudioLogRecord record)
+    {
+        if (echo is null)
+            return;
+
+        try
+        {
+            echo.WriteLine($"{record.Stamp} {record.LevelName,-5} {record.Source,-12} {record.Message}");
+        }
+        catch (Exception e) when (e is IOException or ObjectDisposedException)
+        {
+        }
     }
 
     /// <inheritdoc/>
