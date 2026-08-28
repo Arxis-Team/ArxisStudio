@@ -6,7 +6,7 @@
   "description": "%module.sample.description%",
   "contributions": {
     "commands": [
-      { "id": "sample.about", "title": "%menu.sample.about%" }
+      { "id": "sample.about" }
     ],
     "menus": [
       { "path": "%menu.tools%/%menu.sample%/%menu.sample.about%", "command": "sample.about" }

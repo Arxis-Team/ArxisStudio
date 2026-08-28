@@ -193,7 +193,7 @@ public class SdkContractTests
           "id": "arxis.commands",
           "name": "Команды",
           "contributions": {
-            "commands": [ { "id": "probe.entry", "title": "Точка входа" } ]
+            "commands": [ { "id": "probe.entry" } ]
           },
           "activation": [ "onStartup" ]
         }

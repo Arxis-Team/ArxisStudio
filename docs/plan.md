@@ -148,7 +148,7 @@ Ax*-контролов + палитры **dark/light по токенам мок�
 ### ArxisStudio.Extensibility
 
 - `plugin.json`: id, name, version, publisher, требуемая версия SDK, entry-сборка,
-  **декларативные contributions** (commands, menus, toolWindows, fileTypes, settings) и
+  **декларативные contributions** (commands, menus, toolWindows, languages, settings) и
   **события активации** (`onCommand:…`, `onFileType:…`, `onToolWindow:…`, `onStartup`).
   Формат каталога и манифеста — в приложении A.
 - Два режима загрузки за одним контрактом:
@@ -773,6 +773,23 @@ Ax*-контролов + палитры **dark/light по токенам мок�
    и отключённый после трёх падений модуль назывался идентификатором.
    189 тестов.
 
+33. **Мёртвые поля манифеста убраны** ✅ *(2026-08-29)*: у команды было
+   название, у вклада — список типов файлов, и не читал их никто. Название
+   команды нигде не показывалось: текст пункта несёт путь в `menus`, там же,
+   где решается, куда пункт встанет, — а второе место для той же строки рано
+   или поздно разошлось бы с первым. Типы файлов не спрашивались вовсе: за
+   файл берётся редактор своим `CanOpen`, а поднимается плагин по событию
+   `onFileType:` из `activation`.
+   Объявленное и не читаемое — обещание, которое студия не держит: автор
+   пишет название команды, ждёт его увидеть и не видит. Понадобится палитра
+   команд — название вернётся вместе с тем, кто его показывает; понадобятся
+   ассоциации файлов — вернётся и список типов.
+   Из контракта убраны члены, а это несовместимость, и **версия SDK стала
+   2.0**. Уже написанным плагинам это ничего не ломает: студия принимает
+   всё, что просит версию не новее своей, а лишнее в манифесте не замечает —
+   плагин со снятыми полями читается по-прежнему, и это проверяется. 190
+   тестов.
+
 ## Этап 2 (вне v1)
 
 Экран Run/Debug (runtime-агент, watch живых ViewModel, hot reload в запущенный процесс,
@@ -868,10 +885,9 @@ dotnet new arxis-language -n de --display Deutsch
   "sdk": { "min": "1.0" },
   "entry": "bin/Arxis.FigmaImport.dll",
   "contributions": {
-    "commands":    [ { "id": "figma.import", "title": "%cmd.import%" } ],
+    "commands":    [ { "id": "figma.import" } ],
     "menus":       [ { "path": "Tools/Figma/Import…", "command": "figma.import" } ],
     "toolWindows": [ { "id": "figma.panel", "title": "Figma", "zone": "right" } ],
-    "fileTypes":   [ { "ext": ".fig", "name": "Figma Document" } ],
     "settings":    [ { "key": "figma.apiToken", "type": "string", "scope": "user",
                        "title": "Токен Figma", "default": "" } ],
     "languages":   [ { "code": "de", "name": "Deutsch", "file": "lang/de.json" } ]

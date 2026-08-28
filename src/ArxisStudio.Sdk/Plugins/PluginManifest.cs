@@ -62,9 +62,6 @@ public sealed class PluginContributions
     /// <summary>Панели плагина.</summary>
     public IList<PluginToolWindow> ToolWindows { get; set; } = [];
 
-    /// <summary>Типы файлов, которые плагин берётся открывать.</summary>
-    public IList<PluginFileType> FileTypes { get; set; } = [];
-
     /// <summary>Настройки плагина, показываемые на экране Settings.</summary>
     public IList<PluginSetting> Settings { get; set; } = [];
 
@@ -72,10 +69,22 @@ public sealed class PluginContributions
     public IList<PluginLanguage> Languages { get; set; } = [];
 }
 
-/// <summary>Команда плагина.</summary>
+/// <summary>
+/// Команда плагина.
+/// </summary>
+/// <remarks>
+/// Кроме идентификатора, у команды в манифесте ничего нет, и это осознанно.
+/// Текст пункта несёт путь в <c>menus</c> — там же, где решается, куда пункт
+/// встанет; название у самой команды было бы вторым местом для той же строки,
+/// и рано или поздно они разошлись бы. Понадобится палитра команд — название
+/// вернётся вместе с ней и с тем, кто его показывает.
+/// <para>
+/// Список нужен студии не для показа: по нему она снимает обработчики, когда
+/// плагин выгружают.
+/// </para>
+/// </remarks>
 /// <param name="Id">Идентификатор команды.</param>
-/// <param name="Title">Название; <c>%ключ%</c> берётся из словарей плагина.</param>
-public sealed record PluginCommand(string Id, string Title);
+public sealed record PluginCommand(string Id);
 
 /// <summary>Пункт меню.</summary>
 /// <param name="Path">Путь вида <c>Tools/Figma/Import…</c>.</param>
@@ -127,11 +136,6 @@ public sealed record PluginLanguage(
 /// <param name="Id">Идентификатор переводимого плагина.</param>
 /// <param name="File">Путь к словарю относительно папки пакета.</param>
 public sealed record PluginTranslation(string Id, string File);
-
-/// <summary>Тип файла, поддерживаемый плагином.</summary>
-/// <param name="Ext">Расширение с точкой, например <c>.fig</c>.</param>
-/// <param name="Name">Название типа документа.</param>
-public sealed record PluginFileType(string Ext, string Name);
 
 /// <summary>
 /// Настройка плагина: то, что о ней знает студия, не загружая его сборки.

@@ -18,7 +18,7 @@
 public static class StudioSdk
 {
     /// <summary>Версия контракта этой студии.</summary>
-    public const string Version = "1.3";
+    public const string Version = "2.0";
 
     /// <summary>
     /// Довольна ли эта версия SDK тем, что просит плагин.

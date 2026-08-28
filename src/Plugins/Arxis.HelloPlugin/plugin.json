@@ -11,8 +11,7 @@
   "contributions": {
     "commands": [
       {
-        "id": "hello.greet",
-        "title": "%command.greet%"
+        "id": "hello.greet"
       }
     ],
     "menus": [

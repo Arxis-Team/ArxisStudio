@@ -25,6 +25,20 @@ public class PluginCatalogTests : IDisposable
         }
         """;
 
+    private const string Legacy =
+        """
+        {
+          "id": "arxis.legacy",
+          "name": "Из прошлой версии",
+          "entry": "bin/Arxis.Legacy.dll",
+          "contributions": {
+            "commands": [ { "id": "legacy.run", "title": "Запустить" } ],
+            "fileTypes": [ { "ext": ".fig", "name": "Figma Document" } ]
+          },
+          "activation": [ "onCommand:legacy.run" ]
+        }
+        """;
+
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-plugins-{Guid.NewGuid():N}");
 
     public PluginCatalogTests() => Directory.CreateDirectory(_root);
@@ -61,6 +75,27 @@ public class PluginCatalogTests : IDisposable
         Assert.Equal("figma.import", Assert.Single(contributions.Commands).Id);
         Assert.Equal("right", Assert.Single(contributions.ToolWindows).Zone);
         Assert.Equal("onCommand:figma.import", Assert.Single(plugin.Manifest.Activation));
+    }
+
+    /// <summary>
+    /// Манифест со снятыми полями читается по-прежнему.
+    /// </summary>
+    /// <remarks>
+    /// Убранное из контракта осталось у людей на дисках: плагин, собранный
+    /// вчера, объявляет и название команды, и типы файлов. Отказать ему
+    /// значило бы сломать установленное ради полей, которых студия и раньше
+    /// не читала; лишнее в манифесте она просто не замечает.
+    /// </remarks>
+    [Fact]
+    public void A_manifest_with_removed_fields_still_loads()
+    {
+        Install("arxis.legacy", Legacy);
+
+        var plugin = Assert.Single(new PluginCatalog(_root).Scan());
+
+        Assert.Null(plugin.Error);
+        Assert.Equal("Из прошлой версии", plugin.DisplayName);
+        Assert.Equal("legacy.run", Assert.Single(plugin.Manifest!.Contributions.Commands).Id);
     }
 
     [Fact]
