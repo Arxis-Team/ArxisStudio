@@ -9,7 +9,7 @@ namespace ArxisStudio.Tests;
 /// Привязка к строкам интерфейса. Смена языка должна перерисовывать уже
 /// показанный текст — иначе переключатель в настройках меняет только настройку.
 /// </summary>
-[Collection(LocalizationCollection.Name)]
+[Collection(StudioStateCollection.Name)]
 public class LocalizationBindingTests : IDisposable
 {
     public void Dispose()

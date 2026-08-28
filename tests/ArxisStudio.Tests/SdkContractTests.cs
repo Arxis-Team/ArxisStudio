@@ -14,6 +14,7 @@ namespace ArxisStudio.Tests;
 /// которого никто не проверяет, живёт до первого плагина, написанного по нему
 /// буквально.
 /// </remarks>
+[Collection(StudioStateCollection.Name)]
 public class SdkContractTests
 {
     /// <summary>

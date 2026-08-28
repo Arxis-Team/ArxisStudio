@@ -10,6 +10,7 @@ namespace ArxisStudio.Tests;
 /// Расширяемость: каталог плагинов, установка из архива и поднятие плагина в
 /// своём контексте загрузки.
 /// </summary>
+[Collection(StudioStateCollection.Name)]
 public class ExtensibilityTests : IDisposable
 {
     private readonly string _root = Path.Combine(

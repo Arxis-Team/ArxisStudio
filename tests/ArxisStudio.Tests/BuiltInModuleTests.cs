@@ -23,6 +23,7 @@ namespace ArxisStudio.Tests;
 /// место в зоне вместо панели.
 /// </para>
 /// </remarks>
+[Collection(StudioStateCollection.Name)]
 public class BuiltInModuleTests
 {
     private const string Manifest = """

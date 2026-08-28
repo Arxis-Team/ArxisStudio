@@ -18,6 +18,7 @@ namespace ArxisStudio.Tests;
 /// невозможно — она просто скажет, что панели нет.
 /// </para>
 /// </remarks>
+[Collection(StudioStateCollection.Name)]
 public class PluginPackagingTests
 {
     private static readonly string[] Shared =

@@ -18,7 +18,7 @@ namespace ArxisStudio.Tests;
 /// всеми открытыми документами. План поэтому и требует вставлять панель не
 /// прямо в дерево, а через защитный контейнер.
 /// </remarks>
-[Collection(LocalizationCollection.Name)]
+[Collection(StudioStateCollection.Name)]
 public class PluginSurfaceTests
 {
     /// <summary>Исправная панель проходит насквозь.</summary>

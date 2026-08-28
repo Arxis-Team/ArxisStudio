@@ -15,6 +15,7 @@ namespace ArxisStudio.Tests;
 /// студию. До сих пор контекст только и делал, что ждал закрытия окна, и
 /// работает ли выгрузка на самом деле, не проверял никто.
 /// </remarks>
+[Collection(StudioStateCollection.Name)]
 public class PluginReloadTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-reload-{Guid.NewGuid():N}");

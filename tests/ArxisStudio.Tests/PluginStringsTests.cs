@@ -16,7 +16,7 @@ namespace ArxisStudio.Tests;
 /// плагин впервые поднимут, — взять их из его кода неоткуда, и они читаются из
 /// словарей рядом с манифестом.
 /// </remarks>
-[Collection(LocalizationCollection.Name)]
+[Collection(StudioStateCollection.Name)]
 public class PluginStringsTests : IDisposable
 {
     private readonly List<string> _folders = [];

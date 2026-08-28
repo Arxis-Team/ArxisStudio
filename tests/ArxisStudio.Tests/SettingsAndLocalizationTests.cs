@@ -73,7 +73,7 @@ public class SettingsStoreTests : IDisposable
 }
 
 /// <summary>Словарь строк интерфейса.</summary>
-[Collection(LocalizationCollection.Name)]
+[Collection(StudioStateCollection.Name)]
 public class LocalizerTests
 {
     [Fact]

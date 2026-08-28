@@ -1,4 +1,4 @@
-using ArxisStudio.Shell.Localization;
+﻿using ArxisStudio.Shell.Localization;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -11,7 +11,7 @@ namespace ArxisStudio.Tests;
 /// Встроенные словари при этом остаются основанием: студия обязана говорить и
 /// тогда, когда рядом с ней не осталось ни одного файла.
 /// </remarks>
-[Collection(LocalizationCollection.Name)]
+[Collection(StudioStateCollection.Name)]
 public class StudioLanguagesTests : IDisposable
 {
     private readonly string _folder = Path.Combine(Path.GetTempPath(), $"arxis-lang-{Guid.NewGuid():N}");

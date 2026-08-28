@@ -1,4 +1,4 @@
-using ArxisStudio.Extensibility;
+﻿using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Services;
 using ArxisStudio.Shell.Localization;
@@ -14,7 +14,7 @@ namespace ArxisStudio.Tests;
 /// это тот же менеджер плагинов. Ради языка не заведено ни своего каталога,
 /// ни своего формата архива, ни своего места на диске.
 /// </remarks>
-[Collection(LocalizationCollection.Name)]
+[Collection(StudioStateCollection.Name)]
 public class PluginLanguagePacksTests : IDisposable
 {
     private readonly List<string> _folders = [];
