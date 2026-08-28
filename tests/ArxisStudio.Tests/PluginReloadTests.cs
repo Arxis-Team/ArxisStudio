@@ -36,7 +36,15 @@ public class PluginReloadTests : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    /// <summary>Перезагруженный плагин — новая копия, поднятая заново.</summary>
+    /// <summary>
+    /// Перезагруженный плагин — новая копия, поднятая заново, а прежняя ушла.
+    /// </summary>
+    /// <remarks>
+    /// Прежнюю копию тест нарочно не держит даже в переменной: ссылка на неё —
+    /// такая же помеха выгрузке, как забытая подписка, и утверждение «новая
+    /// копия отличается от старой», купленное такой ценой, обошлось бы дороже
+    /// самой проверки.
+    /// </remarks>
     [Fact]
     public void Reloading_raises_a_fresh_copy()
     {
@@ -44,27 +52,28 @@ public class PluginReloadTests : IDisposable
 
         using var host = Raise(commands);
 
-        var before = Assert.Single(host.Loaded);
-        var (after, error) = host.Reload(Installed());
+        // Команды прежней копии снимает оболочка — здесь то же самое руками:
+        // оставленный обработчик держит типы плагина, и контекст не умрёт.
+        commands.Remove(["hello.greet"]);
 
-        Assert.Null(error);
-        Assert.NotNull(after);
-        Assert.True(after!.IsLoaded, after.Error);
-        Assert.NotSame(before, after);
-        Assert.NotSame(before.Context, after.Context);
-        Assert.Same(after, Assert.Single(host.Loaded));
+        var reload = host.Reload(Installed());
+
+        Assert.Null(reload.Error);
+        Assert.NotNull(reload.Plugin);
+        Assert.True(reload.Plugin!.IsLoaded, reload.Plugin.Error);
+        Assert.NotNull(reload.Plugin.Context);
+        Assert.Same(reload.Plugin, Assert.Single(host.Loaded));
         Assert.Contains("hello.greet", commands.Registered);
+        Assert.True(reload.Released, "прежний контекст не выгрузился");
     }
 
     /// <summary>
     /// Прежний контекст загрузки действительно умирает.
     /// </summary>
     /// <remarks>
-    /// Сама по себе выгрузка ничего не гарантирует: контекст живёт, пока на его
-    /// типы кто-то ссылается, — а обработчик команды, оставленный в реестре
-    /// студии, ссылается ровно на них. Поэтому здесь и снимаются команды
-    /// плагина: то же самое обязана делать оболочка, иначе перезагрузка будет
-    /// копить в памяти по контексту за раз.
+    /// Выгрузка в .NET кооперативная: <c>Unload</c> её только начинает.
+    /// Проверяется здесь то же, что проверяет хост, — но своей слабой ссылкой:
+    /// ответ хоста мог бы быть и выдумкой.
     /// </remarks>
     [Fact]
     public void The_old_context_is_really_unloaded()
@@ -81,6 +90,34 @@ public class PluginReloadTests : IDisposable
         }
 
         Assert.False(old.IsAlive, "контекст загрузки не выгрузился: на его типы кто-то ещё ссылается");
+    }
+
+    /// <summary>
+    /// Оставленный обработчик команды не даёт выгрузиться — и хост об этом
+    /// говорит.
+    /// </summary>
+    /// <remarks>
+    /// Это и есть тот случай, ради которого проверка заведена: плагин поднят
+    /// заново, а прежняя копия осталась в памяти и продолжает получать то, на
+    /// что подписалась. Промолчать значило бы оставить человека с двумя
+    /// копиями плагина и без единого слова о том, откуда они взялись.
+    /// <para>
+    /// Обработчик здесь оставлен нарочно: так поступает всякий, кто забыл
+    /// отписаться в <c>Deactivate</c>.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_plugin_still_referenced_is_reported_as_not_released()
+    {
+        var commands = new StudioCommands();
+
+        using var host = Raise(commands);
+
+        var reload = host.Reload(Installed());
+
+        Assert.Null(reload.Error);
+        Assert.NotNull(reload.Plugin);
+        Assert.False(reload.Released, "хост назвал выгруженным контекст, который держит обработчик команды");
     }
 
     /// <summary>
@@ -121,11 +158,11 @@ public class PluginReloadTests : IDisposable
 
         host.LoadBuiltIn(typeof(SampleModule).Assembly);
 
-        var (plugin, error) = host.Reload(host.Loaded.Single().Installed);
+        var reload = host.Reload(host.Loaded.Single().Installed);
 
-        Assert.Null(plugin);
-        Assert.NotNull(error);
-        Assert.Contains("встроенный модуль", error);
+        Assert.Null(reload.Plugin);
+        Assert.NotNull(reload.Error);
+        Assert.Contains("встроенный модуль", reload.Error);
     }
 
     /// <summary>Того, кто не поднят, перезагружать нечего.</summary>
@@ -134,11 +171,11 @@ public class PluginReloadTests : IDisposable
     {
         using var host = new PluginHost(new StudioContextFactory(new StudioLog(), new StudioCommands(), null));
 
-        var (plugin, error) = host.Reload(
+        var reload = host.Reload(
             new InstalledPlugin("нигде", new Sdk.Plugins.PluginManifest { Id = "arxis.nobody" }, null, true));
 
-        Assert.Null(plugin);
-        Assert.Contains("arxis.nobody", error);
+        Assert.Null(reload.Plugin);
+        Assert.Contains("arxis.nobody", reload.Error);
     }
 
     /// <summary>
@@ -157,6 +194,7 @@ public class PluginReloadTests : IDisposable
         commands.Remove(["hello.greet"]);
         host.Reload(host.Loaded.Single().Installed);
 
+
         return context;
     }
 
@@ -174,7 +212,11 @@ public class PluginReloadTests : IDisposable
 
         var host = new PluginHost(new StudioContextFactory(new StudioLog(), commands, null));
 
-        Assert.Single(host.LoadStartup(catalog.Scan()));
+        // Считаем поднятые, но саму запись не берём: ссылка на неё осталась бы
+        // в кадре и держала бы контекст плагина живым — а тесту потом
+        // спрашивать, выгрузился ли он. Отсюда и счёт вместо Assert.Single,
+        // который вернул бы саму запись.
+        Assert.True(host.LoadStartup(catalog.Scan()).Count == 1, "плагин не поднялся");
 
         return host;
     }

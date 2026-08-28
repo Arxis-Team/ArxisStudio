@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using ArxisStudio.Sdk;
 
@@ -164,23 +165,91 @@ public sealed class PluginHost : IDisposable
     /// сборкой мог измениться список его панелей и команд. Читать манифест
     /// хосту нечем — это дело каталога, и он же знает, где плагин лежит.
     /// </para>
+    /// <para>
+    /// Выгрузка в .NET кооперативная: <c>Unload</c> её только начинает, а
+    /// закончится она, когда на типы плагина не останется ни одной ссылки.
+    /// Поэтому хост не верит себе на слово и проверяет по слабой ссылке, умер
+    /// ли контекст. Не умер — плагин всё равно поднят заново, но в памяти
+    /// теперь две копии, и вторая продолжает получать события, на которые
+    /// подписалась первая. Об этом надо сказать, а не молчать: молчание тут
+    /// хуже, чем честный совет перезапустить студию.
+    /// </para>
     /// </remarks>
-    public (LoadedPlugin? Plugin, string? Error) Reload(InstalledPlugin installed)
+    public PluginReload Reload(InstalledPlugin installed)
     {
         ArgumentNullException.ThrowIfNull(installed);
 
-        var loaded = _loaded.FirstOrDefault(plugin => plugin.Installed.Id == installed.Id);
+        if (Refuse(installed.Id) is { } refusal)
+            return new PluginReload(null, refusal, false);
+
+        var released = Released(Retire(installed.Id));
+
+        return new PluginReload(Add(installed), null, released);
+    }
+
+    /// <summary>
+    /// Причина, по которой перезагружать нечего или нельзя; null — можно.
+    /// </summary>
+    /// <param name="pluginId">Идентификатор плагина.</param>
+    /// <remarks>
+    /// Метод отдаёт строку, а не запись о плагине, и не встраивается: ссылка на
+    /// прежнюю копию, оставшаяся в кадре — хоть в переменной, хоть в регистре,
+    /// заведённом компилятором, — держала бы её контекст живым, и проверка
+    /// выгрузки честно сообщала бы о помехе, которую сама же и создала.
+    /// </remarks>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private string? Refuse(string pluginId)
+    {
+        var loaded = _loaded.FirstOrDefault(plugin => plugin.Installed.Id == pluginId);
 
         if (loaded is null)
-            return (null, $"Плагин {installed.Id} не поднят");
+            return $"Плагин {pluginId} не поднят";
 
-        if (loaded.Context is null)
-            return (null, $"{loaded.Installed.DisplayName} — встроенный модуль: он приезжает вместе со студией, и отдельно от неё его не перезагрузить");
+        return loaded.Context is null
+            ? $"{loaded.Installed.DisplayName} — встроенный модуль: он приезжает вместе со студией, и отдельно от неё его не перезагрузить"
+            : null;
+    }
+
+    /// <summary>
+    /// Снимает прежнюю копию с учёта и начинает выгрузку её контекста.
+    /// </summary>
+    /// <param name="pluginId">Идентификатор плагина.</param>
+    /// <returns>Слабая ссылка на контекст — по ней и видно, выгрузился ли он.</returns>
+    /// <remarks>
+    /// Отдельный метод, и не встраиваемый: ссылка на прежнюю запись, оставшаяся
+    /// в переменной вызывающего — хоть в явной, хоть в той, что заведёт себе
+    /// компилятор, — держала бы контекст живым, и проверка выгрузки показывала
+    /// бы только это.
+    /// </remarks>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private WeakReference Retire(string pluginId)
+    {
+        var loaded = _loaded.First(plugin => plugin.Installed.Id == pluginId);
 
         _loaded.Remove(loaded);
         loaded.Unload();
 
-        return (Add(installed), null);
+        return new WeakReference(loaded.Context);
+    }
+
+    /// <summary>
+    /// Дождался ли контекст своей смерти.
+    /// </summary>
+    /// <remarks>
+    /// Сборщик мусора зовётся руками: выгрузка кончается только его проходом, а
+    /// ждать его своим чередом значит ответить «не выгрузился» о том, что
+    /// выгрузится через секунду. Проходов несколько — у объектов плагина могут
+    /// быть финализаторы, и до них очередь доходит не сразу.
+    /// </remarks>
+    private static bool Released(WeakReference context)
+    {
+        for (var attempt = 0; attempt < 10 && context.IsAlive; attempt++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+
+        return !context.IsAlive;
     }
 
     private LoadedPlugin Add(InstalledPlugin installed)
@@ -383,6 +452,19 @@ public sealed class PluginHost : IDisposable
     private static string Describe(Exception error) =>
         error is TargetInvocationException { InnerException: { } inner } ? inner.Message : error.Message;
 }
+
+/// <summary>
+/// Чем кончилась перезагрузка плагина.
+/// </summary>
+/// <param name="Plugin">Новая копия; null, если перезагрузить не вышло.</param>
+/// <param name="Error">Почему не вышло; null, если всё получилось.</param>
+/// <param name="Released">
+/// Выгрузился ли контекст прежней копии. Нет — значит, на её типы кто-то ещё
+/// ссылается: подписка на событие студии, оставленный таймер, работающий поток.
+/// Плагин при этом поднят, но старая копия осталась в памяти и продолжает
+/// получать то, на что подписалась.
+/// </param>
+public sealed record PluginReload(LoadedPlugin? Plugin, string? Error, bool Released);
 
 /// <summary>Кто выдаёт плагину его контекст.</summary>
 public interface IStudioContextFactory

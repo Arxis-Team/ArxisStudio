@@ -283,7 +283,7 @@ public partial class MainWindow : Window
         // именно этого.
         Activate(waiting => PluginActivation.WaitsForFileType(waiting.Manifest, IOPath.GetExtension(filePath)));
 
-        if (_contributions.EditorFor(filePath) is not { } editor)
+        if (_contributions.EditorFor(filePath) is not { } match)
         {
             StatusText.Text = Localizer.Instance["editor.noeditor"];
             return;
@@ -291,7 +291,7 @@ public partial class MainWindow : Window
 
         StatusText.Text = Localizer.Instance["editor.loading"];
 
-        var (view, error) = await editor.OpenAsync(filePath);
+        var (view, error) = await match.Editor.OpenAsync(filePath);
 
         if (view is null)
         {
@@ -299,7 +299,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _documents.Add(new OpenDocument(filePath, view));
+        _documents.Add(new OpenDocument(filePath, view, match.PluginId));
 
         DocumentTabs.Items.Add(new AxTabItem
         {
@@ -382,7 +382,7 @@ public partial class MainWindow : Window
                     Header = $"{Localizer.Instance["menu.reload"]} · {plugin.DisplayName}",
                 };
 
-                item.Click += (_, _) => ReloadPlugin(plugin.Id);
+                item.Click += async (_, _) => await ReloadPluginAsync(plugin.Id);
                 branch.Items.Add(item);
             }
 
@@ -629,7 +629,7 @@ public partial class MainWindow : Window
     /// плагина, а через них — на его контекст загрузки, и тот не выгрузится:
     /// перезагрузка копила бы в памяти по контексту за раз.
     /// </remarks>
-    private void ReloadPlugin(string pluginId)
+    private async Task ReloadPluginAsync(string pluginId)
     {
         if (_plugins is not { } host)
             return;
@@ -643,21 +643,72 @@ public partial class MainWindow : Window
             return;
         }
 
+        await CloseDocumentsOfAsync(pluginId);
+
         Unmount(pluginId);
         _contributions.Remove(pluginId);
         _commands.Remove(installed.Manifest?.Contributions.Commands.Select(command => command.Id) ?? []);
         _guard.Forget(pluginId);
 
-        var (loaded, error) = host.Reload(installed);
+        // Снятые контролы отпускает не список, а дерево: пока проход раскладки
+        // и отрисовки не прошёл, они ещё чьи-то. Ждём его — иначе проверка
+        // выгрузки увидит помеху, которой через миг не будет.
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
-        if (loaded is null)
+        var reload = host.Reload(installed);
+
+        if (reload.Plugin is not { } loaded)
         {
-            _log.Write(StudioLogLevel.Warning, "Plugins", error!);
+            _log.Write(StudioLogLevel.Warning, "Plugins", reload.Error!);
+            StatusText.Text = reload.Error!;
             return;
         }
 
         Accept(loaded);
         ShowMenu();
+
+        // Выгрузка кооперативная, и не удаться она может по вине плагина:
+        // подписка на событие студии, оставленный таймер, работающий поток.
+        // Промолчать об этом нельзя — прежняя копия осталась в памяти и
+        // продолжает получать то, на что подписалась.
+        if (reload.Released)
+            return;
+
+        var warning = $"{installed.DisplayName}: прежняя копия осталась в памяти — надёжнее перезапустить студию";
+
+        _log.Write(StudioLogLevel.Warning, "Plugins", warning);
+        StatusText.Text = warning;
+    }
+
+    /// <summary>
+    /// Закрывает документы, открытые редактором этого плагина.
+    /// </summary>
+    /// <remarks>
+    /// Представление документа построил плагин, и живёт оно в его контексте
+    /// загрузки. Оставить вкладку открытой значит и держать контекст, и
+    /// показывать человеку окно, за которым уже ничего нет.
+    /// </remarks>
+    private async Task CloseDocumentsOfAsync(string pluginId)
+    {
+        foreach (var document in _documents.Where(document => document.PluginId == pluginId).ToList())
+        {
+            var index = _documents.IndexOf(document);
+
+            if (ReferenceEquals(_active, document.View))
+            {
+                _active.OnDeactivated();
+                _active = null;
+                DocumentHost.Content = null;
+            }
+
+            _documents.RemoveAt(index);
+            DocumentTabs.Items.RemoveAt(index);
+
+            await document.View.DisposeAsync();
+        }
+
+        DocumentTabs.IsVisible = _documents.Count > 0;
+        ShowActiveDocument();
     }
 
     /// <summary>Заворачивает панель в окно инструментов с заголовком.</summary>
@@ -778,7 +829,15 @@ public partial class MainWindow : Window
     /// <param name="Tab">Вкладка нижней зоны; null у боковых панелей.</param>
     private sealed record MountedPanel(string PluginId, string Zone, Control Content, AxTabItem? Tab);
 
-    private sealed record OpenDocument(string Path, DocumentView View);
+    /// <summary>Открытый документ.</summary>
+    /// <param name="Path">Путь к файлу.</param>
+    /// <param name="View">Представление, построенное редактором.</param>
+    /// <param name="PluginId">
+    /// Чей редактор его открыл: при перезагрузке плагина документ придётся
+    /// закрыть — иначе останется вкладка, за которой стоит объект из
+    /// выгруженного контекста.
+    /// </param>
+    private sealed record OpenDocument(string Path, DocumentView View, string PluginId);
 
     /// <summary>Строка состояния как служба для модулей и плагинов.</summary>
     /// <param name="target">Куда писать.</param>

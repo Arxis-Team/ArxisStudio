@@ -89,8 +89,18 @@ public class ContributionsTests
 
         registry.Add("notes", "Заметки", [typeof(NoteEditor).Assembly]);
 
-        Assert.NotNull(registry.EditorFor(Path.Combine(Path.GetTempPath(), "Список.note")));
+        var match = registry.EditorFor(Path.Combine(Path.GetTempPath(), "Список.note"));
+
+        Assert.NotNull(match);
+        Assert.IsType<NoteEditor>(match!.Editor);
         Assert.Null(registry.EditorFor(Path.Combine(Path.GetTempPath(), "Список.txt")));
+
+        // Хозяин нужен документу: когда плагин перезагрузят, его документы
+        // придётся закрыть, а по самому редактору этого не узнать.
+        Assert.Equal("notes", match.PluginId);
+
+        registry.Remove("notes");
+        Assert.Null(registry.EditorFor(Path.Combine(Path.GetTempPath(), "Список.note")));
     }
 }
 

@@ -16,7 +16,7 @@ public sealed class PluginContributionRegistry
 {
     private readonly Dictionary<Type, Registration<PropertyDrawer>> _drawers = [];
     private readonly Dictionary<Type, Registration<InspectorEditor>> _inspectors = [];
-    private readonly List<DocumentEditor> _editors = [];
+    private readonly List<EditorRegistration> _editors = [];
 
     /// <summary>Кто-то попытался занять уже занятый тип.</summary>
     public event EventHandler<string>? Conflict;
@@ -78,19 +78,34 @@ public sealed class PluginContributionRegistry
                 if (studio is not null)
                     editor.Attach(studio);
 
-                _editors.Add(editor);
+                _editors.Add(new EditorRegistration(pluginId, editor));
             }
         }
     }
 
     /// <summary>Находит редактор, который берётся за файл.</summary>
     /// <param name="filePath">Путь к файлу.</param>
-    /// <returns>Редактор или null, если за файл никто не взялся.</returns>
-    public DocumentEditor? EditorFor(string filePath)
+    /// <returns>Редактор вместе с плагином, который его дал, или null.</returns>
+    /// <remarks>
+    /// Хозяин возвращается вместе с редактором: открытый документ живёт дольше
+    /// одного вызова, и когда плагин станут перезагружать, его документы надо
+    /// будет закрыть — иначе в студии останутся вкладки, за которыми стоят
+    /// объекты из выгруженного контекста.
+    /// </remarks>
+    public EditorMatch? EditorFor(string filePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
 
-        return _editors.FirstOrDefault(editor => editor.CanOpen(filePath));
+        // Перебор, а не FirstOrDefault: запись о редакторе — структура, и
+        // «ничего не нашлось» вернулось бы пустой записью, которую от находки
+        // не отличить.
+        foreach (var registration in _editors)
+        {
+            if (registration.Editor.CanOpen(filePath))
+                return new EditorMatch(registration.Editor, registration.PluginId);
+        }
+
+        return null;
     }
 
     /// <summary>Убирает вклады плагина, который выключают.</summary>
@@ -99,6 +114,7 @@ public sealed class PluginContributionRegistry
     {
         Drop(_drawers, pluginId);
         Drop(_inspectors, pluginId);
+        _editors.RemoveAll(registration => registration.PluginId == pluginId);
 
         static void Drop<T>(Dictionary<Type, Registration<T>> registry, string id) where T : class
         {
@@ -176,6 +192,8 @@ public sealed class PluginContributionRegistry
     }
 
     private readonly record struct Registration<T>(string PluginId, Type Type, string? Directory) where T : class;
+
+    private readonly record struct EditorRegistration(string PluginId, DocumentEditor Editor);
 }
 
 /// <summary>Найденный инспектор и плагин, который его дал.</summary>
@@ -183,6 +201,11 @@ public sealed class PluginContributionRegistry
 /// <param name="PluginId">Идентификатор плагина-хозяина.</param>
 /// <param name="PluginDirectory">Папка плагина-хозяина, если она известна.</param>
 public sealed record InspectorMatch(InspectorEditor Editor, string PluginId, string? PluginDirectory);
+
+/// <summary>Найденный редактор документов и плагин, который его дал.</summary>
+/// <param name="Editor">Редактор, взявшийся за файл.</param>
+/// <param name="PluginId">Идентификатор плагина-хозяина.</param>
+public sealed record EditorMatch(DocumentEditor Editor, string PluginId);
 
 /// <summary>Найденный рисовальщик и плагин, который его дал.</summary>
 /// <param name="Drawer">Свежий рисовальщик.</param>
