@@ -15,15 +15,15 @@
   <Folder Name="/src/Modules/">
     <Project Path="src/Modules/ArxisStudio.Modules.Sample/ArxisStudio.Modules.Sample.csproj" />
   </Folder>
+  <Folder Name="/src/Plugins/">
+    <Project Path="src/Plugins/Arxis.HelloPlugin/Arxis.HelloPlugin.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/ArxisStudio.Extensibility/ArxisStudio.Extensibility.csproj" />
     <Project Path="src/ArxisStudio.Sdk/ArxisStudio.Sdk.csproj" />
     <Project Path="src/ArxisStudio.Sdk.Analyzers/ArxisStudio.Sdk.Analyzers.csproj" />
     <Project Path="src/ArxisStudio.Shell/ArxisStudio.Shell.csproj" />
     <Project Path="src/ArxisStudio/ArxisStudio.csproj" />
-  </Folder>
-  <Folder Name="/samples/">
-    <Project Path="samples/Arxis.HelloPlugin/Arxis.HelloPlugin.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ArxisStudio.Tests/ArxisStudio.Tests.csproj" />

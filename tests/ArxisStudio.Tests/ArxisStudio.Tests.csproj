@@ -25,7 +25,7 @@
         после себя таргет упаковки.
     -->
     <ItemGroup>
-        <ProjectReference Include="../../samples/Arxis.HelloPlugin/Arxis.HelloPlugin.csproj"
+        <ProjectReference Include="../../src/Plugins/Arxis.HelloPlugin/Arxis.HelloPlugin.csproj"
                           ReferenceOutputAssembly="false"
                           SkipGetTargetFrameworkProperties="true"/>
     </ItemGroup>

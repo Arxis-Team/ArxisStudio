@@ -15,7 +15,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="../../src/ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
+        <ProjectReference Include="../../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
     </ItemGroup>
 
     <!--
@@ -24,7 +24,7 @@
         Плагину, поставленному пакетом SDK, эта строка не понадобится.
     -->
     <ItemGroup>
-        <ProjectReference Include="../../src/ArxisStudio.Sdk.Analyzers/ArxisStudio.Sdk.Analyzers.csproj"
+        <ProjectReference Include="../../ArxisStudio.Sdk.Analyzers/ArxisStudio.Sdk.Analyzers.csproj"
                           OutputItemType="Analyzer"
                           ReferenceOutputAssembly="false"/>
     </ItemGroup>
@@ -34,6 +34,6 @@
         ProjectReference — импортируем строкой. С пакетом SDK он подхватится сам:
         оттого и лежит в папке build/.
     -->
-    <Import Project="../../src/ArxisStudio.Sdk/build/ArxisStudio.Sdk.targets"/>
+    <Import Project="../../ArxisStudio.Sdk/build/ArxisStudio.Sdk.targets"/>
 
 </Project>

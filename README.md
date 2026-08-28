@@ -35,7 +35,7 @@
 настройки (`src/ArxisStudio.Shell`), контракт расширяемости (`src/ArxisStudio.Sdk`)
 с анализатором и таргетом упаковки, хост плагинов
 (`src/ArxisStudio.Extensibility`), встроенные модули (`src/Modules/`) и пример
-внешнего плагина (`samples/Arxis.HelloPlugin`).
+внешнего плагина (`src/Plugins/Arxis.HelloPlugin`).
 
 В оболочке нет ни одной панели и ни одного формата документа. Зоны, вкладки, меню
 и статус-бар она умеет, а чем их наполнить — сообщают манифесты плагинов.
@@ -43,7 +43,7 @@
 и живёт в своём выгружаемом контексте загрузки; встроенный модуль приезжает
 вместе со студией, его манифест лежит в сборке ресурсом, а сборка — в основном
 контексте. Код между этими двумя режимами переносится без правок, и в
-репозитории есть образец каждого: `samples/Arxis.HelloPlugin` и
+репозитории есть образец каждого: `src/Plugins/Arxis.HelloPlugin` и
 `src/Modules/ArxisStudio.Modules.Sample`.
 
 ## Что уже работает
@@ -124,7 +124,7 @@ public sealed class HelloPlugin : StudioPlugin
 ```
 
 Рабочий пример с панелью, командой и службой — в
-[samples/Arxis.HelloPlugin](samples/Arxis.HelloPlugin). Формат манифеста описан в
+[src/Plugins/Arxis.HelloPlugin](src/Plugins/Arxis.HelloPlugin). Формат манифеста описан в
 [плане](docs/plan.md), приложение A.
 
 Тот же контракт со стороны студии — встроенный модуль
@@ -140,11 +140,11 @@ SDK и контролы, — а разница видна только в дву
 просьбе:
 
 ```bash
-dotnet build samples/Arxis.HelloPlugin -p:AxPluginPack=true
+dotnet build src/Plugins/Arxis.HelloPlugin -p:AxPluginPack=true
 ```
 
 ```bash
-dotnet build samples/Arxis.HelloPlugin -p:AxPluginDeploy=true
+dotnet build src/Plugins/Arxis.HelloPlugin -p:AxPluginDeploy=true
 ```
 
 Первое кладёт рядом `arxis.hello.axplugin` — его студия ставит через менеджер

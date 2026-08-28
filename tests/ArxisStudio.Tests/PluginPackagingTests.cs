@@ -204,8 +204,17 @@ public class PluginPackagingTests
 
     private static string Package() => Path.Combine(Sample(), "package");
 
-    /// <summary>Корень репозитория — над папкой samples.</summary>
-    private static string Repository() => Directory.GetParent(Directory.GetParent(Sample())!.FullName)!.FullName;
+    /// <summary>Корень репозитория: над ним лежит решение.</summary>
+    private static string Repository()
+    {
+        for (var directory = new DirectoryInfo(Sample()); directory is not null; directory = directory.Parent)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "ArxisStudio.slnx")))
+                return directory.FullName;
+        }
+
+        throw new InvalidOperationException("Не найден корень репозитория: рядом нет ArxisStudio.slnx");
+    }
 
     /// <summary>
     /// Папка примера плагина.
@@ -219,12 +228,12 @@ public class PluginPackagingTests
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {
-            var candidate = Path.Combine(directory.FullName, "samples", "Arxis.HelloPlugin");
+            var candidate = Path.Combine(directory.FullName, "src", "Plugins", "Arxis.HelloPlugin");
 
             if (File.Exists(Path.Combine(candidate, "Arxis.HelloPlugin.csproj")))
                 return candidate;
         }
 
-        throw new InvalidOperationException("Не найден пример плагина samples/Arxis.HelloPlugin");
+        throw new InvalidOperationException("Не найден пример плагина src/Plugins/Arxis.HelloPlugin");
     }
 }

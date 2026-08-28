@@ -225,12 +225,12 @@ public class PluginReloadTests : IDisposable
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {
-            var candidate = Path.Combine(directory.FullName, "samples", "Arxis.HelloPlugin");
+            var candidate = Path.Combine(directory.FullName, "src", "Plugins", "Arxis.HelloPlugin");
 
             if (File.Exists(Path.Combine(candidate, "Arxis.HelloPlugin.csproj")))
                 return candidate;
         }
 
-        throw new InvalidOperationException("Не найден пример плагина samples/Arxis.HelloPlugin");
+        throw new InvalidOperationException("Не найден пример плагина src/Plugins/Arxis.HelloPlugin");
     }
 }
