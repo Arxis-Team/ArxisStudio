@@ -27,7 +27,10 @@ public class SettingsStoreTests : IDisposable
         var settings = new JsonSettingsStore(SettingsFile).Current;
 
         Assert.Equal(StudioTheme.Dark, settings.Theme);
-        Assert.Equal("ru", settings.Language);
+        // Английский, а не русский: при первом запуске студия говорит на том
+        // языке, на котором написана, — на него же падает непереведённое.
+        Assert.Equal("en", settings.Language);
+        Assert.Equal(Localizer.FallbackLanguage, settings.Language);
         Assert.Equal(StudioDensity.Compact, settings.Density);
         Assert.True(settings.ShowCanvasGrid);
         Assert.True(settings.AutoSave);

@@ -1,4 +1,4 @@
-namespace ArxisStudio.Shell.Settings;
+﻿namespace ArxisStudio.Shell.Settings;
 
 /// <summary>Вариант оформления студии.</summary>
 public enum StudioTheme
@@ -35,8 +35,15 @@ public sealed class StudioSettings
     /// <summary>Плотность интерфейса.</summary>
     public StudioDensity Density { get; set; } = StudioDensity.Compact;
 
-    /// <summary>Язык интерфейса: код культуры, например <c>ru</c> или <c>en</c>.</summary>
-    public string Language { get; set; } = "ru";
+    /// <summary>
+    /// Язык интерфейса: код культуры, например <c>en</c> или <c>ru</c>.
+    /// </summary>
+    /// <remarks>
+    /// При первом запуске — английский: это язык, на котором написана студия,
+    /// и на него же падает всё непереведённое. Выбранный однажды язык лежит
+    /// здесь и переживает обновления.
+    /// </remarks>
+    public string Language { get; set; } = Localization.Localizer.FallbackLanguage;
 
     /// <summary>Показывать сетку на канве дизайнера.</summary>
     public bool ShowCanvasGrid { get; set; } = true;
