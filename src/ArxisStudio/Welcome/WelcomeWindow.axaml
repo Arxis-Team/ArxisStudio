@@ -292,7 +292,7 @@
                           </StackPanel>
                           <TextBlock Classes="dim" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,1,0,0"
                                      TextTrimming="CharacterEllipsis"
-                                     Text="{Binding Manifest.Description}"/>
+                                     Text="{Binding Description}"/>
                           <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,1,0,0"
                                      TextTrimming="CharacterEllipsis"
                                      Text="{Binding Error}" IsVisible="{Binding !IsValid}"/>

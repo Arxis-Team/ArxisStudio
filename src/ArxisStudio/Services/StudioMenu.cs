@@ -23,6 +23,11 @@ public sealed record StudioMenuItem(string Title, string? PluginId = null, strin
 /// быть ещё не загружена, и требовать её загрузки ради строчки в меню — значит
 /// поднимать при старте всё, что установлено, то есть отменить смысл событий
 /// активации.
+/// <para>
+/// Названия пунктов переводятся здесь же, и ветки сходятся по переведённому
+/// тексту: два плагина, назвавшие ветку каждый своим ключом, должны оказаться в
+/// одном «Инструменты», а не в двух одинаковых с виду.
+/// </para>
 /// </remarks>
 public static class StudioMenu
 {
@@ -41,8 +46,13 @@ public static class StudioMenu
         {
             foreach (var declared in plugin.Manifest!.Contributions.Menus)
             {
+                // Путь режется до перевода, а переводится посегментно: ключ
+                // разделителя не содержит, а переведённая строка вполне может —
+                // и «Файл/Открыть», пришедшее из словаря, развалило бы путь.
                 var segments = declared.Path
-                    .Split('/', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                    .Split('/', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                    .Select(plugin.Strings.Resolve)
+                    .ToArray();
 
                 if (segments.Length == 0)
                     continue;

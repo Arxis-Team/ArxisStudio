@@ -1,0 +1,14 @@
+{
+  "plugin.description": "Пример внешнего плагина: панель и команда",
+  "menu.tools": "Команды плагинов",
+  "menu.hello": "Пример плагина",
+  "command.greet": "Поздороваться",
+  "panel.hello": "Пример",
+  "panel.intro": "Пример внешнего плагина",
+  "panel.count": "Сосчитать файлы проекта",
+  "panel.noproject": "Проект не открыт",
+  "panel.cancelled": "Обход отменён",
+  "panel.counted": "Файлов в проекте",
+  "setting.greeting": "Чем здороваться",
+  "task.walk": "Обход проекта"
+}

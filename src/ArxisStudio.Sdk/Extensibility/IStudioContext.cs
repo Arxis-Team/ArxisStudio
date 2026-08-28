@@ -23,6 +23,9 @@ public interface IStudioContext
     /// <summary>Фоновые задачи: всё долгое делается здесь, а не в потоке интерфейса.</summary>
     IStudioTasks Tasks { get; }
 
+    /// <summary>Строки плагина из его словарей <c>lang/</c>.</summary>
+    IStudioStrings Strings { get; }
+
     /// <summary>Путь к открытому решению или проекту; null, если проект не открыт.</summary>
     string? ProjectPath { get; }
 

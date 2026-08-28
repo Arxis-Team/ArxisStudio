@@ -227,7 +227,7 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
             InstalledPlugins.Add(plugin);
 
             foreach (var declared in plugin.Manifest?.Contributions.Settings ?? [])
-                PluginSettings.Add(new PluginSettingRow(plugin.Id, plugin.DisplayName, declared, store));
+                PluginSettings.Add(new PluginSettingRow(plugin.Id, plugin.DisplayName, declared, store, plugin.Strings));
         }
 
         Notify(nameof(HasNoPlugins));

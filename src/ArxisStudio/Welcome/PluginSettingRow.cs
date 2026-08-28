@@ -21,11 +21,13 @@ namespace ArxisStudio.Welcome;
 /// <param name="pluginName">Как называется плагин.</param>
 /// <param name="declared">Объявление из манифеста.</param>
 /// <param name="store">Общее хранилище настроек.</param>
+/// <param name="strings">Словари плагина: по ним переводится подпись.</param>
 public sealed class PluginSettingRow(
     string pluginId,
     string pluginName,
     PluginSetting declared,
-    PluginSettingsStore store) : INotifyPropertyChanged
+    PluginSettingsStore store,
+    PluginStrings strings) : INotifyPropertyChanged
 {
     /// <inheritdoc/>
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -34,7 +36,7 @@ public sealed class PluginSettingRow(
     public string PluginName => pluginName;
 
     /// <summary>Подпись настройки.</summary>
-    public string Label => declared.Label;
+    public string Label => strings.Resolve(declared.Label);
 
     /// <summary>Ключ — его видно под подписью: по нему настройку правят в файле.</summary>
     public string Key => declared.Key;

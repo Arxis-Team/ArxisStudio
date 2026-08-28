@@ -267,6 +267,11 @@ public partial class WelcomeWindow : Window
         Localizer.Instance.SetLanguage(language);
         _model.SettingsStore.Current.Language = language;
         _model.SettingsStore.Save();
+
+        // Строки студии обновит привязка, а имена и подписи плагинов лежат в их
+        // собственных словарях и читаются при обходе каталога — значит, обойти
+        // его надо заново, иначе половина экрана осталась бы на прежнем языке.
+        _model.RefreshPlugins();
     }
 
     private void OnSettingToggled(object? sender, RoutedEventArgs e)

@@ -3,28 +3,28 @@
   "name": "Hello",
   "version": "1.0.0",
   "publisher": "Arxis Labs",
-  "description": "Пример внешнего плагина: панель и команда",
+  "description": "%plugin.description%",
   "sdk": {
-    "min": "1.0"
+    "min": "1.2"
   },
   "entry": "bin/Arxis.HelloPlugin.dll",
   "contributions": {
     "commands": [
       {
         "id": "hello.greet",
-        "title": "Поздороваться"
+        "title": "%command.greet%"
       }
     ],
     "menus": [
       {
-        "path": "Tools/Hello/Поздороваться",
+        "path": "%menu.tools%/%menu.hello%/%command.greet%",
         "command": "hello.greet"
       }
     ],
     "toolWindows": [
       {
         "id": "hello.panel",
-        "title": "Hello",
+        "title": "%panel.hello%",
         "zone": "right"
       }
     ],
@@ -33,7 +33,7 @@
         "key": "hello.greeting",
         "type": "string",
         "scope": "user",
-        "title": "Чем здороваться",
+        "title": "%setting.greeting%",
         "default": "Здравствуйте!"
       }
     ]

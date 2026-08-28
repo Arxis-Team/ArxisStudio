@@ -16,15 +16,26 @@ public sealed class HelloPanel : ToolWindow
     private readonly TextBlock _result = new() { TextWrapping = TextWrapping.Wrap };
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Подписи не написаны в коде, а взяты из словарей плагина — теми же
+    /// ключами, какими названы панель и пункт меню в манифесте. Привязкой, а не
+    /// строкой: смена языка в студии должна перерисовать и панель плагина.
+    /// </remarks>
     protected override Control Build()
     {
-        var greet = new AxButton { Content = "Поздороваться" };
+        var greet = new AxButton();
 
+        greet.Bind(ContentControl.ContentProperty, Context.Strings.Text("command.greet"));
         greet.Click += (_, _) => Context.Commands.Invoke("hello.greet");
 
-        var count = new AxButton { Content = "Сосчитать файлы проекта" };
+        var count = new AxButton();
 
+        count.Bind(ContentControl.ContentProperty, Context.Strings.Text("panel.count"));
         count.Click += async (_, _) => await CountAsync();
+
+        var intro = new TextBlock { FontSize = 12.5 };
+
+        intro.Bind(TextBlock.TextProperty, Context.Strings.Text("panel.intro"));
 
         return new StackPanel
         {
@@ -33,7 +44,7 @@ public sealed class HelloPanel : ToolWindow
             VerticalAlignment = VerticalAlignment.Top,
             Children =
             {
-                new TextBlock { Text = "Пример внешнего плагина", FontSize = 12.5 },
+                intro,
                 greet,
                 count,
                 _result,
@@ -52,9 +63,13 @@ public sealed class HelloPanel : ToolWindow
     /// </remarks>
     private async Task CountAsync()
     {
+        // Ответ на нажатие — не подпись: он рассказывает о том, что случилось
+        // только что, и берётся индексатором на языке этой минуты.
+        var strings = Context.Strings;
+
         if (Context.ProjectPath is not { Length: > 0 } path)
         {
-            _result.Text = "Проект не открыт";
+            _result.Text = strings["panel.noproject"];
             return;
         }
 
@@ -62,7 +77,7 @@ public sealed class HelloPanel : ToolWindow
 
         try
         {
-            var found = await Context.Tasks.RunAsync("Обход проекта", async (progress, token) =>
+            var found = await Context.Tasks.RunAsync(strings["task.walk"], async (progress, token) =>
             {
                 var files = System.IO.Directory.EnumerateFiles(folder, "*", System.IO.SearchOption.AllDirectories).ToList();
                 var counted = 0;
@@ -70,7 +85,7 @@ public sealed class HelloPanel : ToolWindow
                 foreach (var file in files)
                 {
                     counted++;
-                    progress.Report((double)counted / files.Count, $"{counted} из {files.Count}");
+                    progress.Report((double)counted / files.Count, $"{counted} / {files.Count}");
 
                     // Настоящая работа была бы здесь. Ожидание нужно примеру,
                     // чтобы человек успел увидеть и полосу, и то, что отмена
@@ -83,11 +98,11 @@ public sealed class HelloPanel : ToolWindow
 
             // Сюда мы вернулись в поток интерфейса: об этом позаботился await,
             // потому что начато всё было в нём.
-            _result.Text = $"Файлов в проекте: {found}";
+            _result.Text = $"{strings["panel.counted"]}: {found}";
         }
         catch (OperationCanceledException)
         {
-            _result.Text = "Обход отменён";
+            _result.Text = strings["panel.cancelled"];
         }
     }
 }

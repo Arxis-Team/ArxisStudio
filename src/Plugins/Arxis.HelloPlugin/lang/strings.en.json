@@ -1,0 +1,14 @@
+{
+  "plugin.description": "A sample external plugin: a panel and a command",
+  "menu.tools": "Plugin commands",
+  "menu.hello": "Sample plugin",
+  "command.greet": "Say hello",
+  "panel.hello": "Sample",
+  "panel.intro": "A sample external plugin",
+  "panel.count": "Count the project files",
+  "panel.noproject": "No project is open",
+  "panel.cancelled": "The walk was cancelled",
+  "panel.counted": "Files in the project",
+  "setting.greeting": "Greeting to use",
+  "task.walk": "Walking the project"
+}

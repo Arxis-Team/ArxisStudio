@@ -184,6 +184,11 @@ public sealed class PluginHost : IDisposable
 
         var released = Released(Retire(installed.Id));
 
+        // Словари читаются с диска и живут дольше подъёма: перезагрузка,
+        // оставившая прежний текст, была бы перезагрузкой наполовину — автор
+        // правит строки так же часто, как код.
+        PluginStrings.Forget(installed.Directory);
+
         return new PluginReload(Add(installed), null, released);
     }
 
@@ -326,7 +331,8 @@ public sealed class PluginHost : IDisposable
             AppContext.BaseDirectory,
             manifest,
             error,
-            IsEnabled: true);
+            IsEnabled: true,
+            IsBuiltIn: true);
 
         var loaded = manifest is null
             ? LoadedPlugin.Failed(installed, error ?? "Манифест модуля не разобрался")

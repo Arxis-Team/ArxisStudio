@@ -123,5 +123,8 @@
   "canvas.zoomreset": "Вернуть 100%",
   "panel.crashed": "Панель аварийно завершилась",
   "panel.reload": "Перезапустить",
-  "panel.sample": "Пример модуля"
+  "panel.sample": "Пример модуля",
+  "menu.sample": "Пример модуля",
+  "menu.sample.about": "О модуле",
+  "module.sample.description": "Встроенный модуль-образец: панель, команда и служба"
 }

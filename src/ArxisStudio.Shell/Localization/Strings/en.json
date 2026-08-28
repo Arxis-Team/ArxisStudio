@@ -123,5 +123,8 @@
   "canvas.zoomreset": "Reset to 100%",
   "panel.crashed": "The panel crashed",
   "panel.reload": "Reload",
-  "panel.sample": "Sample module"
+  "panel.sample": "Sample module",
+  "menu.sample": "Sample module",
+  "menu.sample.about": "About the module",
+  "module.sample.description": "A built-in sample module: a panel, a command and a service"
 }

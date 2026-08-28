@@ -15,6 +15,7 @@ namespace ArxisStudio.Services;
 /// <param name="Commands">Команды студии.</param>
 /// <param name="Settings">Настройки этого плагина.</param>
 /// <param name="Tasks">Фоновые задачи этого плагина.</param>
+/// <param name="Strings">Словари этого плагина.</param>
 /// <param name="ProjectPath">Путь к открытому проекту или null.</param>
 /// <param name="PluginDirectory">Папка плагина.</param>
 /// <param name="Services">Службы студии по типу; null — служб нет.</param>
@@ -23,6 +24,7 @@ public sealed record StudioContext(
     IStudioCommands Commands,
     IStudioSettings Settings,
     IStudioTasks Tasks,
+    IStudioStrings Strings,
     string? ProjectPath,
     string PluginDirectory,
     IReadOnlyDictionary<Type, object>? Services = null) : IStudioContext
@@ -95,6 +97,6 @@ public sealed class StudioContextFactory(
 
         var tasks = new PluginTasks(plugin.Id, _tasks, _guard, log);
 
-        return new StudioContext(log, own, settings, tasks, projectPath, plugin.Directory, services);
+        return new StudioContext(log, own, settings, tasks, plugin.Strings, projectPath, plugin.Directory, services);
     }
 }

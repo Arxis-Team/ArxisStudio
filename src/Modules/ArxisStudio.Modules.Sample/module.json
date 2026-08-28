@@ -1,15 +1,15 @@
 {
   "id": "arxis.sample",
-  "name": "Пример модуля",
+  "name": "%panel.sample%",
   "version": "1.0.0",
   "publisher": "Arxis",
-  "description": "Встроенный модуль-образец: панель, команда и служба",
+  "description": "%module.sample.description%",
   "contributions": {
     "commands": [
-      { "id": "sample.about", "title": "О примере модуля" }
+      { "id": "sample.about", "title": "%menu.sample.about%" }
     ],
     "menus": [
-      { "path": "Tools/Пример/О модуле", "command": "sample.about" }
+      { "path": "%menu.tools%/%menu.sample%/%menu.sample.about%", "command": "sample.about" }
     ],
     "toolWindows": [
       { "id": "sample.panel", "title": "%panel.sample%", "zone": "left" }

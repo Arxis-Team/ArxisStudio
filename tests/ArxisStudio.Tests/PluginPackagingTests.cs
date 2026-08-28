@@ -34,6 +34,23 @@ public class PluginPackagingTests
     }
 
     /// <summary>
+    /// Словари едут вместе с плагином.
+    /// </summary>
+    /// <remarks>
+    /// Без них весь текст, который студия показывает за плагин, — заголовок
+    /// панели, пункт меню, подпись настройки — превратится у человека в
+    /// <c>!ключ!</c>: манифест ссылается на строки, а взять их будет неоткуда.
+    /// </remarks>
+    [Fact]
+    public void The_dictionaries_travel_with_the_plugin()
+    {
+        var lang = Path.Combine(Package(), "lang");
+
+        Assert.True(File.Exists(Path.Combine(lang, "strings.json")), "нет словаря по умолчанию");
+        Assert.True(File.Exists(Path.Combine(lang, "strings.en.json")), "нет перевода");
+    }
+
+    /// <summary>
     /// Файл зависимостей едет вместе со сборкой.
     /// </summary>
     /// <remarks>

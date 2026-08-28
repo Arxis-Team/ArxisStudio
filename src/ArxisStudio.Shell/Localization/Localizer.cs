@@ -1,4 +1,4 @@
-using System.Collections.Frozen;
+﻿using System.Collections.Frozen;
 using System.ComponentModel;
 using System.Reflection;
 using System.Text.Json;
@@ -10,7 +10,7 @@ namespace ArxisStudio.Shell.Localization;
 /// (<c>Localization/Strings/&lt;код&gt;.json</c>); смена языка обновляет уже
 /// показанный интерфейс.
 /// </summary>
-public sealed class Localizer : INotifyPropertyChanged
+public sealed class Localizer : INotifyPropertyChanged, IStringSource
 {
     /// <summary>Локаль, на которую студия опирается, если строки нет в выбранной.</summary>
     public const string FallbackLanguage = "ru";
@@ -67,9 +67,21 @@ public sealed class Localizer : INotifyPropertyChanged
     /// разделы, пункты меню — заводит свои строки сам.
     /// </remarks>
     /// <param name="key">Ключ строки.</param>
-    public LocalizedString Track(string key)
+    public LocalizedString Track(string key) => Track(this, key);
+
+    /// <summary>
+    /// Заводит строку чужого источника — например, словарей плагина.
+    /// </summary>
+    /// <remarks>
+    /// Список следящих строк один на студию, хотя словари у всех свои: язык
+    /// меняется разом, и обновиться должно всё показанное, а не только то, что
+    /// написала студия.
+    /// </remarks>
+    /// <param name="source">Откуда брать текст.</param>
+    /// <param name="key">Ключ строки.</param>
+    public LocalizedString Track(IStringSource source, string key)
     {
-        var tracked = new LocalizedString(key);
+        var tracked = new LocalizedString(source, key);
 
         lock (_tracked)
             _tracked.Add(new WeakReference<LocalizedString>(tracked));

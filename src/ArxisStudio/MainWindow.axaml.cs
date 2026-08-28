@@ -532,7 +532,7 @@ public partial class MainWindow : Window
                 error => _guard.Report(loaded.Installed.Id, $"раскладка панели {declared.Id}", error),
                 () => Reload(loaded, declared, type, studio, surface!));
 
-            Mount(loaded.Installed.Id, declared, surface);
+            Mount(loaded.Installed, declared, surface);
         }
     }
 
@@ -580,12 +580,13 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Ставит содержимое панели в зону студии.</summary>
-    /// <param name="pluginId">Чья это панель — по нему её потом и снимут.</param>
+    /// <param name="plugin">Чья это панель — по нему её потом и снимут.</param>
     /// <param name="declared">Объявление панели из манифеста.</param>
     /// <param name="content">Построенное содержимое панели.</param>
-    private void Mount(string pluginId, Sdk.Plugins.PluginToolWindow declared, Control content)
+    private void Mount(InstalledPlugin plugin, Sdk.Plugins.PluginToolWindow declared, Control content)
     {
-        var (zone, title) = (declared.Zone, declared.Title);
+        var (zone, title, strings) = (declared.Zone, declared.Title, plugin.Strings);
+        var pluginId = plugin.Id;
 
         switch (zone.ToLowerInvariant())
         {
@@ -596,7 +597,7 @@ public partial class MainWindow : Window
             case "bottom":
                 var tab = new AxTabItem { Classes = { "compact" }, IsClosable = false };
 
-                SetTabTitle(tab, title);
+                SetTabTitle(tab, title, strings);
                 BottomTabs.Items.Add(tab);
                 BottomPluginHost.Children.Add(content);
 
@@ -606,21 +607,21 @@ public partial class MainWindow : Window
                 break;
 
             case "left":
-                Add(pluginId, "left", LeftZone, title, content);
+                Add(pluginId, "left", LeftZone, title, content, strings);
                 break;
 
             default:
-                Add(pluginId, "right", RightZone, title, content);
+                Add(pluginId, "right", RightZone, title, content, strings);
                 break;
         }
 
-        _log.Write(StudioLogLevel.Debug, "Plugins", $"Панель «{Resolve(title)}» встала в зону {zone}");
+        _log.Write(StudioLogLevel.Debug, "Plugins", $"Панель «{strings.Resolve(title)}» встала в зону {zone}");
     }
 
     /// <summary>Ставит панель в боковую зону и запоминает, чья она.</summary>
-    private void Add(string pluginId, string zone, Grid grid, string title, Control content)
+    private void Add(string pluginId, string zone, Grid grid, string title, Control content, PluginStrings strings)
     {
-        var window = Window(title, content);
+        var window = Window(title, content, strings);
 
         _panels.Add(new MountedPanel(pluginId, zone, window, null));
         Append(grid, window);
@@ -767,11 +768,12 @@ public partial class MainWindow : Window
     /// <summary>Заворачивает панель в окно инструментов с заголовком.</summary>
     /// <param name="title">Заголовок из манифеста.</param>
     /// <param name="content">Содержимое панели.</param>
-    private static AxToolWindow Window(string title, Control content)
+    /// <param name="strings">Словари плагина, которому принадлежит панель.</param>
+    private static AxToolWindow Window(string title, Control content, PluginStrings strings)
     {
         var window = new AxToolWindow { Content = content };
 
-        SetTitle(window, title);
+        SetTitle(window, title, strings);
         return window;
     }
 
@@ -779,42 +781,26 @@ public partial class MainWindow : Window
     /// Ставит заголовок панели, переводя ключ вида <c>%panel.hierarchy%</c>.
     /// </summary>
     /// <remarks>
-    /// Заголовок из манифеста — единственный текст панели, который пишет не её
-    /// автор, а студия, поэтому и переводить его при смене языка — забота студии.
+    /// Заголовок из манифеста — единственный текст панели, который показывает не
+    /// её автор, а студия, поэтому и переводить его при смене языка — забота
+    /// студии. Текст берётся из словарей самого плагина: ключ вроде
+    /// <c>%panel.main%</c> у каждого свой.
     /// </remarks>
-    private static void SetTitle(AxToolWindow window, string title)
+    private static void SetTitle(AxToolWindow window, string title, PluginStrings strings)
     {
-        if (Key(title) is { } key)
-        {
-            window.Bind(
-                AxToolWindow.TitleProperty,
-                new Avalonia.Data.Binding(nameof(LocalizedString.Value)) { Source = Localizer.Instance.Track(key) });
-        }
+        if (PluginStrings.IsKey(title, out var key))
+            window.Bind(AxToolWindow.TitleProperty, strings.Text(key));
         else
-        {
             window.Title = title;
-        }
     }
 
-    private static void SetTabTitle(AxTabItem tab, string title)
+    private static void SetTabTitle(AxTabItem tab, string title, PluginStrings strings)
     {
-        if (Key(title) is { } key)
-        {
-            tab.Bind(
-                ContentControl.ContentProperty,
-                new Avalonia.Data.Binding(nameof(LocalizedString.Value)) { Source = Localizer.Instance.Track(key) });
-        }
+        if (PluginStrings.IsKey(title, out var key))
+            tab.Bind(ContentControl.ContentProperty, strings.Text(key));
         else
-        {
             tab.Content = title;
-        }
     }
-
-    private static string? Key(string title) =>
-        title.Length > 2 && title[0] == '%' && title[^1] == '%' ? title[1..^1] : null;
-
-    private static string Resolve(string title) =>
-        Key(title) is { } key ? Localizer.Instance[key] : title;
 
     /// <summary>
     /// Добавляет панель новой строкой сетки, отделив её от соседей.
