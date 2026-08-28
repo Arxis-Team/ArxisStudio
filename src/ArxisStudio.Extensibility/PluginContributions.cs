@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using ArxisStudio.Sdk;
 
 namespace ArxisStudio.Extensibility;
@@ -111,8 +111,20 @@ public sealed class PluginContributionRegistry
     /// Находит рисовальщика для типа значения.
     /// </summary>
     /// <param name="valueType">Тип значения свойства.</param>
-    /// <returns>Свежий рисовальщик или null, если на этот тип никто не заявлялся.</returns>
-    public PropertyDrawer? DrawerFor(Type valueType) => Create(_drawers, valueType);
+    /// <returns>Рисовальщик вместе с плагином, который его дал, или null.</returns>
+    /// <remarks>
+    /// Хозяин возвращается вместе с рисовальщиком: строить контрол будет чужой
+    /// код, и упади он — приписать падение будет некому.
+    /// </remarks>
+    public DrawerMatch? DrawerFor(Type valueType)
+    {
+        ArgumentNullException.ThrowIfNull(valueType);
+
+        return _drawers.TryGetValue(valueType, out var registration) &&
+               Activator.CreateInstance(registration.Type) is PropertyDrawer drawer
+            ? new DrawerMatch(drawer, registration.PluginId)
+            : null;
+    }
 
     /// <summary>
     /// Находит свой инспектор для типа контрола.
@@ -144,11 +156,6 @@ public sealed class PluginContributionRegistry
         return null;
     }
 
-    private static T? Create<T>(Dictionary<Type, Registration<T>> registry, Type key) where T : class =>
-        registry.TryGetValue(key, out var registration) && Activator.CreateInstance(registration.Type) is T created
-            ? created
-            : null;
-
     private void Register<T>(
         Dictionary<Type, Registration<T>> registry,
         Type key,
@@ -176,3 +183,8 @@ public sealed class PluginContributionRegistry
 /// <param name="PluginId">Идентификатор плагина-хозяина.</param>
 /// <param name="PluginDirectory">Папка плагина-хозяина, если она известна.</param>
 public sealed record InspectorMatch(InspectorEditor Editor, string PluginId, string? PluginDirectory);
+
+/// <summary>Найденный рисовальщик и плагин, который его дал.</summary>
+/// <param name="Drawer">Свежий рисовальщик.</param>
+/// <param name="PluginId">Идентификатор плагина-хозяина.</param>
+public sealed record DrawerMatch(PropertyDrawer Drawer, string PluginId);

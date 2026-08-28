@@ -1,4 +1,4 @@
-using ArxisStudio.Extensibility;
+﻿using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Modules.Designer;
 using ArxisStudio.Services;
@@ -104,7 +104,8 @@ public class DrawerTests
         Assert.NotEmpty(conflicts);
         Assert.All(conflicts, message => Assert.Contains("first", message));
         Assert.All(conflicts, message => Assert.Contains("Второй", message));
-        Assert.IsType(winner.GetType(), registry.DrawerFor(typeof(int)));
+        Assert.Equal("first", registry.DrawerFor(typeof(int))!.PluginId);
+        Assert.IsType(winner.Drawer.GetType(), registry.DrawerFor(typeof(int))!.Drawer);
     }
 
     /// <summary>

@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
@@ -47,7 +47,8 @@ public partial class MainWindow : Window
     private readonly List<OpenDocument> _documents = [];
     private readonly StudioLog _log = new();
     private readonly StudioProblems _problems = new();
-    private readonly StudioCommands _commands = new();
+    private readonly PluginGuard _guard = new();
+    private readonly StudioCommands _commands;
     private readonly StudioRunner _runner;
     private readonly PluginContributionRegistry _contributions = new();
     private PluginHost? _plugins;
@@ -73,8 +74,15 @@ public partial class MainWindow : Window
         // помине.
         ThemeSwitch.SelectedIndex = Application.Current?.ActualThemeVariant == ThemeVariant.Light ? 1 : 0;
 
+        _commands = new StudioCommands(_guard);
         _runner = new StudioRunner(_log);
         _runner.StateChanged += (_, _) => UpdateRunButtons();
+
+        _guard.Failed += (_, failure) => _log.Write(
+            StudioLogLevel.Error, "Plugins",
+            $"{Named(failure.PluginId)}: {failure.What} — {failure.Message}");
+
+        _guard.Disabled += (_, failure) => Disable(failure);
 
         // Системная рамка окна красится отдельно от содержимого: сама она
         // цвета темы не знает.
@@ -147,6 +155,7 @@ public partial class MainWindow : Window
             [typeof(IStudioDocuments)] = new DocumentSink(this),
             [typeof(IStudioStatus)] = new StatusSink(StatusText),
             [typeof(PluginContributionRegistry)] = _contributions,
+            [typeof(PluginGuard)] = _guard,
         };
 
         var catalog = new PluginCatalog();
@@ -188,6 +197,32 @@ public partial class MainWindow : Window
 
         _contributions.Add(loaded);
         MountPanels(loaded);
+    }
+
+    /// <summary>Как плагин называется в сообщениях.</summary>
+    private string Named(string pluginId) =>
+        _installed.FirstOrDefault(plugin => plugin.Id == pluginId)?.DisplayName ?? pluginId;
+
+    /// <summary>
+    /// Отключает плагин, падающий раз за разом.
+    /// </summary>
+    /// <remarks>
+    /// Три падения подряд — это не случайность, а сломанный плагин, и звать его
+    /// дальше значит показывать человеку одну и ту же ошибку до конца сеанса.
+    /// Вклады снимаются, сборки выгружаются, панели остаются на экране
+    /// заглушками: убирать зону, в которую человек уже привык смотреть, хуже,
+    /// чем сказать в ней, что случилось.
+    /// </remarks>
+    private void Disable(PluginFailure failure)
+    {
+        _log.Write(StudioLogLevel.Error, "Plugins",
+            $"{Named(failure.PluginId)}: отключён после {failure.Count} сбоев подряд");
+
+        if (_plugins?.Loaded.FirstOrDefault(plugin => plugin.Installed.Id == failure.PluginId) is not { } loaded)
+            return;
+
+        _contributions.Remove(failure.PluginId);
+        loaded.Unload();
     }
 
     /// <summary>
@@ -364,11 +399,23 @@ public partial class MainWindow : Window
                 continue;
             }
 
-            if (Activator.CreateInstance(type) is not Sdk.ToolWindow panel)
+            // Три чужих вызова подряд — создать, подключить, построить, — и
+            // упасть плагин может на любом. Идут они одним куском: панель,
+            // построенная наполовину, студии не нужна.
+            var content = _guard.Get(loaded.Installed.Id, $"панель {declared.Id}", () =>
+            {
+                if (Activator.CreateInstance(type) is not Sdk.ToolWindow panel)
+                    return null;
+
+                panel.Attach(studio);
+
+                return panel.Content;
+            });
+
+            if (content is null)
                 continue;
 
-            panel.Attach(studio);
-            Mount(declared, panel.Content);
+            Mount(declared, content);
         }
     }
 

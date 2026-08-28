@@ -1,4 +1,4 @@
-using ArxisStudio.Extensibility;
+﻿using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 
 namespace ArxisStudio.Services;
@@ -41,10 +41,18 @@ public sealed class StudioContextFactory(
     : IStudioContextFactory
 {
     /// <inheritdoc/>
+    /// <remarks>
+    /// Команды плагин получает своей обёрткой: реестр общий, а заявка должна
+    /// знать заявителя — упавший обработчик иначе не приписать никому.
+    /// </remarks>
     public IStudioContext Create(InstalledPlugin plugin)
     {
         ArgumentNullException.ThrowIfNull(plugin);
 
-        return new StudioContext(log, commands, projectPath, plugin.Directory, services);
+        var own = commands is StudioCommands registry
+            ? new PluginCommands(registry, plugin.Id)
+            : commands;
+
+        return new StudioContext(log, own, projectPath, plugin.Directory, services);
     }
 }

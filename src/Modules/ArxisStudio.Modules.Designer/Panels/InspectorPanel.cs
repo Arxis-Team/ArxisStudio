@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using ArxisStudio.Controls;
 using ArxisStudio.Sdk;
 using ArxisStudio.Shell.Localization;
@@ -176,8 +176,8 @@ public sealed class InspectorPanel : Sdk.ToolWindow
 
             contexts.Add(context);
 
-            if (row.ValueType is { } type && contributions.DrawerFor(type) is { } drawer)
-                row.Drawer = Safely(() => drawer.Build(context), row.Name);
+            if (row.ValueType is { } type && contributions.DrawerFor(type) is { } match)
+                row.Drawer = Safely(match.PluginId, () => match.Drawer.Build(context), row.Name);
         }
 
         ShowCustom(node, contexts, contributions);
@@ -209,7 +209,12 @@ public sealed class InspectorPanel : Sdk.ToolWindow
             ? new PluginScopedContext(context, directory)
             : context;
 
-        if (Safely(() => match.Editor.Build(new ElementInspectorContext(node, properties, studio)), node.TypeName) is not { } content)
+        var built = Safely(
+            match.PluginId,
+            () => match.Editor.Build(new ElementInspectorContext(node, properties, studio)),
+            node.TypeName);
+
+        if (built is not { } content)
             return;
 
         _custom.Content = content;
@@ -220,8 +225,18 @@ public sealed class InspectorPanel : Sdk.ToolWindow
     /// <summary>
     /// Строит контрол плагина, не давая его сбою утащить с собой инспектор.
     /// </summary>
-    private static Control? Safely(Func<Control> build, string what)
+    /// <param name="pluginId">Чей это код.</param>
+    /// <param name="build">Сам вызов.</param>
+    /// <param name="what">О чём строка — попадёт в журнал.</param>
+    /// <remarks>
+    /// Свой перехват остаётся только на случай, когда шва студия не дала:
+    /// модуль работает и в тестах, где никакого хоста плагинов нет.
+    /// </remarks>
+    private static Control? Safely(string pluginId, Func<Control> build, string what)
     {
+        if (DesignerState.Instance.Guard is { } guard)
+            return guard.Get(pluginId, $"рисовальщик свойства {what}", build);
+
         try
         {
             return build();

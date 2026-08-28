@@ -1,4 +1,4 @@
-using ArxisStudio.Extensibility;
+﻿using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using Avalonia.Input;
 
@@ -56,6 +56,17 @@ internal sealed class DesignerState
 
     /// <summary>Вклады плагинов — рисовальщики и свои инспекторы.</summary>
     public PluginContributionRegistry? Contributions => Context?.GetService<PluginContributionRegistry>();
+
+    /// <summary>
+    /// Шов вызовов плагинов; null, если студия его не дала.
+    /// </summary>
+    /// <remarks>
+    /// Инспектор — единственное место модуля, где чужой код строит контрол, и
+    /// зовёт он его тем же швом, что и оболочка: падение рисовальщика должно
+    /// считаться там же, где падение панели, иначе сломанный плагин отключат
+    /// только за половину своих сбоев.
+    /// </remarks>
+    public PluginGuard? Guard => Context?.GetService<PluginGuard>();
 
     /// <summary>Принимает контекст студии при активации модуля.</summary>
     /// <param name="context">Что студия даёт модулю.</param>
