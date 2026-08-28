@@ -1,0 +1,211 @@
+﻿<Project>
+
+    <!--
+        Упаковка плагина: сборка раскладывается в формат каталога из приложения A
+        плана и, по просьбе, пакуется в .axplugin.
+
+        Формат простой — plugin.json в корне, сборки в bin/, — но собрать его
+        руками значит каждый раз помнить, чего в bin/ быть не должно. Общие
+        контракты (Sdk, контролы, Avalonia) студия всегда берёт из своего
+        контекста загрузки, и копия в плагине в лучшем случае бесполезна: тот же
+        тип из другой сборки — другой тип, и панель плагина в интерфейс не
+        встанет.
+
+        Файл лежит в build/ — папке, из которой NuGet подхватывает таргеты сам.
+        Пока SDK поставляется ProjectReference-ом, автор импортирует его строкой;
+        когда SDK станет пакетом, папку надо переименовать в buildTransitive/, и
+        строка уйдёт.
+    -->
+
+    <PropertyGroup>
+        <AxPluginManifest Condition="'$(AxPluginManifest)' == ''">$(MSBuildProjectDirectory)/plugin.json</AxPluginManifest>
+        <AxPluginPackageDir Condition="'$(AxPluginPackageDir)' == ''">$(MSBuildProjectDirectory)/package/</AxPluginPackageDir>
+        <AxPluginPack Condition="'$(AxPluginPack)' == ''">false</AxPluginPack>
+        <AxPluginDeploy Condition="'$(AxPluginDeploy)' == ''">false</AxPluginDeploy>
+    </PropertyGroup>
+
+    <!--
+        Имя архива и папки установки — идентификатор плагина, а он объявлен в
+        манифесте: имя сборки с ним не совпадает и совпадать не обязано.
+        Разбирать JSON здесь нечем, поэтому строка достаётся выражением; если
+        манифест устроен так, что выражение до неё не добралось, остаётся имя
+        сборки — плохое имя файла лучше сорванной сборки.
+    -->
+    <PropertyGroup Condition="Exists('$(AxPluginManifest)')">
+        <_AxPluginManifestText>$([System.IO.File]::ReadAllText('$(AxPluginManifest)'))</_AxPluginManifestText>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(AxPluginId)' == '' And '$(_AxPluginManifestText)' != ''">
+        <!--
+            Ищем только до вкладов: у каждой команды и каждой панели там свой
+            id, и манифест без своего собственного отдал бы вместо него первый
+            попавшийся чужой — плагин уехал бы в папку с именем команды.
+        -->
+        <_AxPluginManifestHead>$([System.Text.RegularExpressions.Regex]::Replace($(_AxPluginManifestText), '"contributions"[\s\S]*$', ''))</_AxPluginManifestHead>
+        <AxPluginId>$([System.Text.RegularExpressions.Regex]::Replace($(_AxPluginManifestHead), '^[\s\S]*?"id"\s*:\s*"([^"]+)"[\s\S]*$', '$1'))</AxPluginId>
+    </PropertyGroup>
+
+    <!--
+        Догадка помечается: имя архива она ещё спасёт, а имя папки установки —
+        уже нет. Папка установленного плагина зовётся его идентификатором, и,
+        назвав её иначе, мы получим второй экземпляр того же плагина, когда его
+        поставят по-человечески — через менеджер.
+    -->
+    <PropertyGroup Condition="'$(AxPluginId)' == '' Or !$([System.Text.RegularExpressions.Regex]::IsMatch($(AxPluginId), '^[A-Za-z0-9._-]+$'))">
+        <_AxPluginIdIsGuess>true</_AxPluginIdIsGuess>
+        <AxPluginId>$(AssemblyName)</AxPluginId>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <!--
+            Архив лежит рядом с папкой, а не внутри неё: положив его внутрь,
+            следующая сборка упаковала бы предыдущий архив в новый.
+        -->
+        <AxPluginArchive Condition="'$(AxPluginArchive)' == ''">$(MSBuildProjectDirectory)/$(AxPluginId).axplugin</AxPluginArchive>
+        <AxPluginInstallDir Condition="'$(AxPluginInstallDir)' == ''">$([System.IO.Path]::Combine($([System.Environment]::GetFolderPath(SpecialFolder.ApplicationData)), 'ArxisStudio', 'plugins', '$(AxPluginId)'))</AxPluginInstallDir>
+    </PropertyGroup>
+
+    <Target Name="AxPluginCheckManifest" BeforeTargets="Build">
+        <Error Code="AXP1001" Condition="!Exists('$(AxPluginManifest)')"
+               Text="Плагину нужен манифест: ожидается '$(AxPluginManifest)'. Без него папка плагином не является — студия читает по манифесту и меню, и панели, ещё не загружая сборку. Создайте plugin.json или укажите другой путь свойством AxPluginManifest." />
+    </Target>
+
+    <!--
+        Раскладка идёт из обычной выходной папки, а не подменой OutputPath:
+        отсеять общие контракты можно только по дороге, а в выходной папке они
+        уже лежат вперемешку со своими.
+    -->
+    <Target Name="AxPluginLayout" AfterTargets="Build" DependsOnTargets="AxPluginCheckManifest">
+
+        <PropertyGroup>
+            <_AxPluginBinDir>$(AxPluginPackageDir)bin/</_AxPluginBinDir>
+        </PropertyGroup>
+
+        <!-- Иначе вчерашние сборки уедут в архив вместе с сегодняшними. -->
+        <RemoveDir Directories="$(_AxPluginBinDir)" />
+
+        <!--
+            Список общих контрактов повторяет PluginLoadContext.IsShared в
+            ArxisStudio.Extensibility: что резолвер берёт из своего контекста, то
+            и не должно ехать в плагине. Правится в двух местах сразу.
+
+            Файлы документации (.xml) нужны автору плагина, а не студии, и в
+            пакет не едут.
+        -->
+        <ItemGroup>
+            <_AxPluginCarry Include="@(ReferenceCopyLocalPaths)"
+                            Condition="'%(Extension)' != '.xml' And
+                                       !$([System.String]::Copy('%(Filename)').StartsWith('Avalonia')) And
+                                       !$([System.String]::Copy('%(Filename)').StartsWith('ArxisStudio.Sdk')) And
+                                       !$([System.String]::Copy('%(Filename)').StartsWith('ArxisStudio.Controls'))" />
+
+            <_AxPluginBin Include="$(TargetPath)" />
+            <_AxPluginBin Include="@(_AxPluginCarry)" />
+
+            <!--
+                Файл зависимостей обязателен: по нему плагин разрешает свои
+                приватные сборки — AssemblyDependencyResolver читает именно его.
+            -->
+            <_AxPluginBin Include="$(ProjectDepsFilePath)" Condition="Exists('$(ProjectDepsFilePath)')" />
+            <_AxPluginBin Include="$(TargetDir)$(TargetName).pdb" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
+        </ItemGroup>
+
+        <Copy SourceFiles="@(_AxPluginBin)" DestinationFolder="$(_AxPluginBinDir)" />
+
+        <ItemGroup>
+            <_AxPluginRoot Include="$(AxPluginManifest)" />
+            <_AxPluginRoot Include="$(MSBuildProjectDirectory)/README.md" Condition="Exists('$(MSBuildProjectDirectory)/README.md')" />
+            <_AxPluginRoot Include="$(MSBuildProjectDirectory)/CHANGELOG.md" Condition="Exists('$(MSBuildProjectDirectory)/CHANGELOG.md')" />
+
+            <_AxPluginAsset Include="$(MSBuildProjectDirectory)/assets/**/*" />
+            <_AxPluginLang Include="$(MSBuildProjectDirectory)/lang/**/*" />
+        </ItemGroup>
+
+        <Copy SourceFiles="@(_AxPluginRoot)" DestinationFolder="$(AxPluginPackageDir)" SkipUnchangedFiles="true" />
+        <Copy SourceFiles="@(_AxPluginAsset)" DestinationFiles="@(_AxPluginAsset->'$(AxPluginPackageDir)assets/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+        <Copy SourceFiles="@(_AxPluginLang)" DestinationFiles="@(_AxPluginLang->'$(AxPluginPackageDir)lang/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+
+        <!--
+            Ссылка на пакет Avalonia плагину разрешена: панели раскладки он
+            строит именно из неё, и правило «только Ax*-виджеты» их не трогает.
+            Везти сборку с собой — другое дело, и заявляют это иначе: файлом
+            рядом с проектом, помеченным копированием в выход, или ссылкой по
+            HintPath. Пакетные ссылки такой пометки не несут, поэтому в обычном
+            случае предупреждение молчит.
+        -->
+        <ItemGroup>
+            <_AxPluginByHand Include="@(None)"
+                             Condition="'%(None.CopyToOutputDirectory)' != '' And '%(None.CopyToOutputDirectory)' != 'Never' And
+                                        ($([System.String]::Copy('%(None.Filename)').StartsWith('Avalonia')) Or
+                                         $([System.String]::Copy('%(None.Filename)').StartsWith('ArxisStudio.Sdk')) Or
+                                         $([System.String]::Copy('%(None.Filename)').StartsWith('ArxisStudio.Controls')))" />
+
+            <_AxPluginByHand Include="@(Content)"
+                             Condition="'%(Content.CopyToOutputDirectory)' != '' And '%(Content.CopyToOutputDirectory)' != 'Never' And
+                                        ($([System.String]::Copy('%(Content.Filename)').StartsWith('Avalonia')) Or
+                                         $([System.String]::Copy('%(Content.Filename)').StartsWith('ArxisStudio.Sdk')) Or
+                                         $([System.String]::Copy('%(Content.Filename)').StartsWith('ArxisStudio.Controls')))" />
+
+            <_AxPluginByHand Include="@(Reference)"
+                             Condition="'%(Reference.HintPath)' != '' And '%(Reference.NuGetPackageId)' == '' And
+                                        ($([System.String]::Copy('%(Reference.Filename)').StartsWith('Avalonia')) Or
+                                         $([System.String]::Copy('%(Reference.Filename)').StartsWith('ArxisStudio.Sdk')) Or
+                                         $([System.String]::Copy('%(Reference.Filename)').StartsWith('ArxisStudio.Controls')))" />
+
+            <_AxPluginStray Include="$(_AxPluginBinDir)Avalonia*.dll;$(_AxPluginBinDir)ArxisStudio.Sdk*.dll;$(_AxPluginBinDir)ArxisStudio.Controls*.dll" />
+        </ItemGroup>
+
+        <Warning Code="AXP0001" Condition="'@(_AxPluginByHand)' != ''"
+                 Text="Общий контракт положен в проект руками: @(_AxPluginByHand->'%(Filename)%(Extension)', ', '). Sdk, контролы и Avalonia студия всегда берёт из своего контекста загрузки — копия рядом с плагином либо не загрузится вовсе, либо станет вторым экземпляром того же типа, и панель плагина в интерфейс не встанет. Уберите файл или снимите с него копирование в выход." />
+
+        <Warning Code="AXP0002" Condition="'@(_AxPluginStray)' != ''"
+                 Text="В bin/ плагина лежит общий контракт: @(_AxPluginStray->'%(Filename)%(Extension)', ', '). Таргет упаковки его туда не клал — значит, он добавлен вручную. Уберите его: студия всё равно возьмёт свой." />
+
+        <!--
+            Студия открывает entry-сборку буквально по строке из манифеста. Имя
+            сборки правится в csproj, манифест — руками, и разъезжаются они
+            молча: плагин установится и не поднимется, а узнает об этом автор
+            уже на чужой машине.
+        -->
+        <Error Code="AXP1002"
+               Condition="'$(_AxPluginManifestText)' != '' And !$(_AxPluginManifestText.Contains('$(TargetFileName)'))"
+               Text="Манифест $(AxPluginManifest) называет не ту сборку: собрана $(TargetFileName), а entry манифеста указывает на другой файл. Приведите entry и AssemblyName к одному имени — иначе студия плагин установит и не поднимет." />
+    </Target>
+
+    <Target Name="AxPluginPackage" AfterTargets="AxPluginLayout" Condition="'$(AxPluginPack)' == 'true'">
+        <ZipDirectory SourceDirectory="$(AxPluginPackageDir)" DestinationFile="$(AxPluginArchive)" Overwrite="true" />
+        <Message Importance="normal" Text="Плагин упакован: $(AxPluginArchive)" />
+    </Target>
+
+    <!--
+        Отладочная установка мимо менеджера плагинов: он отказывается ставить
+        поверх установленного, а при отладке нужно ровно обратное — заменить то,
+        что стоит, только что собранным. Студию перед этим надо закрыть: она
+        держит сборки плагина открытыми, пока он включён, и удалить папку не
+        даст. И третье: выключен плагин или включён, записано не в его папке, а
+        в .disabled.json рядом — выключенный в прошлый раз останется выключенным
+        и после выкладки, сколько её ни повторяй.
+    -->
+    <Target Name="AxPluginInstall" AfterTargets="AxPluginLayout" Condition="'$(AxPluginDeploy)' == 'true'">
+
+        <Error Code="AXP1003" Condition="'$(_AxPluginIdIsGuess)' == 'true'"
+               Text="Разложить плагин в папку студии не вышло: идентификатор не известен. Папка установленного плагина называется его id, а достать id из $(AxPluginManifest) не удалось — задайте его свойством AxPluginId. Имя сборки сюда не подходит: менеджер плагинов потом заведёт вторую папку, уже с правильным именем, и один плагин окажется установлен дважды." />
+
+        <!--
+            Прошлая выкладка стирается целиком: файл, которого в сборке больше
+            нет, иначе останется лежать и будет загружен — резолвер смотрит на
+            то, что лежит рядом, а не на то, что задумано.
+        -->
+        <RemoveDir Directories="$(AxPluginInstallDir)" />
+
+        <ItemGroup>
+            <_AxPluginInstalled Include="$(AxPluginPackageDir)**/*" />
+        </ItemGroup>
+
+        <Copy SourceFiles="@(_AxPluginInstalled)"
+              DestinationFiles="@(_AxPluginInstalled->'$(AxPluginInstallDir)/%(RecursiveDir)%(Filename)%(Extension)')" />
+
+        <Message Importance="high" Text="Плагин установлен для отладки: $(AxPluginInstallDir)" />
+    </Target>
+
+</Project>

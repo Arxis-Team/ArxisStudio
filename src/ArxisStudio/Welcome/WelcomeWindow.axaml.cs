@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Services;
 using ArxisStudio.Shell;
@@ -154,6 +154,38 @@ public partial class WelcomeWindow : Window
             return;
 
         var (plugin, error) = _model.Plugins.InstallFromDirectory(source);
+
+        _model.Status = plugin is null
+            ? $"{Localizer.Instance["common.error"]}: {error}"
+            : $"{plugin.DisplayName} {plugin.Manifest?.Version} {Localizer.Instance["plugins.installed.suffix"]}";
+
+        _model.RefreshPlugins();
+    }
+
+    /// <summary>
+    /// Ставит плагин из архива <c>.axplugin</c>.
+    /// </summary>
+    /// <remarks>
+    /// Архив — то, чем плагин доезжает до чужой машины: та же папка в zip.
+    /// Каталог умел ставить его с самого начала, а положить архив было некуда —
+    /// в менеджере была одна кнопка, и та про папку.
+    /// </remarks>
+    private async void OnInstallArchiveClick(object? sender, RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = Localizer.Instance["plugins.installarchive"],
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("ArxisStudio") { Patterns = ["*.axplugin"] },
+            ],
+        });
+
+        if (files.Count == 0 || files[0].TryGetLocalPath() is not { } archive)
+            return;
+
+        var (plugin, error) = _model.Plugins.InstallFromArchive(archive);
 
         _model.Status = plugin is null
             ? $"{Localizer.Instance["common.error"]}: {error}"

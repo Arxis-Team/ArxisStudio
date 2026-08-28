@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui"
+﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ax="using:ArxisStudio.Controls"
         xmlns:loc="using:ArxisStudio.Shell.Localization"
@@ -249,6 +249,7 @@
             <DockPanel>
               <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="10">
                 <ax:AxButton Classes="accent" Content="{loc:Loc plugins.install}" Click="OnInstallPluginClick"/>
+                <ax:AxButton Content="{loc:Loc plugins.installarchive}" Click="OnInstallArchiveClick"/>
                 <ax:AxButton Content="{loc:Loc plugins.openfolder}" Click="OnOpenPluginFolderClick"/>
               </StackPanel>
               <StackPanel VerticalAlignment="Center">

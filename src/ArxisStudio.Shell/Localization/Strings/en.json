@@ -42,6 +42,7 @@
   "plugins.installed": "Installed",
   "plugins.empty": "No plugins installed",
   "plugins.install": "Install from folder…",
+  "plugins.installarchive": "Install from .axplugin…",
   "plugins.enable": "Enable",
   "plugins.disable": "Disable",
   "plugins.enabled": "Enabled",

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <RootNamespace>ArxisStudio.Sdk</RootNamespace>
@@ -24,6 +24,16 @@
         <ProjectReference Include="../ArxisStudio.Sdk.Analyzers/ArxisStudio.Sdk.Analyzers.csproj"
                           OutputItemType="Analyzer"
                           ReferenceOutputAssembly="false"/>
+    </ItemGroup>
+
+    <!--
+        Таргет упаковки: пакетом SDK он подхватится сам — NuGet берёт таргеты из
+        buildTransitive/, куда папку и надо будет переименовать. Пока SDK
+        поставляется ProjectReference-ом, плагин импортирует его строкой: через
+        цепочку ProjectReference MSBuild таргеты не передаёт.
+    -->
+    <ItemGroup>
+        <None Update="build/ArxisStudio.Sdk.targets" Pack="true" PackagePath="buildTransitive/"/>
     </ItemGroup>
 
 </Project>

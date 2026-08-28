@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <IsTestProject>true</IsTestProject>
@@ -26,6 +26,17 @@
     -->
     <ItemGroup>
         <ProjectReference Include="../fixtures/DesignFixtureApp/DesignFixtureApp.csproj"
+                          ReferenceOutputAssembly="false"
+                          SkipGetTargetFrameworkProperties="true"/>
+    </ItemGroup>
+
+    <!--
+        Пример плагина собирается вместе с тестами, но его сборка тестам не
+        нужна: проверяется не код примера, а раскладка и архив, которые оставил
+        после себя таргет упаковки.
+    -->
+    <ItemGroup>
+        <ProjectReference Include="../../samples/Arxis.HelloPlugin/Arxis.HelloPlugin.csproj"
                           ReferenceOutputAssembly="false"
                           SkipGetTargetFrameworkProperties="true"/>
     </ItemGroup>

@@ -1,16 +1,17 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <!--
         Пример внешнего плагина: ссылается только на SDK, ничего не знает о
-        студии и собирается в раскладку, которую студия умеет устанавливать —
-        plugin.json рядом с bin/.
+        самой студии и собирается в раскладку, которую студия умеет
+        устанавливать, — plugin.json рядом с bin/.
     -->
     <PropertyGroup>
         <RootNamespace>Arxis.HelloPlugin</RootNamespace>
         <AssemblyName>Arxis.HelloPlugin</AssemblyName>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
-        <OutputPath>$(MSBuildProjectDirectory)/package/bin/</OutputPath>
-        <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+
+        <!-- Пример показывает готовый .axplugin, а не только папку. -->
+        <AxPluginPack>true</AxPluginPack>
     </PropertyGroup>
 
     <ItemGroup>
@@ -28,9 +29,11 @@
                           ReferenceOutputAssembly="false"/>
     </ItemGroup>
 
-    <!-- Манифест ложится рядом с bin/: package/ и есть папка плагина. -->
-    <Target Name="CopyPluginManifest" AfterTargets="Build">
-        <Copy SourceFiles="plugin.json" DestinationFolder="$(MSBuildProjectDirectory)/package/"/>
-    </Target>
+    <!--
+        Таргет упаковки тоже приходит вместе с SDK и тоже не передаётся через
+        ProjectReference — импортируем строкой. С пакетом SDK он подхватится сам:
+        оттого и лежит в папке build/.
+    -->
+    <Import Project="../../src/ArxisStudio.Sdk/build/ArxisStudio.Sdk.targets"/>
 
 </Project>

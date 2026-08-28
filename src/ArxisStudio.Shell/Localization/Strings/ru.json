@@ -42,6 +42,7 @@
   "plugins.installed": "Установленные",
   "plugins.empty": "Плагины не установлены",
   "plugins.install": "Установить из папки…",
+  "plugins.installarchive": "Установить из .axplugin…",
   "plugins.enable": "Включить",
   "plugins.disable": "Выключить",
   "plugins.enabled": "Включён",
