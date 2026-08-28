@@ -1,4 +1,4 @@
-namespace ArxisStudio.Sdk;
+﻿namespace ArxisStudio.Sdk;
 
 /// <summary>
 /// Помечает панель плагина: студия покажет её в объявленной зоне.
@@ -19,22 +19,23 @@ public sealed class ToolWindowAttribute(string id) : Attribute
 /// <summary>
 /// Помечает метод обработчиком команды, объявленной в манифесте.
 /// </summary>
+/// <remarks>
+/// Студия сама заявит его при подъёме плагина — звать
+/// <see cref="IStudioCommands.Register"/> руками не нужно. Метод должен быть
+/// без параметров; лежать он может и в точке входа, и в службе, и в любом
+/// другом открытом классе сборки — статический или обычный, лишь бы у класса
+/// был конструктор без аргументов.
+/// <para>
+/// Идентификатор тот же, что в манифесте: по манифесту студия строит меню, не
+/// загружая сборку, а атрибут связывает объявленное с кодом. Команда, которой
+/// нет в манифесте, работать будет, но в меню не появится — её некому туда
+/// поставить.
+/// </para>
+/// </remarks>
 /// <param name="id">Идентификатор команды, как в манифесте.</param>
 [AttributeUsage(AttributeTargets.Method, Inherited = false)]
 public sealed class CommandAttribute(string id) : Attribute
 {
     /// <summary>Идентификатор команды.</summary>
     public string Id { get; } = id;
-}
-
-/// <summary>
-/// Пункт меню, вызывающий метод напрямую — для плагина, которому не нужен
-/// отдельный идентификатор команды.
-/// </summary>
-/// <param name="path">Путь вида <c>Tools/Figma/Import…</c>.</param>
-[AttributeUsage(AttributeTargets.Method, Inherited = false)]
-public sealed class MenuItemAttribute(string path) : Attribute
-{
-    /// <summary>Путь пункта меню.</summary>
-    public string Path { get; } = path;
 }

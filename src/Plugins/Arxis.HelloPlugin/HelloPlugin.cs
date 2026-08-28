@@ -1,10 +1,14 @@
-using ArxisStudio.Sdk;
+﻿using ArxisStudio.Sdk;
 
 namespace Arxis.HelloPlugin;
 
 /// <summary>
-/// Точка входа примера: заявляет команду, объявленную в манифесте.
+/// Точка входа примера.
 /// </summary>
+/// <remarks>
+/// Команду заявлять не нужно: метод помечен атрибутом, и студия свяжет его с
+/// идентификатором из манифеста сама.
+/// </remarks>
 public sealed class HelloPlugin : StudioPlugin
 {
     private IStudioContext? _context;
@@ -14,7 +18,6 @@ public sealed class HelloPlugin : StudioPlugin
     {
         _context = context;
 
-        context.Commands.Register("hello.greet", Greet);
         context.Log.Write(StudioLogLevel.Info, "Hello", "Плагин поднят");
     }
 
@@ -25,6 +28,7 @@ public sealed class HelloPlugin : StudioPlugin
         _context = null;
     }
 
+    [Command("hello.greet")]
     private void Greet() =>
         _context?.Log.Write(
             StudioLogLevel.Info,

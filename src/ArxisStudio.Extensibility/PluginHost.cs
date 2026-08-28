@@ -275,6 +275,13 @@ public sealed class PluginHost : IDisposable
         if (installed.Manifest?.Entry is not { Length: > 0 } entry)
             return LoadedPlugin.Failed(installed, "В манифесте не указана entry-сборка");
 
+        if (!StudioSdk.Satisfies(installed.Manifest?.Sdk?.Min))
+        {
+            return LoadedPlugin.Failed(
+                installed,
+                $"Плагину нужен SDK {installed.Manifest!.Sdk!.Min}, у этой студии {StudioSdk.Version}: обновите студию или соберите плагин под неё");
+        }
+
         var assemblyPath = Path.Combine(installed.Directory, entry);
 
         if (!File.Exists(assemblyPath))
@@ -413,6 +420,66 @@ public sealed class PluginHost : IDisposable
         }
     }
 
+    /// <summary>
+    /// Заявляет команды, помеченные атрибутом.
+    /// </summary>
+    /// <remarks>
+    /// Плагину остаётся написать метод и повесить на него
+    /// <see cref="CommandAttribute"/>: заявка — работа однообразная, и требовать
+    /// её от каждого автора значит собирать по ней одни и те же опечатки.
+    /// <para>
+    /// Обычный метод берётся у объектов самого плагина — точки входа и служб:
+    /// они уже созданы, им уже отдан контекст, и команда видит то же состояние,
+    /// что и остальной плагин. Создать ради команды второй экземпляр значило бы
+    /// вызвать её на объекте, которому студия ничего не давала.
+    /// </para>
+    /// <para>
+    /// В любом другом классе сборки атрибут действует только на статическом
+    /// методе: у такого класса нет ни контекста, ни причины существовать в
+    /// одном экземпляре.
+    /// </para>
+    /// </remarks>
+    private static void Bind(
+        IEnumerable<Assembly> assemblies,
+        IEnumerable<object> owners,
+        IStudioContext studio)
+    {
+        foreach (var owner in owners)
+            Register(owner.GetType(), owner, studio);
+
+        foreach (var type in assemblies.SelectMany(assembly => assembly.GetTypes()))
+        {
+            if (type is { IsAbstract: false, IsPublic: true })
+                Register(type, owner: null, studio);
+        }
+    }
+
+    /// <summary>Заявляет команды одного класса.</summary>
+    /// <param name="type">Класс, в котором ищем.</param>
+    /// <param name="owner">Объект плагина; null — берём только статические методы.</param>
+    /// <param name="studio">Контекст, через который заявляются команды.</param>
+    private static void Register(Type type, object? owner, IStudioContext studio)
+    {
+        const BindingFlags Where = BindingFlags.Public | BindingFlags.NonPublic
+            | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+
+        foreach (var method in type.GetMethods(Where))
+        {
+            if (method.GetCustomAttribute<CommandAttribute>() is not { } declared)
+                continue;
+
+            // Команда — это «сделай», а не «сделай вот с этим»: параметрам
+            // взяться неоткуда, и молча передать null было бы хуже отказа.
+            if (method.GetParameters().Length > 0)
+                continue;
+
+            if (method.IsStatic != (owner is null))
+                continue;
+
+            studio.Commands.Register(declared.Id, () => method.Invoke(owner, null));
+        }
+    }
+
     private static LoadedPlugin Raise(
         InstalledPlugin installed,
         PluginLoadContext? context,
@@ -438,6 +505,8 @@ public sealed class PluginHost : IDisposable
 
             foreach (var service in services)
                 service.Start(studio);
+
+            Bind(assemblies, entries.Cast<object>().Concat(services), studio);
 
             return new LoadedPlugin(installed, context, assemblies, studio, entries, services, null);
         }

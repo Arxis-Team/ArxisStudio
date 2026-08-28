@@ -117,11 +117,19 @@ dotnet test tests/ArxisStudio.Tests
 ```csharp
 public sealed class HelloPlugin : StudioPlugin
 {
-    public override void Activate(IStudioContext context) =>
-        context.Commands.Register("hello.greet", () =>
-            context.Log.Write(StudioLogLevel.Info, "Hello", "Здравствуйте!"));
+    private IStudioContext? _context;
+
+    public override void Activate(IStudioContext context) => _context = context;
+
+    [Command("hello.greet")]
+    private void Greet() =>
+        _context?.Log.Write(StudioLogLevel.Info, "Hello", "Здравствуйте!");
 }
 ```
+
+Команду заявлять не нужно: студия свяжет метод с идентификатором из манифеста
+сама. Пункт меню для неё объявляется манифестом — по нему студия строит меню, не
+загружая сборку плагина.
 
 Рабочий пример с панелью, командой и службой — в
 [src/Plugins/Arxis.HelloPlugin](src/Plugins/Arxis.HelloPlugin). Формат манифеста описан в

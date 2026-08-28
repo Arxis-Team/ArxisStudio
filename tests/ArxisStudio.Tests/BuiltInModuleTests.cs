@@ -1,11 +1,8 @@
 ﻿using System.Reflection;
-using System.Text;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Modules.Sample;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -146,17 +143,10 @@ public class BuiltInModuleTests
         Assert.NotEmpty(loaded.Services);
     }
 
-    /// <summary>
-    /// Собирает в память сборку модуля со встроенным манифестом.
-    /// </summary>
-    /// <remarks>
-    /// Отдельный проект ради этого заводить не стоит: модулю нужны манифест
-    /// ресурсом и один класс точки входа, и то и другое компилятор выдаёт
-    /// прямо здесь.
-    /// </remarks>
-    private static Assembly Module()
-    {
-        const string source = """
+    /// <summary>Сборка модуля со встроенным манифестом.</summary>
+    private static Assembly Module() => TestAssembly.Emit(
+        "Arxis.ProbeModule",
+        """
             using ArxisStudio.Sdk;
 
             namespace Probe;
@@ -167,40 +157,6 @@ public class BuiltInModuleTests
                 {
                 }
             }
-            """;
-
-        var references = AppDomain.CurrentDomain.GetAssemblies()
-            .Where(assembly => !assembly.IsDynamic && assembly.Location.Length > 0)
-            .Select(assembly => assembly.Location)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(location => (MetadataReference)MetadataReference.CreateFromFile(location))
-            .ToList();
-
-        var compilation = CSharpCompilation.Create(
-            "Arxis.ProbeModule",
-            [CSharpSyntaxTree.ParseText(source)],
-            references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-
-        using var image = new MemoryStream();
-
-        var result = compilation.Emit(
-            image,
-            manifestResources:
-            [
-                new ResourceDescription(
-                    "Probe.module.json",
-                    () => new MemoryStream(Encoding.UTF8.GetBytes(Manifest)),
-                    isPublic: true),
-            ]);
-
-        // Сборка, не собравшаяся сама, проверила бы что угодно, кроме контракта.
-        Assert.True(
-            result.Success,
-            string.Join("; ", result.Diagnostics
-                .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-                .Select(diagnostic => diagnostic.GetMessage())));
-
-        return Assembly.Load(image.ToArray());
-    }
+            """,
+        Manifest);
 }
