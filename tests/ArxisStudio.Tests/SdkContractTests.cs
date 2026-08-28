@@ -16,15 +16,35 @@ namespace ArxisStudio.Tests;
 /// </remarks>
 public class SdkContractTests
 {
-    /// <summary>Студия годится плагину, которому нужен SDK не новее её.</summary>
-    [Theory]
-    [InlineData("1.0", true)]
-    [InlineData("0.9", true)]
-    [InlineData("1.1", false)]
-    [InlineData("2.0", false)]
-    public void The_studio_answers_whether_it_satisfies_a_plugin(string required, bool expected)
+    /// <summary>
+    /// Студия годится плагину, которому нужен SDK не новее её.
+    /// </summary>
+    /// <remarks>
+    /// Номера считаются от нынешней версии, а не пишутся числами: версия
+    /// растёт, и тест, записанный под 1.0, при первом же росте проверял бы не
+    /// правило, а прошлое.
+    /// </remarks>
+    [Fact]
+    public void The_studio_satisfies_what_is_not_newer_than_itself()
     {
-        Assert.Equal(expected, StudioSdk.Satisfies(required));
+        var (major, minor) = Parse(StudioSdk.Version);
+
+        Assert.True(StudioSdk.Satisfies(StudioSdk.Version), "своя же версия не подошла");
+        Assert.False(StudioSdk.Satisfies($"{major}.{minor + 1}"), "приняли плагин, которому нужен SDK новее");
+        Assert.False(StudioSdk.Satisfies($"{major + 1}.0"), "приняли плагин со следующим старшим номером");
+
+        if (minor > 0)
+            Assert.True(StudioSdk.Satisfies($"{major}.{minor - 1}"), "отвергли плагин, написанный под прежний младший номер");
+
+        if (major > 1)
+            Assert.True(StudioSdk.Satisfies($"{major - 1}.9"), "отвергли плагин прежнего старшего номера");
+    }
+
+    private static (int Major, int Minor) Parse(string version)
+    {
+        var parts = version.Split('.');
+
+        return (int.Parse(parts[0]), parts.Length > 1 ? int.Parse(parts[1]) : 0);
     }
 
     /// <summary>

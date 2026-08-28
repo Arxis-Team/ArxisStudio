@@ -62,6 +62,8 @@
   "settings.accent": "Accent color",
   "settings.density": "Density",
   "settings.editor": "Editor",
+  "settings.plugins": "Plugins",
+  "settings.plugins.empty": "Installed plugins declare no settings",
   "settings.canvasgrid": "Show canvas grid",
   "settings.autosave": "Auto-save",
   "settings.autosave.hint": "every 30 seconds and on run",

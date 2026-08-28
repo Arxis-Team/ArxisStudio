@@ -28,12 +28,27 @@ public sealed class HelloPlugin : StudioPlugin
         _context = null;
     }
 
+    /// <summary>
+    /// Здоровается тем словом, которое выбрал человек.
+    /// </summary>
+    /// <remarks>
+    /// Настройка читается при каждом вызове, а не запоминается при активации:
+    /// изменить её могут и мимо плагина — в настройках студии или прямо в
+    /// файле.
+    /// </remarks>
     [Command("hello.greet")]
-    private void Greet() =>
-        _context?.Log.Write(
+    private void Greet()
+    {
+        if (_context is null)
+            return;
+
+        var greeting = _context.Settings.Get<string>("hello.greeting");
+
+        _context.Log.Write(
             StudioLogLevel.Info,
             "Hello",
             _context.ProjectPath is { Length: > 0 } path
-                ? $"Здравствуйте! Открыт проект {System.IO.Path.GetFileName(path)}"
-                : "Здравствуйте! Проект не открыт");
+                ? $"{greeting} Открыт проект {System.IO.Path.GetFileName(path)}"
+                : $"{greeting} Проект не открыт");
+    }
 }

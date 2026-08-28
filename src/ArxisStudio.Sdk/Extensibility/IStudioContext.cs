@@ -17,6 +17,9 @@ public interface IStudioContext
     /// <summary>Команды: регистрация своих и вызов чужих.</summary>
     IStudioCommands Commands { get; }
 
+    /// <summary>Настройки плагина, объявленные в его манифесте.</summary>
+    IStudioSettings Settings { get; }
+
     /// <summary>Путь к открытому решению или проекту; null, если проект не открыт.</summary>
     string? ProjectPath { get; }
 

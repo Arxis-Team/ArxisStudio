@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using ArxisStudio.Extensibility;
@@ -78,6 +78,18 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
 
     /// <summary>Установленные плагины.</summary>
     public ObservableCollection<InstalledPlugin> InstalledPlugins { get; } = [];
+
+    /// <summary>
+    /// Настройки, объявленные установленными плагинами.
+    /// </summary>
+    /// <remarks>
+    /// Список строится по манифестам: студия читает их, не загружая сборок, и
+    /// настройки видны даже у плагина, который в этом сеансе не поднимался.
+    /// </remarks>
+    public ObservableCollection<PluginSettingRow> PluginSettings { get; } = [];
+
+    /// <summary>Ни один плагин настроек не объявил.</summary>
+    public bool HasNoPluginSettings => PluginSettings.Count == 0;
 
     /// <summary>Текущий раздел.</summary>
     public WelcomeSection Section
@@ -206,10 +218,20 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
     public void RefreshPlugins()
     {
         InstalledPlugins.Clear();
+        PluginSettings.Clear();
+
+        var store = new PluginSettingsStore();
+
         foreach (var plugin in Plugins.Scan())
+        {
             InstalledPlugins.Add(plugin);
 
+            foreach (var declared in plugin.Manifest?.Contributions.Settings ?? [])
+                PluginSettings.Add(new PluginSettingRow(plugin.Id, plugin.DisplayName, declared, store));
+        }
+
         Notify(nameof(HasNoPlugins));
+        Notify(nameof(HasNoPluginSettings));
     }
 
     /// <summary>Читает установленные шаблоны dotnet new.</summary>

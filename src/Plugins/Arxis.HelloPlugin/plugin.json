@@ -27,6 +27,15 @@
         "title": "Hello",
         "zone": "right"
       }
+    ],
+    "settings": [
+      {
+        "key": "hello.greeting",
+        "type": "string",
+        "scope": "user",
+        "title": "Чем здороваться",
+        "default": "Здравствуйте!"
+      }
     ]
   },
   "activation": [

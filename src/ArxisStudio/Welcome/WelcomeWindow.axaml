@@ -332,6 +332,31 @@
               </StackPanel>
             </ax:AxCard>
 
+            <TextBlock Classes="section" Text="{loc:Loc settings.plugins}" Margin="0,22,0,8"/>
+            <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,0,0,8"
+                       Text="{loc:Loc settings.plugins.empty}" IsVisible="{Binding HasNoPluginSettings}"/>
+            <ax:AxCard Padding="16,2" IsVisible="{Binding !HasNoPluginSettings}">
+              <ItemsControl ItemsSource="{Binding PluginSettings}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:PluginSettingRow">
+                    <DockPanel Classes="settings-row">
+                      <ax:AxToggleSwitch DockPanel.Dock="Right" IsChecked="{Binding Flag, Mode=TwoWay}"
+                                         IsEnabled="{Binding IsEditable}" IsVisible="{Binding IsToggle}"/>
+                      <ax:AxTextBox DockPanel.Dock="Right" Width="220" Text="{Binding Text, Mode=TwoWay}"
+                                    IsEnabled="{Binding IsEditable}" IsVisible="{Binding IsText}"/>
+                      <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Label}" FontSize="{DynamicResource AxFontSize}"/>
+                        <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,1,0,0"
+                                   Text="{Binding PluginName}"/>
+                        <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,1,0,0"
+                                   Text="{Binding Note}" IsVisible="{Binding Note, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                      </StackPanel>
+                    </DockPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ax:AxCard>
+
             <TextBlock Classes="section" Text="{loc:Loc settings.editor}" Margin="0,22,0,8"/>
             <ax:AxCard Padding="16,2">
               <StackPanel>

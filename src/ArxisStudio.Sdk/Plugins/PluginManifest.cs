@@ -90,8 +90,33 @@ public sealed record PluginToolWindow(string Id, string Title, string Zone);
 /// <param name="Name">Название типа документа.</param>
 public sealed record PluginFileType(string Ext, string Name);
 
-/// <summary>Настройка плагина.</summary>
+/// <summary>
+/// Настройка плагина: то, что о ней знает студия, не загружая его сборки.
+/// </summary>
 /// <param name="Key">Ключ настройки.</param>
 /// <param name="Type">Тип значения: <c>string</c>, <c>bool</c>, <c>number</c>.</param>
-/// <param name="Scope">Область: <c>user</c> или <c>project</c>.</param>
-public sealed record PluginSetting(string Key, string Type, [property: JsonPropertyName("scope")] string Scope);
+/// <param name="Scope">
+/// Область: <c>user</c> — личное и машинное, остаётся здесь; <c>project</c> —
+/// решение команды, едет вместе с проектом в его репозитории.
+/// </param>
+/// <param name="Title">Подпись в настройках студии; без неё показывается ключ.</param>
+/// <param name="Default">Значение, пока человек ничего не выбрал.</param>
+public sealed record PluginSetting(
+    string Key,
+    string Type,
+    [property: JsonPropertyName("scope")] string Scope,
+    string? Title = null,
+    object? Default = null)
+{
+    /// <summary>Настройка едет вместе с проектом, а не остаётся на машине.</summary>
+    public bool IsProject => string.Equals(Scope, "project", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Значение — переключатель.</summary>
+    public bool IsBool => string.Equals(Type, "bool", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Значение — число.</summary>
+    public bool IsNumber => string.Equals(Type, "number", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Как назвать настройку человеку: подпись, а без неё — ключ.</summary>
+    public string Label => Title is { Length: > 0 } title ? title : Key;
+}

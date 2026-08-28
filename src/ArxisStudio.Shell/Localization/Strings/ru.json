@@ -62,6 +62,8 @@
   "settings.accent": "Акцентный цвет",
   "settings.density": "Плотность",
   "settings.editor": "Редактор",
+  "settings.plugins": "Плагины",
+  "settings.plugins.empty": "Установленные плагины настроек не объявили",
   "settings.canvasgrid": "Показывать сетку канваса",
   "settings.autosave": "Автосохранение",
   "settings.autosave.hint": "каждые 30 секунд и при запуске",
