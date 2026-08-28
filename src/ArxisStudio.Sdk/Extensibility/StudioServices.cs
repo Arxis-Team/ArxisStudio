@@ -1,4 +1,4 @@
-namespace ArxisStudio.Sdk;
+﻿namespace ArxisStudio.Sdk;
 
 /// <summary>
 /// Документы студии: открыть файл во вкладке.
@@ -62,21 +62,4 @@ public interface IStudioLogFeed
 
     /// <summary>Очищает журнал.</summary>
     void Clear();
-}
-
-/// <summary>
-/// Решение, открытое в студии, — глазами панелей.
-/// </summary>
-/// <remarks>
-/// Здесь только путь и уведомление: разбирать модель решения будет тот модуль,
-/// которому она нужна, и типы этой модели в контракт SDK не попадают — иначе
-/// каждый плагин потащил бы за собой MSBuild.
-/// </remarks>
-public interface IStudioSolution
-{
-    /// <summary>Путь к открытому решению или проекту; null, если проект не открыт.</summary>
-    string? Path { get; }
-
-    /// <summary>Открытое решение сменилось.</summary>
-    event EventHandler? Opened;
 }

@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace ArxisStudio.Sdk.Plugins;
 
@@ -83,13 +83,7 @@ public sealed record PluginMenuItem(string Path, string Command);
 /// <param name="Id">Идентификатор панели.</param>
 /// <param name="Title">Заголовок панели.</param>
 /// <param name="Zone">Зона размещения: <c>left</c>, <c>right</c>, <c>bottom</c>.</param>
-/// <param name="Role">
-/// Роль панели в студии, например <c>output</c> — «сюда идёт вывод сборки и
-/// запуска». Роль нужна оболочке, чтобы показать нужную панель, не зная ничьих
-/// идентификаторов: консоль — такой же модуль, как остальные, и завтра её может
-/// заменить другая.
-/// </param>
-public sealed record PluginToolWindow(string Id, string Title, string Zone, string? Role = null);
+public sealed record PluginToolWindow(string Id, string Title, string Zone);
 
 /// <summary>Тип файла, поддерживаемый плагином.</summary>
 /// <param name="Ext">Расширение с точкой, например <c>.fig</c>.</param>

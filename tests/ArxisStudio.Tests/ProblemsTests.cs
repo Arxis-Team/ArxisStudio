@@ -1,5 +1,4 @@
-using ArxisStudio.ProjectSystem;
-using ArxisStudio.Sdk;
+﻿using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using Xunit;
 
@@ -80,25 +79,6 @@ public class ProblemsTests
         problems.Report("project", []);
 
         Assert.Equal(2, announced);
-    }
-
-    [Fact]
-    public void A_project_diagnostic_keeps_its_place_in_the_file()
-    {
-        var diagnostic = ProjectDiagnostic.ForFile(
-            "APS1002",
-            "проект не открылся",
-            ProjectDiagnosticSeverity.Error,
-            CanonicalPath.Create(Path.Combine(Path.GetTempPath(), "Sample.csproj")),
-            FileSpan.At(12, 5));
-
-        var problem = StudioProblems.From(diagnostic);
-
-        Assert.Equal(StudioProblemSeverity.Error, problem.Severity);
-        Assert.Equal("APS1002", problem.Code);
-        Assert.Equal(12, problem.Line);
-        Assert.Equal(5, problem.Column);
-        Assert.Equal("Sample.csproj:12", problem.Where);
     }
 
     [Fact]

@@ -1,5 +1,4 @@
-using ArxisStudio.ProjectSystem;
-using ArxisStudio.Sdk;
+﻿using ArxisStudio.Sdk;
 
 namespace ArxisStudio.Services;
 
@@ -52,25 +51,6 @@ public sealed class StudioProblems : IStudioProblems
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Переводит диагностику модели решения в находку студии.</summary>
-    /// <param name="diagnostic">Диагностика от ProjectSystem.</param>
-    public static StudioProblem From(ProjectDiagnostic diagnostic)
-    {
-        ArgumentNullException.ThrowIfNull(diagnostic);
-
-        return new StudioProblem(
-            diagnostic.Severity switch
-            {
-                ProjectDiagnosticSeverity.Error => StudioProblemSeverity.Error,
-                ProjectDiagnosticSeverity.Warning => StudioProblemSeverity.Warning,
-                _ => StudioProblemSeverity.Info,
-            },
-            diagnostic.Code,
-            diagnostic.Message,
-            diagnostic.FilePath.IsEmpty ? null : diagnostic.FilePath.Value,
-            diagnostic.Span.StartLine,
-            diagnostic.Span.StartColumn);
-    }
 
     private List<StudioProblem> Flatten() =>
         [.. _order

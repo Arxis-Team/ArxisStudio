@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <OutputType>WinExe</OutputType>
@@ -42,15 +42,6 @@
         <ProjectReference Include="../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
         <ProjectReference Include="../ArxisStudio.Extensibility/ArxisStudio.Extensibility.csproj"/>
         <ProjectReference Include="../../external/ArxisStudio.Themes.Arxis/src/ArxisStudio.Themes.Arxis.csproj"/>
-    </ItemGroup>
-
-    <!--
-        Библиотеки редактора: модель решения, работа с разметкой и канва.
-        Адаптер ProjectSystem.Markup.Xaml связывает первые две и требует, чтобы
-        репозитории лежали рядом, — в external/ так и есть.
-    -->
-    <ItemGroup>
-        <ProjectReference Include="../../external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem.MSBuild/ArxisStudio.ProjectSystem.MSBuild.csproj"/>
     </ItemGroup>
 
 </Project>

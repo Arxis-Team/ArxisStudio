@@ -1,85 +1,22 @@
 ﻿using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
-using ArxisStudio.Modules.Designer;
-using ArxisStudio.Services;
 using Avalonia.Controls;
-using Avalonia.Headless.XUnit;
 using Xunit;
 
 namespace ArxisStudio.Tests;
 
 /// <summary>
-/// Рисовальщики свойств и свои инспекторы: реестр вкладов и мост между строкой
-/// инспектора и плагином.
+/// Реестр вкладов: рисовальщики свойств, свои инспекторы и редакторы
+/// документов.
 /// </summary>
-public class DrawerTests
+/// <remarks>
+/// Реализаций у этих контрактов в репозитории больше нет — их приносил модуль
+/// дизайнера, — но сами контракты остались: это то, чем плагин расширяет
+/// студию, а не то, чем пользовался модуль. Заявки строятся прямо здесь, в
+/// тестовой сборке: реестру всё равно, откуда пришла сборка с вкладом.
+/// </remarks>
+public class ContributionsTests
 {
-    [AvaloniaFact]
-    public async Task A_drawer_reads_the_row_and_writes_through_the_document()
-    {
-        var fixture = await DesignerFixture.OpenAsync();
-        var document = fixture.Document;
-        var button = fixture.Node("AddButton");
-
-        var row = InspectorModel.Build(button, document.Session)
-            .SelectMany(section => section.Rows)
-            .Single(candidate => candidate.Name == "Width");
-
-        var written = new List<string?>();
-        var context = new RowPropertyContext(row, (target, value) =>
-        {
-            written.Add(value);
-            return document.SetAttributeAsync(target == row ? button : button, "Width", value);
-        });
-
-        Assert.Equal("Width", context.Name);
-        Assert.False(context.IsSet);
-
-        try
-        {
-            context.Set("180");
-
-            Assert.Equal(["180"], written);
-            Assert.Contains("Width=\"180\"", document.Text);
-        }
-        finally
-        {
-            await DesignerFixture.RollbackAsync(document);
-        }
-    }
-
-    /// <summary>
-    /// Правка с другой стороны — из канвы или из текста — должна доходить до
-    /// контрола плагина: своих привязок к строке у него нет.
-    /// </summary>
-    [AvaloniaFact]
-    public void A_drawer_is_told_when_the_row_is_refilled()
-    {
-        var row = new InspectorRow("Margin", InspectorRowKind.Text, typeof(Avalonia.Thickness));
-        var context = new RowPropertyContext(row, (_, _) => Task.CompletedTask);
-        var told = 0;
-
-        context.Changed += (_, _) => told++;
-        row.Fill("4,4,0,0", null, null);
-
-        Assert.Equal(1, told);
-        Assert.Equal("4,4,0,0", context.Value);
-        Assert.True(context.IsSet);
-    }
-
-    [AvaloniaFact]
-    public void A_row_with_a_drawer_hides_the_editors_it_would_have_shown()
-    {
-        var row = new InspectorRow("IsEnabled", InspectorRowKind.Toggle, typeof(bool));
-
-        Assert.True(row.IsToggle);
-
-        row.Drawer = new TextBlock();
-
-        Assert.True(row.IsDrawn);
-        Assert.False(row.IsToggle);
-    }
-
     /// <summary>
     /// Два рисовальщика на один тип — это не выбор, а гонка: выиграл бы тот,
     /// кого раньше загрузили, поэтому второй отвергается со словом о том, кто
@@ -136,6 +73,25 @@ public class DrawerTests
         Assert.Null(registry.DrawerFor(typeof(int)));
     }
 
+    /// <summary>
+    /// За файл берётся тот редактор, который объявил его тип.
+    /// </summary>
+    /// <remarks>
+    /// Оболочка не знает ни одного расширения: открывая путь, она спрашивает
+    /// реестр, и ответ «никто» — обычный ответ, а не ошибка. Проверка нужна
+    /// именно теперь: реализаций редактора в репозитории не осталось, и без
+    /// теста этот контракт молча зарос бы.
+    /// </remarks>
+    [Fact]
+    public void A_document_editor_takes_the_files_it_claimed()
+    {
+        var registry = new PluginContributionRegistry();
+
+        registry.Add("notes", "Заметки", [typeof(NoteEditor).Assembly]);
+
+        Assert.NotNull(registry.EditorFor(Path.Combine(Path.GetTempPath(), "Список.note")));
+        Assert.Null(registry.EditorFor(Path.Combine(Path.GetTempPath(), "Список.txt")));
+    }
 }
 
 /// <summary>Рисовальщик-пустышка, занимающий тип.</summary>
@@ -156,3 +112,15 @@ public sealed class ButtonInspector : InspectorEditor
 
 /// <summary>Наследник кнопки: инспектор базового типа должен доставаться и ему.</summary>
 public sealed class HeirButton : Button;
+
+/// <summary>Редактор документов-пустышка: берётся за файлы своего типа.</summary>
+public sealed class NoteEditor : DocumentEditor
+{
+    /// <inheritdoc/>
+    public override bool CanOpen(string filePath) =>
+        Path.GetExtension(filePath).Equals(".note", StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc/>
+    public override Task<(DocumentView? View, string? Error)> OpenAsync(string filePath) =>
+        Task.FromResult<(DocumentView?, string?)>((null, "пример: открывать нечего"));
+}

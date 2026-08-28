@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui"
+﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ax="using:ArxisStudio.Controls"
         xmlns:shell="using:ArxisStudio.Shell"
@@ -39,19 +39,6 @@
           </ax:AxButton>
         </StackPanel>
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center">
-          <Border Background="{DynamicResource AxBg1Brush}" BorderBrush="{DynamicResource AxBrdBrush}"
-                  BorderThickness="1" CornerRadius="{DynamicResource AxCornerRadius}" Padding="2">
-            <StackPanel Orientation="Horizontal" Spacing="2">
-              <ax:AxButton x:Name="RunButton" Classes="icon" ToolTip.Tip="{loc:Loc studio.run}"
-                           AutomationProperties.Name="{loc:Loc studio.run}" Click="OnRunClick">
-                <ax:AxIcon Data="{x:Static ax:AxIcons.Play}" IsFilled="True" Foreground="{DynamicResource AxGrnBrush}"/>
-              </ax:AxButton>
-              <ax:AxButton x:Name="StopButton" Classes="icon" ToolTip.Tip="{loc:Loc studio.stop}" IsEnabled="False"
-                           AutomationProperties.Name="{loc:Loc studio.stop}" Click="OnStopClick">
-                <ax:AxIcon Data="{x:Static ax:AxIcons.Stop}" IsFilled="True" Foreground="{DynamicResource AxFg3Brush}"/>
-              </ax:AxButton>
-            </StackPanel>
-          </Border>
           <ax:AxSegmentedControl x:Name="ThemeSwitch" SelectionChanged="OnThemeChanged">
             <ax:AxSegmentItem Content="{loc:Loc settings.theme.dark}"/>
             <ax:AxSegmentItem Content="{loc:Loc settings.theme.light}"/>

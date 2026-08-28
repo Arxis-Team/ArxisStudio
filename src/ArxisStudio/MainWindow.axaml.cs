@@ -44,13 +44,11 @@ public partial class MainWindow : Window
     ];
 
     private readonly ISettingsStore? _settings;
-    private readonly StudioWorkspace _workspace = new();
     private readonly List<OpenDocument> _documents = [];
     private readonly StudioLog _log = new();
     private readonly StudioProblems _problems = new();
     private readonly PluginGuard _guard = new();
     private readonly StudioCommands _commands;
-    private readonly StudioRunner _runner;
     private readonly PluginContributionRegistry _contributions = new();
     private PluginHost? _plugins;
     private IReadOnlyList<InstalledPlugin> _installed = [];
@@ -60,11 +58,6 @@ public partial class MainWindow : Window
     // Панели модулей и плагинов, разложенные по нижним вкладкам: вкладка знает
     // свой номер, а содержимое лежит в общем месте и показывается по очереди.
     private readonly Dictionary<int, Control> _bottomPanels = [];
-
-    // Вкладка, объявившая роль output. Вывод сборки и запуска идёт в журнал, и
-    // смотреть на него человек должен без лишнего щелчка — но какая именно
-    // панель этот журнал показывает, оболочка не знает и знать не должна.
-    private int _outputTab = -1;
 
     /// <summary>Создаёт окно без проекта — состояние каркаса.</summary>
     public MainWindow()
@@ -76,8 +69,11 @@ public partial class MainWindow : Window
         ThemeSwitch.SelectedIndex = Application.Current?.ActualThemeVariant == ThemeVariant.Light ? 1 : 0;
 
         _commands = new StudioCommands(_guard);
-        _runner = new StudioRunner(_log);
-        _runner.StateChanged += (_, _) => UpdateRunButtons();
+
+        // Плагины поднимаются при открытии окна, а не при открытии проекта:
+        // проекта у окна может не быть вовсе, а панели плагинов ему нужны
+        // в любом случае.
+        Opened += (_, _) => LoadModulesAndPlugins();
 
         _guard.Failed += (_, failure) => _log.Write(
             StudioLogLevel.Error, "Plugins",
@@ -101,7 +97,6 @@ public partial class MainWindow : Window
             Dispatcher.UIThread.UnhandledException -= OnUnhandled;
             TaskScheduler.UnobservedTaskException -= OnUnobserved;
 
-            _runner.Dispose();
             _plugins?.Dispose();
             await CloseDocumentsAsync();
         };
@@ -118,33 +113,11 @@ public partial class MainWindow : Window
         ProjectName.Text = IOPath.GetFileNameWithoutExtension(projectPath);
         Title = $"{IOPath.GetFileNameWithoutExtension(projectPath)} — ArxisStudio";
 
-        Opened += async (_, _) => await OpenProjectAsync(projectPath);
+        Opened += (_, _) => StatusText.Text = projectPath;
     }
 
     /// <summary>Путь к открытому решению или проекту; null, если проект не открыт.</summary>
     public string? ProjectPath { get; }
-
-    private async Task OpenProjectAsync(string path)
-    {
-        StatusText.Text = Localizer.Instance["editor.opening"];
-
-        var error = await _workspace.OpenAsync(path);
-
-        // Модель решения может собраться и с замечаниями: часть проектов
-        // открылась, а про остальные надо где-то сказать.
-        _problems.Report("project", _workspace.Diagnostics.Select(StudioProblems.From));
-
-        if (error is not null || !_workspace.IsLoaded)
-        {
-            StatusText.Text = $"{Localizer.Instance["editor.openfailed"]}: {error}";
-            return;
-        }
-
-        StatusText.Text = path;
-
-        LoadModulesAndPlugins();
-        UpdateRunButtons();
-    }
 
     /// <summary>
     /// Поднимает встроенные модули, а за ними — включённые плагины.
@@ -158,8 +131,6 @@ public partial class MainWindow : Window
     {
         var services = new Dictionary<Type, object>
         {
-            [typeof(Modules.Designer.IDesignerWorkspace)] = _workspace,
-            [typeof(Modules.Project.IProjectWorkspace)] = _workspace,
             [typeof(IStudioLogFeed)] = _log,
             [typeof(IStudioProblems)] = _problems,
             [typeof(IStudioDocuments)] = new DocumentSink(this),
@@ -535,9 +506,6 @@ public partial class MainWindow : Window
                 content.IsVisible = false;
                 _bottomPanels[BottomTabs.Items.Count - 1] = content;
 
-                if (string.Equals(declared.Role, "output", StringComparison.OrdinalIgnoreCase))
-                    _outputTab = BottomTabs.Items.Count - 1;
-
                 break;
 
             case "left":
@@ -635,34 +603,6 @@ public partial class MainWindow : Window
             panel.IsVisible = index == tab;
     }
 
-    private async void OnRunClick(object? sender, RoutedEventArgs e)
-    {
-        if (ProjectPath is not { } path || _workspace.Snapshot is not { } snapshot)
-            return;
-
-        if (_outputTab >= 0)
-            BottomTabs.SelectedIndex = _outputTab;
-
-        RunButton.IsEnabled = false;
-
-        try
-        {
-            await _runner.RunAsync(snapshot, path);
-        }
-        finally
-        {
-            UpdateRunButtons();
-        }
-    }
-
-    private void OnStopClick(object? sender, RoutedEventArgs e) => _runner.Stop();
-
-    private void UpdateRunButtons()
-    {
-        RunButton.IsEnabled = ProjectPath is not null && !_runner.IsRunning;
-        StopButton.IsEnabled = _runner.IsRunning;
-    }
-
     private async Task CloseDocumentsAsync()
     {
         _active?.OnDeactivated();
@@ -672,7 +612,6 @@ public partial class MainWindow : Window
             await document.View.DisposeAsync();
 
         _documents.Clear();
-        await _workspace.DisposeAsync();
     }
 
     private void OnThemeChanged(object? sender, SelectionChangedEventArgs e)
