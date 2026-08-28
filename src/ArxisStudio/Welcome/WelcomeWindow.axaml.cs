@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
+using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
@@ -26,9 +27,14 @@ public partial class WelcomeWindow : Window
     /// <param name="settings">Настройки студии.</param>
     /// <param name="recent">Список недавних проектов.</param>
     /// <param name="plugins">Каталог плагинов.</param>
-    public WelcomeWindow(ISettingsStore settings, RecentProjects recent, PluginCatalog plugins)
+    /// <param name="log">Журнал студии; null — молча.</param>
+    public WelcomeWindow(
+        ISettingsStore settings,
+        RecentProjects recent,
+        PluginCatalog plugins,
+        IStudioLog? log = null)
     {
-        _model = new WelcomeViewModel(settings, recent, plugins);
+        _model = new WelcomeViewModel(settings, recent, plugins, log);
         DataContext = _model;
 
         InitializeComponent();
@@ -46,10 +52,11 @@ public partial class WelcomeWindow : Window
 
     private void OnSettingsClick(object? sender, RoutedEventArgs e)
     {
-        // Словари лежат файлами, и файл могли положить только что: список
-        // языков собирается при каждом заходе в настройки, а не один раз при
+        // Словари лежат файлами, и файл могли положить только что; языковой
+        // пакет могли поставить менеджером минуту назад. Список языков
+        // собирается при каждом заходе в настройки, а не один раз при
         // запуске — иначе добавленный язык ждал бы перезапуска студии.
-        Localizer.Instance.Reload();
+        _model.ApplyLanguagePacks();
         ShowLanguages();
 
         Select(WelcomeSection.Settings);

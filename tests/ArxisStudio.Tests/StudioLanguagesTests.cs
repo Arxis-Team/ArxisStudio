@@ -42,7 +42,7 @@ public class StudioLanguagesTests : IDisposable
     {
         Write("ru.json", """{ "projects.open": "Раскрыть" }""");
 
-        Localizer.Instance.UseFolders(_folder);
+        Localizer.Instance.UseFolders(_folder, _folder);
         Localizer.Instance.SetLanguage("ru");
 
         Assert.Equal("Раскрыть", Localizer.Instance["projects.open"]);
@@ -61,7 +61,7 @@ public class StudioLanguagesTests : IDisposable
     {
         Write("de.json", """{ "language.name": "Deutsch", "projects.open": "Öffnen" }""");
 
-        Localizer.Instance.UseFolders(_folder);
+        Localizer.Instance.UseFolders(_folder, _folder);
 
         Assert.Contains(Localizer.Instance.Languages, language => language is { Code: "de", Name: "Deutsch" });
         Assert.True(Localizer.Instance.SetLanguage("de"), "язык из файла не выбрался");
@@ -81,7 +81,7 @@ public class StudioLanguagesTests : IDisposable
     {
         Write("de.json", """{ "projects.open": "Öffnen" }""");
 
-        Localizer.Instance.UseFolders(_folder);
+        Localizer.Instance.UseFolders(_folder, _folder);
         Localizer.Instance.SetLanguage("de");
 
         Assert.Equal("Projects", Localizer.Instance["welcome.nav.projects"]);
@@ -93,7 +93,7 @@ public class StudioLanguagesTests : IDisposable
     {
         Write("xx.json", """{ "projects.open": "Открыть" }""");
 
-        Localizer.Instance.UseFolders(_folder);
+        Localizer.Instance.UseFolders(_folder, _folder);
 
         Assert.Contains(Localizer.Instance.Languages, language => language is { Code: "xx", Name: "xx" });
     }
@@ -102,7 +102,7 @@ public class StudioLanguagesTests : IDisposable
     [Fact]
     public void The_shipped_languages_name_themselves()
     {
-        Localizer.Instance.UseFolders(_folder);
+        Localizer.Instance.UseFolders(_folder, _folder);
 
         Assert.Contains(Localizer.Instance.Languages, language => language is { Code: "ru", Name: "Русский" });
         Assert.Contains(Localizer.Instance.Languages, language => language is { Code: "en", Name: "English" });
@@ -120,7 +120,7 @@ public class StudioLanguagesTests : IDisposable
     {
         Write("ru.json", "{ это не json");
 
-        Localizer.Instance.UseFolders(_folder);
+        Localizer.Instance.UseFolders(_folder, _folder);
         Localizer.Instance.SetLanguage("ru");
 
         Assert.Equal("Открыть", Localizer.Instance["projects.open"]);
@@ -138,7 +138,7 @@ public class StudioLanguagesTests : IDisposable
     {
         Write("ru.json", """{ "projects.open": "Было" }""");
 
-        Localizer.Instance.UseFolders(_folder);
+        Localizer.Instance.UseFolders(_folder, _folder);
         Localizer.Instance.SetLanguage("ru");
 
         Assert.Equal("Было", Localizer.Instance["projects.open"]);

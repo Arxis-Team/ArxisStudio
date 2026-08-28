@@ -1,4 +1,4 @@
-using ArxisStudio.Extensibility;
+﻿using ArxisStudio.Extensibility;
 using ArxisStudio.Services;
 using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
@@ -49,7 +49,7 @@ public class App : Application
 
     private WelcomeWindow CreateWelcome()
     {
-        var welcome = new WelcomeWindow(_settings, _recent, _plugins);
+        var welcome = new WelcomeWindow(_settings, _recent, _plugins, _log);
         welcome.ProjectRequested += (_, path) =>
         {
             var studio = new MainWindow(_settings, path);
@@ -60,9 +60,19 @@ public class App : Application
         return welcome;
     }
 
+    // Журнал нужен ещё до окна студии: пакеты языков разбираются при
+    // запуске, и сказать о занятом коде или потерянном словаре больше
+    // некуда.
+    private readonly StudioLog _log = new(Console.Out);
+
     private void ApplySettings()
     {
         var settings = _settings.Current;
+
+        // Языки плагинов ставятся раньше выбора: выбранный язык вполне
+        // может быть тем, который принёс пакет, — не поставив их, студия
+        // отказала бы ему как несуществующему.
+        LanguagePacks.Apply(_plugins, _log);
 
         Localizer.Instance.SetLanguage(settings.Language);
         StudioTheming.Apply(settings.Theme);

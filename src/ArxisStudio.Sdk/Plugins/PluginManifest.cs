@@ -67,6 +67,9 @@ public sealed class PluginContributions
 
     /// <summary>Настройки плагина, показываемые на экране Settings.</summary>
     public IList<PluginSetting> Settings { get; set; } = [];
+
+    /// <summary>Языки интерфейса, которые плагин приносит студии.</summary>
+    public IList<PluginLanguage> Languages { get; set; } = [];
 }
 
 /// <summary>Команда плагина.</summary>
@@ -84,6 +87,24 @@ public sealed record PluginMenuItem(string Path, string Command);
 /// <param name="Title">Заголовок панели.</param>
 /// <param name="Zone">Зона размещения: <c>left</c>, <c>right</c>, <c>bottom</c>.</param>
 public sealed record PluginToolWindow(string Id, string Title, string Zone);
+
+/// <summary>
+/// Язык интерфейса, который приносит плагин.
+/// </summary>
+/// <remarks>
+/// Языковой пакет — плагин без единой сборки: ни <c>entry</c>, ни событий
+/// активации у него нет, и это не оплошность, а суть. Перевод — данные, и
+/// выполнять ему нечего; заодно пакет от незнакомого человека ничего не может
+/// сделать с машиной.
+/// <para>
+/// Путь к словарю задан явно, а не выведен из кода: один пакет вполне может
+/// везти и <c>zh-hans</c>, и <c>zh-hant</c>, и держать их где ему удобно.
+/// </para>
+/// </remarks>
+/// <param name="Code">Код языка, например <c>de</c>.</param>
+/// <param name="Name">Название на нём самом, например <c>Deutsch</c>.</param>
+/// <param name="File">Путь к словарю относительно папки плагина.</param>
+public sealed record PluginLanguage(string Code, string Name, string File);
 
 /// <summary>Тип файла, поддерживаемый плагином.</summary>
 /// <param name="Ext">Расширение с точкой, например <c>.fig</c>.</param>

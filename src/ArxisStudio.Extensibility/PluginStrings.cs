@@ -1,5 +1,4 @@
 using System.Collections.Frozen;
-using System.Text.Json;
 using ArxisStudio.Sdk;
 using ArxisStudio.Shell.Localization;
 using Avalonia.Data;
@@ -164,25 +163,7 @@ public sealed class PluginStrings : IStudioStrings, IStringSource
         }
     }
 
-    private FrozenDictionary<string, string> Read(string file)
-    {
-        var path = Path.Combine(_directory!, Folder, file);
-
-        if (!File.Exists(path))
-            return FrozenDictionary<string, string>.Empty;
-
-        try
-        {
-            var parsed = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path));
-
-            return parsed?.ToFrozenDictionary(StringComparer.Ordinal)
-                   ?? FrozenDictionary<string, string>.Empty;
-        }
-        catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException)
-        {
-            // Испорченный словарь не повод не показать плагин: ключи станут
-            // видны как !ключ!, и человек увидит, где именно сломано.
-            return FrozenDictionary<string, string>.Empty;
-        }
-    }
+    private FrozenDictionary<string, string> Read(string file) =>
+        StringFile.Read(Path.Combine(_directory!, Folder, file))
+            .ToFrozenDictionary(StringComparer.Ordinal);
 }

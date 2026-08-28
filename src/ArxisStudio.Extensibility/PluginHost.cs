@@ -114,6 +114,14 @@ public sealed class PluginHost : IDisposable
 
         foreach (var plugin in enabled)
         {
+            // Плагин без entry-сборки — это данные, а не код: языковой
+            // пакет приносит словарь и ничего не выполняет. Поднимать
+            // нечего, и ошибкой это не является: сказав «в манифесте не
+            // указана entry-сборка», студия объявила бы сломанным то, что
+            // работает как задумано.
+            if (plugin.Manifest?.Entry is not { Length: > 0 })
+                continue;
+
             if (PluginActivation.IsEager(plugin.Manifest))
                 raised.Add(Add(plugin));
             else

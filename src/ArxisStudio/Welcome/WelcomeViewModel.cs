@@ -2,6 +2,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using ArxisStudio.Extensibility;
+using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using ArxisStudio.Shell.Localization;
 using ArxisStudio.Shell.Settings;
@@ -37,6 +38,8 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
     private readonly TemplateCatalog _templates = new();
     private WelcomeSection _section = WelcomeSection.Projects;
     private bool _isLoadingTemplates;
+    private readonly IStudioLog? _log;
+
     private string _projectFilter = string.Empty;
     private string _templateFilter = string.Empty;
     private string? _status;
@@ -45,11 +48,17 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
     /// <param name="settings">Хранилище настроек студии.</param>
     /// <param name="recent">Список недавних проектов.</param>
     /// <param name="plugins">Каталог плагинов.</param>
-    public WelcomeViewModel(ISettingsStore settings, RecentProjects recent, PluginCatalog plugins)
+    /// <param name="log">Журнал студии; null — молча.</param>
+    public WelcomeViewModel(
+        ISettingsStore settings,
+        RecentProjects recent,
+        PluginCatalog plugins,
+        IStudioLog? log = null)
     {
         SettingsStore = settings;
         Recent = recent;
         Plugins = plugins;
+        _log = log;
 
         RefreshRecent();
         RefreshPlugins();
@@ -214,9 +223,22 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
             project.Path.Contains(ProjectFilter, StringComparison.CurrentCultureIgnoreCase);
     }
 
+    /// <summary>
+    /// Пересобирает языки, принесённые плагинами.
+    /// </summary>
+    /// <remarks>
+    /// Языковой пакет — плагин, и всё, что делает с плагинами менеджер, —
+    /// установка, включение, выключение, удаление — меняет список языков
+    /// студии. Держать его в стороне значило бы оставлять в настройках
+    /// язык, которого уже нет.
+    /// </remarks>
+    public void ApplyLanguagePacks() => LanguagePacks.Apply(Plugins, _log);
+
     /// <summary>Перечитывает каталог плагинов.</summary>
     public void RefreshPlugins()
     {
+        ApplyLanguagePacks();
+
         InstalledPlugins.Clear();
         PluginSettings.Clear();
 

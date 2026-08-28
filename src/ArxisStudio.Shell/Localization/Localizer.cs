@@ -6,9 +6,10 @@ using System.Text.Json;
 namespace ArxisStudio.Shell.Localization;
 
 /// <summary>
-/// Строки интерфейса. Словари ищутся в трёх местах, и позднее сильнее:
-/// встроенные ресурсы сборки, файлы <c>lang/&lt;код&gt;.json</c> рядом со
-/// студией и такие же файлы в данных пользователя. Смена языка обновляет уже
+/// Строки интерфейса. Словари накладываются слоями, и каждый следующий
+/// сильнее предыдущего: встроенные ресурсы сборки, файлы
+/// <c>lang/&lt;код&gt;.json</c> рядом со студией, установленные языковые
+/// пакеты, такие же файлы в данных пользователя. Смена языка обновляет уже
 /// показанный интерфейс.
 /// </summary>
 /// <remarks>
@@ -21,6 +22,12 @@ namespace ArxisStudio.Shell.Localization;
 /// закрывающий сто ключей из ста двадцати, оставляет остальные двадцать на
 /// запасном языке, а не превращает их в <c>!ключ!</c>: студия растёт, ключей
 /// прибавляется, и иначе любой перевод протухал бы на первом же нашем релизе.
+/// </para>
+/// <para>
+/// Порядок слоёв — «чем ближе к человеку, тем сильнее». Установленный пакет
+/// сильнее того, что возим мы, а положенный руками файл сильнее пакета:
+/// правка руками — способ починить что угодно, включая чужой перевод, и
+/// отнимать его у человека незачем.
 /// </para>
 /// </remarks>
 public sealed class Localizer : INotifyPropertyChanged, IStringSource
@@ -43,7 +50,9 @@ public sealed class Localizer : INotifyPropertyChanged, IStringSource
 
     private readonly List<WeakReference<LocalizedString>> _tracked = [];
 
-    private IReadOnlyList<string> _folders;
+    private string _shared;
+    private string _user;
+    private ILanguageSource? _packs;
     private FrozenDictionary<string, string> _fallback = FrozenDictionary<string, string>.Empty;
     private FrozenDictionary<string, string> _strings = FrozenDictionary<string, string>.Empty;
 
@@ -60,20 +69,20 @@ public sealed class Localizer : INotifyPropertyChanged, IStringSource
     /// студии на общей машине может быть и нечем.
     /// </remarks>
     /// <remarks>
-    /// Свойство вычисляемое, а не статическое поле: <see cref="Instance"/>
+    /// Свойства вычисляемые, а не статические поля: <see cref="Instance"/>
     /// заводится инициализатором того же типа, а инициализаторы выполняются
     /// в порядке объявления — поле, объявленное ниже, к этому моменту ещё
     /// пустое.
     /// </remarks>
-    public static IReadOnlyList<string> DefaultFolders =>
-    [
-        Path.Combine(AppContext.BaseDirectory, Folder),
-        StudioPaths.Languages,
-    ];
+    public static string SharedFolder => Path.Combine(AppContext.BaseDirectory, Folder);
+
+    /// <summary>Папка словарей пользователя — самый сильный слой.</summary>
+    public static string UserFolder => StudioPaths.Languages;
 
     private Localizer()
     {
-        _folders = DefaultFolders;
+        _shared = SharedFolder;
+        _user = UserFolder;
         Language = FallbackLanguage;
 
         Reload();
@@ -142,6 +151,17 @@ public sealed class Localizer : INotifyPropertyChanged, IStringSource
             ? _fallback
             : Load(Language);
 
+        // Язык мог исчезнуть, пока студия работала: пакет, который его
+        // принёс, выключили или удалили. Оставить его выбранным значило бы
+        // показывать весь интерфейс на запасном языке, называя его чужим.
+        if (_strings.Count == 0)
+        {
+            _strings = _fallback;
+            Language = FallbackLanguage;
+
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Language)));
+        }
+
         Languages = Scan();
 
         RefreshTracked();
@@ -151,14 +171,33 @@ public sealed class Localizer : INotifyPropertyChanged, IStringSource
     /// <summary>
     /// Меняет папки, в которых студия ищет словари.
     /// </summary>
-    /// <param name="folders">Папки, поздняя сильнее; пусто — вернуть обычные.</param>
+    /// <param name="shared">Папка рядом со студией; null — обычная.</param>
+    /// <param name="user">Папка пользователя; null — обычная.</param>
     /// <remarks>
     /// Встроенные словари остаются в любом случае: это основание, на которое
     /// кладут файлы, а не одна из равноправных папок.
     /// </remarks>
-    public void UseFolders(params string[] folders)
+    public void UseFolders(string? shared = null, string? user = null)
     {
-        _folders = folders is { Length: > 0 } given ? [.. given] : DefaultFolders;
+        _shared = shared ?? SharedFolder;
+        _user = user ?? UserFolder;
+
+        Reload();
+    }
+
+    /// <summary>
+    /// Ставит источник языковых пакетов.
+    /// </summary>
+    /// <param name="packs">Источник; null — пакетов нет.</param>
+    /// <remarks>
+    /// Кто собрал этот источник, Shell не знает: языки приносят плагины, а
+    /// плагины — забота Extensibility. Сюда приходит уже готовое «коды и
+    /// строки по коду», и потому список языков в настройках не отличает
+    /// установленный пакет от того, что возим мы сами.
+    /// </remarks>
+    public void UsePacks(ILanguageSource? packs)
+    {
+        _packs = packs;
 
         Reload();
     }
@@ -220,11 +259,17 @@ public sealed class Localizer : INotifyPropertyChanged, IStringSource
         foreach (var pair in Embedded(language))
             merged[pair.Key] = pair.Value;
 
-        foreach (var folder in _folders)
+        foreach (var pair in StringFile.Read(Path.Combine(_shared, $"{language}.json")))
+            merged[pair.Key] = pair.Value;
+
+        if (_packs is not null)
         {
-            foreach (var pair in FromFile(Path.Combine(folder, $"{language}.json")))
+            foreach (var pair in _packs.Read(language))
                 merged[pair.Key] = pair.Value;
         }
+
+        foreach (var pair in StringFile.Read(Path.Combine(_user, $"{language}.json")))
+            merged[pair.Key] = pair.Value;
 
         return merged.ToFrozenDictionary(StringComparer.Ordinal);
     }
@@ -242,11 +287,14 @@ public sealed class Localizer : INotifyPropertyChanged, IStringSource
                 codes.Add(code);
         }
 
-        foreach (var folder in _folders)
+        foreach (var folder in new[] { _shared, _user })
         {
             foreach (var file in Files(folder))
                 codes.Add(Path.GetFileNameWithoutExtension(file));
         }
+
+        if (_packs is not null)
+            codes.UnionWith(_packs.Codes);
 
         return codes.Select(code => new StudioLanguage(code, Name(code))).ToList();
     }
@@ -296,29 +344,6 @@ public sealed class Localizer : INotifyPropertyChanged, IStringSource
             return JsonSerializer.Deserialize<Dictionary<string, string>>(stream) ?? [];
         }
         catch (JsonException)
-        {
-            return [];
-        }
-    }
-
-    /// <summary>
-    /// Читает словарь из файла; испорченный файл не отменяет встроенный.
-    /// </summary>
-    /// <remarks>
-    /// Словарь правит человек, и запятая не на месте — обычное дело. Студия,
-    /// не запустившаяся из-за неё, была бы наказанием, несоразмерным поводу:
-    /// непрочитанный файл просто не накладывается.
-    /// </remarks>
-    private static Dictionary<string, string> FromFile(string path)
-    {
-        if (!File.Exists(path))
-            return [];
-
-        try
-        {
-            return JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path)) ?? [];
-        }
-        catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException)
         {
             return [];
         }
