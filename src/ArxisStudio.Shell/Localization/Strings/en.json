@@ -128,5 +128,7 @@
   "menu.activating": "Loading the plugin",
   "canvas.grid": "Grid",
   "canvas.snap": "Snap",
-  "canvas.zoomreset": "Reset to 100%"
+  "canvas.zoomreset": "Reset to 100%",
+  "panel.crashed": "The panel crashed",
+  "panel.reload": "Reload"
 }

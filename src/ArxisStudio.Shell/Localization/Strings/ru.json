@@ -128,5 +128,7 @@
   "menu.activating": "Поднимаю плагин",
   "canvas.grid": "Сетка",
   "canvas.snap": "Привязка",
-  "canvas.zoomreset": "Вернуть 100%"
+  "canvas.zoomreset": "Вернуть 100%",
+  "panel.crashed": "Панель аварийно завершилась",
+  "panel.reload": "Перезапустить"
 }

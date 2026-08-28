@@ -3,6 +3,7 @@ using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
+using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
 using ArxisStudio.Shell.Settings;
 using Avalonia;
@@ -399,24 +400,64 @@ public partial class MainWindow : Window
                 continue;
             }
 
-            // Три чужих вызова подряд — создать, подключить, построить, — и
-            // упасть плагин может на любом. Идут они одним куском: панель,
-            // построенная наполовину, студии не нужна.
-            var content = _guard.Get(loaded.Installed.Id, $"панель {declared.Id}", () =>
-            {
-                if (Activator.CreateInstance(type) is not Sdk.ToolWindow panel)
-                    return null;
-
-                panel.Attach(studio);
-
-                return panel.Content;
-            });
-
-            if (content is null)
+            if (Build(loaded, declared, type, studio) is not { } content)
                 continue;
 
-            Mount(declared, content);
+            // Панель живёт не прямо в дереве окна, а в своей поверхности: сбой
+            // на замере или раскладке иначе унёс бы весь проход, а с ним и окно
+            // студии со всеми открытыми документами.
+            PluginSurface? surface = null;
+
+            surface = new PluginSurface(
+                content,
+                error => _guard.Report(loaded.Installed.Id, $"раскладка панели {declared.Id}", error),
+                () => Reload(loaded, declared, type, studio, surface!));
+
+            Mount(declared, surface);
         }
+    }
+
+    /// <summary>
+    /// Строит панель плагина: создать, подключить, спросить содержимое.
+    /// </summary>
+    /// <remarks>
+    /// Три чужих вызова подряд, и упасть плагин может на любом. Идут они одним
+    /// куском: панель, построенная наполовину, студии не нужна.
+    /// </remarks>
+    private Control? Build(
+        LoadedPlugin loaded,
+        Sdk.Plugins.PluginToolWindow declared,
+        Type type,
+        IStudioContext studio) =>
+        _guard.Get(loaded.Installed.Id, $"панель {declared.Id}", () =>
+        {
+            if (Activator.CreateInstance(type) is not Sdk.ToolWindow panel)
+                return null;
+
+            panel.Attach(studio);
+
+            return panel.Content;
+        });
+
+    /// <summary>
+    /// Строит упавшую панель заново по кнопке в заглушке.
+    /// </summary>
+    /// <remarks>
+    /// Счёт падений при этом обнуляется: человек попросил новую попытку, и
+    /// отказать ему на том основании, что прежняя копия падала, значит сделать
+    /// кнопку бессмысленной.
+    /// </remarks>
+    private void Reload(
+        LoadedPlugin loaded,
+        Sdk.Plugins.PluginToolWindow declared,
+        Type type,
+        IStudioContext studio,
+        PluginSurface surface)
+    {
+        _guard.Forget(loaded.Installed.Id);
+
+        if (Build(loaded, declared, type, studio) is { } content)
+            surface.Reset(content);
     }
 
     /// <summary>Ставит содержимое панели в зону студии.</summary>

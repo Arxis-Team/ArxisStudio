@@ -121,6 +121,27 @@ public sealed class PluginGuard
     }
 
     /// <summary>
+    /// Записывает падение, случившееся не на вызове шва.
+    /// </summary>
+    /// <param name="pluginId">Чей код упал.</param>
+    /// <param name="what">Где это случилось.</param>
+    /// <param name="error">Само исключение.</param>
+    /// <remarks>
+    /// Так приходят сбои раскладки: панель падает не тогда, когда её строили,
+    /// а когда Avalonia считает дерево, — и перехватывает их место, куда она
+    /// вставлена. Считаться они должны там же, где остальные: плагин,
+    /// роняющий проход раскладки при каждом замере, сломан не меньше того,
+    /// что падает при построении.
+    /// </remarks>
+    public void Report(string pluginId, string what, Exception error)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(pluginId);
+        ArgumentNullException.ThrowIfNull(error);
+
+        Fail(pluginId, what, error);
+    }
+
+    /// <summary>
     /// Забывает падения плагина.
     /// </summary>
     /// <param name="pluginId">Идентификатор плагина.</param>
