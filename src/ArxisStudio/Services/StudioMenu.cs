@@ -28,6 +28,11 @@ public sealed record StudioMenuItem(string Title, string? PluginId = null, strin
 /// тексту: два плагина, назвавшие ветку каждый своим ключом, должны оказаться в
 /// одном «Инструменты», а не в двух одинаковых с виду.
 /// </para>
+/// <para>
+/// Встроенные модули идут первыми: своё выше принесённого. Иначе порядок
+/// пунктов зависел бы от того, что человек успел установить, и знакомое меню
+/// перестраивалось бы после каждой установки.
+/// </para>
 /// </remarks>
 public static class StudioMenu
 {
@@ -42,7 +47,11 @@ public static class StudioMenu
 
         var roots = new List<StudioMenuItem>();
 
-        foreach (var plugin in plugins.Where(candidate => candidate is { IsEnabled: true, IsValid: true }))
+        var contributing = plugins
+            .Where(candidate => candidate is { IsEnabled: true, IsValid: true })
+            .OrderByDescending(candidate => candidate.IsBuiltIn);
+
+        foreach (var plugin in contributing)
         {
             foreach (var declared in plugin.Manifest!.Contributions.Menus)
             {

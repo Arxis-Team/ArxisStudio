@@ -63,6 +63,11 @@ public partial class MainWindow : Window
     private readonly PluginContributionRegistry _contributions = new();
     private PluginHost? _plugins;
     private IReadOnlyList<InstalledPlugin> _installed = [];
+
+    // Модули приезжают со студией, и в каталоге плагинов их нет. Список
+    // держится отдельно: меню и сообщения знают о них ровно то же, что о
+    // плагинах, — модуль отличается способом доставки, а не правами.
+    private IReadOnlyList<InstalledPlugin> _modules = [];
     private IReadOnlyList<StudioMenuItem> _menu = [];
     private DocumentView? _active;
 
@@ -167,10 +172,11 @@ public partial class MainWindow : Window
         _installed = catalog.Scan();
         _contributions.Conflict += (_, message) => _log.Write(StudioLogLevel.Warning, "Plugins", message);
 
-        var raised = BuiltInModules.Select(host.LoadBuiltIn)
-            .Concat(host.LoadStartup(_installed));
+        var modules = BuiltInModules.Select(host.LoadBuiltIn).ToList();
 
-        foreach (var loaded in raised)
+        _modules = modules.Select(loaded => loaded.Installed).ToList();
+
+        foreach (var loaded in modules.Concat(host.LoadStartup(_installed)))
             Accept(loaded);
 
         foreach (var waiting in host.Deferred)
@@ -283,7 +289,7 @@ public partial class MainWindow : Window
 
     /// <summary>Как плагин называется в сообщениях.</summary>
     private string Named(string pluginId) =>
-        _installed.FirstOrDefault(plugin => plugin.Id == pluginId)?.DisplayName ?? pluginId;
+        _modules.Concat(_installed).FirstOrDefault(plugin => plugin.Id == pluginId)?.DisplayName ?? pluginId;
 
     /// <summary>
     /// Отключает плагин, падающий раз за разом.
@@ -388,7 +394,7 @@ public partial class MainWindow : Window
     /// </summary>
     private void ShowMenu()
     {
-        _menu = StudioMenu.Build(_installed);
+        _menu = StudioMenu.Build([.. _modules, .. _installed]);
 
         // Кнопка нужна и без единой команды: перезагрузить плагин — тоже
         // действие, и другого места для него в окне нет.

@@ -90,6 +90,57 @@ public class ActivationTests
         Assert.Empty(StudioMenu.Build([plugin]));
     }
 
+    /// <summary>
+    /// Пункт встроенного модуля попадает в меню наравне с плагинами.
+    /// </summary>
+    /// <remarks>
+    /// Модуль отличается от плагина способом доставки, а не правами. Своей
+    /// панели у модуля может и не быть, а палитры команд в студии нет —
+    /// меню для него единственная дорога к человеку.
+    /// </remarks>
+    [Fact]
+    public void A_built_in_module_adds_its_item_too()
+    {
+        var module = BuiltIn("arxis.sample", ("Инструменты/О модуле", "sample.about"));
+
+        var tools = Assert.Single(StudioMenu.Build([module]));
+        var item = Assert.Single(tools.Children);
+
+        Assert.Equal("О модуле", item.Title);
+        Assert.Equal("sample.about", item.CommandId);
+    }
+
+    /// <summary>Ветка модуля и ветка плагина сходятся в одну.</summary>
+    [Fact]
+    public void A_module_and_a_plugin_share_the_branch_they_both_named()
+    {
+        var module = BuiltIn("arxis.sample", ("Инструменты/О модуле", "sample.about"));
+        var plugin = Installed("figma", ("Инструменты/Импорт…", "figma.import"));
+
+        var tools = Assert.Single(StudioMenu.Build([module, plugin]));
+
+        Assert.Equal(["О модуле", "Импорт…"], tools.Children.Select(item => item.Title));
+    }
+
+    /// <summary>
+    /// Модули идут первыми, в каком бы порядке их ни подали.
+    /// </summary>
+    /// <remarks>
+    /// Своё выше принесённого: иначе порядок пунктов зависел бы от того, что
+    /// человек успел установить, и знакомое меню перестраивалось бы после
+    /// каждой установки.
+    /// </remarks>
+    [Fact]
+    public void Modules_come_before_plugins()
+    {
+        var plugin = Installed("figma", ("Плагин/Импорт…", "figma.import"));
+        var module = BuiltIn("arxis.sample", ("Модуль/О модуле", "sample.about"));
+
+        var menu = StudioMenu.Build([plugin, module]);
+
+        Assert.Equal(["Модуль", "Плагин"], menu.Select(branch => branch.Title));
+    }
+
     private static PluginManifest Manifest(params string[] activation) =>
         new() { Id = "arxis.sample", Name = "Пример", Activation = activation };
 
@@ -102,4 +153,8 @@ public class ActivationTests
 
         return new InstalledPlugin(Path.Combine(Path.GetTempPath(), id), manifest, null, IsEnabled: true);
     }
+
+    /// <summary>Запись о встроенном модуле: своей папки у него нет.</summary>
+    private static InstalledPlugin BuiltIn(string id, params (string Path, string Command)[] menus) =>
+        Installed(id, menus) with { IsBuiltIn = true };
 }
