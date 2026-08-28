@@ -6,3 +6,4 @@
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
 ARX0001 | ArxisStudio | Warning | Виджет Avalonia в интерфейсе плагина: строить нужно на контролах ArxisStudio.Controls
+ARX0002 | ArxisStudio | Warning | Ключ манифеста не найден в словаре плагина lang/strings.json

@@ -65,6 +65,19 @@
         <AxPluginInstallDir Condition="'$(AxPluginInstallDir)' == ''">$([System.IO.Path]::Combine($([System.Environment]::GetFolderPath(SpecialFolder.ApplicationData)), 'ArxisStudio', 'plugins', '$(AxPluginId)'))</AxPluginInstallDir>
     </PropertyGroup>
 
+    <!--
+        Манифест и словарь по умолчанию передаются компилятору входами сборки:
+        правило ARX0002 сверяет по ним %ключи%, а сам анализатор к файлам не
+        ходит — Roslyn пускает его только к тому, что ему передали, и правильно
+        делает: анализатор обязан считаться закэшированным, а файл под ним
+        меняется.
+    -->
+    <ItemGroup>
+        <AdditionalFiles Include="$(AxPluginManifest)" Condition="Exists('$(AxPluginManifest)')" />
+        <AdditionalFiles Include="$(MSBuildProjectDirectory)/lang/strings.json"
+                         Condition="Exists('$(MSBuildProjectDirectory)/lang/strings.json')" />
+    </ItemGroup>
+
     <Target Name="AxPluginCheckManifest" BeforeTargets="Build">
         <Error Code="AXP1001" Condition="!Exists('$(AxPluginManifest)')"
                Text="Плагину нужен манифест: ожидается '$(AxPluginManifest)'. Без него папка плагином не является — студия читает по манифесту и меню, и панели, ещё не загружая сборку. Создайте plugin.json или укажите другой путь свойством AxPluginManifest." />
