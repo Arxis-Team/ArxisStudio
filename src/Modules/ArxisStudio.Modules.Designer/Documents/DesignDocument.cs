@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using ArxisStudio.Markup;
 using ArxisStudio.Markup.Xaml;
 using ArxisStudio.Markup.Xaml.Design;
@@ -672,34 +672,62 @@ public sealed class DesignDocument : IAsyncDisposable
         if (_session is null || _population is null || _workspace is null)
             return "Документ закрыт";
 
-        await _population.SetDocumentAsync(edited, cancellationToken);
-
-        var result = await _session.ApplyDocumentUpdateAsync(edited, cancellationToken);
-
-        if (result.Outcome == XamlUpdateOutcome.Applied)
+        try
         {
-            IsModified = true;
-            Retarget(edited);
-            Changed?.Invoke(this, EventArgs.Empty);
-            return null;
+            await _population.SetDocumentAsync(edited, cancellationToken);
+
+            var result = await _session.ApplyDocumentUpdateAsync(edited, cancellationToken);
+
+            if (result.Outcome == XamlUpdateOutcome.Applied)
+            {
+                IsModified = true;
+                Retarget(edited);
+                Changed?.Invoke(this, EventArgs.Empty);
+                return null;
+            }
+
+            if (await RecreateSessionAsync(edited, cancellationToken) is null)
+            {
+                IsModified = true;
+                Changed?.Invoke(this, EventArgs.Empty);
+                return null;
+            }
+
+            return await RollBackAsync(stepBack, Describe(result));
         }
 
-        if (await RecreateSessionAsync(edited, cancellationToken) is null)
+        // Правка в документе к этому месту уже записана: разбор её принял, а
+        // упало доведение до живых объектов. Отказ разбор возвращает ответом —
+        // и такой откат стоит ниже, — но исключением может кончиться и то,
+        // о чём он не знает: закрытая посреди правки сессия, сорванная
+        // загрузка сборки проекта. Документ после этого не должен остаться
+        // изменённым наполовину: в тексте правка есть, на канве её нет.
+        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
         {
-            IsModified = true;
-            Changed?.Invoke(this, EventArgs.Empty);
-            return null;
+            return await RollBackAsync(stepBack, $"Правка не удалась: {e.Message}");
         }
+    }
 
-        var error = Describe(result);
-
-        if (!stepBack())
+    /// <summary>
+    /// Возвращает документ к тому, что было до правки.
+    /// </summary>
+    /// <param name="stepBack">Чем шагнуть назад по истории.</param>
+    /// <param name="error">Что сказать о причине.</param>
+    /// <returns>Причина — её же и возвращает вызвавший.</returns>
+    /// <remarks>
+    /// Восстановление идёт без токена отмены: правка уже наполовину случилась,
+    /// и бросить откат на середине значит оставить документ в том состоянии,
+    /// ради ухода из которого он и начат.
+    /// </remarks>
+    private async Task<string?> RollBackAsync(Func<bool> stepBack, string error)
+    {
+        if (_population is null || _workspace is null || !stepBack())
             return error;
 
         var restored = _workspace.GetDocument(_documentId);
 
-        await _population.SetDocumentAsync(restored, cancellationToken);
-        await RecreateSessionAsync(restored, cancellationToken);
+        await _population.SetDocumentAsync(restored, CancellationToken.None);
+        await RecreateSessionAsync(restored, CancellationToken.None);
 
         Changed?.Invoke(this, EventArgs.Empty);
         return error;
