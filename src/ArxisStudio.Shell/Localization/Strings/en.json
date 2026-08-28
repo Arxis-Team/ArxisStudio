@@ -48,6 +48,7 @@
   "plugins.disable": "Disable",
   "plugins.enabled": "Enabled",
   "plugins.disabled": "Disabled",
+  "plugins.coverage": "{0} — {1} of {2} translated",
   "plugins.broken": "Manifest error",
   "plugins.openfolder": "Open plugin folder",
   "plugins.installed.suffix": "— installed",

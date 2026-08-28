@@ -98,6 +98,16 @@ public sealed class Localizer : INotifyPropertyChanged, IStringSource
     public IReadOnlyList<StudioLanguage> Languages { get; private set; } = [];
 
     /// <summary>
+    /// Все ключи студии — по ним считают полноту перевода.
+    /// </summary>
+    /// <remarks>
+    /// Берутся из запасного языка: это язык, на котором студия написана, и
+    /// потому его словарь полон по определению. Считать по текущему языку
+    /// значило бы мерить неполный перевод неполным же списком.
+    /// </remarks>
+    public IReadOnlyCollection<string> Keys => _fallback.Keys;
+
+    /// <summary>
     /// Строка по ключу. Отсутствующий ключ возвращается как <c>!ключ!</c> —
     /// пропуск виден в интерфейсе и не притворяется текстом.
     /// </summary>

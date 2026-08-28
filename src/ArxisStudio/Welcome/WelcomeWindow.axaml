@@ -296,6 +296,21 @@
                           <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,1,0,0"
                                      TextTrimming="CharacterEllipsis"
                                      Text="{Binding Error}" IsVisible="{Binding !IsValid}"/>
+
+                          <!-- Полнота перевода: у обычного плагина список пуст,
+                               и строка не появляется. -->
+                          <ItemsControl ItemsSource="{Binding Coverage}" Margin="0,3,0,0">
+                            <ItemsControl.ItemsPanel>
+                              <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="6"/>
+                              </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate x:DataType="ext:LanguageCoverage">
+                                <ax:AxChip Content="{Binding Label}"/>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
                         </StackPanel>
                       </DockPanel>
                     </Border>

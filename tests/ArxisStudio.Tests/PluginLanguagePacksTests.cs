@@ -419,6 +419,96 @@ public class PluginLanguagePacksTests : IDisposable
         Assert.Equal("Из второго", plugin.Strings.Resolve("%panel.main%"));
     }
 
+    /// <summary>
+    /// Полнота считается по ключам студии.
+    /// </summary>
+    /// <remarks>
+    /// Это первое, что человек спрашивает, увидев половину студии
+    /// по-английски: пакет сломан или так и задумано.
+    /// </remarks>
+    [Fact]
+    public void The_coverage_is_counted_against_the_studio_keys()
+    {
+        var pack = Pack(
+            "arxis.lang-de",
+            "de",
+            "Deutsch",
+            """{ "projects.open": "Offnen", "projects.new": "Neu" }""");
+
+        // Считаем, стоя на неполном языке: список ключей студии — это её
+        // запасной язык, а не выбранный. Иначе неполный перевод мерили бы
+        // им же самим, и всякий пакет оказывался бы переведён целиком.
+        Apply(pack);
+        Localizer.Instance.SetLanguage("de");
+
+        var coverage = Assert.Single(pack.Coverage);
+
+        Assert.Equal("Deutsch", coverage.Name);
+        Assert.Equal(2, coverage.Translated);
+        Assert.Equal(EnglishKeys(), coverage.Total);
+    }
+
+    /// <summary>
+    /// Сколько ключей у студии на самом деле — по встроенному английскому
+    /// словарю, а не по тому, что о себе говорит сам локализатор.
+    /// </summary>
+    private static int EnglishKeys()
+    {
+        const string name = "ArxisStudio.Shell.Localization.Strings.en.json";
+
+        using var stream = typeof(Localizer).Assembly.GetManifestResourceStream(name);
+
+        Assert.NotNull(stream);
+
+        return System.Text.Json.JsonSerializer
+            .Deserialize<Dictionary<string, string>>(stream)!
+            .Count;
+    }
+
+    /// <summary>
+    /// Ключи, которых у студии нет, полноты не прибавляют.
+    /// </summary>
+    /// <remarks>
+    /// Иначе перевод, набитый чем угодно, показывал бы «переведено 300 из
+    /// 128», и число перестало бы что-либо значить.
+    /// </remarks>
+    [Fact]
+    public void Keys_the_studio_does_not_have_do_not_count()
+    {
+        var pack = Pack(
+            "arxis.lang-de",
+            "de",
+            "Deutsch",
+            """{ "projects.open": "Offnen", "no.such.key": "Nichts" }""");
+
+        Assert.Equal(1, Assert.Single(pack.Coverage).Translated);
+    }
+
+    /// <summary>Обычный плагин полноты не показывает.</summary>
+    [Fact]
+    public void An_ordinary_plugin_shows_no_coverage()
+    {
+        Assert.Empty(Plugin("arxis.hello", ("strings.json", """{ "panel.main": "Панель" }""")).Coverage);
+    }
+
+    /// <summary>
+    /// Подпись собирается словарём студии и меняется вместе с языком.
+    /// </summary>
+    [Fact]
+    public void The_label_speaks_the_language_of_the_studio()
+    {
+        var pack = Pack("arxis.lang-de", "de", "Deutsch", """{ "projects.open": "Offnen" }""");
+        var coverage = Assert.Single(pack.Coverage);
+
+        Localizer.Instance.SetLanguage("ru");
+        Assert.Contains("переведено", coverage.Label, StringComparison.Ordinal);
+
+        Localizer.Instance.SetLanguage("en");
+        Assert.Contains("translated", coverage.Label, StringComparison.Ordinal);
+
+        Assert.Contains("Deutsch", coverage.Label, StringComparison.Ordinal);
+    }
+
     private void Apply(params InstalledPlugin[] packs)
     {
         var languages = new PluginLanguages(packs);

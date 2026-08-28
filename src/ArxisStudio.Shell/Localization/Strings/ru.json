@@ -48,6 +48,7 @@
   "plugins.disable": "Выключить",
   "plugins.enabled": "Включён",
   "plugins.disabled": "Выключен",
+  "plugins.coverage": "{0} — переведено {1} из {2}",
   "plugins.broken": "Ошибка манифеста",
   "plugins.openfolder": "Открыть каталог плагинов",
   "plugins.installed.suffix": "— установлен",

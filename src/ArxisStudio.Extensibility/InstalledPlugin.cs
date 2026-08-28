@@ -50,6 +50,19 @@ public sealed record InstalledPlugin(
     /// <summary>Описание для списка плагинов; пусто, если его не объявляли.</summary>
     public string Description => Strings.Resolve(Manifest?.Description);
 
+    /// <summary>
+    /// Полнота переводов, которые несёт этот пакет; пусто у обычного плагина.
+    /// </summary>
+    /// <remarks>
+    /// Считается на месте, а не хранится: список ключей студии растёт с
+    /// каждым её релизом, и вчерашнее число сегодня было бы неправдой.
+    /// </remarks>
+    public IReadOnlyList<LanguageCoverage> Coverage =>
+        Manifest?.Contributions.Languages
+            .Select(declared => LanguageCoverage.Of(Directory, declared))
+            .OfType<LanguageCoverage>()
+            .ToList() ?? [];
+
     /// <summary>Разобрался ли манифест.</summary>
     public bool IsValid => Manifest is not null;
 
