@@ -1,4 +1,4 @@
-﻿using ArxisStudio.Extensibility;
+using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Services;
 using ArxisStudio.Shell.Localization;
@@ -22,6 +22,7 @@ public class PluginLanguagePacksTests : IDisposable
     public void Dispose()
     {
         Localizer.Instance.UsePacks(null);
+        PluginStrings.UseTranslations(null);
         Localizer.Instance.UseFolders();
         Localizer.Instance.SetLanguage(Localizer.FallbackLanguage);
 
@@ -247,6 +248,201 @@ public class PluginLanguagePacksTests : IDisposable
         Assert.Equal("Öffnen", Localizer.Instance["projects.open"]);
     }
 
+    /// <summary>
+    /// Пакет переводит чужой плагин.
+    /// </summary>
+    /// <remarks>
+    /// Автор переводит плагин на языки, которые знает сам, и на этом его
+    /// силы кончаются. Немец с русско-английским плагином иначе так и
+    /// остался бы с чужим языком в своей панели.
+    /// </remarks>
+    [Fact]
+    public void A_pack_translates_someone_elses_plugin()
+    {
+        var plugin = Plugin("arxis.hello", ("strings.json", """{ "panel.main": "Панель" }"""));
+        var pack = Pack(
+            "arxis.lang-de",
+            "de",
+            "Deutsch",
+            """{ "projects.open": "Öffnen" }""",
+            ("arxis.hello", """{ "panel.main": "Fenster" }"""));
+
+        Apply(pack);
+        Localizer.Instance.SetLanguage("de");
+
+        Assert.Equal("Fenster", plugin.Strings.Resolve("%panel.main%"));
+    }
+
+    /// <summary>
+    /// Свой перевод плагина сильнее перевода из пакета.
+    /// </summary>
+    /// <remarks>
+    /// Про свой продукт автор знает больше постороннего, и подменять его
+    /// слова словами пакета студия не станет.
+    /// </remarks>
+    [Fact]
+    public void The_plugin_own_translation_wins_over_a_pack()
+    {
+        var plugin = Plugin(
+            "arxis.hello",
+            ("strings.json", """{ "panel.main": "Панель" }"""),
+            ("strings.de.json", """{ "panel.main": "Von Autor" }"""));
+
+        var pack = Pack(
+            "arxis.lang-de",
+            "de",
+            "Deutsch",
+            """{ "projects.open": "Öffnen" }""",
+            ("arxis.hello", """{ "panel.main": "Aus Paket" }"""));
+
+        Apply(pack);
+        Localizer.Instance.SetLanguage("de");
+
+        Assert.Equal("Von Autor", plugin.Strings.Resolve("%panel.main%"));
+    }
+
+    /// <summary>
+    /// Чего пакет не закрыл, берётся у самого плагина.
+    /// </summary>
+    /// <remarks>
+    /// Перевод чужого плагина отстаёт так же, как перевод студии: пакет
+    /// закрывает часть строк, остальные показываются на языке автора, а не
+    /// пропадают.
+    /// </remarks>
+    [Fact]
+    public void What_a_translation_misses_comes_from_the_plugin_itself()
+    {
+        var plugin = Plugin(
+            "arxis.hello",
+            ("strings.json", """{ "panel.main": "Панель", "panel.side": "Сбоку" }"""));
+
+        var pack = Pack(
+            "arxis.lang-de",
+            "de",
+            "Deutsch",
+            """{ "projects.open": "Öffnen" }""",
+            ("arxis.hello", """{ "panel.main": "Fenster" }"""));
+
+        Apply(pack);
+        Localizer.Instance.SetLanguage("de");
+
+        Assert.Equal("Fenster", plugin.Strings.Resolve("%panel.main%"));
+        Assert.Equal("Сбоку", plugin.Strings.Resolve("%panel.side%"));
+    }
+
+    /// <summary>
+    /// Пакет убрали — плагин снова говорит своими словами.
+    /// </summary>
+    /// <remarks>
+    /// Иначе удалённый пакет продолжал бы переводить чужие панели до
+    /// перезапуска студии.
+    /// </remarks>
+    [Fact]
+    public void Removing_a_pack_returns_the_plugin_to_its_own_words()
+    {
+        var plugin = Plugin("arxis.hello", ("strings.json", """{ "panel.main": "Панель" }"""));
+        var pack = Pack(
+            "arxis.lang-de",
+            "de",
+            "Deutsch",
+            """{ "projects.open": "Öffnen" }""",
+            ("arxis.hello", """{ "panel.main": "Fenster" }"""));
+
+        Apply(pack);
+        Localizer.Instance.SetLanguage("de");
+
+        Assert.Equal("Fenster", plugin.Strings.Resolve("%panel.main%"));
+
+        Apply();
+
+        Assert.Equal("Панель", plugin.Strings.Resolve("%panel.main%"));
+    }
+
+    /// <summary>
+    /// Проигравший спор за язык не переводит и чужие плагины.
+    /// </summary>
+    /// <remarks>
+    /// Иначе вышло бы полупринятое: язык студии от одного пакета, а
+    /// панели плагинов — от другого, и объяснить человеку, почему так,
+    /// было бы нечем.
+    /// </remarks>
+    [Fact]
+    public void The_pack_that_loses_the_language_does_not_translate_either()
+    {
+        var plugin = Plugin("arxis.hello", ("strings.json", """{ "panel.main": "Панель" }"""));
+
+        var first = Pack(
+            "arxis.lang-de", "de", "Deutsch", """{ "projects.open": "Öffnen" }""",
+            ("arxis.hello", """{ "panel.main": "Первый" }"""));
+
+        var second = Pack(
+            "other.lang-de", "de", "Deutsch", """{ "projects.open": "Aufmachen" }""",
+            ("arxis.hello", """{ "panel.main": "Второй" }"""));
+
+        var packs = new PluginLanguages([first, second]);
+
+        Localizer.Instance.UsePacks(packs);
+        PluginStrings.UseTranslations(packs);
+        Localizer.Instance.SetLanguage("de");
+
+        Assert.Equal("Öffnen", Localizer.Instance["projects.open"]);
+        Assert.Equal("Первый", plugin.Strings.Resolve("%panel.main%"));
+    }
+
+    /// <summary>
+    /// Сменился набор пакетов — сменился и перевод, без смены языка.
+    /// </summary>
+    /// <remarks>
+    /// Прочитанное словари помнят, и помнят по языку: не забудь студия
+    /// прочитанное при смене набора, снятый пакет продолжал бы переводить
+    /// чужие панели до перезапуска.
+    /// </remarks>
+    [Fact]
+    public void Changing_the_packs_changes_the_translation()
+    {
+        var plugin = Plugin("arxis.hello", ("strings.json", """{ "panel.main": "Панель" }"""));
+
+        Apply(Pack(
+            "arxis.lang-de", "de", "Deutsch", """{ "projects.open": "Öffnen" }""",
+            ("arxis.hello", """{ "panel.main": "Из первого" }""")));
+
+        Localizer.Instance.SetLanguage("de");
+
+        Assert.Equal("Из первого", plugin.Strings.Resolve("%panel.main%"));
+
+        // Язык остаётся тем же — сменился только пакет, который его принёс.
+        Apply(Pack(
+            "other.lang-de", "de", "Deutsch", """{ "projects.open": "Öffnen" }""",
+            ("arxis.hello", """{ "panel.main": "Из второго" }""")));
+
+        Assert.Equal("de", Localizer.Instance.Language);
+        Assert.Equal("Из второго", plugin.Strings.Resolve("%panel.main%"));
+    }
+
+    private void Apply(params InstalledPlugin[] packs)
+    {
+        var languages = new PluginLanguages(packs);
+
+        Localizer.Instance.UsePacks(languages);
+        PluginStrings.UseTranslations(languages);
+    }
+
+    private InstalledPlugin Plugin(string id, params (string File, string Content)[] dictionaries)
+    {
+        var folder = Folder();
+
+        Directory.CreateDirectory(Path.Combine(folder, PluginStrings.Folder));
+
+        foreach (var (file, content) in dictionaries)
+            File.WriteAllText(Path.Combine(folder, PluginStrings.Folder, file), content);
+
+        return new InstalledPlugin(
+            folder,
+            new PluginManifest { Id = id, Name = id },
+            null,
+            IsEnabled: true);
+    }
+
     private string Folder()
     {
         var folder = Path.Combine(Path.GetTempPath(), $"arxis-pack-{Guid.NewGuid():N}");
@@ -257,20 +453,35 @@ public class PluginLanguagePacksTests : IDisposable
         return folder;
     }
 
-    private InstalledPlugin Pack(string id, string code, string name, string? dictionary)
+    private InstalledPlugin Pack(
+        string id,
+        string code,
+        string name,
+        string? dictionary,
+        params (string PluginId, string Content)[] translations)
     {
         var folder = Folder();
         var file = $"lang/{code}.json";
 
+        Directory.CreateDirectory(Path.Combine(folder, "lang"));
+
         if (dictionary is not null)
-        {
-            Directory.CreateDirectory(Path.Combine(folder, "lang"));
             File.WriteAllText(Path.Combine(folder, file), dictionary);
+
+        var declared = new List<PluginTranslation>();
+
+        foreach (var (pluginId, content) in translations)
+        {
+            var path = $"lang/{pluginId}.{code}.json";
+
+            File.WriteAllText(Path.Combine(folder, path), content);
+            declared.Add(new PluginTranslation(pluginId, path));
         }
 
         var manifest = new PluginManifest { Id = id, Name = name };
 
-        manifest.Contributions.Languages.Add(new PluginLanguage(code, name, file));
+        manifest.Contributions.Languages.Add(
+            new PluginLanguage(code, name, file, declared.Count > 0 ? declared : null));
 
         return new InstalledPlugin(folder, manifest, null, IsEnabled: true);
     }

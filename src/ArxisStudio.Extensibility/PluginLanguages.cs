@@ -18,11 +18,15 @@ namespace ArxisStudio.Extensibility;
 /// каталога, ни своего формата архива, ни своего места на диске.
 /// </para>
 /// </remarks>
-public sealed class PluginLanguages : ILanguageSource
+public sealed class PluginLanguages : ILanguageSource, IPluginTranslations
 {
     private readonly Dictionary<string, Declared> _declared = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, FrozenDictionary<string, string>> _read =
         new(StringComparer.OrdinalIgnoreCase);
+
+    // Ключ — «идентификатор плагина и язык»: пакетов может быть
+    // несколько, и каждый переводит своё.
+    private readonly Dictionary<(string Plugin, string Language), string> _translations = new();
 
     private readonly List<string> _problems = [];
 
@@ -85,6 +89,21 @@ public sealed class PluginLanguages : ILanguageSource
         return frozen;
     }
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Читается тем же способом и с теми же поблажками, что и всё
+    /// остальное: нет файла или он испорчен — пустой словарь, а не отказ.
+    /// </remarks>
+    public IReadOnlyDictionary<string, string> Read(string pluginId, string language)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(pluginId);
+        ArgumentException.ThrowIfNullOrEmpty(language);
+
+        return _translations.TryGetValue((pluginId, language), out var path)
+            ? StringFile.Read(path)
+            : FrozenDictionary<string, string>.Empty;
+    }
+
     private void Add(InstalledPlugin plugin, Sdk.Plugins.PluginLanguage declared)
     {
         if (declared.Code is not { Length: > 0 } code)
@@ -121,6 +140,36 @@ public sealed class PluginLanguages : ILanguageSource
         }
 
         _declared[code] = new Declared(plugin.Id, plugin.DisplayName, declared.Name, path);
+
+        foreach (var translation in declared.Translations ?? [])
+            AddTranslation(plugin, code, translation);
+    }
+
+    /// <summary>
+    /// Запоминает перевод чужого плагина.
+    /// </summary>
+    /// <remarks>
+    /// Спор двух пакетов за один перевод решается раньше — на коде языка:
+    /// проигравший до сюда не доходит, и второй записи по паре «плагин и
+    /// язык» взяться неоткуда.
+    /// </remarks>
+    private void AddTranslation(InstalledPlugin plugin, string code, Sdk.Plugins.PluginTranslation translation)
+    {
+        if (translation.Id is not { Length: > 0 } id)
+        {
+            _problems.Add($"{plugin.DisplayName}: перевод объявлен без плагина");
+            return;
+        }
+
+        var path = Path.Combine(plugin.Directory, translation.File ?? string.Empty);
+
+        if (translation.File is not { Length: > 0 } || !File.Exists(path))
+        {
+            _problems.Add($"{plugin.DisplayName}: словаря {translation.File} нет — {id} не переведён");
+            return;
+        }
+
+        _translations[(id, code)] = path;
     }
 
     private sealed record Declared(string PluginId, string PluginName, string Name, string Path);

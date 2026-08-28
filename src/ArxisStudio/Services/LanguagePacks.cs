@@ -35,5 +35,6 @@ internal static class LanguagePacks
             log?.Write(StudioLogLevel.Warning, "Languages", problem);
 
         Localizer.Instance.UsePacks(packs);
+        PluginStrings.UseTranslations(packs);
     }
 }

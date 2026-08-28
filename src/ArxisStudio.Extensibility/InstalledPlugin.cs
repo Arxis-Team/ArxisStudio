@@ -33,7 +33,7 @@ public sealed record InstalledPlugin(
     /// спрашивают и список плагинов, и меню, и панели, а перечитывать файл
     /// заставляет только смена языка или перезагрузка плагина.
     /// </remarks>
-    public PluginStrings Strings => PluginStrings.For(IsBuiltIn ? null : Directory);
+    public PluginStrings Strings => PluginStrings.For(IsBuiltIn ? null : Directory, Id);
 
     /// <summary>
     /// Отображаемое имя: из манифеста, а при ошибке — имя папки.

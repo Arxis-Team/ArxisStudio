@@ -30,17 +30,25 @@ public sealed class PluginStrings : IStudioStrings, IStringSource
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, PluginStrings> Known =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private static IPluginTranslations? _translations;
+
     private readonly Lock _lock = new();
     private readonly string? _directory;
+    private readonly string _pluginId;
 
     private FrozenDictionary<string, string> _translated = FrozenDictionary<string, string>.Empty;
+    private FrozenDictionary<string, string> _packed = FrozenDictionary<string, string>.Empty;
     private FrozenDictionary<string, string> _written = FrozenDictionary<string, string>.Empty;
     private string? _loaded;
 
     /// <summary>Заводит словари плагина.</summary>
     /// <param name="directory">Папка плагина; пусто — словарей нет, текст берётся у студии.</param>
-    public PluginStrings(string? directory) =>
+    /// <param name="pluginId">Чей это плагин — по нему ищут перевод из пакета.</param>
+    public PluginStrings(string? directory, string? pluginId = null)
+    {
         _directory = directory is { Length: > 0 } path ? path : null;
+        _pluginId = pluginId ?? string.Empty;
+    }
 
     /// <summary>Словари самой студии — то, чем пользуются встроенные модули.</summary>
     public static PluginStrings Studio { get; } = new(null);
@@ -52,12 +60,33 @@ public sealed class PluginStrings : IStudioStrings, IStringSource
     /// Словари плагина из этой папки.
     /// </summary>
     /// <param name="directory">Папка плагина; пусто — словари студии.</param>
+    /// <param name="pluginId">Чей это плагин — по нему ищут перевод из пакета.</param>
     /// <remarks>
     /// Один набор на папку, а не на каждого спрашивающего: словари читает и
     /// список плагинов, и меню, и сами панели, а файл при этом один.
     /// </remarks>
-    public static PluginStrings For(string? directory) =>
-        directory is { Length: > 0 } path ? Known.GetOrAdd(path, static value => new PluginStrings(value)) : Studio;
+    public static PluginStrings For(string? directory, string? pluginId = null) =>
+        directory is { Length: > 0 } path
+            ? Known.GetOrAdd(path, static (value, id) => new PluginStrings(value, id), pluginId)
+            : Studio;
+
+    /// <summary>
+    /// Ставит источник переводов, пришедших из языковых пакетов.
+    /// </summary>
+    /// <param name="translations">Источник; null — переводов нет.</param>
+    /// <remarks>
+    /// Источник один на студию и меняется вместе с набором установленных
+    /// пакетов, поэтому прочитанное всеми словарями забывается: перевод,
+    /// пришедший минуту назад, должен быть виден сразу, а ушедший —
+    /// перестать быть виден.
+    /// </remarks>
+    public static void UseTranslations(IPluginTranslations? translations)
+    {
+        _translations = translations;
+
+        foreach (var strings in Known.Values)
+            strings.Drop();
+    }
 
     /// <summary>
     /// Забывает прочитанное, чтобы словари перечитались заново.
@@ -88,7 +117,13 @@ public sealed class PluginStrings : IStudioStrings, IStringSource
 
             lock (_lock)
             {
+                // Порядок старшинства: свой перевод, потом перевод из
+                // пакета, потом язык, на котором плагин написан. Про свой
+                // продукт автор знает больше постороннего, и подменять его
+                // слова словами пакета студия не станет; но там, где автор
+                // молчит, пакет отвечает.
                 return _translated.TryGetValue(key, out var translated) ? translated
+                    : _packed.TryGetValue(key, out var packed) ? packed
                     : _written.TryGetValue(key, out var written) ? written
                     : $"!{key}!";
             }
@@ -159,6 +194,10 @@ public sealed class PluginStrings : IStudioStrings, IStringSource
 
             _written = Read(DefaultFile);
             _translated = Read($"strings.{language}.json");
+            _packed = _pluginId is { Length: > 0 } id && _translations is not null
+                ? _translations.Read(id, language).ToFrozenDictionary(StringComparer.Ordinal)
+                : FrozenDictionary<string, string>.Empty;
+
             _loaded = language;
         }
     }

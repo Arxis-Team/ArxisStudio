@@ -104,7 +104,29 @@ public sealed record PluginToolWindow(string Id, string Title, string Zone);
 /// <param name="Code">Код языка, например <c>de</c>.</param>
 /// <param name="Name">Название на нём самом, например <c>Deutsch</c>.</param>
 /// <param name="File">Путь к словарю относительно папки плагина.</param>
-public sealed record PluginLanguage(string Code, string Name, string File);
+/// <param name="Translations">Переводы чужих плагинов на этот язык.</param>
+public sealed record PluginLanguage(
+    string Code,
+    string Name,
+    string File,
+    IList<PluginTranslation>? Translations = null);
+
+/// <summary>
+/// Перевод чужого плагина, который везёт языковой пакет.
+/// </summary>
+/// <remarks>
+/// Автор плагина переводит его на те языки, которые знает сам, и на этом
+/// его силы кончаются. Дальше нужен кто-то третий: пакет закрывает то, до
+/// чего у автора не дошли руки, — иначе немец с русско-английским плагином
+/// так и остался бы с чужим языком в своей панели.
+/// <para>
+/// Свой перевод плагина при этом сильнее: про свой продукт автор знает
+/// больше, и подменять его словами постороннего студия не будет.
+/// </para>
+/// </remarks>
+/// <param name="Id">Идентификатор переводимого плагина.</param>
+/// <param name="File">Путь к словарю относительно папки пакета.</param>
+public sealed record PluginTranslation(string Id, string File);
 
 /// <summary>Тип файла, поддерживаемый плагином.</summary>
 /// <param name="Ext">Расширение с точкой, например <c>.fig</c>.</param>
