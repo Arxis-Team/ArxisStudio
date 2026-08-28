@@ -153,13 +153,7 @@ public partial class WelcomeWindow : Window
         if (folders.Count == 0 || folders[0].TryGetLocalPath() is not { } source)
             return;
 
-        var (plugin, error) = _model.Plugins.InstallFromDirectory(source);
-
-        _model.Status = plugin is null
-            ? $"{Localizer.Instance["common.error"]}: {error}"
-            : $"{plugin.DisplayName} {plugin.Manifest?.Version} {Localizer.Instance["plugins.installed.suffix"]}";
-
-        _model.RefreshPlugins();
+        Report(_model.Plugins.InstallFromDirectory(source, replace: true));
     }
 
     /// <summary>
@@ -185,11 +179,49 @@ public partial class WelcomeWindow : Window
         if (files.Count == 0 || files[0].TryGetLocalPath() is not { } archive)
             return;
 
-        var (plugin, error) = _model.Plugins.InstallFromArchive(archive);
+        Report(_model.Plugins.InstallFromArchive(archive, replace: true));
+    }
 
-        _model.Status = plugin is null
-            ? $"{Localizer.Instance["common.error"]}: {error}"
-            : $"{plugin.DisplayName} {plugin.Manifest?.Version} {Localizer.Instance["plugins.installed.suffix"]}";
+    /// <summary>
+    /// Снимает плагин с машины.
+    /// </summary>
+    /// <remarks>
+    /// Подтверждения нет намеренно: плагин — это папка, поставить его заново
+    /// значит выбрать её снова, и спрашивать «точно ли» о действии, которое
+    /// повторяется одним щелчком, — лишний шаг на каждый раз ради редкой
+    /// ошибки. Отказ каталога при этом виден: чаще всего папку держит открытая
+    /// студия.
+    /// </remarks>
+    private void OnRemovePluginClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { Tag: InstalledPlugin plugin })
+            return;
+
+        var error = _model.Plugins.Uninstall(plugin);
+
+        _model.Status = error is null
+            ? $"{plugin.DisplayName} {Localizer.Instance["plugins.removed.suffix"]}"
+            : $"{Localizer.Instance["common.error"]}: {error}";
+
+        _model.RefreshPlugins();
+    }
+
+    /// <summary>
+    /// Говорит, чем кончилась установка.
+    /// </summary>
+    /// <remarks>
+    /// Установка поверх уже стоящего плагина — обычный способ обновиться, и
+    /// сказать об этом надо иначе, чем о первой установке: иначе человек не
+    /// поймёт, заменил он свою версию или поставил вторую.
+    /// </remarks>
+    private void Report((InstalledPlugin? Plugin, string? Error) result)
+    {
+        var known = _model.InstalledPlugins.Select(plugin => plugin.Id).ToHashSet(StringComparer.Ordinal);
+
+        _model.Status = result.Plugin is not { } plugin
+            ? $"{Localizer.Instance["common.error"]}: {result.Error}"
+            : $"{plugin.DisplayName} {plugin.Manifest?.Version} " +
+              Localizer.Instance[known.Contains(plugin.Id) ? "plugins.updated.suffix" : "plugins.installed.suffix"];
 
         _model.RefreshPlugins();
     }

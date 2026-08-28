@@ -1,4 +1,4 @@
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using System.Text.Json;
 using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Shell;
@@ -75,7 +75,21 @@ public sealed class PluginCatalog
     /// установленный плагин или сообщение, почему установка не состоялась.
     /// </summary>
     /// <param name="sourceDirectory">Папка с <c>plugin.json</c>.</param>
-    public (InstalledPlugin? Plugin, string? Error) InstallFromDirectory(string sourceDirectory)
+    /// <param name="replace">
+    /// Заменять ли уже установленный плагин с тем же идентификатором. По
+    /// умолчанию нет: тот, кто ставит второй раз, чаще ошибся, чем обновляет, —
+    /// и молча стереть установленное было бы для него неожиданностью.
+    /// </param>
+    /// <remarks>
+    /// Замена — это удаление и установка заново, а не наложение: каталог
+    /// плагина после установки неизменяем, и оставить в нём файл от прошлой
+    /// версии значит поставить плагин, которого не собирал никто. Пометка
+    /// «выключен» замену переживает: человек выключил этот плагин, а не эту его
+    /// версию.
+    /// </remarks>
+    public (InstalledPlugin? Plugin, string? Error) InstallFromDirectory(
+        string sourceDirectory,
+        bool replace = false)
     {
         var manifestPath = Path.Combine(sourceDirectory, "plugin.json");
         if (!File.Exists(manifestPath))
@@ -89,8 +103,15 @@ public sealed class PluginCatalog
             return (null, "В манифесте не указан id плагина");
 
         var target = Path.Combine(_root, manifest.Id);
+
         if (Directory.Exists(target))
-            return (null, $"Плагин {manifest.Id} уже установлен");
+        {
+            if (!replace)
+                return (null, $"Плагин {manifest.Id} уже установлен");
+
+            if (Remove(target) is { } busy)
+                return (null, busy);
+        }
 
         CopyDirectory(sourceDirectory, target);
         return (Read(target, Path.Combine(target, "plugin.json")), null);
@@ -112,7 +133,8 @@ public sealed class PluginCatalog
     /// а запись куда попало.
     /// </para>
     /// </remarks>
-    public (InstalledPlugin? Plugin, string? Error) InstallFromArchive(string archivePath)
+    /// <param name="replace">Заменять ли уже установленный плагин с тем же идентификатором.</param>
+    public (InstalledPlugin? Plugin, string? Error) InstallFromArchive(string archivePath, bool replace = false)
     {
         if (!File.Exists(archivePath))
             return (null, $"Архив не найден: {archivePath}");
@@ -135,7 +157,7 @@ public sealed class PluginCatalog
 
             return source is null
                 ? (null, "В архиве нет plugin.json")
-                : InstallFromDirectory(source);
+                : InstallFromDirectory(source, replace);
         }
         finally
         {
@@ -177,15 +199,50 @@ public sealed class PluginCatalog
         }
     }
 
-    /// <summary>Удаляет плагин вместе с его папкой.</summary>
+    /// <summary>
+    /// Удаляет плагин вместе с его папкой.
+    /// </summary>
     /// <param name="plugin">Установленный плагин.</param>
-    public void Uninstall(InstalledPlugin plugin)
+    /// <returns>null, если удалён, иначе — почему не вышло.</returns>
+    /// <remarks>
+    /// Папку может держать запущенная студия: пока плагин поднят, его сборки
+    /// открыты, и файл не удалить. Это не исключение, а обычный ответ, который
+    /// человеку надо показать словами — иначе нажатие на «Удалить» просто
+    /// ничего не делает.
+    /// <para>
+    /// Пометка «выключен» снимается вместе с плагином: она живёт в общем файле
+    /// рядом с папками, и, оставшись там, выключила бы плагин, поставленный
+    /// заново, — а причины этого человек уже не вспомнит.
+    /// </para>
+    /// </remarks>
+    public string? Uninstall(InstalledPlugin plugin)
     {
-        if (Directory.Exists(plugin.Directory))
-            Directory.Delete(plugin.Directory, recursive: true);
+        ArgumentNullException.ThrowIfNull(plugin);
+
+        if (Remove(plugin.Directory) is { } error)
+            return error;
 
         if (_disabled.Remove(plugin.Id))
             SaveDisabled();
+
+        return null;
+    }
+
+    private static string? Remove(string directory)
+    {
+        if (!Directory.Exists(directory))
+            return null;
+
+        try
+        {
+            Directory.Delete(directory, recursive: true);
+
+            return null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return $"Папка плагина занята: {e.Message}. Закройте студию, если она открыта, и повторите.";
+        }
     }
 
     private InstalledPlugin Read(string directory, string manifestPath)

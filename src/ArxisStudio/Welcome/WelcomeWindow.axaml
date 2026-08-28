@@ -272,6 +272,10 @@
                           <ax:AxIcon Width="19" Height="19" Data="{x:Static ax:AxIcons.Package}"
                                      Foreground="{DynamicResource AxPurBrush}"/>
                         </Border>
+                        <ax:AxButton DockPanel.Dock="Right" Height="26" FontSize="{DynamicResource AxFontSizeSmall}"
+                                     VerticalAlignment="Center" Margin="8,0,0,0"
+                                     Click="OnRemovePluginClick" Tag="{Binding}"
+                                     Content="{loc:Loc plugins.remove}"/>
                         <ax:AxButton DockPanel.Dock="Right" MinWidth="96" Height="26" FontSize="{DynamicResource AxFontSizeSmall}"
                                      VerticalAlignment="Center" Margin="10,0,0,0"
                                      Click="OnTogglePluginClick" Tag="{Binding}"

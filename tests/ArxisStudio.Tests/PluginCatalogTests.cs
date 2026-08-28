@@ -1,4 +1,4 @@
-using ArxisStudio.Extensibility;
+﻿using ArxisStudio.Extensibility;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -136,6 +136,150 @@ public class PluginCatalogTests : IDisposable
         {
             Directory.Delete(source, recursive: true);
         }
+    }
+
+    /// <summary>
+    /// Установка поверх разрешается явно — и заменяет папку целиком.
+    /// </summary>
+    /// <remarks>
+    /// Обновиться иначе нельзя: каталог плагина после установки неизменяем, и
+    /// класть новую версию поверх старой значило бы оставить в папке файлы,
+    /// которых новая сборка не знает. Проверяется именно это: файл прежней
+    /// версии из папки исчез.
+    /// </remarks>
+    [Fact]
+    public void Installing_over_a_plugin_replaces_it_whole()
+    {
+        var source = Source();
+
+        try
+        {
+            var catalog = new PluginCatalog(_root);
+
+            catalog.InstallFromDirectory(source);
+            File.WriteAllText(Path.Combine(_root, "arxis.figma-import", "bin", "Old.dll"), "прошлая версия");
+
+            var (plugin, error) = catalog.InstallFromDirectory(source, replace: true);
+
+            Assert.Null(error);
+            Assert.NotNull(plugin);
+            Assert.False(File.Exists(Path.Combine(_root, "arxis.figma-import", "bin", "Old.dll")));
+            Assert.True(File.Exists(Path.Combine(_root, "arxis.figma-import", "bin", "Arxis.FigmaImport.dll")));
+        }
+        finally
+        {
+            Directory.Delete(source, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Выключённость переживает обновление.
+    /// </summary>
+    /// <remarks>
+    /// Человек выключил этот плагин, а не эту его версию: включившись сам после
+    /// обновления, плагин сделал бы за человека выбор, который тот уже сделал.
+    /// </remarks>
+    [Fact]
+    public void An_update_does_not_switch_a_disabled_plugin_back_on()
+    {
+        var source = Source();
+
+        try
+        {
+            var catalog = new PluginCatalog(_root);
+
+            catalog.InstallFromDirectory(source);
+            catalog.SetEnabled("arxis.figma-import", false);
+
+            var (plugin, _) = catalog.InstallFromDirectory(source, replace: true);
+
+            Assert.NotNull(plugin);
+            Assert.False(plugin!.IsEnabled);
+            Assert.False(Assert.Single(new PluginCatalog(_root).Scan()).IsEnabled);
+        }
+        finally
+        {
+            Directory.Delete(source, recursive: true);
+        }
+    }
+
+    /// <summary>Удаление сносит папку и забывает выключённость.</summary>
+    /// <remarks>
+    /// Пометка живёт не в папке плагина, а в общем файле рядом, и, оставшись
+    /// там, выключила бы плагин, поставленный заново, — а причину этого человек
+    /// уже не вспомнит.
+    /// </remarks>
+    [Fact]
+    public void Uninstalling_takes_the_folder_and_the_disabled_mark_with_it()
+    {
+        var source = Source();
+
+        try
+        {
+            var catalog = new PluginCatalog(_root);
+            var (plugin, _) = catalog.InstallFromDirectory(source);
+
+            catalog.SetEnabled("arxis.figma-import", false);
+
+            Assert.Null(catalog.Uninstall(plugin!));
+            Assert.False(Directory.Exists(Path.Combine(_root, "arxis.figma-import")));
+
+            var (installed, _) = catalog.InstallFromDirectory(source);
+
+            Assert.True(installed!.IsEnabled);
+        }
+        finally
+        {
+            Directory.Delete(source, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Занятую папку удалить нельзя — и об этом надо сказать словами.
+    /// </summary>
+    /// <remarks>
+    /// Сборки плагина держит запущенная студия, пока он поднят. Исключение из
+    /// каталога означало бы, что кнопка «Удалить» роняет окно; молчание — что
+    /// она ничего не делает. Оба ответа человеку одинаково бесполезны.
+    /// </remarks>
+    [Fact]
+    public void A_busy_plugin_folder_is_refused_with_a_word()
+    {
+        var source = Source();
+
+        try
+        {
+            var catalog = new PluginCatalog(_root);
+            var (plugin, _) = catalog.InstallFromDirectory(source);
+
+            using var hold = File.Open(
+                Path.Combine(_root, "arxis.figma-import", "bin", "Arxis.FigmaImport.dll"),
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.None);
+
+            var error = catalog.Uninstall(plugin!);
+
+            Assert.NotNull(error);
+            Assert.Contains("занята", error);
+            Assert.True(Directory.Exists(Path.Combine(_root, "arxis.figma-import")));
+        }
+        finally
+        {
+            Directory.Delete(source, recursive: true);
+        }
+    }
+
+    /// <summary>Папка-источник с манифестом и сборкой.</summary>
+    private static string Source()
+    {
+        var source = Path.Combine(Path.GetTempPath(), $"arxis-source-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(Path.Combine(source, "bin"));
+        File.WriteAllText(Path.Combine(source, "plugin.json"), Manifest);
+        File.WriteAllText(Path.Combine(source, "bin", "Arxis.FigmaImport.dll"), "not really a dll");
+
+        return source;
     }
 
     [Fact]
