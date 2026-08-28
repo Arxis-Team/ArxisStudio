@@ -1,0 +1,14 @@
+{
+  "plugin.description": "Ein Beispiel-Plugin: ein Fenster und ein Befehl",
+  "menu.tools": "Erweiterungsbefehle",
+  "menu.hello": "Beispiel-Plugin",
+  "command.greet": "Begrüßen",
+  "panel.hello": "Beispiel",
+  "panel.intro": "Ein Beispiel-Plugin",
+  "panel.count": "Projektdateien zählen",
+  "panel.noproject": "Kein Projekt geöffnet",
+  "panel.cancelled": "Durchlauf abgebrochen",
+  "panel.counted": "Dateien im Projekt",
+  "setting.greeting": "Begrüßungstext",
+  "task.walk": "Projekt wird durchlaufen"
+}

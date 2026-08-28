@@ -18,12 +18,24 @@
   <Folder Name="/src/Plugins/">
     <Project Path="src/Plugins/Arxis.HelloPlugin/Arxis.HelloPlugin.csproj" />
   </Folder>
+  <Folder Name="/src/Plugins/Arxis.Lang.De/">
+    <File Path="src/Plugins/Arxis.Lang.De/README.md" />
+    <File Path="src/Plugins/Arxis.Lang.De/lang/arxis.hello.de.json" />
+    <File Path="src/Plugins/Arxis.Lang.De/lang/de.json" />
+    <File Path="src/Plugins/Arxis.Lang.De/plugin.json" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/ArxisStudio.Extensibility/ArxisStudio.Extensibility.csproj" />
     <Project Path="src/ArxisStudio.Sdk/ArxisStudio.Sdk.csproj" />
     <Project Path="src/ArxisStudio.Sdk.Analyzers/ArxisStudio.Sdk.Analyzers.csproj" />
     <Project Path="src/ArxisStudio.Shell/ArxisStudio.Shell.csproj" />
     <Project Path="src/ArxisStudio/ArxisStudio.csproj" />
+  </Folder>
+  <Folder Name="/templates/Arxis.Language/">
+    <File Path="templates/Arxis.Language/.template.config/template.json" />
+    <File Path="templates/Arxis.Language/README.md" />
+    <File Path="templates/Arxis.Language/lang/xx.json" />
+    <File Path="templates/Arxis.Language/plugin.json" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ArxisStudio.Tests/ArxisStudio.Tests.csproj" />

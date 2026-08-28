@@ -831,6 +831,10 @@ dotnet new install templates/Arxis.Language
 dotnet new arxis-language -n de --display Deutsch
 ```
 
+Готовый пример пакета лежит в `src/Plugins/Arxis.Lang.De`: часть строк студии,
+перевод плагина `arxis.hello` и согласованное название ветки меню. Шаблон и
+пример видны в решении отдельными папками — править их можно прямо из среды.
+
 ### plugin.json
 
 ```json
