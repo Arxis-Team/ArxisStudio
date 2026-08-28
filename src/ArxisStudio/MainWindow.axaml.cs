@@ -36,13 +36,6 @@ public partial class MainWindow : Window
     /// Порядок здесь виден человеку: модули встают в зоны по очереди, и вкладки
     /// внизу идут в том же порядке, что строки этого списка.
     /// </remarks>
-    private static readonly Assembly[] BuiltInModules =
-    [
-        typeof(Modules.Project.ProjectModule).Assembly,
-        typeof(Modules.Console.ConsoleModule).Assembly,
-        typeof(Modules.Designer.DesignerModule).Assembly,
-    ];
-
     private readonly ISettingsStore? _settings;
     private readonly List<OpenDocument> _documents = [];
     private readonly StudioLog _log = new();
@@ -146,10 +139,7 @@ public partial class MainWindow : Window
         _installed = catalog.Scan();
         _contributions.Conflict += (_, message) => _log.Write(StudioLogLevel.Warning, "Plugins", message);
 
-        var raised = BuiltInModules.Select(host.LoadBuiltIn)
-            .Concat(host.LoadStartup(_installed));
-
-        foreach (var loaded in raised)
+        foreach (var loaded in host.LoadStartup(_installed))
             Accept(loaded);
 
         foreach (var waiting in host.Deferred)
@@ -275,7 +265,7 @@ public partial class MainWindow : Window
 
         if (_contributions.EditorFor(filePath) is not { } editor)
         {
-            StatusText.Text = Localizer.Instance["editor.nodesigner"];
+            StatusText.Text = Localizer.Instance["editor.noeditor"];
             return;
         }
 

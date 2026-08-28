@@ -1,4 +1,4 @@
-using ArxisStudio.Shell.Localization;
+﻿using ArxisStudio.Shell.Localization;
 using ArxisStudio.Shell.Settings;
 using Xunit;
 
@@ -91,8 +91,8 @@ public class LocalizerTests
         Assert.Equal("Обучение", Localizer.Instance["welcome.nav.learn"]);
         Assert.Equal("Плагины", Localizer.Instance["welcome.nav.plugins"]);
         Assert.Equal("Настройки", Localizer.Instance["welcome.nav.settings"]);
-        Assert.Equal("Иерархия", Localizer.Instance["panel.hierarchy"]);
-        Assert.Equal("Инспектор", Localizer.Instance["panel.inspector"]);
+        Assert.Equal("Перезапустить", Localizer.Instance["panel.reload"]);
+        Assert.Equal("Установить из папки…", Localizer.Instance["plugins.install"]);
     }
 
     [Fact]
