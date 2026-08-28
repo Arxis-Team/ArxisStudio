@@ -1,4 +1,4 @@
-using ArxisStudio.Controls;
+﻿using ArxisStudio.Controls;
 using ArxisStudio.Sdk;
 using Avalonia.Controls;
 using Avalonia.Layout;

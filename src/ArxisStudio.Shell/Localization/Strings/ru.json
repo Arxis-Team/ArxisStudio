@@ -113,6 +113,8 @@
   "console.clear": "Очистить",
   "menu.tools": "Команды плагинов",
   "menu.activating": "Поднимаю плагин",
+  "menu.plugins": "Плагины",
+  "menu.reload": "Перезагрузить",
   "canvas.grid": "Сетка",
   "canvas.snap": "Привязка",
   "canvas.zoomreset": "Вернуть 100%",

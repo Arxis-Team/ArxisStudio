@@ -22,6 +22,8 @@ namespace ArxisStudio.Extensibility;
 /// </remarks>
 public sealed class PluginHost : IDisposable
 {
+    private static bool _swept;
+
     private readonly List<LoadedPlugin> _loaded = [];
     private readonly List<InstalledPlugin> _deferred = [];
     private readonly IStudioContextFactory _contexts;
@@ -139,6 +141,48 @@ public sealed class PluginHost : IDisposable
         return Add(waiting);
     }
 
+    /// <summary>
+    /// Поднимает плагин заново: выгружает старую копию и загружает свежую.
+    /// </summary>
+    /// <param name="installed">Плагин, перечитанный каталогом с диска.</param>
+    /// <returns>Новая копия или причина, почему перезагрузить не вышло.</returns>
+    /// <remarks>
+    /// Это то, ради чего у внешнего плагина свой выгружаемый контекст: автор
+    /// собрал новую сборку, положил её в папку плагина — и увидел её, не
+    /// перезапуская студию. Без перезагрузки контекст только и делал бы, что
+    /// ждал закрытия окна.
+    /// <para>
+    /// Встроенный модуль перезагрузить нельзя, и притворяться, что можно, —
+    /// худшее из решений: его сборки живут в основном контексте вместе со
+    /// сборками самой студии, выгрузить их отдельно нечем, а «перезагрузка»,
+    /// которая на деле подняла бы второй экземпляр поверх первого, оставила бы
+    /// две копии панелей и два обработчика на каждую команду.
+    /// </para>
+    /// <para>
+    /// Запись каталога передаётся заново, а не берётся у прежней копии:
+    /// перезагружают чаще всего потому, что плагин изменился, и вместе со
+    /// сборкой мог измениться список его панелей и команд. Читать манифест
+    /// хосту нечем — это дело каталога, и он же знает, где плагин лежит.
+    /// </para>
+    /// </remarks>
+    public (LoadedPlugin? Plugin, string? Error) Reload(InstalledPlugin installed)
+    {
+        ArgumentNullException.ThrowIfNull(installed);
+
+        var loaded = _loaded.FirstOrDefault(plugin => plugin.Installed.Id == installed.Id);
+
+        if (loaded is null)
+            return (null, $"Плагин {installed.Id} не поднят");
+
+        if (loaded.Context is null)
+            return (null, $"{loaded.Installed.DisplayName} — встроенный модуль: он приезжает вместе со студией, и отдельно от неё его не перезагрузить");
+
+        _loaded.Remove(loaded);
+        loaded.Unload();
+
+        return (Add(installed), null);
+    }
+
     private LoadedPlugin Add(InstalledPlugin installed)
     {
         var loaded = Load(installed);
@@ -166,6 +210,8 @@ public sealed class PluginHost : IDisposable
 
         if (!File.Exists(assemblyPath))
             return LoadedPlugin.Failed(installed, $"Сборка плагина не найдена: {entry}");
+
+        assemblyPath = Shadow(installed, assemblyPath);
 
         var context = new PluginLoadContext(installed.Id, assemblyPath);
 
@@ -212,6 +258,90 @@ public sealed class PluginHost : IDisposable
 
         _loaded.Add(loaded);
         return loaded;
+    }
+
+    /// <summary>
+    /// Готовит теневую копию сборок плагина и возвращает путь к entry в ней.
+    /// </summary>
+    /// <remarks>
+    /// Загруженная сборка держит свой файл открытым, пока жив её контекст. Без
+    /// копии это значит, что автор плагина не может пересобрать его, пока
+    /// студия открыта: сборка не запишется, а перезагружать будет нечего.
+    /// Именно этот случай перезагрузка и должна закрывать, поэтому плагин
+    /// грузится не из своей папки, а из копии рядом.
+    /// <para>
+    /// Копируется только <c>bin/</c>. Ресурсы плагина — значки, словари —
+    /// остаются на месте: путь к его папке студия выдаёт в контексте, и он
+    /// должен указывать туда, где плагин установлен, а не туда, где лежит
+    /// копия его сборок.
+    /// </para>
+    /// <para>
+    /// Не вышло скопировать — не беда: грузим из папки плагина, как раньше.
+    /// Перезагрузка после этого потребует закрыть студию, но сам плагин
+    /// поднимется.
+    /// </para>
+    /// </remarks>
+    private static string Shadow(InstalledPlugin installed, string assemblyPath)
+    {
+        var source = Path.GetDirectoryName(assemblyPath);
+
+        if (source is null)
+            return assemblyPath;
+
+        try
+        {
+            var shadow = Path.Combine(ShadowRoot, $"{installed.Id}-{Guid.NewGuid():N}");
+
+            Directory.CreateDirectory(shadow);
+
+            foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+            {
+                var target = Path.Combine(shadow, Path.GetRelativePath(source, file));
+
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                File.Copy(file, target, overwrite: true);
+            }
+
+            return Path.Combine(shadow, Path.GetFileName(assemblyPath));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return assemblyPath;
+        }
+    }
+
+    /// <summary>
+    /// Где живут теневые копии.
+    /// </summary>
+    /// <remarks>
+    /// Папка чистится при первом обращении: копии выгруженных плагинов
+    /// остаются на диске — файл, только что отпущенный контекстом, ещё занят, —
+    /// и убрать их получается лишь в следующий запуск.
+    /// </remarks>
+    private static string ShadowRoot
+    {
+        get
+        {
+            var root = Path.Combine(Path.GetTempPath(), "arxis-plugin-shadow");
+
+            if (_swept)
+                return root;
+
+            _swept = true;
+
+            foreach (var stale in Directory.Exists(root) ? Directory.EnumerateDirectories(root) : [])
+            {
+                try
+                {
+                    Directory.Delete(stale, recursive: true);
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                }
+            }
+
+            return root;
+        }
     }
 
     private static LoadedPlugin Raise(

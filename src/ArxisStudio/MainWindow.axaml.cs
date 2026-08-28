@@ -65,9 +65,9 @@ public partial class MainWindow : Window
     private IReadOnlyList<StudioMenuItem> _menu = [];
     private DocumentView? _active;
 
-    // Панели модулей и плагинов, разложенные по нижним вкладкам: вкладка знает
-    // свой номер, а содержимое лежит в общем месте и показывается по очереди.
-    private readonly Dictionary<int, Control> _bottomPanels = [];
+    // Панели модулей и плагинов: без этого списка снять их со стен нечем, а
+    // перезагрузка плагина только и делает, что снимает старые и ставит новые.
+    private readonly List<MountedPanel> _panels = [];
 
     /// <summary>Создаёт окно без проекта — состояние каркаса.</summary>
     public MainWindow()
@@ -341,18 +341,56 @@ public partial class MainWindow : Window
     private void ShowMenu()
     {
         _menu = StudioMenu.Build(_installed);
-        MenuButton.IsVisible = _menu.Count > 0;
+
+        // Кнопка нужна и без единой команды: перезагрузить плагин — тоже
+        // действие, и другого места для него в окне нет.
+        MenuButton.IsVisible = _menu.Count > 0 || Reloadable().Count > 0;
     }
+
+    /// <summary>
+    /// Плагины, которые можно поднять заново.
+    /// </summary>
+    /// <remarks>
+    /// Только внешние: у встроенного модуля нет своего контекста загрузки, и
+    /// предлагать перезагрузить то, что перезагрузить нельзя, — обещание,
+    /// которое студия не сдержит.
+    /// </remarks>
+    private IReadOnlyList<InstalledPlugin> Reloadable() =>
+        _plugins?.Loaded
+            .Where(plugin => plugin is { IsLoaded: true, Context: not null })
+            .Select(plugin => plugin.Installed)
+            .ToList() ?? [];
 
     private void OnMenuClick(object? sender, RoutedEventArgs e)
     {
-        if (_menu.Count == 0)
-            return;
-
         var flyout = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedLeft };
 
         foreach (var item in _menu)
             flyout.Items.Add(Build(item));
+
+        if (Reloadable() is { Count: > 0 } plugins)
+        {
+            if (_menu.Count > 0)
+                flyout.Items.Add(new Separator());
+
+            var branch = new MenuItem { Header = Localizer.Instance["menu.plugins"] };
+
+            foreach (var plugin in plugins)
+            {
+                var item = new MenuItem
+                {
+                    Header = $"{Localizer.Instance["menu.reload"]} · {plugin.DisplayName}",
+                };
+
+                item.Click += (_, _) => ReloadPlugin(plugin.Id);
+                branch.Items.Add(item);
+            }
+
+            flyout.Items.Add(branch);
+        }
+
+        if (flyout.Items.Count == 0)
+            return;
 
         flyout.ShowAt(MenuButton);
 
@@ -446,7 +484,7 @@ public partial class MainWindow : Window
                 error => _guard.Report(loaded.Installed.Id, $"раскладка панели {declared.Id}", error),
                 () => Reload(loaded, declared, type, studio, surface!));
 
-            Mount(declared, surface);
+            Mount(loaded.Installed.Id, declared, surface);
         }
     }
 
@@ -494,9 +532,10 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Ставит содержимое панели в зону студии.</summary>
+    /// <param name="pluginId">Чья это панель — по нему её потом и снимут.</param>
     /// <param name="declared">Объявление панели из манифеста.</param>
     /// <param name="content">Построенное содержимое панели.</param>
-    private void Mount(Sdk.Plugins.PluginToolWindow declared, Control content)
+    private void Mount(string pluginId, Sdk.Plugins.PluginToolWindow declared, Control content)
     {
         var (zone, title) = (declared.Zone, declared.Title);
 
@@ -514,20 +553,111 @@ public partial class MainWindow : Window
                 BottomPluginHost.Children.Add(content);
 
                 content.IsVisible = false;
-                _bottomPanels[BottomTabs.Items.Count - 1] = content;
+                _panels.Add(new MountedPanel(pluginId, "bottom", content, tab));
 
                 break;
 
             case "left":
-                Append(LeftZone, Window(title, content));
+                Add(pluginId, "left", LeftZone, title, content);
                 break;
 
             default:
-                Append(RightZone, Window(title, content));
+                Add(pluginId, "right", RightZone, title, content);
                 break;
         }
 
         _log.Write(StudioLogLevel.Debug, "Plugins", $"Панель «{Resolve(title)}» встала в зону {zone}");
+    }
+
+    /// <summary>Ставит панель в боковую зону и запоминает, чья она.</summary>
+    private void Add(string pluginId, string zone, Grid grid, string title, Control content)
+    {
+        var window = Window(title, content);
+
+        _panels.Add(new MountedPanel(pluginId, zone, window, null));
+        Append(grid, window);
+    }
+
+    /// <summary>
+    /// Снимает со стен всё, что поставил плагин.
+    /// </summary>
+    /// <remarks>
+    /// Боковые зоны перекладываются заново, а не правятся по месту: между
+    /// панелями стоят разделители, и вынуть одну панель, не тронув соседний
+    /// разделитель, значит оставить черту, которая ничего не делит.
+    /// </remarks>
+    private void Unmount(string pluginId)
+    {
+        foreach (var panel in _panels.Where(panel => panel.PluginId == pluginId).ToList())
+        {
+            if (panel.Tab is { } tab)
+            {
+                BottomTabs.Items.Remove(tab);
+                BottomPluginHost.Children.Remove(panel.Content);
+            }
+
+            _panels.Remove(panel);
+        }
+
+        Relayout("left", LeftZone);
+        Relayout("right", RightZone);
+
+        if (BottomTabs.Items.Count > 0 && BottomTabs.SelectedIndex < 0)
+            BottomTabs.SelectedIndex = 0;
+
+        ShowBottomPanel();
+    }
+
+    /// <summary>Перекладывает зону из тех панелей, что в ней остались.</summary>
+    private void Relayout(string zone, Grid grid)
+    {
+        grid.Children.Clear();
+        grid.RowDefinitions.Clear();
+
+        foreach (var panel in _panels.Where(panel => panel.Zone == zone))
+            Append(grid, panel.Content);
+    }
+
+    /// <summary>
+    /// Поднимает плагин заново, не перезапуская студию.
+    /// </summary>
+    /// <remarks>
+    /// Внутренний цикл автора плагина: собрал, выложил в папку плагинов,
+    /// перезагрузил. Порядок здесь важнее самих действий — сперва студия
+    /// отпускает всё, что держит: панели со стен, вклады из реестра, команды из
+    /// меню. Обработчик команды, оставленный в реестре, ссылается на типы
+    /// плагина, а через них — на его контекст загрузки, и тот не выгрузится:
+    /// перезагрузка копила бы в памяти по контексту за раз.
+    /// </remarks>
+    private void ReloadPlugin(string pluginId)
+    {
+        if (_plugins is not { } host)
+            return;
+
+        // Манифест мог измениться вместе со сборкой — берём запись с диска.
+        _installed = new PluginCatalog().Scan();
+
+        if (_installed.FirstOrDefault(plugin => plugin.Id == pluginId) is not { } installed)
+        {
+            _log.Write(StudioLogLevel.Warning, "Plugins", $"Плагина {pluginId} больше нет в папке плагинов");
+            return;
+        }
+
+        Unmount(pluginId);
+        _contributions.Remove(pluginId);
+        _commands.Remove(installed.Manifest?.Contributions.Commands.Select(command => command.Id) ?? []);
+        _guard.Forget(pluginId);
+
+        var (loaded, error) = host.Reload(installed);
+
+        if (loaded is null)
+        {
+            _log.Write(StudioLogLevel.Warning, "Plugins", error!);
+            return;
+        }
+
+        Accept(loaded);
+        ShowMenu();
     }
 
     /// <summary>Заворачивает панель в окно инструментов с заголовком.</summary>
@@ -607,10 +737,12 @@ public partial class MainWindow : Window
     /// <summary>Показывает панель выбранной нижней вкладки, пряча остальные.</summary>
     private void ShowBottomPanel()
     {
-        var tab = BottomTabs.SelectedIndex;
+        var selected = BottomTabs.SelectedIndex >= 0 && BottomTabs.SelectedIndex < BottomTabs.Items.Count
+            ? BottomTabs.Items[BottomTabs.SelectedIndex] as AxTabItem
+            : null;
 
-        foreach (var (index, panel) in _bottomPanels)
-            panel.IsVisible = index == tab;
+        foreach (var panel in _panels.Where(panel => panel.Tab is not null))
+            panel.Content.IsVisible = ReferenceEquals(panel.Tab, selected);
     }
 
     private async Task CloseDocumentsAsync()
@@ -639,6 +771,13 @@ public partial class MainWindow : Window
     /// <summary>Открытая вкладка: путь файла и представление от редактора.</summary>
     /// <param name="Path">Путь к файлу.</param>
     /// <param name="View">Представление документа.</param>
+    /// <summary>Панель, стоящая в студии.</summary>
+    /// <param name="PluginId">Чья она.</param>
+    /// <param name="Zone">В какой зоне стоит.</param>
+    /// <param name="Content">Что стоит: окно инструментов или само содержимое внизу.</param>
+    /// <param name="Tab">Вкладка нижней зоны; null у боковых панелей.</param>
+    private sealed record MountedPanel(string PluginId, string Zone, Control Content, AxTabItem? Tab);
+
     private sealed record OpenDocument(string Path, DocumentView View);
 
     /// <summary>Строка состояния как служба для модулей и плагинов.</summary>

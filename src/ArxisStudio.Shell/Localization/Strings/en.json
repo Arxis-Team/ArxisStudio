@@ -113,6 +113,8 @@
   "console.clear": "Clear",
   "menu.tools": "Plugin commands",
   "menu.activating": "Loading the plugin",
+  "menu.plugins": "Plugins",
+  "menu.reload": "Reload",
   "canvas.grid": "Grid",
   "canvas.snap": "Snap",
   "canvas.zoomreset": "Reset to 100%",
