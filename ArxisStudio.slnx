@@ -4,6 +4,10 @@
   <Folder Name="/external/ArxisStudio.Controls/src/">
     <Project Path="external/ArxisStudio.Controls/src/ArxisStudio.Controls.csproj" />
   </Folder>
+  <Folder Name="/external/ArxisStudio.Fonts.Cascadia/" />
+  <Folder Name="/external/ArxisStudio.Fonts.Cascadia/src/">
+    <Project Path="external/ArxisStudio.Fonts.Cascadia/src/ArxisStudio.Fonts.Cascadia.csproj" />
+  </Folder>
   <Folder Name="/external/ArxisStudio.Themes.Arxis/" />
   <Folder Name="/external/ArxisStudio.Themes.Arxis/src/">
     <Project Path="external/ArxisStudio.Themes.Arxis/src/ArxisStudio.Themes.Arxis.csproj" />
@@ -20,7 +24,5 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ArxisStudio.Tests/ArxisStudio.Tests.csproj" />
-  </Folder>
-  <Folder Name="/tests/fixtures/">
   </Folder>
 </Solution>
