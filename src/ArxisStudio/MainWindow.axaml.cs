@@ -90,8 +90,17 @@ public partial class MainWindow : Window
         Opened += (_, _) => StudioWindowChrome.Apply(
             this, _settings?.Current.Theme ?? StudioTheme.Dark);
 
+        // Исключение, пришедшее мимо шва, — из обработчика события плагина, из
+        // его же задачи, — иначе доходит до платформы и роняет студию. Виновник
+        // узнаётся по стеку: назвать себя тут некому.
+        Dispatcher.UIThread.UnhandledException += OnUnhandled;
+        TaskScheduler.UnobservedTaskException += OnUnobserved;
+
         Closed += async (_, _) =>
         {
+            Dispatcher.UIThread.UnhandledException -= OnUnhandled;
+            TaskScheduler.UnobservedTaskException -= OnUnobserved;
+
             _runner.Dispose();
             _plugins?.Dispose();
             await CloseDocumentsAsync();
@@ -198,6 +207,49 @@ public partial class MainWindow : Window
 
         _contributions.Add(loaded);
         MountPanels(loaded);
+    }
+
+    /// <summary>
+    /// Ловит исключение потока интерфейса.
+    /// </summary>
+    /// <remarks>
+    /// Продолжать работу студия соглашается только за плагин: его сбой посчитан
+    /// швом, и после третьего плагин отключат. Свой же дефект не глушится —
+    /// исключение идёт дальше, как шло: спрятанный, он остался бы навсегда, а
+    /// студия продолжила бы работать в состоянии, о котором ничего не знает.
+    /// </remarks>
+    private void OnUnhandled(object? sender, DispatcherUnhandledExceptionEventArgs e)
+    {
+        if (Blame(e.Exception, "необработанное исключение"))
+            e.Handled = true;
+    }
+
+    /// <summary>
+    /// Ловит исключение задачи, которое никто не забрал.
+    /// </summary>
+    /// <remarks>
+    /// Забытая задача плагина — обычное дело: он запустил её и не стал ждать.
+    /// Считается это так же, как остальное, и отмечается прочитанным: своё
+    /// исключение студия оставляет платформе.
+    /// </remarks>
+    private void OnUnobserved(object? sender, UnobservedTaskExceptionEventArgs e)
+    {
+        if (Blame(e.Exception, "исключение забытой задачи"))
+            e.SetObserved();
+    }
+
+    /// <summary>
+    /// Приписывает исключение плагину, если его код есть в стеке.
+    /// </summary>
+    /// <returns><c>true</c>, если виновник найден и записан.</returns>
+    private bool Blame(Exception? error, string what)
+    {
+        if (_plugins?.Blame(error) is not { } plugin || error is null)
+            return false;
+
+        _guard.Report(plugin.Installed.Id, what, error);
+
+        return true;
     }
 
     /// <summary>Как плагин называется в сообщениях.</summary>

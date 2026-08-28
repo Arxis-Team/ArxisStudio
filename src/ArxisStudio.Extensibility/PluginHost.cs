@@ -1,3 +1,4 @@
+﻿using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.Loader;
 using ArxisStudio.Sdk;
@@ -39,6 +40,58 @@ public sealed class PluginHost : IDisposable
 
     /// <summary>Плагины, ждущие своего события.</summary>
     public IReadOnlyList<InstalledPlugin> Deferred => _deferred;
+
+    /// <summary>
+    /// Находит плагин, чей код есть в стеке исключения.
+    /// </summary>
+    /// <param name="error">Исключение, пришедшее без спроса.</param>
+    /// <returns>Плагин или null, если в стеке только код студии.</returns>
+    /// <remarks>
+    /// Так приписываются падения, пришедшие мимо шва: необработанное
+    /// исключение потока интерфейса и задача, чьё исключение никто не забрал.
+    /// Там некому назвать плагин — его приходится узнавать по стеку.
+    /// <para>
+    /// Ищется первый кадр чужого кода: студия зовёт плагин, плагин зовёт
+    /// студию, и снизу стека может оказаться и то и другое. Виноват тот, чей
+    /// код бросил, — он ближе к вершине.
+    /// </para>
+    /// <para>
+    /// Сборку сверяем и по списку плагина, и по его контексту загрузки: список
+    /// знает entry-сборку и то, что нашлось рядом, а приватную зависимость
+    /// плагина, подгруженную по требованию, знает только контекст.
+    /// </para>
+    /// </remarks>
+    public LoadedPlugin? Blame(Exception? error) => Blame(error, _loaded);
+
+    /// <summary>
+    /// Находит среди перечисленных плагинов того, чей код есть в стеке.
+    /// </summary>
+    /// <param name="error">Исключение, пришедшее без спроса.</param>
+    /// <param name="loaded">Где искать.</param>
+    /// <returns>Плагин или null, если в стеке только код студии.</returns>
+    public static LoadedPlugin? Blame(Exception? error, IReadOnlyCollection<LoadedPlugin> loaded)
+    {
+        ArgumentNullException.ThrowIfNull(loaded);
+
+        for (var current = error; current is not null; current = current.InnerException)
+        {
+            foreach (var frame in new StackTrace(current, fNeedFileInfo: false).GetFrames())
+            {
+                if (frame.GetMethod()?.DeclaringType?.Assembly is not { } assembly)
+                    continue;
+
+                if (Owner(assembly, loaded) is { } plugin)
+                    return plugin;
+            }
+        }
+
+        return null;
+    }
+
+    private static LoadedPlugin? Owner(Assembly assembly, IEnumerable<LoadedPlugin> loaded) =>
+        loaded.FirstOrDefault(plugin =>
+            plugin.Assemblies.Contains(assembly) ||
+            (plugin.Context is not null && AssemblyLoadContext.GetLoadContext(assembly) == plugin.Context));
 
     /// <summary>
     /// Принимает каталог и поднимает то, что просит подняться сразу.
