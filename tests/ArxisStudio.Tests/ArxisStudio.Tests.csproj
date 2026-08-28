@@ -12,6 +12,12 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp"/>
         <PackageReference Include="Avalonia.Headless.XUnit"/>
+        <!--
+            Skia нужна тестам, которые открывают картинки: headless-рисование
+            декодер не зовёт вовсе, а выдаёт болванку нужного размера — на ней
+            «прочиталось» и «не прочиталось» неразличимы.
+        -->
+        <PackageReference Include="Avalonia.Skia"/>
         <PackageReference Include="Avalonia.Themes.Fluent"/>
         <PackageReference Include="Avalonia.Fonts.Inter"/>
         <PackageReference Include="Microsoft.NET.Test.Sdk"/>
