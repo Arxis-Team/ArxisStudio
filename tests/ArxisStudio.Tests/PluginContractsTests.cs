@@ -183,6 +183,60 @@ public class PluginContractsTests : IDisposable
         Assert.All(cascade.Raised, loaded => Assert.True(loaded.IsLoaded, loaded.Error));
     }
 
+    /// <summary>
+    /// Одиночная перезагрузка доносит и заметку, и настоящую ошибку.
+    /// </summary>
+    /// <remarks>
+    /// Её ответ собирался из каскада вручную и ронял по дороге обе вещи:
+    /// заметку про изменившийся контракт — ради которой перезагрузка его и
+    /// перечитывает, — и ошибку поднятой копии, вместо которой подставлялся
+    /// null. Вызывающий, спрашивающий «Error is null?», отчитывался об
+    /// успешной перезагрузке того, что не поднялось.
+    /// </remarks>
+    [Fact]
+    public void A_single_reload_carries_the_note_and_the_real_error()
+    {
+        var catalog = new PluginCatalog(_root);
+
+        Assert.Null(catalog.InstallFromArchive(HelloArchive.Path).Error);
+
+        using var studio = new TestHost();
+
+        Start(studio.Host, catalog);
+
+        var directory = Path.Combine(_root, "arxis.hello");
+
+        // Контракт «пересобран»: содержимое то же, но файл на диске новее.
+        File.SetLastWriteTimeUtc(
+            Path.Combine(directory, "bin", "Arxis.Hello.Contracts.dll"),
+            DateTime.UtcNow.AddMinutes(1));
+
+        var installed = catalog.Scan().Single(plugin => plugin.Id == "arxis.hello");
+        var withNote = studio.Host.Reload(installed);
+
+        Assert.Contains(withNote.Notes, note => note.Contains("перезапуска", StringComparison.Ordinal));
+        Assert.Null(withNote.Error);
+
+        // А теперь контракт объявлен и сломан: ошибка обязана доехать.
+        File.WriteAllText(Path.Combine(directory, "bin", "Broken.dll"), "это не сборка");
+
+        var manifest = Path.Combine(directory, "plugin.json");
+
+        // Правится объявленный контракт, а не добавляется второй ключ:
+        // manifest примера уже объявляет provides.
+        File.WriteAllText(
+            manifest,
+            File.ReadAllText(manifest).Replace(
+                "bin/Arxis.Hello.Contracts.dll",
+                "bin/Broken.dll",
+                StringComparison.Ordinal));
+
+        var broken = studio.Host.Reload(catalog.Scan().Single(plugin => plugin.Id == "arxis.hello"));
+
+        Assert.NotNull(broken.Error);
+        Assert.Contains("не читается как сборка", broken.Error);
+    }
+
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     private static void Start(PluginHost host, PluginCatalog catalog) =>
         Assert.Single(host.LoadStartup(catalog.Scan()), loaded => loaded.IsLoaded);

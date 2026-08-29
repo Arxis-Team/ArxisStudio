@@ -362,12 +362,19 @@ public sealed class PluginHost : IDisposable
         var cascade = Reload([installed.Id], [installed]);
 
         if (cascade.Skipped.TryGetValue(installed.Id, out var refusal))
-            return new PluginReload(null, refusal, false);
+            return new PluginReload(null, refusal, false, cascade.Notes);
 
+        var raised = cascade.Raised.Single();
+
+        // Ошибка берётся с самой записи, а не подставляется null: поднятая
+        // копия может быть записью со сбоем — например, контракт объявлен и
+        // не загрузился. Иначе вызывающий, спрашивающий «Error is null?»,
+        // отчитался бы об успешной перезагрузке того, что не поднялось.
         return new PluginReload(
-            cascade.Raised.Single(),
-            null,
-            cascade.Released[installed.Id]);
+            raised,
+            raised.Error,
+            cascade.Released[installed.Id],
+            cascade.Notes);
     }
 
     /// <summary>
@@ -827,7 +834,13 @@ public sealed class PluginHost : IDisposable
 /// Плагин при этом поднят, но старая копия осталась в памяти и продолжает
 /// получать то, на что подписалась.
 /// </param>
-public sealed record PluginReload(LoadedPlugin? Plugin, string? Error, bool Released);
+/// <param name="Notes">
+/// О чём сказать, не отказывая: изменившийся контракт, который выгрузить
+/// нечем. Ради этой строки перезагрузка контракт и перечитывает — потерять
+/// её значит оставить автора править типы, которых процесс уже не увидит.
+/// </param>
+public sealed record PluginReload(
+    LoadedPlugin? Plugin, string? Error, bool Released, IReadOnlyList<string> Notes);
 
 /// <summary>
 /// Итог каскадной перезагрузки.
