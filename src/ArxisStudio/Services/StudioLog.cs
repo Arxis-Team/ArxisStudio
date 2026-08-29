@@ -105,6 +105,17 @@ public sealed class StudioCommands(PluginGuard? guard = null) : IStudioCommands
     /// <summary>Идентификаторы заявленных команд.</summary>
     public IReadOnlyCollection<string> Registered => _handlers.Keys;
 
+    /// <summary>
+    /// Будильник: зовётся, когда у команды не нашлось обработчика.
+    /// </summary>
+    /// <remarks>
+    /// Хозяин команды может ещё спать — ждать своего <c>onCommand:</c>.
+    /// Реестр о хосте плагинов не знает и знать не должен (ссылка сюда пришла
+    /// бы кольцом), поэтому пробуждение выставляет окно студии. Без
+    /// будильника поведение прежнее: не нашлось — false.
+    /// </remarks>
+    public Action<string>? Awaken { get; set; }
+
     /// <inheritdoc/>
     public void Register(string id, Action handler) => Register(id, handler, owner: null);
 
@@ -126,7 +137,16 @@ public sealed class StudioCommands(PluginGuard? guard = null) : IStudioCommands
     public bool Invoke(string id)
     {
         if (!_handlers.TryGetValue(id, out var handler))
-            return false;
+        {
+            // Будим и спрашиваем ещё раз: хозяин, ждавший этой команды,
+            // зарегистрирует обработчик при подъёме. Рекурсия конечна —
+            // хост убирает плагин из ждущих до подъёма, и второй звонок по
+            // той же команде никого не найдёт.
+            Awaken?.Invoke(id);
+
+            if (!_handlers.TryGetValue(id, out handler))
+                return false;
+        }
 
         if (guard is null || handler.Owner is not { } owner)
         {
@@ -143,6 +163,29 @@ public sealed class StudioCommands(PluginGuard? guard = null) : IStudioCommands
     {
         foreach (var id in ids)
             _handlers.Remove(id);
+    }
+
+    /// <summary>
+    /// Убирает все команды одного владельца.
+    /// </summary>
+    /// <param name="pluginId">Чьи обработчики снять.</param>
+    /// <remarks>
+    /// По владельцу, а не по манифесту: манифест при перезагрузке уже
+    /// свежий, и команда, убранная новой версией, осталась бы висеть с
+    /// обработчиком из выгруженного контекста. Владельца реестр помнит с
+    /// рождения записи — он и есть правда о том, чьё это.
+    /// </remarks>
+    public void RemoveOwnedBy(string pluginId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(pluginId);
+
+        foreach (var id in _handlers
+                     .Where(pair => string.Equals(pair.Value.Owner, pluginId, StringComparison.Ordinal))
+                     .Select(pair => pair.Key)
+                     .ToList())
+        {
+            _handlers.Remove(id);
+        }
     }
 
     private readonly record struct Handler(Action Run, string? Owner);

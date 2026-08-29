@@ -170,6 +170,24 @@ public partial class MainWindow : Window
 
         _plugins = host;
         _installed = catalog.Scan();
+
+        // Пробуждение по команде живёт в реестре, а не только в меню: команду
+        // соседа зовут и из кода плагина, и дорога обязана быть одна. Подъём
+        // ставит панели, поэтому вне потока интерфейса он откладывается — тот
+        // Invoke честно вернёт false, а хозяин поднимется следом.
+        _commands.Awaken = command =>
+        {
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                Activate(waiting => PluginActivation.WaitsForCommand(waiting.Manifest, command));
+                return;
+            }
+
+            _log.Write(StudioLogLevel.Warning, "Plugins",
+                $"Команда {command} позвана вне потока интерфейса — хозяин поднимется следом");
+            Dispatcher.UIThread.Post(() =>
+                Activate(waiting => PluginActivation.WaitsForCommand(waiting.Manifest, command)));
+        };
         _contributions.Conflict += (_, message) => _log.Write(StudioLogLevel.Warning, "Plugins", message);
 
         var modules = BuiltInModules.Select(host.LoadBuiltIn).ToList();
@@ -480,8 +498,8 @@ public partial class MainWindow : Window
         if (item.CommandId is not { } command)
             return;
 
-        Activate(waiting => PluginActivation.WaitsForCommand(waiting.Manifest, command));
-
+        // Спящего хозяина разбудит сам реестр: дорога у меню и у чужого кода
+        // одна, и второй здесь не нужно.
         if (!_commands.Invoke(command))
             _log.Write(StudioLogLevel.Warning, "Plugins", $"Команду {command} никто не обрабатывает");
     }
@@ -713,7 +731,7 @@ public partial class MainWindow : Window
 
         Unmount(pluginId);
         _contributions.Remove(pluginId);
-        _commands.Remove(installed.Manifest?.Contributions.Commands.Select(command => command.Id) ?? []);
+        _commands.RemoveOwnedBy(pluginId);
         _guard.Forget(pluginId);
 
         // Снятые контролы отпускает не список, а дерево: пока проход раскладки

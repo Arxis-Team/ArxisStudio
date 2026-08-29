@@ -171,6 +171,38 @@ public class PluginDependencyHostTests : IDisposable
     }
 
     /// <summary>
+    /// Invoke будит хозяина команды и сперва — его зависимость.
+    /// </summary>
+    /// <remarks>
+    /// Дорога та же, что у меню, только из кода: реестр зовёт будильник, тот —
+    /// Activate хоста, и команда выполняется в этом же вызове.
+    /// </remarks>
+    [Fact]
+    public void Invoking_a_command_wakes_the_owner_and_its_dependency_first()
+    {
+        Clone("dep.base", activation: """[ "onCommand:base.run" ]""");
+        Clone("dep.owner", depends: """[ { "id": "dep.base" } ]""", activation: """[ "onCommand:hello.greet" ]""");
+
+        var commands = new StudioCommands();
+
+        using var host = new PluginHost(new StudioContextFactory(new StudioLog(), commands, null));
+
+        Assert.Empty(host.LoadStartup(new PluginCatalog(_root).Scan()));
+
+        commands.Awaken = command => host.Activate(
+            host.Deferred.FirstOrDefault(waiting =>
+                PluginActivation.WaitsForCommand(waiting.Manifest, command))?.Id ?? string.Empty);
+
+        // hello.greet заявлен атрибутом в сборке примера — его обработчик
+        // регистрируется при подъёме хозяина.
+        Assert.True(commands.Invoke("hello.greet"), "команда не разбудила хозяина");
+
+        Assert.Equal(
+            ["dep.base", "dep.owner"],
+            host.Loaded.Select(loaded => loaded.Installed.Id));
+    }
+
+    /// <summary>
     /// Клонирует пример плагина под новой ролью.
     /// </summary>
     /// <param name="id">Идентификатор клона — он же имя папки.</param>
