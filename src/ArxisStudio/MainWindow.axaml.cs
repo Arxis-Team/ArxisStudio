@@ -179,6 +179,12 @@ public partial class MainWindow : Window
         foreach (var loaded in modules.Concat(host.LoadStartup(_installed)))
             Accept(loaded);
 
+        // Заметки графа — не отказы, но молчать о них нельзя: устаревший
+        // необязательный сосед считается отсутствующим, и человек должен
+        // узнать об этом отсюда, а не гадать, почему связка не работает.
+        foreach (var note in host.Resolution?.Notes ?? [])
+            _log.Write(StudioLogLevel.Warning, "Plugins", note);
+
         foreach (var waiting in host.Deferred)
             _log.Write(StudioLogLevel.Debug, "Plugins", $"{waiting.DisplayName} ждёт своего события");
 

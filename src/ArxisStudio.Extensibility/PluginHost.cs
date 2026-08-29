@@ -26,6 +26,8 @@ public sealed class PluginHost : IDisposable
     private static bool _swept;
 
     private readonly List<LoadedPlugin> _loaded = [];
+
+    private PluginResolution? _resolution;
     private readonly List<InstalledPlugin> _deferred = [];
     private readonly IStudioContextFactory _contexts;
 
@@ -43,6 +45,15 @@ public sealed class PluginHost : IDisposable
 
     /// <summary>Плагины, ждущие своего события.</summary>
     public IReadOnlyList<InstalledPlugin> Deferred => _deferred;
+
+    /// <summary>
+    /// Итог разрешения зависимостей при старте; null до первого старта.
+    /// </summary>
+    /// <remarks>
+    /// Оболочка проливает отсюда заметки в журнал: об устаревшем
+    /// необязательном соседе граф не отказывает, но молчать о нём нельзя.
+    /// </remarks>
+    public PluginResolution? Resolution => _resolution;
 
     /// <summary>
     /// Находит плагин, чей код есть в стеке исключения.
@@ -110,25 +121,82 @@ public sealed class PluginHost : IDisposable
         ArgumentNullException.ThrowIfNull(plugins);
 
         var enabled = plugins.Where(candidate => candidate is { IsEnabled: true, IsValid: true }).ToList();
+
+        // Граф разрешается на манифестах, до загрузки единой сборки. Уже
+        // поднятые — это встроенные модули: они годятся в цели зависимостей.
+        _resolution = PluginGraph.Resolve(
+            enabled,
+            _loaded.Where(loaded => loaded.IsLoaded).Select(loaded => loaded.Installed).ToList());
+
         var raised = new List<LoadedPlugin>();
 
-        foreach (var plugin in enabled)
+        // Отказанный не поднимается и не ждёт событий: будить его нечем и
+        // незачем — причина не в событии, а в соседях. Запись с цепочкой
+        // причин едет обычной дорогой сбоя подъёма.
+        foreach (var refusedId in _resolution.Refused.Keys)
+        {
+            if (enabled.FirstOrDefault(plugin => plugin.Id == refusedId) is { } refused)
+                raised.Add(Fail(refused, _resolution.Refused[refusedId]));
+        }
+
+        // Поднимается замыкание нетерпеливых по рёбрам подъёма: нетерпеливый
+        // тянет за собой и отложенную зависимость — в момент его активации
+        // службы соседа обязаны существовать, а не ждать своего события.
+        var eager = Eager(_resolution.Order);
+
+        foreach (var plugin in _resolution.Order)
         {
             // Плагин без entry-сборки — это данные, а не код: языковой
-            // пакет приносит словарь и ничего не выполняет. Поднимать
-            // нечего, и ошибкой это не является: сказав «в манифесте не
-            // указана entry-сборка», студия объявила бы сломанным то, что
-            // работает как задумано.
+            // пакет в порядок не попадает вовсе, но перестраховка дешевле
+            // догадки о том, что Order всегда прав.
             if (plugin.Manifest?.Entry is not { Length: > 0 })
                 continue;
 
-            if (PluginActivation.IsEager(plugin.Manifest))
+            if (eager.Contains(plugin.Id))
                 raised.Add(Add(plugin));
             else
                 _deferred.Add(plugin);
         }
 
         return raised;
+    }
+
+    /// <summary>
+    /// Замыкание нетерпеливых: кого поднимать сразу вместе с их
+    /// зависимостями.
+    /// </summary>
+    private static HashSet<string> Eager(IReadOnlyList<InstalledPlugin> order)
+    {
+        var eager = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var byId = order.ToDictionary(plugin => plugin.Id, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var plugin in order.Where(candidate => PluginActivation.IsEager(candidate.Manifest)))
+            Pull(plugin);
+
+        return eager;
+
+        void Pull(InstalledPlugin plugin)
+        {
+            if (!eager.Add(plugin.Id))
+                return;
+
+            foreach (var declared in plugin.Manifest?.Dependencies ?? [])
+            {
+                // Тянутся и необязательные присутствующие: обещание «сосед
+                // стоит подо мной» не делится на обязательных и нет.
+                if (declared.Id is { Length: > 0 } id && byId.TryGetValue(id, out var target))
+                    Pull(target);
+            }
+        }
+    }
+
+    /// <summary>Кладёт отказ в список поднятых — той же дорогой, что сбой подъёма.</summary>
+    private LoadedPlugin Fail(InstalledPlugin installed, string reason)
+    {
+        var failed = LoadedPlugin.Failed(installed, reason);
+
+        _loaded.Add(failed);
+        return failed;
     }
 
     /// <summary>
@@ -281,6 +349,7 @@ public sealed class PluginHost : IDisposable
 
         _loaded.Clear();
         _deferred.Clear();
+        _resolution = null;
     }
 
     private LoadedPlugin Load(InstalledPlugin installed)
