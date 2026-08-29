@@ -45,11 +45,6 @@ public partial class MainWindow : Window
     /// плагинов: панели студии должны стоять на своих местах раньше, чем к ним
     /// встанут чужие.
     /// </remarks>
-    private static readonly Assembly[] BuiltInModules =
-    [
-        typeof(Modules.Sample.SampleModule).Assembly,
-    ];
-
     private readonly ISettingsStore? _settings;
     private readonly List<OpenDocument> _documents = [];
     // Журнал отражается в стандартный вывод: панели, которая показывала бы его,
@@ -196,7 +191,7 @@ public partial class MainWindow : Window
         };
         _contributions.Conflict += (_, message) => _log.Write(StudioLogLevel.Warning, "Plugins", message);
 
-        var modules = BuiltInModules.Select(host.LoadBuiltIn).ToList();
+        var modules = StudioModules.Assemblies.Select(host.LoadBuiltIn).ToList();
 
         _modules = modules.Select(loaded => loaded.Installed).ToList();
 

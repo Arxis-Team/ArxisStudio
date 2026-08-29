@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Globalization;
 using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
@@ -244,24 +245,107 @@ public partial class WelcomeWindow : Window
     /// Снимает плагин с машины.
     /// </summary>
     /// <remarks>
-    /// Подтверждения нет намеренно: плагин — это папка, поставить его заново
-    /// значит выбрать её снова, и спрашивать «точно ли» о действии, которое
-    /// повторяется одним щелчком, — лишний шаг на каждый раз ради редкой
-    /// ошибки. Отказ каталога при этом виден: чаще всего папку держит открытая
-    /// студия.
+    /// Для одинокого плагина подтверждения нет намеренно: плагин — это папка,
+    /// поставить его заново значит выбрать её снова, и спрашивать «точно ли» о
+    /// действии, которое повторяется одним щелчком, — лишний шаг на каждый раз
+    /// ради редкой ошибки. Вопрос появляется только тогда, когда страдают
+    /// другие: этим плагином пользуются соседи, и молча оставить их сломанными
+    /// нельзя.
     /// </remarks>
-    private void OnRemovePluginClick(object? sender, RoutedEventArgs e)
+    private async void OnRemovePluginClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Control { Tag: InstalledPlugin plugin })
             return;
 
+        var dependents = _model.MandatoryDependentsOf(plugin);
+
+        if (dependents.Count > 0)
+        {
+            var agreed = await ConfirmAsync(
+                Localizer.Instance["plugins.dependents.title"],
+                string.Format(
+                    CultureInfo.CurrentCulture,
+                    Localizer.Instance["plugins.dependents.remove.message"],
+                    plugin.DisplayName,
+                    string.Join(", ", dependents.Select(dependent => dependent.DisplayName))),
+                Localizer.Instance["plugins.dependents.remove.confirm"],
+                danger: true);
+
+            if (!agreed)
+                return;
+
+            // Зависимые выключаются, а не удаляются: их папки — чужая
+            // работа, и сносить её за компанию студия не вправе. Выключенный
+            // плагин человек включит обратно, когда вернёт зависимость.
+            foreach (var dependent in dependents)
+                _model.Plugins.SetEnabled(dependent.Id, false);
+        }
+
         var error = _model.Plugins.Uninstall(plugin);
 
         _model.Status = error is null
-            ? $"{plugin.DisplayName} {Localizer.Instance["plugins.removed.suffix"]}"
+            ? dependents.Count > 0
+                ? $"{plugin.DisplayName} {Localizer.Instance["plugins.removed.suffix"]}. " +
+                  string.Format(
+                      CultureInfo.CurrentCulture,
+                      Localizer.Instance["plugins.disabled.many"],
+                      string.Join(", ", dependents.Select(dependent => dependent.DisplayName)))
+                : $"{plugin.DisplayName} {Localizer.Instance["plugins.removed.suffix"]}"
             : $"{Localizer.Instance["common.error"]}: {error}";
 
         _model.RefreshPlugins();
+    }
+
+    /// <summary>
+    /// Спрашивает разрешения на действие, задевающее других.
+    /// </summary>
+    /// <param name="title">Заголовок вопроса.</param>
+    /// <param name="message">Что случится и с кем.</param>
+    /// <param name="confirm">Надпись на кнопке согласия.</param>
+    /// <param name="danger">Действие необратимо — кнопка предупреждает цветом.</param>
+    /// <remarks>
+    /// Первый диалог студии. AxDialog задуман модальным окном: решение о
+    /// чужих плагинах не то, мимо чего можно щёлкнуть, — Esc и «Отмена»
+    /// оставляют всё как было.
+    /// </remarks>
+    private async Task<bool> ConfirmAsync(string title, string message, string confirm, bool danger)
+    {
+        var cancel = new AxButton { Content = Localizer.Instance["common.cancel"], MinWidth = 96 };
+        var agree = new AxButton { Content = confirm, MinWidth = 96 };
+
+        if (danger)
+            agree.Classes.Add("danger");
+        else
+            agree.Classes.Add("accent");
+
+        var dialog = new AxDialog
+        {
+            Title = title,
+            Content = new TextBlock
+            {
+                Text = message,
+                TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                MaxWidth = 420,
+            },
+            AlertIcon = new AxIcon
+            {
+                Data = AxIcons.Warning,
+                Width = 20,
+                Height = 20,
+                Foreground = this.FindResource("AxYelBrush") as Avalonia.Media.IBrush,
+            },
+            Buttons = new StackPanel
+            {
+                Orientation = Avalonia.Layout.Orientation.Horizontal,
+                Spacing = 8,
+                Children = { cancel, agree },
+            },
+        };
+
+        cancel.Click += (_, _) => dialog.Close(false);
+        agree.Click += (_, _) => dialog.Close(true);
+
+        return await dialog.ShowDialog<bool?>(this) == true;
     }
 
     /// <summary>
@@ -274,7 +358,7 @@ public partial class WelcomeWindow : Window
     /// </remarks>
     private void Report((InstalledPlugin? Plugin, string? Error) result)
     {
-        var known = _model.InstalledPlugins.Select(plugin => plugin.Id).ToHashSet(StringComparer.Ordinal);
+        var known = _model.InstalledPlugins.Select(card => card.Plugin.Id).ToHashSet(StringComparer.Ordinal);
 
         _model.Status = result.Plugin is not { } plugin
             ? $"{Localizer.Instance["common.error"]}: {result.Error}"
@@ -290,10 +374,47 @@ public partial class WelcomeWindow : Window
         OpenInShell(_model.Plugins.Root);
     }
 
-    private void OnTogglePluginClick(object? sender, RoutedEventArgs e)
+    /// <summary>
+    /// Включает или выключает плагин.
+    /// </summary>
+    /// <remarks>
+    /// Выключение того, кем пользуются другие, спрашивает: зависимые без
+    /// него не поднимутся, и человек должен решить это глазами, а не узнать
+    /// при следующем запуске из журнала.
+    /// </remarks>
+    private async void OnTogglePluginClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Control { Tag: InstalledPlugin plugin })
             return;
+
+        if (plugin.IsEnabled)
+        {
+            var dependents = _model.MandatoryDependentsOf(plugin);
+
+            if (dependents.Count > 0)
+            {
+                var agreed = await ConfirmAsync(
+                    Localizer.Instance["plugins.dependents.title"],
+                    string.Format(
+                        CultureInfo.CurrentCulture,
+                        Localizer.Instance["plugins.dependents.disable.message"],
+                        plugin.DisplayName,
+                        string.Join(", ", dependents.Select(dependent => dependent.DisplayName))),
+                    Localizer.Instance["plugins.dependents.disable.confirm"],
+                    danger: false);
+
+                if (!agreed)
+                    return;
+
+                foreach (var dependent in dependents)
+                    _model.Plugins.SetEnabled(dependent.Id, false);
+
+                _model.Status = string.Format(
+                    CultureInfo.CurrentCulture,
+                    Localizer.Instance["plugins.disabled.many"],
+                    string.Join(", ", dependents.Select(dependent => dependent.DisplayName).Append(plugin.DisplayName)));
+            }
+        }
 
         _model.Plugins.SetEnabled(plugin.Id, !plugin.IsEnabled);
         _model.RefreshPlugins();

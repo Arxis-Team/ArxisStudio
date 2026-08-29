@@ -86,7 +86,7 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
     public ObservableCollection<ProjectTemplate> Templates { get; } = [];
 
     /// <summary>Установленные плагины.</summary>
-    public ObservableCollection<InstalledPlugin> InstalledPlugins { get; } = [];
+    public ObservableCollection<PluginCard> InstalledPlugins { get; } = [];
 
     /// <summary>
     /// Настройки, объявленные установленными плагинами.
@@ -244,15 +244,21 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
 
         var store = new PluginSettingsStore();
 
-        foreach (var plugin in Plugins.Scan())
+        var installed = Plugins.Scan();
+
+        // Цели зависимостей ищутся среди соседей и встроенных модулей: модуль
+        // — годная цель, и карточка обязана считать его присутствующим.
+        var all = installed.Concat(StudioModules.Describe()).ToList();
+
+        foreach (var plugin in installed)
         {
-            InstalledPlugins.Add(plugin);
+            InstalledPlugins.Add(new PluginCard(plugin, PluginGraph.Describe(plugin, all)));
 
             foreach (var declared in plugin.Manifest?.Contributions.Settings ?? [])
                 PluginSettings.Add(new PluginSettingRow(plugin.Id, plugin.DisplayName, declared, store, plugin.Strings));
         }
 
-        foreach (var plugin in InstalledPlugins.Where(candidate => candidate.IconPath is not null))
+        foreach (var plugin in installed.Where(candidate => candidate.IconPath is not null))
         {
             if (PluginIcons.Instance.Of(plugin.IconPath) is null)
             {
@@ -267,6 +273,21 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
         Notify(nameof(HasNoPlugins));
         Notify(nameof(HasNoPluginSettings));
     }
+
+    /// <summary>
+    /// Кто из включённых обязательно зависит от плагина — прямо или через
+    /// других.
+    /// </summary>
+    /// <param name="plugin">Кого собираются выключить или удалить.</param>
+    /// <remarks>
+    /// Только обязательные: выключение соседа необязательную связь не ломает,
+    /// и пугать человека этими именами значило бы врать.
+    /// </remarks>
+    public IReadOnlyList<InstalledPlugin> MandatoryDependentsOf(InstalledPlugin plugin) =>
+        PluginGraph.Dependents(
+            plugin.Id,
+            Plugins.Scan().Where(candidate => candidate.IsEnabled).ToList(),
+            includeOptional: false);
 
     /// <summary>Читает установленные шаблоны dotnet new.</summary>
     /// <param name="cancellationToken">Токен отмены.</param>
