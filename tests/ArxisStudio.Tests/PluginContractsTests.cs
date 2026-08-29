@@ -170,7 +170,6 @@ public class PluginContractsTests : IDisposable
         using var host = new PluginHost(new StudioContextFactory(new StudioLog(), commands, null));
 
         Start(host, catalog);
-        commands.RemoveOwnedBy("arxis.hello");
 
         // «Пересборка» контракта: содержимое то же, но файл на диске новее.
         var contract = Path.Combine(_root, "arxis.hello", "bin", "Arxis.Hello.Contracts.dll");

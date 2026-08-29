@@ -57,6 +57,23 @@ public sealed class PluginHost : IDisposable
     public event EventHandler? Changed;
 
     /// <summary>
+    /// Плагин уходит: его контекст сейчас выгрузят.
+    /// </summary>
+    /// <remarks>
+    /// Отсюда узнают реестры, чьи записи заведены на владельца: команды,
+    /// экспорты, вклады. Оставленная запись не просто мусор — она держит
+    /// сильную ссылку на объект из выгружаемого контекста, и тот не умрёт
+    /// никогда: получал бы вызовы, держал типы, не давал контексту
+    /// собраться. Раньше эту уборку переписывал каждый, кто выгружает, и
+    /// списки успели разъехаться.
+    /// <para>
+    /// Зовётся до выгрузки — подписчику может понадобиться сам плагин, — и
+    /// на всякой дороге: перезагрузка, снятие упавшего, закрытие студии.
+    /// </para>
+    /// </remarks>
+    public event EventHandler<string>? Unloading;
+
+    /// <summary>
     /// Итог разрешения зависимостей при старте; null до первого старта.
     /// </summary>
     /// <remarks>
@@ -474,10 +491,34 @@ public sealed class PluginHost : IDisposable
         var loaded = _loaded.First(plugin => plugin.Installed.Id == pluginId);
 
         _loaded.Remove(loaded);
+        Unloading?.Invoke(this, pluginId);
         loaded.Unload();
         Changed?.Invoke(this, EventArgs.Empty);
 
         return new WeakReference(loaded.Context);
+    }
+
+    /// <summary>
+    /// Снимает поднятый плагин с учёта и выгружает его.
+    /// </summary>
+    /// <param name="pluginId">Кого снять.</param>
+    /// <returns><c>false</c> — такого поднятого нет.</returns>
+    /// <remarks>
+    /// Дорога для отключения упавшего: раньше оболочка звала
+    /// <c>LoadedPlugin.Unload</c> напрямую, мимо хоста, и потому мимо уборки
+    /// реестров — команды снятого плагина оставались заявленными и звали код
+    /// выгруженного контекста, а запись висела в списке поднятых как живая.
+    /// </remarks>
+    public bool Drop(string pluginId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(pluginId);
+
+        if (_loaded.All(plugin => plugin.Installed.Id != pluginId))
+            return false;
+
+        Retire(pluginId);
+        Changed?.Invoke(this, EventArgs.Empty);
+        return true;
     }
 
     private LoadedPlugin Add(InstalledPlugin installed)
@@ -493,7 +534,10 @@ public sealed class PluginHost : IDisposable
     public void Dispose()
     {
         foreach (var plugin in _loaded)
+        {
+            Unloading?.Invoke(this, plugin.Installed.Id);
             plugin.Unload();
+        }
 
         _loaded.Clear();
         _deferred.Clear();
@@ -719,7 +763,7 @@ public sealed class PluginHost : IDisposable
         }
     }
 
-    private static LoadedPlugin Raise(
+    private LoadedPlugin Raise(
         InstalledPlugin installed,
         PluginLoadContext? context,
         IReadOnlyList<Assembly> assemblies,
@@ -758,6 +802,11 @@ public sealed class PluginHost : IDisposable
             or FileLoadException or FileNotFoundException or TypeLoadException
             or MissingMethodException or TargetInvocationException or InvalidOperationException)
         {
+            // Плагин мог успеть опубликоваться в Activate и упасть уже на
+            // запуске службы. Его записи снимаются так же, как у ушедшего:
+            // иначе сосед получил бы объект из контекста, который студия
+            // только что объявила мёртвым.
+            Unloading?.Invoke(this, installed.Id);
             context?.Unload();
             return LoadedPlugin.Failed(installed, Describe(e));
         }

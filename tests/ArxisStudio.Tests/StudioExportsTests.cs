@@ -134,26 +134,21 @@ public class StudioExportsTests : IDisposable
 
         Assert.Null(catalog.InstallFromArchive(HelloArchive.Path).Error);
 
-        var commands = new StudioCommands();
-        var registry = new StudioExportRegistry();
+        // Хост собирается так же, как в студии: с подпиской на уход плагина.
+        // Без неё реестры держали бы объекты выгружаемого контекста, и тест
+        // мерил бы не продукт, а свою самоделку.
+        using var studio = new TestHost();
+        var registry = studio.Exports;
 
-        using var host = new PluginHost(new StudioContextFactory(
-            new StudioLog(), commands, null, exports: registry));
-
-        Start(host, catalog);
+        Start(studio.Host, catalog);
 
         // Прежний объект — только слабой ссылкой: сильная, оставшаяся в
         // кадре теста, держала бы контекст Hello, и проверка выгрузки
         // мерила бы сама себя.
         var before = TakeAndForget(registry);
 
-        // Порядок оболочки при перезагрузке: снять команды и публикации,
-        // затем каскад.
-        commands.RemoveOwnedBy("arxis.hello");
-        registry.RemoveOwnedBy("arxis.hello");
-
         var installed = catalog.Scan().Single(plugin => plugin.Id == "arxis.hello");
-        var cascade = host.Reload(["arxis.hello"], [installed]);
+        var cascade = studio.Host.Reload(["arxis.hello"], [installed]);
 
         Assert.True(cascade.Released["arxis.hello"], "прежняя копия не выгрузилась");
 

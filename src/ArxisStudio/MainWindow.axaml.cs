@@ -169,6 +169,17 @@ public partial class MainWindow : Window
             plugins: roster,
             exports: _exports));
 
+        // Уборка реестров, заведённых на владельца, — по одному сигналу от
+        // хоста: он один знает про все дороги выгрузки. Раньше её переписывал
+        // каждый, кто выгружает, и списки успели разъехаться — снятие
+        // упавшего забывало команды, а закрытие студии не убирало ничего.
+        host.Unloading += (_, id) =>
+        {
+            _commands.RemoveOwnedBy(id);
+            _exports.RemoveOwnedBy(id);
+            _contributions.Remove(id);
+        };
+
         _plugins = host;
         _installed = catalog.Scan();
 
@@ -335,12 +346,10 @@ public partial class MainWindow : Window
         _log.Write(StudioLogLevel.Error, "Plugins",
             $"{Named(failure.PluginId)}: отключён после {failure.Count} сбоев подряд");
 
-        if (_plugins?.Loaded.FirstOrDefault(plugin => plugin.Installed.Id == failure.PluginId) is not { } loaded)
-            return;
-
-        _contributions.Remove(failure.PluginId);
-        _exports.RemoveOwnedBy(failure.PluginId);
-        loaded.Unload();
+        // Через хост, а не Unload напрямую: только он снимет запись со счёта
+        // и разошлёт уборку реестрам. Панели остаются заглушками намеренно —
+        // см. выше.
+        _plugins?.Drop(failure.PluginId);
     }
 
     /// <summary>
@@ -765,10 +774,10 @@ public partial class MainWindow : Window
 
             await CloseDocumentsOfAsync(id);
 
+            // Реестры владельца уберёт подписка на Unloading; здесь —
+            // только то, чего хост знать не может: панели на экране и счёт
+            // сбоев.
             Unmount(id);
-            _contributions.Remove(id);
-            _commands.RemoveOwnedBy(id);
-            _exports.RemoveOwnedBy(id);
             _guard.Forget(id);
         }
 
