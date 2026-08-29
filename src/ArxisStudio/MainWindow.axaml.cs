@@ -713,7 +713,23 @@ public partial class MainWindow : Window
         if (_plugins is not { } host)
             return;
 
-        // Манифест мог измениться вместе со сборкой — берём запись с диска.
+        // Зависимые считаются по манифестам прежних копий: перезагружают
+        // потому, что плагин изменился, и свежий манифест мог зависимость
+        // убрать — а прежний зависимый всё ещё держит прежние типы. Вместе с
+        // необязательными: их гарантия «сосед стоит подо мной» не делится.
+        var dependents = PluginGraph.Dependents(
+                pluginId,
+                host.Loaded
+                    .Where(loaded => loaded is { IsLoaded: true, Context: not null })
+                    .Select(loaded => loaded.Installed)
+                    .ToList(),
+                includeOptional: true)
+            .Select(dependent => dependent.Id)
+            .ToList();
+
+        // Манифесты могли измениться вместе со сборками — записи берутся с
+        // диска. Опускаются зависимые первыми, зависимость последней;
+        // поднимается всё в обратном порядке.
         _installed = new PluginCatalog().Scan();
 
         if (_installed.FirstOrDefault(plugin => plugin.Id == pluginId) is not { } installed)
@@ -722,43 +738,62 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Задачи плагина держат его типы: не остановив их, мы выгрузим плагин
-        // только на словах — и сами же скажем человеку, что копия осталась.
-        if (!await _tasks.StopAsync(pluginId, TimeSpan.FromSeconds(5)))
-            _log.Write(StudioLogLevel.Warning, "Plugins", $"{Named(pluginId)}: фоновая задача не остановилась за пять секунд");
+        var lower = dependents.Append(pluginId).ToList();
+        var raise = new List<InstalledPlugin> { installed };
 
-        await CloseDocumentsOfAsync(pluginId);
+        foreach (var dependentId in dependents)
+        {
+            if (_installed.FirstOrDefault(plugin => plugin.Id == dependentId) is { } dependent)
+                raise.Add(dependent);
+            else
+                _log.Write(StudioLogLevel.Warning, "Plugins",
+                    $"{Named(dependentId)} зависел от {installed.DisplayName}, но пропал с диска — опущен и не поднят");
+        }
 
-        Unmount(pluginId);
-        _contributions.Remove(pluginId);
-        _commands.RemoveOwnedBy(pluginId);
-        _guard.Forget(pluginId);
+        foreach (var id in lower)
+        {
+            // Задачи плагина держат его типы: не остановив их, мы выгрузим
+            // плагин только на словах — и сами же скажем, что копия осталась.
+            if (!await _tasks.StopAsync(id, TimeSpan.FromSeconds(5)))
+                _log.Write(StudioLogLevel.Warning, "Plugins", $"{Named(id)}: фоновая задача не остановилась за пять секунд");
+
+            await CloseDocumentsOfAsync(id);
+
+            Unmount(id);
+            _contributions.Remove(id);
+            _commands.RemoveOwnedBy(id);
+            _guard.Forget(id);
+        }
 
         // Снятые контролы отпускает не список, а дерево: пока проход раскладки
         // и отрисовки не прошёл, они ещё чьи-то. Ждём его — иначе проверка
-        // выгрузки увидит помеху, которой через миг не будет.
+        // выгрузки увидит помеху, которой через миг не будет. Проход один на
+        // всех: дерево тоже одно.
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
-        var reload = host.Reload(installed);
+        var cascade = host.Reload(lower, raise);
 
-        if (reload.Plugin is not { } loaded)
-        {
-            _log.Write(StudioLogLevel.Warning, "Plugins", reload.Error!);
-            StatusText.Text = reload.Error!;
-            return;
-        }
+        foreach (var skipped in cascade.Skipped)
+            _log.Write(StudioLogLevel.Warning, "Plugins", skipped.Value);
 
-        Accept(loaded);
+        foreach (var loaded in cascade.Raised)
+            Accept(loaded);
+
         ShowMenu();
 
-        // Выгрузка кооперативная, и не удаться она может по вине плагина:
-        // подписка на событие студии, оставленный таймер, работающий поток.
-        // Промолчать об этом нельзя — прежняя копия осталась в памяти и
-        // продолжает получать то, на что подписалась.
-        if (reload.Released)
+        // Выгрузка кооперативная, и не удаться она может по вине любого из
+        // опущенных: подписка на событие студии, оставленный таймер,
+        // работающий поток. Каждый невыгрузившийся называется своим именем —
+        // безымянное предупреждение не говорит, кого чинить.
+        var stuck = cascade.Released
+            .Where(pair => !pair.Value)
+            .Select(pair => Named(pair.Key))
+            .ToList();
+
+        if (stuck.Count == 0)
             return;
 
-        var warning = $"{installed.DisplayName}: прежняя копия осталась в памяти — надёжнее перезапустить студию";
+        var warning = $"{string.Join(", ", stuck)}: прежняя копия осталась в памяти — надёжнее перезапустить студию";
 
         _log.Write(StudioLogLevel.Warning, "Plugins", warning);
         StatusText.Text = warning;

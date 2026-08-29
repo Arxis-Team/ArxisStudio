@@ -315,17 +315,86 @@ public sealed class PluginHost : IDisposable
     {
         ArgumentNullException.ThrowIfNull(installed);
 
-        if (Refuse(installed.Id) is { } refusal)
+        var cascade = Reload([installed.Id], [installed]);
+
+        if (cascade.Skipped.TryGetValue(installed.Id, out var refusal))
             return new PluginReload(null, refusal, false);
 
-        var released = Released(Retire(installed.Id));
+        return new PluginReload(
+            cascade.Raised.Single(),
+            null,
+            cascade.Released[installed.Id]);
+    }
 
-        // Словари читаются с диска и живут дольше подъёма: перезагрузка,
-        // оставившая прежний текст, была бы перезагрузкой наполовину — автор
-        // правит строки так же часто, как код.
-        PluginStrings.Forget(installed.Directory);
+    /// <summary>
+    /// Опускает перечисленных и поднимает свежие копии — одним каскадом.
+    /// </summary>
+    /// <param name="lower">Кого опустить: зависимые первыми, зависимость последней.</param>
+    /// <param name="raise">Кого поднять: зависимость первой, зависимые следом.</param>
+    /// <returns>Судьба каждого: выгрузился ли, поднялся ли, почему пропущен.</returns>
+    /// <remarks>
+    /// Зависимый держит соседа живым так же, как забытая подписка: перезагрузи
+    /// мы одну зависимость, её прежний контекст не умер бы, пока стоит
+    /// зависимый. Поэтому опускается вся ветка, а поднимается в обратном
+    /// порядке.
+    /// <para>
+    /// Проход сборщика мусора один на всех, а не по десять на каждого: ждать
+    /// надо смерти всех контекстов разом, и меряется она после того, как
+    /// выгрузка начата у всех.
+    /// </para>
+    /// </remarks>
+    public PluginCascade Reload(IReadOnlyList<string> lower, IReadOnlyList<InstalledPlugin> raise)
+    {
+        ArgumentNullException.ThrowIfNull(lower);
+        ArgumentNullException.ThrowIfNull(raise);
 
-        return new PluginReload(Add(installed), null, released);
+        var skipped = new Dictionary<string, string>(StringComparer.Ordinal);
+        var retired = new Dictionary<string, WeakReference>(StringComparer.Ordinal);
+
+        foreach (var pluginId in lower)
+        {
+            if (Refuse(pluginId) is { } refusal)
+                skipped[pluginId] = refusal;
+            else
+                retired[pluginId] = Retire(pluginId);
+        }
+
+        var released = ReleasedAll(retired);
+
+        var raised = new List<LoadedPlugin>();
+
+        foreach (var installed in raise)
+        {
+            if (skipped.ContainsKey(installed.Id))
+                continue;
+
+            // Словари читаются с диска и живут дольше подъёма: перезагрузка,
+            // оставившая прежний текст, была бы перезагрузкой наполовину —
+            // автор правит строки так же часто, как код.
+            PluginStrings.Forget(installed.Directory);
+
+            raised.Add(Add(installed));
+        }
+
+        return new PluginCascade(released, raised, skipped);
+    }
+
+    /// <summary>
+    /// Ждёт смерти всех выгружаемых контекстов разом.
+    /// </summary>
+    /// <remarks>
+    /// Ссылки приходят словарём слабых: сильной ссылки на прежние записи здесь
+    /// уже нет — их снял <see cref="Retire"/>, и держать их в кадре нельзя.
+    /// </remarks>
+    private static Dictionary<string, bool> ReleasedAll(Dictionary<string, WeakReference> retired)
+    {
+        for (var attempt = 0; attempt < 10 && retired.Values.Any(context => context.IsAlive); attempt++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+
+        return retired.ToDictionary(pair => pair.Key, pair => !pair.Value.IsAlive, StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -371,26 +440,6 @@ public sealed class PluginHost : IDisposable
         loaded.Unload();
 
         return new WeakReference(loaded.Context);
-    }
-
-    /// <summary>
-    /// Дождался ли контекст своей смерти.
-    /// </summary>
-    /// <remarks>
-    /// Сборщик мусора зовётся руками: выгрузка кончается только его проходом, а
-    /// ждать его своим чередом значит ответить «не выгрузился» о том, что
-    /// выгрузится через секунду. Проходов несколько — у объектов плагина могут
-    /// быть финализаторы, и до них очередь доходит не сразу.
-    /// </remarks>
-    private static bool Released(WeakReference context)
-    {
-        for (var attempt = 0; attempt < 10 && context.IsAlive; attempt++)
-        {
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-        }
-
-        return !context.IsAlive;
     }
 
     private LoadedPlugin Add(InstalledPlugin installed)
@@ -677,6 +726,17 @@ public sealed class PluginHost : IDisposable
 /// получать то, на что подписалась.
 /// </param>
 public sealed record PluginReload(LoadedPlugin? Plugin, string? Error, bool Released);
+
+/// <summary>
+/// Итог каскадной перезагрузки.
+/// </summary>
+/// <param name="Released">По каждому опущенному: выгрузился ли его контекст.</param>
+/// <param name="Raised">Поднятые в порядке подъёма, включая записи с ошибкой.</param>
+/// <param name="Skipped">Кого не тронули и почему: не поднят, встроенный.</param>
+public sealed record PluginCascade(
+    IReadOnlyDictionary<string, bool> Released,
+    IReadOnlyList<LoadedPlugin> Raised,
+    IReadOnlyDictionary<string, string> Skipped);
 
 /// <summary>Кто выдаёт плагину его контекст.</summary>
 public interface IStudioContextFactory
