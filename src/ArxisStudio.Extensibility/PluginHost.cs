@@ -415,17 +415,28 @@ public sealed class PluginHost : IDisposable
         var raised = new List<LoadedPlugin>();
         var notes = new List<string>();
 
-        foreach (var installed in raise)
-        {
-            if (skipped.ContainsKey(installed.Id))
-                continue;
+        var raising = raise.Where(plugin => !skipped.ContainsKey(plugin.Id)).ToList();
 
-            // Контракты перечитываются заметками: автор мог пересобрать и
-            // их, а выгрузить прежнюю копию из общего контекста нечем —
-            // честнее сказать про перезапуск, чем промолчать.
-            if (PluginContracts.EnsureLoaded(installed, notes) is { } missing)
+        // Контракты перечитываются у всех до первого подъёма: автор мог
+        // пересобрать и их, а выгрузить прежнюю копию из общего контекста
+        // нечем — честнее сказать про перезапуск, чем промолчать. До подъёма —
+        // потому что отказ обязан разойтись по зависимым прежде, чем кого-то
+        // поднимут.
+        var contractless = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var installed in raising)
+        {
+            if (PluginContracts.EnsureLoaded(installed, notes) is { } refusal)
+                contractless[installed.Id] = refusal;
+        }
+
+        var refused = Spread(contractless, raising);
+
+        foreach (var installed in raising)
+        {
+            if (refused.TryGetValue(installed.Id, out var reason))
             {
-                raised.Add(Fail(installed, missing));
+                raised.Add(Fail(installed, reason));
                 continue;
             }
 
@@ -503,6 +514,40 @@ public sealed class PluginHost : IDisposable
         Changed?.Invoke(this, EventArgs.Empty);
 
         return new WeakReference(loaded.Context);
+    }
+
+    /// <summary>
+    /// Разносит отказы по обязательным рёбрам среди поднимаемых.
+    /// </summary>
+    /// <param name="refusals">Кому уже отказано и почему.</param>
+    /// <param name="raising">Кого собираются поднять.</param>
+    /// <returns>Отказы вместе с унаследованными; те же слова, что при старте.</returns>
+    /// <remarks>
+    /// Дорога перезагрузки обязана держать то же обещание, что и дорога
+    /// старта: раз плагин поднят, его обязательная зависимость под ним. Без
+    /// этого зависимый возвращался бы после перезагрузки без соседа — не
+    /// падая, потому что службы отвечают правду, но и не работая, а человек
+    /// видел бы в журнале один отказ вместо цепочки причин.
+    /// <para>
+    /// Граф зовётся только когда есть с чего начать: без отказов
+    /// перезагрузка не должна платить за разрешение зависимостей. Целями
+    /// служат и поднятые, и ждущие своего события — ждущий установлен и
+    /// включён, просто ещё не понадобился.
+    /// </para>
+    /// </remarks>
+    private IReadOnlyDictionary<string, string> Spread(
+        Dictionary<string, string> refusals, IReadOnlyList<InstalledPlugin> raising)
+    {
+        if (refusals.Count == 0)
+            return refusals;
+
+        var present = _loaded
+            .Where(loaded => loaded.IsLoaded)
+            .Select(loaded => loaded.Installed)
+            .Concat(_deferred)
+            .ToList();
+
+        return PluginGraph.Resolve(raising, present, refusals).Refused;
     }
 
     /// <summary>

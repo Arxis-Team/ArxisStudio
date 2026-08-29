@@ -366,6 +366,177 @@ public class PluginContractGuardTests : IDisposable
         Assert.DoesNotContain("уже занято контрактом плагина", again.Error);
     }
 
+    /// <summary>
+    /// При перезагрузке отказ расходится по зависимым так же, как при старте.
+    /// </summary>
+    /// <remarks>
+    /// Найдено живой проверкой. Обещание «раз я поднят, обязательная
+    /// зависимость подо мной» держалось только на дороге старта: каскад
+    /// проверял контракт у каждого поднимаемого по отдельности и валил
+    /// одного, а остальных поднимал как ни в чём не бывало. Зависимый
+    /// возвращался без соседа — не падая, потому что службы отвечают правду,
+    /// но и не работая, — а человек видел один отказ вместо цепочки причин.
+    /// </remarks>
+    [Fact]
+    public void On_reload_a_contract_refusal_spreads_to_dependents_too()
+    {
+        var provider = Clone("con.host", "bin/Reload.Contracts.dll");
+        var contract = Path.Combine(provider, "bin", "Reload.Contracts.dll");
+
+        Emit("Reload.Contracts", new Version(1, 0, 0, 0), contract);
+        Dependent("con.guest", "con.host");
+
+        using var studio = new TestHost();
+        var catalog = new PluginCatalog(_root);
+
+        Assert.All(studio.Host.LoadStartup(catalog.Scan()), loaded => Assert.True(loaded.IsLoaded, loaded.Error));
+
+        // Автор пересобрал контракт с новой версией — общий контекст такое
+        // не переживает, и провайдер получит отказ.
+        Emit("Reload.Contracts", new Version(2, 0, 0, 0), contract);
+
+        var installed = catalog.Scan().ToList();
+        var cascade = studio.Host.Reload(
+            ["con.guest", "con.host"],
+            [.. installed.Where(plugin => plugin.Id is "con.host" or "con.guest")]);
+
+        var host = cascade.Raised.Single(loaded => loaded.Installed.Id == "con.host");
+        var guest = cascade.Raised.Single(loaded => loaded.Installed.Id == "con.guest");
+
+        Assert.False(host.IsLoaded);
+        Assert.Contains("нужен перезапуск студии", host.Error);
+
+        // Главное: зависимый не поднялся и знает, из-за кого.
+        Assert.False(guest.IsLoaded);
+        Assert.Contains("con.host", guest.Error);
+        Assert.Contains("а тот не поднят", guest.Error);
+    }
+
+    /// <summary>
+    /// Ждущий своего события годится в зависимости и при перезагрузке.
+    /// </summary>
+    /// <remarks>
+    /// Отложенный плагин установлен и включён — просто ещё не понадобился, и
+    /// целью зависимости он остаётся. Забудь мы про таких, разбирая отказ, и
+    /// зависимый от спящего соседа получил бы «нужен такой-то, а он не
+    /// установлен» на ровном месте: не установлен он только в списке поднятых.
+    /// <para>
+    /// Через прямой вызов <c>Reload</c>, а не через студию: в самой студии
+    /// нетерпеливый тянет свою отложенную зависимость наверх, и спящей она не
+    /// остаётся. Но <c>Reload</c> — публичный API, состав поднимаемых задаёт
+    /// вызывающий, и встраивающий вправе попросить именно так.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_sleeping_neighbour_still_counts_as_installed_on_reload()
+    {
+        var broken = Clone("con.willfail", "bin/Spread.Contracts.dll");
+
+        Emit("Spread.Contracts", new Version(1, 0, 0, 0), Path.Combine(broken, "bin", "Spread.Contracts.dll"));
+        Sleeper("con.sleeper");
+        Sleeper("con.needy", dependsOn: "con.sleeper");
+
+        using var studio = new TestHost();
+        var catalog = new PluginCatalog(_root);
+
+        studio.Host.LoadStartup(catalog.Scan());
+
+        // Оба отложены: ни один не нетерпелив, тянуть их некому.
+        Assert.Contains(studio.Host.Deferred, plugin => plugin.Id == "con.sleeper");
+        Assert.Contains(studio.Host.Deferred, plugin => plugin.Id == "con.needy");
+
+        Emit("Spread.Contracts", new Version(2, 0, 0, 0), Path.Combine(broken, "bin", "Spread.Contracts.dll"));
+
+        var installed = catalog.Scan().ToList();
+        var cascade = studio.Host.Reload(
+            ["con.willfail"],
+            [.. installed.Where(plugin => plugin.Id is "con.willfail" or "con.needy")]);
+
+        // Отказ достался тому, у кого контракт, и только ему: сосед con.needy
+        // зависит от спящего, а спящий на месте.
+        Assert.False(cascade.Raised.Single(loaded => loaded.Installed.Id == "con.willfail").IsLoaded);
+
+        var needy = cascade.Raised.Single(loaded => loaded.Installed.Id == "con.needy");
+
+        Assert.True(needy.IsLoaded, needy.Error);
+    }
+
+    /// <summary>
+    /// Пропавший с диска сосед не мешает перезагрузить зависимого.
+    /// </summary>
+    /// <remarks>
+    /// Перезагрузка чинит то, что сломалось прямо сейчас, и не должна вдруг
+    /// отказывать плагину за условие, с которым студия прожила весь сеанс:
+    /// сосед поднят и работает, а что его папку убрали руками — беда
+    /// следующего запуска, не этого щелчка.
+    /// </remarks>
+    [Fact]
+    public void A_neighbour_gone_from_disk_does_not_block_reloading_its_dependent()
+    {
+        Sleeper("con.provider2");
+        Dependent("con.consumer2", "con.provider2");
+
+        using var studio = new TestHost();
+        var catalog = new PluginCatalog(_root);
+
+        studio.Host.LoadStartup(catalog.Scan());
+
+        var installed = catalog.Scan().Single(plugin => plugin.Id == "con.consumer2");
+
+        // Сосед исчезает с диска посреди сеанса — и всё же перезагрузка
+        // зависимого проходит: отказов нет, пересматривать нечего.
+        Directory.Delete(Path.Combine(_root, "con.provider2"), recursive: true);
+
+        var again = studio.Host.Reload(installed);
+
+        Assert.Null(again.Error);
+    }
+
+    /// <summary>Клонирует пример отложенным: поднимется только по команде.</summary>
+    private void Sleeper(string id, string? dependsOn = null)
+    {
+        var target = Path.Combine(_root, id);
+        var needs = dependsOn is null ? "" : $$"""
+              "dependencies": [ { "id": "{{dependsOn}}" } ],
+            """;
+
+        ZipFile.ExtractToDirectory(HelloArchive.Path, target);
+
+        File.WriteAllText(
+            Path.Combine(target, "plugin.json"),
+            $$"""
+            {
+              "id": "{{id}}",
+              "name": "{{id}}",
+              "version": "1.0.0",
+              "entry": "bin/Arxis.HelloPlugin.dll",
+            {{needs}}
+              "activation": [ "onCommand:{{id}}.wake" ]
+            }
+            """);
+    }
+
+    /// <summary>Клонирует пример зависимым от названного соседа, без контрактов.</summary>
+    private void Dependent(string id, string dependsOn)
+    {
+        var target = Path.Combine(_root, id);
+
+        ZipFile.ExtractToDirectory(HelloArchive.Path, target);
+
+        File.WriteAllText(
+            Path.Combine(target, "plugin.json"),
+            $$"""
+            {
+              "id": "{{id}}",
+              "name": "{{id}}",
+              "version": "1.0.0",
+              "entry": "bin/Arxis.HelloPlugin.dll",
+              "dependencies": [ { "id": "{{dependsOn}}" } ],
+              "activation": [ "onStartup" ]
+            }
+            """);
+    }
+
     /// <summary>Пишет на место контракта сборку того же имени, но своей версии.</summary>
     private static void Impostor(string path) =>
         Emit("Arxis.Hello.Contracts", new Version(9, 9, 9, 9), path);
