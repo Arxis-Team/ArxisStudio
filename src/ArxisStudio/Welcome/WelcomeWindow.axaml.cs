@@ -312,6 +312,16 @@ public partial class WelcomeWindow : Window
     {
         var cancel = new AxButton { Content = Localizer.Instance["common.cancel"], MinWidth = 96 };
         var agree = new AxButton { Content = confirm, MinWidth = 96 };
+        var alert = new AxIcon { Data = AxIcons.Warning, Width = 20, Height = 20 };
+
+        // Кисть ищется с вариантом темы: без него ресурс не находится, а
+        // выставленный null убил бы наследование цвета — значок стал бы
+        // невидимым.
+        if (this.TryFindResource("AxYelBrush", ActualThemeVariant, out var yellow) &&
+            yellow is Avalonia.Media.IBrush brush)
+        {
+            alert.Foreground = brush;
+        }
 
         if (danger)
             agree.Classes.Add("danger");
@@ -327,13 +337,7 @@ public partial class WelcomeWindow : Window
                 TextWrapping = Avalonia.Media.TextWrapping.Wrap,
                 MaxWidth = 420,
             },
-            AlertIcon = new AxIcon
-            {
-                Data = AxIcons.Warning,
-                Width = 20,
-                Height = 20,
-                Foreground = this.FindResource("AxYelBrush") as Avalonia.Media.IBrush,
-            },
+            AlertIcon = alert,
             Buttons = new StackPanel
             {
                 Orientation = Avalonia.Layout.Orientation.Horizontal,
