@@ -1,3 +1,4 @@
+﻿using Arxis.Hello.Contracts;
 using ArxisStudio.Sdk;
 
 namespace Arxis.HelloFriend;
@@ -49,6 +50,13 @@ public sealed class FriendPlugin : StudioPlugin
             neighbours?.IsActive("arxis.hello") == true
                 ? $"Сосед arxis.hello активен, версия {version} — передаю привет"
                 : "Соседа arxis.hello нет — а без него меня бы не подняли");
+
+        // Типизированный разговор через контракт: IGreeter здесь — тот же
+        // тип, что у Hello, потому что контрактная сборка одна на всех.
+        // Взял, использовал, отпустил: придержанный объект после
+        // перезагрузки соседа был бы его прежней, уже выгруженной копией.
+        if (_context.GetService<IStudioExports>()?.Get<IGreeter>() is { } greeter)
+            _context.Log.Write(StudioLogLevel.Info, "Friend", greeter.Greet("Friend"));
 
         _context.Commands.Invoke("hello.greet");
     }

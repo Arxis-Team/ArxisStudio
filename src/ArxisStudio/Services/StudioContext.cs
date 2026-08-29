@@ -45,6 +45,7 @@ public sealed record StudioContext(
 /// <param name="tasks">Список фоновых задач; null — завести свой.</param>
 /// <param name="guard">Шов вызовов плагина; null — завести свой.</param>
 /// <param name="plugins">Ядро службы соседей; null — службы нет.</param>
+/// <param name="exports">Реестр экспортов; null — обмена реализациями нет.</param>
 public sealed class StudioContextFactory(
     IStudioLog log,
     IStudioCommands commands,
@@ -53,7 +54,8 @@ public sealed class StudioContextFactory(
     PluginSettingsStore? settings = null,
     StudioTaskRegistry? tasks = null,
     PluginGuard? guard = null,
-    StudioPluginRoster? plugins = null)
+    StudioPluginRoster? plugins = null,
+    StudioExportRegistry? exports = null)
     : IStudioContextFactory
 {
     private readonly StudioTaskRegistry _tasks = tasks ?? new StudioTaskRegistry();
@@ -99,17 +101,23 @@ public sealed class StudioContextFactory(
 
         var tasks = new PluginTasks(plugin.Id, _tasks, _guard, log);
 
-        // Служба соседей выдаётся своей на каждого: ответ IsActive зависит от
-        // того, кто спрашивает, — его зависимости с нижними границами.
+        // Службы соседей и экспортов выдаются своими на каждого: ответ
+        // IsActive зависит от того, кто спрашивает, а публикация обязана
+        // знать хозяина.
         var granted = services;
 
-        if (plugins is not null)
+        if (plugins is not null || exports is not null)
         {
             var extended = services is null
                 ? new Dictionary<Type, object>()
                 : new Dictionary<Type, object>(services.ToDictionary(pair => pair.Key, pair => pair.Value));
 
-            extended[typeof(IStudioPlugins)] = new PluginNeighbours(plugins, plugin);
+            if (plugins is not null)
+                extended[typeof(IStudioPlugins)] = new PluginNeighbours(plugins, plugin);
+
+            if (exports is not null)
+                extended[typeof(IStudioExports)] = new PluginExports(exports, plugin);
+
             granted = extended;
         }
 

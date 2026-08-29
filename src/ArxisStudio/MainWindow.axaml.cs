@@ -55,6 +55,7 @@ public partial class MainWindow : Window
     private readonly PluginGuard _guard = new();
     private readonly StudioTaskRegistry _tasks = new();
     private readonly StudioCommands _commands;
+    private readonly StudioExportRegistry _exports = new();
     private readonly PluginContributionRegistry _contributions = new();
     private PluginHost? _plugins;
     private IReadOnlyList<InstalledPlugin> _installed = [];
@@ -155,6 +156,8 @@ public partial class MainWindow : Window
 
         var catalog = new PluginCatalog();
         var roster = new StudioPluginRoster();
+
+        _exports.Conflict += (_, message) => _log.Write(StudioLogLevel.Warning, "Plugins", message);
         var host = new PluginHost(new StudioContextFactory(
             _log,
             _commands,
@@ -163,7 +166,8 @@ public partial class MainWindow : Window
             settings: null,
             tasks: _tasks,
             guard: _guard,
-            plugins: roster));
+            plugins: roster,
+            exports: _exports));
 
         _plugins = host;
         _installed = catalog.Scan();
@@ -335,6 +339,7 @@ public partial class MainWindow : Window
             return;
 
         _contributions.Remove(failure.PluginId);
+        _exports.RemoveOwnedBy(failure.PluginId);
         loaded.Unload();
     }
 
@@ -763,6 +768,7 @@ public partial class MainWindow : Window
             Unmount(id);
             _contributions.Remove(id);
             _commands.RemoveOwnedBy(id);
+            _exports.RemoveOwnedBy(id);
             _guard.Forget(id);
         }
 

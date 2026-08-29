@@ -1,4 +1,5 @@
-﻿using ArxisStudio.Sdk;
+﻿using Arxis.Hello.Contracts;
+using ArxisStudio.Sdk;
 
 namespace Arxis.HelloPlugin;
 
@@ -17,6 +18,11 @@ public sealed class HelloPlugin : StudioPlugin
     public override void Activate(IStudioContext context)
     {
         _context = context;
+
+        // Публикация здесь, снятие — нигде: студия снимает публикации сама
+        // при выгрузке плагина, как снимает команды. Без реестра — в тестах,
+        // у встраивающих — служба честно отсутствует, и плагин это переживает.
+        context.GetService<IStudioExports>()?.Publish<IGreeter>(new Greeter(context));
 
         context.Log.Write(StudioLogLevel.Info, "Hello", "Плагин поднят");
     }

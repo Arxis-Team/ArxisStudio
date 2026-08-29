@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <!--
         Пример плагина с зависимостью: живёт рядом с Arxis.HelloPlugin и
@@ -16,6 +16,14 @@
 
     <ItemGroup>
         <ProjectReference Include="../../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
+
+        <!--
+            Контракт соседа — Private=false: для компиляции он нужен, а в
+            раскладку не едет. Возит контракт его владелец; копию в bin
+            потребителя студия всё равно проигнорировала бы в пользу общей.
+        -->
+        <ProjectReference Include="../Arxis.Hello.Contracts/Arxis.Hello.Contracts.csproj"
+                          Private="false"/>
     </ItemGroup>
 
     <!--
