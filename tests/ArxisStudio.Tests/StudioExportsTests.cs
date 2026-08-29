@@ -102,12 +102,116 @@ public class StudioExportsTests : IDisposable
         var staying = new PluginExports(registry, Plugin("arxis.staying"));
 
         Assert.True(going.Publish<IGreeter>(new ProbeGreeter()));
-        Assert.True(staying.Publish<ProbeGreeter>(new ProbeGreeter()));
+        Assert.True(staying.Publish<IStudioProbe>(new ProbeGreeter()));
 
         registry.RemoveOwnedBy("arxis.going");
 
         Assert.Null(registry.Get(typeof(IGreeter)));
-        Assert.NotNull(registry.Get(typeof(ProbeGreeter)));
+        Assert.NotNull(registry.Get(typeof(IStudioProbe)));
+    }
+
+    /// <summary>
+    /// Реализация не того типа не публикуется.
+    /// </summary>
+    /// <remarks>
+    /// Без проверки в ячейку ложится мусор: сосед получает null на попадании в
+    /// словарь — неотличимо от «никто не публиковал», — а настоящему хозяину
+    /// потом отказывают, называя виновником самозванца.
+    /// </remarks>
+    [Fact]
+    public void An_implementation_of_the_wrong_type_is_not_published()
+    {
+        var registry = new StudioExportRegistry();
+        var conflicts = new List<string>();
+
+        registry.Conflict += (_, message) => conflicts.Add(message);
+
+        Assert.False(registry.Publish(typeof(IGreeter), new object(), "arxis.a", "A"));
+        Assert.Null(registry.Get(typeof(IGreeter)));
+        Assert.Contains(conflicts, message => message.Contains("не является", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Тип из сборки плагина под экспорт не годится.
+    /// </summary>
+    /// <remarks>
+    /// Его никто, кроме самого публикующего, не назовёт — сосед спрашивает
+    /// свой тип и получает null без единого слова, — а запись держит контекст
+    /// плагина и не даёт ему выгрузиться. Чаще всего так выходит нечаянно:
+    /// <c>Publish(реализация)</c> выводит T из аргумента, и вместо интерфейса
+    /// публикуется собственный класс.
+    /// </remarks>
+    [Fact]
+    public void A_type_from_the_plugin_assembly_is_not_published()
+    {
+        var catalog = new PluginCatalog(_root);
+
+        Assert.Null(catalog.InstallFromArchive(HelloArchive.Path).Error);
+
+        using var studio = new TestHost();
+
+        var loaded = Assert.Single(studio.Host.LoadStartup(catalog.Scan()), plugin => plugin.IsLoaded);
+
+        // Тип из контекста плагина: он и есть тот, что публиковать нельзя.
+        var own = loaded.Assemblies
+            .SelectMany(assembly => assembly.GetTypes())
+            .First(type => type.Name == "HelloService");
+
+        var conflicts = new List<string>();
+
+        studio.Exports.Conflict += (_, message) => conflicts.Add(message);
+
+        Assert.False(studio.Exports.Publish(own, Activator.CreateInstance(own)!, "arxis.hello", "Hello"));
+        Assert.Contains(conflicts, message => message.Contains("в сборке плагина", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Сосед, чьей версии владелец не удовлетворён, не отдаёт и экспортов.
+    /// </summary>
+    /// <remarks>
+    /// Служба соседей уже отвечает про такого «его нет». Разойдись два ответа —
+    /// плагин, написанный под вторую версию, получил бы реализацию первой и
+    /// упал бы с MissingMethodException внутри собственного кадра: гвард
+    /// записал бы сбой на него и через три раза отключил невиновного.
+    /// </remarks>
+    [Fact]
+    public void An_inactive_neighbour_gives_no_exports()
+    {
+        var registry = new StudioExportRegistry();
+
+        Assert.True(new PluginExports(registry, Plugin("arxis.old")).Publish<IGreeter>(new ProbeGreeter()));
+
+        var consumer = new PluginExports(registry, Plugin("arxis.picky"), new NobodyIsActive());
+
+        Assert.Null(consumer.Get<IGreeter>());
+
+        // А без службы соседей — как раньше: брать некому мерить.
+        Assert.NotNull(new PluginExports(registry, Plugin("arxis.picky")).Get<IGreeter>());
+    }
+
+    /// <summary>Своё берётся всегда: сам себе зависимости не объявляют.</summary>
+    [Fact]
+    public void An_owner_always_sees_its_own_export()
+    {
+        var registry = new StudioExportRegistry();
+        var exports = new PluginExports(registry, Plugin("arxis.self"), new NobodyIsActive());
+
+        Assert.True(exports.Publish<IGreeter>(new ProbeGreeter()));
+        Assert.NotNull(exports.Get<IGreeter>());
+    }
+
+    /// <summary>Служба соседей, для которой не активен никто.</summary>
+    private sealed class NobodyIsActive : IStudioPlugins
+    {
+        public bool IsActive(string pluginId) => false;
+
+        public string? Version(string pluginId) => null;
+
+        public event EventHandler? Changed
+        {
+            add { }
+            remove { }
+        }
     }
 
     /// <summary>Без реестра службы в контексте честно нет.</summary>
@@ -183,7 +287,10 @@ public class StudioExportsTests : IDisposable
             IsEnabled: true);
 
 
-    private sealed class ProbeGreeter : IGreeter
+    /// <summary>Второй контрактный тип — чтобы проверять снятие по владельцу.</summary>
+    private interface IStudioProbe;
+
+    private sealed class ProbeGreeter : IGreeter, IStudioProbe
     {
         public string Greet(string name) => $"Привет, {name}!";
     }

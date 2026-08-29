@@ -256,6 +256,47 @@ public class PluginContractGuardTests : IDisposable
     }
 
     /// <summary>
+    /// Беда во втором контракте не оставляет первый загруженным.
+    /// </summary>
+    /// <remarks>
+    /// Из общего контекста выгрузить нечего. Загрузи мы первый контракт до
+    /// того, как споткнулись о второй, — сборка плагина, который так и не
+    /// поднялся, осталась бы в студии навсегда: автор чинит манифест,
+    /// пересобирает, а в ответ слышит «держу прежнюю копию до перезапуска»
+    /// про сборку, ни разу не работавшую.
+    /// </remarks>
+    [Fact]
+    public void A_bad_second_contract_leaves_the_first_unloaded()
+    {
+        var target = Path.Combine(_root, "con.pair");
+
+        ZipFile.ExtractToDirectory(HelloArchive.Path, target);
+        Emit("Pair.Contracts", new Version(1, 0, 0, 0), Path.Combine(target, "bin", "Pair.Contracts.dll"));
+        File.WriteAllText(Path.Combine(target, "bin", "Broken.dll"), "это не сборка");
+
+        File.WriteAllText(
+            Path.Combine(target, "plugin.json"),
+            """
+            {
+              "id": "con.pair",
+              "name": "con.pair",
+              "version": "1.0.0",
+              "entry": "bin/Arxis.HelloPlugin.dll",
+              "provides": { "contracts": [ "bin/Pair.Contracts.dll", "bin/Broken.dll" ] },
+              "activation": [ "onStartup" ]
+            }
+            """);
+
+        var failed = Assert.Single(Start());
+
+        Assert.False(failed.IsLoaded);
+        Assert.Contains("не читается как сборка", failed.Error);
+
+        // Первый объявленный не должен был доехать до общего контекста.
+        Assert.Null(PluginContracts.Find(new AssemblyName("Pair.Contracts")));
+    }
+
+    /// <summary>
     /// Контракт грузится теневой копией, а файл плагина остаётся свободен.
     /// </summary>
     /// <remarks>

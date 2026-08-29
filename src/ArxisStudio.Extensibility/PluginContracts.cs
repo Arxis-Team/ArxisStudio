@@ -59,48 +59,76 @@ public static class PluginContracts
         ArgumentNullException.ThrowIfNull(plugin);
         ArgumentNullException.ThrowIfNull(notes);
 
-        foreach (var declared in plugin.Manifest?.Provides?.Contracts ?? [])
+        // Сперва проверяются все объявленные, и только потом грузится хоть
+        // один. Иначе беда во втором контракте оставляла бы первый в общем
+        // контексте навсегда — у плагина, который так и не поднялся: автор
+        // чинит манифест, пересобирает, а студия отвечает ему «держу прежнюю
+        // копию до перезапуска» про сборку, ни разу не работавшую.
+        var declared = new List<(string Name, AssemblyName Identity, FileInfo File)>();
+
+        foreach (var path in plugin.Manifest?.Provides?.Contracts ?? [])
         {
-            if (declared is not { Length: > 0 })
+            if (path is not { Length: > 0 })
                 continue;
 
-            if (Inside(plugin.Directory, declared) is not { } path)
-                return $"{plugin.DisplayName}: контракт уводит за пределы папки плагина: {declared}";
+            if (Examine(plugin, path, out var checked_) is { } refusal)
+                return refusal;
 
-            if (!File.Exists(path))
-                return $"{plugin.DisplayName}: объявленный контракт не найден: {declared}";
+            declared.Add(checked_);
+        }
 
-            // Имя берётся из самой сборки, а не из имени файла: резолвер
-            // спрашивает контракт по имени сборки, и файл, названный иначе,
-            // молча не нашёлся бы — тип раскололся бы ровно там, где контракты
-            // его и сращивают. Заодно это первая проверка, что файл вообще
-            // сборка: манифест читается, ничего не загружая в процесс.
-            AssemblyName identity;
-
-            try
-            {
-                identity = AssemblyName.GetAssemblyName(path);
-            }
-            catch (Exception e) when (e is BadImageFormatException or FileLoadException
-                or IOException or UnauthorizedAccessException or ArgumentException)
-            {
-                return $"{plugin.DisplayName}: контракт не читается как сборка: {declared} — {e.Message}";
-            }
-
-            if (identity.Name is not { Length: > 0 } name)
-                return $"{plugin.DisplayName}: у контракта нет имени сборки: {declared}";
-
-            // Общие сборки студии под контракт не отдаются. Резолвер спрашивает
-            // контракт раньше всего остального, и файл плагина, назвавшийся
-            // Avalonia.Controls, достался бы вместо настоящего и студии, и всем
-            // соседям — без возможности это отменить.
-            if (PluginLoadContext.IsShared(name))
-                return $"{plugin.DisplayName}: имя {name} занято общими сборками студии";
-
-            if (Claim(name, identity, new FileInfo(path), plugin, notes) is { } refusal)
+        foreach (var (name, identity, file) in declared)
+        {
+            if (Claim(name, identity, file, plugin, notes) is { } refusal)
                 return refusal;
         }
 
+        return null;
+    }
+
+    /// <summary>
+    /// Проверяет один объявленный контракт, ничего не загружая.
+    /// </summary>
+    /// <returns>Причина отказа или null, если контракт годен.</returns>
+    private static string? Examine(
+        InstalledPlugin plugin, string declared, out (string, AssemblyName, FileInfo) checked_)
+    {
+        checked_ = default;
+
+        if (Inside(plugin.Directory, declared) is not { } path)
+            return $"{plugin.DisplayName}: контракт уводит за пределы папки плагина: {declared}";
+
+        if (!File.Exists(path))
+            return $"{plugin.DisplayName}: объявленный контракт не найден: {declared}";
+
+        // Имя берётся из самой сборки, а не из имени файла: резолвер
+        // спрашивает контракт по имени сборки, и файл, названный иначе,
+        // молча не нашёлся бы — тип раскололся бы ровно там, где контракты
+        // его и сращивают. Заодно это первая проверка, что файл вообще
+        // сборка: манифест читается, ничего не загружая в процесс.
+        AssemblyName identity;
+
+        try
+        {
+            identity = AssemblyName.GetAssemblyName(path);
+        }
+        catch (Exception e) when (e is BadImageFormatException or FileLoadException
+            or IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return $"{plugin.DisplayName}: контракт не читается как сборка: {declared} — {e.Message}";
+        }
+
+        if (identity.Name is not { Length: > 0 } name)
+            return $"{plugin.DisplayName}: у контракта нет имени сборки: {declared}";
+
+        // Общие сборки студии под контракт не отдаются. Резолвер спрашивает
+        // контракт раньше всего остального, и файл плагина, назвавшийся
+        // Avalonia.Controls, достался бы вместо настоящего и студии, и всем
+        // соседям — без возможности это отменить.
+        if (PluginLoadContext.IsShared(name))
+            return $"{plugin.DisplayName}: имя {name} занято общими сборками студии";
+
+        checked_ = (name, identity, new FileInfo(path));
         return null;
     }
 

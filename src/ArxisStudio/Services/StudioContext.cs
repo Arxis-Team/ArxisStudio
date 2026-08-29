@@ -112,11 +112,16 @@ public sealed class StudioContextFactory(
                 ? new Dictionary<Type, object>()
                 : new Dictionary<Type, object>(services.ToDictionary(pair => pair.Key, pair => pair.Value));
 
-            if (plugins is not null)
-                extended[typeof(IStudioPlugins)] = new PluginNeighbours(plugins, plugin);
+            var neighbours = plugins is null ? null : new PluginNeighbours(plugins, plugin);
 
+            if (neighbours is not null)
+                extended[typeof(IStudioPlugins)] = neighbours;
+
+            // Экспортам отдаётся та же служба соседей: два ответа об одном
+            // соседе обязаны сходиться. Разойдись они — плагин узнавал бы от
+            // одной «соседа нет», а от другой получал его реализацию.
             if (exports is not null)
-                extended[typeof(IStudioExports)] = new PluginExports(exports, plugin);
+                extended[typeof(IStudioExports)] = new PluginExports(exports, plugin, neighbours);
 
             granted = extended;
         }
