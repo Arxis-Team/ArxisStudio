@@ -1,4 +1,4 @@
-using System.Collections.Frozen;
+﻿using System.Collections.Frozen;
 using ArxisStudio.Sdk;
 using ArxisStudio.Shell.Localization;
 using Avalonia.Data;
@@ -33,6 +33,11 @@ public sealed class PluginStrings : IStudioStrings, IStringSource
     private static IPluginTranslations? _translations;
 
     private readonly Lock _lock = new();
+
+    // Словари плагина — источник своих строк и их хозяин. Студия берёт их под
+    // присмотр, чтобы обновлять при смене языка, но не владеет ими: плагин
+    // уходит, и они уходят с ним.
+    private readonly TrackedStrings _tracked;
     private readonly string? _directory;
     private readonly string _pluginId;
 
@@ -48,6 +53,7 @@ public sealed class PluginStrings : IStudioStrings, IStringSource
     {
         _directory = directory is { Length: > 0 } path ? path : null;
         _pluginId = pluginId ?? string.Empty;
+        _tracked = Localizer.Instance.Register(new TrackedStrings(this));
     }
 
     /// <summary>Словари самой студии — то, чем пользуются встроенные модули.</summary>
@@ -131,10 +137,16 @@ public sealed class PluginStrings : IStudioStrings, IStringSource
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Строки принадлежат этим словарям и уходят вместе с плагином. Держать их
+    /// обязан именно источник: привязка Avalonia смотрит на свою модель слабо,
+    /// и строка, за которую никто не держится, умрёт на первой же сборке
+    /// мусора — а показанный заголовок навсегда останется на прежнем языке.
+    /// </remarks>
     public BindingBase Text(string key) =>
         new Binding(nameof(LocalizedString.Value))
         {
-            Source = Localizer.Instance.Track(this, key),
+            Source = _tracked[key],
             Mode = BindingMode.OneWay,
         };
 

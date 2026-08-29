@@ -1,4 +1,4 @@
-using System.Collections.Frozen;
+﻿using System.Collections.Frozen;
 using System.ComponentModel;
 using System.Reflection;
 using System.Text.Json;
@@ -48,7 +48,10 @@ public sealed class Localizer : INotifyPropertyChanged, IStringSource
     /// <summary>Ключ, которым словарь называет свой язык.</summary>
     public const string NameKey = "language.name";
 
-    private readonly List<WeakReference<LocalizedString>> _tracked = [];
+    // Слабо — и это здесь уместно: у каждой записи есть свой хозяин
+    // (источник, который её завёл), а список лишь обходит их при смене языка.
+    // Слабая ссылка вместо хозяина — то, из-за чего строки прежде умирали.
+    private readonly List<WeakReference<TrackedStrings>> _sources = [];
 
     private string _shared;
     private string _user;
@@ -58,6 +61,11 @@ public sealed class Localizer : INotifyPropertyChanged, IStringSource
 
     /// <summary>Общий экземпляр, к которому привязан интерфейс студии.</summary>
     public static Localizer Instance { get; } = new();
+
+    /// <summary>Строки самой студии: их хозяин — она сама.</summary>
+    private TrackedStrings Own => _own ??= Register(new TrackedStrings(this));
+
+    private TrackedStrings? _own;
 
     /// <summary>
     /// Где студия ищет словари: сперва рядом с собой, потом в данных
@@ -213,52 +221,57 @@ public sealed class Localizer : INotifyPropertyChanged, IStringSource
     }
 
     /// <summary>
-    /// Заводит строку, которая обновляется при смене языка. Ссылка на неё слабая:
-    /// строка живёт, пока на неё смотрит привязка, и уходит вместе с окном.
+    /// Строка студии, обновляющаяся при смене языка.
     /// </summary>
     /// <remarks>
     /// Разметке хватает <c>{loc:Loc}</c>, но интерфейс, собранный кодом, — списки,
     /// разделы, пункты меню — заводит свои строки сам.
+    /// <para>
+    /// Строка принадлежит студии и живёт с ней; на один ключ она одна. Держать
+    /// её вызывающему не нужно, но и рассчитывать, что её удержит привязка,
+    /// нельзя: привязка Avalonia смотрит на свой источник слабо.
+    /// </para>
     /// </remarks>
     /// <param name="key">Ключ строки.</param>
-    public LocalizedString Track(string key) => Track(this, key);
+    public LocalizedString Track(string key) => Own[key];
 
     /// <summary>
-    /// Заводит строку чужого источника — например, словарей плагина.
+    /// Берёт под присмотр строки чужого источника — например, словарей плагина.
     /// </summary>
+    /// <param name="strings">Строки источника; хозяин у них свой.</param>
+    /// <returns>Их же, чтобы вызов читался как присваивание поля.</returns>
     /// <remarks>
-    /// Список следящих строк один на студию, хотя словари у всех свои: язык
-    /// меняется разом, и обновиться должно всё показанное, а не только то, что
-    /// написала студия.
+    /// Язык меняется разом, и обновиться должно всё показанное, а не только
+    /// написанное студией. Держать сами строки студия не может: словари
+    /// плагина уходят вместе с ним, и вечная ссылка отсюда была бы утечкой.
+    /// Поэтому здесь только присмотр, а владение остаётся у источника.
     /// </remarks>
-    /// <param name="source">Откуда брать текст.</param>
-    /// <param name="key">Ключ строки.</param>
-    public LocalizedString Track(IStringSource source, string key)
+    public TrackedStrings Register(TrackedStrings strings)
     {
-        var tracked = new LocalizedString(source, key);
+        ArgumentNullException.ThrowIfNull(strings);
 
-        lock (_tracked)
-            _tracked.Add(new WeakReference<LocalizedString>(tracked));
+        lock (_sources)
+            _sources.Add(new WeakReference<TrackedStrings>(strings));
 
-        return tracked;
+        return strings;
     }
 
     private void RefreshTracked()
     {
-        LocalizedString[] alive;
+        TrackedStrings[] alive;
 
-        lock (_tracked)
+        lock (_sources)
         {
-            alive = _tracked
+            alive = _sources
                 .Select(reference => reference.TryGetTarget(out var value) ? value : null)
-                .OfType<LocalizedString>()
+                .OfType<TrackedStrings>()
                 .ToArray();
 
-            _tracked.RemoveAll(reference => !reference.TryGetTarget(out _));
+            _sources.RemoveAll(reference => !reference.TryGetTarget(out _));
         }
 
-        foreach (var value in alive)
-            value.Refresh();
+        foreach (var strings in alive)
+            strings.Refresh();
     }
 
     /// <summary>Собирает словарь языка: встроенный, а поверх него — файлы.</summary>
