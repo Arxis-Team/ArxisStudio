@@ -36,8 +36,44 @@ public sealed class PluginManifest
     /// <summary>Что плагин добавляет в студию.</summary>
     public PluginContributions Contributions { get; set; } = new();
 
+    /// <summary>Плагины, которые должны стоять раньше этого.</summary>
+    public IList<PluginDependency> Dependencies { get; set; } = [];
+
     /// <summary>События, при которых сборка плагина загружается.</summary>
     public IList<string> Activation { get; set; } = [];
+}
+
+/// <summary>
+/// Зависимость от соседнего плагина.
+/// </summary>
+/// <remarks>
+/// Студия разрешает зависимости по манифестам, до загрузки единой сборки:
+/// плагин, чья зависимость не выполнена, не поднимается вовсе и говорит
+/// почему — вместо того чтобы упасть на первом обращении к соседу.
+/// <para>
+/// У версии только нижняя граница, и это осознанно: диапазоны — целая
+/// подсистема разрешения версий, её заводят для экосистемы, а не до неё.
+/// Правило то же, что у <c>sdk.min</c>: «подойдёт любой сосед не старее».
+/// </para>
+/// </remarks>
+public sealed class PluginDependency
+{
+    /// <summary>Идентификатор нужного плагина, например <c>arxis.figma</c>.</summary>
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Минимальная версия соседа; null — важна только установленность.</summary>
+    public string? Min { get; set; }
+
+    /// <summary>
+    /// Сосед желателен, но не обязателен.
+    /// </summary>
+    /// <remarks>
+    /// Значит ровно одно: если сосед установлен и включён — он поднимется
+    /// раньше этого плагина; нет — плагин поднимется без него. Ни на что
+    /// больше признак не влияет: есть ли сосед на самом деле, плагин
+    /// спрашивает у службы <c>IStudioPlugins</c>.
+    /// </remarks>
+    public bool Optional { get; set; }
 }
 
 /// <summary>Требования плагина к версии SDK.</summary>
