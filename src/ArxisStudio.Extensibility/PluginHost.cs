@@ -47,6 +47,16 @@ public sealed class PluginHost : IDisposable
     public IReadOnlyList<InstalledPlugin> Deferred => _deferred;
 
     /// <summary>
+    /// Состав поднятых изменился: подъём, выгрузка, перезагрузка.
+    /// </summary>
+    /// <remarks>
+    /// Во время старта и каскадов событие приходит на каждый шаг: подписчик,
+    /// читающий <see cref="Loaded"/> из обработчика, видит промежуточные
+    /// состояния — это цена того, что о каждом изменении сказано сразу.
+    /// </remarks>
+    public event EventHandler? Changed;
+
+    /// <summary>
     /// Итог разрешения зависимостей при старте; null до первого старта.
     /// </summary>
     /// <remarks>
@@ -438,6 +448,7 @@ public sealed class PluginHost : IDisposable
 
         _loaded.Remove(loaded);
         loaded.Unload();
+        Changed?.Invoke(this, EventArgs.Empty);
 
         return new WeakReference(loaded.Context);
     }
@@ -447,6 +458,7 @@ public sealed class PluginHost : IDisposable
         var loaded = Load(installed);
 
         _loaded.Add(loaded);
+        Changed?.Invoke(this, EventArgs.Empty);
         return loaded;
     }
 
@@ -459,6 +471,7 @@ public sealed class PluginHost : IDisposable
         _loaded.Clear();
         _deferred.Clear();
         _resolution = null;
+        Changed?.Invoke(this, EventArgs.Empty);
     }
 
     private LoadedPlugin Load(InstalledPlugin installed)
@@ -525,6 +538,7 @@ public sealed class PluginHost : IDisposable
             : Raise(installed, context: null, [assembly], _contexts.Create(installed));
 
         _loaded.Add(loaded);
+        Changed?.Invoke(this, EventArgs.Empty);
         return loaded;
     }
 

@@ -159,6 +159,7 @@ public partial class MainWindow : Window
         };
 
         var catalog = new PluginCatalog();
+        var roster = new StudioPluginRoster();
         var host = new PluginHost(new StudioContextFactory(
             _log,
             _commands,
@@ -166,10 +167,15 @@ public partial class MainWindow : Window
             services,
             settings: null,
             tasks: _tasks,
-            guard: _guard));
+            guard: _guard,
+            plugins: roster));
 
         _plugins = host;
         _installed = catalog.Scan();
+
+        // Ядро подключается до первого подъёма: контексты раздаются при
+        // загрузке, и служба соседей обязана отвечать правду с первого.
+        roster.Attach(host, () => _installed);
 
         // Пробуждение по команде живёт в реестре, а не только в меню: команду
         // соседа зовут и из кода плагина, и дорога обязана быть одна. Подъём
