@@ -333,6 +333,39 @@ public class PluginContractGuardTests : IDisposable
         File.WriteAllText(contract, "пересобрано");
     }
 
+    /// <summary>
+    /// Своя же пересборка контракта с новой версией говорит про перезапуск,
+    /// а не про чужого захватчика.
+    /// </summary>
+    /// <remarks>
+    /// Отказ тот же самый — общий контекст обновить нечем, — но причина
+    /// совсем другая, и слова обязаны это различать. «Имя занято контрактом
+    /// плагина arxis.foo», где arxis.foo и есть спрашивающий, отправляет
+    /// автора искать несуществующего соседа.
+    /// </remarks>
+    [Fact]
+    public void Rebuilding_ones_own_contract_asks_for_a_restart()
+    {
+        var plugin = Clone("con.bump", "bin/Bump.Contracts.dll");
+        var contract = Path.Combine(plugin, "bin", "Bump.Contracts.dll");
+
+        Emit("Bump.Contracts", new Version(1, 0, 0, 0), contract);
+
+        using var studio = new TestHost();
+        var catalog = new PluginCatalog(_root);
+
+        Assert.Single(studio.Host.LoadStartup(catalog.Scan()), loaded => loaded.IsLoaded);
+
+        // Автор пересобрал контракт и поднял версию сборки.
+        Emit("Bump.Contracts", new Version(2, 0, 0, 0), contract);
+
+        var again = studio.Host.Reload(catalog.Scan().Single(candidate => candidate.Id == "con.bump"));
+
+        Assert.NotNull(again.Error);
+        Assert.Contains("нужен перезапуск студии", again.Error);
+        Assert.DoesNotContain("уже занято контрактом плагина", again.Error);
+    }
+
     /// <summary>Пишет на место контракта сборку того же имени, но своей версии.</summary>
     private static void Impostor(string path) =>
         Emit("Arxis.Hello.Contracts", new Version(9, 9, 9, 9), path);

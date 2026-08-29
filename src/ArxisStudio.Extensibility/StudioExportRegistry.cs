@@ -64,8 +64,10 @@ public sealed class StudioExportRegistry
         {
             Conflict?.Invoke(
                 this,
-                $"{ownerName}: {contract.Name} живёт в сборке плагина, а не в контрактной — " +
-                "объявите её в provides.contracts и публикуйте её тип");
+                $"{ownerName}: {contract.Name} живёт в сборке плагина, а не в контрактной. " +
+                "Вынесите интерфейсы в отдельную сборку и объявите её в provides.contracts. " +
+                "Саму сборку плагина контрактом не сделать: она обязана выгружаться при " +
+                "перезагрузке, а контракт обязан не выгружаться");
 
             return false;
         }

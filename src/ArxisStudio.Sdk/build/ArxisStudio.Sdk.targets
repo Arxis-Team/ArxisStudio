@@ -56,6 +56,32 @@
     </PropertyGroup>
 
     <!--
+        Объявленные контракты достаются тем же способом — регулярным
+        выражением по тексту: разбирать JSON здесь по-прежнему нечем. Берётся
+        именно блок provides.contracts, а не весь манифест: слово contracts
+        больше нигде не встречается, но список путей надо отделить от всего
+        остального.
+
+        Из блока делается список: всё, что не годится в путь, становится
+        разделителем. Слово «contracts» при этом тоже попадает в список и
+        отсеивается дальше — по расширению.
+    -->
+    <PropertyGroup Condition="'$(_AxPluginManifestText)' != ''">
+        <_AxContractsBlock>$([System.Text.RegularExpressions.Regex]::Match($(_AxPluginManifestText), '"contracts"\s*:\s*\[[^\]]*\]'))</_AxContractsBlock>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(_AxContractsBlock)' != ''">
+        <!-- Слово contracts и открывающая скобка отрезаются: дальше идут одни пути. -->
+        <_AxContractsBody>$([System.Text.RegularExpressions.Regex]::Replace($(_AxContractsBlock), '^[\s\S]*?\[', ''))</_AxContractsBody>
+        <_AxContractPaths>$([System.Text.RegularExpressions.Regex]::Replace($(_AxContractsBody), '[^A-Za-z0-9._/-]+', ';'))</_AxContractPaths>
+        <_AxContractPaths>$(_AxContractPaths.Trim(';'))</_AxContractPaths>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(_AxContractPaths)' != ''">
+        <_AxDeclaredContract Include="$(_AxContractPaths)" />
+    </ItemGroup>
+
+    <!--
         Догадка помечается: имя архива она ещё спасёт, а имя папки установки —
         уже нет. Папка установленного плагина зовётся его идентификатором, и,
         назвав её иначе, мы получим второй экземпляр того же плагина, когда его
@@ -89,8 +115,39 @@
     </ItemGroup>
 
     <Target Name="AxPluginCheckManifest" BeforeTargets="Build">
+
+        <!--
+            Имя собранной сборки известно только к запуску целей: на уровне
+            файла наш импорт идёт раньше общих таргетов SDK, и TargetFileName
+            там ещё пуст.
+
+            В образце нет ни одной кавычки, хотя искать надо строку в кавычках:
+            попади кавычка в выражение буквально, разбор аргументов функции об
+            неё споткнулся бы и условие молча стало бы ложным. Вместо неё —
+            «любой символ, который в имени файла встретиться не может» с обеих
+            сторон: слэш и кавычка под это подходят, а буква — нет, поэтому
+            «Foo.dll» не совпадёт с «MyFoo.dll».
+        -->
+        <PropertyGroup Condition="'$(_AxContractsBlock)' != ''">
+            <_AxEntryContractPattern>[^A-Za-z0-9_.-]$([System.Text.RegularExpressions.Regex]::Escape($(TargetFileName)))[^A-Za-z0-9]</_AxEntryContractPattern>
+        </PropertyGroup>
         <Error Code="AXP1004" Condition="'$(AxPluginIcon)' != '' And !Exists('$(MSBuildProjectDirectory)/$(AxPluginIcon)')"
                Text="Значок объявлен в манифесте, но файла нет: ожидается '$(AxPluginIcon)' в папке плагина. Студия покажет вместо него общий значок, и автор узнает об этом от чужого пользователя. Положите файл или уберите поле icon." />
+
+        <!--
+            Контракт обязан не выгружаться — иначе типы разъедутся между
+            контекстами. Плагин обязан выгружаться — иначе не будет
+            перезагрузки без перезапуска студии. Одна сборка не может быть и
+            тем, и другим, поэтому объявить собственную entry-сборку
+            контрактом — тупик, и притом дорогой: студия загрузит её в общий
+            контекст навсегда, а типы всё равно не сойдутся, потому что вторая
+            копия той же сборки живёт в контексте плагина. Разбираться в этом
+            на чужой машине незачем — ошибка видна прямо здесь.
+        -->
+        <Error Code="AXP1005"
+               Condition="'$(_AxContractsBlock)' != '' And
+                          $([System.Text.RegularExpressions.Regex]::IsMatch($(_AxContractsBlock), $(_AxEntryContractPattern)))"
+               Text="Контрактом объявлена сама сборка плагина ($(TargetFileName)). Так не выйдет: контракт студия грузит в общий контекст и не выгружает никогда, а сборку плагина обязана выгружать при перезагрузке — одним файлом это не бывает. Вынесите интерфейсы в отдельный проект без зависимостей и объявите контрактом его." />
 
         <Error Code="AXP1001" Condition="!Exists('$(AxPluginManifest)')"
                Text="Плагину нужен манифест: ожидается '$(AxPluginManifest)'. Без него папка плагином не является — студия читает по манифесту и меню, и панели, ещё не загружая сборку. Создайте plugin.json или укажите другой путь свойством AxPluginManifest." />
@@ -196,6 +253,24 @@
         <Error Code="AXP1002"
                Condition="'$(_AxPluginManifestText)' != '' And !$(_AxPluginManifestText.Contains('$(TargetFileName)'))"
                Text="Манифест $(AxPluginManifest) называет не ту сборку: собрана $(TargetFileName), а entry манифеста указывает на другой файл. Приведите entry и AssemblyName к одному имени — иначе студия плагин установит и не поднимет." />
+
+        <!--
+            Объявленный контракт — обещание манифеста: на его типы
+            рассчитывают соседи, и студия отказывает плагину, если файла нет.
+            Проверяется раскладка, а не выходная папка: в архив уедет именно
+            она, и «у меня собирается» разойдётся с тем, что получит чужая
+            машина. Причина обычно одна — контракт подключён с Private=false
+            или ReferenceOutputAssembly=false, то есть возить его должен был
+            кто-то другой.
+        -->
+        <ItemGroup>
+            <_AxMissingContract Include="@(_AxDeclaredContract)"
+                                Condition="$([System.String]::Copy('%(Identity)').EndsWith('.dll')) And
+                                           !Exists('$(AxPluginPackageDir)%(Identity)')" />
+        </ItemGroup>
+
+        <Error Code="AXP1006" Condition="'@(_AxMissingContract)' != ''"
+               Text="Контракт объявлен, но в раскладку не попал: @(_AxMissingContract, ', '). Студия откажет такому плагину при загрузке — это обещание манифеста, на типы контракта рассчитывают соседи. Проверьте, что проект контракта подключён без Private=false: возить контракт обязан его владелец." />
     </Target>
 
     <Target Name="AxPluginPackage" AfterTargets="AxPluginLayout" Condition="'$(AxPluginPack)' == 'true'">
