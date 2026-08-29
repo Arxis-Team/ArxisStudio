@@ -16,6 +16,7 @@
 
     <ItemGroup>
         <ProjectReference Include="../../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
+        <ProjectReference Include="../Arxis.Hello.Contracts/Arxis.Hello.Contracts.csproj"/>
     </ItemGroup>
 
     <!--

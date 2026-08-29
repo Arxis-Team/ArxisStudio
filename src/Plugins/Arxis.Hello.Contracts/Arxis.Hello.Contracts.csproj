@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+        Контракт примера: типы, через которые соседи говорят с Arxis.HelloPlugin.
+        Нарочно тощий — одни интерфейсы, ни единой ссылки, кроме рантайма:
+        контракт грузится в общий контекст и не выгружается до конца процесса,
+        поэтому чем меньше в нём меняется, тем реже автору нужен перезапуск
+        студии, а зависимостей у него не должно быть вовсе — они уехали бы в
+        общий контекст вместе с ним.
+    -->
+    <PropertyGroup>
+        <RootNamespace>Arxis.Hello.Contracts</RootNamespace>
+        <AssemblyName>Arxis.Hello.Contracts</AssemblyName>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+</Project>

@@ -37,6 +37,12 @@
         <ProjectReference Include="../../src/Plugins/Arxis.HelloFriend/Arxis.HelloFriend.csproj"
                           ReferenceOutputAssembly="false"
                           SkipGetTargetFrameworkProperties="true"/>
+        <!--
+            Контракт примера — обычной ссылкой: тест доказывает идентичность
+            типов, приводя объект плагина к СВОЕМУ IGreeter. Это и есть весь
+            смысл контрактных сборок.
+        -->
+        <ProjectReference Include="../../src/Plugins/Arxis.Hello.Contracts/Arxis.Hello.Contracts.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

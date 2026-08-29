@@ -777,6 +777,9 @@ public partial class MainWindow : Window
         foreach (var skipped in cascade.Skipped)
             _log.Write(StudioLogLevel.Warning, "Plugins", skipped.Value);
 
+        foreach (var note in cascade.Notes)
+            _log.Write(StudioLogLevel.Warning, "Plugins", note);
+
         foreach (var loaded in cascade.Raised)
             Accept(loaded);
 

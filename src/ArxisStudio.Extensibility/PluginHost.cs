@@ -149,6 +149,29 @@ public sealed class PluginHost : IDisposable
                 raised.Add(Fail(refused, _resolution.Refused[refusedId]));
         }
 
+        // Контракты грузятся до первого подъёма и у всех сразу — и у
+        // отложенных, и у плагинов без entry: типы должны существовать к
+        // моменту, когда их коснётся любой сосед, а не к моменту подъёма
+        // владельца. Объявленный и отсутствующий файлом контракт — отказ:
+        // это обещание манифеста, на него рассчитывают зависимые.
+        var contractNotes = new List<string>(_resolution.Notes);
+        var contractless = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var plugin in enabled)
+        {
+            if (_resolution.Refused.ContainsKey(plugin.Id))
+                continue;
+
+            if (PluginContracts.EnsureLoaded(plugin, contractNotes) is { } missing)
+            {
+                raised.Add(Fail(plugin, missing));
+                contractless.Add(plugin.Id);
+            }
+        }
+
+        if (contractNotes.Count > _resolution.Notes.Count)
+            _resolution = new PluginResolution(_resolution.Order, _resolution.Refused, contractNotes);
+
         // Поднимается замыкание нетерпеливых по рёбрам подъёма: нетерпеливый
         // тянет за собой и отложенную зависимость — в момент его активации
         // службы соседа обязаны существовать, а не ждать своего события.
@@ -160,6 +183,9 @@ public sealed class PluginHost : IDisposable
             // пакет в порядок не попадает вовсе, но перестраховка дешевле
             // догадки о том, что Order всегда прав.
             if (plugin.Manifest?.Entry is not { Length: > 0 })
+                continue;
+
+            if (contractless.Contains(plugin.Id))
                 continue;
 
             if (eager.Contains(plugin.Id))
@@ -372,11 +398,21 @@ public sealed class PluginHost : IDisposable
         var released = ReleasedAll(retired);
 
         var raised = new List<LoadedPlugin>();
+        var notes = new List<string>();
 
         foreach (var installed in raise)
         {
             if (skipped.ContainsKey(installed.Id))
                 continue;
+
+            // Контракты перечитываются заметками: автор мог пересобрать и
+            // их, а выгрузить прежнюю копию из общего контекста нечем —
+            // честнее сказать про перезапуск, чем промолчать.
+            if (PluginContracts.EnsureLoaded(installed, notes) is { } missing)
+            {
+                raised.Add(Fail(installed, missing));
+                continue;
+            }
 
             // Словари читаются с диска и живут дольше подъёма: перезагрузка,
             // оставившая прежний текст, была бы перезагрузкой наполовину —
@@ -386,7 +422,7 @@ public sealed class PluginHost : IDisposable
             raised.Add(Add(installed));
         }
 
-        return new PluginCascade(released, raised, skipped);
+        return new PluginCascade(released, raised, skipped, notes);
     }
 
     /// <summary>
@@ -747,10 +783,12 @@ public sealed record PluginReload(LoadedPlugin? Plugin, string? Error, bool Rele
 /// <param name="Released">По каждому опущенному: выгрузился ли его контекст.</param>
 /// <param name="Raised">Поднятые в порядке подъёма, включая записи с ошибкой.</param>
 /// <param name="Skipped">Кого не тронули и почему: не поднят, встроенный.</param>
+/// <param name="Notes">О чём сказать, не отказывая: изменившийся контракт.</param>
 public sealed record PluginCascade(
     IReadOnlyDictionary<string, bool> Released,
     IReadOnlyList<LoadedPlugin> Raised,
-    IReadOnlyDictionary<string, string> Skipped);
+    IReadOnlyDictionary<string, string> Skipped,
+    IReadOnlyList<string> Notes);
 
 /// <summary>Кто выдаёт плагину его контекст.</summary>
 public interface IStudioContextFactory
@@ -829,10 +867,19 @@ internal sealed class PluginLoadContext(string name, string entryPath)
 {
     private readonly AssemblyDependencyResolver _resolver = new(entryPath);
 
-    protected override Assembly? Load(AssemblyName assemblyName) =>
-        _resolver.ResolveAssemblyToPath(assemblyName) is { } path && !IsShared(assemblyName)
+    protected override Assembly? Load(AssemblyName assemblyName)
+    {
+        // Контракт один на всех: даже если копия с тем же именем лежит в
+        // bin/ плагина — автор забыл исключить, — тип обязан остаться общим.
+        // Иначе вернулась бы двойная идентичность, от которой контракты и
+        // заведены.
+        if (PluginContracts.Find(assemblyName) is { } contract)
+            return contract;
+
+        return _resolver.ResolveAssemblyToPath(assemblyName) is { } path && !IsShared(assemblyName)
             ? LoadFromAssemblyPath(path)
             : null;
+    }
 
     private static bool IsShared(AssemblyName assemblyName) =>
         assemblyName.Name is { } name &&
