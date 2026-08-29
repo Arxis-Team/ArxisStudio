@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+        Пример плагина с зависимостью: живёт рядом с Arxis.HelloPlugin и
+        требует его в манифесте. Hello при этом остаётся примером обычного
+        плагина без зависимостей — затем их и двое.
+    -->
+    <PropertyGroup>
+        <RootNamespace>Arxis.HelloFriend</RootNamespace>
+        <AssemblyName>Arxis.HelloFriend</AssemblyName>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+        <!-- Пример показывает готовый .axplugin, а не только папку. -->
+        <AxPluginPack>true</AxPluginPack>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
+    </ItemGroup>
+
+    <!--
+        Анализатор SDK приходится подключать отдельно: через цепочку
+        ProjectReference анализаторы не передаются — так умеют только пакеты.
+    -->
+    <ItemGroup>
+        <ProjectReference Include="../../ArxisStudio.Sdk.Analyzers/ArxisStudio.Sdk.Analyzers.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false"/>
+    </ItemGroup>
+
+    <Import Project="../../ArxisStudio.Sdk/build/ArxisStudio.Sdk.targets"/>
+
+</Project>

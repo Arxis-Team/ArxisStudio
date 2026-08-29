@@ -34,6 +34,9 @@
         <ProjectReference Include="../../src/Plugins/Arxis.HelloPlugin/Arxis.HelloPlugin.csproj"
                           ReferenceOutputAssembly="false"
                           SkipGetTargetFrameworkProperties="true"/>
+        <ProjectReference Include="../../src/Plugins/Arxis.HelloFriend/Arxis.HelloFriend.csproj"
+                          ReferenceOutputAssembly="false"
+                          SkipGetTargetFrameworkProperties="true"/>
     </ItemGroup>
 
     <ItemGroup>

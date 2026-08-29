@@ -1,0 +1,23 @@
+{
+  "id": "arxis.hello-friend",
+  "name": "Hello Friend",
+  "version": "1.0.0",
+  "publisher": "Arxis Labs",
+  "description": "%plugin.description%",
+  "sdk": { "min": "2.1" },
+  "entry": "bin/Arxis.HelloFriend.dll",
+  "dependencies": [
+    { "id": "arxis.hello", "min": "1.0" }
+  ],
+  "contributions": {
+    "commands": [
+      { "id": "friend.cheer" }
+    ],
+    "menus": [
+      { "path": "%menu.tools%/%menu.friend%/%command.cheer%", "command": "friend.cheer" }
+    ]
+  },
+  "activation": [
+    "onCommand:friend.cheer"
+  ]
+}

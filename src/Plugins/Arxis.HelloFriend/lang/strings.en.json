@@ -1,0 +1,6 @@
+{
+  "plugin.description": "A sample plugin with a dependency: requires arxis.hello and invokes its command",
+  "menu.tools": "Plugin commands",
+  "menu.friend": "Hello's friend",
+  "command.cheer": "Send greetings"
+}
