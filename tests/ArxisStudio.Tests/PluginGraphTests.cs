@@ -337,6 +337,29 @@ public class PluginGraphTests
     private static PluginDependency Dep(string id, string? min = null, bool optional = false) =>
         new() { Id = id, Min = min, Optional = optional };
 
+
+    /// <summary>
+    /// Причина отказа не называет своего же плагина.
+    /// </summary>
+    /// <remarks>
+    /// Имя подставляет тот, кто показывает причину: журнал студии пишет
+    /// «Имя: причина». Назови её ещё и сама — вышло бы «Плагин: Плагин:
+    /// нужен…», а в цепочке имя двоилось бы дважды. Нашлось живой проверкой,
+    /// на настоящем журнале.
+    /// </remarks>
+    [Fact]
+    public void A_refusal_does_not_repeat_the_name_of_its_own_plugin()
+    {
+        var lonely = Plugin("gr.lonely", "Одинокий");
+
+        lonely.Manifest!.Dependencies.Add(new PluginDependency { Id = "gr.missing" });
+
+        var resolution = PluginGraph.Resolve([lonely], []);
+
+        Assert.DoesNotContain("Одинокий", resolution.Refused["gr.lonely"], StringComparison.Ordinal);
+        Assert.StartsWith("нужен", resolution.Refused["gr.lonely"], StringComparison.Ordinal);
+    }
+
     private static InstalledPlugin Plugin(
         string id,
         string? name = null,

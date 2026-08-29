@@ -96,10 +96,10 @@ public static class PluginContracts
         checked_ = default;
 
         if (Inside(plugin.Directory, declared) is not { } path)
-            return $"{plugin.DisplayName}: контракт уводит за пределы папки плагина: {declared}";
+            return $"контракт уводит за пределы папки плагина: {declared}";
 
         if (!File.Exists(path))
-            return $"{plugin.DisplayName}: объявленный контракт не найден: {declared}";
+            return $"объявленный контракт не найден: {declared}";
 
         // Имя берётся из самой сборки, а не из имени файла: резолвер
         // спрашивает контракт по имени сборки, и файл, названный иначе,
@@ -115,18 +115,18 @@ public static class PluginContracts
         catch (Exception e) when (e is BadImageFormatException or FileLoadException
             or IOException or UnauthorizedAccessException or ArgumentException)
         {
-            return $"{plugin.DisplayName}: контракт не читается как сборка: {declared} — {e.Message}";
+            return $"контракт не читается как сборка: {declared} — {e.Message}";
         }
 
         if (identity.Name is not { Length: > 0 } name)
-            return $"{plugin.DisplayName}: у контракта нет имени сборки: {declared}";
+            return $"у контракта нет имени сборки: {declared}";
 
         // Общие сборки студии под контракт не отдаются. Резолвер спрашивает
         // контракт раньше всего остального, и файл плагина, назвавшийся
         // Avalonia.Controls, достался бы вместо настоящего и студии, и всем
         // соседям — без возможности это отменить.
         if (PluginLoadContext.IsShared(name))
-            return $"{plugin.DisplayName}: имя {name} занято общими сборками студии";
+            return $"имя {name} занято общими сборками студии";
 
         checked_ = (name, identity, new FileInfo(path));
         return null;
@@ -176,7 +176,7 @@ public static class PluginContracts
                 // контекстам вместо своей, и виновника потом не найти.
                 if (!string.Equals(known.Identity, identity.FullName, StringComparison.Ordinal))
                 {
-                    return $"{plugin.DisplayName}: имя {name} уже занято контрактом " +
+                    return $"имя {name} уже занято контрактом " +
                            $"плагина {known.OwnerId} — {known.Identity}";
                 }
 
@@ -201,7 +201,7 @@ public static class PluginContracts
             catch (Exception e) when (e is BadImageFormatException or FileLoadException
                 or IOException or UnauthorizedAccessException)
             {
-                return $"{plugin.DisplayName}: контракт {name} не загрузился: {e.Message}";
+                return $"контракт {name} не загрузился: {e.Message}";
             }
         }
     }

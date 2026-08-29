@@ -242,30 +242,34 @@ public static class PluginGraph
         Dictionary<string, string> refused,
         List<string> notes)
     {
+        // Своего имени жалоба не называет: его подставляет тот, кто её
+        // показывает, — иначе в журнале выходит «Плагин: Плагин: нужен…».
+        // Заметке имя нужно, потому что она едет отдельной строкой, сама по
+        // себе, и там оно добавляется явно.
         if (!all.TryGetValue(declared.Id, out var target))
-            return $"{plugin.DisplayName}: нужен {declared.Id}, а он не установлен";
+            return $"нужен {declared.Id}, а он не установлен";
 
         if (!target.IsEnabled)
-            return $"{plugin.DisplayName}: нужен {target.DisplayName}, а он выключен";
+            return $"нужен {target.DisplayName}, а он выключен";
 
         if (!target.IsValid)
-            return $"{plugin.DisplayName}: нужен {target.DisplayName}, а его манифест не разобрался";
+            return $"нужен {target.DisplayName}, а его манифест не разобрался";
 
         if (!Satisfies(target.Manifest?.Version, declared.Min))
         {
-            var complaint = $"{plugin.DisplayName}: нужен {target.DisplayName} {declared.Min}, " +
+            var complaint = $"нужен {target.DisplayName} {declared.Min}, " +
                             $"установлен {target.Manifest?.Version}";
 
             // Устаревший необязательный сосед — не отказ, но молчать о нём
             // нельзя: человек будет гадать, почему связка не работает.
             if (declared.Optional)
-                notes.Add(complaint + " — сосед считается отсутствующим");
+                notes.Add($"{plugin.DisplayName}: {complaint} — сосед считается отсутствующим");
 
             return complaint;
         }
 
         if (refused.TryGetValue(target.Id, out var inherited))
-            return $"{plugin.DisplayName}: нужен {target.DisplayName}, а тот не поднят ({inherited})";
+            return $"нужен {target.DisplayName}, а тот не поднят ({inherited})";
 
         return null;
     }
