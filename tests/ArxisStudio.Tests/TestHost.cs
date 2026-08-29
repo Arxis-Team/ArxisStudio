@@ -1,4 +1,5 @@
 using ArxisStudio.Extensibility;
+using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 
 namespace ArxisStudio.Tests;
@@ -18,10 +19,14 @@ internal sealed class TestHost : IDisposable
 {
     /// <summary>Собирает хост с продуктовой уборкой реестров.</summary>
     /// <param name="projectPath">Открытый проект; null — проекта нет.</param>
-    public TestHost(string? projectPath = null)
+    /// <param name="commands">
+    /// Чем заменить реестр команд. Нужно там, где проверяется поведение
+    /// студии на сбое внутри самой выдачи команд.
+    /// </param>
+    public TestHost(string? projectPath = null, IStudioCommands? commands = null)
     {
         Host = new PluginHost(new StudioContextFactory(
-            Log, Commands, projectPath, exports: Exports));
+            Log, commands ?? Commands, projectPath, exports: Exports));
 
         Host.Unloading += (_, id) =>
         {
