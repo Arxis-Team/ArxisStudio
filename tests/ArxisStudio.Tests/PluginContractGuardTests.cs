@@ -255,15 +255,61 @@ public class PluginContractGuardTests : IDisposable
             note => note.Contains("перезапуска", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Контракт грузится теневой копией, а файл плагина остаётся свободен.
+    /// </summary>
+    /// <remarks>
+    /// Ради этого теневая копия и заведена: общий контекст держит открытым то,
+    /// что загрузил, и автор не пересобрал бы плагин, не закрыв студию. До сих
+    /// пор проверить это было нечем — тесты подсовывали контракт, на который
+    /// ссылается сам тестовый проект, а такой уже лежит в общем контексте и
+    /// усыновляется без всякой копии. Здесь сборка выпускается на месте, и
+    /// потому идёт настоящая, продуктовая дорога.
+    /// </remarks>
+    [Fact]
+    public void The_contract_is_shadow_copied_and_the_original_stays_free()
+    {
+        var plugin = Clone("con.shadow", "bin/Probe.Contracts.dll");
+        var contract = Path.Combine(plugin, "bin", "Probe.Contracts.dll");
+
+        Emit("Probe.Contracts", new Version(1, 0, 0, 0), contract);
+
+        var loaded = Assert.Single(Start());
+
+        Assert.True(loaded.IsLoaded, loaded.Error);
+
+        var found = PluginContracts.Find(new AssemblyName("Probe.Contracts"));
+
+        Assert.NotNull(found);
+
+        // Загружен не файл плагина, а копия: усыновлять было нечего.
+        Assert.False(
+            string.Equals(Path.GetFullPath(contract), found.Location, StringComparison.OrdinalIgnoreCase),
+            "контракт загружен прямо из папки плагина — теневой копии не было");
+
+        // И обещание сдержано: файл свободен, автор пересобирает плагин
+        // прямо сейчас, не закрывая студию.
+        File.WriteAllText(contract, "пересобрано");
+    }
+
     /// <summary>Пишет на место контракта сборку того же имени, но своей версии.</summary>
-    private static void Impostor(string path)
+    private static void Impostor(string path) =>
+        Emit("Arxis.Hello.Contracts", new Version(9, 9, 9, 9), path);
+
+    /// <summary>Выпускает крошечную сборку с заданным именем и версией.</summary>
+    /// <remarks>
+    /// Имя сборки живёт в метаданных: ни переименованием файла, ни копированием
+    /// чужого его не задать — а тестам нужны и самозванец под занятым именем, и
+    /// контракт, на который тестовый проект заведомо не ссылается.
+    /// </remarks>
+    private static void Emit(string name, Version version, string path)
     {
         var builder = new PersistedAssemblyBuilder(
-            new AssemblyName("Arxis.Hello.Contracts") { Version = new Version(9, 9, 9, 9) },
+            new AssemblyName(name) { Version = version },
             typeof(object).Assembly);
 
-        builder.DefineDynamicModule("Arxis.Hello.Contracts")
-            .DefineType("Arxis.Hello.Contracts.IGreeter", TypeAttributes.Public | TypeAttributes.Interface | TypeAttributes.Abstract)
+        builder.DefineDynamicModule(name)
+            .DefineType($"{name}.IProbe", TypeAttributes.Public | TypeAttributes.Interface | TypeAttributes.Abstract)
             .CreateType();
 
         using var file = File.Create(path);
