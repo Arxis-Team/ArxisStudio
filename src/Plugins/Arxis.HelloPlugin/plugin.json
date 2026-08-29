@@ -6,7 +6,7 @@
   "description": "%plugin.description%",
   "icon": "assets/icon.png",
   "sdk": {
-    "min": "1.2"
+    "min": "2.2"
   },
   "entry": "bin/Arxis.HelloPlugin.dll",
   "provides": {
