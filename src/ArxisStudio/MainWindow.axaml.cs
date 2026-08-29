@@ -497,7 +497,7 @@ public partial class MainWindow : Window
         {
             _log.Write(StudioLogLevel.Info, "Plugins", $"{Localizer.Instance["menu.activating"]}: {waiting.DisplayName}");
 
-            if (host.Activate(waiting.Id) is { } loaded)
+            foreach (var loaded in host.Activate(waiting.Id))
                 Accept(loaded);
         }
     }

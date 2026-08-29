@@ -200,22 +200,82 @@ public sealed class PluginHost : IDisposable
     }
 
     /// <summary>
-    /// Поднимает ждущий плагин.
+    /// Поднимает ждущий плагин, а прежде — всё, что обязано стоять под ним.
     /// </summary>
     /// <param name="pluginId">Идентификатор плагина.</param>
     /// <returns>
-    /// Поднятый плагин или null, если такого среди ждущих нет — он либо уже
-    /// поднят, либо выключен.
+    /// Поднятые в порядке подъёма: зависимости первыми, просимый последним;
+    /// пусто — среди ждущих такого нет: он либо уже поднят, либо выключен.
     /// </returns>
-    public LoadedPlugin? Activate(string pluginId)
+    /// <remarks>
+    /// Зависимость с собственными событиями активации поднимается здесь же,
+    /// раньше срока: в момент активации просимого службы соседа обязаны
+    /// существовать, а не ждать своего события.
+    /// <para>
+    /// Метод реэнтерабелен поневоле: активация — чужой код, и он может позвать
+    /// команду соседа, а та — разбудить кого-то ещё. Поэтому цепочка снимается
+    /// заранее, а перед каждым подъёмом плагин перепроверяется в списке
+    /// ждущих: вложенный вызов мог его уже поднять.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<LoadedPlugin> Activate(string pluginId)
     {
-        var waiting = _deferred.FirstOrDefault(plugin => plugin.Id == pluginId);
+        if (_deferred.All(plugin => plugin.Id != pluginId))
+            return [];
 
-        if (waiting is null)
-            return null;
+        var chain = Chain(pluginId);
+        var raised = new List<LoadedPlugin>();
 
-        _deferred.Remove(waiting);
-        return Add(waiting);
+        foreach (var plugin in chain)
+        {
+            var waiting = _deferred.FirstOrDefault(candidate => candidate.Id == plugin.Id);
+
+            if (waiting is null)
+                continue;
+
+            _deferred.Remove(waiting);
+            raised.Add(Add(waiting));
+        }
+
+        return raised;
+    }
+
+    /// <summary>
+    /// Цепочка подъёма: просимый и его ждущие зависимости, в порядке графа.
+    /// </summary>
+    private List<InstalledPlugin> Chain(string pluginId)
+    {
+        var byId = _deferred.ToDictionary(plugin => plugin.Id, StringComparer.OrdinalIgnoreCase);
+        var wanted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        Pull(pluginId);
+
+        // Порядок берётся из разрешения старта, а не выдумывается заново:
+        // правило одно, и оно уже посчитано.
+        var order = _resolution?.Order ?? [];
+        var position = order
+            .Select((plugin, index) => (plugin.Id, index))
+            .ToDictionary(pair => pair.Id, pair => pair.index, StringComparer.OrdinalIgnoreCase);
+
+        return wanted
+            .Select(id => byId[id])
+            .OrderBy(plugin => position.TryGetValue(plugin.Id, out var index) ? index : int.MaxValue)
+            .ThenBy(plugin => plugin.Id, StringComparer.Ordinal)
+            .ToList();
+
+        void Pull(string id)
+        {
+            if (!byId.TryGetValue(id, out var plugin) || !wanted.Add(id))
+                return;
+
+            foreach (var declared in plugin.Manifest?.Dependencies ?? [])
+            {
+                // Тянутся и необязательные: раз сосед установлен и ждёт,
+                // обещание «он стоит подо мной» должно быть сдержано.
+                if (declared.Id is { Length: > 0 } target)
+                    Pull(target);
+            }
+        }
     }
 
     /// <summary>

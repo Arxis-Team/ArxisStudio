@@ -116,6 +116,61 @@ public class PluginDependencyHostTests : IDisposable
     }
 
     /// <summary>
+    /// Активация поднимает сперва обязательную цепочку, потом просимого.
+    /// </summary>
+    [Fact]
+    public void Activating_a_plugin_raises_its_mandatory_chain_first()
+    {
+        Clone("dep.base", activation: """[ "onCommand:base.run" ]""");
+        Clone("dep.middle", depends: """[ { "id": "dep.base" } ]""", activation: """[ "onCommand:middle.run" ]""");
+        Clone("dep.top", depends: """[ { "id": "dep.middle" } ]""", activation: """[ "onCommand:top.run" ]""");
+
+        using var host = Host();
+
+        Assert.Empty(host.LoadStartup(new PluginCatalog(_root).Scan()));
+
+        var raised = host.Activate("dep.top");
+
+        Assert.Equal(
+            ["dep.base", "dep.middle", "dep.top"],
+            raised.Select(loaded => loaded.Installed.Id));
+        Assert.Empty(host.Deferred);
+    }
+
+    /// <summary>Необязательный присутствующий сосед поднимается тоже.</summary>
+    [Fact]
+    public void Activating_raises_an_optional_neighbour_that_is_present()
+    {
+        Clone("dep.git", activation: """[ "onCommand:git.run" ]""");
+        Clone("dep.user", depends: """[ { "id": "dep.git", "optional": true } ]""", activation: """[ "onCommand:user.run" ]""");
+
+        using var host = Host();
+
+        Assert.Empty(host.LoadStartup(new PluginCatalog(_root).Scan()));
+
+        var raised = host.Activate("dep.user");
+
+        Assert.Equal(["dep.git", "dep.user"], raised.Select(loaded => loaded.Installed.Id));
+    }
+
+    /// <summary>Уже поднятая зависимость второй раз не поднимается.</summary>
+    [Fact]
+    public void A_dependency_already_up_is_not_raised_twice()
+    {
+        Clone("dep.base");
+        Clone("dep.user", depends: """[ { "id": "dep.base" } ]""", activation: """[ "onCommand:user.run" ]""");
+
+        using var host = Host();
+
+        Assert.Single(host.LoadStartup(new PluginCatalog(_root).Scan()));
+
+        var raised = host.Activate("dep.user");
+
+        Assert.Equal(["dep.user"], raised.Select(loaded => loaded.Installed.Id));
+        Assert.Equal(2, host.Loaded.Count);
+    }
+
+    /// <summary>
     /// Клонирует пример плагина под новой ролью.
     /// </summary>
     /// <param name="id">Идентификатор клона — он же имя папки.</param>
