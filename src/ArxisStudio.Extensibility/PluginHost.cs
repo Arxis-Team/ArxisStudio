@@ -132,11 +132,28 @@ public sealed class PluginHost : IDisposable
 
         var enabled = plugins.Where(candidate => candidate is { IsEnabled: true, IsValid: true }).ToList();
 
+        // Контракты грузятся раньше графа и у всех сразу — и у отложенных, и
+        // у плагинов без entry: типы должны существовать к моменту, когда их
+        // коснётся любой сосед, а не к моменту подъёма владельца. Раньше
+        // графа — потому что отказ из-за контракта обязан разойтись по
+        // зависимым так же, как всякий другой: зависимый, чьи типы не
+        // приехали, иначе поднялся бы и упал на первом же приведении.
+        var contractNotes = new List<string>();
+        var contractless = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var plugin in enabled)
+        {
+            if (PluginContracts.EnsureLoaded(plugin, contractNotes) is { } refusal)
+                contractless[plugin.Id] = refusal;
+        }
+
         // Граф разрешается на манифестах, до загрузки единой сборки. Уже
         // поднятые — это встроенные модули: они годятся в цели зависимостей.
         _resolution = PluginGraph.Resolve(
             enabled,
-            _loaded.Where(loaded => loaded.IsLoaded).Select(loaded => loaded.Installed).ToList());
+            _loaded.Where(loaded => loaded.IsLoaded).Select(loaded => loaded.Installed).ToList(),
+            contractless,
+            contractNotes);
 
         var raised = new List<LoadedPlugin>();
 
@@ -149,29 +166,6 @@ public sealed class PluginHost : IDisposable
                 raised.Add(Fail(refused, _resolution.Refused[refusedId]));
         }
 
-        // Контракты грузятся до первого подъёма и у всех сразу — и у
-        // отложенных, и у плагинов без entry: типы должны существовать к
-        // моменту, когда их коснётся любой сосед, а не к моменту подъёма
-        // владельца. Объявленный и отсутствующий файлом контракт — отказ:
-        // это обещание манифеста, на него рассчитывают зависимые.
-        var contractNotes = new List<string>(_resolution.Notes);
-        var contractless = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var plugin in enabled)
-        {
-            if (_resolution.Refused.ContainsKey(plugin.Id))
-                continue;
-
-            if (PluginContracts.EnsureLoaded(plugin, contractNotes) is { } missing)
-            {
-                raised.Add(Fail(plugin, missing));
-                contractless.Add(plugin.Id);
-            }
-        }
-
-        if (contractNotes.Count > _resolution.Notes.Count)
-            _resolution = new PluginResolution(_resolution.Order, _resolution.Refused, contractNotes);
-
         // Поднимается замыкание нетерпеливых по рёбрам подъёма: нетерпеливый
         // тянет за собой и отложенную зависимость — в момент его активации
         // службы соседа обязаны существовать, а не ждать своего события.
@@ -183,9 +177,6 @@ public sealed class PluginHost : IDisposable
             // пакет в порядок не попадает вовсе, но перестраховка дешевле
             // догадки о том, что Order всегда прав.
             if (plugin.Manifest?.Entry is not { Length: > 0 })
-                continue;
-
-            if (contractless.Contains(plugin.Id))
                 continue;
 
             if (eager.Contains(plugin.Id))
@@ -537,8 +528,14 @@ public sealed class PluginHost : IDisposable
 
             return Raise(installed, context, [assembly], _contexts.Create(installed));
         }
+        // FileNotFoundException и TypeLoadException — это «сборки или типа, на
+        // который ты сослался, здесь нет»: ровно то, чем встречает плагин,
+        // собранный под другую версию SDK или под соседа, чей контракт не
+        // приехал. Без них такой плагин уносил студию вместо того, чтобы
+        // стать записью с ошибкой.
         catch (Exception e) when (e is ReflectionTypeLoadException or BadImageFormatException
-            or FileLoadException or MissingMethodException or TargetInvocationException or InvalidOperationException)
+            or FileLoadException or FileNotFoundException or TypeLoadException
+            or MissingMethodException or TargetInvocationException or InvalidOperationException)
         {
             context.Unload();
             return LoadedPlugin.Failed(installed, Describe(e));
@@ -752,8 +749,14 @@ public sealed class PluginHost : IDisposable
 
             return new LoadedPlugin(installed, context, assemblies, studio, entries, services, null);
         }
+        // FileNotFoundException и TypeLoadException — это «сборки или типа, на
+        // который ты сослался, здесь нет»: ровно то, чем встречает плагин,
+        // собранный под другую версию SDK или под соседа, чей контракт не
+        // приехал. Без них такой плагин уносил студию вместо того, чтобы
+        // стать записью с ошибкой.
         catch (Exception e) when (e is ReflectionTypeLoadException or BadImageFormatException
-            or FileLoadException or MissingMethodException or TargetInvocationException or InvalidOperationException)
+            or FileLoadException or FileNotFoundException or TypeLoadException
+            or MissingMethodException or TargetInvocationException or InvalidOperationException)
         {
             context?.Unload();
             return LoadedPlugin.Failed(installed, Describe(e));

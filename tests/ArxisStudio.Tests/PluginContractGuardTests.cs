@@ -179,6 +179,82 @@ public class PluginContractGuardTests : IDisposable
         Assert.Contains("уже занято контрактом", refused.Error);
     }
 
+    /// <summary>
+    /// Отказ из-за контракта расходится по зависимым, как всякий другой.
+    /// </summary>
+    /// <remarks>
+    /// Зависимый ссылается на типы соседа и не возит их у себя. Подними мы
+    /// его после того, как контракт соседа не загрузился, он упал бы на
+    /// первом обращении к этим типам — исключением, которого нет ни в одном
+    /// перехвате, то есть падением всей студии. Причина обязана дойти до него
+    /// словами и до подъёма.
+    /// </remarks>
+    [Fact]
+    public void A_contract_refusal_spreads_to_dependents()
+    {
+        var owner = Clone("con.provider", "bin/NotAnAssembly.dll");
+
+        File.WriteAllText(Path.Combine(owner, "bin", "NotAnAssembly.dll"), "это не сборка");
+
+        var target = Path.Combine(_root, "con.user");
+
+        ZipFile.ExtractToDirectory(HelloArchive.Path, target);
+
+        File.WriteAllText(
+            Path.Combine(target, "plugin.json"),
+            """
+            {
+              "id": "con.user",
+              "name": "con.user",
+              "version": "1.0.0",
+              "entry": "bin/Arxis.HelloPlugin.dll",
+              "dependencies": [ { "id": "con.provider" } ],
+              "activation": [ "onStartup" ]
+            }
+            """);
+
+        var raised = Start();
+        var dependent = raised.Single(plugin => plugin.Installed.Id == "con.user");
+
+        Assert.False(dependent.IsLoaded);
+
+        // Цепочка причин: своё имя, имя соседа и его собственная беда.
+        Assert.Contains("con.provider", dependent.Error);
+        Assert.Contains("не читается как сборка", dependent.Error);
+    }
+
+    /// <summary>
+    /// Изменившийся контракт замечен и при старте, а не только при перезагрузке.
+    /// </summary>
+    /// <remarks>
+    /// Выгрузить прежнюю копию из общего контекста нечем, поэтому единственное,
+    /// что студия может дать человеку, — слова. Заметка обязана доехать по обеим
+    /// дорогам: и через перезагрузку, и через обычный запуск, где о ней узнают
+    /// из <see cref="PluginHost.Resolution"/>.
+    /// </remarks>
+    [Fact]
+    public void A_changed_contract_is_noted_at_startup_too()
+    {
+        Clone("con.first", "bin/Arxis.Hello.Contracts.dll");
+
+        var second = Clone("con.second", "bin/Arxis.Hello.Contracts.dll");
+
+        // Та же сборка, но файл другого размера: идентичность совпадает —
+        // значит не спор за имя, — а вот содержимое на диске разъехалось.
+        var contract = Path.Combine(second, "bin", "Arxis.Hello.Contracts.dll");
+
+        File.AppendAllText(contract, new string(' ', 64));
+
+        using var host = new PluginHost(
+            new StudioContextFactory(new StudioLog(), new StudioCommands(), null));
+
+        host.LoadStartup(new PluginCatalog(_root).Scan());
+
+        Assert.Contains(
+            host.Resolution!.Notes,
+            note => note.Contains("перезапуска", StringComparison.Ordinal));
+    }
+
     /// <summary>Пишет на место контракта сборку того же имени, но своей версии.</summary>
     private static void Impostor(string path)
     {

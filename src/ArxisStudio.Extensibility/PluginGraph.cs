@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Shell.Localization;
 
@@ -50,21 +50,28 @@ public static class PluginGraph
     /// </summary>
     /// <param name="candidates">Включённые и валидные плагины каталога.</param>
     /// <param name="present">Уже поднятые — встроенные модули.</param>
+    /// <param name="refusedUpfront">
+    /// Отказы, о которых граф сам знать не может: не загрузившийся контракт.
+    /// Расходятся по обязательным рёбрам наравне с остальными.
+    /// </param>
+    /// <param name="notesUpfront">Заметки, с которых начинается список: канал один на всех.</param>
     /// <remarks>
     /// Узлы порядка — только плагины с entry-сборкой: языковой пакет нечего
     /// поднимать, но целью зависимости он быть может — он «есть».
     /// </remarks>
     public static PluginResolution Resolve(
         IReadOnlyList<InstalledPlugin> candidates,
-        IReadOnlyList<InstalledPlugin> present)
+        IReadOnlyList<InstalledPlugin> present,
+        IReadOnlyDictionary<string, string>? refusedUpfront = null,
+        IEnumerable<string>? notesUpfront = null)
     {
         ArgumentNullException.ThrowIfNull(candidates);
         ArgumentNullException.ThrowIfNull(present);
 
         var all = Universe(candidates, present);
         var raised = new HashSet<string>(present.Select(plugin => plugin.Id), StringComparer.OrdinalIgnoreCase);
-        var notes = new List<string>();
-        var refused = Refuse(all, notes);
+        var notes = notesUpfront is null ? new List<string>() : new List<string>(notesUpfront);
+        var refused = Refuse(all, notes, refusedUpfront);
 
         Cycles(all, refused);
 
@@ -181,9 +188,18 @@ public static class PluginGraph
     /// </remarks>
     private static Dictionary<string, string> Refuse(
         Dictionary<string, InstalledPlugin> all,
-        List<string> notes)
+        List<string> notes,
+        IReadOnlyDictionary<string, string>? seed)
     {
-        var refused = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        // Затравка — отказы, о которых граф сам знать не может: контракт,
+        // объявленный и не загрузившийся. Дальше они расходятся по
+        // обязательным рёбрам наравне с остальными: зависимый, чьи типы не
+        // приехали, обязан узнать причину словами, а не упасть на первом
+        // приведении.
+        var refused = seed is null
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(seed, StringComparer.OrdinalIgnoreCase);
+
         var changed = true;
 
         while (changed)
