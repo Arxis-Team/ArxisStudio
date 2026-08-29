@@ -46,7 +46,7 @@ public class PluginContractsTests : IDisposable
     {
         var catalog = new PluginCatalog(_root);
 
-        Assert.Null(catalog.InstallFromArchive(HelloArchive()).Error);
+        Assert.Null(catalog.InstallFromArchive(HelloArchive.Path).Error);
 
         using var host = Host();
         var loaded = Assert.Single(host.LoadStartup(catalog.Scan()));
@@ -77,7 +77,7 @@ public class PluginContractsTests : IDisposable
     {
         var target = Path.Combine(_root, "con.broken");
 
-        ZipFile.ExtractToDirectory(HelloArchive(), target);
+        ZipFile.ExtractToDirectory(HelloArchive.Path, target);
         File.WriteAllText(
             Path.Combine(target, "plugin.json"),
             """
@@ -113,13 +113,13 @@ public class PluginContractsTests : IDisposable
     {
         var catalog = new PluginCatalog(_root);
 
-        Assert.Null(catalog.InstallFromArchive(HelloArchive()).Error);
+        Assert.Null(catalog.InstallFromArchive(HelloArchive.Path).Error);
 
         // Потребитель — клон примера: его bin содержит копию контракта
         // (приехала из архива), а манифест контракта не объявляет.
         var consumer = Path.Combine(_root, "con.consumer");
 
-        ZipFile.ExtractToDirectory(HelloArchive(), consumer);
+        ZipFile.ExtractToDirectory(HelloArchive.Path, consumer);
         File.WriteAllText(
             Path.Combine(consumer, "plugin.json"),
             """
@@ -163,7 +163,7 @@ public class PluginContractsTests : IDisposable
     {
         var catalog = new PluginCatalog(_root);
 
-        Assert.Null(catalog.InstallFromArchive(HelloArchive()).Error);
+        Assert.Null(catalog.InstallFromArchive(HelloArchive.Path).Error);
 
         var commands = new StudioCommands();
 
@@ -191,16 +191,4 @@ public class PluginContractsTests : IDisposable
     private static PluginHost Host() =>
         new(new StudioContextFactory(new StudioLog(), new StudioCommands(), null));
 
-    private static string HelloArchive()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            var candidate = Path.Combine(directory.FullName, "src", "Plugins", "Arxis.HelloPlugin", "arxis.hello.axplugin");
-
-            if (File.Exists(candidate))
-                return candidate;
-        }
-
-        throw new InvalidOperationException("Не найден архив примера arxis.hello.axplugin");
-    }
 }

@@ -20,6 +20,13 @@ namespace ArxisStudio.Extensibility;
 /// говорится словами, а не делается вид, что перезагрузка полная.
 /// </para>
 /// <para>
+/// Всё, что приходит из манифеста, здесь проверяется до того, как коснётся
+/// общего контекста: путь обязан остаться внутри папки плагина, файл — быть
+/// сборкой, имя — не совпадать с общими сборками студии и не спорить с чужим
+/// контрактом. Из общего контекста ничего не выгрузить, поэтому ошибка,
+/// пропущенная сюда, живёт до перезапуска.
+/// </para>
+/// <para>
 /// Реестр на процесс, а не на хост: сборки в общем контексте живут с
 /// процессом, и второй хост — а в тестах их десятки — обязан видеть уже
 /// загруженное, а не пытаться загрузить то же имя второй раз.
@@ -30,6 +37,8 @@ public static class PluginContracts
     private static readonly ConcurrentDictionary<string, Known> Loaded =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private static readonly Lock Gate = new();
+
     private static bool _swept;
 
     /// <summary>
@@ -39,10 +48,11 @@ public static class PluginContracts
     /// <param name="notes">Куда писать о неожиданном, не отказывая.</param>
     /// <returns>Причина отказа или null, если всё загрузилось.</returns>
     /// <remarks>
-    /// Объявленный и отсутствующий файлом контракт — отказ владельцу: это
-    /// обещание манифеста, и зависимые на него рассчитывают. Изменившийся на
-    /// диске файл — не отказ, а заметка: студия держит прежнюю копию до
-    /// перезапуска, и молчать об этом нельзя.
+    /// Любая беда с объявленным контрактом — отказ владельцу, а не исключение
+    /// наружу: контракты грузятся раньше всех подъёмов, и брошенное отсюда
+    /// исключение унесло бы с собой загрузку всех плагинов и модулей сразу.
+    /// Правило то же, что у entry-сборки: сломанный плагин становится записью
+    /// с ошибкой, а не падением студии.
     /// </remarks>
     public static string? EnsureLoaded(InstalledPlugin plugin, ICollection<string> notes)
     {
@@ -54,30 +64,41 @@ public static class PluginContracts
             if (declared is not { Length: > 0 })
                 continue;
 
-            var path = Path.Combine(plugin.Directory, declared);
+            if (Inside(plugin.Directory, declared) is not { } path)
+                return $"{plugin.DisplayName}: контракт уводит за пределы папки плагина: {declared}";
 
             if (!File.Exists(path))
                 return $"{plugin.DisplayName}: объявленный контракт не найден: {declared}";
 
-            var name = Path.GetFileNameWithoutExtension(path);
-            var file = new FileInfo(path);
+            // Имя берётся из самой сборки, а не из имени файла: резолвер
+            // спрашивает контракт по имени сборки, и файл, названный иначе,
+            // молча не нашёлся бы — тип раскололся бы ровно там, где контракты
+            // его и сращивают. Заодно это первая проверка, что файл вообще
+            // сборка: манифест читается, ничего не загружая в процесс.
+            AssemblyName identity;
 
-            if (Loaded.TryGetValue(name, out var known))
+            try
             {
-                // Прежняя копия остаётся: выгрузить её из общего контекста
-                // нечем. Изменившийся файл — повод сказать, а не повод
-                // молча притвориться, что новые типы уже видны.
-                if (known.Length != file.Length || known.Written != file.LastWriteTimeUtc)
-                {
-                    notes.Add(
-                        $"{plugin.DisplayName}: контракт {name} изменился на диске — " +
-                        "студия держит прежнюю копию до перезапуска");
-                }
-
-                continue;
+                identity = AssemblyName.GetAssemblyName(path);
+            }
+            catch (Exception e) when (e is BadImageFormatException or FileLoadException
+                or IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                return $"{plugin.DisplayName}: контракт не читается как сборка: {declared} — {e.Message}";
             }
 
-            Loaded.TryAdd(name, Load(name, file));
+            if (identity.Name is not { Length: > 0 } name)
+                return $"{plugin.DisplayName}: у контракта нет имени сборки: {declared}";
+
+            // Общие сборки студии под контракт не отдаются. Резолвер спрашивает
+            // контракт раньше всего остального, и файл плагина, назвавшийся
+            // Avalonia.Controls, достался бы вместо настоящего и студии, и всем
+            // соседям — без возможности это отменить.
+            if (PluginLoadContext.IsShared(name))
+                return $"{plugin.DisplayName}: имя {name} занято общими сборками студии";
+
+            if (Claim(name, identity, new FileInfo(path), plugin, notes) is { } refusal)
+                return refusal;
         }
 
         return null;
@@ -92,23 +113,87 @@ public static class PluginContracts
     /// даже если файл с тем же именем лежит в их <c>bin/</c> — автор забыл
     /// исключить, — тип обязан остаться одним на всех.
     /// </remarks>
-    public static Assembly? Find(AssemblyName assemblyName) =>
-        assemblyName.Name is { Length: > 0 } name && Loaded.TryGetValue(name, out var known)
+    public static Assembly? Find(AssemblyName assemblyName)
+    {
+        // Контрактов нет у подавляющего большинства установок, а спрашивают
+        // отсюда на каждой сборке каждого плагина: пустой реестр обязан
+        // отвечать даром, не считая хеш имени.
+        if (Loaded.IsEmpty)
+            return null;
+
+        return assemblyName.Name is { Length: > 0 } name && Loaded.TryGetValue(name, out var known)
             ? known.Assembly
             : null;
+    }
 
-    private static Known Load(string name, FileInfo file)
+    /// <summary>
+    /// Занимает имя контракта за плагином либо объясняет, почему не вышло.
+    /// </summary>
+    /// <remarks>
+    /// Под замком: два хоста в одном процессе — обычное дело в тестах, а
+    /// «посмотрели и добавили» двумя действиями дало бы двум потокам
+    /// загрузить одно имя дважды, и второй <c>LoadFromAssemblyPath</c> упал бы
+    /// на чужой уже занятой идентичности.
+    /// </remarks>
+    private static string? Claim(
+        string name, AssemblyName identity, FileInfo file, InstalledPlugin plugin, ICollection<string> notes)
     {
-        // Сборка с этим именем может уже жить в общем контексте: её загрузил
-        // тот, кто встраивает студию, или тестовый прогон своей ссылкой.
-        // Тогда контракт — она: вторая копия того же имени в одном контексте
-        // невозможна, да и не нужна.
+        lock (Gate)
+        {
+            if (Loaded.TryGetValue(name, out var known))
+            {
+                // Тот же контракт у второго плагина — не беда: обе стороны
+                // ссылаются на одну сборку, делить им нечего. А вот чужая
+                // сборка под занятым именем — беда: она досталась бы всем
+                // контекстам вместо своей, и виновника потом не найти.
+                if (!string.Equals(known.Identity, identity.FullName, StringComparison.Ordinal))
+                {
+                    return $"{plugin.DisplayName}: имя {name} уже занято контрактом " +
+                           $"плагина {known.OwnerId} — {known.Identity}";
+                }
+
+                // Прежняя копия остаётся: выгрузить её из общего контекста
+                // нечем. Изменившийся файл — повод сказать, а не повод
+                // молча притвориться, что новые типы уже видны.
+                if (known.Length != file.Length || known.Written != file.LastWriteTimeUtc)
+                {
+                    notes.Add(
+                        $"{plugin.DisplayName}: контракт {name} изменился на диске — " +
+                        "студия держит прежнюю копию до перезапуска");
+                }
+
+                return null;
+            }
+
+            try
+            {
+                Loaded[name] = Load(name, identity, file, plugin.Id);
+                return null;
+            }
+            catch (Exception e) when (e is BadImageFormatException or FileLoadException
+                or IOException or UnauthorizedAccessException)
+            {
+                return $"{plugin.DisplayName}: контракт {name} не загрузился: {e.Message}";
+            }
+        }
+    }
+
+    private static Known Load(string name, AssemblyName identity, FileInfo file, string ownerId)
+    {
+        // Сборка с этой идентичностью может уже жить в общем контексте: её
+        // загрузил тот, кто встраивает студию, или тестовый прогон своей
+        // ссылкой. Тогда контракт — она: вторая копия того же имени в одном
+        // контексте невозможна, да и не нужна.
         if (AssemblyLoadContext.Default.Assemblies
                 .FirstOrDefault(assembly => string.Equals(
                     assembly.GetName().Name, name, StringComparison.OrdinalIgnoreCase))
             is { } adopted)
         {
-            return new Known(adopted, file.Length, file.LastWriteTimeUtc);
+            // Записывается идентичность усыновлённой сборки, а не файла с
+            // диска: реестр обязан описывать то, что он раздаёт. Иначе
+            // следующий плагин сверялся бы с версией, которой у него на руках
+            // нет, и получал бы отказ или пропуск не по делу.
+            return new Known(adopted, adopted.GetName().FullName, file.Length, file.LastWriteTimeUtc, ownerId);
         }
 
         // Грузится теневая копия, а не сам файл: общий контекст держит файл
@@ -121,8 +206,36 @@ public static class PluginContracts
 
         return new Known(
             AssemblyLoadContext.Default.LoadFromAssemblyPath(shadow),
+            identity.FullName,
             file.Length,
-            file.LastWriteTimeUtc);
+            file.LastWriteTimeUtc,
+            ownerId);
+    }
+
+    /// <summary>
+    /// Полный путь к объявленному контракту либо null, если он уводит наружу.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Path.Combine(string, string)"/> отбрасывает папку плагина
+    /// целиком, если объявленный путь абсолютный, а «..» уводит куда угодно.
+    /// Контракт грузится в общий контекст навсегда и достаётся всем — пускать
+    /// туда файл со стороны нельзя. Та же проверка стоит на распаковке архива.
+    /// </remarks>
+    private static string? Inside(string directory, string declared)
+    {
+        string root, full;
+
+        try
+        {
+            root = Path.GetFullPath(directory) + Path.DirectorySeparatorChar;
+            full = Path.GetFullPath(Path.Combine(directory, declared));
+        }
+        catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return null;
+        }
+
+        return full.StartsWith(root, StringComparison.Ordinal) ? full : null;
     }
 
     /// <summary>
@@ -138,8 +251,12 @@ public static class PluginContracts
             if (_swept)
                 return root;
 
-            _swept = true;
             Directory.CreateDirectory(root);
+
+            // Флаг ставится последним: выставь мы его раньше, второй вызов
+            // получил бы дорогу к папке, которую ещё не создали, а сорвавшееся
+            // создание запомнилось бы как успешное на весь процесс.
+            _swept = true;
 
             foreach (var stale in Directory.EnumerateFiles(root))
             {
@@ -157,5 +274,6 @@ public static class PluginContracts
         }
     }
 
-    private readonly record struct Known(Assembly Assembly, long Length, DateTime Written);
+    private readonly record struct Known(
+        Assembly Assembly, string Identity, long Length, DateTime Written, string OwnerId);
 }

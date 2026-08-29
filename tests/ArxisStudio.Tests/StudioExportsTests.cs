@@ -132,7 +132,7 @@ public class StudioExportsTests : IDisposable
     {
         var catalog = new PluginCatalog(_root);
 
-        Assert.Null(catalog.InstallFromArchive(HelloArchive()).Error);
+        Assert.Null(catalog.InstallFromArchive(HelloArchive.Path).Error);
 
         var commands = new StudioCommands();
         var registry = new StudioExportRegistry();
@@ -187,18 +187,6 @@ public class StudioExportsTests : IDisposable
             null,
             IsEnabled: true);
 
-    private static string HelloArchive()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            var candidate = Path.Combine(directory.FullName, "src", "Plugins", "Arxis.HelloPlugin", "arxis.hello.axplugin");
-
-            if (File.Exists(candidate))
-                return candidate;
-        }
-
-        throw new InvalidOperationException("Не найден архив примера arxis.hello.axplugin");
-    }
 
     private sealed class ProbeGreeter : IGreeter
     {

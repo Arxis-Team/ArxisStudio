@@ -876,14 +876,22 @@ internal sealed class PluginLoadContext(string name, string entryPath)
         if (PluginContracts.Find(assemblyName) is { } contract)
             return contract;
 
-        return _resolver.ResolveAssemblyToPath(assemblyName) is { } path && !IsShared(assemblyName)
+        return _resolver.ResolveAssemblyToPath(assemblyName) is { } path &&
+               assemblyName.Name is { } name && !IsShared(name)
             ? LoadFromAssemblyPath(path)
             : null;
     }
 
-    private static bool IsShared(AssemblyName assemblyName) =>
-        assemblyName.Name is { } name &&
-        (name.StartsWith("Avalonia", StringComparison.Ordinal) ||
-         name.StartsWith("ArxisStudio.Sdk", StringComparison.Ordinal) ||
-         name.StartsWith("ArxisStudio.Controls", StringComparison.Ordinal));
+    /// <summary>
+    /// Сборка, которая обязана быть одной на всех и приходит из общего контекста.
+    /// </summary>
+    /// <remarks>
+    /// Спрашивается не только резолвером: под этими именами нельзя объявить и
+    /// контракт — иначе файл плагина подменил бы общую сборку и студии, и всем
+    /// соседям.
+    /// </remarks>
+    internal static bool IsShared(string name) =>
+        name.StartsWith("Avalonia", StringComparison.Ordinal) ||
+        name.StartsWith("ArxisStudio.Sdk", StringComparison.Ordinal) ||
+        name.StartsWith("ArxisStudio.Controls", StringComparison.Ordinal);
 }
