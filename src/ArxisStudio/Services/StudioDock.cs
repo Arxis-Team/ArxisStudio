@@ -56,6 +56,17 @@ public sealed class StudioDock
     /// </remarks>
     private readonly List<(string Id, string Zone)> _asked = [];
 
+    /// <summary>
+    /// Наборы раскладки по именам — кроме показанного.
+    /// </summary>
+    /// <remarks>
+    /// Показанный набор здесь не лежит и лежать не может: он живёт в дереве
+    /// вида и меняется с каждым движением мыши. Копия рядом с ним неминуемо
+    /// разошлась бы с ним же, и вопрос «где правда» получил бы два ответа.
+    /// </remarks>
+    private Dictionary<string, DockWorkspace> _saved = new(StringComparer.Ordinal);
+
+    private string _active = DockLayout.DefaultName;
     private string _home = Documents;
     private bool _dirty;
 
@@ -101,6 +112,19 @@ public sealed class StudioDock
     /// <summary>Живые панели по именам.</summary>
     public DockItems Items { get; } = new();
 
+    /// <summary>Имя показанного набора раскладки.</summary>
+    public string Layout => _active;
+
+    /// <summary>
+    /// Имена всех наборов по алфавиту — показанный в их числе.
+    /// </summary>
+    /// <remarks>
+    /// По алфавиту, а не по времени: список читают глазами в меню, и порядок,
+    /// меняющийся от того, куда человек переключался вчера, там ни к чему.
+    /// </remarks>
+    public IReadOnlyList<string> Layouts =>
+        [.. _saved.Keys.Append(_active).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
+
     /// <summary>Что выбрано в области документов; null — ничего или не документ.</summary>
     public string? Showing => _view.Root is { } root ? DockTree.Group(root, _home)?.Selected : null;
 
@@ -128,10 +152,88 @@ public sealed class StudioDock
         if (layout?.Current is not { } workspace)
             return;
 
-        _home = string.IsNullOrEmpty(workspace.DocumentHome) ? Documents : workspace.DocumentHome;
-        _standing = new HashSet<string>([_home], StringComparer.Ordinal);
-        _view.EmptyGroup = _home;
-        _view.Root = workspace.Root;
+        _saved = new Dictionary<string, DockWorkspace>(layout.Layouts, StringComparer.Ordinal);
+        _active = _saved.ContainsKey(layout.Active) ? layout.Active : _saved.Keys.First();
+
+        // Показанный набор в _saved не остаётся: правда о нём — дерево вида.
+        _saved.Remove(_active);
+
+        Apply(workspace);
+    }
+
+    /// <summary>
+    /// Сохраняет показанную раскладку под новым именем и переходит в неё.
+    /// </summary>
+    /// <param name="name">Имя набора; пустое имя ничего не делает.</param>
+    /// <remarks>
+    /// Прежний набор при этом ничего не теряет: показанная раскладка и была
+    /// им — студия пишет её туда после каждой правки. Поэтому «сохранить как» —
+    /// это копия под новым именем и переход в неё, а не перенос.
+    /// </remarks>
+    public void SaveAs(string name)
+    {
+        var chosen = name?.Trim();
+
+        if (string.IsNullOrEmpty(chosen) || _view.Root is not { } root)
+            return;
+
+        _saved[_active] = new DockWorkspace { Root = root, DocumentHome = _home };
+        _saved.Remove(chosen);
+        _active = chosen;
+        _dirty = true;
+
+        Flush();
+    }
+
+    /// <summary>
+    /// Показывает другой набор; незнакомое имя ничего не меняет.
+    /// </summary>
+    /// <param name="name">Имя набора.</param>
+    /// <remarks>
+    /// Уходя, показанную раскладку запоминаем: человек её не сохранял, но и не
+    /// отменял — он всего лишь ушёл посмотреть другую, и вернуться обязан к
+    /// своей, а не к той, что была при последнем переключении.
+    /// </remarks>
+    public void Switch(string name)
+    {
+        if (string.Equals(name, _active, StringComparison.Ordinal)
+            || !_saved.TryGetValue(name, out var workspace)
+            || _view.Root is not { } root)
+        {
+            return;
+        }
+
+        _saved[_active] = new DockWorkspace { Root = root, DocumentHome = _home };
+        _saved.Remove(name);
+        _active = name;
+        _dirty = true;
+
+        Apply(workspace);
+        Flush();
+    }
+
+    /// <summary>
+    /// Забывает показанный набор и возвращается к стандартному.
+    /// </summary>
+    /// <remarks>
+    /// Стандартный набор не забывается: он — то, куда возвращаются, и студия
+    /// без него осталась бы без единого имени. Удалять же чужой набор, не
+    /// глядя на него, человеку незачем — сперва переключись, потом решай.
+    /// </remarks>
+    public void Forget()
+    {
+        if (string.Equals(_active, DockLayout.DefaultName, StringComparison.Ordinal))
+            return;
+
+        _active = DockLayout.DefaultName;
+        _dirty = true;
+
+        if (_saved.Remove(DockLayout.DefaultName, out var standard))
+            Apply(standard);
+        else
+            Reset();
+
+        Flush();
     }
 
     /// <summary>
@@ -156,11 +258,7 @@ public sealed class StudioDock
         var root = Skeleton();
 
         foreach (var (id, zone) in _asked)
-        {
-            root = DockTree.Group(root, zone) is not null
-                ? DockTree.Insert(root, zone, DockSide.Tab, id, zone)
-                : DockTree.Insert(root, Home(root), Side(zone), id, zone);
-        }
+            root = Place(root, id, zone);
 
         _view.Root = root;
         _dirty = true;
@@ -220,11 +318,7 @@ public sealed class StudioDock
         if (!_asked.Any(asked => string.Equals(asked.Id, id, StringComparison.Ordinal)))
             _asked.Add((id, group));
 
-        Edit(root => DockTree.Holder(root, id) is not null
-            ? root
-            : DockTree.Group(root, group) is not null
-                ? DockTree.Insert(root, group, DockSide.Tab, id, group)
-                : DockTree.Insert(root, Home(root), Side(group), id, group));
+        Edit(root => DockTree.Holder(root, id) is not null ? root : Place(root, id, group));
     }
 
     /// <summary>Открывает документ вкладкой в области документов.</summary>
@@ -338,6 +432,37 @@ public sealed class StudioDock
         }
     }
 
+    /// <summary>
+    /// Показывает набор, доставая в него панели, которых он не знает.
+    /// </summary>
+    /// <remarks>
+    /// Набор мог быть сохранён до того, как плагин поставили, — тогда его
+    /// панели в дереве нет. Без этого она просто пропала бы с экрана, и человек
+    /// решил бы, что плагин сломался, хотя дело в возрасте набора.
+    /// </remarks>
+    private void Apply(DockWorkspace workspace)
+    {
+        _home = string.IsNullOrEmpty(workspace.DocumentHome) ? Documents : workspace.DocumentHome;
+        _standing = new HashSet<string>([_home], StringComparer.Ordinal);
+        _view.EmptyGroup = _home;
+
+        var root = workspace.Root;
+
+        foreach (var (id, zone) in _asked)
+        {
+            if (DockTree.Holder(root, id) is null)
+                root = Place(root, id, zone);
+        }
+
+        _view.Root = root;
+    }
+
+    /// <summary>Ставит панель в названную зону, а если такой нет — рядом с документами.</summary>
+    private DockNode Place(DockNode root, string id, string zone) =>
+        DockTree.Group(root, zone) is not null
+            ? DockTree.Insert(root, zone, DockSide.Tab, id, zone)
+            : DockTree.Insert(root, Home(root), Side(zone), id, zone);
+
     /// <summary>Сторона по названию зоны; незнакомое слово уводит вправо.</summary>
     private static DockSide Side(string zone) => zone switch
     {
@@ -350,16 +475,16 @@ public sealed class StudioDock
     /// Раскладка в том виде, в каком она ложится в файл.
     /// </summary>
     /// <remarks>
-    /// Набор пока один — именованные наборы будут отдельным шагом, — но поле
-    /// под них в формате есть с самого начала: дописать его потом значило бы
-    /// поднимать версию файла ради того, что было известно заранее.
+    /// Показанный набор пишется из дерева вида, остальные — как лежали. Так
+    /// набор, в который человек не заходил, переживает и правки соседей, и
+    /// перезапуск студии, ни разу не побывав на экране.
     /// </remarks>
     private DockLayout Snapshot(DockNode root) => new()
     {
-        Active = DockLayout.DefaultName,
-        Layouts = new Dictionary<string, DockWorkspace>(StringComparer.Ordinal)
+        Active = _active,
+        Layouts = new Dictionary<string, DockWorkspace>(_saved, StringComparer.Ordinal)
         {
-            [DockLayout.DefaultName] = new() { Root = root, DocumentHome = _home },
+            [_active] = new() { Root = root, DocumentHome = _home },
         },
     };
 

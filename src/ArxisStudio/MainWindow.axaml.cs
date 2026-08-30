@@ -1,4 +1,6 @@
 ﻿using System.Reflection;
+using ArxisStudio.Controls;
+using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
@@ -9,6 +11,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using IOPath = System.IO.Path;
@@ -494,20 +497,69 @@ public partial class MainWindow : Window
             flyout.Items.Add(branch);
         }
 
-        // Сброс раскладки есть всегда: перетаскивание иначе было бы дверью в
+        // Раскладка есть в меню всегда: перетаскивание иначе было бы дверью в
         // одну сторону, и первый же промах мышью человек разбирал бы вручную.
         if (flyout.Items.Count > 0)
             flyout.Items.Add(new Separator());
 
-        var reset = new MenuItem { Header = Localizer.Instance["menu.layout.reset"] };
-
-        reset.Click += (_, _) => _dock.Reset();
-        flyout.Items.Add(reset);
+        flyout.Items.Add(Layouts());
 
         if (flyout.Items.Count == 0)
             return;
 
         flyout.ShowAt(MenuButton);
+
+        MenuItem Layouts()
+        {
+            var branch = new MenuItem { Header = Localizer.Instance["menu.layout"] };
+
+            foreach (var name in _dock.Layouts)
+            {
+                var set = new MenuItem { Header = name };
+
+                // Показанный набор помечен галочкой в колонке значков, которую
+                // тема держит у каждого пункта: переключаться на самого себя
+                // человеку незачем, поэтому щелчка у него и нет.
+                if (string.Equals(name, _dock.Layout, StringComparison.Ordinal))
+                {
+                    set.Icon = new AxIcon { Classes = { "small" }, Data = AxIcons.Check };
+                }
+                else
+                {
+                    var chosen = name;
+
+                    set.Click += (_, _) => _dock.Switch(chosen);
+                }
+
+                branch.Items.Add(set);
+            }
+
+            branch.Items.Add(new Separator());
+
+            var save = new MenuItem { Header = Localizer.Instance["menu.layout.save"] };
+            var reset = new MenuItem { Header = Localizer.Instance["menu.layout.reset"] };
+
+            save.Click += async (_, _) => await SaveLayoutAsync();
+            reset.Click += (_, _) => _dock.Reset();
+
+            branch.Items.Add(save);
+            branch.Items.Add(reset);
+
+            // Стандартный набор не удаляется: он — то, куда возвращаются.
+            if (!string.Equals(_dock.Layout, DockLayout.DefaultName, StringComparison.Ordinal))
+            {
+                var forget = new MenuItem
+                {
+                    Header = Localizer.Instance["menu.layout.delete"],
+                    Classes = { "danger" },
+                };
+
+                forget.Click += (_, _) => _dock.Forget();
+                branch.Items.Add(forget);
+            }
+
+            return branch;
+        }
 
         MenuItem Build(StudioMenuItem source)
         {
@@ -785,6 +837,51 @@ public partial class MainWindow : Window
     /// загрузки. Оставить вкладку открытой значит и держать контекст, и
     /// показывать человеку окно, за которым уже ничего нет.
     /// </remarks>
+    /// <summary>
+    /// Спрашивает имя и сохраняет под ним нынешнюю раскладку.
+    /// </summary>
+    /// <remarks>
+    /// Имя спрашивают модальным окном, а не полем в меню: меню закрывается от
+    /// первого же щелчка мимо, и набор пропал бы вместе с недопечатанным именем.
+    /// </remarks>
+    private async Task SaveLayoutAsync()
+    {
+        var box = new AxTextBox { PlaceholderText = Localizer.Instance["layout.name.hint"], Width = 260 };
+        var cancel = new AxButton { Content = Localizer.Instance["common.cancel"], MinWidth = 96 };
+        var save = new AxButton
+        {
+            Content = Localizer.Instance["common.save"],
+            MinWidth = 96,
+            Classes = { "accent" },
+        };
+
+        var dialog = new AxDialog
+        {
+            Title = Localizer.Instance["layout.name.title"],
+            Content = box,
+            Buttons = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                Children = { cancel, save },
+            },
+        };
+
+        // Курсор сразу в поле: другого дела у этого окна нет.
+        dialog.Opened += (_, _) => box.Focus();
+        cancel.Click += (_, _) => dialog.Close(null);
+        save.Click += (_, _) => dialog.Close(box.Text);
+
+        box.KeyDown += (_, key) =>
+        {
+            if (key.Key == Key.Enter)
+                dialog.Close(box.Text);
+        };
+
+        if (await dialog.ShowDialog<string?>(this) is { } name)
+            _dock.SaveAs(name);
+    }
+
     private async Task CloseDocumentsOfAsync(string pluginId)
     {
         foreach (var document in _documents.Where(document => document.PluginId == pluginId).ToList())

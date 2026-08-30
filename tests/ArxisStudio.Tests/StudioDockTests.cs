@@ -465,6 +465,155 @@ public class StudioDockTests : IDisposable
         Assert.Equal("doc:a.axaml", dock.Showing);
     }
 
+    /// <summary>
+    /// Сохранение под именем заводит набор и переводит в него.
+    /// </summary>
+    /// <remarks>
+    /// Прежний набор при этом ничего не теряет: показанная раскладка и была
+    /// им — студия пишет её туда после каждой правки.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Saving_under_a_name_starts_a_set_and_moves_into_it()
+    {
+        var (dock, _) = Dock(new DockLayoutStore(File));
+
+        dock.SaveAs("  отладка  ");
+
+        Assert.Equal("отладка", dock.Layout);
+        Assert.Equal(["default", "отладка"], dock.Layouts);
+    }
+
+    /// <summary>Безымянный набор не заводится.</summary>
+    [AvaloniaFact]
+    public void A_set_without_a_name_is_not_started()
+    {
+        var (dock, _) = Dock(new DockLayoutStore(File));
+
+        dock.SaveAs("   ");
+
+        Assert.Equal("default", dock.Layout);
+        Assert.Equal(["default"], dock.Layouts);
+    }
+
+    /// <summary>
+    /// Переключение возвращает ту раскладку, что была в наборе.
+    /// </summary>
+    /// <remarks>
+    /// И ту, что человек оставил в покинутом: он её не сохранял, но и не
+    /// отменял — он всего лишь ушёл посмотреть другую.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Switching_brings_back_the_layout_of_each_set()
+    {
+        var (dock, view, window) = Two();
+
+        dock.SaveAs("отладка");
+
+        // В «отладке» панель переезжает к соседке, в «default» она осталась слева.
+        DockMouse.Drag(
+            window,
+            DockMouse.Tab(view.View("left")!, 0, window),
+            DockMouse.Inside(view.View("right")!, 0.5, 0.5, window));
+
+        Assert.Equal("right", DockTree.Holder(view.Root!, "hello:tree")?.Id);
+
+        dock.Switch("default");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("default", dock.Layout);
+        Assert.Equal("left", DockTree.Holder(view.Root!, "hello:tree")?.Id);
+
+        dock.Switch("отладка");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("right", DockTree.Holder(view.Root!, "hello:tree")?.Id);
+    }
+
+    /// <summary>
+    /// Набор, сохранённый до плагина, всё равно показывает его панель.
+    /// </summary>
+    /// <remarks>
+    /// Иначе панель просто пропала бы с экрана при переключении, и человек
+    /// решил бы, что плагин сломался, — хотя дело в возрасте набора.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_set_older_than_a_plugin_still_shows_its_panel()
+    {
+        var (dock, view) = Dock(new DockLayoutStore(File));
+
+        dock.SaveAs("отладка");
+        dock.Add("hello", "hello:tree", "left", "Проект", Strings, new Border());
+        Dispatcher.UIThread.RunJobs();
+
+        dock.Switch("default");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("left", DockTree.Holder(view.Root!, "hello:tree")?.Id);
+    }
+
+    /// <summary>
+    /// Забытый набор уступает место стандартному, а сам стандартный не забывается.
+    /// </summary>
+    /// <remarks>
+    /// Стандартный — то, куда возвращаются: студия без него осталась бы без
+    /// единого имени, и удалять его значило бы удалять саму раскладку.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_forgotten_set_gives_way_to_the_standard_one()
+    {
+        var (dock, view, window) = Two();
+
+        dock.SaveAs("отладка");
+        dock.Forget();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("default", dock.Layout);
+        Assert.Equal(["default"], dock.Layouts);
+
+        // Раскладка стандартного набора, к которой человек вернулся, — его
+        // собственная, и второе «забыть» её не трогает: забывать нечего.
+        DockMouse.Drag(
+            window,
+            DockMouse.Tab(view.View("left")!, 0, window),
+            DockMouse.Inside(view.View("right")!, 0.5, 0.5, window));
+
+        Assert.Equal("right", DockTree.Holder(view.Root!, "hello:tree")?.Id);
+
+        dock.Forget();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(["default"], dock.Layouts);
+        Assert.Equal("right", DockTree.Holder(view.Root!, "hello:tree")?.Id);
+    }
+
+    /// <summary>
+    /// Наборы переживают перезапуск студии — все, а не только показанный.
+    /// </summary>
+    /// <remarks>
+    /// Набор, в который человек не заходил, обязан пережить и правки соседей:
+    /// студия пишет файл целиком после каждой из них.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Every_set_survives_a_restart()
+    {
+        var (first, view) = Dock(new DockLayoutStore(File));
+
+        first.Add("hello", "hello:tree", "left", "Проект", Strings, new Border());
+        first.SaveAs("отладка");
+        first.Flush();
+
+        var (second, next) = Dock(new DockLayoutStore(File));
+        second.Restore();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("отладка", second.Layout);
+        Assert.Equal(["default", "отладка"], second.Layouts);
+        Assert.Equal("left", DockTree.Holder(next.Root!, "hello:tree")?.Id);
+
+        // Показанный набор в прежней студии остался на месте.
+        Assert.NotNull(view.Root);
+    }
+
     private static PluginStrings Strings => PluginStrings.Studio;
 
     /// <summary>Имена групп, которые сейчас на экране, слева направо.</summary>
