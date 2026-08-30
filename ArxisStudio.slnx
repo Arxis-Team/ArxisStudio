@@ -27,6 +27,7 @@
     <File Path="src/Plugins/Arxis.Lang.De/plugin.json" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/ArxisStudio.Docking/ArxisStudio.Docking.csproj" />
     <Project Path="src/ArxisStudio.Extensibility/ArxisStudio.Extensibility.csproj" />
     <Project Path="src/ArxisStudio.Sdk/ArxisStudio.Sdk.csproj" />
     <Project Path="src/ArxisStudio.Sdk.Analyzers/ArxisStudio.Sdk.Analyzers.csproj" />

@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+        Движок докинга: дерево областей, вкладки, перетаскивание, плавающие окна.
+
+        Ссылок здесь ровно две — Avalonia и контролы, — и это не бедность, а граница.
+        Движку нельзя знать про плагины: раскладка переживает выключение плагина,
+        сохраняется на диск и восстанавливается при запуске, а значит узел дерева,
+        удержавший контрол из контекста плагина, не дал бы этому контексту выгрузиться
+        никогда. Запрет проверяется сборкой, а не памятью: сослаться на
+        ArxisStudio.Sdk, ArxisStudio.Shell или ArxisStudio.Extensibility отсюда просто
+        нечем.
+
+        Отсюда же два следствия, о которых легко забыть при доработке:
+        у библиотеки нет текста для человека — подписи приходят снаружи, а меню
+        собирает студия; и у неё нет перехвата чужих сбоев — панель приезжает сюда
+        уже завёрнутой в барьер, и чья она, движок не спрашивает.
+    -->
+    <PropertyGroup>
+        <RootNamespace>ArxisStudio.Docking</RootNamespace>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Avalonia"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../../external/ArxisStudio.Controls/src/ArxisStudio.Controls.csproj"/>
+    </ItemGroup>
+
+    <!--
+        Граница держится сборкой, а не уговором.
+
+        Тест DockingBoundaryTests смотрит на готовую сборку и видит только то,
+        чем движок действительно пользуется: ссылку ради одной константы
+        компилятор вписывает литералом и в метаданных не оставляет. Значит
+        объявление надо ловить там, где оно сделано, — иначе первая же ссылка
+        «только для константы» откроет дверь второй, уже настоящей.
+    -->
+    <Target Name="AxDockingBoundary" BeforeTargets="Build">
+        <ItemGroup>
+            <_AxForbidden Include="@(ProjectReference)"
+                          Condition="'%(Filename)' == 'ArxisStudio.Sdk' Or
+                                     '%(Filename)' == 'ArxisStudio.Shell' Or
+                                     '%(Filename)' == 'ArxisStudio.Extensibility'"/>
+        </ItemGroup>
+        <Error Code="AXD1001" Condition="'@(_AxForbidden)' != ''"
+               Text="Движку докинга нельзя ссылаться на студию, а здесь объявлено: @(_AxForbidden->'%(Filename)', ', '). Раскладка переживает выключение плагина и уезжает в файл, поэтому узел дерева, удержавший объект плагина, навсегда оставит в памяти его контекст. Движку нужны идентификаторы, а не объекты: живые контролы держит студия и снимает их по Unloading."/>
+    </Target>
+
+</Project>
