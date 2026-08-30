@@ -61,6 +61,32 @@ public static class DockMouse
         return point.Value;
     }
 
+    /// <summary>Середина крестика на вкладке, в координатах окна.</summary>
+    /// <param name="group">Вид группы.</param>
+    /// <param name="at">Номер вкладки.</param>
+    /// <param name="window">Окно, в чьих координатах нужна точка.</param>
+    public static Point Cross(DockGroupView group, int at, Window window)
+    {
+        var tab = Assert.IsAssignableFrom<Control>(Tabs(group).Items[at]);
+        var close = tab.GetVisualDescendants().OfType<Control>().First(part => part.Name == "PART_Close");
+        var point = close.TranslatePoint(new Point(close.Bounds.Width / 2, close.Bounds.Height / 2), window);
+
+        Assert.NotNull(point);
+
+        return point.Value;
+    }
+
+    /// <summary>Щёлкает мышью в точке.</summary>
+    /// <param name="window">Окно, которому шлём ввод.</param>
+    /// <param name="at">Куда.</param>
+    public static void Click(Window window, Point at)
+    {
+        window.MouseMove(at);
+        window.MouseDown(at, MouseButton.Left);
+        window.MouseUp(at, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+    }
+
     /// <summary>Точка внутри группы по долям её ширины и высоты.</summary>
     /// <param name="group">Вид группы.</param>
     /// <param name="x">Доля ширины.</param>

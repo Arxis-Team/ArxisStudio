@@ -77,6 +77,7 @@ public partial class MainWindow : Window
         _dock = new StudioDock(Dock, new DockLayoutStore());
         _dock.Chosen += (_, id) => ShowDocument(id);
         _dock.Complained += (_, message) => _log.Write(StudioLogLevel.Warning, "Layout", message);
+        _dock.Closing += async (_, id) => await CloseDocumentAsync(id);
 
         // Раскладка поднимается до панелей: иначе они успели бы разойтись по
         // стандартным местам, а прочитанное дерево тут же смело бы их оттуда.
@@ -787,21 +788,40 @@ public partial class MainWindow : Window
     private async Task CloseDocumentsOfAsync(string pluginId)
     {
         foreach (var document in _documents.Where(document => document.PluginId == pluginId).ToList())
-        {
-            if (ReferenceEquals(_active, document.View))
-            {
-                _active.OnDeactivated();
-                _active = null;
-            }
-
-            _documents.Remove(document);
-            _dock.Remove(document.Id);
-
-            await document.View.DisposeAsync();
-        }
+            await CloseAsync(document);
 
         // Место закрытого документа занял сосед — его и показываем.
         ShowDocument(_dock.Showing);
+    }
+
+    /// <summary>Закрывает документ по просьбе человека — крестиком на вкладке.</summary>
+    /// <param name="id">Имя документа в раскладке.</param>
+    private async Task CloseDocumentAsync(string id)
+    {
+        if (_documents.FirstOrDefault(open => string.Equals(open.Id, id, StringComparison.Ordinal))
+            is not { } document)
+        {
+            return;
+        }
+
+        await CloseAsync(document);
+
+        ShowDocument(_dock.Showing);
+    }
+
+    /// <summary>Убирает документ отовсюду и отпускает его представление.</summary>
+    private async Task CloseAsync(OpenDocument document)
+    {
+        if (ReferenceEquals(_active, document.View))
+        {
+            _active.OnDeactivated();
+            _active = null;
+        }
+
+        _documents.Remove(document);
+        _dock.Remove(document.Id);
+
+        await document.View.DisposeAsync();
     }
 
     private async Task CloseDocumentsAsync()

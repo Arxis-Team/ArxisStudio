@@ -1,3 +1,4 @@
+using ArxisStudio.Controls;
 using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Services;
@@ -304,6 +305,34 @@ public class StudioDockTests : IDisposable
 
         Assert.Equal("right", DockTree.Holder(view.Root!, "friend:tips")?.Id);
         Assert.NotNull(view.View("right"));
+    }
+
+    /// <summary>
+    /// Документ закрывается крестиком, а панель плагина — нет.
+    /// </summary>
+    /// <remarks>
+    /// У панели крестика нет не по забывчивости: закрытая панель уходит из
+    /// дерева вместе со своим местом, а вернуть её человеку пока нечем, кроме
+    /// сброса всей раскладки. Документ же открывают заново тем же файлом.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_document_closes_by_its_cross_and_a_panel_has_none()
+    {
+        var (dock, view, window) = Two();
+
+        dock.Open("hello", "doc:a.axaml", "a.axaml", new Border());
+        Dispatcher.UIThread.RunJobs();
+
+        var panel = Assert.IsType<AxTabItem>(DockMouse.Tabs(view.View("left")!).Items[0]);
+
+        Assert.False(panel.IsClosable);
+
+        string? asked = null;
+        dock.Closing += (_, id) => asked = id;
+
+        DockMouse.Click(window, DockMouse.Cross(view.View(StudioDock.Documents)!, 0, window));
+
+        Assert.Equal("doc:a.axaml", asked);
     }
 
     /// <summary>

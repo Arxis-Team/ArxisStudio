@@ -86,6 +86,7 @@ public sealed class StudioDock
 
         _view.Resized += (_, resize) => Edit(root => DockTree.Resize(root, resize.Path, resize.Weights));
         _view.Dropped += (_, drop) => Move(drop);
+        _view.Closing += (_, id) => Closing?.Invoke(this, id);
     }
 
     /// <summary>Человек выбрал вкладку; в поле — имя панели или документа.</summary>
@@ -93,6 +94,9 @@ public sealed class StudioDock
 
     /// <summary>Студии есть что сказать человеку о файле раскладки.</summary>
     public event EventHandler<string>? Complained;
+
+    /// <summary>Человек попросил закрыть панель или документ; в поле — имя.</summary>
+    public event EventHandler<string>? Closing;
 
     /// <summary>Живые панели по именам.</summary>
     public DockItems Items { get; } = new();
@@ -230,7 +234,7 @@ public sealed class StudioDock
     /// <param name="content">Содержимое, построенное редактором.</param>
     public void Open(string owner, string id, string title, Control content)
     {
-        Items.Add(owner, new DockItem(id, content) { Title = title });
+        Items.Add(owner, new DockItem(id, content) { Title = title, CanClose = true });
 
         if (!_asked.Any(asked => string.Equals(asked.Id, id, StringComparison.Ordinal)))
             _asked.Add((id, Documents));

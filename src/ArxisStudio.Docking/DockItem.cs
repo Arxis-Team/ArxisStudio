@@ -40,6 +40,17 @@ public sealed class DockItem : AvaloniaObject
     /// <summary>Что показывать.</summary>
     public Control Content { get; }
 
+    /// <summary>
+    /// Можно ли закрыть панель крестиком.
+    /// </summary>
+    /// <remarks>
+    /// У документа можно: закрыл и открыл заново тем же файлом. У панели
+    /// плагина — нет, и это не забывчивость: закрытая панель уходит из дерева
+    /// вместе со своим местом, а вернуть её обратно человеку пока нечем, кроме
+    /// сброса всей раскладки.
+    /// </remarks>
+    public bool CanClose { get; init; }
+
     /// <inheritdoc cref="TitleProperty"/>
     public string? Title
     {

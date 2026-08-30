@@ -136,6 +136,9 @@ public class DockView : Decorator
     /// <summary>Человек перетащил вкладку на новое место.</summary>
     public event EventHandler<DockDrop>? Dropped;
 
+    /// <summary>Человек попросил закрыть панель; в поле — её имя.</summary>
+    public event EventHandler<string>? Closing;
+
     /// <inheritdoc cref="RootProperty"/>
     public DockNode? Root
     {
@@ -377,6 +380,7 @@ public class DockView : Decorator
             {
                 view = new DockGroupView();
                 view.Chosen += (_, id) => Chosen?.Invoke(this, id);
+                view.Closing += (_, id) => Closing?.Invoke(this, id);
                 _groups[group.Id] = view;
             }
 

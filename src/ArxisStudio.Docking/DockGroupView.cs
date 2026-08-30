@@ -37,6 +37,13 @@ public class DockGroupView : TemplatedControl
     private object? _empty;
     private bool _filling;
 
+    /// <summary>Человек попросил закрыть панель; в поле — её имя.</summary>
+    /// <remarks>
+    /// Именно попросил: закрывает хозяин. У документа могут быть несохранённые
+    /// правки, и спрашивать о них — не дело вида.
+    /// </remarks>
+    public event EventHandler<string>? Closing;
+
     /// <summary>Человек выбрал вкладку; в поле — имя панели.</summary>
     /// <remarks>
     /// Выбор — часть раскладки, а не состояние контрола: он переживает
@@ -150,7 +157,14 @@ public class DockGroupView : TemplatedControl
                 if (_items.Find(id) is not { } item)
                     continue;
 
-                var tab = new AxTabItem { IsClosable = false };
+                var tab = new AxTabItem { IsClosable = item.CanClose };
+
+                if (item.CanClose)
+                {
+                    var closing = id;
+
+                    tab.CloseRequested += (_, _) => Closing?.Invoke(this, closing);
+                }
 
                 _bound.Add(tab.Bind(ContentControl.ContentProperty, item.GetObservable(DockItem.TitleProperty)));
                 _tabs.Items.Add(tab);
