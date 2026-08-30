@@ -46,6 +46,16 @@ public sealed class StudioDock
     /// </remarks>
     private HashSet<string> _standing = new([Documents], StringComparer.Ordinal);
 
+    /// <summary>
+    /// Кто куда просился, по порядку появления.
+    /// </summary>
+    /// <remarks>
+    /// Нужно одному только сбросу: он собирает раскладку заново и обязан
+    /// разложить панели так же, как при первом запуске. Порядок важен —
+    /// от него зависит, кто с кем окажется вкладками в одной группе.
+    /// </remarks>
+    private readonly List<(string Id, string Zone)> _asked = [];
+
     private string _home = Documents;
     private bool _dirty;
 
@@ -75,6 +85,7 @@ public sealed class StudioDock
         };
 
         _view.Resized += (_, resize) => Edit(root => DockTree.Resize(root, resize.Path, resize.Weights));
+        _view.Dropped += (_, drop) => Move(drop);
     }
 
     /// <summary>Человек выбрал вкладку; в поле — имя панели или документа.</summary>
@@ -117,6 +128,40 @@ public sealed class StudioDock
         _standing = new HashSet<string>([_home], StringComparer.Ordinal);
         _view.EmptyGroup = _home;
         _view.Root = workspace.Root;
+    }
+
+    /// <summary>
+    /// Собирает раскладку заново — такой, какой она бывает при первом запуске.
+    /// </summary>
+    /// <remarks>
+    /// Без этого перетаскивание — дверь в одну сторону: перекроить раскладку
+    /// можно, а вернуть как было нечем, и человеку остаётся собирать её мышью
+    /// обратно, вспоминая, где что стояло.
+    /// <para>
+    /// Панели раскладываются по объявленным местам и в том же порядке, в каком
+    /// вставали при подъёме, — иначе «как было при первом запуске» означало бы
+    /// каждый раз что-то своё.
+    /// </para>
+    /// </remarks>
+    public void Reset()
+    {
+        _home = Documents;
+        _standing = new HashSet<string>([_home], StringComparer.Ordinal);
+        _view.EmptyGroup = _home;
+
+        var root = Skeleton();
+
+        foreach (var (id, zone) in _asked)
+        {
+            root = DockTree.Group(root, zone) is not null
+                ? DockTree.Insert(root, zone, DockSide.Tab, id, zone)
+                : DockTree.Insert(root, Home(root), Side(zone), id, zone);
+        }
+
+        _view.Root = root;
+        _dirty = true;
+
+        Flush();
     }
 
     /// <summary>
@@ -168,6 +213,9 @@ public sealed class StudioDock
 
         var group = zone.ToLowerInvariant();
 
+        if (!_asked.Any(asked => string.Equals(asked.Id, id, StringComparison.Ordinal)))
+            _asked.Add((id, group));
+
         Edit(root => DockTree.Holder(root, id) is not null
             ? root
             : DockTree.Group(root, group) is not null
@@ -184,6 +232,9 @@ public sealed class StudioDock
     {
         Items.Add(owner, new DockItem(id, content) { Title = title });
 
+        if (!_asked.Any(asked => string.Equals(asked.Id, id, StringComparison.Ordinal)))
+            _asked.Add((id, Documents));
+
         Edit(root => DockTree.Insert(root, Home(root), DockSide.Tab, id, Documents));
     }
 
@@ -192,6 +243,7 @@ public sealed class StudioDock
     public void Remove(string id)
     {
         Items.Remove(id);
+        _asked.RemoveAll(asked => string.Equals(asked.Id, id, StringComparison.Ordinal));
         Edit(root => DockTree.Remove(root, id, _standing));
     }
 
@@ -244,6 +296,43 @@ public sealed class StudioDock
             new DockGroup { Id = "right" },
         ],
     };
+
+    /// <summary>
+    /// Переносит панель туда, куда её бросили.
+    /// </summary>
+    /// <remarks>
+    /// Снять и поставить — две правки, и между ними группа, куда бросали, может
+    /// исчезнуть: снятие прибирает опустевшую, а человек мог унести из неё же
+    /// последнюю вкладку. Ставить тогда некуда, и правка отменяется целиком —
+    /// иначе панель просто пропала бы с экрана.
+    /// </remarks>
+    private void Move(DockDrop drop) => Edit(root =>
+    {
+        var without = DockTree.Remove(root, drop.Item, _standing);
+
+        return DockTree.Group(without, drop.Group) is null
+            ? root
+            : DockTree.Insert(without, drop.Group, drop.Side, drop.Item, Fresh(without));
+    });
+
+    /// <summary>
+    /// Имя для новой группы, которого в дереве ещё нет.
+    /// </summary>
+    /// <remarks>
+    /// Имя попадёт в файл раскладки и переживёт перезапуск, поэтому оно должно
+    /// быть своим у каждой группы. Считаем от единицы и берём первое свободное:
+    /// так имена не растут без конца, когда области заводят и сносят по кругу.
+    /// </remarks>
+    private static string Fresh(DockNode root)
+    {
+        var taken = root.Groups().Select(group => group.Id).ToHashSet(StringComparer.Ordinal);
+
+        for (var number = 1; ; number++)
+        {
+            if (taken.Add($"group{number}"))
+                return $"group{number}";
+        }
+    }
 
     /// <summary>Сторона по названию зоны; незнакомое слово уводит вправо.</summary>
     private static DockSide Side(string zone) => zone switch

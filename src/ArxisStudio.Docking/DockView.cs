@@ -1,5 +1,10 @@
+using ArxisStudio.Controls;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 
 namespace ArxisStudio.Docking;
 
@@ -16,6 +21,17 @@ namespace ArxisStudio.Docking;
 public sealed record DockResize(IReadOnlyList<int> Path, IReadOnlyList<double> Weights);
 
 /// <summary>
+/// Брошенная вкладка: что тащили, куда и с какой стороны.
+/// </summary>
+/// <param name="Item">Имя панели, которую тащили.</param>
+/// <param name="Group">Имя группы, на которую бросили.</param>
+/// <param name="Side">
+/// <see cref="DockSide.Tab"/> — соседней вкладкой в ту же группу; иначе группа
+/// делится, и панель встаёт с этой стороны.
+/// </param>
+public sealed record DockDrop(string Item, string Group, DockSide Side);
+
+/// <summary>
 /// Дерево раскладки на экране.
 /// </summary>
 /// <remarks>
@@ -26,6 +42,20 @@ public sealed record DockResize(IReadOnlyList<int> Path, IReadOnlyList<double> W
 /// </remarks>
 public class DockView : Decorator
 {
+    /// <summary>
+    /// Сколько пикселей надо пройти, чтобы это считалось тягой, а не щелчком.
+    /// </summary>
+    private const double Threshold = 6;
+
+    /// <summary>
+    /// Какая часть области с краю значит «раздели», а не «встань вкладкой».
+    /// </summary>
+    /// <remarks>
+    /// Четверть — как в Unity: край достаточно широк, чтобы попасть в него не
+    /// целясь, и достаточно узок, чтобы середина осталась серединой.
+    /// </remarks>
+    private const double Edge = 0.25;
+
     /// <summary>Дерево, которое показываем.</summary>
     public static readonly StyledProperty<DockNode?> RootProperty =
         AvaloniaProperty.Register<DockView, DockNode?>(nameof(Root));
@@ -66,6 +96,15 @@ public class DockView : Decorator
     /// </remarks>
     private readonly Dictionary<string, DockGroupView> _groups = new(StringComparer.Ordinal);
 
+    /// <summary>Вкладка, на которой нажали, и где нажали.</summary>
+    private (string Item, Point At)? _pressed;
+
+    /// <summary>Что тащат прямо сейчас.</summary>
+    private string? _dragged;
+
+    /// <summary>Подсветка места, куда бросят.</summary>
+    private Border? _hint;
+
     static DockView()
     {
         RootProperty.Changed.AddClassHandler<DockView>((view, _) => view.Rebuild());
@@ -74,11 +113,28 @@ public class DockView : Decorator
         EmptyGroupProperty.Changed.AddClassHandler<DockView>((view, _) => view.Rebuild());
     }
 
+    /// <summary>Заводит вид и подписывается на мышь.</summary>
+    /// <remarks>
+    /// Обработчики перехватывающие: вкладка забирает нажатие себе — ей надо
+    /// стать выбранной, — и до всплытия дело не дойдёт. Само нажатие мы при
+    /// этом не помечаем разобранным: щелчок обязан работать как щелчок, пока
+    /// человек не потянул.
+    /// </remarks>
+    public DockView()
+    {
+        AddHandler(PointerPressedEvent, OnPressed, RoutingStrategies.Tunnel);
+        AddHandler(PointerMovedEvent, OnMoved, RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
+        AddHandler(PointerReleasedEvent, OnReleased, RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
+    }
+
     /// <summary>Человек выбрал вкладку; в поле — имя панели.</summary>
     public event EventHandler<string>? Chosen;
 
     /// <summary>Человек потянул границу.</summary>
     public event EventHandler<DockResize>? Resized;
+
+    /// <summary>Человек перетащил вкладку на новое место.</summary>
+    public event EventHandler<DockDrop>? Dropped;
 
     /// <inheritdoc cref="RootProperty"/>
     public DockNode? Root
@@ -122,6 +178,160 @@ public class DockView : Decorator
     /// — оно и не менялось.
     /// </remarks>
     public void Refresh() => Rebuild();
+
+    /// <inheritdoc/>
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+
+        // Подсветка живёт не в нас, а в слое поверх окна: уходя, забираем её с
+        // собой, иначе она осталась бы висеть над пустым местом.
+        Stop();
+    }
+
+    /// <summary>Запоминает вкладку, на которой нажали.</summary>
+    private void OnPressed(object? sender, PointerPressedEventArgs e)
+    {
+        _pressed = null;
+
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            return;
+
+        if ((e.Source as Visual)?.FindAncestorOfType<AxTabItem>() is not { } tab)
+            return;
+
+        if (tab.FindAncestorOfType<DockGroupView>()?.Item(tab) is { } item)
+            _pressed = (item, e.GetPosition(this));
+    }
+
+    /// <summary>Начинает тягу, когда её уже не спутать со щелчком, и ведёт её.</summary>
+    private void OnMoved(object? sender, PointerEventArgs e)
+    {
+        var point = e.GetPosition(this);
+
+        if (_dragged is null && _pressed is { } pressed)
+        {
+            // Порог нужен, чтобы дрогнувшая рука не растаскивала раскладку:
+            // щелчок по вкладке почти всегда сдвигает мышь на пиксель-другой.
+            if (Math.Abs(point.X - pressed.At.X) < Threshold
+                && Math.Abs(point.Y - pressed.At.Y) < Threshold)
+            {
+                return;
+            }
+
+            _dragged = pressed.Item;
+            _pressed = null;
+
+            e.Pointer.Capture(this);
+        }
+
+        if (_dragged is not null)
+            Highlight(Target(point));
+    }
+
+    /// <summary>Бросает вкладку туда, где отпустили.</summary>
+    private void OnReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        var dragged = _dragged;
+        var target = dragged is null ? null : Target(e.GetPosition(this));
+
+        _pressed = null;
+        Stop();
+
+        if (dragged is not null)
+            e.Pointer.Capture(null);
+
+        if (dragged is not null && target is { } place)
+            Dropped?.Invoke(this, new DockDrop(dragged, place.Group, place.Side));
+    }
+
+    /// <summary>Куда попадёт брошенная вкладка; null — мимо всего.</summary>
+    private (string Group, DockSide Side)? Target(Point point)
+    {
+        if (Group(point) is not { } group || group.TranslatePoint(default, this) is not { } origin)
+            return null;
+
+        var size = group.Bounds.Size;
+        var local = point - origin;
+
+        // Полоса вкладок — это «встань рядом», а не «раздели сверху».
+        if (local.Y < group.HeaderHeight)
+            return (group.Id, DockSide.Tab);
+
+        var side = local.X < size.Width * Edge ? DockSide.Left
+            : local.X > size.Width * (1 - Edge) ? DockSide.Right
+            : local.Y < size.Height * Edge ? DockSide.Top
+            : local.Y > size.Height * (1 - Edge) ? DockSide.Bottom
+            : DockSide.Tab;
+
+        return (group.Id, side);
+    }
+
+    /// <summary>Группа под указателем; null — там её нет.</summary>
+    private DockGroupView? Group(Point point) =>
+        Bounds.Contains(point + (Vector)Bounds.Position)
+            ? _groups.Values.FirstOrDefault(group => Inside(group, point))
+            : null;
+
+    /// <summary>Попадает ли точка в эту группу.</summary>
+    private bool Inside(DockGroupView group, Point point) =>
+        group.TranslatePoint(default, this) is { } origin
+        && new Rect(origin, group.Bounds.Size).Contains(point);
+
+    /// <summary>Показывает, куда встанет вкладка; null — прячет подсказку.</summary>
+    private void Highlight((string Group, DockSide Side)? target)
+    {
+        if (target is not { } place
+            || View(place.Group) is not { } group
+            || group.TranslatePoint(default, this) is not { } origin
+            || OverlayLayer.GetOverlayLayer(this) is not { } layer
+            || this.TranslatePoint(origin, layer) is not { } corner)
+        {
+            Hide();
+            return;
+        }
+
+        var size = group.Bounds.Size;
+        var area = place.Side switch
+        {
+            DockSide.Left => new Rect(corner.X, corner.Y, size.Width / 2, size.Height),
+            DockSide.Right => new Rect(corner.X + (size.Width / 2), corner.Y, size.Width / 2, size.Height),
+            DockSide.Top => new Rect(corner.X, corner.Y, size.Width, size.Height / 2),
+            DockSide.Bottom => new Rect(corner.X, corner.Y + (size.Height / 2), size.Width, size.Height / 2),
+            _ => new Rect(corner, size),
+        };
+
+        // Подсветка не ловит мышь: поймай она её — под указателем всегда была бы
+        // она сама, и цель перестала бы меняться.
+        _hint ??= new Border { Classes = { "dock-hint" }, IsHitTestVisible = false };
+
+        if (!layer.Children.Contains(_hint))
+            layer.Children.Add(_hint);
+
+        Canvas.SetLeft(_hint, area.X);
+        Canvas.SetTop(_hint, area.Y);
+        _hint.Width = area.Width;
+        _hint.Height = area.Height;
+        _hint.IsVisible = true;
+    }
+
+    /// <summary>Убирает подсветку.</summary>
+    private void Hide()
+    {
+        if (_hint is not null)
+            _hint.IsVisible = false;
+    }
+
+    /// <summary>Заканчивает тягу и снимает подсветку со слоя.</summary>
+    private void Stop()
+    {
+        _dragged = null;
+
+        if (_hint is { Parent: Panel layer })
+            layer.Children.Remove(_hint);
+
+        _hint = null;
+    }
 
     /// <summary>Строит экран заново по нынешнему дереву.</summary>
     private void Rebuild()

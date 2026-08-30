@@ -3,6 +3,7 @@ using ArxisStudio.Controls;
 using ArxisStudio.Docking;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
@@ -34,8 +35,8 @@ public class DockViewTests
         var group = view.View("left");
 
         Assert.NotNull(group);
-        Assert.Equal(2, Tabs(group).Items.Count);
-        Assert.Equal(1, Tabs(group).SelectedIndex);
+        Assert.Equal(2, DockMouse.Tabs(group).Items.Count);
+        Assert.Equal(1, DockMouse.Tabs(group).SelectedIndex);
         Assert.Same(items.Find("structure")?.Content, Content(group));
         Assert.True(group.HasTabs);
         Assert.True(Chrome(group).ShowHeader);
@@ -90,7 +91,7 @@ public class DockViewTests
         items.Find("solution")!.Title = "Проект";
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Equal("Проект", ((AxTabItem)Tabs(view.View("left")!).Items[0]!).Content);
+        Assert.Equal("Проект", ((AxTabItem)DockMouse.Tabs(view.View("left")!).Items[0]!).Content);
     }
 
     /// <summary>Выбор вкладки показывает её панель и сообщает хозяину дерева.</summary>
@@ -105,7 +106,7 @@ public class DockViewTests
         view.Chosen += (_, id) => told = id;
 
         var group = view.View("left")!;
-        Tabs(group).SelectedIndex = 0;
+        DockMouse.Tabs(group).SelectedIndex = 0;
 
         Assert.Equal("solution", told);
         Assert.Same(items.Find("solution")?.Content, Content(group));
@@ -124,7 +125,7 @@ public class DockViewTests
         var root = new DockGroup { Id = "left", Items = ["solution", "ghost"], Selected = "solution" };
         var (view, _) = Shown(root, "solution");
 
-        Assert.Single(Tabs(view.View("left")!).Items);
+        Assert.Single(DockMouse.Tabs(view.View("left")!).Items);
         Assert.Equal(["solution", "ghost"], ((DockGroup)view.Root!).Items);
     }
 
@@ -210,6 +211,132 @@ public class DockViewTests
 
         Assert.Equal(1, after.Weights.Sum(), 6);
         Assert.True(after.Weights[0] > 0.6, $"левая доля осталась {after.Weights[0]:0.000}");
+    }
+
+    /// <summary>
+    /// Брошенная в середину вкладка просится соседней вкладкой.
+    /// </summary>
+    /// <remarks>
+    /// Середина области значит «встань рядом», край — «раздели». Так же в
+    /// Unity, и это единственное, что человеку надо знать про перетаскивание.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_tab_dropped_in_the_middle_asks_to_join()
+    {
+        var (view, window) = Pair();
+
+        DockDrop? dropped = null;
+        view.Dropped += (_, drop) => dropped = drop;
+
+        DockMouse.Drag(window, DockMouse.Tab(view.View("left")!, 0, window), DockMouse.Inside(view.View("right")!, 0.5, 0.5, window));
+
+        Assert.NotNull(dropped);
+        Assert.Equal("solution", dropped.Item);
+        Assert.Equal("right", dropped.Group);
+        Assert.Equal(DockSide.Tab, dropped.Side);
+    }
+
+    /// <summary>
+    /// Брошенная в полосу вкладок просится соседней вкладкой, а не разделить сверху.
+    /// </summary>
+    /// <remarks>
+    /// Полоса вкладок лежит у верхнего края, и по краям область делится — но
+    /// целиться в чужую полосу человек будет именно затем, чтобы встать в неё
+    /// вкладкой. Полоса поэтому проверяется первой.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_tab_dropped_onto_the_tab_strip_asks_to_join()
+    {
+        var (view, window) = Pair();
+
+        DockDrop? dropped = null;
+        view.Dropped += (_, drop) => dropped = drop;
+
+        DockMouse.Drag(
+            window,
+            DockMouse.Tab(view.View("left")!, 0, window),
+            DockMouse.Tab(view.View("right")!, 0, window));
+
+        Assert.Equal("right", dropped?.Group);
+        Assert.Equal(DockSide.Tab, dropped?.Side);
+    }
+
+    /// <summary>Брошенная у края вкладка просится разделить область.</summary>
+    [InlineData(0.1, 0.5, DockSide.Left)]
+    [InlineData(0.9, 0.5, DockSide.Right)]
+    [InlineData(0.5, 0.9, DockSide.Bottom)]
+    [AvaloniaTheory]
+    public void A_tab_dropped_at_the_edge_asks_to_divide(double x, double y, DockSide side)
+    {
+        var (view, window) = Pair();
+
+        DockDrop? dropped = null;
+        view.Dropped += (_, drop) => dropped = drop;
+
+        DockMouse.Drag(window, DockMouse.Tab(view.View("left")!, 0, window), DockMouse.Inside(view.View("right")!, x, y, window));
+
+        Assert.Equal(side, dropped?.Side);
+        Assert.Equal("right", dropped?.Group);
+    }
+
+    /// <summary>
+    /// Щелчок по вкладке остаётся щелчком.
+    /// </summary>
+    /// <remarks>
+    /// Нажать и отпустить, не сдвинув мышь, значит выбрать вкладку. Рука при
+    /// этом почти всегда дрожит на пиксель-другой, и без порога раскладка
+    /// разъезжалась бы от обычного щелчка.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_click_on_a_tab_stays_a_click()
+    {
+        var (view, window) = Pair();
+
+        DockDrop? dropped = null;
+        view.Dropped += (_, drop) => dropped = drop;
+
+        var at = DockMouse.Tab(view.View("left")!, 1, window);
+
+        window.MouseMove(at);
+        window.MouseDown(at, MouseButton.Left);
+        window.MouseMove(at.WithX(at.X + 2));
+        window.MouseUp(at.WithX(at.X + 2), MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(dropped);
+        Assert.Equal(1, DockMouse.Tabs(view.View("left")!).SelectedIndex);
+    }
+
+    /// <summary>
+    /// Пока вкладку тащат, видно, куда она встанет.
+    /// </summary>
+    /// <remarks>
+    /// Подсветка живёт в слое поверх окна и мышь не ловит: поймай она её — под
+    /// указателем всегда была бы она сама, и цель перестала бы меняться.
+    /// </remarks>
+    [AvaloniaFact]
+    public void While_a_tab_is_dragged_its_landing_place_is_shown()
+    {
+        var (view, window) = Pair();
+
+        var from = DockMouse.Tab(view.View("left")!, 0, window);
+        var to = DockMouse.Inside(view.View("right")!, 0.5, 0.5, window);
+
+        window.MouseMove(from);
+        window.MouseDown(from, MouseButton.Left);
+        window.MouseMove(to);
+        Dispatcher.UIThread.RunJobs();
+
+        var hint = Hint(view);
+
+        Assert.NotNull(hint);
+        Assert.False(hint.IsHitTestVisible);
+        Assert.True(hint.Bounds.Width > 0);
+
+        window.MouseUp(to, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(Hint(view));
     }
 
     /// <summary>
@@ -300,7 +427,7 @@ public class DockViewTests
         Assert.Same(right, view.View("right"));
         Assert.Null(view.View("left"));
         Assert.Same(panel, items.Find("solution")?.Content);
-        Assert.Equal(2, Tabs(right!).Items.Count);
+        Assert.Equal(2, DockMouse.Tabs(right!).Items.Count);
         Assert.Same(panel, Content(right!));
     }
 
@@ -394,9 +521,30 @@ public class DockViewTests
     private static AxToolWindow Chrome(DockGroupView group) =>
         group.GetVisualDescendants().OfType<AxToolWindow>().Single();
 
-    /// <summary>Полоса вкладок показанной группы.</summary>
-    private static AxTabStrip Tabs(DockGroupView group) =>
-        group.GetVisualDescendants().OfType<AxTabStrip>().Single();
+    /// <summary>Две группы рядом: слева две вкладки, справа одна.</summary>
+    private static (DockView View, Window Window) Pair()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children =
+            [
+                new DockGroup { Id = "left", Items = ["solution", "structure"], Selected = "solution" },
+                new DockGroup { Id = "right", Items = ["properties"], Selected = "properties" },
+            ],
+            Weights = [0.5, 0.5],
+        };
+
+        var (view, _) = Shown(root, "solution", "structure", "properties");
+
+        return (view, Assert.IsAssignableFrom<Window>(TopLevel.GetTopLevel(view)));
+    }
+
+    /// <summary>Подсветка места, куда встанет вкладка; null — её нет.</summary>
+    private static Border? Hint(DockView view) =>
+        OverlayLayer.GetOverlayLayer(view)?.Children
+            .OfType<Border>()
+            .FirstOrDefault(border => border.Classes.Contains("dock-hint"));
 
     /// <summary>Что показано в группе.</summary>
     private static object? Content(DockGroupView group) =>

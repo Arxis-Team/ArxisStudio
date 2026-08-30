@@ -123,6 +123,7 @@
   "menu.activating": "Loading the plugin",
   "menu.plugins": "Plugins",
   "menu.reload": "Reload",
+  "menu.layout.reset": "Reset the layout",
   "canvas.grid": "Grid",
   "canvas.snap": "Snap",
   "canvas.zoomreset": "Reset to 100%",

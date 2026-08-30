@@ -55,6 +55,29 @@ public class DockGroupView : TemplatedControl
         private set => SetAndRaise(HasTabsProperty, ref _hasTabs, value);
     }
 
+    /// <summary>
+    /// Докуда сверху идёт полоса вкладок.
+    /// </summary>
+    /// <remarks>
+    /// Нужно перетаскиванию: бросок в полосу вкладок значит «встань соседней
+    /// вкладкой», а тот же бросок парой пикселей ниже — «раздели область
+    /// сверху». Спрашивать об этом попадание мыши нельзя: во время тяги
+    /// указатель захвачен, и источник события — уже не то, над чем он летит.
+    /// </remarks>
+    public double HeaderHeight =>
+        _tabs is { } tabs && tabs.TranslatePoint(default, this) is { } origin
+            ? origin.Y + tabs.Bounds.Height
+            : 0;
+
+    /// <summary>Имя панели, которой принадлежит вкладка; null — вкладка не наша.</summary>
+    /// <param name="tab">Вкладка из полосы этой группы.</param>
+    public string? Item(Control tab)
+    {
+        var at = _tabs?.Items.IndexOf(tab) ?? -1;
+
+        return at >= 0 && at < _shown.Count ? _shown[at] : null;
+    }
+
     /// <summary>Показывает группу.</summary>
     /// <param name="group">Что показывать.</param>
     /// <param name="items">Где брать живые панели.</param>

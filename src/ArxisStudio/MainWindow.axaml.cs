@@ -493,6 +493,16 @@ public partial class MainWindow : Window
             flyout.Items.Add(branch);
         }
 
+        // Сброс раскладки есть всегда: перетаскивание иначе было бы дверью в
+        // одну сторону, и первый же промах мышью человек разбирал бы вручную.
+        if (flyout.Items.Count > 0)
+            flyout.Items.Add(new Separator());
+
+        var reset = new MenuItem { Header = Localizer.Instance["menu.layout.reset"] };
+
+        reset.Click += (_, _) => _dock.Reset();
+        flyout.Items.Add(reset);
+
         if (flyout.Items.Count == 0)
             return;
 

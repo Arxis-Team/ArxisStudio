@@ -211,6 +211,145 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
+    /// Брошенная в середину вкладка переезжает в чужую группу.
+    /// </summary>
+    /// <remarks>
+    /// Перетаскивание проверяется настоящей мышью: между нажатием на вкладку и
+    /// новым деревом лежит вся дорога — порог, захват указателя, поиск цели,
+    /// снятие, вставка, — и обрыв на любом её шаге выглядит одинаково.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_dragged_tab_moves_into_the_group_it_was_dropped_on()
+    {
+        var (dock, view, window) = Two();
+
+        DockMouse.Drag(
+            window,
+            DockMouse.Tab(view.View("left")!, 0, window),
+            DockMouse.Inside(view.View("right")!, 0.5, 0.5, window));
+
+        Assert.Equal("right", DockTree.Holder(view.Root!, "hello:tree")?.Id);
+        Assert.Equal("hello:tree", DockTree.Group(view.Root!, "right")?.Selected);
+
+        // Из левой группы панель ушла — а с нею и сама группа: человек унёс
+        // последнее, что в ней стояло, и держать пустое место незачем.
+        Assert.Null(DockTree.Group(view.Root!, "left"));
+
+        // Переезд — не потеря: обе панели живы, просто стоят вместе.
+        Assert.Equal(2, dock.Items.Count);
+    }
+
+    /// <summary>
+    /// Брошенная у края вкладка заводит новую область.
+    /// </summary>
+    /// <remarks>
+    /// Имя новой группе даёт студия, и оно попадёт в файл раскладки, поэтому
+    /// берётся первое свободное, а не «следующее по счётчику»: иначе имена
+    /// росли бы без конца, когда области заводят и сносят по кругу.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_tab_dropped_at_the_edge_makes_a_new_area()
+    {
+        var (_, view, window) = Two();
+
+        DockMouse.Drag(
+            window,
+            DockMouse.Tab(view.View("left")!, 0, window),
+            DockMouse.Inside(view.View("right")!, 0.5, 0.9, window));
+
+        var holder = DockTree.Holder(view.Root!, "hello:tree");
+
+        Assert.NotNull(holder);
+        Assert.NotEqual("left", holder.Id);
+        Assert.NotEqual("right", holder.Id);
+        Assert.Equal(["hello:tree"], holder.Items);
+
+        // Она встала под правой, а не рядом с ней.
+        var split = Assert.IsType<DockSplit>(view.Root);
+        var inner = Assert.IsType<DockSplit>(split.Children[^1]);
+
+        Assert.Equal(DockOrientation.Vertical, inner.Orientation);
+        Assert.Equal(["right", holder.Id], inner.Children.Cast<DockGroup>().Select(group => group.Id));
+
+        // Второй области нужно своё имя, а не то же самое.
+        DockMouse.Drag(
+            window,
+            DockMouse.Tab(view.View("right")!, 0, window),
+            DockMouse.Inside(view.View(holder.Id)!, 0.1, 0.5, window));
+
+        var second = DockTree.Holder(view.Root!, "friend:tips");
+
+        Assert.NotNull(second);
+        Assert.NotEqual(holder.Id, second.Id);
+    }
+
+    /// <summary>
+    /// Последняя вкладка, брошенная в свою же группу, не пропадает.
+    /// </summary>
+    /// <remarks>
+    /// Снять и поставить — две правки, и между ними группа исчезает: она
+    /// опустела. Ставить некуда, и правка отменяется целиком — иначе панель
+    /// просто пропала бы с экрана, а человек всего лишь промахнулся мимо
+    /// соседа.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_tab_dropped_back_onto_its_own_group_changes_nothing()
+    {
+        var (_, view, window) = Two();
+
+        DockMouse.Drag(
+            window,
+            DockMouse.Tab(view.View("right")!, 0, window),
+            DockMouse.Inside(view.View("right")!, 0.5, 0.5, window));
+
+        Assert.Equal("right", DockTree.Holder(view.Root!, "friend:tips")?.Id);
+        Assert.NotNull(view.View("right"));
+    }
+
+    /// <summary>
+    /// Сброс возвращает раскладку к той, что бывает при первом запуске.
+    /// </summary>
+    /// <remarks>
+    /// Без него перетаскивание — дверь в одну сторону: перекроить можно, а
+    /// вернуть как было нечем. Панели раскладываются по объявленным местам и в
+    /// том же порядке, в каком вставали при подъёме.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Resetting_puts_the_layout_back_the_way_it_starts()
+    {
+        var (dock, view, window) = Two();
+
+        DockMouse.Drag(
+            window,
+            DockMouse.Tab(view.View("left")!, 0, window),
+            DockMouse.Inside(view.View("right")!, 0.5, 0.5, window));
+
+        Assert.Equal("right", DockTree.Holder(view.Root!, "hello:tree")?.Id);
+
+        dock.Reset();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("left", DockTree.Holder(view.Root!, "hello:tree")?.Id);
+        Assert.Equal("right", DockTree.Holder(view.Root!, "friend:tips")?.Id);
+        Assert.Equal(["left", StudioDock.Documents, "right"], Shown(view));
+    }
+
+    /// <summary>Сброшенная раскладка сразу ложится в файл.</summary>
+    /// <remarks>
+    /// Иначе человек сбросил бы раскладку, закрыл студию раньше паузы записи и
+    /// увидел бы наутро ту же кашу, от которой избавлялся.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_reset_layout_reaches_the_file_at_once()
+    {
+        var (dock, _) = Dock(new DockLayoutStore(File));
+
+        dock.Reset();
+
+        Assert.True(System.IO.File.Exists(File));
+    }
+
+    /// <summary>
     /// Раскладка переживает перезапуск студии.
     /// </summary>
     /// <remarks>
@@ -302,6 +441,18 @@ public class StudioDockTests : IDisposable
     /// <summary>Имена групп, которые сейчас на экране, слева направо.</summary>
     private static IReadOnlyList<string> Shown(DockView view) =>
         [.. view.GetVisualDescendants().OfType<DockGroupView>().Select(group => group.Id)];
+
+    /// <summary>Две группы рядом: слева панель одного плагина, справа другого.</summary>
+    private static (StudioDock Dock, DockView View, Window Window) Two()
+    {
+        var (dock, view) = Dock();
+
+        dock.Add("hello", "hello:tree", "left", "Проект", Strings, new Border());
+        dock.Add("friend", "friend:tips", "right", "Советы", Strings, new Border());
+        Dispatcher.UIThread.RunJobs();
+
+        return (dock, view, Assert.IsAssignableFrom<Window>(TopLevel.GetTopLevel(view)));
+    }
 
     private static (StudioDock Dock, DockView View) Dock(DockLayoutStore? store = null)
     {

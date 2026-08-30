@@ -35,6 +35,19 @@
   </Styles.Resources>
 
   <!--
+      Подсветка места, куда встанет брошенная вкладка. Заливка полупрозрачная:
+      человеку надо видеть, что именно накроет панель, — сплошная скрывала бы
+      как раз то, ради чего он смотрит.
+  -->
+  <Style Selector="Border.dock-hint">
+    <Setter Property="Background" Value="{DynamicResource AxAccBrush}"/>
+    <Setter Property="Opacity" Value="0.3"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource AxAccStrongBrush}"/>
+    <Setter Property="BorderThickness" Value="2"/>
+    <Setter Property="CornerRadius" Value="{DynamicResource AxCornerRadius}"/>
+  </Style>
+
+  <!--
       Граница между областями: линия 1px, хит-зона 7px поверх соседей. Сетка
       детей не обрезает, поэтому линия остаётся однопиксельной, как в мокапе, а
       взяться за неё мышью всё-таки можно.
