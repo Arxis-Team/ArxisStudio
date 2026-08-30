@@ -21,26 +21,27 @@ namespace ArxisStudio.Docking;
 public sealed record DockResize(IReadOnlyList<int> Path, IReadOnlyList<double> Weights);
 
 /// <summary>
-/// Брошенная вкладка: что тащили, куда и с какой стороны.
+/// Куда встанет вкладка: имя области и сторона.
 /// </summary>
-/// <param name="Item">Имя панели, которую тащили.</param>
-/// <param name="Group">Имя группы, на которую бросили.</param>
+/// <param name="Group">Имя группы, на которую целятся.</param>
 /// <param name="Side">
 /// <see cref="DockSide.Tab"/> — соседней вкладкой в ту же группу; иначе группа
 /// делится, и панель встаёт с этой стороны.
 /// </param>
-public sealed record DockDrop(string Item, string Group, DockSide Side);
+public sealed record DockAim(string Group, DockSide Side);
 
 /// <summary>
-/// Вынесенная за пределы дерева вкладка: что вынесли и куда на экране.
+/// Вкладка в пути или отпущенная: что несут и где сейчас курсор.
 /// </summary>
 /// <param name="Item">Имя панели.</param>
-/// <param name="At">Точка на экране, где её отпустили.</param>
+/// <param name="At">Точка на экране.</param>
 /// <remarks>
-/// Точка в пикселях экрана, а не окна: оторванное окно откроется где-то там же,
-/// а окон к тому времени может быть уже несколько.
+/// Точка в пикселях экрана, а не окна, и в этом всё перетаскивание между
+/// окнами: пока кнопка нажата, движения приходят окну, начавшему тягу, даже
+/// когда курсор давно над чужим. Своё дерево оно разберёт само, а какое из
+/// окон под курсором — знает лишь тот, у кого этих окон несколько.
 /// </remarks>
-public sealed record DockTear(string Item, PixelPoint At);
+public sealed record DockDrag(string Item, PixelPoint At);
 
 /// <summary>
 /// Дерево раскладки на экране.
@@ -144,21 +145,18 @@ public class DockView : Decorator
     /// <summary>Человек потянул границу.</summary>
     public event EventHandler<DockResize>? Resized;
 
-    /// <summary>Человек перетащил вкладку на новое место.</summary>
-    public event EventHandler<DockDrop>? Dropped;
+    /// <summary>Вкладку несут; в поле — она и точка экрана под курсором.</summary>
+    public event EventHandler<DockDrag>? Dragging;
+
+    /// <summary>Вкладку отпустили; в поле — она и точка экрана.</summary>
+    /// <remarks>
+    /// Куда она попадёт, вид не решает: он видит одно своё дерево, а окон у
+    /// студии несколько, и брошенная мимо всех — это отрыв в новое окно.
+    /// </remarks>
+    public event EventHandler<DockDrag>? Dropped;
 
     /// <summary>Человек попросил закрыть панель; в поле — её имя.</summary>
     public event EventHandler<string>? Closing;
-
-    /// <summary>
-    /// Человек вынес вкладку за пределы дерева.
-    /// </summary>
-    /// <remarks>
-    /// Это не бросок мимо: за пределами дерева ничего нет, и отпустить там
-    /// вкладку человек может только нарочно. Что с ней делать — заводить окно
-    /// или вернуть на место — решает владелец дерева.
-    /// </remarks>
-    public event EventHandler<DockTear>? Torn;
 
     /// <inheritdoc cref="RootProperty"/>
     public DockNode? Root
@@ -202,6 +200,28 @@ public class DockView : Decorator
     /// — оно и не менялось.
     /// </remarks>
     public void Refresh() => Rebuild();
+
+    /// <summary>
+    /// Отнятый захват заканчивает тягу.
+    /// </summary>
+    /// <remarks>
+    /// Захват отнимают чужое окно, Alt+Tab, всплывшее модальное окно. Без этого
+    /// тяга осталась бы взведённой: подсветка висела бы на экране, а следующее
+    /// движение мыши таскало бы вкладку с отпущенной кнопкой.
+    /// <para>
+    /// Проверять, кто именно потерял захват, не нужно: событие направленное и
+    /// приходит только тому, у кого захват и был. Отделять чужую потерю от
+    /// своей было бы охраной от того, чего не бывает.
+    /// </para>
+    /// </remarks>
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+
+        _pressed = null;
+
+        Stop();
+    }
 
     /// <inheritdoc/>
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -249,46 +269,72 @@ public class DockView : Decorator
             e.Pointer.Capture(this);
         }
 
-        if (_dragged is not null)
-            Highlight(Target(point));
+        if (_dragged is { } carried && Screen(point) is { } at)
+            Dragging?.Invoke(this, new DockDrag(carried, at));
     }
 
-    /// <summary>Бросает вкладку туда, где отпустили.</summary>
+    /// <summary>Сообщает, что вкладку отпустили и где.</summary>
     private void OnReleased(object? sender, PointerReleasedEventArgs e)
     {
         var dragged = _dragged;
-        var point = e.GetPosition(this);
-        var target = dragged is null ? null : Target(point);
+        var at = Screen(e.GetPosition(this));
 
         _pressed = null;
-        Stop();
+        _dragged = null;
 
         if (dragged is null)
             return;
 
         e.Pointer.Capture(null);
 
-        if (target is { } place)
-        {
-            Dropped?.Invoke(this, new DockDrop(dragged, place.Group, place.Side));
-            return;
-        }
-
-        // Вне дерева отпускают нарочно: там ничего нет, и промахнуться туда
-        // мимо цели нельзя. Внутри дерева, но мимо области — попадание в
-        // границу между ними, и это как раз промах: вкладка остаётся где была.
-        if (!new Rect(Bounds.Size).Contains(point) && Screen(point) is { } at)
-            Torn?.Invoke(this, new DockTear(dragged, at));
+        if (at is { } where)
+            Dropped?.Invoke(this, new DockDrag(dragged, where));
     }
 
-    /// <summary>Точка в пикселях экрана; null — окна под видом нет.</summary>
+    /// <summary>
+    /// Точка в пикселях экрана; null — вид не на экране.
+    /// </summary>
+    /// <remarks>
+    /// Окно должно быть не просто найдено, а показано: закрытое окно у вида
+    /// ещё числится, но экранных пикселей у него уже нет, и перевод в них
+    /// кончается исключением. Закрываются же окна прямо посреди тяги —
+    /// опустевшее оторванное закрывает себя само.
+    /// </remarks>
     private PixelPoint? Screen(Point point) =>
-        TopLevel.GetTopLevel(this) is { } top && this.TranslatePoint(point, top) is { } local
+        TopLevel.GetTopLevel(this) is { IsVisible: true } top && this.TranslatePoint(point, top) is { } local
             ? top.PointToScreen(local)
             : null;
 
+    /// <summary>Точка экрана в координатах этого вида; null — вид не на экране.</summary>
+    private Point? Local(PixelPoint at) =>
+        TopLevel.GetTopLevel(this) is { IsVisible: true } top
+            ? top.TranslatePoint(top.PointToClient(at), this)
+            : null;
+
+    /// <summary>
+    /// Куда попадёт вкладка, брошенная в эту точку экрана; null — мимо этого дерева.
+    /// </summary>
+    /// <param name="at">Точка на экране.</param>
+    /// <remarks>
+    /// Спрашивают об этом каждое дерево по очереди — и то, в котором тягу
+    /// начали, и деревья остальных окон. Курсор в каждый миг над одним из них,
+    /// поэтому ответ есть не больше чем у одного.
+    /// </remarks>
+    public DockAim? Aim(PixelPoint at) => Local(at) is { } point ? Target(point) : null;
+
+    /// <summary>Показывает, куда встанет вкладка, брошенная в эту точку экрана.</summary>
+    /// <param name="at">Точка на экране.</param>
+    public void Show(PixelPoint at) => Highlight(Aim(at));
+
+    /// <summary>Убирает подсветку этого дерева.</summary>
+    /// <remarks>
+    /// Тяги не касается: пока курсор идёт над чужим окном, подсказки у своего
+    /// нет, а вкладку несёт по-прежнему оно.
+    /// </remarks>
+    public void Clear() => Erase();
+
     /// <summary>Куда попадёт брошенная вкладка; null — мимо всего.</summary>
-    private (string Group, DockSide Side)? Target(Point point)
+    private DockAim? Target(Point point)
     {
         if (Group(point) is not { } group || group.TranslatePoint(default, this) is not { } origin)
             return null;
@@ -298,7 +344,7 @@ public class DockView : Decorator
 
         // Полоса вкладок — это «встань рядом», а не «раздели сверху».
         if (local.Y < group.HeaderHeight)
-            return (group.Id, DockSide.Tab);
+            return new DockAim(group.Id, DockSide.Tab);
 
         var side = local.X < size.Width * Edge ? DockSide.Left
             : local.X > size.Width * (1 - Edge) ? DockSide.Right
@@ -306,12 +352,12 @@ public class DockView : Decorator
             : local.Y > size.Height * (1 - Edge) ? DockSide.Bottom
             : DockSide.Tab;
 
-        return (group.Id, side);
+        return new DockAim(group.Id, side);
     }
 
     /// <summary>Группа под указателем; null — там её нет.</summary>
     private DockGroupView? Group(Point point) =>
-        Bounds.Contains(point + (Vector)Bounds.Position)
+        new Rect(Bounds.Size).Contains(point)
             ? _groups.Values.FirstOrDefault(group => Inside(group, point))
             : null;
 
@@ -321,7 +367,7 @@ public class DockView : Decorator
         && new Rect(origin, group.Bounds.Size).Contains(point);
 
     /// <summary>Показывает, куда встанет вкладка; null — прячет подсказку.</summary>
-    private void Highlight((string Group, DockSide Side)? target)
+    private void Highlight(DockAim? target)
     {
         if (target is not { } place
             || View(place.Group) is not { } group
@@ -357,11 +403,27 @@ public class DockView : Decorator
         _hint.IsVisible = true;
     }
 
-    /// <summary>Убирает подсветку.</summary>
+    /// <summary>Прячет подсветку, не снимая её со слоя.</summary>
     private void Hide()
     {
         if (_hint is not null)
             _hint.IsVisible = false;
+    }
+
+    /// <summary>
+    /// Снимает подсветку со слоя — но тяги не касается.
+    /// </summary>
+    /// <remarks>
+    /// Убрать подсказку и забыть, что вкладку несут, — разные дела, и путать их
+    /// нельзя: пока курсор идёт над чужим окном, у своего подсказки нет, а тяга
+    /// всё ещё его. Смешай их — и тяга обрывалась бы на выходе из окна.
+    /// </remarks>
+    private void Erase()
+    {
+        if (_hint is { Parent: Panel layer })
+            layer.Children.Remove(_hint);
+
+        _hint = null;
     }
 
     /// <summary>Заканчивает тягу и снимает подсветку со слоя.</summary>
@@ -369,10 +431,7 @@ public class DockView : Decorator
     {
         _dragged = null;
 
-        if (_hint is { Parent: Panel layer })
-            layer.Children.Remove(_hint);
-
-        _hint = null;
+        Erase();
     }
 
     /// <summary>Строит экран заново по нынешнему дереву.</summary>

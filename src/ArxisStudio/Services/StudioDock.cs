@@ -139,9 +139,9 @@ public sealed class StudioDock
         };
 
         _view.Resized += (_, resize) => Edit(root => DockTree.Resize(root, resize.Path, resize.Weights));
-        _view.Dropped += (_, drop) => Move(drop);
         _view.Closing += (_, id) => Closing?.Invoke(this, id);
-        _view.Torn += (_, tear) => TearOff(tear);
+
+        Follow(_view);
     }
 
     /// <summary>Человек выбрал вкладку; в поле — имя панели или документа.</summary>
@@ -463,25 +463,27 @@ public sealed class StudioDock
     /// </summary>
     /// <remarks>
     /// Окно встаёт там, где вкладку отпустили, и берёт заголовок у неё же:
-    /// другого имени у окна с одной панелью нет.
+    /// другого имени у окна с одной панелью нет. Уносить можно и из
+    /// оторванного окна — тогда оно опустеет и закроется, а панель поедет
+    /// дальше в новом.
     /// </remarks>
-    private void TearOff(DockTear tear)
+    private void TearOff(DockView source, DockDrag drag)
     {
-        if (Items.Find(tear.Item) is null)
+        if (Items.Find(drag.Item) is null)
             return;
 
-        Edit(root => DockTree.Remove(root, tear.Item, _standing));
+        Edit(source, root => DockTree.Remove(root, drag.Item, Standing(source)));
 
         var window = Float();
 
         window.View.Root = new DockGroup
         {
-            Id = Fresh(_view.Root ?? new DockGroup { Id = "root" }),
-            Items = [tear.Item],
-            Selected = tear.Item,
+            Id = Fresh(),
+            Items = [drag.Item],
+            Selected = drag.Item,
         };
 
-        window.Position = tear.At;
+        window.Position = drag.At;
         Rehang();
     }
 
@@ -501,25 +503,9 @@ public sealed class StudioDock
         window.View.Resized += (_, resize) =>
             Change(window, root => DockTree.Resize(root, resize.Path, resize.Weights));
 
-        window.View.Dropped += (_, drop) => Change(window, root =>
-        {
-            var without = DockTree.Remove(root, drop.Item, Nothing);
-
-            return DockTree.Group(without, drop.Group) is null
-                ? root
-                : DockTree.Insert(without, drop.Group, drop.Side, drop.Item, Fresh(without));
-        });
-
         window.View.Closing += (_, id) => Closing?.Invoke(this, id);
 
-        // Вынесенная из оторванного окна вкладка возвращается в главное: своё
-        // окно у неё уже есть, и заводить второе такое же незачем. Сперва она
-        // уходит отсюда — родитель у контрола один, — и лишь потом встаёт там.
-        window.View.Torn += (_, tear) =>
-        {
-            Change(window, root => DockTree.Remove(root, tear.Item, Nothing));
-            Edit(root => Place(root, tear.Item, Asked(tear.Item)));
-        };
+        Follow(window.View);
 
         window.Closed += (_, _) => Sank(window);
         window.PositionChanged += (_, _) => Note();
@@ -595,6 +581,37 @@ public sealed class StudioDock
         _asked.FirstOrDefault(asked => string.Equals(asked.Id, id, StringComparison.Ordinal)).Where
         ?? new PluginPlacement();
 
+    /// <summary>
+    /// Все деревья студии: сперва оторванных окон, потом главное.
+    /// </summary>
+    /// <remarks>
+    /// Порядок не для красоты. Оторванное окно лежит поверх главного и вполне
+    /// может его закрывать; спроси главное первым — и вкладка, брошенная на
+    /// видимое поверх всего окно, уехала бы в то, что под ним.
+    /// </remarks>
+    private IEnumerable<DockView> Views => _floats.Select(window => window.View).Append(_view);
+
+    /// <summary>Что в этом дереве не сносится, даже опустев.</summary>
+    /// <remarks>
+    /// Область документов есть только в главном окне: там пустое место человек
+    /// видит и узнаёт. В оторванном окне пустая рамка не нужна никому.
+    /// </remarks>
+    private IReadOnlySet<string> Standing(DockView view) =>
+        ReferenceEquals(view, _view) ? _standing : Nothing;
+
+    /// <summary>Правит дерево названного вида — главного или оторванного окна.</summary>
+    private void Edit(DockView view, Func<DockNode, DockNode> change)
+    {
+        if (ReferenceEquals(view, _view))
+        {
+            Edit(change);
+            return;
+        }
+
+        if (_floats.FirstOrDefault(window => ReferenceEquals(window.View, view)) is { } found)
+            Change(found, change);
+    }
+
     /// <summary>Дерево, в котором числится панель; null — нигде.</summary>
     private DockView? Tree(string id)
     {
@@ -661,8 +678,66 @@ public sealed class StudioDock
         ],
     };
 
+    /// <summary>Слушает тягу в этом дереве: вести её и бросать — дело общее.</summary>
+    private void Follow(DockView view)
+    {
+        view.Dragging += (_, drag) => Lead(drag);
+        view.Dropped += (source, drag) => Land((DockView)source!, drag);
+    }
+
     /// <summary>
-    /// Переносит панель туда, куда её бросили.
+    /// Ведёт вкладку: подсвечивает то дерево, над которым сейчас курсор.
+    /// </summary>
+    /// <remarks>
+    /// Спрашивают все деревья, а подсвечивает одно: курсор в каждый миг над
+    /// одним окном. Дерево, начавшее тягу, ничем не выделено — вкладка уже на
+    /// полпути в чужое окно, и подсказка обязана быть там же, где курсор.
+    /// </remarks>
+    private void Lead(DockDrag drag)
+    {
+        // Подсвечивает одно, и то же самое, которое потом и примет вкладку:
+        // окна перекрываются, и под курсором их вполне может быть два.
+        var target = Views.FirstOrDefault(view => view.Aim(drag.At) is not null);
+
+        foreach (var view in Views)
+        {
+            if (ReferenceEquals(view, target))
+                view.Show(drag.At);
+            else
+                view.Clear();
+        }
+    }
+
+    /// <summary>
+    /// Кладёт вкладку туда, где её отпустили.
+    /// </summary>
+    /// <remarks>
+    /// Отпущенная мимо всех деревьев уходит в своё окно: за их пределами
+    /// ничего нет, и отпустить там вкладку человек может только нарочно.
+    /// </remarks>
+    private void Land(DockView source, DockDrag drag)
+    {
+        foreach (var view in Views)
+            view.Clear();
+
+        var landing = Views
+            .Select(view => (View: view, Aim: view.Aim(drag.At)))
+            .FirstOrDefault(found => found.Aim is not null);
+
+        if (landing.Aim is not { } aim)
+        {
+            TearOff(source, drag);
+            return;
+        }
+
+        if (ReferenceEquals(landing.View, source))
+            Rearrange(source, drag.Item, aim);
+        else
+            Hand(source, landing.View, drag.Item, aim);
+    }
+
+    /// <summary>
+    /// Перекладывает вкладку внутри одного дерева.
     /// </summary>
     /// <remarks>
     /// Снять и поставить — две правки, и между ними группа, куда бросали, может
@@ -670,26 +745,50 @@ public sealed class StudioDock
     /// последнюю вкладку. Ставить тогда некуда, и правка отменяется целиком —
     /// иначе панель просто пропала бы с экрана.
     /// </remarks>
-    private void Move(DockDrop drop) => Edit(root =>
+    private void Rearrange(DockView view, string item, DockAim aim) => Edit(view, root =>
     {
-        var without = DockTree.Remove(root, drop.Item, _standing);
+        var without = DockTree.Remove(root, item, Standing(view));
 
-        return DockTree.Group(without, drop.Group) is null
+        return DockTree.Group(without, aim.Group) is null
             ? root
-            : DockTree.Insert(without, drop.Group, drop.Side, drop.Item, Fresh(without));
+            : DockTree.Insert(without, aim.Group, aim.Side, item, Fresh());
     });
+
+    /// <summary>
+    /// Передаёт вкладку из одного дерева в другое.
+    /// </summary>
+    /// <remarks>
+    /// Сперва панель уходит из своего дерева и только потом встаёт в чужое:
+    /// родитель у контрола Avalonia один, и она встала бы на новое место
+    /// исключением, не уйдя со старого. Опустевшее окно при этом закроется —
+    /// и правильно сделает: вкладок в нём больше нет.
+    /// </remarks>
+    private void Hand(DockView from, DockView to, string item, DockAim aim)
+    {
+        Edit(from, root => DockTree.Remove(root, item, Standing(from)));
+        Edit(to, root => DockTree.Insert(root, aim.Group, aim.Side, item, Fresh()));
+
+        Rehang();
+    }
 
     /// <summary>
     /// Имя для новой группы, которого в дереве ещё нет.
     /// </summary>
     /// <remarks>
     /// Имя попадёт в файл раскладки и переживёт перезапуск, поэтому оно должно
-    /// быть своим у каждой группы. Считаем от единицы и берём первое свободное:
-    /// так имена не растут без конца, когда области заводят и сносят по кругу.
+    /// быть своим у каждой группы — и не только в своём окне: вкладки ходят
+    /// между окнами, и совпавшие имена сошлись бы в одном дереве. Считаем от
+    /// единицы и берём первое свободное: так имена не растут без конца, когда
+    /// области заводят и сносят по кругу.
     /// </remarks>
-    private static string Fresh(DockNode root)
+    private string Fresh()
     {
-        var taken = root.Groups().Select(group => group.Id).ToHashSet(StringComparer.Ordinal);
+        var taken = Views
+            .Select(view => view.Root)
+            .OfType<DockNode>()
+            .SelectMany(root => root.Groups())
+            .Select(group => group.Id)
+            .ToHashSet(StringComparer.Ordinal);
 
         for (var number = 1; ; number++)
         {

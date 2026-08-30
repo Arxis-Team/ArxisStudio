@@ -5,7 +5,10 @@ using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Services;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
@@ -286,15 +289,35 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
-    /// Опустевшее окно закрывается само — и панель снова дома.
+    /// Вкладка переезжает в оторванное окно, если её отпустили над ним.
     /// </summary>
     /// <remarks>
-    /// Вкладку из оторванного окна выносят обратно в главное: своё окно у неё
-    /// уже есть, и заводить второе такое же незачем. Пустая рамка после этого
-    /// не нужна никому.
+    /// Пока кнопка нажата, движения приходят окну, начавшему тягу, даже когда
+    /// курсор давно над чужим. Оно и сообщает точку экрана — а какое окно под
+    /// ней, знает раскладка: окон у неё несколько, у вида оно одно.
     /// </remarks>
     [AvaloniaFact]
-    public void An_emptied_torn_window_closes_itself()
+    public void A_tab_released_over_a_torn_window_moves_into_it()
+    {
+        var (dock, view, window) = Two();
+
+        Tear(view, window, "left");
+
+        var torn = Assert.Single(dock.Floating);
+        var group = torn.View.Root!.Groups().Single().Id;
+
+        // Оторванное окно легло поверх главного, и точка в нём — точка и в том
+        // и в другом. Спросить обязаны сперва то, что сверху.
+        DockMouse.Drag(window, DockMouse.Tab(view.View("right")!, 0, window), new Point(200, 200));
+
+        Assert.Equal(group, DockTree.Holder(torn.View.Root!, "friend:tips")?.Id);
+        Assert.Null(DockTree.Holder(view.Root!, "friend:tips"));
+        Assert.Equal(2, dock.Items.Count);
+    }
+
+    /// <summary>Вкладка возвращается из оторванного окна в главное тем же путём.</summary>
+    [AvaloniaFact]
+    public void A_tab_released_over_the_main_window_moves_back()
     {
         var (dock, view, window) = Two();
 
@@ -302,11 +325,82 @@ public class StudioDockTests : IDisposable
 
         var torn = Assert.Single(dock.Floating);
 
-        Tear(torn.View, torn, torn.View.Root!.Groups().First().Id);
+        // Ведём из оторванного окна вниз, туда, где под ним только главное.
+        DockMouse.Drag(
+            torn,
+            DockMouse.Tab(torn.View.View(torn.View.Root!.Groups().Single().Id)!, 0, torn),
+            new Point(700, 600));
+
+        Assert.NotNull(DockTree.Holder(view.Root!, "hello:tree"));
+
+        // Опустевшее окно закрылось само.
+        Assert.Empty(dock.Floating);
+    }
+
+    /// <summary>
+    /// Пока вкладку несут, место показывает то окно, над которым курсор.
+    /// </summary>
+    /// <remarks>
+    /// Подсказка обязана быть там же, где курсор: окно, начавшее тягу, к этому
+    /// мигу может быть уже далеко, и подсветка в нём говорила бы неправду.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_window_under_the_cursor_shows_where_the_tab_lands()
+    {
+        var (dock, view, window) = Two();
+
+        Tear(view, window, "left");
+
+        var torn = Assert.Single(dock.Floating);
+        var from = DockMouse.Tab(view.View("right")!, 0, window);
+        var to = new Point(200, 200);
+
+        window.MouseMove(from);
+        window.MouseDown(from, MouseButton.Left);
+        window.MouseMove(to);
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Empty(dock.Floating);
-        Assert.Equal("left", DockTree.Holder(view.Root!, "hello:tree")?.Id);
+        Assert.NotNull(Hint(torn.View));
+        Assert.Null(Hint(view));
+
+        window.MouseUp(to, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(Hint(torn.View));
+        Assert.Null(Hint(view));
+    }
+
+    /// <summary>Подсветка места, куда встанет вкладка; null — её нет.</summary>
+    private static Border? Hint(DockView view) =>
+        OverlayLayer.GetOverlayLayer(view)?.Children
+            .OfType<Border>()
+            .FirstOrDefault(border => border.Classes.Contains("dock-hint"));
+
+    /// <summary>
+    /// Вынесенная из оторванного окна вкладка переносит его, а не пропадает.
+    /// </summary>
+    /// <remarks>
+    /// Отпущенная мимо всех деревьев вкладка всегда получает окно — откуда её
+    /// несли, неважно. Прежнее окно при этом опустело и закрылось: пустая рамка
+    /// не нужна никому.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_tab_carried_out_of_a_torn_window_moves_it()
+    {
+        var (dock, view, window) = Two();
+
+        Tear(view, window, "left");
+
+        var first = Assert.Single(dock.Floating);
+
+        Tear(first.View, first, first.View.Root!.Groups().First().Id);
+        Dispatcher.UIThread.RunJobs();
+
+        var second = Assert.Single(dock.Floating);
+
+        Assert.NotSame(first, second);
+        Assert.Equal("hello:tree", second.View.Root!.Groups().Single().Items.Single());
+        Assert.Null(DockTree.Holder(view.Root!, "hello:tree"));
     }
 
     /// <summary>

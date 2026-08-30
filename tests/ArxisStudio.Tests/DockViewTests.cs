@@ -225,15 +225,17 @@ public class DockViewTests
     {
         var (view, window) = Pair();
 
-        DockDrop? dropped = null;
+        DockDrag? dropped = null;
         view.Dropped += (_, drop) => dropped = drop;
 
-        DockMouse.Drag(window, DockMouse.Tab(view.View("left")!, 0, window), DockMouse.Inside(view.View("right")!, 0.5, 0.5, window));
+        DockMouse.Drag(
+            window,
+            DockMouse.Tab(view.View("left")!, 0, window),
+            DockMouse.Inside(view.View("right")!, 0.5, 0.5, window));
 
         Assert.NotNull(dropped);
         Assert.Equal("solution", dropped.Item);
-        Assert.Equal("right", dropped.Group);
-        Assert.Equal(DockSide.Tab, dropped.Side);
+        Assert.Equal(new DockAim("right", DockSide.Tab), view.Aim(dropped.At));
     }
 
     /// <summary>
@@ -249,7 +251,7 @@ public class DockViewTests
     {
         var (view, window) = Pair();
 
-        DockDrop? dropped = null;
+        DockDrag? dropped = null;
         view.Dropped += (_, drop) => dropped = drop;
 
         DockMouse.Drag(
@@ -257,8 +259,8 @@ public class DockViewTests
             DockMouse.Tab(view.View("left")!, 0, window),
             DockMouse.Tab(view.View("right")!, 0, window));
 
-        Assert.Equal("right", dropped?.Group);
-        Assert.Equal(DockSide.Tab, dropped?.Side);
+        Assert.NotNull(dropped);
+        Assert.Equal(new DockAim("right", DockSide.Tab), view.Aim(dropped.At));
     }
 
     /// <summary>Брошенная у края вкладка просится разделить область.</summary>
@@ -270,13 +272,58 @@ public class DockViewTests
     {
         var (view, window) = Pair();
 
-        DockDrop? dropped = null;
+        DockDrag? dropped = null;
         view.Dropped += (_, drop) => dropped = drop;
 
-        DockMouse.Drag(window, DockMouse.Tab(view.View("left")!, 0, window), DockMouse.Inside(view.View("right")!, x, y, window));
+        DockMouse.Drag(
+            window,
+            DockMouse.Tab(view.View("left")!, 0, window),
+            DockMouse.Inside(view.View("right")!, x, y, window));
 
-        Assert.Equal(side, dropped?.Side);
-        Assert.Equal("right", dropped?.Group);
+        Assert.NotNull(dropped);
+        Assert.Equal(new DockAim("right", side), view.Aim(dropped.At));
+    }
+
+    /// <summary>
+    /// Отнятый захват заканчивает тягу.
+    /// </summary>
+    /// <remarks>
+    /// Захват отнимают чужое окно, Alt+Tab, всплывший модальный диалог. Без
+    /// этого тяга осталась бы взведённой: подсветка висела бы на экране, а
+    /// следующее движение мыши таскало бы вкладку с отпущенной кнопкой.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_taken_capture_ends_the_drag()
+    {
+        var (view, window) = Pair();
+
+        DockDrag? dropped = null;
+        IPointer? pointer = null;
+
+        view.Dropped += (_, drop) => dropped = drop;
+        view.Dragging += (_, drag) => view.Show(drag.At);
+        view.PointerMoved += (_, moved) => pointer = moved.Pointer;
+
+        var from = DockMouse.Tab(view.View("left")!, 0, window);
+        var to = DockMouse.Inside(view.View("right")!, 0.5, 0.5, window);
+
+        window.MouseMove(from);
+        window.MouseDown(from, MouseButton.Left);
+        window.MouseMove(to);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.NotNull(Hint(view));
+        Assert.NotNull(pointer);
+
+        pointer.Capture(window);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(Hint(view));
+
+        window.MouseUp(to, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(dropped);
     }
 
     /// <summary>
@@ -292,7 +339,7 @@ public class DockViewTests
     {
         var (view, window) = Pair();
 
-        DockDrop? dropped = null;
+        DockDrag? dropped = null;
         view.Dropped += (_, drop) => dropped = drop;
 
         var at = DockMouse.Tab(view.View("left")!, 1, window);
@@ -322,6 +369,10 @@ public class DockViewTests
         var from = DockMouse.Tab(view.View("left")!, 0, window);
         var to = DockMouse.Inside(view.View("right")!, 0.5, 0.5, window);
 
+        // Подсветку показывает не вид сам, а тот, кто ведёт тягу: окон у
+        // студии несколько, и подсказка обязана быть там, где курсор.
+        view.Dragging += (_, drag) => view.Show(drag.At);
+
         window.MouseMove(from);
         window.MouseDown(from, MouseButton.Left);
         window.MouseMove(to);
@@ -333,6 +384,7 @@ public class DockViewTests
         Assert.False(hint.IsHitTestVisible);
         Assert.True(hint.Bounds.Width > 0);
 
+        view.Clear();
         window.MouseUp(to, MouseButton.Left);
         Dispatcher.UIThread.RunJobs();
 
