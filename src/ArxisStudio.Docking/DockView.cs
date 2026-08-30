@@ -32,6 +32,17 @@ public sealed record DockResize(IReadOnlyList<int> Path, IReadOnlyList<double> W
 public sealed record DockDrop(string Item, string Group, DockSide Side);
 
 /// <summary>
+/// Вынесенная за пределы дерева вкладка: что вынесли и куда на экране.
+/// </summary>
+/// <param name="Item">Имя панели.</param>
+/// <param name="At">Точка на экране, где её отпустили.</param>
+/// <remarks>
+/// Точка в пикселях экрана, а не окна: оторванное окно откроется где-то там же,
+/// а окон к тому времени может быть уже несколько.
+/// </remarks>
+public sealed record DockTear(string Item, PixelPoint At);
+
+/// <summary>
 /// Дерево раскладки на экране.
 /// </summary>
 /// <remarks>
@@ -139,6 +150,16 @@ public class DockView : Decorator
     /// <summary>Человек попросил закрыть панель; в поле — её имя.</summary>
     public event EventHandler<string>? Closing;
 
+    /// <summary>
+    /// Человек вынес вкладку за пределы дерева.
+    /// </summary>
+    /// <remarks>
+    /// Это не бросок мимо: за пределами дерева ничего нет, и отпустить там
+    /// вкладку человек может только нарочно. Что с ней делать — заводить окно
+    /// или вернуть на место — решает владелец дерева.
+    /// </remarks>
+    public event EventHandler<DockTear>? Torn;
+
     /// <inheritdoc cref="RootProperty"/>
     public DockNode? Root
     {
@@ -236,17 +257,35 @@ public class DockView : Decorator
     private void OnReleased(object? sender, PointerReleasedEventArgs e)
     {
         var dragged = _dragged;
-        var target = dragged is null ? null : Target(e.GetPosition(this));
+        var point = e.GetPosition(this);
+        var target = dragged is null ? null : Target(point);
 
         _pressed = null;
         Stop();
 
-        if (dragged is not null)
-            e.Pointer.Capture(null);
+        if (dragged is null)
+            return;
 
-        if (dragged is not null && target is { } place)
+        e.Pointer.Capture(null);
+
+        if (target is { } place)
+        {
             Dropped?.Invoke(this, new DockDrop(dragged, place.Group, place.Side));
+            return;
+        }
+
+        // Вне дерева отпускают нарочно: там ничего нет, и промахнуться туда
+        // мимо цели нельзя. Внутри дерева, но мимо области — попадание в
+        // границу между ними, и это как раз промах: вкладка остаётся где была.
+        if (!new Rect(Bounds.Size).Contains(point) && Screen(point) is { } at)
+            Torn?.Invoke(this, new DockTear(dragged, at));
     }
+
+    /// <summary>Точка в пикселях экрана; null — окна под видом нет.</summary>
+    private PixelPoint? Screen(Point point) =>
+        TopLevel.GetTopLevel(this) is { } top && this.TranslatePoint(point, top) is { } local
+            ? top.PointToScreen(local)
+            : null;
 
     /// <summary>Куда попадёт брошенная вкладка; null — мимо всего.</summary>
     private (string Group, DockSide Side)? Target(Point point)

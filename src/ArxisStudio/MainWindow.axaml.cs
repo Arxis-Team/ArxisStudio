@@ -113,13 +113,16 @@ public partial class MainWindow : AxWindow
         Dispatcher.UIThread.UnhandledException += OnUnhandled;
         TaskScheduler.UnobservedTaskException += OnUnobserved;
 
+        // Раскладка пишется с задержкой, и до закрытия та просто не доживёт.
+        // Прощаемся до закрытия, а не после: оторванные окна закрываются вместе
+        // с главным и возвращают панели домой — правка, которая, дойдя до
+        // файла, стёрла бы из него сами окна.
+        Closing += (_, _) => _dock.Farewell();
+
         Closed += async (_, _) =>
         {
             Dispatcher.UIThread.UnhandledException -= OnUnhandled;
             TaskScheduler.UnobservedTaskException -= OnUnobserved;
-
-            // Раскладка пишется с задержкой, и до закрытия та просто не доживёт.
-            _dock.Flush();
 
             _plugins?.Dispose();
             await CloseDocumentsAsync();

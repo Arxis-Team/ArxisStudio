@@ -23,6 +23,17 @@ public sealed class StudioDock
     public const string Documents = "documents";
 
     /// <summary>
+    /// В оторванном окне намертво не стоит ничего.
+    /// </summary>
+    /// <remarks>
+    /// Область документов есть только в главном окне: там пустое место человек
+    /// видит и узнаёт. Оторванное окно без вкладок — просто пустая рамка, и
+    /// держать её незачем.
+    /// </remarks>
+    private static readonly IReadOnlySet<string> Nothing =
+        new HashSet<string>(StringComparer.Ordinal);
+
+    /// <summary>
     /// Сколько ждать перед записью раскладки.
     /// </summary>
     /// <remarks>
@@ -68,6 +79,36 @@ public sealed class StudioDock
     /// </remarks>
     private Dictionary<string, DockWorkspace> _saved = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// Оторванные окна.
+    /// </summary>
+    /// <remarks>
+    /// Живые панели у них общие с главным окном, а деревья свои. Имя панели
+    /// лежит ровно в одном дереве: у контрола Avalonia один родитель, и панель,
+    /// числящаяся в двух местах, встала бы во второе исключением.
+    /// </remarks>
+    private readonly List<DockFloat> _floats = [];
+
+    /// <summary>
+    /// Идёт разбор оторванных окон — их закрытие не возвращает панели домой.
+    /// </summary>
+    /// <remarks>
+    /// Человек, закрывший окно, ждёт панель обратно. Смена набора раскладок —
+    /// не закрытие: панели тут же разложит новый набор, и вернуть их сперва
+    /// домой значило бы поставить их дважды.
+    /// </remarks>
+    private bool _sweeping;
+
+    /// <summary>
+    /// Студия попрощалась — раскладка записана и больше не пишется.
+    /// </summary>
+    /// <remarks>
+    /// Оторванные окна закрываются вместе с главным, и каждое из них при этом
+    /// возвращает панели домой — правка, которую нельзя допустить до файла:
+    /// в нём осталась бы раскладка без единого оторванного окна.
+    /// </remarks>
+    private bool _farewell;
+
     private string _active = DockLayout.DefaultName;
     private string _home = Documents;
     private bool _dirty;
@@ -100,6 +141,7 @@ public sealed class StudioDock
         _view.Resized += (_, resize) => Edit(root => DockTree.Resize(root, resize.Path, resize.Weights));
         _view.Dropped += (_, drop) => Move(drop);
         _view.Closing += (_, id) => Closing?.Invoke(this, id);
+        _view.Torn += (_, tear) => TearOff(tear);
     }
 
     /// <summary>Человек выбрал вкладку; в поле — имя панели или документа.</summary>
@@ -113,6 +155,15 @@ public sealed class StudioDock
 
     /// <summary>Живые панели по именам.</summary>
     public DockItems Items { get; } = new();
+
+    /// <summary>
+    /// Оторванные окна — как они есть сейчас.
+    /// </summary>
+    /// <remarks>
+    /// Список читают, а не правят: заводит и закрывает окна сама раскладка,
+    /// иначе имя панели оказалось бы в двух деревьях разом.
+    /// </remarks>
+    public IReadOnlyList<DockFloat> Floating => _floats;
 
     /// <summary>Имя показанного набора раскладки.</summary>
     public string Layout => _active;
@@ -278,13 +329,29 @@ public sealed class StudioDock
     {
         _writer?.Stop();
 
-        if (!_dirty || _store is null || _view.Root is not { } root)
+        if (_farewell || !_dirty || _store is null || _view.Root is not { } root)
             return;
 
         _dirty = false;
 
         if (_store.Save(Snapshot(root)) is { } complaint)
             Complained?.Invoke(this, complaint);
+    }
+
+    /// <summary>
+    /// Записывает раскладку в последний раз: студия закрывается.
+    /// </summary>
+    /// <remarks>
+    /// Зовётся до того, как закроется хоть одно окно. Дальше раскладка не
+    /// пишется вовсе: закрывающиеся оторванные окна вернут панели домой, и эта
+    /// правка, дойдя до файла, стёрла бы из него сами окна.
+    /// </remarks>
+    public void Farewell()
+    {
+        Flush();
+
+        _farewell = true;
+        _writer?.Stop();
     }
 
     /// <summary>Ставит панель плагина в объявленное им место.</summary>
@@ -320,7 +387,18 @@ public sealed class StudioDock
         if (!_asked.Any(asked => string.Equals(asked.Id, id, StringComparison.Ordinal)))
             _asked.Add((id, where));
 
-        Edit(root => DockTree.Holder(root, id) is not null ? root : Place(root, id, where));
+        // Панель, которая в каком-то дереве уже есть, туда и возвращается: её
+        // могли увести в другой угол или в своё окно, а плагин просто
+        // перезагрузили — манифест об этом не спрашивают.
+        if (Tree(id) is { } known)
+        {
+            known.Refresh();
+            Rehang();
+
+            return;
+        }
+
+        Edit(root => Place(root, id, where));
     }
 
     /// <summary>Открывает документ вкладкой в области документов.</summary>
@@ -345,6 +423,9 @@ public sealed class StudioDock
         Items.Remove(id);
         _asked.RemoveAll(asked => string.Equals(asked.Id, id, StringComparison.Ordinal));
         Edit(root => DockTree.Remove(root, id, _standing));
+
+        foreach (var window in _floats.ToList())
+            Change(window, root => DockTree.Remove(root, id, Nothing));
     }
 
     /// <summary>
@@ -358,8 +439,15 @@ public sealed class StudioDock
     /// </remarks>
     public void RemoveOwnedBy(string owner)
     {
-        if (Items.RemoveOwnedBy(owner).Count > 0)
-            _view.Refresh();
+        if (Items.RemoveOwnedBy(owner).Count == 0)
+            return;
+
+        _view.Refresh();
+
+        foreach (var window in _floats)
+            window.View.Refresh();
+
+        Rehang();
     }
 
     /// <summary>Достаёт панель или документ на видное место.</summary>
@@ -368,6 +456,182 @@ public sealed class StudioDock
     {
         Edit(root => DockTree.Select(root, id));
         Chosen?.Invoke(this, id);
+    }
+
+    /// <summary>
+    /// Выносит панель в своё окно.
+    /// </summary>
+    /// <remarks>
+    /// Окно встаёт там, где вкладку отпустили, и берёт заголовок у неё же:
+    /// другого имени у окна с одной панелью нет.
+    /// </remarks>
+    private void TearOff(DockTear tear)
+    {
+        if (Items.Find(tear.Item) is null)
+            return;
+
+        Edit(root => DockTree.Remove(root, tear.Item, _standing));
+
+        var window = Float();
+
+        window.View.Root = new DockGroup
+        {
+            Id = Fresh(_view.Root ?? new DockGroup { Id = "root" }),
+            Items = [tear.Item],
+            Selected = tear.Item,
+        };
+
+        window.Position = tear.At;
+        Rehang();
+    }
+
+    /// <summary>Заводит оторванное окно и подписывается на всё, что в нём делают.</summary>
+    private DockFloat Float()
+    {
+        var window = new DockFloat();
+
+        window.View.Items = Items;
+
+        window.View.Chosen += (_, id) =>
+        {
+            Change(window, root => DockTree.Select(root, id));
+            Chosen?.Invoke(this, id);
+        };
+
+        window.View.Resized += (_, resize) =>
+            Change(window, root => DockTree.Resize(root, resize.Path, resize.Weights));
+
+        window.View.Dropped += (_, drop) => Change(window, root =>
+        {
+            var without = DockTree.Remove(root, drop.Item, Nothing);
+
+            return DockTree.Group(without, drop.Group) is null
+                ? root
+                : DockTree.Insert(without, drop.Group, drop.Side, drop.Item, Fresh(without));
+        });
+
+        window.View.Closing += (_, id) => Closing?.Invoke(this, id);
+
+        // Вынесенная из оторванного окна вкладка возвращается в главное: своё
+        // окно у неё уже есть, и заводить второе такое же незачем. Сперва она
+        // уходит отсюда — родитель у контрола один, — и лишь потом встаёт там.
+        window.View.Torn += (_, tear) =>
+        {
+            Change(window, root => DockTree.Remove(root, tear.Item, Nothing));
+            Edit(root => Place(root, tear.Item, Asked(tear.Item)));
+        };
+
+        window.Closed += (_, _) => Sank(window);
+        window.PositionChanged += (_, _) => Note();
+
+        _floats.Add(window);
+
+        return window;
+    }
+
+    /// <summary>
+    /// Возвращает панели закрытого окна домой.
+    /// </summary>
+    /// <remarks>
+    /// Закрыть окно — не значит выбросить панель: другого пути назад у человека
+    /// пока нет, и панель, пропавшая вместе с окном, выглядела бы потерей.
+    /// </remarks>
+    private void Sank(DockFloat window)
+    {
+        if (_sweeping || !_floats.Remove(window))
+            return;
+
+        var items = window.View.Root?.Groups().SelectMany(group => group.Items).ToList() ?? [];
+
+        // Сперва отпускаем контролы: родитель у контрола один, и панель встала
+        // бы на новое место исключением, не уйдя со старого.
+        window.View.Root = null;
+
+        Edit(root =>
+        {
+            foreach (var id in items)
+                root = Place(root, id, Asked(id));
+
+            return root;
+        });
+    }
+
+    /// <summary>Показывает оторванные окна, в которых есть чему быть, и прячет пустые.</summary>
+    /// <remarks>
+    /// Плагин выключили — его окно опустело, но имя панели в дереве осталось,
+    /// и окно обязано вернуться, когда плагин включат обратно. Пустое окно на
+    /// экране при этом человеку не нужно.
+    /// </remarks>
+    private void Rehang()
+    {
+        var owner = TopLevel.GetTopLevel(_view) as Window;
+
+        foreach (var window in _floats.ToList())
+        {
+            var alive = window.View.Root?.Groups()
+                .SelectMany(group => group.Items)
+                .Any(id => Items.Find(id) is not null) == true;
+
+            if (!alive)
+            {
+                window.Hide();
+                continue;
+            }
+
+            window.Retitle();
+
+            if (window.IsVisible)
+                continue;
+
+            if (owner is { IsVisible: true })
+                window.Show(owner);
+            else
+                window.Show();
+        }
+    }
+
+    /// <summary>Место, о котором панель просила; неизвестная просится вправо.</summary>
+    private PluginPlacement Asked(string id) =>
+        _asked.FirstOrDefault(asked => string.Equals(asked.Id, id, StringComparison.Ordinal)).Where
+        ?? new PluginPlacement();
+
+    /// <summary>Дерево, в котором числится панель; null — нигде.</summary>
+    private DockView? Tree(string id)
+    {
+        if (_view.Root is { } root && DockTree.Holder(root, id) is not null)
+            return _view;
+
+        return _floats
+            .FirstOrDefault(window => window.View.Root is { } tree && DockTree.Holder(tree, id) is not null)
+            ?.View;
+    }
+
+    /// <summary>Правит дерево оторванного окна; опустевшее окно закрывается само.</summary>
+    private void Change(DockFloat window, Func<DockNode, DockNode> change)
+    {
+        if (window.View.Root is not { } root)
+            return;
+
+        var next = change(root);
+
+        if (!ReferenceEquals(next, root))
+            window.View.Root = next;
+
+        window.Retitle();
+        Note();
+
+        // Окно без единой вкладки закрывается: держать пустую рамку незачем, а
+        // имён, которые стоило бы помнить, в нём уже нет.
+        if (next.Groups().All(group => group.Items.Count == 0))
+            window.Close();
+    }
+
+    /// <summary>Помечает раскладку изменившейся и заводит отсчёт до записи.</summary>
+    private void Note()
+    {
+        _dirty = true;
+        _writer?.Stop();
+        _writer?.Start();
     }
 
     /// <summary>
@@ -448,15 +712,44 @@ public sealed class StudioDock
         _standing = new HashSet<string>([_home], StringComparer.Ordinal);
         _view.EmptyGroup = _home;
 
+        // Окна прежнего набора разбираются молча: панели тут же разложит новый,
+        // и вернуть их сперва домой значило бы поставить их дважды.
+        _sweeping = true;
+
+        foreach (var window in _floats.ToList())
+        {
+            window.View.Root = null;
+            window.Close();
+        }
+
+        _floats.Clear();
+        _sweeping = false;
+
         var root = workspace.Root;
+        var floating = new List<DockFloat>();
+
+        foreach (var window in workspace.Floating)
+        {
+            var torn = Float();
+
+            torn.Restore(window);
+            floating.Add(torn);
+        }
 
         foreach (var (id, where) in _asked)
         {
-            if (DockTree.Holder(root, id) is null)
-                root = Place(root, id, where);
+            if (DockTree.Holder(root, id) is not null
+                || floating.Any(window => window.View.Root is { } tree && DockTree.Holder(tree, id) is not null))
+            {
+                continue;
+            }
+
+            root = Place(root, id, where);
         }
 
         _view.Root = root;
+
+        Rehang();
     }
 
     /// <summary>
@@ -510,7 +803,12 @@ public sealed class StudioDock
         Active = _active,
         Layouts = new Dictionary<string, DockWorkspace>(_saved, StringComparer.Ordinal)
         {
-            [_active] = new() { Root = root, DocumentHome = _home },
+            [_active] = new()
+            {
+                Root = root,
+                DocumentHome = _home,
+                Floating = [.. _floats.Select(window => window.Snapshot())],
+            },
         },
     };
 

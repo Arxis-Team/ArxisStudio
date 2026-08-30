@@ -3,6 +3,7 @@ using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Services;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
@@ -210,6 +211,196 @@ public class StudioDockTests : IDisposable
 
         Assert.NotNull(translated);
         Assert.DoesNotContain("%", translated, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Вынесенная за пределы дерева вкладка получает своё окно.
+    /// </summary>
+    /// <remarks>
+    /// За пределами дерева ничего нет, и отпустить там вкладку человек может
+    /// только нарочно. Панель при этом не строится заново — она переезжает
+    /// вместе с именем и сохраняет всё, что помнит о себе сама.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_tab_carried_out_of_the_tree_gets_its_own_window()
+    {
+        var (dock, view, window) = Two();
+
+        Tear(view, window, "left");
+
+        var torn = Assert.Single(dock.Floating);
+
+        Assert.NotNull(DockTree.Holder(torn.View.Root!, "hello:tree"));
+
+        // Имя лежит ровно в одном дереве: у контрола Avalonia один родитель.
+        Assert.Null(DockTree.Holder(view.Root!, "hello:tree"));
+        Assert.Equal("Проект", torn.Title);
+    }
+
+    /// <summary>
+    /// Брошенная на границу вкладка остаётся где была.
+    /// </summary>
+    /// <remarks>
+    /// Граница между областями — это промах, а не вынос: человек целился в
+    /// соседнюю область и не попал. Заводить ему на этом месте окно значило бы
+    /// наказывать за неточность мыши.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_tab_dropped_on_a_border_stays_where_it_was()
+    {
+        var (dock, view, window) = Two();
+
+        var left = view.View("left")!;
+        var splitter = view.GetVisualDescendants().OfType<GridSplitter>().First();
+        var edge = splitter.TranslatePoint(
+            new Point(splitter.Bounds.Width / 2, splitter.Bounds.Height / 2), window);
+
+        Assert.NotNull(edge);
+
+        DockMouse.Drag(window, DockMouse.Tab(left, 0, window), edge.Value);
+
+        Assert.Empty(dock.Floating);
+        Assert.Equal("left", DockTree.Holder(view.Root!, "hello:tree")?.Id);
+    }
+
+    /// <summary>
+    /// Закрытое окно возвращает панель домой.
+    /// </summary>
+    /// <remarks>
+    /// Закрыть окно — не значит выбросить панель: другого пути назад у человека
+    /// пока нет, и панель, пропавшая вместе с окном, выглядела бы потерей.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Closing_a_torn_window_brings_the_panel_home()
+    {
+        var (dock, view, window) = Two();
+
+        Tear(view, window, "left");
+        Assert.Single(dock.Floating);
+
+        dock.Floating[0].Close();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Empty(dock.Floating);
+        Assert.Equal("left", DockTree.Holder(view.Root!, "hello:tree")?.Id);
+    }
+
+    /// <summary>
+    /// Опустевшее окно закрывается само — и панель снова дома.
+    /// </summary>
+    /// <remarks>
+    /// Вкладку из оторванного окна выносят обратно в главное: своё окно у неё
+    /// уже есть, и заводить второе такое же незачем. Пустая рамка после этого
+    /// не нужна никому.
+    /// </remarks>
+    [AvaloniaFact]
+    public void An_emptied_torn_window_closes_itself()
+    {
+        var (dock, view, window) = Two();
+
+        Tear(view, window, "left");
+
+        var torn = Assert.Single(dock.Floating);
+
+        Tear(torn.View, torn, torn.View.Root!.Groups().First().Id);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Empty(dock.Floating);
+        Assert.Equal("left", DockTree.Holder(view.Root!, "hello:tree")?.Id);
+    }
+
+    /// <summary>
+    /// Оторванное окно прячется, пока его плагин выключен, и возвращается с ним.
+    /// </summary>
+    /// <remarks>
+    /// Имя панели в дереве окна остаётся: выключенный плагин обязан вернуться
+    /// туда, где стоял. Пустая рамка на экране при этом человеку не нужна.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_torn_window_waits_out_its_plugin_hidden()
+    {
+        var (dock, view, window) = Two();
+
+        Tear(view, window, "left");
+
+        var torn = Assert.Single(dock.Floating);
+
+        Assert.True(torn.IsVisible);
+
+        dock.RemoveOwnedBy("hello");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(dock.Floating.Count == 1, "имя панели ушло вместе с окном");
+        Assert.False(torn.IsVisible);
+
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(torn.IsVisible);
+        Assert.Null(DockTree.Holder(view.Root!, "hello:tree"));
+    }
+
+    /// <summary>
+    /// Закрытие студии не разбирает оторванные окна.
+    /// </summary>
+    /// <remarks>
+    /// Оторванные окна закрываются вместе с главным, и их закрытие — не то, о
+    /// котором просил человек: разбери их студия, в файл уехала бы раскладка
+    /// без них, и наутро окон не стало бы.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Closing_the_studio_does_not_take_the_torn_windows_apart()
+    {
+        var store = new DockLayoutStore(File);
+        var (dock, view, window) = Two(store);
+
+        Tear(view, window, "left");
+        Assert.Single(dock.Floating);
+
+        // Студия прощается до закрытия окон — там и записывается раскладка.
+        window.Closing += (_, _) => dock.Farewell();
+        window.Close();
+        Dispatcher.UIThread.RunJobs();
+
+        // Панели вернулись домой, но в файл эта правка уже не попадёт.
+        dock.Flush();
+
+        var saved = store.Load(out _);
+
+        Assert.Single(saved!.Current!.Floating);
+        Assert.Equal(
+            "hello:tree",
+            saved.Current.Floating[0].Root.Groups().Single().Items.Single());
+    }
+
+    /// <summary>Оторванные окна переживают перезапуск студии вместе с местом на экране.</summary>
+    [AvaloniaFact]
+    public void A_torn_window_survives_a_restart()
+    {
+        var store = new DockLayoutStore(File);
+        var (first, view, window) = Two(store);
+
+        Tear(view, window, "left");
+        first.Floating[0].Position = new PixelPoint(300, 200);
+        first.Flush();
+
+        var (second, next) = Dock(new DockLayoutStore(File));
+        second.Restore();
+        second.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
+        Dispatcher.UIThread.RunJobs();
+
+        var torn = Assert.Single(second.Floating);
+
+        Assert.Equal("hello:tree", torn.View.Root!.Groups().Single().Items.Single());
+        Assert.Equal(new PixelPoint(300, 200), torn.Position);
+        Assert.Null(DockTree.Holder(next.Root!, "hello:tree"));
+    }
+
+    /// <summary>Уносит первую вкладку названной области за пределы дерева.</summary>
+    private static void Tear(DockView view, Window window, string group)
+    {
+        DockMouse.Drag(window, DockMouse.Tab(view.View(group)!, 0, window), new Point(-80, 60));
+        Dispatcher.UIThread.RunJobs();
     }
 
     /// <summary>
@@ -715,9 +906,9 @@ public class StudioDockTests : IDisposable
         [.. view.GetVisualDescendants().OfType<DockGroupView>().Select(group => group.Id)];
 
     /// <summary>Две группы рядом: слева панель одного плагина, справа другого.</summary>
-    private static (StudioDock Dock, DockView View, Window Window) Two()
+    private static (StudioDock Dock, DockView View, Window Window) Two(DockLayoutStore? store = null)
     {
-        var (dock, view) = Dock();
+        var (dock, view) = Dock(store);
 
         dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
         dock.Add("friend", "friend:tips", At("right"), "Советы", Strings, new Border());
