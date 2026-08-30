@@ -17,8 +17,22 @@ namespace ArxisStudio.Tests;
 /// <c>Localizer</c> один на процесс.
 /// </remarks>
 [Collection(StudioStateCollection.Name)]
-public class StudioDockTests
+public class StudioDockTests : IDisposable
 {
+    private readonly string _directory = Path.Combine(Path.GetTempPath(), $"arxis-dock-{Guid.NewGuid():N}");
+
+    public StudioDockTests() => Directory.CreateDirectory(_directory);
+
+    private string File => Path.Combine(_directory, "layout.json");
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_directory))
+            Directory.Delete(_directory, recursive: true);
+
+        GC.SuppressFinalize(this);
+    }
+
     /// <summary>Панель встаёт в объявленную сторону, вторая — вкладкой рядом.</summary>
     [AvaloniaFact]
     public void A_panel_takes_the_side_it_asked_for()
@@ -196,16 +210,103 @@ public class StudioDockTests
         Assert.DoesNotContain("%", translated, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Раскладка переживает перезапуск студии.
+    /// </summary>
+    /// <remarks>
+    /// И место панели помнится раньше, чем сама панель появится: плагин ещё не
+    /// поднят, экран пуст, но группа за ним числится — и поднятый плагин встаёт
+    /// туда, а не туда, куда просится его манифест.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_layout_survives_a_restart()
+    {
+        var (dock, _) = Dock(new DockLayoutStore(File));
+
+        dock.Add("hello", "hello:tree", "left", "Проект", Strings, new Border());
+        dock.Flush();
+
+        // Студию закрыли и открыли заново: тот же файл, новое окно.
+        var (again, view) = Dock(new DockLayoutStore(File));
+
+        again.Restore();
+
+        var left = DockTree.Group(view.Root!, "left");
+
+        Assert.NotNull(left);
+        Assert.Equal(["hello:tree"], left.Items);
+        Assert.Equal([StudioDock.Documents], Shown(view));
+
+        // Плагин просится вправо — его не спрашивают.
+        again.Add("hello", "hello:tree", "right", "Проект", Strings, new Border());
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(["left", StudioDock.Documents], Shown(view));
+    }
+
+    /// <summary>Нетронутая раскладка в файл не едет.</summary>
+    /// <remarks>
+    /// Иначе первый же запуск студии записывал бы скелет, ничего человеку не
+    /// обещающий, — и потом объяснял бы, почему стандартная раскладка «уже
+    /// сохранена».
+    /// </remarks>
+    [AvaloniaFact]
+    public void An_untouched_layout_is_not_written()
+    {
+        var (dock, _) = Dock(new DockLayoutStore(File));
+
+        dock.Flush();
+
+        Assert.False(System.IO.File.Exists(File));
+    }
+
+    /// <summary>
+    /// Место для документов берётся из файла, а не из имени по умолчанию.
+    /// </summary>
+    /// <remarks>
+    /// Документы не выделены типом — выделен указатель, и хранится он вместе с
+    /// раскладкой. Человек мог увести документы в другую группу, и следующий
+    /// открытый файл обязан появиться там же.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_place_for_documents_comes_from_the_file()
+    {
+        new DockLayoutStore(File).Save(new DockLayout
+        {
+            Active = DockLayout.DefaultName,
+            Layouts = new Dictionary<string, DockWorkspace>(StringComparer.Ordinal)
+            {
+                [DockLayout.DefaultName] = new()
+                {
+                    DocumentHome = "centre",
+                    Root = new DockGroup { Id = "centre" },
+                },
+            },
+        });
+
+        var (dock, view) = Dock(new DockLayoutStore(File));
+
+        dock.Restore();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(["centre"], Shown(view));
+
+        dock.Open("hello", "doc:a.axaml", "a.axaml", new Border());
+
+        Assert.Equal(["doc:a.axaml"], ((DockGroup)view.Root!).Items);
+        Assert.Equal("doc:a.axaml", dock.Showing);
+    }
+
     private static PluginStrings Strings => PluginStrings.Studio;
 
     /// <summary>Имена групп, которые сейчас на экране, слева направо.</summary>
     private static IReadOnlyList<string> Shown(DockView view) =>
         [.. view.GetVisualDescendants().OfType<DockGroupView>().Select(group => group.Id)];
 
-    private static (StudioDock Dock, DockView View) Dock()
+    private static (StudioDock Dock, DockView View) Dock(DockLayoutStore? store = null)
     {
         var view = new DockView();
-        var dock = new StudioDock(view);
+        var dock = new StudioDock(view, store);
 
         new Window { Content = view, Width = 1200, Height = 800 }.Show();
         Dispatcher.UIThread.RunJobs();

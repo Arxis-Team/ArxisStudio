@@ -2,6 +2,7 @@ using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Threading;
 
 namespace ArxisStudio.Services;
 
@@ -17,8 +18,23 @@ namespace ArxisStudio.Services;
 /// </remarks>
 public sealed class StudioDock
 {
-    /// <summary>Имя группы, куда открываются документы.</summary>
+    /// <summary>Имя группы, куда открываются документы по умолчанию.</summary>
     public const string Documents = "documents";
+
+    /// <summary>
+    /// Сколько ждать перед записью раскладки.
+    /// </summary>
+    /// <remarks>
+    /// Правок много и они частые: тянут границу — десятки за секунду, щёлкают по
+    /// вкладкам — каждый щелчок. Писать файл на каждую значит стучать по диску
+    /// весь день; ждать конца сеанса — потерять раскладку при жёстком закрытии.
+    /// Пауза даёт человеку договорить движение и записывает уже итог.
+    /// </remarks>
+    private static readonly TimeSpan Pause = TimeSpan.FromSeconds(2);
+
+    private readonly DockView _view;
+    private readonly DockLayoutStore? _store;
+    private readonly DispatcherTimer? _writer;
 
     /// <summary>
     /// Группы, которые не сносятся, даже опустев.
@@ -28,21 +44,26 @@ public sealed class StudioDock
     /// последней закрытой вкладкой — следующий документ появился бы неизвестно
     /// где, а на её месте было бы пусто без объяснений.
     /// </remarks>
-    private static readonly IReadOnlySet<string> Standing =
-        new HashSet<string>([Documents], StringComparer.Ordinal);
+    private HashSet<string> _standing = new([Documents], StringComparer.Ordinal);
 
-    private readonly DockView _view;
+    private string _home = Documents;
+    private bool _dirty;
 
     /// <summary>Заводит раскладку над видом.</summary>
     /// <param name="view">Вид, который её показывает.</param>
-    public StudioDock(DockView view)
+    /// <param name="store">Куда записывать раскладку; null — никуда.</param>
+    public StudioDock(DockView view, DockLayoutStore? store = null)
     {
         ArgumentNullException.ThrowIfNull(view);
 
         _view = view;
+        _store = store;
         _view.Items = Items;
-        _view.EmptyGroup = Documents;
+        _view.EmptyGroup = _home;
         _view.Root = Skeleton();
+
+        if (store is not null)
+            _writer = new DispatcherTimer(Pause, DispatcherPriority.Background, (_, _) => Flush());
 
         // Выбор вкладки и потянутая граница — это правки дерева, а не состояние
         // контрола: они переживают перезапуск студии. Вид о них только
@@ -59,11 +80,63 @@ public sealed class StudioDock
     /// <summary>Человек выбрал вкладку; в поле — имя панели или документа.</summary>
     public event EventHandler<string>? Chosen;
 
+    /// <summary>Студии есть что сказать человеку о файле раскладки.</summary>
+    public event EventHandler<string>? Complained;
+
     /// <summary>Живые панели по именам.</summary>
     public DockItems Items { get; } = new();
 
     /// <summary>Что выбрано в области документов; null — ничего или не документ.</summary>
-    public string? Showing => _view.Root is { } root ? DockTree.Group(root, Documents)?.Selected : null;
+    public string? Showing => _view.Root is { } root ? DockTree.Group(root, _home)?.Selected : null;
+
+    /// <summary>
+    /// Поднимает сохранённую раскладку, если она есть и читается.
+    /// </summary>
+    /// <remarks>
+    /// Зовётся до того, как встанут панели: иначе они успели бы разойтись по
+    /// стандартным местам, а прочитанное дерево тут же смело бы их оттуда.
+    /// <para>
+    /// Имена панелей из файла не отсеиваются по живым. Плагин мог быть выключен
+    /// или ещё не поднят — а место за ним числится, и он вернётся именно туда.
+    /// </para>
+    /// </remarks>
+    public void Restore()
+    {
+        if (_store is not { } store)
+            return;
+
+        var layout = store.Load(out var complaint);
+
+        if (complaint is not null)
+            Complained?.Invoke(this, complaint);
+
+        if (layout?.Current is not { } workspace)
+            return;
+
+        _home = string.IsNullOrEmpty(workspace.DocumentHome) ? Documents : workspace.DocumentHome;
+        _standing = new HashSet<string>([_home], StringComparer.Ordinal);
+        _view.EmptyGroup = _home;
+        _view.Root = workspace.Root;
+    }
+
+    /// <summary>
+    /// Записывает раскладку, не дожидаясь паузы.
+    /// </summary>
+    /// <remarks>
+    /// Нужно при закрытии окна: отложенная запись до него просто не доживёт.
+    /// </remarks>
+    public void Flush()
+    {
+        _writer?.Stop();
+
+        if (!_dirty || _store is null || _view.Root is not { } root)
+            return;
+
+        _dirty = false;
+
+        if (_store.Save(Snapshot(root)) is { } complaint)
+            Complained?.Invoke(this, complaint);
+    }
 
     /// <summary>Ставит панель плагина в объявленное им место.</summary>
     /// <param name="owner">Чья панель — по нему её потом и снимут.</param>
@@ -119,7 +192,7 @@ public sealed class StudioDock
     public void Remove(string id)
     {
         Items.Remove(id);
-        Edit(root => DockTree.Remove(root, id, Standing));
+        Edit(root => DockTree.Remove(root, id, _standing));
     }
 
     /// <summary>
@@ -180,9 +253,26 @@ public sealed class StudioDock
         _ => DockSide.Right,
     };
 
+    /// <summary>
+    /// Раскладка в том виде, в каком она ложится в файл.
+    /// </summary>
+    /// <remarks>
+    /// Набор пока один — именованные наборы будут отдельным шагом, — но поле
+    /// под них в формате есть с самого начала: дописать его потом значило бы
+    /// поднимать версию файла ради того, что было известно заранее.
+    /// </remarks>
+    private DockLayout Snapshot(DockNode root) => new()
+    {
+        Active = DockLayout.DefaultName,
+        Layouts = new Dictionary<string, DockWorkspace>(StringComparer.Ordinal)
+        {
+            [DockLayout.DefaultName] = new() { Root = root, DocumentHome = _home },
+        },
+    };
+
     /// <summary>От какой группы отмерять место для новой.</summary>
-    private static string Home(DockNode root) =>
-        DockTree.Group(root, Documents)?.Id ?? root.Groups().First().Id;
+    private string Home(DockNode root) =>
+        DockTree.Group(root, _home)?.Id ?? root.Groups().First().Id;
 
     /// <summary>
     /// Правит дерево и показывает, что вышло.
@@ -201,8 +291,17 @@ public sealed class StudioDock
         var next = change(root);
 
         if (ReferenceEquals(next, root))
+        {
             _view.Refresh();
-        else
-            _view.Root = next;
+            return;
+        }
+
+        _view.Root = next;
+        _dirty = true;
+
+        // Отсчёт начинается заново с каждой правкой: пока границу тянут, писать
+        // нечего — итог станет известен, когда её отпустят.
+        _writer?.Stop();
+        _writer?.Start();
     }
 }

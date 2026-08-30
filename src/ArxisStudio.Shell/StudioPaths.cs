@@ -20,6 +20,17 @@ public static class StudioPaths
     /// <summary>Файл со списком недавних проектов.</summary>
     public static string RecentProjectsFile => Path.Combine(UserData, "recent-projects.json");
 
+    /// <summary>
+    /// Файл раскладки доков.
+    /// </summary>
+    /// <remarks>
+    /// Отдельный от настроек, и это не мелочь. Раскладка пишется часто — на
+    /// каждую потянутую границу и смену вкладки, — а тема с языком меняются
+    /// раз в полгода. Держи их в одном файле, и каждый ресайз переписывал бы
+    /// весь: одна неудачная запись уносила бы вместе с раскладкой ещё и язык.
+    /// </remarks>
+    public static string LayoutFile => Path.Combine(UserData, "layout.json");
+
     /// <summary>Каталог установленных плагинов: одна папка на плагин.</summary>
     public static string Plugins => Path.Combine(UserData, "plugins");
 

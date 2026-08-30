@@ -74,8 +74,13 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
-        _dock = new StudioDock(Dock);
+        _dock = new StudioDock(Dock, new DockLayoutStore());
         _dock.Chosen += (_, id) => ShowDocument(id);
+        _dock.Complained += (_, message) => _log.Write(StudioLogLevel.Warning, "Layout", message);
+
+        // Раскладка поднимается до панелей: иначе они успели бы разойтись по
+        // стандартным местам, а прочитанное дерево тут же смело бы их оттуда.
+        _dock.Restore();
 
         // Выбранная вкладка ставится здесь, а не в разметке: заданная там, она
         // поднимает событие ещё во время разбора, когда полей окна нет и в
@@ -113,6 +118,9 @@ public partial class MainWindow : Window
         {
             Dispatcher.UIThread.UnhandledException -= OnUnhandled;
             TaskScheduler.UnobservedTaskException -= OnUnobserved;
+
+            // Раскладка пишется с задержкой, и до закрытия та просто не доживёт.
+            _dock.Flush();
 
             _plugins?.Dispose();
             await CloseDocumentsAsync();
