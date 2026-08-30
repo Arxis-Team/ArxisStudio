@@ -1,0 +1,66 @@
+<!--
+    Стили движка докинга: вид группы вкладок и границы между областями.
+    Подключается приложением после темы:  <dock:DockingStyles/>
+-->
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="ArxisStudio.Docking.DockingStyles"
+        xmlns:dock="using:ArxisStudio.Docking"
+        xmlns:ax="using:ArxisStudio.Controls">
+
+  <Styles.Resources>
+    <ResourceDictionary>
+
+      <!--
+          Группа — обычное окно инструментов, у которого вместо заголовка
+          вкладки. Заголовка нет намеренно: подпись несёт вкладка, и одинокая
+          панель выглядит так же, как соседка в паре, — иначе перетаскивание
+          превращало бы одно устройство в другое прямо под рукой.
+      -->
+      <ControlTheme x:Key="{x:Type dock:DockGroupView}" TargetType="dock:DockGroupView">
+        <Setter Property="Template">
+          <ControlTemplate>
+            <ax:AxToolWindow ShowHeaderSeparator="True">
+              <ax:AxToolWindow.Tabs>
+                <ax:AxTabStrip x:Name="PART_Tabs" Theme="{DynamicResource AxToolWindowTabStrip}"/>
+              </ax:AxToolWindow.Tabs>
+              <ContentControl x:Name="PART_Content"/>
+            </ax:AxToolWindow>
+          </ControlTemplate>
+        </Setter>
+      </ControlTheme>
+
+    </ResourceDictionary>
+  </Styles.Resources>
+
+  <!--
+      Граница между областями: линия 1px, хит-зона 7px поверх соседей. Сетка
+      детей не обрезает, поэтому линия остаётся однопиксельной, как в мокапе, а
+      взяться за неё мышью всё-таки можно.
+  -->
+  <Style Selector="GridSplitter.dock-v">
+    <Setter Property="Width" Value="7"/>
+    <Setter Property="HorizontalAlignment" Value="Center"/>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="Transparent">
+          <Border Width="1" Background="{DynamicResource AxBrdBrush}" HorizontalAlignment="Center"/>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="GridSplitter.dock-h">
+    <Setter Property="Height" Value="7"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="Transparent">
+          <Border Height="1" Background="{DynamicResource AxBrdBrush}" VerticalAlignment="Center"/>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+
+</Styles>

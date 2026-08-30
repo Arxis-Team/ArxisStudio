@@ -1,4 +1,6 @@
-﻿using ArxisStudio.Tests;
+﻿using ArxisStudio.Docking;
+using ArxisStudio.Tests;
+using ArxisStudio.Themes.Arxis;
 using Avalonia;
 using Avalonia.Headless;
 using Avalonia.Themes.Fluent;
@@ -24,6 +26,19 @@ public class TestApp : Application
         .UseSkia()
         .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false });
 
-    /// <inheritdoc/>
-    public override void Initialize() => Styles.Add(new FluentTheme());
+    /// <summary>
+    /// Ставит те же слои стилей, что и студия.
+    /// </summary>
+    /// <remarks>
+    /// Один Fluent тестам мало: у контролов студии тема живёт в ArxisTheme, и
+    /// без неё окно инструментов остаётся без шаблона — а тогда проверка
+    /// «вкладка встала на место» доказывала бы только, что объект создан.
+    /// Стили докинга идут следом ровно там же, где их подключает приложение.
+    /// </remarks>
+    public override void Initialize()
+    {
+        Styles.Add(new FluentTheme());
+        Styles.Add(new ArxisTheme());
+        Styles.Add(new DockingStyles());
+    }
 }

@@ -189,6 +189,97 @@ public class DockTreeTests
         Assert.Equal("properties", ((DockGroup)split.Children[1]).Selected);
     }
 
+    /// <summary>Потянутая граница переставляет доли по пути от корня.</summary>
+    [Fact]
+    public void A_dragged_border_moves_the_shares_along_the_path()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children =
+            [
+                Group("left", "solution"),
+                new DockSplit
+                {
+                    Orientation = DockOrientation.Vertical,
+                    Children = [Group("centre", "form"), Group("bottom", "console")],
+                    Weights = [0.5, 0.5],
+                },
+            ],
+            Weights = [0.5, 0.5],
+        };
+
+        var split = Assert.IsType<DockSplit>(DockTree.Resize(root, [1], [0.8, 0.2]));
+        var inner = Assert.IsType<DockSplit>(split.Children[1]);
+
+        Assert.Equal([0.8, 0.2], inner.Weights);
+
+        // Соседнее деление стоит нетронутым, и это видно по нему самому.
+        Assert.Equal([0.5, 0.5], split.Weights);
+        Assert.Same(root.Children[0], split.Children[0]);
+    }
+
+    /// <summary>
+    /// Доли не по числу детей отвергаются целиком.
+    /// </summary>
+    /// <remarks>
+    /// Такой список означает, что мерили уже не то дерево. Принять его значило
+    /// бы переставить границы, которых человек не трогал; отказ всего лишь не
+    /// двинет ту, что он потянул.
+    /// </remarks>
+    [Theory]
+    [InlineData(new double[] { 1 })]
+    [InlineData(new double[] { 0.3, 0.3, 0.4 })]
+    public void Shares_that_do_not_fit_the_children_are_refused(double[] weights)
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children = [Group("left", "solution"), Group("right", "properties")],
+            Weights = [0.5, 0.5],
+        };
+
+        Assert.Same(root, DockTree.Resize(root, [], weights));
+    }
+
+    /// <summary>Путь в никуда оставляет дерево прежним.</summary>
+    [Fact]
+    public void A_path_to_nowhere_leaves_the_tree_alone()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children = [Group("left", "solution"), Group("right", "properties")],
+            Weights = [0.5, 0.5],
+        };
+
+        Assert.Same(root, DockTree.Resize(root, [7], [0.5, 0.5]));
+        Assert.Same(root, DockTree.Resize(root, [0], [0.5, 0.5]));
+
+        // Группа ничего не делит, и тянуть в ней нечего.
+        var lonely = Group("left", "solution");
+
+        Assert.Same(lonely, DockTree.Resize(lonely, [], [1]));
+    }
+
+    /// <summary>Ребёнку без доли достаётся ровная часть, а не ноль.</summary>
+    [Fact]
+    public void A_child_without_a_share_gets_an_even_one()
+    {
+        var split = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children = [Group("a", "one"), Group("b", "two"), Group("c", "three")],
+            Weights = [0.5],
+        };
+
+        var shares = DockTree.Shares(split);
+
+        Assert.Equal(3, shares.Count);
+        Assert.Equal(1, shares.Sum(), 6);
+        Assert.All(shares, share => Assert.True(share > 0));
+    }
+
     private static DockGroup Group(string id, string item) =>
         new() { Id = id, Items = [item], Selected = item };
 }

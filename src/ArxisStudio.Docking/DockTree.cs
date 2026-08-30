@@ -159,6 +159,7 @@ public static class DockTree
         // (деление свернулось в группу), и по ссылке прежнюю долю уже не найти.
         // Брать же доли по порядку уцелевших нельзя — тогда при уходе среднего
         // ребёнка последний тихо унаследовал бы чужой размер.
+        var shares = Shares(split);
         var kept = split.Children
             .Select((child, at) => (Node: Prune(child), At: at))
             .Where(child => child.Node is not DockGroup { Items.Count: 0 })
@@ -174,9 +175,77 @@ public static class DockTree
         {
             Orientation = split.Orientation,
             Children = [.. kept.Select(child => child.Node)],
-            Weights = DockTree.Normalize(
-                [.. kept.Select(child => child.At < split.Weights.Count ? split.Weights[child.At] : 1d / kept.Count)]),
+            Weights = Normalize([.. kept.Select(child => shares[child.At])]),
         };
+    }
+
+    /// <summary>
+    /// Меняет доли деления, найденного по пути от корня.
+    /// </summary>
+    /// <param name="root">Корень дерева.</param>
+    /// <param name="path">Номера детей сверху вниз; пустой путь — сам корень.</param>
+    /// <param name="weights">Новые доли, по одной на ребёнка.</param>
+    /// <returns>Новое дерево; прежнее, если по пути деления нет.</returns>
+    /// <remarks>
+    /// Долей должно быть ровно столько же, сколько детей, и меньшее число не
+    /// дополняется. Список другой длины означает, что мерили уже не то дерево:
+    /// принять его значило бы молча переставить границы, которых человек не
+    /// трогал, — а оставить прежние доли всего лишь не двинет ту, что он потянул.
+    /// </remarks>
+    public static DockNode Resize(DockNode root, IReadOnlyList<int> path, IReadOnlyList<double> weights)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(weights);
+
+        if (root is not DockSplit split)
+            return root;
+
+        if (path.Count == 0)
+        {
+            return weights.Count == split.Children.Count
+                ? new DockSplit
+                {
+                    Orientation = split.Orientation,
+                    Children = split.Children,
+                    Weights = Normalize(weights),
+                }
+                : root;
+        }
+
+        var at = path[0];
+
+        if (at < 0 || at >= split.Children.Count)
+            return root;
+
+        var child = Resize(split.Children[at], [.. path.Skip(1)], weights);
+
+        return ReferenceEquals(child, split.Children[at])
+            ? root
+            : new DockSplit
+            {
+                Orientation = split.Orientation,
+                Children = [.. split.Children.Select((node, number) => number == at ? child : node)],
+                Weights = split.Weights,
+            };
+    }
+
+    /// <summary>
+    /// Доли деления по числу детей: чего нет — поровну, сумма приводится к единице.
+    /// </summary>
+    /// <param name="split">Деление.</param>
+    /// <remarks>
+    /// Долей может быть меньше, чем детей: файл раскладки правят руками, а
+    /// прежние версии формата могли считать иначе. Оставлять такое дереву
+    /// нельзя — ребёнок без доли встал бы шириной в ноль.
+    /// </remarks>
+    public static IReadOnlyList<double> Shares(DockSplit split)
+    {
+        ArgumentNullException.ThrowIfNull(split);
+
+        return Normalize(
+            [.. Enumerable.Range(0, split.Children.Count)
+                .Select(at => at < split.Weights.Count ? split.Weights[at] : 1d / split.Children.Count)]);
     }
 
     /// <summary>Приводит доли к сумме единица.</summary>
