@@ -44,19 +44,4 @@ public sealed class StudioSettings
     /// здесь и переживает обновления.
     /// </remarks>
     public string Language { get; set; } = Localization.Localizer.FallbackLanguage;
-
-    /// <summary>Показывать сетку на канве дизайнера.</summary>
-    public bool ShowCanvasGrid { get; set; } = true;
-
-    /// <summary>Автосохранение документов.</summary>
-    public bool AutoSave { get; set; } = true;
-
-    /// <summary>Подсказки в дизайнере форм.</summary>
-    public bool DesignerHints { get; set; } = true;
-
-    /// <summary>Открывать последний проект при запуске.</summary>
-    public bool OpenLastProject { get; set; }
-
-    /// <summary>Канал обновлений.</summary>
-    public string UpdateChannel { get; set; } = "Stable";
 }

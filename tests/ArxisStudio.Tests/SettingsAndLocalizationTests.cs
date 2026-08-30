@@ -32,9 +32,6 @@ public class SettingsStoreTests : IDisposable
         Assert.Equal("en", settings.Language);
         Assert.Equal(Localizer.FallbackLanguage, settings.Language);
         Assert.Equal(StudioDensity.Compact, settings.Density);
-        Assert.True(settings.ShowCanvasGrid);
-        Assert.True(settings.AutoSave);
-        Assert.False(settings.OpenLastProject);
     }
 
     [Fact]

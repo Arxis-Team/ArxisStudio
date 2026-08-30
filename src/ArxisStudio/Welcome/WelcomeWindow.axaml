@@ -355,7 +355,13 @@
           </StackPanel>
 
           <!-- ===== Settings ===== -->
-          <StackPanel IsVisible="{Binding IsSettings}" Spacing="0" MaxWidth="640" HorizontalAlignment="Left">
+          <!-- Ширина задана, а не набрана содержимым: строка настройки плагина
+               прижимает поле ввода вправо, и колонка, ужимающаяся по самой
+               узкой из показанных строк, наезжала бы подписью на это поле.
+               Сколько строк показано сейчас — от плагинов, и ширине окна знать
+               об этом незачем. -->
+          <StackPanel IsVisible="{Binding IsSettings}" Spacing="0" Width="640"
+                      HorizontalAlignment="Left" Margin="0,0,0,28">
             <TextBlock Text="{loc:Loc settings.title}" FontSize="{DynamicResource AxFontSizeTitle}" FontWeight="SemiBold"/>
             <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,2,0,0" Text="{loc:Loc settings.subtitle}"/>
 
@@ -405,50 +411,6 @@
               </ItemsControl>
             </ax:AxCard>
 
-            <TextBlock Classes="section" Text="{loc:Loc settings.editor}" Margin="0,22,0,8"/>
-            <ax:AxCard Padding="16,2">
-              <StackPanel>
-                <DockPanel Classes="settings-row">
-                  <ax:AxToggleSwitch DockPanel.Dock="Right" x:Name="GridToggle" Click="OnSettingToggled"/>
-                  <TextBlock Text="{loc:Loc settings.canvasgrid}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
-                </DockPanel>
-                <ax:AxDivider/>
-                <DockPanel Classes="settings-row">
-                  <ax:AxToggleSwitch DockPanel.Dock="Right" x:Name="AutoSaveToggle" Click="OnSettingToggled"/>
-                  <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="{loc:Loc settings.autosave}" FontSize="{DynamicResource AxFontSize}"/>
-                    <TextBlock Classes="dimmer" Text="{loc:Loc settings.autosave.hint}" FontSize="{DynamicResource AxFontSizeSmall}"/>
-                  </StackPanel>
-                </DockPanel>
-                <ax:AxDivider/>
-                <DockPanel Classes="settings-row">
-                  <ax:AxToggleSwitch DockPanel.Dock="Right" x:Name="HintsToggle" Click="OnSettingToggled"/>
-                  <TextBlock Text="{loc:Loc settings.hints}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
-                </DockPanel>
-              </StackPanel>
-            </ax:AxCard>
-
-            <TextBlock Classes="section" Text="{loc:Loc settings.behavior}" Margin="0,22,0,8"/>
-            <ax:AxCard Padding="16,2" Margin="0,0,0,28">
-              <StackPanel>
-                <DockPanel Classes="settings-row">
-                  <ax:AxToggleSwitch DockPanel.Dock="Right" x:Name="OpenLastToggle" Click="OnSettingToggled"/>
-                  <TextBlock Text="{loc:Loc settings.openlast}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
-                </DockPanel>
-                <ax:AxDivider/>
-                <DockPanel Classes="settings-row">
-                  <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8"
-                              Margin="12,0,0,0">
-                    <ax:AxComboBox x:Name="ChannelBox" Width="120" SelectedIndex="0">
-                      <ax:AxComboBoxItem Content="Stable"/>
-                      <ax:AxComboBoxItem Content="Preview"/>
-                    </ax:AxComboBox>
-                    <ax:AxButton Classes="compact" Content="{loc:Loc settings.checkupdates}"/>
-                  </StackPanel>
-                  <TextBlock Text="{loc:Loc settings.channel}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
-                </DockPanel>
-              </StackPanel>
-            </ax:AxCard>
           </StackPanel>
 
         </Panel>

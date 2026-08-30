@@ -457,19 +457,6 @@ public partial class WelcomeWindow : Window
         _model.RefreshPlugins();
     }
 
-    private void OnSettingToggled(object? sender, RoutedEventArgs e)
-    {
-        if (_loadingSettings)
-            return;
-
-        var settings = _model.SettingsStore.Current;
-        settings.ShowCanvasGrid = GridToggle.IsChecked == true;
-        settings.AutoSave = AutoSaveToggle.IsChecked == true;
-        settings.DesignerHints = HintsToggle.IsChecked == true;
-        settings.OpenLastProject = OpenLastToggle.IsChecked == true;
-        _model.SettingsStore.Save();
-    }
-
     private void LoadSettingsIntoControls()
     {
         _loadingSettings = true;
@@ -479,10 +466,6 @@ public partial class WelcomeWindow : Window
 
             ThemeSwitch.SelectedIndex = settings.Theme == StudioTheme.Light ? 1 : 0;
             ShowLanguages();
-            GridToggle.IsChecked = settings.ShowCanvasGrid;
-            AutoSaveToggle.IsChecked = settings.AutoSave;
-            HintsToggle.IsChecked = settings.DesignerHints;
-            OpenLastToggle.IsChecked = settings.OpenLastProject;
         }
         finally
         {
