@@ -263,6 +263,68 @@ public static class DockTree
                 .Select(at => at < split.Weights.Count ? split.Weights[at] : 1d / split.Children.Count)]);
     }
 
+    /// <summary>
+    /// Отдаёт группе долю места у её родителя, остальное соседи делят как делили.
+    /// </summary>
+    /// <param name="root">Корень дерева.</param>
+    /// <param name="groupId">Имя группы.</param>
+    /// <param name="share">Доля от нуля до единицы; вне промежутка — дерево не меняется.</param>
+    /// <returns>Новое дерево; прежнее, если группы нет или доля бессмысленна.</returns>
+    /// <remarks>
+    /// Соседи делят остаток в прежней пропорции, а не поровну: раздвинув одну
+    /// область, человек не просил перекроить все остальные.
+    /// </remarks>
+    public static DockNode Widen(DockNode root, string groupId, double share)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+
+        if (share is not (> 0 and < 1) || root is not DockSplit split)
+            return root;
+
+        var at = -1;
+
+        for (var number = 0; number < split.Children.Count; number++)
+        {
+            if (split.Children[number] is DockGroup group
+                && string.Equals(group.Id, groupId, StringComparison.Ordinal))
+            {
+                at = number;
+                break;
+            }
+        }
+
+        if (at < 0)
+        {
+            return new DockSplit
+            {
+                Orientation = split.Orientation,
+                Children = [.. split.Children.Select(child => Widen(child, groupId, share))],
+                Weights = split.Weights,
+            };
+        }
+
+        if (split.Children.Count < 2)
+            return root;
+
+        var shares = Shares(split).ToList();
+        var others = shares.Where((_, number) => number != at).Sum();
+        var rest = 1 - share;
+
+        for (var number = 0; number < shares.Count; number++)
+        {
+            shares[number] = number == at
+                ? share
+                : others > 0 ? shares[number] / others * rest : rest / (shares.Count - 1);
+        }
+
+        return new DockSplit
+        {
+            Orientation = split.Orientation,
+            Children = split.Children,
+            Weights = Normalize(shares),
+        };
+    }
+
     /// <summary>Приводит доли к сумме единица.</summary>
     /// <param name="weights">Исходные доли.</param>
     /// <returns>Доли, в сумме дающие единицу.</returns>

@@ -19,9 +19,30 @@ public class PluginCatalogTests : IDisposable
           "entry": "bin/Arxis.FigmaImport.dll",
           "contributions": {
             "commands": [ { "id": "figma.import", "title": "Импорт из Figma" } ],
-            "toolWindows": [ { "id": "figma.panel", "title": "Figma", "zone": "right" } ]
+            "toolWindows": [ { "id": "figma.panel", "title": "Figma", "zone": "bottom" } ]
           },
           "activation": [ "onCommand:figma.import" ]
+        }
+        """;
+
+    private const string Placed =
+        """
+        {
+          "id": "arxis.placed",
+          "name": "Placed",
+          "version": "1.0.0",
+          "publisher": "Arxis Labs",
+          "entry": "bin/Arxis.Placed.dll",
+          "contributions": {
+            "toolWindows": [
+              {
+                "id": "placed.panel",
+                "title": "Placed",
+                "placement": { "side": "bottom", "size": 0.3, "near": "arxis.git:git.changes" }
+              },
+              { "id": "placed.silent", "title": "Silent" }
+            ]
+          }
         }
         """;
 
@@ -73,8 +94,35 @@ public class PluginCatalogTests : IDisposable
         var contributions = plugin.Manifest!.Contributions;
 
         Assert.Equal("figma.import", Assert.Single(contributions.Commands).Id);
-        Assert.Equal("right", Assert.Single(contributions.ToolWindows).Zone);
+        // Сторона нарочно не «right»: она же — сторона по умолчанию, и на ней
+        // проверка прошла бы даже с выключенным чтением старого поля.
+        Assert.Equal("bottom", Assert.Single(contributions.ToolWindows).Wanted.Side);
         Assert.Equal("onCommand:figma.import", Assert.Single(plugin.Manifest.Activation));
+    }
+
+    /// <summary>
+    /// Место панели читается из нового поля, а без него — из старого.
+    /// </summary>
+    /// <remarks>
+    /// Старое поле оставлено ради манифестов, написанных до <c>placement</c>:
+    /// <c>zone: "left"</c> и есть <c>placement: { side: "left" }</c>. Панель,
+    /// не сказавшая ни того ни другого, тоже получает место — сторону по
+    /// умолчанию, а не пустую строку, из-за которой её потом ищут по всему окну.
+    /// </remarks>
+    [Fact]
+    public void A_panel_says_where_it_wants_to_stand()
+    {
+        Install("arxis.placed", Placed);
+
+        var panels = Assert.Single(new PluginCatalog(_root).Scan()).Manifest!.Contributions.ToolWindows;
+
+        Assert.Equal("bottom", panels[0].Wanted.Side);
+        Assert.Equal(0.3, panels[0].Wanted.Size);
+        Assert.Equal("arxis.git:git.changes", panels[0].Wanted.Near);
+
+        Assert.Equal("right", panels[1].Wanted.Side);
+        Assert.Equal(0, panels[1].Wanted.Size);
+        Assert.Null(panels[1].Wanted.Near);
     }
 
     /// <summary>

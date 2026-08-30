@@ -125,6 +125,77 @@ public class DockTreeTests
         Assert.Equal(0.5 / 0.7, split.Weights[1], 6);
     }
 
+    /// <summary>
+    /// Область получает долю, о которой просили, а соседи делят остаток как делили.
+    /// </summary>
+    /// <remarks>
+    /// Пропорция соседей сохраняется не из аккуратности: раздвинув одну область,
+    /// человек не просил перекроить все остальные, и уж точно не просил
+    /// уравнять их между собой.
+    /// </remarks>
+    [Fact]
+    public void An_area_takes_the_share_it_asked_for()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children = [Group("a", "one"), Group("b", "two"), Group("c", "three")],
+            Weights = [0.2, 0.6, 0.2],
+        };
+
+        var split = Assert.IsType<DockSplit>(DockTree.Widen(root, "a", 0.5));
+
+        Assert.Equal(0.5, split.Weights[0], 6);
+
+        // Соседи делили остаток как 3 к 1 — так и делят.
+        Assert.Equal(0.375, split.Weights[1], 6);
+        Assert.Equal(0.125, split.Weights[2], 6);
+        Assert.Equal(1, split.Weights.Sum(), 6);
+    }
+
+    /// <summary>Доля вне промежутка и незнакомая область оставляют доли прежними.</summary>
+    [Fact]
+    public void A_meaningless_share_leaves_the_shares_alone()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children = [Group("a", "one"), Group("b", "two")],
+            Weights = [0.3, 0.7],
+        };
+
+        Assert.Same(root, DockTree.Widen(root, "a", 0));
+        Assert.Same(root, DockTree.Widen(root, "a", 1));
+        Assert.Equal([0.3, 0.7], Assert.IsType<DockSplit>(DockTree.Widen(root, "нет.такой", 0.5)).Weights);
+    }
+
+    /// <summary>Доля достаётся области и в глубине дерева.</summary>
+    [Fact]
+    public void A_share_reaches_an_area_deep_in_the_tree()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children =
+            [
+                Group("left", "solution"),
+                new DockSplit
+                {
+                    Orientation = DockOrientation.Vertical,
+                    Children = [Group("documents", "form"), Group("bottom", "console")],
+                    Weights = [0.8, 0.2],
+                },
+            ],
+            Weights = [0.3, 0.7],
+        };
+
+        var split = Assert.IsType<DockSplit>(DockTree.Widen(root, "bottom", 0.5));
+        var inner = Assert.IsType<DockSplit>(split.Children[1]);
+
+        Assert.Equal([0.3, 0.7], split.Weights);
+        Assert.Equal(0.5, inner.Weights[1], 6);
+    }
+
     /// <summary>Доли из ниоткуда делятся поровну, а не роняют раскладку в ноль.</summary>
     [Fact]
     public void Missing_shares_are_split_evenly()

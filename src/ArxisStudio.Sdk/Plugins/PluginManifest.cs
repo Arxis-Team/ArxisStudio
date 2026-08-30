@@ -154,11 +154,87 @@ public sealed record PluginCommand(string Id);
 /// <param name="Command">Идентификатор вызываемой команды.</param>
 public sealed record PluginMenuItem(string Path, string Command);
 
-/// <summary>Панель плагина.</summary>
-/// <param name="Id">Идентификатор панели.</param>
-/// <param name="Title">Заголовок панели.</param>
-/// <param name="Zone">Зона размещения: <c>left</c>, <c>right</c>, <c>bottom</c>.</param>
-public sealed record PluginToolWindow(string Id, string Title, string Zone);
+/// <summary>
+/// Панель плагина.
+/// </summary>
+/// <remarks>
+/// Класс, а не позиционная запись: у записи отсутствующее в JSON поле молча
+/// становится <c>null</c> в свойстве, которое обещало строку, — и падает потом,
+/// далеко от манифеста, где про опечатку уже не догадаешься.
+/// </remarks>
+public sealed class PluginToolWindow
+{
+    /// <summary>Идентификатор панели — уникальный внутри своего плагина.</summary>
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Заголовок панели; ключ вида <c>%panel.main%</c> переводится.</summary>
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Прежнее описание места одним словом.
+    /// </summary>
+    /// <remarks>
+    /// Оставлено ради манифестов, написанных до <see cref="Placement"/>: студия
+    /// умеет его читать, но новые плагины пишут <c>placement</c>. Одно поле
+    /// вместо другого — не потеря: <c>zone: "left"</c> и есть
+    /// <c>placement: { side: "left" }</c>.
+    /// </remarks>
+    public string? Zone { get; set; }
+
+    /// <summary>Где панель просит её поставить; отсутствует — как решит студия.</summary>
+    public PluginPlacement? Placement { get; set; }
+
+    /// <summary>
+    /// Место, о котором панель просит на самом деле.
+    /// </summary>
+    /// <remarks>
+    /// Единственное место, знающее про старое поле: остальная студия видит
+    /// только <see cref="PluginPlacement"/> и про <c>zone</c> не спрашивает.
+    /// </remarks>
+    [JsonIgnore]
+    public PluginPlacement Wanted =>
+        Placement
+        ?? (Zone is { Length: > 0 } zone ? new PluginPlacement { Side = zone } : new PluginPlacement());
+}
+
+/// <summary>
+/// Где панель просит её поставить.
+/// </summary>
+/// <remarks>
+/// Пожелание, а не приказ: место читают, когда панель встречают впервые. Дальше
+/// его помнит раскладка, и человек волен увести панель куда угодно — иначе
+/// каждый запуск затаскивал бы её обратно.
+/// <para>
+/// Порядка вкладок здесь нет намеренно. Внутри одного плагина он и так равен
+/// порядку в манифесте, а между плагинами его решает очередь загрузки — число
+/// в манифесте обещало бы власть, которой у него нет.
+/// </para>
+/// </remarks>
+public sealed class PluginPlacement
+{
+    /// <summary>Сторона от области документов: <c>left</c>, <c>right</c>, <c>top</c>, <c>bottom</c>.</summary>
+    public string Side { get; set; } = "right";
+
+    /// <summary>
+    /// Какую долю окна занять — от 0 до 1; 0 значит «как обычно».
+    /// </summary>
+    /// <remarks>
+    /// Доля, а не пиксели: между запусками меняются монитор и масштаб. Слушают
+    /// её только у первой панели на пустой стороне — у занятой размер уже есть,
+    /// и отбирать его у соседа новичок не вправе.
+    /// </remarks>
+    public double Size { get; set; }
+
+    /// <summary>
+    /// Встать вкладкой рядом с этой панелью; пусто — не важно.
+    /// </summary>
+    /// <remarks>
+    /// Самое точное из пожеланий, поэтому и самое сильное: если названная
+    /// панель на экране, сторона и доля уже не спрашиваются. Имя — полное, с
+    /// плагином впереди: <c>arxis.hello:hello.tree</c>.
+    /// </remarks>
+    public string? Near { get; set; }
+}
 
 /// <summary>
 /// Язык интерфейса, который приносит плагин.

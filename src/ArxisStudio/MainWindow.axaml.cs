@@ -711,7 +711,7 @@ public partial class MainWindow : Window
     {
         var id = Panel(plugin.Id, declared.Id);
 
-        _dock.Add(plugin.Id, id, declared.Zone, declared.Title, plugin.Strings, content);
+        _dock.Add(plugin.Id, id, declared.Wanted, declared.Title, plugin.Strings, content);
 
         _log.Write(StudioLogLevel.Debug, "Plugins",
             $"Панель «{plugin.Strings.Resolve(declared.Title)}» встала в раскладку");

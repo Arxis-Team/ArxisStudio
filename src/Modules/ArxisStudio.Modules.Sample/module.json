@@ -12,7 +12,7 @@
       { "path": "%menu.tools%/%menu.sample%/%menu.sample.about%", "command": "sample.about" }
     ],
     "toolWindows": [
-      { "id": "sample.panel", "title": "%panel.sample%", "zone": "left" }
+      { "id": "sample.panel", "title": "%panel.sample%", "placement": { "side": "left", "size": 0.22 } }
     ]
   },
   "activation": [ "onStartup" ]

@@ -1,5 +1,6 @@
 using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
+using ArxisStudio.Sdk.Plugins;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Threading;
@@ -50,11 +51,12 @@ public sealed class StudioDock
     /// Кто куда просился, по порядку появления.
     /// </summary>
     /// <remarks>
-    /// Нужно одному только сбросу: он собирает раскладку заново и обязан
-    /// разложить панели так же, как при первом запуске. Порядок важен —
-    /// от него зависит, кто с кем окажется вкладками в одной группе.
+    /// Нужно сбросу и переключению наборов: и то и другое обязано разложить
+    /// панели так же, как при первом запуске. Порядок важен — от него зависит,
+    /// кто с кем окажется вкладками в одной группе, и кто кого застанет на
+    /// экране, попросившись «рядом с той панелью».
     /// </remarks>
-    private readonly List<(string Id, string Zone)> _asked = [];
+    private readonly List<(string Id, PluginPlacement Where)> _asked = [];
 
     /// <summary>
     /// Наборы раскладки по именам — кроме показанного.
@@ -257,8 +259,8 @@ public sealed class StudioDock
 
         var root = Skeleton();
 
-        foreach (var (id, zone) in _asked)
-            root = Place(root, id, zone);
+        foreach (var (id, where) in _asked)
+            root = Place(root, id, where);
 
         _view.Root = root;
         _dirty = true;
@@ -288,7 +290,7 @@ public sealed class StudioDock
     /// <summary>Ставит панель плагина в объявленное им место.</summary>
     /// <param name="owner">Чья панель — по нему её потом и снимут.</param>
     /// <param name="id">Имя панели, уникальное на всю студию.</param>
-    /// <param name="zone">Пожелание из манифеста: left, right или bottom.</param>
+    /// <param name="where">Пожелание из манифеста: сторона, доля, соседство.</param>
     /// <param name="title">Заголовок из манифеста; ключ вида <c>%panel.main%</c> переводится.</param>
     /// <param name="strings">Словари плагина, которому принадлежит панель.</param>
     /// <param name="content">Построенное содержимое панели.</param>
@@ -298,9 +300,11 @@ public sealed class StudioDock
     /// в другой угол, или плагин просто перезагрузили — манифест об этом не
     /// спрашивают, иначе каждый подъём затаскивал бы панели обратно.
     /// </remarks>
-    public void Add(string owner, string id, string zone, string title, PluginStrings strings, Control content)
+    public void Add(
+        string owner, string id, PluginPlacement where, string title, PluginStrings strings, Control content)
     {
         ArgumentNullException.ThrowIfNull(strings);
+        ArgumentNullException.ThrowIfNull(where);
 
         var item = new DockItem(id, content);
 
@@ -313,12 +317,10 @@ public sealed class StudioDock
 
         Items.Add(owner, item);
 
-        var group = zone.ToLowerInvariant();
-
         if (!_asked.Any(asked => string.Equals(asked.Id, id, StringComparison.Ordinal)))
-            _asked.Add((id, group));
+            _asked.Add((id, where));
 
-        Edit(root => DockTree.Holder(root, id) is not null ? root : Place(root, id, group));
+        Edit(root => DockTree.Holder(root, id) is not null ? root : Place(root, id, where));
     }
 
     /// <summary>Открывает документ вкладкой в области документов.</summary>
@@ -331,7 +333,7 @@ public sealed class StudioDock
         Items.Add(owner, new DockItem(id, content) { Title = title, CanClose = true });
 
         if (!_asked.Any(asked => string.Equals(asked.Id, id, StringComparison.Ordinal)))
-            _asked.Add((id, Documents));
+            _asked.Add((id, new PluginPlacement { Side = Documents }));
 
         Edit(root => DockTree.Insert(root, Home(root), DockSide.Tab, id, Documents));
     }
@@ -448,25 +450,49 @@ public sealed class StudioDock
 
         var root = workspace.Root;
 
-        foreach (var (id, zone) in _asked)
+        foreach (var (id, where) in _asked)
         {
             if (DockTree.Holder(root, id) is null)
-                root = Place(root, id, zone);
+                root = Place(root, id, where);
         }
 
         _view.Root = root;
     }
 
-    /// <summary>Ставит панель в названную зону, а если такой нет — рядом с документами.</summary>
-    private DockNode Place(DockNode root, string id, string zone) =>
-        DockTree.Group(root, zone) is not null
-            ? DockTree.Insert(root, zone, DockSide.Tab, id, zone)
-            : DockTree.Insert(root, Home(root), Side(zone), id, zone);
+    /// <summary>
+    /// Ставит панель туда, куда она просилась.
+    /// </summary>
+    /// <remarks>
+    /// Соседство сильнее стороны: «встань рядом с деревом решения» — пожелание
+    /// точное, и спрашивать после него про сторону незачем. Названного соседа
+    /// может не быть на экране вовсе — плагин не поставили или выключили, —
+    /// и тогда работает сторона.
+    /// <para>
+    /// Долю слушают только у первой панели на пустой стороне. У занятой размер
+    /// уже есть — его дал сосед или мышь человека, — и отбирать его новичок не
+    /// вправе.
+    /// </para>
+    /// </remarks>
+    private DockNode Place(DockNode root, string id, PluginPlacement where)
+    {
+        if (where.Near is { Length: > 0 } near && DockTree.Holder(root, near) is { } neighbour)
+            return DockTree.Insert(root, neighbour.Id, DockSide.Tab, id, neighbour.Id);
 
-    /// <summary>Сторона по названию зоны; незнакомое слово уводит вправо.</summary>
-    private static DockSide Side(string zone) => zone switch
+        var side = where.Side.ToLowerInvariant();
+
+        if (DockTree.Group(root, side) is not { } waiting)
+            return DockTree.Widen(DockTree.Insert(root, Home(root), Side(side), id, side), side, where.Size);
+
+        var next = DockTree.Insert(root, side, DockSide.Tab, id, side);
+
+        return waiting.Items.Count == 0 ? DockTree.Widen(next, side, where.Size) : next;
+    }
+
+    /// <summary>Сторона по названию; незнакомое слово уводит вправо.</summary>
+    private static DockSide Side(string side) => side switch
     {
         "left" => DockSide.Left,
+        "top" => DockSide.Top,
         "bottom" => DockSide.Bottom,
         _ => DockSide.Right,
     };

@@ -1,6 +1,7 @@
 using ArxisStudio.Controls;
 using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
+using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Services;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
@@ -40,8 +41,8 @@ public class StudioDockTests : IDisposable
     {
         var (dock, view) = Dock();
 
-        dock.Add("hello", "hello:tree", "left", "Проект", Strings, new Border());
-        dock.Add("hello", "hello:outline", "left", "Структура", Strings, new Border());
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
+        dock.Add("hello", "hello:outline", At("left"), "Структура", Strings, new Border());
 
         var left = DockTree.Group(view.Root!, "left");
 
@@ -66,7 +67,7 @@ public class StudioDockTests : IDisposable
 
         Assert.Equal([StudioDock.Documents], Shown(view));
 
-        dock.Add("hello", "hello:tree", "left", "Проект", Strings, new Border());
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
         Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(["left", StudioDock.Documents], Shown(view));
@@ -82,8 +83,8 @@ public class StudioDockTests : IDisposable
     {
         var (dock, view) = Dock();
 
-        dock.Add("hello", "hello:tree", "left", "Проект", Strings, new Border());
-        dock.Add("friend", "friend:tips", "right", "Советы", Strings, new Border());
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
+        dock.Add("friend", "friend:tips", At("right"), "Советы", Strings, new Border());
         Dispatcher.UIThread.RunJobs();
 
         dock.RemoveOwnedBy("hello");
@@ -107,12 +108,12 @@ public class StudioDockTests : IDisposable
     {
         var (dock, view) = Dock();
 
-        dock.Add("hello", "hello:tree", "left", "Проект", Strings, new Border());
-        dock.Add("hello", "hello:outline", "left", "Структура", Strings, new Border());
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
+        dock.Add("hello", "hello:outline", At("left"), "Структура", Strings, new Border());
         dock.RemoveOwnedBy("hello");
 
         // Плагин подняли заново — и он снова просится влево, но его уже не спрашивают.
-        dock.Add("hello", "hello:outline", "right", "Структура", Strings, new Border());
+        dock.Add("hello", "hello:outline", At("right"), "Структура", Strings, new Border());
         Dispatcher.UIThread.RunJobs();
 
         var left = DockTree.Group(view.Root!, "left");
@@ -180,7 +181,7 @@ public class StudioDockTests : IDisposable
     {
         var (dock, view) = Dock();
 
-        dock.Add("hello", "hello:odd", "нигде", "Странная", Strings, new Border());
+        dock.Add("hello", "hello:odd", At("нигде"), "Странная", Strings, new Border());
         Dispatcher.UIThread.RunJobs();
 
         Assert.Equal("нигде", DockTree.Holder(view.Root!, "hello:odd")?.Id);
@@ -200,8 +201,8 @@ public class StudioDockTests : IDisposable
     {
         var (dock, _) = Dock();
 
-        dock.Add("hello", "hello:plain", "left", "Проект", Strings, new Border());
-        dock.Add("hello", "hello:key", "left", "%panel.main%", Strings, new Border());
+        dock.Add("hello", "hello:plain", At("left"), "Проект", Strings, new Border());
+        dock.Add("hello", "hello:key", At("left"), "%panel.main%", Strings, new Border());
 
         Assert.Equal("Проект", dock.Items.Find("hello:plain")?.Title);
 
@@ -209,6 +210,96 @@ public class StudioDockTests : IDisposable
 
         Assert.NotNull(translated);
         Assert.DoesNotContain("%", translated, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Панель встаёт рядом с той, которую назвала.
+    /// </summary>
+    /// <remarks>
+    /// Соседство — пожелание точное, и оно сильнее стороны: раз плагин знает,
+    /// с кем ему стоять, спрашивать его про сторону незачем.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_panel_stands_next_to_the_one_it_named()
+    {
+        var (dock, view) = Dock();
+
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
+        dock.Add(
+            "friend",
+            "friend:tips",
+            new PluginPlacement { Side = "right", Near = "hello:tree" },
+            "Советы",
+            Strings,
+            new Border());
+
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("left", DockTree.Holder(view.Root!, "friend:tips")?.Id);
+    }
+
+    /// <summary>
+    /// Названного соседа может не оказаться — тогда работает сторона.
+    /// </summary>
+    /// <remarks>
+    /// Плагин с соседом могли не поставить или выключить. Пожелание от этого не
+    /// становится ошибкой: панель просто встаёт туда, куда просилась иначе.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_neighbour_who_is_not_there_gives_way_to_the_side()
+    {
+        var (dock, view) = Dock();
+
+        dock.Add(
+            "friend",
+            "friend:tips",
+            new PluginPlacement { Side = "right", Near = "hello:tree" },
+            "Советы",
+            Strings,
+            new Border());
+
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("right", DockTree.Holder(view.Root!, "friend:tips")?.Id);
+    }
+
+    /// <summary>
+    /// Ширину стороне задаёт первая панель на ней, а не каждая следующая.
+    /// </summary>
+    /// <remarks>
+    /// У занятой стороны размер уже есть — его дал сосед или мышь человека, — и
+    /// отбирать его новичок не вправе: иначе последний включённый плагин
+    /// каждый раз перекраивал бы окно под себя.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_first_panel_on_an_empty_side_sets_its_width()
+    {
+        var (dock, view) = Dock();
+
+        dock.Add(
+            "hello",
+            "hello:tree",
+            new PluginPlacement { Side = "left", Size = 0.4 },
+            "Проект",
+            Strings,
+            new Border());
+
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(0.4, Assert.IsType<DockSplit>(view.Root).Weights[0], 6);
+
+        dock.Add(
+            "friend",
+            "friend:tips",
+            new PluginPlacement { Side = "left", Size = 0.9 },
+            "Советы",
+            Strings,
+            new Border());
+
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(0.4, Assert.IsType<DockSplit>(view.Root).Weights[0], 6);
+        Assert.Equal("left", DockTree.Holder(view.Root!, "friend:tips")?.Id);
     }
 
     /// <summary>
@@ -391,7 +482,7 @@ public class StudioDockTests : IDisposable
     {
         var (dock, _) = Dock(new DockLayoutStore(File));
 
-        dock.Add("hello", "hello:tree", "left", "Проект", Strings, new Border());
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
         dock.Flush();
 
         // Студию закрыли и открыли заново: тот же файл, новое окно.
@@ -406,7 +497,7 @@ public class StudioDockTests : IDisposable
         Assert.Equal([StudioDock.Documents], Shown(view));
 
         // Плагин просится вправо — его не спрашивают.
-        again.Add("hello", "hello:tree", "right", "Проект", Strings, new Border());
+        again.Add("hello", "hello:tree", At("right"), "Проект", Strings, new Border());
         Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(["left", StudioDock.Documents], Shown(view));
@@ -542,7 +633,7 @@ public class StudioDockTests : IDisposable
         var (dock, view) = Dock(new DockLayoutStore(File));
 
         dock.SaveAs("отладка");
-        dock.Add("hello", "hello:tree", "left", "Проект", Strings, new Border());
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
         Dispatcher.UIThread.RunJobs();
 
         dock.Switch("default");
@@ -598,7 +689,7 @@ public class StudioDockTests : IDisposable
     {
         var (first, view) = Dock(new DockLayoutStore(File));
 
-        first.Add("hello", "hello:tree", "left", "Проект", Strings, new Border());
+        first.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
         first.SaveAs("отладка");
         first.Flush();
 
@@ -614,6 +705,9 @@ public class StudioDockTests : IDisposable
         Assert.NotNull(view.Root);
     }
 
+    /// <summary>Пожелание «встань с этой стороны» — как его пишет манифест.</summary>
+    private static PluginPlacement At(string side) => new() { Side = side };
+
     private static PluginStrings Strings => PluginStrings.Studio;
 
     /// <summary>Имена групп, которые сейчас на экране, слева направо.</summary>
@@ -625,8 +719,8 @@ public class StudioDockTests : IDisposable
     {
         var (dock, view) = Dock();
 
-        dock.Add("hello", "hello:tree", "left", "Проект", Strings, new Border());
-        dock.Add("friend", "friend:tips", "right", "Советы", Strings, new Border());
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
+        dock.Add("friend", "friend:tips", At("right"), "Советы", Strings, new Border());
         Dispatcher.UIThread.RunJobs();
 
         return (dock, view, Assert.IsAssignableFrom<Window>(TopLevel.GetTopLevel(view)));
