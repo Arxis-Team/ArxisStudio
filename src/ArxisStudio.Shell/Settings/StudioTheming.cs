@@ -12,6 +12,11 @@ namespace ArxisStudio.Shell.Settings;
 /// значение по умолчанию для окон, которые ещё появятся, а уже показанное окно
 /// свой вариант само не перечитывает — без второго шага смена темы видна только
 /// после перезапуска.
+/// <para>
+/// Про системную рамку здесь не знают: окно студии красит её само, когда его
+/// вариант темы меняется. Обходить окна ради неё вторым списком значило бы
+/// заводить второе место, где помнят, что окно вообще есть.
+/// </para>
 /// </remarks>
 public static class StudioTheming
 {
@@ -29,10 +34,7 @@ public static class StudioTheming
         if (app.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             foreach (var window in desktop.Windows)
-            {
                 window.RequestedThemeVariant = variant;
-                StudioWindowChrome.Apply(window, theme);
-            }
         }
     }
 }

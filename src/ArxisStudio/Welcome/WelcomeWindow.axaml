@@ -1,4 +1,4 @@
-﻿<Window xmlns="https://github.com/avaloniaui"
+﻿<ax:AxWindow xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ax="using:ArxisStudio.Controls"
         xmlns:loc="using:ArxisStudio.Shell.Localization"
@@ -9,8 +9,7 @@
         x:DataType="vm:WelcomeViewModel"
         Title="{loc:Loc welcome.title}"
         Width="1100" Height="720"
-        MinWidth="900" MinHeight="600"
-        WindowDecorations="BorderOnly">
+        MinWidth="900" MinHeight="600">
 
   <DockPanel>
 
@@ -419,4 +418,4 @@
     </Grid>
   </DockPanel>
 
-</Window>
+</ax:AxWindow>

@@ -1,4 +1,4 @@
-﻿<Window xmlns="https://github.com/avaloniaui"
+﻿<ax:AxWindow xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ax="using:ArxisStudio.Controls"
         xmlns:shell="using:ArxisStudio.Shell"
@@ -7,8 +7,7 @@
         x:Class="ArxisStudio.MainWindow"
         Title="ArxisStudio"
         Width="1440" Height="900"
-        MinWidth="1360" MinHeight="700"
-        WindowDecorations="BorderOnly">
+        MinWidth="1360" MinHeight="700">
 
   <!--
       Окно — только оболочка: дерево доков, заголовок и запуск. Всё остальное
@@ -105,4 +104,4 @@
     </shell:StudioShell.StatusBar>
 
   </shell:StudioShell>
-</Window>
+</ax:AxWindow>

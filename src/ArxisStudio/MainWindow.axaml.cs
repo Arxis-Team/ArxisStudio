@@ -27,7 +27,7 @@ namespace ArxisStudio;
 /// плагины. Оболочка знает только, что бывают зоны, вкладки и редакторы
 /// документов, — а какие именно, ей сообщают манифесты.
 /// </remarks>
-public partial class MainWindow : Window
+public partial class MainWindow : AxWindow
 {
     /// <summary>
     /// Сборки встроенных модулей — состав студии.
@@ -106,11 +106,6 @@ public partial class MainWindow : Window
 
         // Задачи идут не в потоке интерфейса, а показывать их надо в нём.
         _tasks.Changed += (_, _) => Dispatcher.UIThread.Post(ShowTasks);
-
-        // Системная рамка окна красится отдельно от содержимого: сама она
-        // цвета темы не знает.
-        Opened += (_, _) => StudioWindowChrome.Apply(
-            this, _settings?.Current.Theme ?? StudioTheme.Dark);
 
         // Исключение, пришедшее мимо шва, — из обработчика события плагина, из
         // его же задачи, — иначе доходит до платформы и роняет студию. Виновник

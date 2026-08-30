@@ -19,7 +19,7 @@ namespace ArxisStudio.Welcome;
 /// Открытие проекта закрывает это окно и передаёт путь дальше через
 /// <see cref="ProjectRequested"/> — окно не знает, что со ним будет делать студия.
 /// </summary>
-public partial class WelcomeWindow : Window
+public partial class WelcomeWindow : AxWindow
 {
     private readonly WelcomeViewModel _model;
     private bool _loadingSettings;
@@ -41,7 +41,6 @@ public partial class WelcomeWindow : Window
         InitializeComponent();
         LoadSettingsIntoControls();
 
-        Opened += (_, _) => StudioWindowChrome.Apply(this, settings.Current.Theme);
     }
 
     /// <summary>Пользователь выбрал проект: путь к <c>.sln</c>, <c>.slnx</c> или <c>.csproj</c>.</summary>
