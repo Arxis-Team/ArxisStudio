@@ -1,9 +1,11 @@
 using System.Runtime.CompilerServices;
 using ArxisStudio.Controls;
 using ArxisStudio.Docking;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
@@ -35,6 +37,39 @@ public class DockViewTests
         Assert.Equal(2, Tabs(group).Items.Count);
         Assert.Equal(1, Tabs(group).SelectedIndex);
         Assert.Same(items.Find("structure")?.Content, Content(group));
+        Assert.True(group.HasTabs);
+        Assert.True(Chrome(group).ShowHeader);
+    }
+
+    /// <summary>
+    /// Пустая группа показывает заставку и убирает шапку.
+    /// </summary>
+    /// <remarks>
+    /// Пустой остаётся область документов — её не сносят, пока в ней ничего не
+    /// открыто. Полоса шапки в 38 пикселей, в которой нечего показать, выглядит
+    /// над заставкой недоделкой, а не местом, куда что-то откроется.
+    /// </remarks>
+    [AvaloniaFact]
+    public void An_empty_group_shows_the_placeholder_and_hides_its_header()
+    {
+        var hint = new TextBlock { Text = "здесь открываются документы" };
+        var view = new DockView
+        {
+            Items = new DockItems(),
+            Empty = hint,
+            EmptyGroup = "documents",
+            Root = new DockGroup { Id = "documents" },
+        };
+
+        new Window { Content = view, Width = 600, Height = 400 }.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        var group = view.View("documents");
+
+        Assert.NotNull(group);
+        Assert.False(group.HasTabs);
+        Assert.False(Chrome(group).ShowHeader);
+        Assert.Same(hint, Content(group));
     }
 
     /// <summary>
@@ -116,6 +151,119 @@ public class DockViewTests
         Assert.Equal(0.3, grid.ColumnDefinitions[0].Width.Value, 6);
         Assert.Equal(1, grid.ColumnDefinitions[1].Width.Value);
         Assert.Equal(0.7, grid.ColumnDefinitions[2].Width.Value, 6);
+    }
+
+    /// <summary>
+    /// Отпущенная граница остаётся там, где её оставили.
+    /// </summary>
+    /// <remarks>
+    /// Тянут мышью, а не подставляют доли: между потянутой границей и новым
+    /// деревом лежит вся дорога — сплиттер, событие, правка дерева, перекладка,
+    /// — и обрыв на любом её шаге выглядит одинаково: граница возвращается на
+    /// место, едва её отпустили.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_released_border_stays_where_it_was_left()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children =
+            [
+                new DockGroup { Id = "left", Items = ["solution"], Selected = "solution" },
+                new DockGroup { Id = "right", Items = ["properties"], Selected = "properties" },
+            ],
+            Weights = [0.5, 0.5],
+        };
+
+        var (view, _) = Shown(root, "solution", "properties");
+
+        // Вид о потянутой границе только сообщает: записывает её в дерево тот,
+        // кто деревом владеет. В студии это делает StudioDock.
+        view.Resized += (_, resize) => view.Root = DockTree.Resize(view.Root!, resize.Path, resize.Weights);
+
+        var window = Assert.IsAssignableFrom<Window>(TopLevel.GetTopLevel(view));
+        var splitter = Assert.IsType<Grid>(view.Child).Children.OfType<GridSplitter>().Single();
+
+        var grip = splitter.TranslatePoint(
+            new Point(splitter.Bounds.Width / 2, splitter.Bounds.Height / 2), window);
+
+        Assert.NotNull(grip);
+
+        var grid = Assert.IsType<Grid>(view.Child);
+
+        window.MouseMove(grip.Value);
+        window.MouseDown(grip.Value, MouseButton.Left);
+
+        // Несколько движений, а не одно: тяга — это цепочка, и сплиттер меряет
+        // от места нажатия, а не от последнего шага.
+        for (var step = 1; step <= 4; step++)
+            window.MouseMove(grip.Value.WithX(grip.Value.X + (step * 50)));
+
+        window.MouseUp(grip.Value.WithX(grip.Value.X + 200), MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(grid.ColumnDefinitions[0].Width.Value > grid.ColumnDefinitions[2].Width.Value,
+            $"сетка не поехала: {grid.ColumnDefinitions[0].Width} против {grid.ColumnDefinitions[2].Width}");
+
+        var after = Assert.IsType<DockSplit>(view.Root);
+
+        Assert.Equal(1, after.Weights.Sum(), 6);
+        Assert.True(after.Weights[0] > 0.6, $"левая доля осталась {after.Weights[0]:0.000}");
+    }
+
+    /// <summary>
+    /// Спрятанный сосед сохраняет свою долю, когда границу тянут без него.
+    /// </summary>
+    /// <remarks>
+    /// Панель выключенного плагина места не занимает, но место за ней
+    /// числится. Отдай мы в дерево доли одних лишь видимых — спрятанный
+    /// лишился бы своей, и панель, вернувшись, встала бы шириной в ноль.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_hidden_neighbour_keeps_its_share()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children =
+            [
+                new DockGroup { Id = "left", Items = ["solution"], Selected = "solution" },
+                new DockGroup { Id = "middle", Items = ["gone"], Selected = "gone" },
+                new DockGroup { Id = "right", Items = ["properties"], Selected = "properties" },
+            ],
+            Weights = [0.3, 0.4, 0.3],
+        };
+
+        // Панели «gone» среди живых нет: её плагин выключен.
+        var (view, _) = Shown(root, "solution", "properties");
+
+        view.Resized += (_, resize) => view.Root = DockTree.Resize(view.Root!, resize.Path, resize.Weights);
+
+        Assert.NotNull(view.View("left"));
+        Assert.Null(view.View("middle"));
+
+        var window = Assert.IsAssignableFrom<Window>(TopLevel.GetTopLevel(view));
+        var splitter = Assert.IsType<Grid>(view.Child).Children.OfType<GridSplitter>().Single();
+        var grip = splitter.TranslatePoint(
+            new Point(splitter.Bounds.Width / 2, splitter.Bounds.Height / 2), window);
+
+        Assert.NotNull(grip);
+
+        window.MouseMove(grip.Value);
+        window.MouseDown(grip.Value, MouseButton.Left);
+
+        for (var step = 1; step <= 4; step++)
+            window.MouseMove(grip.Value.WithX(grip.Value.X + (step * 50)));
+
+        window.MouseUp(grip.Value.WithX(grip.Value.X + 200), MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        var after = Assert.IsType<DockSplit>(view.Root);
+
+        Assert.Equal(3, after.Weights.Count);
+        Assert.Equal(0.4, after.Weights[1], 6);
+        Assert.True(after.Weights[0] > 0.3, $"левая доля осталась {after.Weights[0]:0.000}");
     }
 
     /// <summary>
@@ -241,6 +389,10 @@ public class DockViewTests
 
         return (view, items);
     }
+
+    /// <summary>Окно инструментов, в которое одета показанная группа.</summary>
+    private static AxToolWindow Chrome(DockGroupView group) =>
+        group.GetVisualDescendants().OfType<AxToolWindow>().Single();
 
     /// <summary>Полоса вкладок показанной группы.</summary>
     private static AxTabStrip Tabs(DockGroupView group) =>

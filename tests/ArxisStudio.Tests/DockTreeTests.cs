@@ -189,6 +189,86 @@ public class DockTreeTests
         Assert.Equal("properties", ((DockGroup)split.Children[1]).Selected);
     }
 
+    /// <summary>
+    /// Соседу по ряду места не находят заново — его отдаёт тот, кого делили.
+    /// </summary>
+    /// <remarks>
+    /// Три области в ряд — это один узел с тремя детьми, а не пара внутри
+    /// пары: так тянется любая граница, а не только соседняя. И доли соседей
+    /// при этом не трогают: человек делил ту область, на которую смотрел, и
+    /// переставлять границы на другом конце окна ему никто не обещал.
+    /// </remarks>
+    [Theory]
+    [InlineData(DockSide.Left, 1, "fresh")]
+    [InlineData(DockSide.Right, 2, "fresh")]
+    public void A_neighbour_takes_room_from_the_one_it_divided(DockSide side, int at, string expected)
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children = [Group("left", "solution"), Group("centre", "form"), Group("right", "properties")],
+            Weights = [0.2, 0.6, 0.2],
+        };
+
+        var split = Assert.IsType<DockSplit>(DockTree.Insert(root, "centre", side, "console", "fresh"));
+
+        Assert.Equal(4, split.Children.Count);
+        Assert.Equal(expected, ((DockGroup)split.Children[at]).Id);
+
+        // Делили середину — её 0.6 и разошлись пополам, а края остались.
+        Assert.Equal(0.2, split.Weights[0], 6);
+        Assert.Equal(0.2, split.Weights[3], 6);
+        Assert.Equal(0.3, split.Weights[at], 6);
+    }
+
+    /// <summary>Деление поперёк заворачивает группу, а не встаёт рядом.</summary>
+    [Fact]
+    public void A_crosswise_split_wraps_the_group_instead()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children = [Group("left", "solution"), Group("centre", "form")],
+            Weights = [0.3, 0.7],
+        };
+
+        var split = Assert.IsType<DockSplit>(DockTree.Insert(root, "centre", DockSide.Bottom, "console", "fresh"));
+
+        Assert.Equal(2, split.Children.Count);
+
+        var inner = Assert.IsType<DockSplit>(split.Children[1]);
+
+        Assert.Equal(DockOrientation.Vertical, inner.Orientation);
+        Assert.Equal(["centre", "fresh"], inner.Children.Cast<DockGroup>().Select(group => group.Id));
+    }
+
+    /// <summary>
+    /// Названная группа остаётся, даже опустев.
+    /// </summary>
+    /// <remarks>
+    /// Так живёт место, куда открываются документы: исчезни оно вместе с
+    /// последней закрытой вкладкой — следующий документ появился бы неизвестно
+    /// где, а человек искал бы глазами область, которая только что была.
+    /// </remarks>
+    [Fact]
+    public void A_named_group_stays_even_when_empty()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children = [Group("left", "solution"), Group("documents", "form")],
+            Weights = [0.3, 0.7],
+        };
+
+        var split = Assert.IsType<DockSplit>(DockTree.Remove(root, "form", new HashSet<string>(["documents"])));
+
+        Assert.Equal(2, split.Children.Count);
+        Assert.Empty(((DockGroup)split.Children[1]).Items);
+
+        // Без охранной грамоты та же правка группу убирает.
+        Assert.IsType<DockGroup>(DockTree.Remove(root, "form"));
+    }
+
     /// <summary>Потянутая граница переставляет доли по пути от корня.</summary>
     [Fact]
     public void A_dragged_border_moves_the_shares_along_the_path()

@@ -4,8 +4,8 @@ using Avalonia.Styling;
 namespace ArxisStudio.Shell;
 
 /// <summary>
-/// Стили каркаса студии: тема <see cref="StudioShell"/>, сплиттеры зон и
-/// заголовки tool window. Подключаются приложением после ArxisTheme.
+/// Стили каркаса студии: тема <see cref="StudioShell"/> и общие мелочи экранов.
+/// Подключаются приложением после ArxisTheme.
 /// </summary>
 public partial class ShellStyles : Styles
 {

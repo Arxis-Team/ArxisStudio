@@ -35,6 +35,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="../ArxisStudio.Docking/ArxisStudio.Docking.csproj"/>
         <ProjectReference Include="../ArxisStudio.Shell/ArxisStudio.Shell.csproj"/>
         <ProjectReference Include="../Modules/ArxisStudio.Modules.Sample/ArxisStudio.Modules.Sample.csproj"/>
         <ProjectReference Include="../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>

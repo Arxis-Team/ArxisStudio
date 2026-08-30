@@ -4,28 +4,21 @@ using Avalonia.Controls;
 namespace ArxisStudio.Shell;
 
 /// <summary>
-/// Каркас окна студии: верхний тулбар, зоны tool window (левая, правая, нижняя)
-/// со сплиттерами, центральная область (<see cref="ContentControl.Content"/>) и
-/// статус-бар. Раскладка и размеры зон — по дизайн-спецификации студии
-/// (docs/design-spec.md).
+/// Каркас окна студии: верхний тулбар, рабочая область
+/// (<see cref="ContentControl.Content"/>) и статус-бар.
 /// </summary>
+/// <remarks>
+/// Зон здесь больше нет. Пока раскладку определял разработчик студии, три
+/// фиксированных кармана были нормальной ценой; теперь её определяет человек, и
+/// каркас отдаёт всю середину дереву доков, ничего о нём не зная. Размеры
+/// областей отсюда ушли туда же — в дерево, откуда они попадают в файл и
+/// возвращаются при следующем запуске.
+/// </remarks>
 public class StudioShell : ContentControl
 {
     /// <summary>Содержимое верхнего тулбара (42px).</summary>
     public static readonly StyledProperty<object?> TopBarProperty =
         AvaloniaProperty.Register<StudioShell, object?>(nameof(TopBar));
-
-    /// <summary>Содержимое левой зоны (по умолчанию 262px).</summary>
-    public static readonly StyledProperty<object?> LeftPaneProperty =
-        AvaloniaProperty.Register<StudioShell, object?>(nameof(LeftPane));
-
-    /// <summary>Содержимое правой зоны (по умолчанию 302px).</summary>
-    public static readonly StyledProperty<object?> RightPaneProperty =
-        AvaloniaProperty.Register<StudioShell, object?>(nameof(RightPane));
-
-    /// <summary>Содержимое нижней зоны (по умолчанию 212px).</summary>
-    public static readonly StyledProperty<object?> BottomPaneProperty =
-        AvaloniaProperty.Register<StudioShell, object?>(nameof(BottomPane));
 
     /// <summary>Содержимое статус-бара (24px, высота компактного контрола).</summary>
     public static readonly StyledProperty<object?> StatusBarProperty =
@@ -36,27 +29,6 @@ public class StudioShell : ContentControl
     {
         get => GetValue(TopBarProperty);
         set => SetValue(TopBarProperty, value);
-    }
-
-    /// <inheritdoc cref="LeftPaneProperty"/>
-    public object? LeftPane
-    {
-        get => GetValue(LeftPaneProperty);
-        set => SetValue(LeftPaneProperty, value);
-    }
-
-    /// <inheritdoc cref="RightPaneProperty"/>
-    public object? RightPane
-    {
-        get => GetValue(RightPaneProperty);
-        set => SetValue(RightPaneProperty, value);
-    }
-
-    /// <inheritdoc cref="BottomPaneProperty"/>
-    public object? BottomPane
-    {
-        get => GetValue(BottomPaneProperty);
-        set => SetValue(BottomPaneProperty, value);
     }
 
     /// <inheritdoc cref="StatusBarProperty"/>

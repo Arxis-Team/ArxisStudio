@@ -1,5 +1,4 @@
 ﻿using System.Reflection;
-using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
@@ -8,10 +7,8 @@ using ArxisStudio.Shell.Localization;
 using ArxisStudio.Shell.Settings;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using IOPath = System.IO.Path;
@@ -67,14 +64,19 @@ public partial class MainWindow : Window
     private IReadOnlyList<StudioMenuItem> _menu = [];
     private DocumentView? _active;
 
-    // Панели модулей и плагинов: без этого списка снять их со стен нечем, а
-    // перезагрузка плагина только и делает, что снимает старые и ставит новые.
-    private readonly List<MountedPanel> _panels = [];
+    // Раскладка: дерево доков, живые панели в нём и уборка по хозяину.
+    // Перезагрузка плагина только и делает, что снимает старые панели и ставит
+    // новые, — этим списком она и живёт.
+    private readonly StudioDock _dock;
 
     /// <summary>Создаёт окно без проекта — состояние каркаса.</summary>
     public MainWindow()
     {
         InitializeComponent();
+
+        _dock = new StudioDock(Dock);
+        _dock.Chosen += (_, id) => ShowDocument(id);
+
         // Выбранная вкладка ставится здесь, а не в разметке: заданная там, она
         // поднимает событие ещё во время разбора, когда полей окна нет и в
         // помине.
@@ -222,13 +224,6 @@ public partial class MainWindow : Window
         foreach (var waiting in host.Deferred)
             _log.Write(StudioLogLevel.Debug, "Plugins", $"{waiting.DisplayName} ждёт своего события");
 
-        // Вкладок до этого момента не было ни одной. Первая выбирается сама,
-        // едва появившись, — то есть раньше, чем к ней приложили содержимое, и
-        // события о выборе уже не будет: показывать панель приходится здесь.
-        if (BottomTabs.Items.Count > 0)
-            BottomTabs.SelectedIndex = 0;
-
-        ShowBottomPanel();
         ShowMenu();
     }
 
@@ -337,9 +332,14 @@ public partial class MainWindow : Window
     /// <remarks>
     /// Три падения подряд — это не случайность, а сломанный плагин, и звать его
     /// дальше значит показывать человеку одну и ту же ошибку до конца сеанса.
-    /// Вклады снимаются, сборки выгружаются, панели остаются на экране
-    /// заглушками: убирать зону, в которую человек уже привык смотреть, хуже,
-    /// чем сказать в ней, что случилось.
+    /// <para>
+    /// Панели при этом уходят со стен, хотя раньше обещалось оставить вместо них
+    /// заглушки. Обещание было невыполнимым: заглушка панели держит замыкание
+    /// перезапуска, а оно — типы плагина и через них его контекст загрузки.
+    /// Студия выгружала бы плагин только на словах и сама же потом жаловалась,
+    /// что прежняя копия осталась в памяти. О случившемся говорит журнал и
+    /// менеджер плагинов, а не пустая рамка на экране.
+    /// </para>
     /// </remarks>
     private void Disable(PluginFailure failure)
     {
@@ -347,9 +347,13 @@ public partial class MainWindow : Window
             $"{Named(failure.PluginId)}: отключён после {failure.Count} сбоев подряд");
 
         // Через хост, а не Unload напрямую: только он снимет запись со счёта
-        // и разошлёт уборку реестрам. Панели остаются заглушками намеренно —
-        // см. выше.
+        // и разошлёт уборку реестрам.
         _plugins?.Drop(failure.PluginId);
+
+        // Снятие панелей откладываем. Сюда попадают в том числе из прохода
+        // раскладки — барьер панели сообщает о сбое прямо на замере, — а
+        // вынимать контролы из дерева окна во время его же прохода нельзя.
+        Dispatcher.UIThread.Post(() => Unmount(failure.PluginId));
     }
 
     /// <summary>
@@ -363,12 +367,11 @@ public partial class MainWindow : Window
     /// <param name="filePath">Путь к файлу.</param>
     private async Task OpenDocumentAsync(string filePath)
     {
-        var existing = _documents.FindIndex(document =>
-            string.Equals(document.Path, filePath, StringComparison.OrdinalIgnoreCase));
+        var id = Document(filePath);
 
-        if (existing >= 0)
+        if (_documents.Any(document => string.Equals(document.Id, id, StringComparison.Ordinal)))
         {
-            DocumentTabs.SelectedIndex = existing;
+            _dock.Show(id);
             return;
         }
 
@@ -392,40 +395,40 @@ public partial class MainWindow : Window
             return;
         }
 
-        _documents.Add(new OpenDocument(filePath, view, match.PluginId));
-
-        DocumentTabs.Items.Add(new AxTabItem
-        {
-            Content = view.Title,
-            Icon = AxIcons.Window,
-            IconBrush = this.FindResource("AxAccBrush") as IBrush,
-        });
-
-        DocumentTabs.IsVisible = true;
-        DocumentTabs.SelectedIndex = _documents.Count - 1;
+        _documents.Add(new OpenDocument(id, filePath, view, match.PluginId));
+        _dock.Open(match.PluginId, id, view.Title, view.Content);
+        ShowDocument(id);
     }
 
-    private void OnDocumentTabChanged(object? sender, SelectionChangedEventArgs e) => ShowActiveDocument();
+    /// <summary>Имя документа в раскладке.</summary>
+    /// <remarks>
+    /// Путь и есть имя: два документа одного файла студии не нужны, а сравнение
+    /// путей — единственное, чем «этот файл уже открыт» и проверяется.
+    /// </remarks>
+    private static string Document(string filePath) => $"doc:{filePath}";
 
-    private void ShowActiveDocument()
+    /// <summary>
+    /// Показывает выбранный документ, если выбран документ.
+    /// </summary>
+    /// <remarks>
+    /// Выбор приходит на любую вкладку, а не только на документную: щелчок по
+    /// панели внизу документ не меняет и не обязан менять. Поэтому чужое имя
+    /// здесь просто ни к чему не приводит.
+    /// </remarks>
+    private void ShowDocument(string? id)
     {
-        var view = DocumentTabs.SelectedIndex >= 0 && DocumentTabs.SelectedIndex < _documents.Count
-            ? _documents[DocumentTabs.SelectedIndex].View
-            : null;
+        var document = id is null
+            ? null
+            : _documents.FirstOrDefault(open => string.Equals(open.Id, id, StringComparison.Ordinal));
 
-        if (ReferenceEquals(_active, view))
+        if (document is null || ReferenceEquals(_active, document.View))
             return;
 
         _active?.OnDeactivated();
-        _active = view;
+        _active = document.View;
+        _active.OnActivated();
 
-        DocumentHost.Content = view?.Content;
-        CanvasHint.IsVisible = view is null;
-
-        view?.OnActivated();
-
-        if (view is not null)
-            StatusText.Text = _documents[DocumentTabs.SelectedIndex].Path;
+        StatusText.Text = document.Path;
     }
 
     /// <summary>
@@ -624,93 +627,30 @@ public partial class MainWindow : Window
             surface.Reset(content);
     }
 
-    /// <summary>Ставит содержимое панели в зону студии.</summary>
+    /// <summary>Ставит содержимое панели в раскладку студии.</summary>
     /// <param name="plugin">Чья это панель — по нему её потом и снимут.</param>
     /// <param name="declared">Объявление панели из манифеста.</param>
     /// <param name="content">Построенное содержимое панели.</param>
+    /// <remarks>
+    /// Имя панели в раскладке — с именем плагина впереди: манифест обещает
+    /// уникальность только внутри своего плагина, а дерево доков одно на всю
+    /// студию и переживает перезапуск.
+    /// </remarks>
     private void Mount(InstalledPlugin plugin, Sdk.Plugins.PluginToolWindow declared, Control content)
     {
-        var (zone, title, strings) = (declared.Zone, declared.Title, plugin.Strings);
-        var pluginId = plugin.Id;
+        var id = Panel(plugin.Id, declared.Id);
 
-        switch (zone.ToLowerInvariant())
-        {
-            // Внизу заголовок панели несёт вкладка, и своего окна панели не
-            // нужно. Заворачивать её в него «на всякий случай» нельзя: окно
-            // забрало бы себе логического родителя, а оно само никуда не
-            // встало бы — и стили до панели просто не дошли бы.
-            case "bottom":
-                var tab = new AxTabItem { Classes = { "compact" }, IsClosable = false };
+        _dock.Add(plugin.Id, id, declared.Zone, declared.Title, plugin.Strings, content);
 
-                SetTabTitle(tab, title, strings);
-                BottomTabs.Items.Add(tab);
-                BottomPluginHost.Children.Add(content);
-
-                content.IsVisible = false;
-                _panels.Add(new MountedPanel(pluginId, "bottom", content, tab));
-
-                break;
-
-            case "left":
-                Add(pluginId, "left", LeftZone, title, content, strings);
-                break;
-
-            default:
-                Add(pluginId, "right", RightZone, title, content, strings);
-                break;
-        }
-
-        _log.Write(StudioLogLevel.Debug, "Plugins", $"Панель «{strings.Resolve(title)}» встала в зону {zone}");
+        _log.Write(StudioLogLevel.Debug, "Plugins",
+            $"Панель «{plugin.Strings.Resolve(declared.Title)}» встала в раскладку");
     }
 
-    /// <summary>Ставит панель в боковую зону и запоминает, чья она.</summary>
-    private void Add(string pluginId, string zone, Grid grid, string title, Control content, PluginStrings strings)
-    {
-        var window = Window(title, content, strings);
+    /// <summary>Имя панели в раскладке.</summary>
+    private static string Panel(string pluginId, string toolWindowId) => $"{pluginId}:{toolWindowId}";
 
-        _panels.Add(new MountedPanel(pluginId, zone, window, null));
-        Append(grid, window);
-    }
-
-    /// <summary>
-    /// Снимает со стен всё, что поставил плагин.
-    /// </summary>
-    /// <remarks>
-    /// Боковые зоны перекладываются заново, а не правятся по месту: между
-    /// панелями стоят разделители, и вынуть одну панель, не тронув соседний
-    /// разделитель, значит оставить черту, которая ничего не делит.
-    /// </remarks>
-    private void Unmount(string pluginId)
-    {
-        foreach (var panel in _panels.Where(panel => panel.PluginId == pluginId).ToList())
-        {
-            if (panel.Tab is { } tab)
-            {
-                BottomTabs.Items.Remove(tab);
-                BottomPluginHost.Children.Remove(panel.Content);
-            }
-
-            _panels.Remove(panel);
-        }
-
-        Relayout("left", LeftZone);
-        Relayout("right", RightZone);
-
-        if (BottomTabs.Items.Count > 0 && BottomTabs.SelectedIndex < 0)
-            BottomTabs.SelectedIndex = 0;
-
-        ShowBottomPanel();
-    }
-
-    /// <summary>Перекладывает зону из тех панелей, что в ней остались.</summary>
-    private void Relayout(string zone, Grid grid)
-    {
-        grid.Children.Clear();
-        grid.RowDefinitions.Clear();
-
-        foreach (var panel in _panels.Where(panel => panel.Zone == zone))
-            Append(grid, panel.Content);
-    }
+    /// <summary>Снимает со стен всё, что поставил плагин.</summary>
+    private void Unmount(string pluginId) => _dock.RemoveOwnedBy(pluginId);
 
     /// <summary>
     /// Поднимает плагин заново, не перезапуская студию.
@@ -830,93 +770,20 @@ public partial class MainWindow : Window
     {
         foreach (var document in _documents.Where(document => document.PluginId == pluginId).ToList())
         {
-            var index = _documents.IndexOf(document);
-
             if (ReferenceEquals(_active, document.View))
             {
                 _active.OnDeactivated();
                 _active = null;
-                DocumentHost.Content = null;
             }
 
-            _documents.RemoveAt(index);
-            DocumentTabs.Items.RemoveAt(index);
+            _documents.Remove(document);
+            _dock.Remove(document.Id);
 
             await document.View.DisposeAsync();
         }
 
-        DocumentTabs.IsVisible = _documents.Count > 0;
-        ShowActiveDocument();
-    }
-
-    /// <summary>Заворачивает панель в окно инструментов с заголовком.</summary>
-    /// <param name="title">Заголовок из манифеста.</param>
-    /// <param name="content">Содержимое панели.</param>
-    /// <param name="strings">Словари плагина, которому принадлежит панель.</param>
-    private static AxToolWindow Window(string title, Control content, PluginStrings strings)
-    {
-        var window = new AxToolWindow { Content = content };
-
-        SetTitle(window, title, strings);
-        return window;
-    }
-
-    /// <summary>
-    /// Ставит заголовок панели, переводя ключ вида <c>%panel.hierarchy%</c>.
-    /// </summary>
-    /// <remarks>
-    /// Заголовок из манифеста — единственный текст панели, который показывает не
-    /// её автор, а студия, поэтому и переводить его при смене языка — забота
-    /// студии. Текст берётся из словарей самого плагина: ключ вроде
-    /// <c>%panel.main%</c> у каждого свой.
-    /// </remarks>
-    private static void SetTitle(AxToolWindow window, string title, PluginStrings strings)
-    {
-        if (PluginStrings.IsKey(title, out var key))
-            window.Bind(AxToolWindow.TitleProperty, strings.Text(key));
-        else
-            window.Title = title;
-    }
-
-    private static void SetTabTitle(AxTabItem tab, string title, PluginStrings strings)
-    {
-        if (PluginStrings.IsKey(title, out var key))
-            tab.Bind(ContentControl.ContentProperty, strings.Text(key));
-        else
-            tab.Content = title;
-    }
-
-    /// <summary>
-    /// Добавляет панель новой строкой сетки, отделив её от соседей.
-    /// </summary>
-    private static void Append(Grid zone, Control panel)
-    {
-        if (zone.RowDefinitions.Count > 0)
-        {
-            zone.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-
-            var divider = new AxDivider();
-
-            Grid.SetRow(divider, zone.RowDefinitions.Count - 1);
-            zone.Children.Add(divider);
-        }
-
-        zone.RowDefinitions.Add(new RowDefinition(new GridLength(1, GridUnitType.Star)));
-        Grid.SetRow(panel, zone.RowDefinitions.Count - 1);
-        zone.Children.Add(panel);
-    }
-
-    private void OnBottomTabChanged(object? sender, SelectionChangedEventArgs e) => ShowBottomPanel();
-
-    /// <summary>Показывает панель выбранной нижней вкладки, пряча остальные.</summary>
-    private void ShowBottomPanel()
-    {
-        var selected = BottomTabs.SelectedIndex >= 0 && BottomTabs.SelectedIndex < BottomTabs.Items.Count
-            ? BottomTabs.Items[BottomTabs.SelectedIndex] as AxTabItem
-            : null;
-
-        foreach (var panel in _panels.Where(panel => panel.Tab is not null))
-            panel.Content.IsVisible = ReferenceEquals(panel.Tab, selected);
+        // Место закрытого документа занял сосед — его и показываем.
+        ShowDocument(_dock.Showing);
     }
 
     private async Task CloseDocumentsAsync()
@@ -942,17 +809,12 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Открытая вкладка: путь файла и представление от редактора.</summary>
-    /// <param name="Path">Путь к файлу.</param>
-    /// <param name="View">Представление документа.</param>
-    /// <summary>Панель, стоящая в студии.</summary>
-    /// <param name="PluginId">Чья она.</param>
-    /// <param name="Zone">В какой зоне стоит.</param>
-    /// <param name="Content">Что стоит: окно инструментов или само содержимое внизу.</param>
-    /// <param name="Tab">Вкладка нижней зоны; null у боковых панелей.</param>
-    private sealed record MountedPanel(string PluginId, string Zone, Control Content, AxTabItem? Tab);
-
     /// <summary>Открытый документ.</summary>
+    /// <param name="Id">
+    /// Имя документа в раскладке. По имени, а не по номеру: номер разъезжается,
+    /// стоит отсеять хоть одну вкладку, — от этого и умирала прежняя связь
+    /// списка документов с полосой вкладок.
+    /// </param>
     /// <param name="Path">Путь к файлу.</param>
     /// <param name="View">Представление, построенное редактором.</param>
     /// <param name="PluginId">
@@ -960,7 +822,7 @@ public partial class MainWindow : Window
     /// закрыть — иначе останется вкладка, за которой стоит объект из
     /// выгруженного контекста.
     /// </param>
-    private sealed record OpenDocument(string Path, DocumentView View, string PluginId);
+    private sealed record OpenDocument(string Id, string Path, DocumentView View, string PluginId);
 
     /// <summary>Строка состояния как служба для модулей и плагинов.</summary>
     /// <param name="target">Куда писать.</param>

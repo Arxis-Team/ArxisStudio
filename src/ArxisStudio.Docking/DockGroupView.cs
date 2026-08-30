@@ -20,8 +20,21 @@ public class DockGroupView : TemplatedControl
     private readonly List<IDisposable> _bound = [];
     private AxTabStrip? _tabs;
     private ContentControl? _content;
+    /// <summary>
+    /// Есть ли в группе хоть одна вкладка.
+    /// </summary>
+    /// <remarks>
+    /// Шапка пустой группы — это полоса в 38 пикселей, в которой нечего
+    /// показать. Такой остаётся область документов, пока в ней ничего не
+    /// открыто, и пустая рамка над заставкой выглядит недоделкой, а не местом.
+    /// </remarks>
+    public static readonly DirectProperty<DockGroupView, bool> HasTabsProperty =
+        AvaloniaProperty.RegisterDirect<DockGroupView, bool>(nameof(HasTabs), view => view.HasTabs);
+
+    private bool _hasTabs;
     private DockGroup? _group;
     private DockItems? _items;
+    private object? _empty;
     private bool _filling;
 
     /// <summary>Человек выбрал вкладку; в поле — имя панели.</summary>
@@ -35,16 +48,25 @@ public class DockGroupView : TemplatedControl
     /// <summary>Имя показанной группы; пусто — вид ничем не занят.</summary>
     public string Id => _group?.Id ?? string.Empty;
 
+    /// <inheritdoc cref="HasTabsProperty"/>
+    public bool HasTabs
+    {
+        get => _hasTabs;
+        private set => SetAndRaise(HasTabsProperty, ref _hasTabs, value);
+    }
+
     /// <summary>Показывает группу.</summary>
     /// <param name="group">Что показывать.</param>
     /// <param name="items">Где брать живые панели.</param>
-    public void Update(DockGroup group, DockItems items)
+    /// <param name="empty">Что показать, если показывать нечего; может быть null.</param>
+    public void Update(DockGroup group, DockItems items, object? empty = null)
     {
         ArgumentNullException.ThrowIfNull(group);
         ArgumentNullException.ThrowIfNull(items);
 
         _group = group;
         _items = items;
+        _empty = empty;
 
         Fill();
     }
@@ -60,6 +82,7 @@ public class DockGroupView : TemplatedControl
     {
         _group = null;
         _items = null;
+        _empty = null;
 
         Clear();
     }
@@ -117,7 +140,8 @@ public class DockGroupView : TemplatedControl
                 chosen = 0;
 
             _tabs.SelectedIndex = chosen;
-            _content.Content = chosen >= 0 ? _items.Find(_shown[chosen])?.Content : null;
+            _content.Content = chosen >= 0 ? _items.Find(_shown[chosen])?.Content : _empty;
+            HasTabs = _shown.Count > 0;
         }
         finally
         {

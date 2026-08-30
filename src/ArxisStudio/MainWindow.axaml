@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ax="using:ArxisStudio.Controls"
         xmlns:shell="using:ArxisStudio.Shell"
+        xmlns:dock="using:ArxisStudio.Docking"
         xmlns:loc="using:ArxisStudio.Shell.Localization"
         x:Class="ArxisStudio.MainWindow"
         Title="ArxisStudio"
@@ -10,9 +11,12 @@
         WindowDecorations="BorderOnly">
 
   <!--
-      Окно — только оболочка: зоны, вкладки документов, заголовок и запуск.
-      Всё остальное приходит модулями и плагинами через SDK — и дизайнер форм,
-      и панель проекта, и консоль. Разметки ни одного из них здесь нет.
+      Окно — только оболочка: дерево доков, заголовок и запуск. Всё остальное
+      приходит модулями и плагинами через SDK — и дизайнер форм, и панель
+      проекта, и консоль. Разметки ни одного из них здесь нет.
+
+      Раскладку определяет человек, а не эта разметка: где какая панель стоит и
+      какой она ширины, знает дерево доков, а оно приходит из файла раскладки.
   -->
   <shell:StudioShell>
 
@@ -49,51 +53,20 @@
       </ax:AxTitleBar>
     </shell:StudioShell.TopBar>
 
-    <!-- Левая зона: сюда встают панели модулей и плагинов. -->
-    <shell:StudioShell.LeftPane>
-      <Grid x:Name="LeftZone"/>
-    </shell:StudioShell.LeftPane>
-
-    <!-- Центр: вкладки документов; содержимое каждой даёт её редактор. -->
-    <DockPanel>
-      <ax:AxTabStrip x:Name="DocumentTabs" DockPanel.Dock="Top"
-                     IsVisible="False"
-                     SelectionChanged="OnDocumentTabChanged"/>
-
-      <Panel>
-        <ContentControl x:Name="DocumentHost"/>
-
-        <StackPanel x:Name="CanvasHint" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+    <!--
+        Рабочая область — дерево доков. Панели встают в него из манифестов, а
+        документы открываются в названную группу; заставка достаётся ей же,
+        пока в ней пусто.
+    -->
+    <dock:DockView x:Name="Dock">
+      <dock:DockView.Empty>
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
           <TextBlock Classes="dim" Text="ArxisStudio" FontSize="{DynamicResource AxFontSizeTitle}" FontWeight="SemiBold" HorizontalAlignment="Center"/>
           <TextBlock Classes="dimmer" Text="{loc:Loc studio.canvas.hint}"
                      FontSize="{DynamicResource AxFontSizeSmall}" HorizontalAlignment="Center"/>
         </StackPanel>
-      </Panel>
-    </DockPanel>
-
-    <!--
-        Нижняя зона: пустой набор вкладок. Проект, консоль и проблемы приходят
-        сюда модулями — оболочка знает только, что вкладки бывают.
-    -->
-    <shell:StudioShell.BottomPane>
-      <ax:AxToolWindow>
-        <ax:AxToolWindow.Tabs>
-          <ax:AxTabStrip x:Name="BottomTabs" Theme="{StaticResource AxToolWindowTabStrip}"
-                         SelectionChanged="OnBottomTabChanged"/>
-        </ax:AxToolWindow.Tabs>
-        <ax:AxToolWindow.Actions>
-          <ax:AxButton Classes="icon" AutomationProperties.Name="{loc:Loc action.collapse}">
-            <ax:AxIcon Data="{x:Static ax:AxIcons.Minus}"/>
-          </ax:AxButton>
-        </ax:AxToolWindow.Actions>
-        <Panel x:Name="BottomPluginHost"/>
-      </ax:AxToolWindow>
-    </shell:StudioShell.BottomPane>
-
-    <!-- Правая зона: сюда встают панели модулей и плагинов. -->
-    <shell:StudioShell.RightPane>
-      <Grid x:Name="RightZone"/>
-    </shell:StudioShell.RightPane>
+      </dock:DockView.Empty>
+    </dock:DockView>
 
     <!-- Статус-бар: 24, как в макете экрана Editor. -->
     <shell:StudioShell.StatusBar>

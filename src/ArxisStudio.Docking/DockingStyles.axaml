@@ -20,7 +20,8 @@
       <ControlTheme x:Key="{x:Type dock:DockGroupView}" TargetType="dock:DockGroupView">
         <Setter Property="Template">
           <ControlTemplate>
-            <ax:AxToolWindow ShowHeaderSeparator="True">
+            <ax:AxToolWindow ShowHeaderSeparator="True"
+                             ShowHeader="{TemplateBinding HasTabs}">
               <ax:AxToolWindow.Tabs>
                 <ax:AxTabStrip x:Name="PART_Tabs" Theme="{DynamicResource AxToolWindowTabStrip}"/>
               </ax:AxToolWindow.Tabs>

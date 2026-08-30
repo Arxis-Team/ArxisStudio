@@ -1,6 +1,6 @@
 <!--
-    Стили каркаса студии: тема StudioShell и сплиттеры зон. Подключается
-    приложением после ArxisTheme:  <shell:ShellStyles/>
+    Стили каркаса студии: тема StudioShell и общие мелочи экранов.
+    Подключается приложением после ArxisTheme:  <shell:ShellStyles/>
 -->
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -12,10 +12,9 @@
     <ResourceDictionary>
 
       <!--
-          Раскладка: тулбар / [левая зона | центр (+нижняя зона) | правая зона] / статус-бар.
-          Сплиттеры сидят в колонках и строках шириной 1px, а их хит-зона 7px
-          нарисована поверх соседей (Grid не клипует детей) — линия остаётся
-          однопиксельной, как в мокапе, но за неё можно взяться мышью.
+          Раскладка: тулбар / рабочая область / статус-бар. Середину каркас
+          отдаёт целиком: что там за дерево доков и какой ширины его области,
+          он не знает и знать не должен.
       -->
       <ControlTheme x:Key="{x:Type sh:StudioShell}" TargetType="sh:StudioShell">
         <Setter Property="Background" Value="{DynamicResource AxBg1Brush}"/>
@@ -36,40 +35,8 @@
                       IsVisible="{TemplateBinding StatusBar, Converter={x:Static ObjectConverters.IsNotNull}}">
                 <ContentPresenter Content="{TemplateBinding StatusBar}"/>
               </Border>
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="262" MinWidth="180"/>
-                  <ColumnDefinition Width="1"/>
-                  <ColumnDefinition Width="*" MinWidth="320"/>
-                  <ColumnDefinition Width="1"/>
-                  <ColumnDefinition Width="302" MinWidth="220"/>
-                </Grid.ColumnDefinitions>
-
-                <Border Grid.Column="0" Background="{DynamicResource AxBg2Brush}">
-                  <ContentPresenter Content="{TemplateBinding LeftPane}"/>
-                </Border>
-
-                <Grid Grid.Column="2">
-                  <Grid.RowDefinitions>
-                    <RowDefinition Height="*" MinHeight="200"/>
-                    <RowDefinition Height="1"/>
-                    <RowDefinition Height="212" MinHeight="100"/>
-                  </Grid.RowDefinitions>
-                  <ContentPresenter Grid.Row="0" Content="{TemplateBinding Content}"
-                                    ContentTemplate="{TemplateBinding ContentTemplate}"/>
-                  <Border Grid.Row="2" Background="{DynamicResource AxBg2Brush}">
-                    <ContentPresenter Content="{TemplateBinding BottomPane}"/>
-                  </Border>
-                  <GridSplitter Grid.Row="1" Classes="shell-h" ResizeDirection="Rows"/>
-                </Grid>
-
-                <Border Grid.Column="4" Background="{DynamicResource AxBg2Brush}">
-                  <ContentPresenter Content="{TemplateBinding RightPane}"/>
-                </Border>
-
-                <GridSplitter Grid.Column="1" Classes="shell-v" ResizeDirection="Columns"/>
-                <GridSplitter Grid.Column="3" Classes="shell-v" ResizeDirection="Columns"/>
-              </Grid>
+              <ContentPresenter Content="{TemplateBinding Content}"
+                                ContentTemplate="{TemplateBinding ContentTemplate}"/>
             </DockPanel>
           </ControlTemplate>
         </Setter>
@@ -77,32 +44,6 @@
 
     </ResourceDictionary>
   </Styles.Resources>
-
-  <!-- Сплиттер зон: линия 1px, хит-зона 7px поверх соседей. -->
-  <Style Selector="GridSplitter.shell-v">
-    <Setter Property="Width" Value="7"/>
-    <Setter Property="HorizontalAlignment" Value="Center"/>
-    <Setter Property="Background" Value="Transparent"/>
-    <Setter Property="Template">
-      <ControlTemplate>
-        <Border Background="Transparent">
-          <Border Width="1" Background="{DynamicResource AxBrdBrush}" HorizontalAlignment="Center"/>
-        </Border>
-      </ControlTemplate>
-    </Setter>
-  </Style>
-  <Style Selector="GridSplitter.shell-h">
-    <Setter Property="Height" Value="7"/>
-    <Setter Property="VerticalAlignment" Value="Center"/>
-    <Setter Property="Background" Value="Transparent"/>
-    <Setter Property="Template">
-      <ControlTemplate>
-        <Border Background="Transparent">
-          <Border Height="1" Background="{DynamicResource AxBrdBrush}" VerticalAlignment="Center"/>
-        </Border>
-      </ControlTemplate>
-    </Setter>
-  </Style>
 
   <!-- Заголовок tool window: 34px, жирный 12px, разделитель снизу. -->
   <Style Selector="Border.tool-window-header">

@@ -55,15 +55,22 @@ public static class DockTree
         }
 
         var fresh = new DockGroup { Id = newGroupId, Items = [item], Selected = item };
-        var vertical = side is DockSide.Top or DockSide.Bottom;
+        var along = side is DockSide.Top or DockSide.Bottom
+            ? DockOrientation.Vertical
+            : DockOrientation.Horizontal;
         var first = side is DockSide.Left or DockSide.Top;
 
-        return Rewrite(root, groupId, group => new DockSplit
-        {
-            Orientation = vertical ? DockOrientation.Vertical : DockOrientation.Horizontal,
-            Children = first ? [fresh, group] : [group, fresh],
-            Weights = [0.5, 0.5],
-        });
+        // Если группа уже стоит в делении того же направления — встаём ей
+        // соседом, а не заворачиваем её в новое деление внутри старого. Три
+        // области в ряд — это один узел с тремя детьми: так тянется любая
+        // граница, а не только соседняя, и так же устроено дерево у Unity.
+        return Sibling(root, groupId, fresh, along, first)
+            ?? Rewrite(root, groupId, group => new DockSplit
+            {
+                Orientation = along,
+                Children = first ? [fresh, group] : [group, fresh],
+                Weights = [0.5, 0.5],
+            });
     }
 
     /// <summary>
@@ -72,11 +79,12 @@ public static class DockTree
     /// <param name="root">Корень дерева.</param>
     /// <param name="item">Идентификатор панели.</param>
     /// <returns>Новое дерево, уже прибранное.</returns>
-    public static DockNode Remove(DockNode root, string item)
+    /// <param name="keep">Группы, которые остаются, даже опустев.</param>
+    public static DockNode Remove(DockNode root, string item, IReadOnlySet<string>? keep = null)
     {
         ArgumentNullException.ThrowIfNull(root);
 
-        return Prune(Filter(root, id => !string.Equals(id, item, StringComparison.Ordinal)));
+        return Prune(Filter(root, id => !string.Equals(id, item, StringComparison.Ordinal)), keep);
     }
 
     /// <summary>
@@ -90,12 +98,13 @@ public static class DockTree
     /// работала. Само удаление из <b>файла</b> при этом не делается — выключенный
     /// плагин обязан вернуться на своё место, когда его включат обратно.
     /// </remarks>
-    public static DockNode Keep(DockNode root, IReadOnlySet<string> known)
+    /// <param name="keep">Группы, которые остаются, даже опустев.</param>
+    public static DockNode Keep(DockNode root, IReadOnlySet<string> known, IReadOnlySet<string>? keep = null)
     {
         ArgumentNullException.ThrowIfNull(root);
         ArgumentNullException.ThrowIfNull(known);
 
-        return Prune(Filter(root, id => known.Contains(id)));
+        return Prune(Filter(root, id => known.Contains(id)), keep);
     }
 
     /// <summary>Ищет группу по имени; null — такой нет.</summary>
@@ -148,7 +157,12 @@ public static class DockTree
     /// Единственная группа остаётся, даже опустев: дерево без единого узла показывать
     /// нечем, а пустое место, куда открываются документы, человек видит и узнаёт.
     /// </remarks>
-    public static DockNode Prune(DockNode root)
+    /// <param name="keep">
+    /// Группы, которые остаются, даже опустев, — например та, куда открываются
+    /// документы: пустое место под них человек видит и узнаёт, а исчезни оно —
+    /// следующий документ появился бы неизвестно где.
+    /// </param>
+    public static DockNode Prune(DockNode root, IReadOnlySet<string>? keep = null)
     {
         ArgumentNullException.ThrowIfNull(root);
 
@@ -161,8 +175,9 @@ public static class DockTree
         // ребёнка последний тихо унаследовал бы чужой размер.
         var shares = Shares(split);
         var kept = split.Children
-            .Select((child, at) => (Node: Prune(child), At: at))
-            .Where(child => child.Node is not DockGroup { Items.Count: 0 })
+            .Select((child, at) => (Node: Prune(child, keep), At: at))
+            .Where(child => child.Node is not DockGroup { Items.Count: 0 } empty
+                || keep?.Contains(empty.Id) == true)
             .ToList();
 
         if (kept.Count == 0)
@@ -263,6 +278,69 @@ public static class DockTree
         return total <= 0
             ? [.. weights.Select(_ => 1d / weights.Count)]
             : [.. weights.Select(weight => (weight > 0 ? weight : 0) / total)];
+    }
+
+    /// <summary>
+    /// Ставит новую группу соседом той, что уже стоит в делении нужного направления.
+    /// </summary>
+    /// <returns>Новое дерево; null — подходящего деления по дороге не нашлось.</returns>
+    /// <remarks>
+    /// Место новичку отдаёт сосед, а не все поровну: человек делил надвое ту
+    /// область, на которую смотрел, и переставлять из-за этого границы на
+    /// другом конце окна ему никто не обещал.
+    /// </remarks>
+    private static DockNode? Sibling(
+        DockNode node,
+        string groupId,
+        DockGroup fresh,
+        DockOrientation along,
+        bool first)
+    {
+        if (node is not DockSplit split)
+            return null;
+
+        var at = -1;
+
+        for (var number = 0; number < split.Children.Count; number++)
+        {
+            if (split.Children[number] is DockGroup group
+                && string.Equals(group.Id, groupId, StringComparison.Ordinal))
+            {
+                at = number;
+                break;
+            }
+        }
+
+        if (at >= 0 && split.Orientation == along)
+        {
+            var shares = Shares(split).ToList();
+            var children = split.Children.ToList();
+            var half = shares[at] / 2;
+
+            shares[at] = half;
+            children.Insert(first ? at : at + 1, fresh);
+            shares.Insert(first ? at : at + 1, half);
+
+            return new DockSplit { Orientation = along, Children = children, Weights = Normalize(shares) };
+        }
+
+        for (var number = 0; number < split.Children.Count; number++)
+        {
+            if (Sibling(split.Children[number], groupId, fresh, along, first) is not { } grown)
+                continue;
+
+            var children = split.Children.ToList();
+            children[number] = grown;
+
+            return new DockSplit
+            {
+                Orientation = split.Orientation,
+                Children = children,
+                Weights = split.Weights,
+            };
+        }
+
+        return null;
     }
 
     /// <summary>Заменяет группу с указанным именем на то, что вернёт правка.</summary>

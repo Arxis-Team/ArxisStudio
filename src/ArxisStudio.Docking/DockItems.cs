@@ -48,6 +48,16 @@ public sealed class DockItems
     /// </remarks>
     public IReadOnlySet<string> Known() => _items.Keys.ToHashSet(StringComparer.Ordinal);
 
+    /// <summary>Снимает одну панель.</summary>
+    /// <param name="id">Имя панели.</param>
+    /// <returns>Была ли она здесь.</returns>
+    public bool Remove(string id)
+    {
+        _owners.Remove(id);
+
+        return _items.Remove(id);
+    }
+
     /// <summary>Снимает всё, что положил этот хозяин.</summary>
     /// <param name="owner">Чьи панели убираем.</param>
     /// <returns>Имена снятых панелей — их же надо убрать из дерева.</returns>
