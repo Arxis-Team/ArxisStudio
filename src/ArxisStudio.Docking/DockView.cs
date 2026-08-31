@@ -60,20 +60,6 @@ public class DockView : Decorator
     /// </remarks>
     private const double Third = 1.0 / 3;
 
-    /// <summary>Ширина призрака отдельного окна.</summary>
-    /// <remarks>
-    /// Размер условный и нарочно небольшой: призрак говорит «будет своё окно»,
-    /// а не «будет вот такого размера» — настоящий размер окно возьмёт себе
-    /// само, у панели, которую несут.
-    /// </remarks>
-    private const double GhostWidth = 280;
-
-    /// <inheritdoc cref="GhostWidth"/>
-    private const double GhostHeight = 160;
-
-    /// <summary>Отступ рамки обещанного окна от краёв области.</summary>
-    private const double Gap = 8;
-
     /// <summary>Дерево, которое показываем.</summary>
     public static readonly StyledProperty<DockNode?> RootProperty =
         AvaloniaProperty.Register<DockView, DockNode?>(nameof(Root));
@@ -201,6 +187,14 @@ public class DockView : Decorator
 
     /// <summary>Человек попросил закрыть панель; в поле — её имя.</summary>
     public event EventHandler<string>? Closing;
+
+    /// <summary>Тяга кончилась ничем: захват потерян или вид ушёл с экрана.</summary>
+    /// <remarks>
+    /// Про бросок говорит <see cref="Dropped"/>, а это — про оборванную тягу.
+    /// Своё показанное вид убирает сам, но показывал не он один: призрак окна
+    /// живёт отдельным окном, и убрать его некому, кроме того, кто его завёл.
+    /// </remarks>
+    public event EventHandler? Stopped;
 
     /// <inheritdoc cref="RootProperty"/>
     public DockNode? Root
@@ -465,14 +459,6 @@ public class DockView : Decorator
             return;
         }
 
-        if (aim is DockAim.Float && Local(at) is { } cursor)
-        {
-            Paint(Ghost(cursor), title);
-            Mark(null);
-
-            return;
-        }
-
         Clear();
     }
 
@@ -565,30 +551,6 @@ public class DockView : Decorator
             ? new Rect(origin, group.Bounds.Size)
             : null;
 
-    /// <summary>
-    /// Рамка обещанного окна — под курсором и внутри области.
-    /// </summary>
-    /// <remarks>
-    /// Размер условный: настоящий окно возьмёт у панели, которую несут. Но
-    /// вылезать за область рамке нельзя — она обещает окно, а не место, и
-    /// торчащая за край выглядела бы именно местом.
-    /// </remarks>
-    private Rect Ghost(Point cursor)
-    {
-        var room = Group(cursor) is { } group && Place(group) is { } area
-            ? area
-            : new Rect(Bounds.Size);
-
-        var width = Math.Min(GhostWidth, Math.Max(0, room.Width - (Gap * 2)));
-        var height = Math.Min(GhostHeight, Math.Max(0, room.Height - (Gap * 2)));
-
-        return new Rect(
-            Math.Clamp(cursor.X - (width / 2), room.X + Gap, Math.Max(room.X + Gap, room.Right - Gap - width)),
-            Math.Clamp(cursor.Y - (height / 2), room.Y + Gap, Math.Max(room.Y + Gap, room.Bottom - Gap - height)),
-            width,
-            height);
-    }
-
     /// <summary>Полоса указанной доли у названного края.</summary>
     private static Rect Slice(Rect area, DockSide side, double share) => side switch
     {
@@ -677,9 +639,14 @@ public class DockView : Decorator
     /// </remarks>
     private void Stop()
     {
+        var dragged = _dragged is not null;
+
         _dragged = null;
 
         Clear();
+
+        if (dragged)
+            Stopped?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Строит экран заново по нынешнему дереву.</summary>

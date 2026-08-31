@@ -381,7 +381,10 @@ public class DockViewTests
         view.PointerMoved += (_, moved) => pointer = moved.Pointer;
 
         var from = DockMouse.Tab(view.View("left")!, 0, window);
-        var to = DockMouse.Inside(view.View("right")!, 0.5, 0.5, window);
+
+        // К левому краю соседней области: там подсказку рисует сам вид. Середина
+        // области обещает отдельное окно, и рисует его не вид, а хозяин деревьев.
+        var to = DockMouse.Inside(view.View("right")!, 0.1, 0.5, window);
 
         window.MouseMove(from);
         window.MouseDown(from, MouseButton.Left);

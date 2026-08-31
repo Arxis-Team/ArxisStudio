@@ -28,11 +28,24 @@ namespace ArxisStudio.Docking;
 /// </remarks>
 public class DockFloat : AxWindow
 {
+    /// <summary>
+    /// Ширина, с которой окно заводится, пока его не двигали и не тянули.
+    /// </summary>
+    /// <remarks>
+    /// Тем же размером обещает окно и <see cref="DockGhost"/> под курсором:
+    /// названный дважды, размер разошёлся бы, и обещание перестало бы совпадать
+    /// с тем, что человек получит.
+    /// </remarks>
+    public const double DefaultWidth = 420;
+
+    /// <inheritdoc cref="DefaultWidth"/>
+    public const double DefaultHeight = 320;
+
     /// <summary>Заводит окно с деревом внутри.</summary>
     public DockFloat()
     {
-        Width = 420;
-        Height = 320;
+        Width = DefaultWidth;
+        Height = DefaultHeight;
         ShowInTaskbar = false;
         WindowStartupLocation = WindowStartupLocation.Manual;
 

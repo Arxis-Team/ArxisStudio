@@ -731,7 +731,7 @@ public class StudioDockTests : IDisposable
     [AvaloniaFact]
     public void While_a_tab_is_carried_to_the_middle_a_window_is_promised()
     {
-        var (_, view, window) = Two();
+        var (dock, view, window) = Two();
 
         var from = DockMouse.Tab(view.View("left")!, 0, window);
         var to = DockMouse.Inside(view.View("right")!, 0.5, 0.5, window);
@@ -739,20 +739,92 @@ public class StudioDockTests : IDisposable
         window.MouseMove(from);
         window.MouseDown(from, MouseButton.Left);
         window.MouseMove(to);
-        Dispatcher.UIThread.RunJobs();
+        Settle();
 
-        var hint = Hint(view);
+        var promised = dock.Promised;
 
-        Assert.NotNull(hint);
-        Assert.False(hint.IsHitTestVisible);
+        Assert.NotNull(promised);
 
-        // Рамка под курсором, а не по краю области: это обещание окна, а не места.
-        Assert.True(hint.Width < view.View("right")!.Bounds.Width, "рамка размером с область");
+        // Обещание не врёт: окно встанет туда же и такого же размера.
+        var where = promised.Position;
+
+        Assert.Equal(DockFloat.DefaultWidth, promised.Width);
+        Assert.Equal(DockFloat.DefaultHeight, promised.Height);
 
         window.MouseUp(to, MouseButton.Left);
-        Dispatcher.UIThread.RunJobs();
+        Settle();
 
-        Assert.Null(Hint(view));
+        Assert.Null(dock.Promised);
+
+        var torn = Assert.Single(dock.Floating);
+
+        Assert.Equal(where, torn.Position);
+        Assert.Equal(DockFloat.DefaultWidth, torn.Width);
+        Assert.Equal(DockFloat.DefaultHeight, torn.Height);
+        Assert.NotNull(DockTree.Holder(torn.View.Root!, "hello:tree"));
+    }
+
+    /// <summary>
+    /// Вкладка, унесённая мимо всех окон, тоже обещает окно.
+    /// </summary>
+    /// <remarks>
+    /// Раньше там не показывалось ничего: под курсором чужое приложение или
+    /// рабочий стол, и рисовать внутри себя студии негде. Человек вёл вкладку в
+    /// пустоту и до самого броска не знал, случится ли что-нибудь.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_tab_carried_past_every_window_promises_one_too()
+    {
+        var (dock, view, window) = Two();
+
+        var from = DockMouse.Tab(view.View("left")!, 0, window);
+
+        window.MouseMove(from);
+        window.MouseDown(from, MouseButton.Left);
+        window.MouseMove(new Point(-80, 60));
+        Settle();
+
+        Assert.NotNull(dock.Promised);
+
+        window.MouseUp(new Point(-80, 60), MouseButton.Left);
+        Settle();
+
+        Assert.Null(dock.Promised);
+        Assert.Single(dock.Floating);
+    }
+
+    /// <summary>
+    /// Оборванная тяга уносит обещание с собой.
+    /// </summary>
+    /// <remarks>
+    /// Призрак — отдельное окно, и само оно не исчезнет: вид, потерявший захват,
+    /// убирает своё, а про чужое сказать может только событием. Не скажи он —
+    /// пустая рамка осталась бы висеть поверх всего до конца дня.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_broken_drag_takes_the_promise_with_it()
+    {
+        var (dock, view, window) = Two();
+
+        IPointer? pointer = null;
+
+        view.PointerMoved += (_, moved) => pointer = moved.Pointer;
+
+        var from = DockMouse.Tab(view.View("left")!, 0, window);
+
+        window.MouseMove(from);
+        window.MouseDown(from, MouseButton.Left);
+        window.MouseMove(new Point(-80, 60));
+        Settle();
+
+        Assert.NotNull(dock.Promised);
+        Assert.NotNull(pointer);
+
+        pointer.Capture(window);
+        Settle();
+
+        Assert.Null(dock.Promised);
+        Assert.Empty(dock.Floating);
     }
 
     /// <summary>

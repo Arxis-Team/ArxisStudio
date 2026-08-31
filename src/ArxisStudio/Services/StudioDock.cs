@@ -89,6 +89,9 @@ public sealed class StudioDock
     /// </remarks>
     private readonly List<DockFloat> _floats = [];
 
+    /// <summary>Призрак будущего окна; заводится, когда впервые понадобится.</summary>
+    private DockGhost? _ghost;
+
     /// <summary>
     /// Идёт разбор оторванных окон — их закрытие не возвращает панели домой.
     /// </summary>
@@ -165,6 +168,16 @@ public sealed class StudioDock
     /// иначе имя панели оказалось бы в двух деревьях разом.
     /// </remarks>
     public IReadOnlyList<DockFloat> Floating => _floats;
+
+    /// <summary>
+    /// Окно, обещанное под курсором; null — сейчас ничего не обещано.
+    /// </summary>
+    /// <remarks>
+    /// Показанное состояние, как и <see cref="Floating"/>: пока человек несёт
+    /// вкладку туда, где выйдет отдельное окно, студия обещает ему это окно —
+    /// и обещание само окно и есть, только пустое.
+    /// </remarks>
+    public DockGhost? Promised => _ghost is { IsVisible: true } ghost ? ghost : null;
 
     /// <summary>Имя показанного набора раскладки.</summary>
     public string Layout => _active;
@@ -787,6 +800,10 @@ public sealed class StudioDock
     {
         view.Dragging += (_, drag) => Lead(drag);
         view.Dropped += (source, drag) => Land((DockView)source!, drag);
+
+        // Оборванная тяга — тоже конец тяги: призрак не должен пережить её и
+        // остаться висеть над пустым местом.
+        view.Stopped += (_, _) => Banish();
     }
 
     /// <summary>
@@ -801,16 +818,45 @@ public sealed class StudioDock
     {
         // Показывает одно дерево, и то же самое, которое потом и примет вкладку:
         // окна перекрываются, и под курсором их вполне может быть два.
-        var target = Views.FirstOrDefault(view => view.Aim(drag.At, drag.Item) is not null);
+        var landing = Views
+            .Select(view => (View: view, Aim: view.Aim(drag.At, drag.Item)))
+            .FirstOrDefault(found => found.Aim is not null);
 
         foreach (var view in Views)
         {
-            if (ReferenceEquals(view, target))
+            if (ReferenceEquals(view, landing.View))
                 view.Show(drag.At, drag.Item);
             else
                 view.Clear();
         }
+
+        // Окно обещаем окном. Бросок в середину области и бросок мимо всех окон
+        // студии дают одно и то же — отдельное окно, — и показывать их
+        // по-разному значило бы говорить о двух разных исходах. Внутри вида
+        // второй случай и не нарисовать: под курсором чужое приложение.
+        if (landing.Aim is null or DockAim.Float)
+            Haunt(drag);
+        else
+            Banish();
     }
+
+    /// <summary>Ставит призрака будущего окна под курсор.</summary>
+    private void Haunt(DockDrag drag)
+    {
+        _ghost ??= new DockGhost();
+
+        _ghost.Follow(
+            drag.At,
+            Items.Find(drag.Item)?.Title ?? drag.Item,
+            TopLevel.GetTopLevel(_view) as Window);
+    }
+
+    /// <summary>Убирает призрака с экрана, не разбирая его.</summary>
+    /// <remarks>
+    /// Прячем, а не закрываем: за одну тягу человек пересекает зоны десятки
+    /// раз, и заводить на каждое пересечение новое окно значило бы мигать им.
+    /// </remarks>
+    private void Banish() => _ghost?.Hide();
 
     /// <summary>
     /// Кладёт вкладку туда, где её отпустили.
@@ -830,6 +876,8 @@ public sealed class StudioDock
 
         foreach (var view in Views)
             view.Clear();
+
+        Banish();
 
         // Мимо всех деревьев и середина области значат одно: отдельное окно.
         // Разница только в том, где человек отпустил, — а просит он то же самое.

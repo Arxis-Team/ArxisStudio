@@ -59,6 +59,28 @@
   </Style>
 
   <!--
+      Призрак отдельного окна: то же обещание, что и подсказка, но отдельным
+      окном — под курсором может быть чужое приложение, и рисовать внутри себя
+      там нечего. Заливка сплошная: сквозь чужие окна просвечивать нечему, а
+      полупрозрачная рамка над рабочим столом читалась бы грязью.
+  -->
+  <Style Selector="Border.dock-ghost">
+    <Setter Property="Background" Value="{DynamicResource AxBg2Brush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource AxAccStrongBrush}"/>
+    <Setter Property="BorderThickness" Value="2"/>
+    <Setter Property="CornerRadius" Value="{DynamicResource AxCornerRadius}"/>
+  </Style>
+  <Style Selector="Border.dock-ghost > TextBlock">
+    <Setter Property="Margin" Value="12,10"/>
+    <Setter Property="HorizontalAlignment" Value="Left"/>
+    <Setter Property="VerticalAlignment" Value="Top"/>
+    <Setter Property="Foreground" Value="{DynamicResource AxFgBrush}"/>
+    <Setter Property="FontSize" Value="{DynamicResource AxFontSize}"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+  </Style>
+
+  <!--
       Черта в полосе вкладок: у неё вкладка и встанет. Она же и объясняет, что
       место в полосе выбирают тем же движением, каким несут.
   -->
