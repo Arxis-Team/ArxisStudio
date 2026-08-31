@@ -1,11 +1,15 @@
 namespace ArxisStudio.Docking;
 
-/// <summary>Куда встаёт панель относительно группы.</summary>
+/// <summary>
+/// Сторона, с которой встаёт панель.
+/// </summary>
+/// <remarks>
+/// Вкладки здесь нет и не было ей тут места: «встань вкладкой» — это не
+/// сторона, а другое намерение, и живёт оно в <see cref="DockAim.Tab"/> вместе
+/// с местом в полосе.
+/// </remarks>
 public enum DockSide
 {
-    /// <summary>Ещё одной вкладкой в саму группу.</summary>
-    Tab,
-
     /// <summary>Слева от группы.</summary>
     Left,
 
@@ -37,22 +41,12 @@ public static class DockTree
     /// <param name="groupId">К какой группе ставим.</param>
     /// <param name="side">С какой стороны.</param>
     /// <param name="item">Идентификатор панели.</param>
-    /// <param name="newGroupId">Имя для новой группы, если сторона не <see cref="DockSide.Tab"/>.</param>
+    /// <param name="newGroupId">Имя для новой группы.</param>
     /// <returns>Новое дерево; прежнее, если такой группы нет.</returns>
     public static DockNode Insert(DockNode root, string groupId, DockSide side, string item, string newGroupId)
     {
         ArgumentNullException.ThrowIfNull(root);
         ArgumentException.ThrowIfNullOrEmpty(item);
-
-        if (side == DockSide.Tab)
-        {
-            return Rewrite(root, groupId, group => new DockGroup
-            {
-                Id = group.Id,
-                Items = [.. group.Items, item],
-                Selected = item,
-            });
-        }
 
         var fresh = new DockGroup { Id = newGroupId, Items = [item], Selected = item };
         var along = side is DockSide.Top or DockSide.Bottom
@@ -72,6 +66,116 @@ public static class DockTree
                 Weights = [0.5, 0.5],
             });
     }
+
+    /// <summary>
+    /// Ставит панель вкладкой в группу, на указанное место в полосе.
+    /// </summary>
+    /// <param name="root">Корень дерева.</param>
+    /// <param name="groupId">В какую группу.</param>
+    /// <param name="item">Идентификатор панели.</param>
+    /// <param name="at">Место в полосе; вне диапазона — в конец.</param>
+    /// <returns>Новое дерево; прежнее, если такой группы нет.</returns>
+    /// <remarks>
+    /// Панель, уже стоящая в этой группе, сперва оттуда убирается: иначе
+    /// перестановка вкладки внутри полосы удваивала бы её. Место при этом
+    /// считается среди остальных — как человек его и видит, ведя вкладку.
+    /// </remarks>
+    public static DockNode Attach(DockNode root, string groupId, string item, int at = -1)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        ArgumentException.ThrowIfNullOrEmpty(item);
+
+        return Rewrite(root, groupId, group =>
+        {
+            var items = group.Items
+                .Where(id => !string.Equals(id, item, StringComparison.Ordinal))
+                .ToList();
+
+            items.Insert(at < 0 || at > items.Count ? items.Count : at, item);
+
+            return new DockGroup { Id = group.Id, Items = items, Selected = item };
+        });
+    }
+
+    /// <summary>
+    /// Ставит панель полосой во всё дерево, с указанной стороны.
+    /// </summary>
+    /// <param name="root">Корень дерева.</param>
+    /// <param name="side">С какой стороны от всего дерева.</param>
+    /// <param name="item">Идентификатор панели.</param>
+    /// <param name="newGroupId">Имя для новой группы.</param>
+    /// <param name="share">Доля новой полосы; вне промежутка — четверть.</param>
+    /// <returns>Новое дерево.</returns>
+    /// <remarks>
+    /// Отличие от <see cref="Insert"/> в том, кого заворачивают: полоса
+    /// становится соседом всего дерева разом, а не чьей-то колонки. Иначе
+    /// консоль во всю ширину окна собрать нечем.
+    /// <para>
+    /// Место ей отдают все понемногу, а не один сосед: полоса ложится поперёк
+    /// всего окна, и брать его у кого-то одного не за что. Этим же она
+    /// отличается от <see cref="Insert"/>, где место новичку отдаёт цель.
+    /// </para>
+    /// </remarks>
+    public static DockNode Frame(
+        DockNode root, DockSide side, string item, string newGroupId, double share = 0.25)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        ArgumentException.ThrowIfNullOrEmpty(item);
+
+        var fresh = new DockGroup { Id = newGroupId, Items = [item], Selected = item };
+        var along = side is DockSide.Top or DockSide.Bottom
+            ? DockOrientation.Vertical
+            : DockOrientation.Horizontal;
+        var first = side is DockSide.Left or DockSide.Top;
+        var mine = share is > 0 and < 1 ? share : 0.25;
+
+        // Корень того же направления не заворачиваем, а принимаем полосу
+        // крайним ребёнком: три полосы в ряд — один узел с тремя детьми, и
+        // тянется тогда любая граница, а не только соседняя.
+        if (root is DockSplit split && split.Orientation == along)
+        {
+            var shares = Shares(split).Select(part => part * (1 - mine)).ToList();
+            var children = split.Children.ToList();
+
+            children.Insert(first ? 0 : children.Count, fresh);
+            shares.Insert(first ? 0 : shares.Count, mine);
+
+            return new DockSplit { Orientation = along, Children = children, Weights = Normalize(shares) };
+        }
+
+        return new DockSplit
+        {
+            Orientation = along,
+            Children = first ? [fresh, root] : [root, fresh],
+            Weights = first ? [mine, 1 - mine] : [1 - mine, mine],
+        };
+    }
+
+    /// <summary>
+    /// Ставит панель туда, куда просится намерение.
+    /// </summary>
+    /// <param name="root">Корень дерева.</param>
+    /// <param name="aim">Куда просится брошенная вкладка.</param>
+    /// <param name="item">Идентификатор панели.</param>
+    /// <param name="fresh">Имя для новой группы, если она понадобится.</param>
+    /// <returns>Новое дерево; прежнее, если ставить некуда.</returns>
+    /// <remarks>
+    /// Единственная дверь, через которую идут и предпросмотр, и настоящая
+    /// правка. Пока их было две, показанное человеку и полученное им были
+    /// разными вычислениями — и расходились: подсветка рисовала половину
+    /// области, а новичок получал половину доли соседа.
+    /// <para>
+    /// <see cref="DockAim.Float"/> дерева не меняет: отдельное окно заводит
+    /// тот, у кого окна есть, — движок про них не знает.
+    /// </para>
+    /// </remarks>
+    public static DockNode Apply(DockNode root, DockAim aim, string item, string fresh) => aim switch
+    {
+        DockAim.Tab tab => Attach(root, tab.Group, item, tab.At),
+        DockAim.Split split => Insert(root, split.Group, split.Side, item, fresh),
+        DockAim.Frame frame => Frame(root, frame.Side, item, fresh),
+        _ => root,
+    };
 
     /// <summary>
     /// Убирает панель отовсюду, где она встречается.

@@ -308,7 +308,10 @@ public class StudioDockTests : IDisposable
 
         // Оторванное окно легло поверх главного, и точка в нём — точка и в том
         // и в другом. Спросить обязаны сперва то, что сверху.
-        DockMouse.Drag(window, DockMouse.Tab(view.View("right")!, 0, window), new Point(200, 200));
+        DockMouse.Drag(
+            window,
+            DockMouse.Tab(view.View("right")!, 0, window),
+            DockMouse.Across(torn, DockMouse.Tab(torn.View.View(group)!, 0, torn), window));
 
         Assert.Equal(group, DockTree.Holder(torn.View.Root!, "friend:tips")?.Id);
         Assert.Null(DockTree.Holder(view.Root!, "friend:tips"));
@@ -352,8 +355,13 @@ public class StudioDockTests : IDisposable
         Tear(view, window, "left");
 
         var torn = Assert.Single(dock.Floating);
+        var group = torn.View.Root!.Groups().Single().Id;
         var from = DockMouse.Tab(view.View("right")!, 0, window);
-        var to = new Point(200, 200);
+
+        // К краю чужой области: подсветку показывают тому, кто просит разделить,
+        // а середина просит отдельное окно, и делить в ней нечего.
+        var to = DockMouse.Across(
+            torn, DockMouse.Inside(torn.View.View(group)!, 0.1, 0.5, torn), window);
 
         window.MouseMove(from);
         window.MouseDown(from, MouseButton.Left);
@@ -603,7 +611,7 @@ public class StudioDockTests : IDisposable
         DockMouse.Drag(
             window,
             DockMouse.Tab(view.View("left")!, 0, window),
-            DockMouse.Inside(view.View("right")!, 0.5, 0.5, window));
+            DockMouse.Tab(view.View("right")!, 0, window));
 
         Assert.Equal("right", DockTree.Holder(view.Root!, "hello:tree")?.Id);
         Assert.Equal("hello:tree", DockTree.Group(view.Root!, "right")?.Selected);
@@ -613,6 +621,31 @@ public class StudioDockTests : IDisposable
         Assert.Null(DockTree.Group(view.Root!, "left"));
 
         // Переезд — не потеря: обе панели живы, просто стоят вместе.
+        Assert.Equal(2, dock.Items.Count);
+    }
+
+    /// <summary>
+    /// Брошенная в середину области вкладка уходит в своё окно.
+    /// </summary>
+    /// <remarks>
+    /// Так человеку не нужен свободный рабочий стол, чтобы оторвать панель:
+    /// довольно бросить её в середину любой области. Панель при этом обязана
+    /// уцелеть — снять её из дерева и никуда не поставить значит потерять.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_tab_dropped_in_the_middle_gets_a_window_of_its_own()
+    {
+        var (dock, view, window) = Two();
+
+        DockMouse.Drag(
+            window,
+            DockMouse.Tab(view.View("left")!, 0, window),
+            DockMouse.Inside(view.View("right")!, 0.5, 0.5, window));
+
+        var torn = Assert.Single(dock.Floating);
+
+        Assert.NotNull(DockTree.Holder(torn.View.Root!, "hello:tree"));
+        Assert.Null(DockTree.Holder(view.Root!, "hello:tree"));
         Assert.Equal(2, dock.Items.Count);
     }
 
@@ -677,7 +710,7 @@ public class StudioDockTests : IDisposable
         DockMouse.Drag(
             window,
             DockMouse.Tab(view.View("right")!, 0, window),
-            DockMouse.Inside(view.View("right")!, 0.5, 0.5, window));
+            DockMouse.Tab(view.View("right")!, 0, window));
 
         Assert.Equal("right", DockTree.Holder(view.Root!, "friend:tips")?.Id);
         Assert.NotNull(view.View("right"));
@@ -727,7 +760,7 @@ public class StudioDockTests : IDisposable
         DockMouse.Drag(
             window,
             DockMouse.Tab(view.View("left")!, 0, window),
-            DockMouse.Inside(view.View("right")!, 0.5, 0.5, window));
+            DockMouse.Tab(view.View("right")!, 0, window));
 
         Assert.Equal("right", DockTree.Holder(view.Root!, "hello:tree")?.Id);
 
@@ -889,7 +922,7 @@ public class StudioDockTests : IDisposable
         DockMouse.Drag(
             window,
             DockMouse.Tab(view.View("left")!, 0, window),
-            DockMouse.Inside(view.View("right")!, 0.5, 0.5, window));
+            DockMouse.Tab(view.View("right")!, 0, window));
 
         Assert.Equal("right", DockTree.Holder(view.Root!, "hello:tree")?.Id);
 
@@ -951,7 +984,7 @@ public class StudioDockTests : IDisposable
         DockMouse.Drag(
             window,
             DockMouse.Tab(view.View("left")!, 0, window),
-            DockMouse.Inside(view.View("right")!, 0.5, 0.5, window));
+            DockMouse.Tab(view.View("right")!, 0, window));
 
         Assert.Equal("right", DockTree.Holder(view.Root!, "hello:tree")?.Id);
 

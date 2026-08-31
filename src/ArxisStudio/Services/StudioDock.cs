@@ -413,7 +413,7 @@ public sealed class StudioDock
         if (!_asked.Any(asked => string.Equals(asked.Id, id, StringComparison.Ordinal)))
             _asked.Add((id, new PluginPlacement { Side = Documents }));
 
-        Edit(root => DockTree.Insert(root, Home(root), DockSide.Tab, id, Documents));
+        Edit(root => DockTree.Attach(root, Home(root), id));
     }
 
     /// <summary>Убирает одну панель или документ.</summary>
@@ -697,12 +697,12 @@ public sealed class StudioDock
     {
         // Подсвечивает одно, и то же самое, которое потом и примет вкладку:
         // окна перекрываются, и под курсором их вполне может быть два.
-        var target = Views.FirstOrDefault(view => view.Aim(drag.At) is not null);
+        var target = Views.FirstOrDefault(view => view.Aim(drag.At, drag.Item) is not null);
 
         foreach (var view in Views)
         {
             if (ReferenceEquals(view, target))
-                view.Show(drag.At);
+                view.Show(drag.At, drag.Item);
             else
                 view.Clear();
         }
@@ -721,10 +721,12 @@ public sealed class StudioDock
             view.Clear();
 
         var landing = Views
-            .Select(view => (View: view, Aim: view.Aim(drag.At)))
+            .Select(view => (View: view, Aim: view.Aim(drag.At, drag.Item)))
             .FirstOrDefault(found => found.Aim is not null);
 
-        if (landing.Aim is not { } aim)
+        // Мимо всех деревьев и середина области значат одно: отдельное окно.
+        // Разница только в том, где человек отпустил, — а просит он то же самое.
+        if (landing.Aim is not { } aim || aim is DockAim.Float)
         {
             TearOff(source, drag);
             return;
@@ -745,14 +747,8 @@ public sealed class StudioDock
     /// последнюю вкладку. Ставить тогда некуда, и правка отменяется целиком —
     /// иначе панель просто пропала бы с экрана.
     /// </remarks>
-    private void Rearrange(DockView view, string item, DockAim aim) => Edit(view, root =>
-    {
-        var without = DockTree.Remove(root, item, Standing(view));
-
-        return DockTree.Group(without, aim.Group) is null
-            ? root
-            : DockTree.Insert(without, aim.Group, aim.Side, item, Fresh());
-    });
+    private void Rearrange(DockView view, string item, DockAim aim) =>
+        Edit(view, root => Landing(view, view, item, aim) ?? root);
 
     /// <summary>
     /// Передаёт вкладку из одного дерева в другое.
@@ -766,9 +762,40 @@ public sealed class StudioDock
     private void Hand(DockView from, DockView to, string item, DockAim aim)
     {
         Edit(from, root => DockTree.Remove(root, item, Standing(from)));
-        Edit(to, root => DockTree.Insert(root, aim.Group, aim.Side, item, Fresh()));
+        Edit(to, root => Landing(to, from, item, aim) ?? root);
 
         Rehang();
+    }
+
+    /// <summary>
+    /// Дерево, каким оно станет, если бросить вкладку сюда; null — ставить некуда.
+    /// </summary>
+    /// <remarks>
+    /// Одна дверь и для предпросмотра, и для настоящей правки: пока их было
+    /// две, показанное человеку и полученное им были разными вычислениями — и
+    /// расходились.
+    /// <para>
+    /// Из своего же дерева панель сперва уходит: место ей ищут уже без неё.
+    /// Группа, куда целились, при этом может исчезнуть — человек унёс из неё
+    /// последнюю вкладку, — и тогда ставить некуда, а правка отменяется целиком.
+    /// </para>
+    /// </remarks>
+    private DockNode? Landing(DockView view, DockView source, string item, DockAim aim)
+    {
+        if (view.Root is not { } root)
+            return null;
+
+        var without = ReferenceEquals(view, source)
+            ? DockTree.Remove(root, item, Standing(view))
+            : root;
+
+        if (aim is DockAim.Tab tab && DockTree.Group(without, tab.Group) is null)
+            return null;
+
+        if (aim is DockAim.Split split && DockTree.Group(without, split.Group) is null)
+            return null;
+
+        return DockTree.Apply(without, aim, item, Fresh());
     }
 
     /// <summary>
@@ -868,14 +895,14 @@ public sealed class StudioDock
     private DockNode Place(DockNode root, string id, PluginPlacement where)
     {
         if (where.Near is { Length: > 0 } near && DockTree.Holder(root, near) is { } neighbour)
-            return DockTree.Insert(root, neighbour.Id, DockSide.Tab, id, neighbour.Id);
+            return DockTree.Attach(root, neighbour.Id, id);
 
         var side = where.Side.ToLowerInvariant();
 
         if (DockTree.Group(root, side) is not { } waiting)
             return DockTree.Widen(DockTree.Insert(root, Home(root), Side(side), id, side), side, where.Size);
 
-        var next = DockTree.Insert(root, side, DockSide.Tab, id, side);
+        var next = DockTree.Attach(root, side, id);
 
         return waiting.Items.Count == 0 ? DockTree.Widen(next, side, where.Size) : next;
     }

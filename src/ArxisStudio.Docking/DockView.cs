@@ -21,16 +21,6 @@ namespace ArxisStudio.Docking;
 public sealed record DockResize(IReadOnlyList<int> Path, IReadOnlyList<double> Weights);
 
 /// <summary>
-/// Куда встанет вкладка: имя области и сторона.
-/// </summary>
-/// <param name="Group">Имя группы, на которую целятся.</param>
-/// <param name="Side">
-/// <see cref="DockSide.Tab"/> — соседней вкладкой в ту же группу; иначе группа
-/// делится, и панель встаёт с этой стороны.
-/// </param>
-public sealed record DockAim(string Group, DockSide Side);
-
-/// <summary>
 /// Вкладка в пути или отпущенная: что несут и где сейчас курсор.
 /// </summary>
 /// <param name="Item">Имя панели.</param>
@@ -60,13 +50,15 @@ public class DockView : Decorator
     private const double Threshold = 6;
 
     /// <summary>
-    /// Какая часть области с краю значит «раздели», а не «встань вкладкой».
+    /// Насколько глубоко от края тянется зона «раздели».
     /// </summary>
     /// <remarks>
-    /// Четверть — как в Unity: край достаточно широк, чтобы попасть в него не
-    /// целясь, и достаточно узок, чтобы середина осталась серединой.
+    /// Треть — как в Unity; там это промерено проходом курсора, и цифра сошлась
+    /// с расчётом до пикселя. Глубина считается в долях своей стороны, поэтому
+    /// у широкой низкой области верхняя зона выходит шире боковой — иначе угол
+    /// доставался бы не тому краю.
     /// </remarks>
-    private const double Edge = 0.25;
+    private const double Third = 1.0 / 3;
 
     /// <summary>Дерево, которое показываем.</summary>
     public static readonly StyledProperty<DockNode?> RootProperty =
@@ -131,12 +123,18 @@ public class DockView : Decorator
     /// стать выбранной, — и до всплытия дело не дойдёт. Само нажатие мы при
     /// этом не помечаем разобранным: щелчок обязан работать как щелчок, пока
     /// человек не потянул.
+    /// <para>
+    /// Только перехватывающие, не оба маршрута разом: вид лежит и на пути
+    /// вниз, и на пути вверх, и подписка на оба поднимала бы каждое движение
+    /// дважды. Пока за движением ничего тяжёлого не стояло, это было незаметно;
+    /// с предпросмотром — уже нет.
+    /// </para>
     /// </remarks>
     public DockView()
     {
         AddHandler(PointerPressedEvent, OnPressed, RoutingStrategies.Tunnel);
-        AddHandler(PointerMovedEvent, OnMoved, RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
-        AddHandler(PointerReleasedEvent, OnReleased, RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
+        AddHandler(PointerMovedEvent, OnMoved, RoutingStrategies.Tunnel);
+        AddHandler(PointerReleasedEvent, OnReleased, RoutingStrategies.Tunnel);
     }
 
     /// <summary>Человек выбрал вкладку; в поле — имя панели.</summary>
@@ -315,16 +313,24 @@ public class DockView : Decorator
     /// Куда попадёт вкладка, брошенная в эту точку экрана; null — мимо этого дерева.
     /// </summary>
     /// <param name="at">Точка на экране.</param>
+    /// <param name="item">Какую панель несут.</param>
     /// <remarks>
     /// Спрашивают об этом каждое дерево по очереди — и то, в котором тягу
     /// начали, и деревья остальных окон. Курсор в каждый миг над одним из них,
     /// поэтому ответ есть не больше чем у одного.
+    /// <para>
+    /// Ответ зависит от того, что именно несут: место в полосе вкладок
+    /// считается среди <b>остальных</b> вкладок, иначе перестановка внутри
+    /// полосы промахивалась бы на единицу.
+    /// </para>
     /// </remarks>
-    public DockAim? Aim(PixelPoint at) => Local(at) is { } point ? Target(point) : null;
+    public DockAim? Aim(PixelPoint at, string item) =>
+        Local(at) is { } point ? Target(point, item) : null;
 
     /// <summary>Показывает, куда встанет вкладка, брошенная в эту точку экрана.</summary>
     /// <param name="at">Точка на экране.</param>
-    public void Show(PixelPoint at) => Highlight(Aim(at));
+    /// <param name="item">Какую панель несут.</param>
+    public void Show(PixelPoint at, string item) => Highlight(Aim(at, item));
 
     /// <summary>Убирает подсветку этого дерева.</summary>
     /// <remarks>
@@ -334,25 +340,41 @@ public class DockView : Decorator
     public void Clear() => Erase();
 
     /// <summary>Куда попадёт брошенная вкладка; null — мимо всего.</summary>
-    private DockAim? Target(Point point)
+    private DockAim? Target(Point point, string item)
     {
         if (Group(point) is not { } group || group.TranslatePoint(default, this) is not { } origin)
             return null;
 
         var size = group.Bounds.Size;
+
+        if (size.Width <= 0 || size.Height <= 0)
+            return null;
+
         var local = point - origin;
 
-        // Полоса вкладок — это «встань рядом», а не «раздели сверху».
+        // Полоса вкладок сильнее всего: она и есть «встань рядом», и место в
+        // ней человек выбирает тем же движением.
         if (local.Y < group.HeaderHeight)
-            return new DockAim(group.Id, DockSide.Tab);
+            return new DockAim.Tab(group.Id, group.SlotAt(local.X, item));
 
-        var side = local.X < size.Width * Edge ? DockSide.Left
-            : local.X > size.Width * (1 - Edge) ? DockSide.Right
-            : local.Y < size.Height * Edge ? DockSide.Top
-            : local.Y > size.Height * (1 - Edge) ? DockSide.Bottom
-            : DockSide.Tab;
+        var across = local.X / size.Width;
+        var down = local.Y / size.Height;
 
-        return new DockAim(group.Id, side);
+        (double Share, DockSide Side)[] edges =
+        [
+            (across, DockSide.Left),
+            (1 - across, DockSide.Right),
+            (down, DockSide.Top),
+            (1 - down, DockSide.Bottom),
+        ];
+
+        var near = edges.MinBy(edge => edge.Share);
+
+        // Дальше трети от каждого края — это середина, а середина значит
+        // «оторви в своё окно»: так человеку не нужен свободный рабочий стол.
+        return near.Share < Third
+            ? new DockAim.Split(group.Id, near.Side)
+            : new DockAim.Float();
     }
 
     /// <summary>Группа под указателем; null — там её нет.</summary>
@@ -369,7 +391,7 @@ public class DockView : Decorator
     /// <summary>Показывает, куда встанет вкладка; null — прячет подсказку.</summary>
     private void Highlight(DockAim? target)
     {
-        if (target is not { } place
+        if (target is not DockAim.Split place
             || View(place.Group) is not { } group
             || group.TranslatePoint(default, this) is not { } origin
             || OverlayLayer.GetOverlayLayer(this) is not { } layer
@@ -385,8 +407,9 @@ public class DockView : Decorator
             DockSide.Left => new Rect(corner.X, corner.Y, size.Width / 2, size.Height),
             DockSide.Right => new Rect(corner.X + (size.Width / 2), corner.Y, size.Width / 2, size.Height),
             DockSide.Top => new Rect(corner.X, corner.Y, size.Width, size.Height / 2),
-            DockSide.Bottom => new Rect(corner.X, corner.Y + (size.Height / 2), size.Width, size.Height / 2),
-            _ => new Rect(corner, size),
+
+            // Осталась только нижняя: сторон четыре, три уже разобраны.
+            _ => new Rect(corner.X, corner.Y + (size.Height / 2), size.Width, size.Height / 2),
         };
 
         // Подсветка не ловит мышь: поймай она её — под указателем всегда была бы

@@ -76,6 +76,20 @@ public static class DockMouse
         return point.Value;
     }
 
+    /// <summary>
+    /// Точка одного окна в координатах другого — через экран.
+    /// </summary>
+    /// <param name="from">Окно, в чьих координатах точка задана.</param>
+    /// <param name="at">Точка.</param>
+    /// <param name="to">Окно, которому шлют ввод.</param>
+    /// <remarks>
+    /// Во время тяги ввод идёт окну, захватившему указатель, и точка обязана
+    /// быть в его координатах — даже когда целятся в чужое окно. Экран здесь
+    /// общий язык, на котором эти координаты и переводятся.
+    /// </remarks>
+    public static Point Across(Window from, Point at, Window to) =>
+        to.PointToClient(from.PointToScreen(at));
+
     /// <summary>Щёлкает мышью в точке.</summary>
     /// <param name="window">Окно, которому шлём ввод.</param>
     /// <param name="at">Куда.</param>

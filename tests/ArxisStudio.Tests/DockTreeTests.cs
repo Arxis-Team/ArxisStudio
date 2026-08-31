@@ -19,7 +19,7 @@ public class DockTreeTests
     {
         var root = Group("left", "solution");
 
-        var after = DockTree.Insert(root, "left", DockSide.Tab, "structure", "unused");
+        var after = DockTree.Attach(root, "left", "structure");
         var group = Assert.IsType<DockGroup>(after);
 
         Assert.Equal(["solution", "structure"], group.Items);
@@ -42,13 +42,142 @@ public class DockTreeTests
         Assert.Equal(1, split.Weights.Sum(), 6);
     }
 
+    /// <summary>
+    /// Вкладка встаёт на указанное место, а не всегда в конец.
+    /// </summary>
+    /// <remarks>
+    /// Место человек выбирает тем же движением, каким несёт вкладку, — и полоса
+    /// вкладок обязана его слушать. Пока места не было, всякая вкладка
+    /// оказывалась последней, где бы её ни отпустили.
+    /// </remarks>
+    [Theory]
+    [InlineData(0, new[] { "fresh", "one", "two" })]
+    [InlineData(1, new[] { "one", "fresh", "two" })]
+    [InlineData(2, new[] { "one", "two", "fresh" })]
+    [InlineData(-1, new[] { "one", "two", "fresh" })]
+    [InlineData(99, new[] { "one", "two", "fresh" })]
+    public void A_tab_takes_the_place_it_was_given(int at, string[] order)
+    {
+        var root = new DockGroup { Id = "left", Items = ["one", "two"], Selected = "one" };
+        var group = Assert.IsType<DockGroup>(DockTree.Attach(root, "left", "fresh", at));
+
+        Assert.Equal(order, group.Items);
+        Assert.Equal("fresh", group.Selected);
+    }
+
+    /// <summary>
+    /// Переставленная вкладка не удваивается, а место считается среди остальных.
+    /// </summary>
+    /// <remarks>
+    /// Перестановка внутри полосы — та же вставка: вкладка сперва уходит со
+    /// своего места и только потом встаёт на новое. Не убери её — в группе
+    /// оказалось бы два одинаковых имени, и панель стала бы дважды своей.
+    /// </remarks>
+    [Fact]
+    public void A_moved_tab_is_counted_among_the_others()
+    {
+        var root = new DockGroup { Id = "left", Items = ["one", "two", "three"], Selected = "one" };
+        var group = Assert.IsType<DockGroup>(DockTree.Attach(root, "left", "one", 2));
+
+        Assert.Equal(["two", "three", "one"], group.Items);
+    }
+
+    /// <summary>
+    /// Полоса ложится поперёк всего дерева, а не внутрь чьей-то колонки.
+    /// </summary>
+    /// <remarks>
+    /// Этим корневая стыковка и отличается от деления области: консоль во всю
+    /// ширину окна иначе собрать нечем — любое деление оказывается внутри
+    /// соседа.
+    /// </remarks>
+    [Fact]
+    public void A_strip_lies_across_the_whole_tree()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children = [Group("left", "one"), Group("right", "two")],
+            Weights = [0.3, 0.7],
+        };
+
+        var split = Assert.IsType<DockSplit>(DockTree.Frame(root, DockSide.Bottom, "console", "strip"));
+
+        Assert.Equal(DockOrientation.Vertical, split.Orientation);
+        Assert.Same(root, split.Children[0]);
+        Assert.Equal("strip", ((DockGroup)split.Children[1]).Id);
+        Assert.Equal([0.75, 0.25], split.Weights);
+    }
+
+    /// <summary>
+    /// Полоса вдоль того же направления встаёт крайним ребёнком, а не вложенным делением.
+    /// </summary>
+    /// <remarks>
+    /// Три полосы в ряд — один узел с тремя детьми: так тянется любая граница,
+    /// а не только соседняя. Место при этом отдают все понемногу — полоса
+    /// ложится поперёк всего окна, и брать его у кого-то одного не за что.
+    /// </remarks>
+    [Fact]
+    public void A_strip_along_the_same_direction_joins_the_row()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children = [Group("left", "one"), Group("right", "two")],
+            Weights = [0.3, 0.7],
+        };
+
+        var split = Assert.IsType<DockSplit>(DockTree.Frame(root, DockSide.Left, "tools", "strip"));
+
+        Assert.Equal(DockOrientation.Horizontal, split.Orientation);
+        Assert.Equal(["strip", "left", "right"], split.Children.Cast<DockGroup>().Select(group => group.Id));
+
+        // Соседи ужались в прежней пропорции: 3 к 7 так и осталось.
+        Assert.Equal(0.25, split.Weights[0], 6);
+        Assert.Equal(0.3 * 0.75, split.Weights[1], 6);
+        Assert.Equal(0.7 * 0.75, split.Weights[2], 6);
+    }
+
+    /// <summary>
+    /// Каждое намерение проходит через одну дверь.
+    /// </summary>
+    /// <remarks>
+    /// Через неё же строится предпросмотр, и поэтому показанное человеку и
+    /// полученное им — буквально один и тот же результат. Пока дверей было две,
+    /// подсветка рисовала половину области, а новичок получал половину доли
+    /// соседа.
+    /// </remarks>
+    [Fact]
+    public void Every_aim_goes_through_one_door()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children = [Group("left", "one"), Group("right", "two")],
+            Weights = [0.5, 0.5],
+        };
+
+        var joined = DockTree.Apply(root, new DockAim.Tab("left", 0), "fresh", "unused");
+        Assert.Equal(["fresh", "one"], DockTree.Group(joined, "left")!.Items);
+
+        var divided = DockTree.Apply(root, new DockAim.Split("right", DockSide.Bottom), "fresh", "born");
+        Assert.Equal("born", DockTree.Holder(divided, "fresh")?.Id);
+
+        var framed = Assert.IsType<DockSplit>(
+            DockTree.Apply(root, new DockAim.Frame(DockSide.Top), "fresh", "strip"));
+        Assert.Equal(DockOrientation.Vertical, framed.Orientation);
+        Assert.Equal("strip", ((DockGroup)framed.Children[0]).Id);
+
+        // Отдельное окно заводит тот, у кого окна есть: дерево тут ни при чём.
+        Assert.Same(root, DockTree.Apply(root, new DockAim.Float(), "fresh", "unused"));
+    }
+
     /// <summary>Незнакомая группа оставляет дерево прежним.</summary>
     [Fact]
     public void An_unknown_group_leaves_the_tree_alone()
     {
         var root = Group("left", "solution");
 
-        Assert.Same(root, DockTree.Insert(root, "нет.такой", DockSide.Tab, "console", "fresh"));
+        Assert.Same(root, DockTree.Attach(root, "нет.такой", "console"));
     }
 
     /// <summary>Опустевшая группа уходит, а деление с одним ребёнком заменяется им.</summary>

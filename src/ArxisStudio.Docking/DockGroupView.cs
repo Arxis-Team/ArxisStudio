@@ -76,6 +76,51 @@ public class DockGroupView : TemplatedControl
             ? origin.Y + tabs.Bounds.Height
             : 0;
 
+    /// <summary>
+    /// Место в полосе, куда встанет вкладка, брошенная на этом расстоянии слева.
+    /// </summary>
+    /// <param name="x">Расстояние от левого края группы.</param>
+    /// <param name="ignore">Какую вкладку не считать — её как раз и несут.</param>
+    /// <returns>Номер в счёте дерева; −1 — полосы ещё нет.</returns>
+    /// <remarks>
+    /// Номер именно в счёте дерева, а не показанных вкладок: панель выключенного
+    /// плагина остаётся в группе именем, вкладки у неё нет, и место, посчитанное
+    /// по экрану, уехало бы мимо.
+    /// <para>
+    /// Несомая вкладка не считается: место человек выбирает среди остальных, и
+    /// <see cref="DockTree.Attach"/> убирает её из группы ровно так же. Считай мы
+    /// её — перестановка внутри полосы промахивалась бы на единицу.
+    /// </para>
+    /// </remarks>
+    public int SlotAt(double x, string? ignore = null)
+    {
+        if (_tabs is null || _group is null)
+            return -1;
+
+        var rest = _group.Items
+            .Where(id => !string.Equals(id, ignore, StringComparison.Ordinal))
+            .ToList();
+
+        for (var at = 0; at < rest.Count; at++)
+        {
+            var shown = _shown.IndexOf(rest[at]);
+
+            // У панели выключенного плагина вкладки нет — мерить нечего, и место
+            // она делит с ближайшей видимой соседкой слева.
+            if (shown < 0 || shown >= _tabs.Items.Count)
+                continue;
+
+            if (_tabs.Items[shown] is Control tab
+                && tab.TranslatePoint(new Point(tab.Bounds.Width / 2, 0), this) is { } middle
+                && x < middle.X)
+            {
+                return at;
+            }
+        }
+
+        return rest.Count;
+    }
+
     /// <summary>Имя панели, которой принадлежит вкладка; null — вкладка не наша.</summary>
     /// <param name="tab">Вкладка из полосы этой группы.</param>
     public string? Item(Control tab)

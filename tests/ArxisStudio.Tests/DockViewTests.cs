@@ -214,14 +214,15 @@ public class DockViewTests
     }
 
     /// <summary>
-    /// Брошенная в середину вкладка просится соседней вкладкой.
+    /// Брошенная в середину вкладка просится в своё окно.
     /// </summary>
     /// <remarks>
-    /// Середина области значит «встань рядом», край — «раздели». Так же в
-    /// Unity, и это единственное, что человеку надо знать про перетаскивание.
+    /// Середина области значит «оторви», край — «раздели», полоса вкладок —
+    /// «встань рядом». Так же в Unity, и так у каждого жеста ровно один смысл;
+    /// заодно человеку не нужен свободный рабочий стол, чтобы оторвать панель.
     /// </remarks>
     [AvaloniaFact]
-    public void A_tab_dropped_in_the_middle_asks_to_join()
+    public void A_tab_dropped_in_the_middle_asks_for_a_window_of_its_own()
     {
         var (view, window) = Pair();
 
@@ -235,7 +236,7 @@ public class DockViewTests
 
         Assert.NotNull(dropped);
         Assert.Equal("solution", dropped.Item);
-        Assert.Equal(new DockAim("right", DockSide.Tab), view.Aim(dropped.At));
+        Assert.IsType<DockAim.Float>(view.Aim(dropped.At, dropped.Item));
     }
 
     /// <summary>
@@ -260,13 +261,25 @@ public class DockViewTests
             DockMouse.Tab(view.View("right")!, 0, window));
 
         Assert.NotNull(dropped);
-        Assert.Equal(new DockAim("right", DockSide.Tab), view.Aim(dropped.At));
+        Assert.Equal(new DockAim.Tab("right", 1), view.Aim(dropped.At, dropped.Item));
     }
 
-    /// <summary>Брошенная у края вкладка просится разделить область.</summary>
+    /// <summary>
+    /// Брошенная у края вкладка просится разделить область.
+    /// </summary>
+    /// <remarks>
+    /// Зона края — треть стороны, и верхняя из них наконец достижима: прежняя
+    /// четверть почти целиком пряталась под полосой вкладок, и попасть в
+    /// «раздели сверху» было нечем.
+    /// </remarks>
     [InlineData(0.1, 0.5, DockSide.Left)]
     [InlineData(0.9, 0.5, DockSide.Right)]
+    [InlineData(0.5, 0.2, DockSide.Top)]
     [InlineData(0.5, 0.9, DockSide.Bottom)]
+
+    // Треть, а не четверть: на этом расстоянии от края прежнее правило уже
+    // считало бы точку серединой.
+    [InlineData(0.3, 0.5, DockSide.Left)]
     [AvaloniaTheory]
     public void A_tab_dropped_at_the_edge_asks_to_divide(double x, double y, DockSide side)
     {
@@ -281,7 +294,62 @@ public class DockViewTests
             DockMouse.Inside(view.View("right")!, x, y, window));
 
         Assert.NotNull(dropped);
-        Assert.Equal(new DockAim("right", side), view.Aim(dropped.At));
+        Assert.Equal(new DockAim.Split("right", side), view.Aim(dropped.At, dropped.Item));
+    }
+
+    /// <summary>
+    /// В углу побеждает тот край, который ближе в долях своей стороны.
+    /// </summary>
+    /// <remarks>
+    /// Прежнее правило спрашивало края по порядку — левый, правый, верхний,
+    /// нижний, — и угол широкой низкой области всегда доставался боку, даже
+    /// когда верх был много ближе. Доли уравнивают стороны в правах: у широкой
+    /// области верхняя зона шире боковой ровно во столько, во сколько она сама
+    /// шире своей высоты.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_corner_goes_to_the_edge_that_is_nearer_in_shares()
+    {
+        var (view, window) = Pair();
+        var group = view.View("right")!;
+
+        // Область высокая и узкая: доля 0.08 по ширине — это меньше пикселей,
+        // чем доля 0.08 по высоте, и всё же побеждает не она, а верх.
+        Assert.True(group.Bounds.Height > group.Bounds.Width, "область оказалась не той формы");
+
+        DockDrag? dropped = null;
+        view.Dropped += (_, drop) => dropped = drop;
+
+        DockMouse.Drag(
+            window,
+            DockMouse.Tab(view.View("left")!, 0, window),
+            DockMouse.Inside(group, 0.2, 0.1, window));
+
+        Assert.Equal(new DockAim.Split("right", DockSide.Top), view.Aim(dropped!.At, dropped.Item));
+    }
+
+    /// <summary>
+    /// Место в полосе вкладок считается по серединам соседок.
+    /// </summary>
+    /// <remarks>
+    /// Несомая вкладка при этом не считается вовсе: место человек выбирает
+    /// среди остальных, и <c>Attach</c> убирает её из группы ровно так же.
+    /// Считай мы её — перестановка внутри полосы промахивалась бы на единицу.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_place_in_the_strip_is_counted_by_the_middles_of_the_others()
+    {
+        var (view, window) = Pair();
+        var left = view.View("left")!;
+
+        // «structure» несут, значит считать её нельзя: остаётся одна «solution»,
+        // и мест ровно два — до неё и после.
+        Assert.Equal(0, left.SlotAt(0, "structure"));
+        Assert.Equal(1, left.SlotAt(left.Bounds.Width, "structure"));
+
+        // А если несут чужую — соседок две, и мест три.
+        Assert.Equal(0, left.SlotAt(0, "properties"));
+        Assert.Equal(2, left.SlotAt(left.Bounds.Width, "properties"));
     }
 
     /// <summary>
@@ -301,11 +369,14 @@ public class DockViewTests
         IPointer? pointer = null;
 
         view.Dropped += (_, drop) => dropped = drop;
-        view.Dragging += (_, drag) => view.Show(drag.At);
+        view.Dragging += (_, drag) => view.Show(drag.At, drag.Item);
         view.PointerMoved += (_, moved) => pointer = moved.Pointer;
 
         var from = DockMouse.Tab(view.View("left")!, 0, window);
-        var to = DockMouse.Inside(view.View("right")!, 0.5, 0.5, window);
+
+        // К краю, а не в середину: середина просит отдельное окно, и показывать
+        // ей в чужом дереве нечего.
+        var to = DockMouse.Inside(view.View("right")!, 0.1, 0.5, window);
 
         window.MouseMove(from);
         window.MouseDown(from, MouseButton.Left);
@@ -367,11 +438,11 @@ public class DockViewTests
         var (view, window) = Pair();
 
         var from = DockMouse.Tab(view.View("left")!, 0, window);
-        var to = DockMouse.Inside(view.View("right")!, 0.5, 0.5, window);
+        var to = DockMouse.Inside(view.View("right")!, 0.1, 0.5, window);
 
         // Подсветку показывает не вид сам, а тот, кто ведёт тягу: окон у
         // студии несколько, и подсказка обязана быть там, где курсор.
-        view.Dragging += (_, drag) => view.Show(drag.At);
+        view.Dragging += (_, drag) => view.Show(drag.At, drag.Item);
 
         window.MouseMove(from);
         window.MouseDown(from, MouseButton.Left);
@@ -473,7 +544,7 @@ public class DockViewTests
         var right = view.View("right");
         var panel = items.Find("solution")?.Content;
 
-        view.Root = DockTree.Insert(DockTree.Remove(view.Root!, "solution"), "right", DockSide.Tab, "solution", "unused");
+        view.Root = DockTree.Attach(DockTree.Remove(view.Root!, "solution"), "right", "solution");
         Dispatcher.UIThread.RunJobs();
 
         Assert.Same(right, view.View("right"));
