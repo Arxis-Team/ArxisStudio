@@ -894,6 +894,106 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
+    /// Набор помнит и свои оторванные окна.
+    /// </summary>
+    /// <remarks>
+    /// Уходя из набора, студия его запоминает — но запоминала только главное
+    /// дерево. Оторванные окна при этом разбирались и в набор не возвращались:
+    /// человек уходил посмотреть соседний набор и терял расставленные окна.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_set_remembers_its_torn_windows()
+    {
+        var (dock, view, window) = Two();
+
+        dock.SaveAs("отладка");
+        Tear(view, window, "left");
+        Settle();
+
+        Assert.Single(dock.Floating);
+
+        dock.Switch("default");
+        Settle();
+
+        Assert.Empty(dock.Floating);
+
+        dock.Switch("отладка");
+        Settle();
+
+        var torn = Assert.Single(dock.Floating);
+
+        Assert.NotNull(DockTree.Holder(torn.View.Root!, "hello:tree"));
+        Assert.Null(DockTree.Holder(view.Root!, "hello:tree"));
+    }
+
+    /// <summary>
+    /// Дважды открытый документ не удваивается.
+    /// </summary>
+    /// <remarks>
+    /// Оболочка сегодня и не зовёт открытие дважды — но это её вежливость, а не
+    /// свойство раскладки. Панель, оказавшаяся разом в двух деревьях, кончается
+    /// исключением, и полагаться тут на вежливость зовущего нельзя.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Opening_the_same_document_twice_does_not_double_it()
+    {
+        var (dock, view, window) = Two();
+
+        dock.Open("hello", "doc:a.axaml", "a.axaml", new Border());
+        Settle();
+
+        Tear(view, window, StudioDock.Documents);
+        Settle();
+
+        var torn = Assert.Single(dock.Floating);
+
+        dock.Open("hello", "doc:a.axaml", "a.axaml", new Border());
+        Settle();
+
+        Assert.NotNull(DockTree.Holder(torn.View.Root!, "doc:a.axaml"));
+        Assert.Null(DockTree.Holder(view.Root!, "doc:a.axaml"));
+    }
+
+    /// <summary>
+    /// Показать оторванную панель — значит достать её в её же окне.
+    /// </summary>
+    /// <remarks>
+    /// Выбор искали только в главном дереве, и просьба показать документ,
+    /// уехавший в своё окно, не делала ничего: человек открывал тот же файл
+    /// снова и не понимал, куда он делся.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Showing_a_torn_panel_reaches_it_in_its_own_window()
+    {
+        var (dock, view, window) = Two();
+
+        dock.Open("hello", "doc:a.axaml", "a.axaml", new Border());
+        Settle();
+
+        Tear(view, window, StudioDock.Documents);
+        Settle();
+
+        var torn = Assert.Single(dock.Floating);
+        var group = torn.View.Root!.Groups().Single().Id;
+
+        // Пусть в окне будет две вкладки, и выбрана не наша: соседку приносим
+        // туда же из главного окна.
+        DockMouse.Drag(
+            window,
+            DockMouse.Tab(view.View("left")!, 0, window),
+            DockMouse.Across(torn, DockMouse.Tab(torn.View.View(group)!, 0, torn), window));
+
+        Settle();
+
+        Assert.Equal("hello:tree", DockTree.Group(torn.View.Root!, group)?.Selected);
+
+        dock.Show("doc:a.axaml");
+        Settle();
+
+        Assert.Equal("doc:a.axaml", DockTree.Group(torn.View.Root!, group)?.Selected);
+    }
+
+    /// <summary>
     /// Сброс разбирает и оторванные окна.
     /// </summary>
     /// <remarks>
@@ -1223,6 +1323,31 @@ public class StudioDockTests : IDisposable
 
         Assert.Equal(["default"], dock.Layouts);
         Assert.Equal("right", DockTree.Holder(view.Root!, "hello:tree")?.Id);
+    }
+
+    /// <summary>
+    /// Забытый набор уносит и свои оторванные окна.
+    /// </summary>
+    /// <remarks>
+    /// Окно набора живёт ровно столько, сколько сам набор: оставь его на экране —
+    /// и панель окажется в двух деревьях разом, чего Avalonia не прощает.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_forgotten_set_takes_its_torn_windows_with_it()
+    {
+        var (dock, view, window) = Two();
+
+        dock.SaveAs("отладка");
+        Tear(view, window, "left");
+        Settle();
+
+        Assert.Single(dock.Floating);
+
+        dock.Forget();
+        Settle();
+
+        Assert.Empty(dock.Floating);
+        Assert.Equal("left", DockTree.Holder(view.Root!, "hello:tree")?.Id);
     }
 
     /// <summary>

@@ -231,7 +231,7 @@ public sealed class StudioDock
         if (string.IsNullOrEmpty(chosen) || _view.Root is not { } root)
             return;
 
-        _saved[_active] = new DockWorkspace { Root = root, DocumentHome = _home };
+        _saved[_active] = Current(root);
         _saved.Remove(chosen);
         _active = chosen;
         _dirty = true;
@@ -257,7 +257,7 @@ public sealed class StudioDock
             return;
         }
 
-        _saved[_active] = new DockWorkspace { Root = root, DocumentHome = _home };
+        _saved[_active] = Current(root);
         _saved.Remove(name);
         _active = name;
         _dirty = true;
@@ -419,6 +419,18 @@ public sealed class StudioDock
         if (!_asked.Any(asked => string.Equals(asked.Id, id, StringComparison.Ordinal)))
             _asked.Add((id, new PluginPlacement { Side = Documents }));
 
+        // Документ, уже стоящий в каком-то дереве, туда и достаётся: он мог
+        // уехать в своё окно. Поставить его вторично значило бы попросить один
+        // контрол в два места, а это исключение.
+        if (Tree(id) is { } known)
+        {
+            known.Refresh();
+            Rehang();
+            Show(id);
+
+            return;
+        }
+
         Edit(root => DockTree.Attach(root, Home(root), id));
     }
 
@@ -460,7 +472,21 @@ public sealed class StudioDock
     /// <param name="id">Имя того, что показываем.</param>
     public void Show(string id)
     {
-        Edit(root => DockTree.Select(root, id));
+        // Панель могла уехать в своё окно, и выбор в главном дереве её там не
+        // достанет. Показать — значит показать: окно ещё и поднимается, иначе
+        // человек ищет панель, которая всё это время была за спиной у студии.
+        if (Torn(id) is { } torn)
+        {
+            Change(torn, root => DockTree.Select(root, id));
+
+            if (torn.IsVisible)
+                torn.Activate();
+        }
+        else
+        {
+            Edit(root => DockTree.Select(root, id));
+        }
+
         Chosen?.Invoke(this, id);
     }
 
@@ -619,15 +645,13 @@ public sealed class StudioDock
     }
 
     /// <summary>Дерево, в котором числится панель; null — нигде.</summary>
-    private DockView? Tree(string id)
-    {
-        if (_view.Root is { } root && DockTree.Holder(root, id) is not null)
-            return _view;
+    private DockView? Tree(string id) =>
+        _view.Root is { } root && DockTree.Holder(root, id) is not null ? _view : Torn(id)?.View;
 
-        return _floats
-            .FirstOrDefault(window => window.View.Root is { } tree && DockTree.Holder(tree, id) is not null)
-            ?.View;
-    }
+    /// <summary>Оторванное окно, держащее это имя; null — имя не в окнах.</summary>
+    private DockFloat? Torn(string id) =>
+        _floats.FirstOrDefault(window =>
+            window.View.Root is { } tree && DockTree.Holder(tree, id) is not null);
 
     /// <summary>Правит дерево оторванного окна; опустевшее окно закрывается само.</summary>
     private void Change(DockFloat window, Func<DockNode, DockNode> change)
@@ -972,13 +996,23 @@ public sealed class StudioDock
         Active = _active,
         Layouts = new Dictionary<string, DockWorkspace>(_saved, StringComparer.Ordinal)
         {
-            [_active] = new()
-            {
-                Root = root,
-                DocumentHome = _home,
-                Floating = [.. _floats.Select(window => window.Snapshot())],
-            },
+            [_active] = Current(root),
         },
+    };
+
+    /// <summary>
+    /// Показанная раскладка в том виде, в каком её кладут в набор или в файл.
+    /// </summary>
+    /// <remarks>
+    /// Оторванные окна — её часть, и забыть их значит потерять: человек уходит
+    /// посмотреть соседний набор, а вернувшись, не находит расставленных окон.
+    /// Место у этой сборки одно, чтобы забыть их было негде.
+    /// </remarks>
+    private DockWorkspace Current(DockNode root) => new()
+    {
+        Root = root,
+        DocumentHome = _home,
+        Floating = [.. _floats.Select(window => window.Snapshot())],
     };
 
     /// <summary>От какой группы отмерять место для новой.</summary>
