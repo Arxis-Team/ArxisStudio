@@ -910,4 +910,29 @@ public class DockViewTests
         Assert.NotNull(corner);
         Assert.Equal(title.Bounds.Width + 12, corner.Value.X);
     }
+
+    /// <summary>
+    /// Углы у панелей в доках прямые.
+    /// </summary>
+    /// <remarks>
+    /// Скругление <c>AxToolWindow</c> — для панели, стоящей отдельной карточкой.
+    /// В доках панели стоят встык, и на каждом стыке скруглённый угол открывает
+    /// фон оболочки; тот темнее панели, и на границах выступают чёрные
+    /// зазубрины — по две на каждом перекрестье делений.
+    /// <para>
+    /// Проверяется настройка, а не картинка: зазубрины видит глаз, а в headless
+    /// сравнивать не с чем. Настройку легко потерять при правке шаблона — она о
+    /// том, чего на экране <b>нет</b>.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void Docked_panels_have_square_corners()
+    {
+        var (view, _) = Pair();
+
+        var panels = view.GetVisualDescendants().OfType<AxToolWindow>().ToList();
+
+        Assert.NotEmpty(panels);
+        Assert.All(panels, panel => Assert.Equal(default, panel.CornerRadius));
+    }
 }

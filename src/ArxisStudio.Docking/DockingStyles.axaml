@@ -20,9 +20,16 @@
       <ControlTheme x:Key="{x:Type dock:DockGroupView}" TargetType="dock:DockGroupView">
         <Setter Property="Template">
           <ControlTemplate>
+            <!--
+                Углы прямые. Скругление у AxToolWindow — для панели, стоящей
+                отдельной карточкой; в доках они стоят встык, и на каждом стыке
+                скруглённый угол открывает фон оболочки — тот темнее панели, и
+                на границах выступают чёрные зазубрины.
+            -->
             <ax:AxToolWindow ShowHeaderSeparator="True"
                              ShowHeader="{TemplateBinding HasTabs}"
-                             Actions="{TemplateBinding Actions}">
+                             Actions="{TemplateBinding Actions}"
+                             CornerRadius="0">
               <ax:AxToolWindow.Tabs>
                 <ax:AxTabStrip x:Name="PART_Tabs" Theme="{DynamicResource AxToolWindowTabStrip}"/>
               </ax:AxToolWindow.Tabs>
