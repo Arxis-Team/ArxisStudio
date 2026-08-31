@@ -562,4 +562,28 @@ public class DockTreeTests
 
     private static DockGroup Group(string id, string item) =>
         new() { Id = id, Items = [item], Selected = item };
+
+    /// <summary>
+    /// Правка, которой нечего менять, возвращает то же дерево той же ссылкой.
+    /// </summary>
+    /// <remarks>
+    /// На этом держится вся студия: дерево у неё — свойство вида, и присвоение
+    /// нового перекладывает окно целиком. Верни эти две новое дерево — уборка
+    /// чужого имени сносила бы и ставила заново каждое окно студии, а просьба
+    /// показать уже показанное уносила бы место, где человек печатал.
+    /// </remarks>
+    [Fact]
+    public void An_edit_with_nothing_to_change_returns_the_same_tree()
+    {
+        var root = new DockGroup { Id = "left", Items = ["solution", "properties"], Selected = "solution" };
+
+        Assert.Same(root, DockTree.Remove(root, "нет такого"));
+        Assert.Same(root, DockTree.Select(root, "нет такого"));
+
+        // Выбранная уже выбрана — менять нечего и здесь.
+        var chosen = DockTree.Select(root, "properties");
+
+        Assert.NotSame(root, chosen);
+        Assert.Same(chosen, DockTree.Select(chosen, "properties"));
+    }
 }

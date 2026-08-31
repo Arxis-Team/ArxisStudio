@@ -208,6 +208,12 @@ public static class DockTree
     {
         ArgumentNullException.ThrowIfNull(root);
 
+        // Имени в дереве нет — и правки нет. Иначе уборка одного имени
+        // переписывала бы все деревья студии разом: чужие окна теряли бы курсор,
+        // а пустые стороны главного окна — заготовленный им размер.
+        if (Holder(root, item) is null)
+            return root;
+
         return Prune(Filter(root, id => !string.Equals(id, item, StringComparison.Ordinal)), keep);
     }
 
@@ -262,6 +268,12 @@ public static class DockTree
         ArgumentNullException.ThrowIfNull(root);
 
         if (Holder(root, item) is not { } holder)
+            return root;
+
+        // Выбрать уже выбранное — не правка. Перекладка ради неё сносит и ставит
+        // заново всё дерево окна, а вместе с ним пропадает курсор в панели, где
+        // человек печатает.
+        if (string.Equals(holder.Selected, item, StringComparison.Ordinal))
             return root;
 
         return Rewrite(root, holder.Id, group => new DockGroup
