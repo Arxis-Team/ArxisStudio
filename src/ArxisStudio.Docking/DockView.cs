@@ -71,6 +71,9 @@ public class DockView : Decorator
     /// <inheritdoc cref="GhostWidth"/>
     private const double GhostHeight = 160;
 
+    /// <summary>Отступ рамки обещанного окна от краёв области.</summary>
+    private const double Gap = 8;
+
     /// <summary>Дерево, которое показываем.</summary>
     public static readonly StyledProperty<DockNode?> RootProperty =
         AvaloniaProperty.Register<DockView, DockNode?>(nameof(Root));
@@ -117,44 +120,11 @@ public class DockView : Decorator
     /// <summary>Что тащат прямо сейчас.</summary>
     private string? _dragged;
 
-    /// <summary>
-    /// Дерево предпросмотра — каким оно станет, если бросить сейчас.
-    /// </summary>
-    /// <remarks>
-    /// Настоящее дерево при этом не трогают: человек ещё держит кнопку и волен
-    /// увести вкладку куда угодно. Показывают предпросмотр, помнят настоящее.
-    /// </remarks>
-    private DockNode? _preview;
+    /// <summary>Подсказка: место, которое займёт брошенная вкладка.</summary>
+    private Border? _hint;
 
-    /// <summary>Имя несомой панели: в предпросмотре у неё рисуется вкладка, но не тело.</summary>
-    private string? _ghost;
-
-    /// <summary>
-    /// В какой группе несомая панель — призрак.
-    /// </summary>
-    /// <remarks>
-    /// Именно в группе, а не вообще: пока вкладку несут, она **остаётся на
-    /// своём месте** — там у неё и вкладка, и тело. Призрак же появляется в той
-    /// группе, куда она собирается, и тела у него нет. Так во время тяги панель
-    /// видна дважды, и это правда: она ещё здесь и уже почти там.
-    /// </remarks>
-    private string? _ghostGroup;
-
-    /// <summary>Призрак отдельного окна под курсором.</summary>
-    private Border? _carry;
-
-    /// <summary>
-    /// Разметка, по которой целятся, — снятая до первого предпросмотра.
-    /// </summary>
-    /// <remarks>
-    /// Целиться по тому, что на экране, нельзя: предпросмотр перекладывает
-    /// области по-настоящему, и следующее движение мерило бы уже по будущей
-    /// раскладке. Получилась бы петля — показанное меняло бы цель, а цель
-    /// показанное. Поэтому разметка снимается один раз, в начале тяги, и
-    /// держится до её конца; так же поступает Unity, где предпросмотр рисуется
-    /// поверх неизменного дерева.
-    /// </remarks>
-    private IReadOnlyList<Frozen>? _aiming;
+    /// <summary>Черта в полосе вкладок: у неё вкладка и встанет.</summary>
+    private Border? _caret;
 
     static DockView()
     {
@@ -396,116 +366,96 @@ public class DockView : Decorator
     }
 
     /// <summary>
-    /// Показывает, каким станет дерево, если бросить вкладку сейчас.
-    /// </summary>
-    /// <param name="tree">Будущее дерево.</param>
-    /// <param name="ghost">Имя несомой панели.</param>
-    /// <param name="group">
-    /// В какой группе она призрак; null — призрака нет, панель просто
-    /// переставили внутри своей же полосы.
-    /// </param>
-    /// <remarks>
-    /// Дерево считает та же функция, что применится при броске, поэтому
-    /// показанное человеку и полученное им не расходятся. Пока вместо этого
-    /// рисовали плашку, она обещала половину области, а новичок получал
-    /// половину доли соседа.
-    /// <para>
-    /// Со своего места панель при этом <b>не уходит</b>: пока кнопка нажата,
-    /// человек волен передумать, и вырывать панель из-под курсора на полпути
-    /// значит перекладывать всё окно на каждое движение. Поэтому во время тяги
-    /// она видна дважды — телом там, где стоит, и пустым призраком там, куда
-    /// собирается.
-    /// </para>
-    /// </remarks>
-    public void Preview(DockNode tree, string ghost, string? group)
-    {
-        ArgumentNullException.ThrowIfNull(tree);
-
-        Vanish();
-
-        _preview = tree;
-        _ghost = ghost;
-        _ghostGroup = group;
-
-        Rebuild();
-    }
-
-    /// <summary>
-    /// Показывает призрак отдельного окна под курсором.
+    /// Показывает, где окажется вкладка, брошенная в эту точку экрана.
     /// </summary>
     /// <param name="at">Точка на экране.</param>
-    /// <param name="title">Подпись несомой панели.</param>
+    /// <param name="item">Какую панель несут.</param>
     /// <remarks>
-    /// Середина области значит «оторви», и человеку надо это увидеть: пустая
-    /// рамка с подписью под курсором объясняет жест лучше любого слова.
+    /// Показывает <b>ровно то место</b>, которое панель займёт: доли, по которым
+    /// оно считается, живут в <see cref="DockTree"/> и берутся оттуда, а не
+    /// повторяются здесь своей цифрой. Обещание поэтому не расходится с тем,
+    /// что человек получит.
+    /// <para>
+    /// Настоящих областей при этом не двигают. Перекладка на каждую границу зон
+    /// заставляет раскладку щёлкать под курсором, а целиться — в то, что уже
+    /// уехало. Место рисуется поверх, окно стоит на месте, и переход между
+    /// зонами виден одним движением подсказки.
+    /// </para>
     /// </remarks>
-    public void Carry(PixelPoint at, string title)
+    public void Show(PixelPoint at, string item)
     {
-        Restore();
+        var aim = Aim(at, item);
+        var title = Items?.Find(item)?.Title ?? item;
 
-        if (OverlayLayer.GetOverlayLayer(this) is not { } layer
-            || Local(at) is not { } point
-            || this.TranslatePoint(point, layer) is not { } corner)
+        if (aim is DockAim.Tab tab && View(tab.Group) is { } joined && Place(joined) is { } strip)
         {
-            Vanish();
+            var (_, edge) = joined.Slot(Local(at) is { } point ? (point - strip.Position).X : 0, item);
+
+            // Подсвечивается сама полоса, а не вся область: вкладка встаёт в
+            // полосу, и накрывать ради этого всю панель — кричать не по делу.
+            // Подпись здесь тоже лишняя: имя человек и так несёт под курсором,
+            // а поверх чужих вкладок оно легло бы кашей.
+            Paint(new Rect(strip.X, strip.Y, strip.Width, joined.HeaderHeight), null);
+            Mark(new Rect(strip.X + edge - 1, strip.Y, 2, joined.HeaderHeight));
+
             return;
         }
 
-        _carry ??= new Border
+        if (aim is DockAim.Split split && View(split.Group) is { } divided && Place(divided) is { } area)
         {
-            Classes = { "dock-ghost" },
-            IsHitTestVisible = false,
-            Width = GhostWidth,
-            Height = GhostHeight,
-            Child = new TextBlock(),
-        };
+            Paint(Slice(area, split.Side, DockTree.SplitShare), title);
+            Mark(null);
 
-        if (_carry.Child is TextBlock label)
-            label.Text = title;
+            return;
+        }
 
-        if (!layer.Children.Contains(_carry))
-            layer.Children.Add(_carry);
+        if (aim is DockAim.Frame frame)
+        {
+            Paint(Slice(new Rect(Bounds.Size), frame.Side, DockTree.FrameShare), title);
+            Mark(null);
 
-        Canvas.SetLeft(_carry, corner.X - (GhostWidth / 2));
-        Canvas.SetTop(_carry, corner.Y - (GhostHeight / 2));
+            return;
+        }
+
+        if (aim is DockAim.Float && Local(at) is { } cursor)
+        {
+            Paint(Ghost(cursor), title);
+            Mark(null);
+
+            return;
+        }
+
+        Clear();
     }
 
-    /// <summary>Снимает предпросмотр и призрак, возвращая настоящее дерево.</summary>
+    /// <summary>Убирает подсказку этого дерева.</summary>
     /// <remarks>
-    /// Тяги не касается: пока курсор идёт над чужим окном, показывать своему
+    /// Тяги не касается: пока курсор идёт над чужим окном, своему показывать
     /// нечего, а вкладку несёт по-прежнему оно.
     /// </remarks>
     public void Clear()
     {
-        _aiming = null;
-
-        Vanish();
-        Restore();
+        Paint(null, null);
+        Mark(null);
     }
-
-    /// <summary>Область на прицеле: где была, докуда шапка и где середины вкладок.</summary>
-    private sealed record Frozen(
-        string Id, Rect Area, double Header, IReadOnlyList<(string Item, double Middle)> Slots);
 
     /// <summary>Куда попадёт брошенная вкладка; null — мимо всего.</summary>
     private DockAim? Target(Point point, string item)
     {
-        _aiming ??= Freeze();
-
-        if (_aiming.FirstOrDefault(group => group.Area.Contains(point)) is not { } aimed)
+        if (Group(point) is not { } group || Place(group) is not { } area)
             return null;
 
-        var size = aimed.Area.Size;
+        var size = area.Size;
 
         if (size.Width <= 0 || size.Height <= 0)
             return null;
 
-        var local = point - aimed.Area.Position;
+        var local = point - area.Position;
 
         // Полоса вкладок сильнее всего: она и есть «встань рядом», и место в
         // ней человек выбирает тем же движением.
-        if (local.Y < aimed.Header)
-            return new DockAim.Tab(aimed.Id, Slot(aimed, local.X, item));
+        if (local.Y < group.HeaderHeight)
+            return new DockAim.Tab(group.Id, group.Slot(local.X, item).At);
 
         var across = local.X / size.Width;
         var down = local.Y / size.Height;
@@ -523,12 +473,12 @@ public class DockView : Decorator
         // Дальше трети от каждого края — это середина, а середина значит
         // «оторви в своё окно»: так человеку не нужен свободный рабочий стол.
         return near.Share < Third
-            ? new DockAim.Split(aimed.Id, near.Side)
+            ? new DockAim.Split(group.Id, near.Side)
             : new DockAim.Float();
     }
 
     /// <summary>
-    /// Стыковка ко всему дереву; null — точка не за его пределами.
+    /// Стыковка ко всему дереву; null — мерить нечего.
     /// </summary>
     /// <remarks>
     /// Внутри окна, но вне дерева — это полосы, которые деревом не заняты: у
@@ -557,85 +507,116 @@ public class DockView : Decorator
         return new DockAim.Frame(edges.MaxBy(edge => edge.Away).Side);
     }
 
-    /// <summary>Снимает разметку показанных областей — по ней и целятся всю тягу.</summary>
-    private IReadOnlyList<Frozen> Freeze() =>
-    [
-        .. _groups.Values
-            .Where(group => group.IsVisible && group.TranslatePoint(default, this) is not null)
-            .Select(group => new Frozen(
-                group.Id,
-                new Rect(group.TranslatePoint(default, this)!.Value, group.Bounds.Size),
-                group.HeaderHeight,
-                group.Slots())),
-    ];
-
-    /// <summary>
-    /// Место в полосе, куда встанет вкладка, брошенная на этом расстоянии слева.
-    /// </summary>
-    /// <remarks>
-    /// Номер — в счёте дерева, а не показанных вкладок: панель выключенного
-    /// плагина остаётся в группе именем, вкладки у неё нет, и место, посчитанное
-    /// по экрану, уехало бы мимо.
-    /// <para>
-    /// Несомая вкладка не считается: место человек выбирает среди остальных, и
-    /// <see cref="DockTree.Attach"/> убирает её из группы ровно так же. Считай мы
-    /// её — перестановка внутри полосы промахивалась бы на единицу.
-    /// </para>
-    /// </remarks>
-    private int Slot(Frozen aimed, double x, string item)
-    {
-        if (Root is not { } root || DockTree.Group(root, aimed.Id) is not { } group)
-            return 0;
-
-        var rest = group.Items
-            .Where(id => !string.Equals(id, item, StringComparison.Ordinal))
-            .ToList();
-
-        for (var at = 0; at < rest.Count; at++)
-        {
-            var slot = aimed.Slots.FirstOrDefault(shown =>
-                string.Equals(shown.Item, rest[at], StringComparison.Ordinal));
-
-            // У панели выключенного плагина вкладки нет — мерить нечего, и место
-            // она делит с ближайшей видимой соседкой слева.
-            if (slot.Item is not null && x < slot.Middle)
-                return at;
-        }
-
-        return rest.Count;
-    }
-
     /// <summary>Группа под указателем; null — там её нет.</summary>
     private DockGroupView? Group(Point point) =>
-        new Rect(Bounds.Size).Contains(point)
-            ? _groups.Values.FirstOrDefault(group => Inside(group, point))
+        _groups.Values.FirstOrDefault(group => Place(group)?.Contains(point) == true);
+
+    /// <summary>Место группы в координатах вида; null — её там нет.</summary>
+    private Rect? Place(DockGroupView group) =>
+        group.TranslatePoint(default, this) is { } origin
+            ? new Rect(origin, group.Bounds.Size)
             : null;
 
-    /// <summary>Попадает ли точка в эту группу.</summary>
-    private bool Inside(DockGroupView group, Point point) =>
-        group.TranslatePoint(default, this) is { } origin
-        && new Rect(origin, group.Bounds.Size).Contains(point);
-
-    /// <summary>Убирает призрак отдельного окна со слоя.</summary>
-    private void Vanish()
+    /// <summary>
+    /// Рамка обещанного окна — под курсором и внутри области.
+    /// </summary>
+    /// <remarks>
+    /// Размер условный: настоящий окно возьмёт у панели, которую несут. Но
+    /// вылезать за область рамке нельзя — она обещает окно, а не место, и
+    /// торчащая за край выглядела бы именно местом.
+    /// </remarks>
+    private Rect Ghost(Point cursor)
     {
-        if (_carry is { Parent: Panel layer })
-            layer.Children.Remove(_carry);
+        var room = Group(cursor) is { } group && Place(group) is { } area
+            ? area
+            : new Rect(Bounds.Size);
 
-        _carry = null;
+        var width = Math.Min(GhostWidth, Math.Max(0, room.Width - (Gap * 2)));
+        var height = Math.Min(GhostHeight, Math.Max(0, room.Height - (Gap * 2)));
+
+        return new Rect(
+            Math.Clamp(cursor.X - (width / 2), room.X + Gap, Math.Max(room.X + Gap, room.Right - Gap - width)),
+            Math.Clamp(cursor.Y - (height / 2), room.Y + Gap, Math.Max(room.Y + Gap, room.Bottom - Gap - height)),
+            width,
+            height);
     }
 
-    /// <summary>Возвращает вид к настоящему дереву, если показывался предпросмотр.</summary>
-    private void Restore()
+    /// <summary>Полоса указанной доли у названного края.</summary>
+    private static Rect Slice(Rect area, DockSide side, double share) => side switch
     {
-        if (_preview is null)
+        DockSide.Left => new Rect(area.X, area.Y, area.Width * share, area.Height),
+        DockSide.Right => new Rect(
+            area.X + (area.Width * (1 - share)), area.Y, area.Width * share, area.Height),
+        DockSide.Top => new Rect(area.X, area.Y, area.Width, area.Height * share),
+
+        // Осталась только нижняя: сторон четыре, три уже разобраны.
+        _ => new Rect(area.X, area.Y + (area.Height * (1 - share)), area.Width, area.Height * share),
+    };
+
+    /// <summary>
+    /// Кладёт подсказку на указанное место; null — снимает её.
+    /// </summary>
+    /// <remarks>
+    /// Подсказка не ловит мышь: поймай она её — под указателем всегда была бы
+    /// она сама, и цель перестала бы меняться.
+    /// </remarks>
+    private void Paint(Rect? area, string? title)
+    {
+        if (area is not { } place
+            || OverlayLayer.GetOverlayLayer(this) is not { } layer
+            || this.TranslatePoint(place.Position, layer) is not { } corner)
+        {
+            if (_hint is { Parent: Panel host })
+                host.Children.Remove(_hint);
+
+            _hint = null;
+
             return;
+        }
 
-        _preview = null;
-        _ghost = null;
-        _ghostGroup = null;
+        _hint ??= new Border
+        {
+            Classes = { "dock-hint" },
+            IsHitTestVisible = false,
+            Child = new TextBlock(),
+        };
 
-        Rebuild();
+        if (_hint.Child is TextBlock label)
+            label.Text = title;
+
+        if (!layer.Children.Contains(_hint))
+            layer.Children.Add(_hint);
+
+        Canvas.SetLeft(_hint, corner.X);
+        Canvas.SetTop(_hint, corner.Y);
+        _hint.Width = place.Width;
+        _hint.Height = place.Height;
+    }
+
+    /// <summary>Ставит черту, у которой встанет вкладка; null — снимает её.</summary>
+    private void Mark(Rect? area)
+    {
+        if (area is not { } place
+            || OverlayLayer.GetOverlayLayer(this) is not { } layer
+            || this.TranslatePoint(place.Position, layer) is not { } corner)
+        {
+            if (_caret is { Parent: Panel host })
+                host.Children.Remove(_caret);
+
+            _caret = null;
+
+            return;
+        }
+
+        _caret ??= new Border { Classes = { "dock-caret" }, IsHitTestVisible = false };
+
+        if (!layer.Children.Contains(_caret))
+            layer.Children.Add(_caret);
+
+        Canvas.SetLeft(_caret, corner.X);
+        Canvas.SetTop(_caret, corner.Y);
+        _caret.Width = place.Width;
+        _caret.Height = place.Height;
     }
 
     /// <summary>
@@ -669,7 +650,7 @@ public class DockView : Decorator
 
         var alive = new HashSet<string>(StringComparer.Ordinal);
 
-        if ((_preview ?? Root) is { } root && Items is { } items)
+        if (Root is { } root && Items is { } items)
             Child = Build(root, [], items, alive);
 
         foreach (var id in _groups.Keys.Where(id => !alive.Contains(id)).ToList())
@@ -701,11 +682,7 @@ public class DockView : Decorator
                 _groups[group.Id] = view;
             }
 
-            view.Update(
-                group,
-                items,
-                named ? Empty : null,
-                string.Equals(group.Id, _ghostGroup, StringComparison.Ordinal) ? _ghost : null);
+            view.Update(group, items, named ? Empty : null);
 
             return view;
         }

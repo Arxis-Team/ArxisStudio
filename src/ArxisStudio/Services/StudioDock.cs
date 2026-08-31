@@ -109,15 +109,6 @@ public sealed class StudioDock
     /// </remarks>
     private bool _farewell;
 
-    /// <summary>
-    /// Какое дерево и с каким намерением показывает предпросмотр.
-    /// </summary>
-    /// <remarks>
-    /// Помнится ради одного: предпросмотр — это перекладка всего дерева, и
-    /// повторять её на каждое движение мыши незачем. Намерение сравнивается по
-    /// значению, поэтому шевеление внутри одной зоны ничего не стоит.
-    /// </remarks>
-    private (DockView View, DockAim Aim)? _leading;
 
     private string _active = DockLayout.DefaultName;
     private string _home = Documents;
@@ -691,7 +682,7 @@ public sealed class StudioDock
     /// <summary>Слушает тягу в этом дереве: вести её и бросать — дело общее.</summary>
     private void Follow(DockView view)
     {
-        view.Dragging += (_, drag) => Lead(view, drag);
+        view.Dragging += (_, drag) => Lead(drag);
         view.Dropped += (source, drag) => Land((DockView)source!, drag);
     }
 
@@ -703,41 +694,19 @@ public sealed class StudioDock
     /// одним окном. Дерево, начавшее тягу, ничем не выделено — вкладка уже на
     /// полпути в чужое окно, и подсказка обязана быть там же, где курсор.
     /// </remarks>
-    private void Lead(DockView source, DockDrag drag)
+    private void Lead(DockDrag drag)
     {
         // Показывает одно дерево, и то же самое, которое потом и примет вкладку:
         // окна перекрываются, и под курсором их вполне может быть два.
-        var landing = Views
-            .Select(view => (View: view, Aim: view.Aim(drag.At, drag.Item)))
-            .FirstOrDefault(found => found.Aim is not null);
+        var target = Views.FirstOrDefault(view => view.Aim(drag.At, drag.Item) is not null);
 
         foreach (var view in Views)
         {
-            if (!ReferenceEquals(view, landing.View))
+            if (ReferenceEquals(view, target))
+                view.Show(drag.At, drag.Item);
+            else
                 view.Clear();
         }
-
-        if (landing.Aim is not { } aim)
-        {
-            _leading = null;
-            return;
-        }
-
-        // Пока намерение то же, перестраивать нечего: предпросмотр — это
-        // перекладка всего дерева, и делать её на каждое движение мыши значит
-        // дёргать панели по десятку раз в секунду.
-        if (_leading is { } was && ReferenceEquals(was.View, landing.View) && was.Aim == aim)
-            return;
-
-        _leading = (landing.View, aim);
-
-        if (aim is DockAim.Float)
-        {
-            landing.View.Carry(drag.At, Items.Find(drag.Item)?.Title ?? drag.Item);
-            return;
-        }
-
-        Foretell(landing.View, source, drag.Item, aim);
     }
 
     /// <summary>
@@ -755,8 +724,6 @@ public sealed class StudioDock
         var landing = Views
             .Select(view => (View: view, Aim: view.Aim(drag.At, drag.Item)))
             .FirstOrDefault(found => found.Aim is not null);
-
-        _leading = null;
 
         foreach (var view in Views)
             view.Clear();
@@ -802,47 +769,6 @@ public sealed class StudioDock
         Edit(to, root => Landing(to, from, item, aim) ?? root);
 
         Rehang();
-    }
-
-    /// <summary>
-    /// Показывает будущую раскладку в том дереве, куда вкладка собирается.
-    /// </summary>
-    /// <remarks>
-    /// Со своего места панель при этом не уходит. Она уйдёт при броске, а пока
-    /// человек держит кнопку — он волен передумать, и вырывать панель из-под
-    /// курсора на полпути значит перекладывать всё окно на каждое движение.
-    /// Поэтому во время тяги она видна дважды: телом там, где стоит, и пустым
-    /// призраком там, куда собирается. Так же показывает Unity.
-    /// <para>
-    /// Если настоящая правка ничего не даст — а так бывает, когда область
-    /// делят её же единственной вкладкой, — не показываем ничего: обещать
-    /// человеку то, чего не будет, хуже, чем не обещать.
-    /// </para>
-    /// </remarks>
-    private void Foretell(DockView view, DockView source, string item, DockAim aim)
-    {
-        if (view.Root is not { } root || Landing(view, source, item, aim) is null)
-        {
-            view.Clear();
-            return;
-        }
-
-        var fresh = Fresh();
-        var group = aim switch
-        {
-            DockAim.Tab tab => tab.Group,
-            DockAim.Split or DockAim.Frame => fresh,
-            _ => null,
-        };
-
-        if (group is null)
-            return;
-
-        // Призрак — только там, где панели ещё нет. Переставленная внутри своей
-        // же полосы вкладка призраком не становится: это она сама, с телом.
-        var already = string.Equals(DockTree.Holder(root, item)?.Id, group, StringComparison.Ordinal);
-
-        view.Preview(DockTree.Apply(root, aim, item, fresh), item, already ? null : group);
     }
 
     /// <summary>

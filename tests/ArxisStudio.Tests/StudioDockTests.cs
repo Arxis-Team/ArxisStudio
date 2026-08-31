@@ -370,9 +370,10 @@ public class StudioDockTests : IDisposable
         window.MouseMove(to);
         Dispatcher.UIThread.RunJobs();
 
-        // В оторванном окне уже две области — будущая раскладка; в главном
-        // ничего не появилось, и настоящее дерево окна не тронуто.
-        Assert.Equal(2, Shown(torn.View).Count);
+        // Подсказка — в том окне, над которым курсор, и только там. Раскладка
+        // при этом не тронута ни в одном из них.
+        Assert.NotNull(Hint(torn.View));
+        Assert.Null(Hint(view));
         Assert.Same(was, torn.View.Root);
         Assert.Equal(untouched, Shown(view));
 
@@ -384,11 +385,11 @@ public class StudioDockTests : IDisposable
         Assert.Null(DockTree.Holder(view.Root!, "friend:tips"));
     }
 
-    /// <summary>Призрак отдельного окна; null — его нет.</summary>
-    private static Border? Ghost(DockView view) =>
+    /// <summary>Подсказка места; null — её нет.</summary>
+    private static Border? Hint(DockView view) =>
         OverlayLayer.GetOverlayLayer(view)?.Children
             .OfType<Border>()
-            .FirstOrDefault(border => border.Classes.Contains("dock-ghost"));
+            .FirstOrDefault(border => border.Classes.Contains("dock-hint"));
 
     /// <summary>
     /// Вынесенная из оторванного окна вкладка переносит его, а не пропадает.
@@ -707,10 +708,10 @@ public class StudioDockTests : IDisposable
         window.MouseMove(to);
         Dispatcher.UIThread.RunJobs();
 
-        var during = Shown(view);
-
-        Assert.Contains("left", during);
-        Assert.Equal(before.Count + 1, during.Count);
+        // Не «почти не двигается», а не двигается вовсе: подсказка рисуется
+        // поверх, и ни одна настоящая область не поехала.
+        Assert.Equal(before, Shown(view));
+        Assert.NotNull(Hint(view));
 
         window.MouseUp(to, MouseButton.Left);
         Dispatcher.UIThread.RunJobs();
@@ -740,15 +741,18 @@ public class StudioDockTests : IDisposable
         window.MouseMove(to);
         Dispatcher.UIThread.RunJobs();
 
-        var ghost = Ghost(view);
+        var hint = Hint(view);
 
-        Assert.NotNull(ghost);
-        Assert.False(ghost.IsHitTestVisible);
+        Assert.NotNull(hint);
+        Assert.False(hint.IsHitTestVisible);
+
+        // Рамка под курсором, а не по краю области: это обещание окна, а не места.
+        Assert.True(hint.Width < view.View("right")!.Bounds.Width, "рамка размером с область");
 
         window.MouseUp(to, MouseButton.Left);
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Null(Ghost(view));
+        Assert.Null(Hint(view));
     }
 
     /// <summary>

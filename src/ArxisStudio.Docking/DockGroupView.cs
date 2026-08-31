@@ -78,30 +78,51 @@ public class DockGroupView : TemplatedControl
             : 0;
 
     /// <summary>
-    /// Середины показанных вкладок — в координатах группы.
+    /// Куда встанет вкладка, брошенная на этом расстоянии слева: место и граница.
     /// </summary>
+    /// <param name="x">Расстояние от левого края группы.</param>
+    /// <param name="ignore">Какую вкладку не считать — её как раз и несут.</param>
+    /// <returns>Место в счёте дерева и черта, у которой вкладка встанет.</returns>
     /// <remarks>
-    /// По ним считают место, куда встанет брошенная вкладка. Снимаются они один
-    /// раз, в начале тяги: предпросмотр перекладывает области по-настоящему, и
-    /// мерить по нему значило бы целиться в то, чего ещё нет.
+    /// Место — в счёте дерева, а не показанных вкладок: панель выключенного
+    /// плагина остаётся в группе именем, вкладки у неё нет, и место, посчитанное
+    /// по экрану, уехало бы мимо.
+    /// <para>
+    /// Несомая вкладка не считается: место человек выбирает среди остальных, и
+    /// <see cref="DockTree.Attach"/> убирает её из группы ровно так же. Считай мы
+    /// её — перестановка внутри полосы промахивалась бы на единицу.
+    /// </para>
     /// </remarks>
-    public IReadOnlyList<(string Item, double Middle)> Slots()
+    public (int At, double Edge) Slot(double x, string? ignore = null)
     {
-        if (_tabs is null)
-            return [];
+        if (_tabs is null || _group is null)
+            return (0, 0);
 
-        var slots = new List<(string Item, double Middle)>();
+        var rest = _group.Items
+            .Where(id => !string.Equals(id, ignore, StringComparison.Ordinal))
+            .ToList();
 
-        for (var at = 0; at < _shown.Count && at < _tabs.Items.Count; at++)
+        var edge = 0d;
+
+        for (var at = 0; at < rest.Count; at++)
         {
-            if (_tabs.Items[at] is Control tab
-                && tab.TranslatePoint(new Point(tab.Bounds.Width / 2, 0), this) is { } middle)
-            {
-                slots.Add((_shown[at], middle.X));
-            }
+            var shown = _shown.IndexOf(rest[at]);
+
+            // У панели выключенного плагина вкладки нет — мерить нечего, и место
+            // она делит с ближайшей видимой соседкой слева.
+            if (shown < 0 || shown >= _tabs.Items.Count || _tabs.Items[shown] is not Control tab)
+                continue;
+
+            if (tab.TranslatePoint(default, this) is not { } corner)
+                continue;
+
+            if (x < corner.X + (tab.Bounds.Width / 2))
+                return (at, corner.X);
+
+            edge = corner.X + tab.Bounds.Width;
         }
 
-        return slots;
+        return (rest.Count, edge);
     }
 
     /// <summary>Имя панели, которой принадлежит вкладка; null — вкладка не наша.</summary>

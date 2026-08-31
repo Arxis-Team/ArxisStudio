@@ -35,24 +35,34 @@
   </Styles.Resources>
 
   <!--
-      Призрак отдельного окна: пустая рамка с подписью панели, отцентрованная на
-      курсоре. Появляется, когда вкладку несут в середину области, и объясняет
-      этот жест лучше любого слова — «будет своё окно». Размер условный: настоящий
-      окно возьмёт у панели, которую несут.
+      Подсказка: место, которое займёт брошенная вкладка, с её подписью.
+      Заливка полупрозрачная — человеку надо видеть, что именно накроет панель,
+      а сплошная скрывала бы как раз то, ради чего он смотрит. Настоящих
+      областей подсказка не двигает: перекладка на каждой границе зон
+      заставляла бы раскладку щёлкать под курсором.
   -->
-  <Style Selector="Border.dock-ghost">
-    <Setter Property="Background" Value="{DynamicResource AxBg1Brush}"/>
+  <Style Selector="Border.dock-hint">
+    <Setter Property="Background" Value="{DynamicResource AxAccBrush}"/>
+    <Setter Property="Opacity" Value="0.28"/>
     <Setter Property="BorderBrush" Value="{DynamicResource AxAccStrongBrush}"/>
-    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="BorderThickness" Value="2"/>
     <Setter Property="CornerRadius" Value="{DynamicResource AxCornerRadius}"/>
-    <Setter Property="Opacity" Value="0.9"/>
   </Style>
-  <Style Selector="Border.dock-ghost > TextBlock">
+  <Style Selector="Border.dock-hint > TextBlock">
     <Setter Property="Margin" Value="10,8"/>
     <Setter Property="HorizontalAlignment" Value="Left"/>
     <Setter Property="VerticalAlignment" Value="Top"/>
     <Setter Property="Foreground" Value="{DynamicResource AxFgBrush}"/>
     <Setter Property="FontSize" Value="{DynamicResource AxFontSize}"/>
+    <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+  </Style>
+
+  <!--
+      Черта в полосе вкладок: у неё вкладка и встанет. Она же и объясняет, что
+      место в полосе выбирают тем же движением, каким несут.
+  -->
+  <Style Selector="Border.dock-caret">
+    <Setter Property="Background" Value="{DynamicResource AxAccStrongBrush}"/>
   </Style>
 
   <!--

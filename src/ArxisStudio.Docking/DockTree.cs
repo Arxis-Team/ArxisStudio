@@ -35,6 +35,26 @@ public enum DockSide
 public static class DockTree
 {
     /// <summary>
+    /// Какую часть области забирает новая, разделив её.
+    /// </summary>
+    /// <remarks>
+    /// Половину — и в том случае, когда цель заворачивают в новое деление, и в
+    /// том, когда новичок встаёт ей соседом: там он берёт половину её доли, что
+    /// на экране то же самое. Число названо, чтобы подсказка при перетаскивании
+    /// брала его отсюда, а не повторяла своей цифрой.
+    /// </remarks>
+    public const double SplitShare = 0.5;
+
+    /// <summary>
+    /// Какую часть окна забирает полоса, легшая поперёк всего дерева.
+    /// </summary>
+    /// <remarks>
+    /// Четверть: полоса во всю ширину — это обычно консоль, и половина окна ей
+    /// не нужна. Отсюда же её берёт подсказка.
+    /// </remarks>
+    public const double FrameShare = 0.25;
+
+    /// <summary>
     /// Ставит панель к группе с указанной стороны.
     /// </summary>
     /// <param name="root">Корень дерева.</param>
@@ -63,7 +83,7 @@ public static class DockTree
             {
                 Orientation = along,
                 Children = first ? [fresh, group] : [group, fresh],
-                Weights = [0.5, 0.5],
+                Weights = [SplitShare, 1 - SplitShare],
             });
     }
 
@@ -104,7 +124,7 @@ public static class DockTree
     /// <param name="side">С какой стороны от всего дерева.</param>
     /// <param name="item">Идентификатор панели.</param>
     /// <param name="newGroupId">Имя для новой группы.</param>
-    /// <param name="share">Доля новой полосы; вне промежутка — четверть.</param>
+    /// <param name="share">Доля новой полосы; вне промежутка — <see cref="FrameShare"/>.</param>
     /// <returns>Новое дерево.</returns>
     /// <remarks>
     /// Отличие от <see cref="Insert"/> в том, кого заворачивают: полоса
@@ -117,7 +137,7 @@ public static class DockTree
     /// </para>
     /// </remarks>
     public static DockNode Frame(
-        DockNode root, DockSide side, string item, string newGroupId, double share = 0.25)
+        DockNode root, DockSide side, string item, string newGroupId, double share = FrameShare)
     {
         ArgumentNullException.ThrowIfNull(root);
         ArgumentException.ThrowIfNullOrEmpty(item);
@@ -127,7 +147,7 @@ public static class DockTree
             ? DockOrientation.Vertical
             : DockOrientation.Horizontal;
         var first = side is DockSide.Left or DockSide.Top;
-        var mine = share is > 0 and < 1 ? share : 0.25;
+        var mine = share is > 0 and < 1 ? share : FrameShare;
 
         // Корень того же направления не заворачиваем, а принимаем полосу
         // крайним ребёнком: три полосы в ряд — один узел с тремя детьми, и
@@ -481,7 +501,7 @@ public static class DockTree
         {
             var shares = Shares(split).ToList();
             var children = split.Children.ToList();
-            var half = shares[at] / 2;
+            var half = shares[at] * SplitShare;
 
             shares[at] = half;
             children.Insert(first ? at : at + 1, fresh);
