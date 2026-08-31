@@ -309,6 +309,11 @@ public sealed class StudioDock
         _standing = new HashSet<string>([_home], StringComparer.Ordinal);
         _view.EmptyGroup = _home;
 
+        // Оторванных окон при первом запуске нет, а сброс возвращает раскладку
+        // именно к нему. Оставь мы окно — панель оказалась бы разом и в нём, и
+        // в главном дереве, а родитель у контрола Avalonia ровно один.
+        Sweep();
+
         var root = Skeleton();
 
         foreach (var (id, where) in _asked)
@@ -842,18 +847,7 @@ public sealed class StudioDock
         _standing = new HashSet<string>([_home], StringComparer.Ordinal);
         _view.EmptyGroup = _home;
 
-        // Окна прежнего набора разбираются молча: панели тут же разложит новый,
-        // и вернуть их сперва домой значило бы поставить их дважды.
-        _sweeping = true;
-
-        foreach (var window in _floats.ToList())
-        {
-            window.View.Root = null;
-            window.Close();
-        }
-
-        _floats.Clear();
-        _sweeping = false;
+        Sweep();
 
         var root = workspace.Root;
         var floating = new List<DockFloat>();
@@ -866,13 +860,30 @@ public sealed class StudioDock
             floating.Add(torn);
         }
 
+        // Одно имя — одно дерево. В испорченном файле панель могла оказаться и
+        // в главном окне, и в оторванном; кто нашёл первым, тот и держит, у
+        // остальных имя вычёркивается — иначе контрол попросят в два места.
+        var taken = new HashSet<string>(
+            root.Groups().SelectMany(group => group.Items), StringComparer.Ordinal);
+
+        foreach (var window in floating)
+        {
+            if (window.View.Root is not { } tree)
+                continue;
+
+            foreach (var id in tree.Groups().SelectMany(group => group.Items).ToList())
+            {
+                if (!taken.Add(id))
+                    tree = DockTree.Remove(tree, id, Nothing);
+            }
+
+            window.View.Root = tree;
+        }
+
         foreach (var (id, where) in _asked)
         {
-            if (DockTree.Holder(root, id) is not null
-                || floating.Any(window => window.View.Root is { } tree && DockTree.Holder(tree, id) is not null))
-            {
+            if (taken.Contains(id))
                 continue;
-            }
 
             root = Place(root, id, where);
         }
@@ -880,6 +891,34 @@ public sealed class StudioDock
         _view.Root = root;
 
         Rehang();
+    }
+
+    /// <summary>
+    /// Разбирает оторванные окна молча — не возвращая панели домой.
+    /// </summary>
+    /// <remarks>
+    /// Не возвращая потому, что зовущий тут же разложит их сам: и сброс, и смена
+    /// набора строят раскладку заново. Вернуть их сперва домой значило бы
+    /// поставить их дважды.
+    /// <para>
+    /// Дерево окна обнуляется до закрытия: так контролы панелей отпускаются, и
+    /// новая раскладка вольна взять их себе. Панель, оставшаяся разом в окне и в
+    /// главном дереве, кончается исключением — родитель у контрола Avalonia
+    /// ровно один.
+    /// </para>
+    /// </remarks>
+    private void Sweep()
+    {
+        _sweeping = true;
+
+        foreach (var window in _floats.ToList())
+        {
+            window.View.Root = null;
+            window.Close();
+        }
+
+        _floats.Clear();
+        _sweeping = false;
     }
 
     /// <summary>

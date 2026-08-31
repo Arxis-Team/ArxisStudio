@@ -894,6 +894,87 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
+    /// Сброс разбирает и оторванные окна.
+    /// </summary>
+    /// <remarks>
+    /// При первом запуске оторванных окон нет, а сброс возвращает раскладку
+    /// именно к нему. Оставь мы окно — панель оказалась бы разом и в нём, и в
+    /// главном дереве, а родитель у контрола Avalonia ровно один: студия падала
+    /// бы, и падала не сразу, а на следующей перекладке — там, где причину уже
+    /// не найти.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Resetting_takes_the_torn_windows_apart_too()
+    {
+        var (dock, view, window) = Two();
+
+        Tear(view, window, "left");
+
+        Assert.Single(dock.Floating);
+
+        // Окно должно успеть разложиться по-настоящему: иначе панель в нём так
+        // и не обзаведётся родителем, и проверка пройдёт мимо сути.
+        Settle();
+
+        dock.Reset();
+        Settle();
+
+        Assert.Empty(dock.Floating);
+        Assert.Equal("left", DockTree.Holder(view.Root!, "hello:tree")?.Id);
+        Assert.Equal(["left", StudioDock.Documents, "right"], Shown(view));
+    }
+
+    /// <summary>
+    /// Имя, оказавшееся в двух деревьях, при чтении достаётся одному.
+    /// </summary>
+    /// <remarks>
+    /// Испорченный файл — не выдумка: именно так его и записала студия, пока
+    /// сброс не разбирал окон. Читатель обязан такой файл починить, а не
+    /// повторить: панель, попавшая разом в окно и в главное дерево, кончается
+    /// исключением.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_name_found_in_two_trees_goes_to_one_of_them()
+    {
+        var broken = new DockLayout
+        {
+            Layouts = new Dictionary<string, DockWorkspace>(StringComparer.Ordinal)
+            {
+                [DockLayout.DefaultName] = new()
+                {
+                    Root = new DockGroup { Id = "left", Items = ["hello:tree"], Selected = "hello:tree" },
+                    DocumentHome = StudioDock.Documents,
+                    Floating =
+                    [
+                        new DockWindow
+                        {
+                            Root = new DockGroup
+                            {
+                                Id = "float",
+                                Items = ["hello:tree"],
+                                Selected = "hello:tree",
+                            },
+                        },
+                    ],
+                },
+            },
+        };
+
+        System.IO.File.WriteAllText(File, DockLayoutSerializer.Write(broken));
+
+        var (dock, view) = Dock(new DockLayoutStore(File));
+
+        dock.Restore();
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("left", DockTree.Holder(view.Root!, "hello:tree")?.Id);
+
+        foreach (var torn in dock.Floating)
+            Assert.Null(DockTree.Holder(torn.View.Root!, "hello:tree"));
+    }
+
+    /// <summary>
     /// Сброс возвращает раскладку к той, что бывает при первом запуске.
     /// </summary>
     /// <remarks>
@@ -1170,6 +1251,13 @@ public class StudioDockTests : IDisposable
 
         // Показанный набор в прежней студии остался на месте.
         Assert.NotNull(view.Root);
+    }
+
+    /// <summary>Даёт раскладке и отрисовке действительно случиться.</summary>
+    private static void Settle()
+    {
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        Dispatcher.UIThread.RunJobs();
     }
 
     /// <summary>Пожелание «встань с этой стороны» — как его пишет манифест.</summary>
