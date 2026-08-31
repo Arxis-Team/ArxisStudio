@@ -823,4 +823,29 @@ public class DockViewTests
             .OfType<ContentControl>()
             .First(content => content.Name == "PART_Content")
             .Content;
+
+    /// <summary>
+    /// Клиентская область окна заходит в системную рамку.
+    /// </summary>
+    /// <remarks>
+    /// Иначе Windows оставляет сверху восемь пикселей рамки изменения размера —
+    /// при одном по бокам, — и они ложатся полосой над заголовком: рамку студия
+    /// красит в цвет темы, так что пустота эта хорошо заметна. Промерено на
+    /// живых окнах: <c>DwmGetWindowAttribute</c> против <c>ClientToScreen</c>
+    /// давал 8 сверху и 1 слева, стал 1 и 1. Заодно ушёл выход развёрнутого окна
+    /// на те же восемь пикселей за каждый край экрана.
+    /// <para>
+    /// Проверяется сама настройка, а не её последствия: рамку рисует система, и
+    /// в headless её нет. Настройку легко потерять при правке окна — она о том,
+    /// чего на экране <b>нет</b>, и пропажу заметил бы только глаз.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_studio_window_reaches_into_its_own_frame()
+    {
+        var window = new AxWindow();
+
+        Assert.True(window.ExtendClientAreaToDecorationsHint);
+        Assert.Equal(WindowDecorations.BorderOnly, window.WindowDecorations);
+    }
 }
