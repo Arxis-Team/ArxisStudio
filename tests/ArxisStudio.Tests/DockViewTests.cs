@@ -851,4 +851,63 @@ public class DockViewTests
         Assert.True(window.ExtendClientAreaToDecorationsHint);
         Assert.Equal(WindowDecorations.BorderOnly, window.WindowDecorations);
     }
+
+    /// <summary>
+    /// Полоса вкладок занимает шапку целиком, не считая её отступов.
+    /// </summary>
+    /// <remarks>
+    /// Отступ до вкладок принадлежит заголовку панели: он их от него отделяет. У
+    /// группы доков заголовка нет никогда — подписаны сами вкладки, — и лишние
+    /// двенадцать пикселей отделяли вкладки от пустоты, съедая место, на которое
+    /// их и помещается на одну больше.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_tab_strip_fills_the_header_it_lives_in()
+    {
+        var (view, _) = Pair();
+
+        var group = view.View("left")!;
+        var header = group.GetVisualDescendants()
+            .OfType<Border>()
+            .First(border => border.Name == "PART_Header");
+
+        var strip = group.GetVisualDescendants().OfType<AxTabStrip>().First();
+        var corner = strip.TranslatePoint(default, header);
+
+        Assert.NotNull(corner);
+
+        // Ровно отступ шапки — и ни пикселем больше.
+        Assert.Equal(header.Padding.Left, corner.Value.X);
+        Assert.Equal(
+            header.Bounds.Width - header.Padding.Left - header.Padding.Right,
+            strip.Bounds.Width);
+    }
+
+    /// <summary>
+    /// У панели с заголовком вкладки от него отступают.
+    /// </summary>
+    /// <remarks>
+    /// В Int UI вкладки не заменяют заголовок, а встают рядом — «Проект»
+    /// остаётся подписан, когда внутри переключаются «Консоль» и «Проблемы».
+    /// Отступ и есть то, что их разделяет: он потому и висит на заголовке, а не
+    /// на вкладках — у панели без заголовка разделять нечего.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Tabs_keep_their_distance_from_a_title()
+    {
+        var tabs = new AxTabStrip();
+        var tool = new AxToolWindow { Title = "Проект", Tabs = tabs };
+
+        new Window { Content = tool, Width = 400, Height = 200 }.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        var title = tool.GetVisualDescendants()
+            .OfType<TextBlock>()
+            .First(text => text.Name == "PART_Title");
+
+        var corner = tabs.TranslatePoint(default, title);
+
+        Assert.NotNull(corner);
+        Assert.Equal(title.Bounds.Width + 12, corner.Value.X);
+    }
 }
