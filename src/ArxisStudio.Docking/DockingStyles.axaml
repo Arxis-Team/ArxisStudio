@@ -21,7 +21,8 @@
         <Setter Property="Template">
           <ControlTemplate>
             <ax:AxToolWindow ShowHeaderSeparator="True"
-                             ShowHeader="{TemplateBinding HasTabs}">
+                             ShowHeader="{TemplateBinding HasTabs}"
+                             Actions="{TemplateBinding Actions}">
               <ax:AxToolWindow.Tabs>
                 <ax:AxTabStrip x:Name="PART_Tabs" Theme="{DynamicResource AxToolWindowTabStrip}"/>
               </ax:AxToolWindow.Tabs>

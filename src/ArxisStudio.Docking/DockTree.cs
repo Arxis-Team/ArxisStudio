@@ -237,7 +237,40 @@ public static class DockTree
         return Prune(Filter(root, id => known.Contains(id)), keep);
     }
 
-    /// <summary>Ищет группу по имени; null — такой нет.</summary>
+    /// <summary>
+    /// Имя группы в правом верхнем углу дерева; null — считать нечего.
+    /// </summary>
+    /// <param name="root">Дерево.</param>
+    /// <param name="among">Какие группы принимать в счёт — обычно те, что на экране.</param>
+    /// <remarks>
+    /// Нужно оторванному окну: кнопки окна встают в шапку одной группы, и это
+    /// обязан быть тот угол, где человек их и ищет. Считается по дереву, а не по
+    /// разложенным координатам: ответ нужен, пока раскладки ещё нет.
+    /// <para>
+    /// Вправо — значит последний ребёнок горизонтального деления, вверх — первый
+    /// вертикального. Группы вне <paramref name="among"/> пропускаются: у панели
+    /// выключенного плагина имя в дереве осталось, а места на экране нет, и
+    /// кнопки уехали бы в пустоту.
+    /// </para>
+    /// </remarks>
+    public static string? Corner(DockNode root, IReadOnlySet<string> among)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        ArgumentNullException.ThrowIfNull(among);
+
+        if (root is DockGroup group)
+            return among.Contains(group.Id) ? group.Id : null;
+
+        var split = (DockSplit)root;
+
+        var order = split.Orientation == DockOrientation.Horizontal
+            ? Enumerable.Reverse(split.Children)
+            : split.Children;
+
+        return order.Select(child => Corner(child, among)).FirstOrDefault(id => id is not null);
+    }
+
+    /// <summary>Группа с этим именем; null — такой нет.</summary>
     /// <param name="root">Корень дерева.</param>
     /// <param name="groupId">Имя группы.</param>
     public static DockGroup? Group(DockNode root, string? groupId)

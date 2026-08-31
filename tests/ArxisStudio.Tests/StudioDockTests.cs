@@ -1823,4 +1823,98 @@ public class StudioDockTests : IDisposable
 
         return (dock, view);
     }
+
+    /// <summary>
+    /// У оторванного окна нет своей полосы заголовка — её работу делает полоса
+    /// вкладок.
+    /// </summary>
+    /// <remarks>
+    /// Пустая полоса поверх полосы вкладок съедала четверть невысокого окна ради
+    /// трёх кнопок: 76 пикселей хрома на окне высотой 320.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_torn_window_wears_its_tab_strip_as_a_title_bar()
+    {
+        var (dock, view, window) = Two();
+
+        Tear(view, window, "left");
+        Settle();
+
+        var torn = Assert.Single(dock.Floating);
+
+        Assert.Empty(torn.GetVisualDescendants().OfType<AxTitleBar>());
+
+        // Кнопки окна стоят в шапке группы, а не в отдельной полосе над ней.
+        var buttons = Assert.Single(torn.GetVisualDescendants().OfType<AxWindowControls>());
+        var group = Assert.Single(torn.View.GetVisualDescendants().OfType<DockGroupView>());
+
+        Assert.Contains(group, buttons.GetVisualAncestors());
+        Assert.True(buttons.TranslatePoint(default, group)?.Y < group.HeaderHeight);
+    }
+
+    /// <summary>
+    /// Кнопки окна стоят в шапке угловой группы, а не в каждой.
+    /// </summary>
+    /// <remarks>
+    /// Разделив окно надвое, человек ищет их там же, где и до этого: в правом
+    /// верхнем углу. Вторая пара в соседней шапке была бы и лишней, и опасной —
+    /// родитель у контрола Avalonia ровно один.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_window_buttons_stand_in_the_corner_group_alone()
+    {
+        var (dock, view, window) = Two();
+
+        Tear(view, window, "left");
+        Settle();
+
+        var torn = Assert.Single(dock.Floating);
+        var group = torn.View.Root!.Groups().Single().Id;
+
+        // Приносим вторую панель к левому краю окна: угол остаётся за первой.
+        DockMouse.Drag(
+            window,
+            DockMouse.Tab(view.View("right")!, 0, window),
+            DockMouse.Across(torn, DockMouse.Inside(torn.View.View(group)!, 0.1, 0.5, torn), window));
+
+        Settle();
+
+        Assert.Equal(2, torn.View.GetVisualDescendants().OfType<DockGroupView>().Count());
+
+        var buttons = Assert.Single(torn.GetVisualDescendants().OfType<AxWindowControls>());
+
+        Assert.Equal(group, Assert.Single(buttons.GetVisualAncestors().OfType<DockGroupView>()).Id);
+    }
+
+    /// <summary>
+    /// За пустое место шапки берутся, чтобы двигать окно; за вкладку — чтобы
+    /// нести панель.
+    /// </summary>
+    /// <remarks>
+    /// Другой ручки у оторванного окна нет: своей полосы заголовка не осталось,
+    /// и не различай вид эти два нажатия — окно нельзя было бы ни подвинуть, ни
+    /// оторвать от него вкладку.
+    /// </remarks>
+    [AvaloniaFact]
+    public void An_empty_header_is_the_handle_of_the_window()
+    {
+        var (_, view, window) = Two();
+        var grabbed = 0;
+
+        view.Grabbed += (_, _) => grabbed++;
+
+        var group = view.View("left")!;
+
+        DockMouse.Click(window, DockMouse.Tab(group, 0, window));
+
+        Assert.Equal(0, grabbed);
+
+        // Пустое место той же шапки — правее последней вкладки.
+        var empty = DockMouse.Inside(group, 0.9, 0, window)
+            + new Vector(0, group.HeaderHeight / 2);
+
+        DockMouse.Click(window, empty);
+
+        Assert.Equal(1, grabbed);
+    }
 }

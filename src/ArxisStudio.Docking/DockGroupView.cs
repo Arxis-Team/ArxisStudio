@@ -31,6 +31,16 @@ public class DockGroupView : TemplatedControl
     public static readonly DirectProperty<DockGroupView, bool> HasTabsProperty =
         AvaloniaProperty.RegisterDirect<DockGroupView, bool>(nameof(HasTabs), view => view.HasTabs);
 
+    /// <summary>
+    /// Что показать в правом краю шапки; null — ничего.
+    /// </summary>
+    /// <remarks>
+    /// Сюда оторванное окно кладёт свои кнопки: полоса вкладок и есть его
+    /// заголовок, и другого места у кнопок нет.
+    /// </remarks>
+    public static readonly StyledProperty<object?> ActionsProperty =
+        AvaloniaProperty.Register<DockGroupView, object?>(nameof(Actions));
+
     private bool _hasTabs;
     private DockGroup? _group;
     private DockItems? _items;
@@ -55,6 +65,13 @@ public class DockGroupView : TemplatedControl
 
     /// <summary>Имя показанной группы; пусто — вид ничем не занят.</summary>
     public string Id => _group?.Id ?? string.Empty;
+
+    /// <inheritdoc cref="ActionsProperty"/>
+    public object? Actions
+    {
+        get => GetValue(ActionsProperty);
+        set => SetValue(ActionsProperty, value);
+    }
 
     /// <inheritdoc cref="HasTabsProperty"/>
     public bool HasTabs

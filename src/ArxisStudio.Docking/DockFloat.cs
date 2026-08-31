@@ -1,11 +1,13 @@
 using ArxisStudio.Controls;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 
 namespace ArxisStudio.Docking;
 
 /// <summary>
-/// Оторванное окно: своё дерево доков и своя полоса заголовка.
+/// Оторванное окно: своё дерево доков, а вместо полосы заголовка — полоса
+/// вкладок.
 /// </summary>
 /// <remarks>
 /// Живые панели у него общие с главным окном — тот же
@@ -16,6 +18,12 @@ namespace ArxisStudio.Docking;
 /// Заголовок окна — подпись показанной вкладки: другого имени у окна с одной
 /// панелью нет, а «ArxisStudio» в третий раз человеку ничего не говорит.
 /// Своего текста у окна при этом нет — подпись приходит из панели.
+/// </para>
+/// <para>
+/// Отдельной полосы заголовка у окна нет: она стояла бы пустой поверх полосы
+/// вкладок и съедала бы четверть невысокого окна ради трёх кнопок. Кнопки
+/// окна стоят в правом краю полосы вкладок, за её пустое место окно двигают,
+/// а двойным щелчком по нему разворачивают — так же это устроено и у Unity.
 /// </para>
 /// </remarks>
 public class DockFloat : AxWindow
@@ -28,19 +36,17 @@ public class DockFloat : AxWindow
         ShowInTaskbar = false;
         WindowStartupLocation = WindowStartupLocation.Manual;
 
-        View = new DockView();
+        View = new DockView { Actions = () => new AxWindowControls() };
 
-        Content = new DockPanel
-        {
-            Children =
-            {
-                new AxTitleBar { [DockPanel.DockProperty] = Dock.Top, Height = 38 },
-                View,
-            },
-        };
+        // Своей полосы заголовка у окна нет: полоса вкладок и есть его
+        // заголовок, а кнопки окна стоят в её правом краю. Отдельная полоса
+        // поверх неё стояла бы пустой и съедала бы четверть невысокого окна
+        // ради трёх кнопок — так же это устроено и у Unity.
+        Content = View;
 
         // Заголовок окна идёт за выбранной вкладкой: она в нём и показана.
         View.Chosen += (_, _) => Retitle();
+        View.Grabbed += (_, e) => Grab(e);
     }
 
     /// <summary>Дерево этого окна.</summary>
@@ -72,6 +78,29 @@ public class DockFloat : AxWindow
         Position = new PixelPoint((int)window.X, (int)window.Y);
 
         Retitle();
+    }
+
+    /// <summary>
+    /// Двигает окно за пустое место шапки, двойным щелчком разворачивает.
+    /// </summary>
+    /// <remarks>
+    /// То же, что делает <c>AxTitleBar</c> у прочих окон: своей полосы
+    /// заголовка здесь нет, и её работу берёт полоса вкладок.
+    /// </remarks>
+    private void Grab(PointerPressedEventArgs e)
+    {
+        if (e.ClickCount == 2)
+        {
+            WindowState = WindowState == WindowState.Maximized
+                ? WindowState.Normal
+                : WindowState.Maximized;
+
+            e.Handled = true;
+
+            return;
+        }
+
+        BeginMoveDrag(e);
     }
 
     /// <summary>Берёт заголовок у показанной вкладки.</summary>

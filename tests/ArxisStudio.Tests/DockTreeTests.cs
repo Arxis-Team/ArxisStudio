@@ -586,4 +586,64 @@ public class DockTreeTests
         Assert.NotSame(root, chosen);
         Assert.Same(chosen, DockTree.Select(chosen, "properties"));
     }
+
+    /// <summary>
+    /// Правый верхний угол дерева — последний ребёнок вправо, первый вверх.
+    /// </summary>
+    /// <remarks>
+    /// По нему оторванное окно решает, в чью шапку встанут его кнопки. Ошибись
+    /// угол — кнопки уедут в середину окна, где их никто не ищет.
+    /// </remarks>
+    [Fact]
+    public void The_corner_of_a_tree_is_up_and_to_the_right()
+    {
+        var all = new HashSet<string>(["left", "right", "top", "bottom"], StringComparer.Ordinal);
+
+        Assert.Equal("left", DockTree.Corner(Group("left", "solution"), all));
+
+        var across = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children = [Group("left", "solution"), Group("right", "properties")],
+        };
+
+        Assert.Equal("right", DockTree.Corner(across, all));
+
+        var down = new DockSplit
+        {
+            Orientation = DockOrientation.Vertical,
+            Children = [Group("top", "solution"), Group("bottom", "errors")],
+        };
+
+        Assert.Equal("top", DockTree.Corner(down, all));
+
+        // Вложенное деление: вправо, потом вверх.
+        var both = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children = [Group("left", "solution"), down],
+        };
+
+        Assert.Equal("top", DockTree.Corner(both, all));
+    }
+
+    /// <summary>
+    /// Угол ищется среди названных групп, а не всех подряд.
+    /// </summary>
+    /// <remarks>
+    /// У панели выключенного плагина имя в дереве осталось, а места на экране
+    /// нет: достанься угол ей — кнопки окна уехали бы в пустоту.
+    /// </remarks>
+    [Fact]
+    public void The_corner_skips_groups_that_are_not_on_screen()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children = [Group("left", "solution"), Group("right", "properties")],
+        };
+
+        Assert.Equal("left", DockTree.Corner(root, new HashSet<string>(["left"], StringComparer.Ordinal)));
+        Assert.Null(DockTree.Corner(root, new HashSet<string>(StringComparer.Ordinal)));
+    }
 }

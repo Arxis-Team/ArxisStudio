@@ -123,6 +123,23 @@ public class DockView : Decorator
     /// <summary>Подсказка: место, которое займёт брошенная вкладка.</summary>
     private Border? _hint;
 
+    /// <summary>
+    /// Что положить в правый край шапки угловой группы; null — ничего.
+    /// </summary>
+    /// <remarks>
+    /// Сюда оторванное окно кладёт свои кнопки: полоса вкладок и есть его
+    /// заголовок. Отдельная полоса поверх неё стояла бы пустой и съедала бы
+    /// четверть невысокого окна ради трёх кнопок.
+    /// <para>
+    /// Не контрол, а способ его сделать. Родитель у контрола Avalonia ровно
+    /// один, а угол переезжает: группу могло не стать на экране и завести
+    /// заново. Один и тот же контрол попросили бы тогда в две шапки разом, и
+    /// это исключение.
+    /// </para>
+    /// </remarks>
+    public static readonly StyledProperty<Func<Control>?> ActionsProperty =
+        AvaloniaProperty.Register<DockView, Func<Control>?>(nameof(Actions));
+
     /// <summary>Черта в полосе вкладок: у неё вкладка и встанет.</summary>
     private Border? _caret;
 
@@ -132,6 +149,7 @@ public class DockView : Decorator
         ItemsProperty.Changed.AddClassHandler<DockView>((view, _) => view.Rebuild());
         EmptyProperty.Changed.AddClassHandler<DockView>((view, _) => view.Rebuild());
         EmptyGroupProperty.Changed.AddClassHandler<DockView>((view, _) => view.Rebuild());
+        ActionsProperty.Changed.AddClassHandler<DockView>((view, _) => view.Hang());
     }
 
     /// <summary>Заводит вид и подписывается на мышь.</summary>
@@ -156,6 +174,17 @@ public class DockView : Decorator
 
     /// <summary>Человек выбрал вкладку; в поле — имя панели.</summary>
     public event EventHandler<string>? Chosen;
+
+    /// <summary>
+    /// Человек взялся за пустое место шапки; в поле — само нажатие.
+    /// </summary>
+    /// <remarks>
+    /// Там, где у окна ручка. Оторванному окну она нужна: своей полосы
+    /// заголовка у него нет, и не будь этой, окно нельзя было бы ни подвинуть,
+    /// ни развернуть. Главное окно на это событие не подписано — его двигают за
+    /// собственную полосу.
+    /// </remarks>
+    public event EventHandler<PointerPressedEventArgs>? Grabbed;
 
     /// <summary>Человек потянул границу.</summary>
     public event EventHandler<DockResize>? Resized;
@@ -192,6 +221,13 @@ public class DockView : Decorator
     {
         get => GetValue(EmptyProperty);
         set => SetValue(EmptyProperty, value);
+    }
+
+    /// <inheritdoc cref="ActionsProperty"/>
+    public Func<Control>? Actions
+    {
+        get => GetValue(ActionsProperty);
+        set => SetValue(ActionsProperty, value);
     }
 
     /// <inheritdoc cref="EmptyGroupProperty"/>
@@ -256,11 +292,23 @@ public class DockView : Decorator
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
             return;
 
-        if ((e.Source as Visual)?.FindAncestorOfType<AxTabItem>() is not { } tab)
-            return;
+        if ((e.Source as Visual)?.FindAncestorOfType<AxTabItem>() is { } tab)
+        {
+            if (tab.FindAncestorOfType<DockGroupView>()?.Item(tab) is { } item)
+                _pressed = (item, e.GetPosition(this));
 
-        if (tab.FindAncestorOfType<DockGroupView>()?.Item(tab) is { } item)
-            _pressed = (item, e.GetPosition(this));
+            return;
+        }
+
+        // Пустое место шапки — ручка окна. Кнопки из неё исключены: щелчок по
+        // кнопке обязан работать как щелчок по кнопке, а не двигать окно.
+        if (e.Source is Visual source
+            && source.FindAncestorOfType<Button>() is null
+            && source.FindAncestorOfType<DockGroupView>() is { } group
+            && e.GetPosition(group).Y < group.HeaderHeight)
+        {
+            Grabbed?.Invoke(this, e);
+        }
     }
 
     /// <summary>Начинает тягу, когда её уже не спутать со щелчком, и ведёт её.</summary>
@@ -655,6 +703,33 @@ public class DockView : Decorator
 
         foreach (var id in _groups.Keys.Where(id => !alive.Contains(id)).ToList())
             _groups.Remove(id);
+
+        Hang();
+    }
+
+    /// <summary>Вешает кнопки в шапку угловой группы, у остальных снимает.</summary>
+    /// <remarks>
+    /// Угол считается среди показанных групп: у панели выключенного плагина имя
+    /// в дереве осталось, а места на экране нет — кнопки уехали бы в пустоту.
+    /// </remarks>
+    private void Hang()
+    {
+        var corner = Root is { } root
+            ? DockTree.Corner(root, _groups.Keys.ToHashSet(StringComparer.Ordinal))
+            : null;
+
+        foreach (var (id, view) in _groups)
+        {
+            var wanted = string.Equals(id, corner, StringComparison.Ordinal);
+
+            // Делаем один раз на группу: сделай мы контрол на каждую перекладку,
+            // прежний уходил бы из шапки на следующем проходе — уже после того,
+            // как новый попросился в неё же.
+            if (wanted && view.Actions is null && Actions is { } make)
+                view.Actions = make();
+            else if (!wanted && view.Actions is not null)
+                view.Actions = null;
+        }
     }
 
     /// <summary>
