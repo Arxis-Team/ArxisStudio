@@ -737,8 +737,7 @@ public sealed class StudioDock
             return;
         }
 
-        if (Landing(landing.View, source, drag.Item, aim) is { } tree)
-            landing.View.Preview(tree, drag.Item);
+        Foretell(landing.View, source, drag.Item, aim);
     }
 
     /// <summary>
@@ -803,6 +802,47 @@ public sealed class StudioDock
         Edit(to, root => Landing(to, from, item, aim) ?? root);
 
         Rehang();
+    }
+
+    /// <summary>
+    /// Показывает будущую раскладку в том дереве, куда вкладка собирается.
+    /// </summary>
+    /// <remarks>
+    /// Со своего места панель при этом не уходит. Она уйдёт при броске, а пока
+    /// человек держит кнопку — он волен передумать, и вырывать панель из-под
+    /// курсора на полпути значит перекладывать всё окно на каждое движение.
+    /// Поэтому во время тяги она видна дважды: телом там, где стоит, и пустым
+    /// призраком там, куда собирается. Так же показывает Unity.
+    /// <para>
+    /// Если настоящая правка ничего не даст — а так бывает, когда область
+    /// делят её же единственной вкладкой, — не показываем ничего: обещать
+    /// человеку то, чего не будет, хуже, чем не обещать.
+    /// </para>
+    /// </remarks>
+    private void Foretell(DockView view, DockView source, string item, DockAim aim)
+    {
+        if (view.Root is not { } root || Landing(view, source, item, aim) is null)
+        {
+            view.Clear();
+            return;
+        }
+
+        var fresh = Fresh();
+        var group = aim switch
+        {
+            DockAim.Tab tab => tab.Group,
+            DockAim.Split or DockAim.Frame => fresh,
+            _ => null,
+        };
+
+        if (group is null)
+            return;
+
+        // Призрак — только там, где панели ещё нет. Переставленная внутри своей
+        // же полосы вкладка призраком не становится: это она сама, с телом.
+        var already = string.Equals(DockTree.Holder(root, item)?.Id, group, StringComparison.Ordinal);
+
+        view.Preview(DockTree.Apply(root, aim, item, fresh), item, already ? null : group);
     }
 
     /// <summary>

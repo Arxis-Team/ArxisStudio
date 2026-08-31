@@ -684,6 +684,43 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
+    /// Пока вкладку несут, она остаётся на своём месте.
+    /// </summary>
+    /// <remarks>
+    /// Человек ещё держит кнопку и волен передумать. Вырывать панель из-под
+    /// курсора на полпути значит перекладывать всё окно на каждое движение —
+    /// раскладка прыгает, и целиться становится не во что. Поэтому во время
+    /// тяги панель видна дважды: телом там, где стоит, и пустым призраком там,
+    /// куда собирается. Так же показывает Unity.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_carried_tab_stays_where_it_was_until_it_is_dropped()
+    {
+        var (_, view, window) = Two();
+
+        var before = Shown(view);
+        var from = DockMouse.Tab(view.View("left")!, 0, window);
+        var to = DockMouse.Inside(view.View("right")!, 0.1, 0.5, window);
+
+        window.MouseMove(from);
+        window.MouseDown(from, MouseButton.Left);
+        window.MouseMove(to);
+        Dispatcher.UIThread.RunJobs();
+
+        var during = Shown(view);
+
+        Assert.Contains("left", during);
+        Assert.Equal(before.Count + 1, during.Count);
+
+        window.MouseUp(to, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        // А после броска панель и правда ушла: своё место она освобождает
+        // только тогда.
+        Assert.DoesNotContain("left", Shown(view));
+    }
+
+    /// <summary>
     /// Пока вкладку несут в середину, ей обещают своё окно.
     /// </summary>
     /// <remarks>

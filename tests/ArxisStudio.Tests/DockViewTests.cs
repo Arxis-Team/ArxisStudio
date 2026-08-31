@@ -453,9 +453,9 @@ public class DockViewTests
         {
             if (view.Aim(drag.At, drag.Item) is DockAim.Split aim)
             {
-                view.Preview(
-                    DockTree.Apply(DockTree.Remove(real, drag.Item), aim, drag.Item, "born"),
-                    drag.Item);
+                // Со своего места панель не уходит: дерево берут как есть, а
+                // призрак ставят в ту область, куда она собирается.
+                view.Preview(DockTree.Apply(real, aim, drag.Item, "born"), drag.Item, "born");
             }
         };
 
@@ -478,6 +478,9 @@ public class DockViewTests
 
         Assert.Null(view.View("born"));
         Assert.NotNull(view.View("left"));
+
+        // И всё это время панель оставалась на своём месте — с телом.
+        Assert.NotNull(Content(view.View("left")!));
     }
 
     /// <summary>

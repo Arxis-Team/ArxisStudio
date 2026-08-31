@@ -129,6 +129,17 @@ public class DockView : Decorator
     /// <summary>Имя несомой панели: в предпросмотре у неё рисуется вкладка, но не тело.</summary>
     private string? _ghost;
 
+    /// <summary>
+    /// В какой группе несомая панель — призрак.
+    /// </summary>
+    /// <remarks>
+    /// Именно в группе, а не вообще: пока вкладку несут, она **остаётся на
+    /// своём месте** — там у неё и вкладка, и тело. Призрак же появляется в той
+    /// группе, куда она собирается, и тела у него нет. Так во время тяги панель
+    /// видна дважды, и это правда: она ещё здесь и уже почти там.
+    /// </remarks>
+    private string? _ghostGroup;
+
     /// <summary>Призрак отдельного окна под курсором.</summary>
     private Border? _carry;
 
@@ -389,18 +400,24 @@ public class DockView : Decorator
     /// </summary>
     /// <param name="tree">Будущее дерево.</param>
     /// <param name="ghost">Имя несомой панели.</param>
+    /// <param name="group">
+    /// В какой группе она призрак; null — призрака нет, панель просто
+    /// переставили внутри своей же полосы.
+    /// </param>
     /// <remarks>
-    /// Предпросмотр — это и есть правка: дерево приходит сюда из той же
-    /// функции, что применится при броске, и соврать поэтому не может. Пока
-    /// вместо него рисовали плашку, она обещала половину области, а новичок
-    /// получал половину доли соседа.
+    /// Дерево считает та же функция, что применится при броске, поэтому
+    /// показанное человеку и полученное им не расходятся. Пока вместо этого
+    /// рисовали плашку, она обещала половину области, а новичок получал
+    /// половину доли соседа.
     /// <para>
-    /// Тело призрака остаётся пустым не для красоты: панель в этот миг ещё
-    /// живёт в дереве-источнике, а родитель у контрола Avalonia ровно один —
-    /// возьми мы её сюда, она пропала бы из своего окна на полпути.
+    /// Со своего места панель при этом <b>не уходит</b>: пока кнопка нажата,
+    /// человек волен передумать, и вырывать панель из-под курсора на полпути
+    /// значит перекладывать всё окно на каждое движение. Поэтому во время тяги
+    /// она видна дважды — телом там, где стоит, и пустым призраком там, куда
+    /// собирается.
     /// </para>
     /// </remarks>
-    public void Preview(DockNode tree, string ghost)
+    public void Preview(DockNode tree, string ghost, string? group)
     {
         ArgumentNullException.ThrowIfNull(tree);
 
@@ -408,6 +425,7 @@ public class DockView : Decorator
 
         _preview = tree;
         _ghost = ghost;
+        _ghostGroup = group;
 
         Rebuild();
     }
@@ -615,6 +633,7 @@ public class DockView : Decorator
 
         _preview = null;
         _ghost = null;
+        _ghostGroup = null;
 
         Rebuild();
     }
@@ -682,7 +701,11 @@ public class DockView : Decorator
                 _groups[group.Id] = view;
             }
 
-            view.Update(group, items, named ? Empty : null, _ghost);
+            view.Update(
+                group,
+                items,
+                named ? Empty : null,
+                string.Equals(group.Id, _ghostGroup, StringComparison.Ordinal) ? _ghost : null);
 
             return view;
         }
