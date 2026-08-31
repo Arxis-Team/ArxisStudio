@@ -681,6 +681,76 @@ public class DockViewTests
         return (view, Assert.IsAssignableFrom<Window>(TopLevel.GetTopLevel(view)));
     }
 
+    /// <summary>
+    /// Точка внутри окна, но вне дерева, просит полосу во всё окно.
+    /// </summary>
+    /// <remarks>
+    /// Это единственный способ положить панель поперёк всего окна: любое
+    /// деление области оказывается внутри чьей-то колонки. У главного окна
+    /// такие полосы — тулбар и строка состояния, у оторванного — заголовок.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_point_inside_the_window_but_outside_the_tree_asks_for_a_strip()
+    {
+        var (view, window) = Strips();
+
+        Assert.Equal(
+            new DockAim.Frame(DockSide.Top),
+            view.Aim(window.PointToScreen(new Point(400, 12)), "solution"));
+
+        Assert.Equal(
+            new DockAim.Frame(DockSide.Bottom),
+            view.Aim(window.PointToScreen(new Point(400, window.ClientSize.Height - 12)), "solution"));
+
+        // А внутри дерева та же высота — это обычная зона области.
+        Assert.IsType<DockAim.Tab>(
+            view.Aim(window.PointToScreen(new Point(400, 52)), "solution"));
+    }
+
+    /// <summary>Точка вне окна не занята никем: это отрыв, а не стыковка.</summary>
+    [AvaloniaFact]
+    public void A_point_outside_the_window_belongs_to_nobody()
+    {
+        var (view, window) = Strips();
+
+        Assert.Null(view.Aim(window.PointToScreen(new Point(-40, 300)), "solution"));
+        Assert.Null(view.Aim(window.PointToScreen(new Point(400, -40)), "solution"));
+    }
+
+    /// <summary>Вид в окне с полосами сверху и снизу — как тулбар и строка состояния.</summary>
+    private static (DockView View, Window Window) Strips()
+    {
+        var items = new DockItems();
+
+        items.Add("hello", new DockItem("solution", new Border()) { Title = "solution" });
+
+        var view = new DockView
+        {
+            Items = items,
+            Root = new DockGroup { Id = "left", Items = ["solution"], Selected = "solution" },
+        };
+
+        var window = new Window
+        {
+            Width = 900,
+            Height = 600,
+            Content = new DockPanel
+            {
+                Children =
+                {
+                    new Border { Height = 40, [DockPanel.DockProperty] = Dock.Top },
+                    new Border { Height = 24, [DockPanel.DockProperty] = Dock.Bottom },
+                    view,
+                },
+            },
+        };
+
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        return (view, window);
+    }
+
     /// <summary>Точка окна в пикселях экрана.</summary>
     private static PixelPoint Screen(Point at, Window window) => window.PointToScreen(at);
 

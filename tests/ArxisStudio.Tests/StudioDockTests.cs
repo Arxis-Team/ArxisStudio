@@ -244,9 +244,11 @@ public class StudioDockTests : IDisposable
     /// Брошенная на границу вкладка остаётся где была.
     /// </summary>
     /// <remarks>
-    /// Граница между областями — это промах, а не вынос: человек целился в
-    /// соседнюю область и не попал. Заводить ему на этом месте окно значило бы
-    /// наказывать за неточность мыши.
+    /// Граница между областями принадлежит соседке — её краевой зоне, — и
+    /// значит «раздели». Но делить область её же единственной вкладкой нечем:
+    /// вкладка сперва уходит, группа пустеет и прибирается, ставить некуда, и
+    /// правка отменяется целиком. Своего окна человек за неточность мыши не
+    /// получает.
     /// </remarks>
     [AvaloniaFact]
     public void A_tab_dropped_on_a_border_stays_where_it_was()
@@ -651,6 +653,34 @@ public class StudioDockTests : IDisposable
         Assert.NotNull(DockTree.Holder(torn.View.Root!, "hello:tree"));
         Assert.Null(DockTree.Holder(view.Root!, "hello:tree"));
         Assert.Equal(2, dock.Items.Count);
+    }
+
+    /// <summary>
+    /// Брошенная на полосу над деревом вкладка ложится во всю ширину окна.
+    /// </summary>
+    /// <remarks>
+    /// Полосу поперёк всего окна иначе собрать нечем: любое деление области
+    /// оказывается внутри чьей-то колонки. Целятся туда, где дерева нет, — у
+    /// студии это тулбар и строка состояния.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_tab_dropped_above_the_tree_lies_across_the_whole_window()
+    {
+        var (_, view, window) = Strips();
+
+        DockMouse.Drag(
+            window,
+            DockMouse.Tab(view.View("left")!, 0, window),
+            new Point(window.ClientSize.Width / 2, 12));
+
+        var split = Assert.IsType<DockSplit>(view.Root);
+
+        Assert.Equal(DockOrientation.Vertical, split.Orientation);
+        Assert.Equal("hello:tree", ((DockGroup)split.Children[0]).Items.Single());
+        Assert.Equal(0.25, split.Weights[0], 6);
+
+        // Полоса — сосед всего прежнего дерева, а не чьей-то колонки.
+        Assert.IsType<DockSplit>(split.Children[1]);
     }
 
     /// <summary>
@@ -1120,6 +1150,42 @@ public class StudioDockTests : IDisposable
         Dispatcher.UIThread.RunJobs();
 
         return (dock, view, Assert.IsAssignableFrom<Window>(TopLevel.GetTopLevel(view)));
+    }
+
+    /// <summary>
+    /// Раскладка в окне с полосами сверху и снизу — как тулбар и строка состояния.
+    /// </summary>
+    /// <remarks>
+    /// Обычное тестовое окно отдаёт дереву всё место, и целиться «внутрь окна,
+    /// но вне дерева» там некуда — а это и есть корневая стыковка.
+    /// </remarks>
+    private static (StudioDock Dock, DockView View, Window Window) Strips()
+    {
+        var view = new DockView();
+        var dock = new StudioDock(view);
+
+        var window = new Window
+        {
+            Width = 1200,
+            Height = 800,
+            Content = new DockPanel
+            {
+                Children =
+                {
+                    new Border { Height = 40, [DockPanel.DockProperty] = Avalonia.Controls.Dock.Top },
+                    new Border { Height = 24, [DockPanel.DockProperty] = Avalonia.Controls.Dock.Bottom },
+                    view,
+                },
+            },
+        };
+
+        window.Show();
+
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
+        dock.Add("friend", "friend:tips", At("right"), "Советы", Strings, new Border());
+        Dispatcher.UIThread.RunJobs();
+
+        return (dock, view, window);
     }
 
     private static (StudioDock Dock, DockView View) Dock(DockLayoutStore? store = null)

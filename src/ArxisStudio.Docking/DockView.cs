@@ -364,8 +364,25 @@ public class DockView : Decorator
     /// полосы промахивалась бы на единицу.
     /// </para>
     /// </remarks>
-    public DockAim? Aim(PixelPoint at, string item) =>
-        Local(at) is { } point ? Target(point, item) : null;
+    public DockAim? Aim(PixelPoint at, string item)
+    {
+        if (TopLevel.GetTopLevel(this) is not { IsVisible: true } top)
+            return null;
+
+        var inside = top.PointToClient(at);
+
+        // Мимо окна — это дерево не отвечает вовсе: пусть отвечает то, над
+        // которым курсор, а не ответил никто — вкладка уходит в своё окно.
+        if (!new Rect(top.ClientSize).Contains(inside))
+            return null;
+
+        if (top.TranslatePoint(inside, this) is not { } point)
+            return null;
+
+        // Внутри дерева спрашивают его области, вне — всё дерево целиком.
+        // Случаи не пересекаются, и это видно здесь, а не прячется внутри.
+        return new Rect(Bounds.Size).Contains(point) ? Target(point, item) : Beyond(point);
+    }
 
     /// <summary>
     /// Показывает, каким станет дерево, если бросить вкладку сейчас.
@@ -490,6 +507,36 @@ public class DockView : Decorator
         return near.Share < Third
             ? new DockAim.Split(aimed.Id, near.Side)
             : new DockAim.Float();
+    }
+
+    /// <summary>
+    /// Стыковка ко всему дереву; null — точка не за его пределами.
+    /// </summary>
+    /// <remarks>
+    /// Внутри окна, но вне дерева — это полосы, которые деревом не заняты: у
+    /// главного окна тулбар сверху и строка состояния снизу, у оторванного —
+    /// его заголовок. Брошенная туда панель ложится полосой поперёк всего
+    /// дерева, а не внутрь чьей-то колонки: консоль во всю ширину окна иначе
+    /// собрать нечем. Так же устроено и у Unity, и по той же причине — слева и
+    /// справа таких полос нет, потому что дерево доходит до самой рамки.
+    /// </remarks>
+    private DockAim? Beyond(Point point)
+    {
+        var size = Bounds.Size;
+
+        if (size.Width <= 0 || size.Height <= 0)
+            return null;
+
+        // Сторона — та, за которую вышли дальше всего.
+        (double Away, DockSide Side)[] edges =
+        [
+            (-point.X, DockSide.Left),
+            (point.X - size.Width, DockSide.Right),
+            (-point.Y, DockSide.Top),
+            (point.Y - size.Height, DockSide.Bottom),
+        ];
+
+        return new DockAim.Frame(edges.MaxBy(edge => edge.Away).Side);
     }
 
     /// <summary>Снимает разметку показанных областей — по ней и целятся всю тягу.</summary>
