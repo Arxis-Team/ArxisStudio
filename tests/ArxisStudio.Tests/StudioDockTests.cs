@@ -341,11 +341,12 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
-    /// Пока вкладку несут, место показывает то окно, над которым курсор.
+    /// Пока вкладку несут, будущую раскладку показывает то окно, над которым курсор.
     /// </summary>
     /// <remarks>
-    /// Подсказка обязана быть там же, где курсор: окно, начавшее тягу, к этому
-    /// мигу может быть уже далеко, и подсветка в нём говорила бы неправду.
+    /// Показывать её окну, начавшему тягу, было бы неправдой: курсор к этому
+    /// мигу может быть уже далеко. Настоящее дерево при этом не трогают — пока
+    /// кнопка нажата, человек волен увести вкладку куда угодно.
     /// </remarks>
     [AvaloniaFact]
     public void The_window_under_the_cursor_shows_where_the_tab_lands()
@@ -356,10 +357,9 @@ public class StudioDockTests : IDisposable
 
         var torn = Assert.Single(dock.Floating);
         var group = torn.View.Root!.Groups().Single().Id;
+        var was = torn.View.Root;
+        var untouched = Shown(view);
         var from = DockMouse.Tab(view.View("right")!, 0, window);
-
-        // К краю чужой области: подсветку показывают тому, кто просит разделить,
-        // а середина просит отдельное окно, и делить в ней нечего.
         var to = DockMouse.Across(
             torn, DockMouse.Inside(torn.View.View(group)!, 0.1, 0.5, torn), window);
 
@@ -368,21 +368,25 @@ public class StudioDockTests : IDisposable
         window.MouseMove(to);
         Dispatcher.UIThread.RunJobs();
 
-        Assert.NotNull(Hint(torn.View));
-        Assert.Null(Hint(view));
+        // В оторванном окне уже две области — будущая раскладка; в главном
+        // ничего не появилось, и настоящее дерево окна не тронуто.
+        Assert.Equal(2, Shown(torn.View).Count);
+        Assert.Same(was, torn.View.Root);
+        Assert.Equal(untouched, Shown(view));
 
         window.MouseUp(to, MouseButton.Left);
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Null(Hint(torn.View));
-        Assert.Null(Hint(view));
+        // А после броска панель и правда переехала.
+        Assert.NotNull(DockTree.Holder(torn.View.Root!, "friend:tips"));
+        Assert.Null(DockTree.Holder(view.Root!, "friend:tips"));
     }
 
-    /// <summary>Подсветка места, куда встанет вкладка; null — её нет.</summary>
-    private static Border? Hint(DockView view) =>
+    /// <summary>Призрак отдельного окна; null — его нет.</summary>
+    private static Border? Ghost(DockView view) =>
         OverlayLayer.GetOverlayLayer(view)?.Children
             .OfType<Border>()
-            .FirstOrDefault(border => border.Classes.Contains("dock-hint"));
+            .FirstOrDefault(border => border.Classes.Contains("dock-ghost"));
 
     /// <summary>
     /// Вынесенная из оторванного окна вкладка переносит его, а не пропадает.
@@ -647,6 +651,80 @@ public class StudioDockTests : IDisposable
         Assert.NotNull(DockTree.Holder(torn.View.Root!, "hello:tree"));
         Assert.Null(DockTree.Holder(view.Root!, "hello:tree"));
         Assert.Equal(2, dock.Items.Count);
+    }
+
+    /// <summary>
+    /// Пока вкладку несут в середину, ей обещают своё окно.
+    /// </summary>
+    /// <remarks>
+    /// Середина области значит «оторви», и человеку надо это увидеть: пустая
+    /// рамка с подписью под курсором объясняет жест лучше любого слова.
+    /// </remarks>
+    [AvaloniaFact]
+    public void While_a_tab_is_carried_to_the_middle_a_window_is_promised()
+    {
+        var (_, view, window) = Two();
+
+        var from = DockMouse.Tab(view.View("left")!, 0, window);
+        var to = DockMouse.Inside(view.View("right")!, 0.5, 0.5, window);
+
+        window.MouseMove(from);
+        window.MouseDown(from, MouseButton.Left);
+        window.MouseMove(to);
+        Dispatcher.UIThread.RunJobs();
+
+        var ghost = Ghost(view);
+
+        Assert.NotNull(ghost);
+        Assert.False(ghost.IsHitTestVisible);
+
+        window.MouseUp(to, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(Ghost(view));
+    }
+
+    /// <summary>
+    /// Тяга через ничью землю не теряет прицел.
+    /// </summary>
+    /// <remarks>
+    /// Путь курсора идёт и через границы между областями, где не отвечает никто:
+    /// показанное там снимают. Забыть заодно разметку прицела нельзя — снятие
+    /// перекладывает области заново, и следующее движение мерило бы уже по ним,
+    /// причём до того, как их успели разместить. Вкладка улетала бы в своё окно
+    /// вместо того места, куда её вели.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_drag_across_a_border_keeps_its_aim()
+    {
+        var (dock, view, window) = Two();
+
+        var splitter = view.GetVisualDescendants().OfType<GridSplitter>().First();
+        var border = splitter.TranslatePoint(
+            new Point(splitter.Bounds.Width / 2, splitter.Bounds.Height / 2), window);
+
+        Assert.NotNull(border);
+
+        var from = DockMouse.Tab(view.View("left")!, 0, window);
+
+        // По дороге вкладку заносит к левому краю правой области: предпросмотр
+        // делит её пополам, и области разъезжаются по-настоящему.
+        var aside = DockMouse.Inside(view.View("right")!, 0.1, 0.5, window);
+        var to = DockMouse.Inside(view.View("right")!, 0.5, 0.9, window);
+
+        window.MouseMove(from);
+        window.MouseDown(from, MouseButton.Left);
+        window.MouseMove(aside);
+        window.MouseMove(border.Value);
+        window.MouseMove(to);
+        window.MouseUp(to, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        var holder = DockTree.Holder(view.Root!, "hello:tree");
+
+        Assert.NotNull(holder);
+        Assert.NotEqual("left", holder.Id);
+        Assert.Empty(dock.Floating);
     }
 
     /// <summary>

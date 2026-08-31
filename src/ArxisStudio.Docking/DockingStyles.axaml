@@ -35,16 +35,24 @@
   </Styles.Resources>
 
   <!--
-      Подсветка места, куда встанет брошенная вкладка. Заливка полупрозрачная:
-      человеку надо видеть, что именно накроет панель, — сплошная скрывала бы
-      как раз то, ради чего он смотрит.
+      Призрак отдельного окна: пустая рамка с подписью панели, отцентрованная на
+      курсоре. Появляется, когда вкладку несут в середину области, и объясняет
+      этот жест лучше любого слова — «будет своё окно». Размер условный: настоящий
+      окно возьмёт у панели, которую несут.
   -->
-  <Style Selector="Border.dock-hint">
-    <Setter Property="Background" Value="{DynamicResource AxAccBrush}"/>
-    <Setter Property="Opacity" Value="0.3"/>
+  <Style Selector="Border.dock-ghost">
+    <Setter Property="Background" Value="{DynamicResource AxBg1Brush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource AxAccStrongBrush}"/>
-    <Setter Property="BorderThickness" Value="2"/>
+    <Setter Property="BorderThickness" Value="1"/>
     <Setter Property="CornerRadius" Value="{DynamicResource AxCornerRadius}"/>
+    <Setter Property="Opacity" Value="0.9"/>
+  </Style>
+  <Style Selector="Border.dock-ghost > TextBlock">
+    <Setter Property="Margin" Value="10,8"/>
+    <Setter Property="HorizontalAlignment" Value="Left"/>
+    <Setter Property="VerticalAlignment" Value="Top"/>
+    <Setter Property="Foreground" Value="{DynamicResource AxFgBrush}"/>
+    <Setter Property="FontSize" Value="{DynamicResource AxFontSize}"/>
   </Style>
 
   <!--

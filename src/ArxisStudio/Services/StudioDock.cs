@@ -109,6 +109,16 @@ public sealed class StudioDock
     /// </remarks>
     private bool _farewell;
 
+    /// <summary>
+    /// Какое дерево и с каким намерением показывает предпросмотр.
+    /// </summary>
+    /// <remarks>
+    /// Помнится ради одного: предпросмотр — это перекладка всего дерева, и
+    /// повторять её на каждое движение мыши незачем. Намерение сравнивается по
+    /// значению, поэтому шевеление внутри одной зоны ничего не стоит.
+    /// </remarks>
+    private (DockView View, DockAim Aim)? _leading;
+
     private string _active = DockLayout.DefaultName;
     private string _home = Documents;
     private bool _dirty;
@@ -681,7 +691,7 @@ public sealed class StudioDock
     /// <summary>Слушает тягу в этом дереве: вести её и бросать — дело общее.</summary>
     private void Follow(DockView view)
     {
-        view.Dragging += (_, drag) => Lead(drag);
+        view.Dragging += (_, drag) => Lead(view, drag);
         view.Dropped += (source, drag) => Land((DockView)source!, drag);
     }
 
@@ -693,19 +703,42 @@ public sealed class StudioDock
     /// одним окном. Дерево, начавшее тягу, ничем не выделено — вкладка уже на
     /// полпути в чужое окно, и подсказка обязана быть там же, где курсор.
     /// </remarks>
-    private void Lead(DockDrag drag)
+    private void Lead(DockView source, DockDrag drag)
     {
-        // Подсвечивает одно, и то же самое, которое потом и примет вкладку:
+        // Показывает одно дерево, и то же самое, которое потом и примет вкладку:
         // окна перекрываются, и под курсором их вполне может быть два.
-        var target = Views.FirstOrDefault(view => view.Aim(drag.At, drag.Item) is not null);
+        var landing = Views
+            .Select(view => (View: view, Aim: view.Aim(drag.At, drag.Item)))
+            .FirstOrDefault(found => found.Aim is not null);
 
         foreach (var view in Views)
         {
-            if (ReferenceEquals(view, target))
-                view.Show(drag.At, drag.Item);
-            else
+            if (!ReferenceEquals(view, landing.View))
                 view.Clear();
         }
+
+        if (landing.Aim is not { } aim)
+        {
+            _leading = null;
+            return;
+        }
+
+        // Пока намерение то же, перестраивать нечего: предпросмотр — это
+        // перекладка всего дерева, и делать её на каждое движение мыши значит
+        // дёргать панели по десятку раз в секунду.
+        if (_leading is { } was && ReferenceEquals(was.View, landing.View) && was.Aim == aim)
+            return;
+
+        _leading = (landing.View, aim);
+
+        if (aim is DockAim.Float)
+        {
+            landing.View.Carry(drag.At, Items.Find(drag.Item)?.Title ?? drag.Item);
+            return;
+        }
+
+        if (Landing(landing.View, source, drag.Item, aim) is { } tree)
+            landing.View.Preview(tree, drag.Item);
     }
 
     /// <summary>
@@ -717,12 +750,17 @@ public sealed class StudioDock
     /// </remarks>
     private void Land(DockView source, DockDrag drag)
     {
-        foreach (var view in Views)
-            view.Clear();
-
+        // Сперва спрашиваем, потом убираем показанное: вопрос задаётся по той же
+        // разметке, что человек и видел, а снятие предпросмотра перекладывает
+        // области заново, и мерить по ним до нового прохода нечего.
         var landing = Views
             .Select(view => (View: view, Aim: view.Aim(drag.At, drag.Item)))
             .FirstOrDefault(found => found.Aim is not null);
+
+        _leading = null;
+
+        foreach (var view in Views)
+            view.Clear();
 
         // Мимо всех деревьев и середина области значат одно: отдельное окно.
         // Разница только в том, где человек отпустил, — а просит он то же самое.

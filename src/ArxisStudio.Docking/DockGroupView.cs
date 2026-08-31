@@ -35,6 +35,7 @@ public class DockGroupView : TemplatedControl
     private DockGroup? _group;
     private DockItems? _items;
     private object? _empty;
+    private string? _ghost;
     private bool _filling;
 
     /// <summary>Человек попросил закрыть панель; в поле — её имя.</summary>
@@ -77,48 +78,30 @@ public class DockGroupView : TemplatedControl
             : 0;
 
     /// <summary>
-    /// Место в полосе, куда встанет вкладка, брошенная на этом расстоянии слева.
+    /// Середины показанных вкладок — в координатах группы.
     /// </summary>
-    /// <param name="x">Расстояние от левого края группы.</param>
-    /// <param name="ignore">Какую вкладку не считать — её как раз и несут.</param>
-    /// <returns>Номер в счёте дерева; −1 — полосы ещё нет.</returns>
     /// <remarks>
-    /// Номер именно в счёте дерева, а не показанных вкладок: панель выключенного
-    /// плагина остаётся в группе именем, вкладки у неё нет, и место, посчитанное
-    /// по экрану, уехало бы мимо.
-    /// <para>
-    /// Несомая вкладка не считается: место человек выбирает среди остальных, и
-    /// <see cref="DockTree.Attach"/> убирает её из группы ровно так же. Считай мы
-    /// её — перестановка внутри полосы промахивалась бы на единицу.
-    /// </para>
+    /// По ним считают место, куда встанет брошенная вкладка. Снимаются они один
+    /// раз, в начале тяги: предпросмотр перекладывает области по-настоящему, и
+    /// мерить по нему значило бы целиться в то, чего ещё нет.
     /// </remarks>
-    public int SlotAt(double x, string? ignore = null)
+    public IReadOnlyList<(string Item, double Middle)> Slots()
     {
-        if (_tabs is null || _group is null)
-            return -1;
+        if (_tabs is null)
+            return [];
 
-        var rest = _group.Items
-            .Where(id => !string.Equals(id, ignore, StringComparison.Ordinal))
-            .ToList();
+        var slots = new List<(string Item, double Middle)>();
 
-        for (var at = 0; at < rest.Count; at++)
+        for (var at = 0; at < _shown.Count && at < _tabs.Items.Count; at++)
         {
-            var shown = _shown.IndexOf(rest[at]);
-
-            // У панели выключенного плагина вкладки нет — мерить нечего, и место
-            // она делит с ближайшей видимой соседкой слева.
-            if (shown < 0 || shown >= _tabs.Items.Count)
-                continue;
-
-            if (_tabs.Items[shown] is Control tab
-                && tab.TranslatePoint(new Point(tab.Bounds.Width / 2, 0), this) is { } middle
-                && x < middle.X)
+            if (_tabs.Items[at] is Control tab
+                && tab.TranslatePoint(new Point(tab.Bounds.Width / 2, 0), this) is { } middle)
             {
-                return at;
+                slots.Add((_shown[at], middle.X));
             }
         }
 
-        return rest.Count;
+        return slots;
     }
 
     /// <summary>Имя панели, которой принадлежит вкладка; null — вкладка не наша.</summary>
@@ -134,7 +117,11 @@ public class DockGroupView : TemplatedControl
     /// <param name="group">Что показывать.</param>
     /// <param name="items">Где брать живые панели.</param>
     /// <param name="empty">Что показать, если показывать нечего; может быть null.</param>
-    public void Update(DockGroup group, DockItems items, object? empty = null)
+    /// <param name="ghost">
+    /// Имя несомой панели: у неё рисуется вкладка, но не тело — панель в этот
+    /// миг ещё живёт в дереве-источнике.
+    /// </param>
+    public void Update(DockGroup group, DockItems items, object? empty = null, string? ghost = null)
     {
         ArgumentNullException.ThrowIfNull(group);
         ArgumentNullException.ThrowIfNull(items);
@@ -142,6 +129,7 @@ public class DockGroupView : TemplatedControl
         _group = group;
         _items = items;
         _empty = empty;
+        _ghost = ghost;
 
         Fill();
     }
@@ -222,7 +210,16 @@ public class DockGroupView : TemplatedControl
                 chosen = 0;
 
             _tabs.SelectedIndex = chosen;
-            _content.Content = chosen >= 0 ? _items.Find(_shown[chosen])?.Content : _empty;
+
+            // Тело призрака пустое: панель в этот миг ещё живёт в
+            // дереве-источнике, а родитель у контрола Avalonia ровно один —
+            // возьми мы её сюда, она пропала бы из своего окна на полпути.
+            _content.Content = chosen < 0
+                ? _empty
+                : string.Equals(_shown[chosen], _ghost, StringComparison.Ordinal)
+                    ? null
+                    : _items.Find(_shown[chosen])?.Content;
+
             HasTabs = _shown.Count > 0;
         }
         finally

@@ -342,14 +342,22 @@ public class DockViewTests
         var (view, window) = Pair();
         var left = view.View("left")!;
 
-        // «structure» несут, значит считать её нельзя: остаётся одна «solution»,
-        // и мест ровно два — до неё и после.
-        Assert.Equal(0, left.SlotAt(0, "structure"));
-        Assert.Equal(1, left.SlotAt(left.Bounds.Width, "structure"));
+        // «solution» и «structure» стоят в левой группе; несут первую из них,
+        // значит соседка одна и мест ровно два — до неё и после. Середина
+        // вкладки — это уже «после неё»: курсор её прошёл.
+        Assert.Equal(
+            new DockAim.Tab("left", 0),
+            view.Aim(Screen(DockMouse.Tab(left, 0, window), window), "solution"));
 
-        // А если несут чужую — соседок две, и мест три.
-        Assert.Equal(0, left.SlotAt(0, "properties"));
-        Assert.Equal(2, left.SlotAt(left.Bounds.Width, "properties"));
+        Assert.Equal(
+            new DockAim.Tab("left", 1),
+            view.Aim(Screen(DockMouse.Tab(left, 1, window), window), "solution"));
+
+        // А несомая из чужой группы не убирает никого: соседок две, и та же
+        // точка значит уже «после второй».
+        Assert.Equal(
+            new DockAim.Tab("left", 2),
+            view.Aim(Screen(DockMouse.Tab(left, 1, window), window), "properties"));
     }
 
     /// <summary>
@@ -369,27 +377,24 @@ public class DockViewTests
         IPointer? pointer = null;
 
         view.Dropped += (_, drop) => dropped = drop;
-        view.Dragging += (_, drag) => view.Show(drag.At, drag.Item);
+        view.Dragging += (_, drag) => view.Carry(drag.At, drag.Item);
         view.PointerMoved += (_, moved) => pointer = moved.Pointer;
 
         var from = DockMouse.Tab(view.View("left")!, 0, window);
-
-        // К краю, а не в середину: середина просит отдельное окно, и показывать
-        // ей в чужом дереве нечего.
-        var to = DockMouse.Inside(view.View("right")!, 0.1, 0.5, window);
+        var to = DockMouse.Inside(view.View("right")!, 0.5, 0.5, window);
 
         window.MouseMove(from);
         window.MouseDown(from, MouseButton.Left);
         window.MouseMove(to);
         Dispatcher.UIThread.RunJobs();
 
-        Assert.NotNull(Hint(view));
+        Assert.NotNull(Ghost(view));
         Assert.NotNull(pointer);
 
         pointer.Capture(window);
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Null(Hint(view));
+        Assert.Null(Ghost(view));
 
         window.MouseUp(to, MouseButton.Left);
         Dispatcher.UIThread.RunJobs();
@@ -426,40 +431,53 @@ public class DockViewTests
     }
 
     /// <summary>
-    /// Пока вкладку тащат, видно, куда она встанет.
+    /// Пока вкладку тащат, на экране будущая раскладка, а не плашка.
     /// </summary>
     /// <remarks>
-    /// Подсветка живёт в слое поверх окна и мышь не ловит: поймай она её — под
-    /// указателем всегда была бы она сама, и цель перестала бы меняться.
+    /// Предпросмотр — это и есть правка: дерево ему считает та же функция, что
+    /// применится при броске. Настоящее дерево при этом не трогают — человек
+    /// ещё держит кнопку и волен увести вкладку куда угодно.
     /// </remarks>
     [AvaloniaFact]
-    public void While_a_tab_is_dragged_its_landing_place_is_shown()
+    public void While_a_tab_is_dragged_the_future_layout_is_shown()
     {
         var (view, window) = Pair();
+        var real = view.Root!;
 
         var from = DockMouse.Tab(view.View("left")!, 0, window);
         var to = DockMouse.Inside(view.View("right")!, 0.1, 0.5, window);
 
-        // Подсветку показывает не вид сам, а тот, кто ведёт тягу: окон у
-        // студии несколько, и подсказка обязана быть там, где курсор.
-        view.Dragging += (_, drag) => view.Show(drag.At, drag.Item);
+        // Предпросмотр показывает не вид сам, а тот, кто ведёт тягу: окон у
+        // студии несколько, и будущее дерево считает он же.
+        view.Dragging += (_, drag) =>
+        {
+            if (view.Aim(drag.At, drag.Item) is DockAim.Split aim)
+            {
+                view.Preview(
+                    DockTree.Apply(DockTree.Remove(real, drag.Item), aim, drag.Item, "born"),
+                    drag.Item);
+            }
+        };
 
         window.MouseMove(from);
         window.MouseDown(from, MouseButton.Left);
         window.MouseMove(to);
         Dispatcher.UIThread.RunJobs();
 
-        var hint = Hint(view);
+        var born = view.View("born");
 
-        Assert.NotNull(hint);
-        Assert.False(hint.IsHitTestVisible);
-        Assert.True(hint.Bounds.Width > 0);
+        Assert.NotNull(born);
+        Assert.Same(real, view.Root);
+
+        // У призрака есть вкладка, но нет тела: панель ещё живёт на своём месте.
+        Assert.True(born.HasTabs, "у будущей области нет вкладки");
+        Assert.Null(Content(born));
 
         view.Clear();
-        window.MouseUp(to, MouseButton.Left);
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Null(Hint(view));
+        Assert.Null(view.View("born"));
+        Assert.NotNull(view.View("left"));
     }
 
     /// <summary>
@@ -663,11 +681,14 @@ public class DockViewTests
         return (view, Assert.IsAssignableFrom<Window>(TopLevel.GetTopLevel(view)));
     }
 
-    /// <summary>Подсветка места, куда встанет вкладка; null — её нет.</summary>
-    private static Border? Hint(DockView view) =>
+    /// <summary>Точка окна в пикселях экрана.</summary>
+    private static PixelPoint Screen(Point at, Window window) => window.PointToScreen(at);
+
+    /// <summary>Призрак отдельного окна; null — его нет.</summary>
+    private static Border? Ghost(DockView view) =>
         OverlayLayer.GetOverlayLayer(view)?.Children
             .OfType<Border>()
-            .FirstOrDefault(border => border.Classes.Contains("dock-hint"));
+            .FirstOrDefault(border => border.Classes.Contains("dock-ghost"));
 
     /// <summary>Что показано в группе.</summary>
     private static object? Content(DockGroupView group) =>
