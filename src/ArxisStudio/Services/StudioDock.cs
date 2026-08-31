@@ -179,8 +179,35 @@ public sealed class StudioDock
     public IReadOnlyList<string> Layouts =>
         [.. _saved.Keys.Append(_active).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
 
-    /// <summary>Что выбрано в области документов; null — ничего или не документ.</summary>
-    public string? Showing => _view.Root is { } root ? DockTree.Group(root, _home)?.Selected : null;
+    /// <summary>
+    /// Показанный документ; null — ни одного не видно.
+    /// </summary>
+    /// <remarks>
+    /// Не только в области документов: документ мог уехать в своё окно, и там
+    /// он показан ничуть не меньше. Спроси мы одно главное дерево — оболочка,
+    /// закрывая соседа, будила бы не тот редактор, а закрыв последний в окне,
+    /// не разбудила бы никого.
+    /// <para>
+    /// Область документов идёт первой: пока документ на своём месте, он и есть
+    /// показанный. В окнах документ узнаётся по тому, что его можно закрыть —
+    /// это ставит <see cref="Open"/> и только он.
+    /// </para>
+    /// </remarks>
+    public string? Showing
+    {
+        get
+        {
+            if (_view.Root is { } root && DockTree.Group(root, _home)?.Selected is { } home)
+                return home;
+
+            return _floats
+                .Select(window => window.View.Root)
+                .OfType<DockNode>()
+                .SelectMany(tree => tree.Groups())
+                .Select(group => group.Selected)
+                .FirstOrDefault(id => id is not null && Items.Find(id) is { CanClose: true });
+        }
+    }
 
     /// <summary>
     /// Поднимает сохранённую раскладку, если она есть и читается.
@@ -421,17 +448,20 @@ public sealed class StudioDock
 
         // Документ, уже стоящий в каком-то дереве, туда и достаётся: он мог
         // уехать в своё окно. Поставить его вторично значило бы попросить один
-        // контрол в два места, а это исключение.
+        // контрол в два места, а это исключение. Перекладка при этом нужна
+        // прямая: имя прежнее, а контрол за ним новый, и дерево о такой смене
+        // не знает.
         if (Tree(id) is { } known)
-        {
             known.Refresh();
-            Rehang();
-            Show(id);
+        else
+            Edit(root => DockTree.Attach(root, Home(root), id));
 
-            return;
-        }
+        Rehang();
 
-        Edit(root => DockTree.Attach(root, Home(root), id));
+        // Показом кончаются оба пути, а не один: открыть документ и не показать
+        // его нельзя, и разница в том, помнила ли раскладка это имя, зовущего
+        // касаться не должна.
+        Show(id);
     }
 
     /// <summary>Убирает одну панель или документ.</summary>
@@ -440,10 +470,15 @@ public sealed class StudioDock
     {
         Items.Remove(id);
         _asked.RemoveAll(asked => string.Equals(asked.Id, id, StringComparison.Ordinal));
-        Edit(root => DockTree.Remove(root, id, _standing));
 
-        foreach (var window in _floats.ToList())
-            Change(window, root => DockTree.Remove(root, id, Nothing));
+        if (Tree(id) is { } holder)
+            Edit(holder, root => DockTree.Remove(root, id, Standing(holder)));
+
+        // Окно, оставшееся без живых вкладок, уходит с экрана. Само оно не
+        // закроется: имя выключенного плагина в группе осталось, и для дерева
+        // она не пуста — а человек видел бы пустую рамку с именем документа,
+        // который только что закрыл.
+        Rehang();
     }
 
     /// <summary>
@@ -472,22 +507,45 @@ public sealed class StudioDock
     /// <param name="id">Имя того, что показываем.</param>
     public void Show(string id)
     {
-        // Панель могла уехать в своё окно, и выбор в главном дереве её там не
-        // достанет. Показать — значит показать: окно ещё и поднимается, иначе
-        // человек ищет панель, которая всё это время была за спиной у студии.
-        if (Torn(id) is { } torn)
-        {
-            Change(torn, root => DockTree.Select(root, id));
+        // За мёртвым именем показывать нечего: плагин выключили, а место за ним
+        // в дереве осталось. Сказать «показал» о пустом месте значит соврать
+        // зовущему — он пометит документ показанным и напишет его путь в строке
+        // состояния, а на экране не появится ничего.
+        if (Items.Find(id) is null)
+            return;
 
-            if (torn.IsVisible)
-                torn.Activate();
-        }
-        else
-        {
-            Edit(root => DockTree.Select(root, id));
-        }
+        // Панель могла уехать в своё окно, и выбор в главном дереве её там не
+        // достанет.
+        Edit(id, root => DockTree.Select(root, id));
+
+        if (Torn(id) is { } torn)
+            Reveal(torn);
 
         Chosen?.Invoke(this, id);
+    }
+
+    /// <summary>
+    /// Достаёт оторванное окно на глаза.
+    /// </summary>
+    /// <remarks>
+    /// Свёрнутое окно мало поднять: Avalonia считает его видимым, а подъём
+    /// оставляет свёрнутым. Кнопки на панели задач у оторванного окна нет
+    /// (<c>ShowInTaskbar</c> выключен), так что другого пути назад у человека
+    /// не остаётся — и «показать» кончилось бы ничем.
+    /// <para>
+    /// Спрятанное окно не поднимается: его прячет <see cref="Rehang"/>, когда в
+    /// нём не осталось живых вкладок, и показывать там по-прежнему нечего.
+    /// </para>
+    /// </remarks>
+    private static void Reveal(DockFloat window)
+    {
+        if (!window.IsVisible)
+            return;
+
+        if (window.WindowState == WindowState.Minimized)
+            window.WindowState = WindowState.Normal;
+
+        window.Activate();
     }
 
     /// <summary>
@@ -540,7 +598,12 @@ public sealed class StudioDock
         Follow(window.View);
 
         window.Closed += (_, _) => Sank(window);
+
+        // Место и размер окна — часть раскладки. Про размер приходится
+        // спрашивать отдельно: потянутый нижний угол окна не двигает, и одним
+        // PositionChanged новая высота до файла не доходит.
         window.PositionChanged += (_, _) => Note();
+        window.SizeChanged += (_, _) => Note();
 
         _floats.Add(window);
 
@@ -643,6 +706,17 @@ public sealed class StudioDock
         if (_floats.FirstOrDefault(window => ReferenceEquals(window.View, view)) is { } found)
             Change(found, change);
     }
+
+    /// <summary>
+    /// Правит то дерево, в котором стоит это имя.
+    /// </summary>
+    /// <remarks>
+    /// Панель живёт ровно в одном дереве, но в каком — знает только раскладка:
+    /// имя могло уехать в своё окно. Пусть все действия по имени спрашивают об
+    /// этом здесь: разойдясь, они начинают править разные окна, и та же беда
+    /// возвращается под новым именем.
+    /// </remarks>
+    private void Edit(string id, Func<DockNode, DockNode> change) => Edit(Tree(id) ?? _view, change);
 
     /// <summary>Дерево, в котором числится панель; null — нигде.</summary>
     private DockView? Tree(string id) =>
@@ -902,6 +976,17 @@ public sealed class StudioDock
             }
 
             window.View.Root = tree;
+
+            // Окно, у которого не осталось ни одного имени, на экран не выходит.
+            // Прятать его мало: спрятанное, оно так и лежит в списке окон, и
+            // раскладка исправно пишет его в файл и копирует в каждый новый
+            // набор — пустую рамку, которую человеку нечем ни открыть, ни
+            // закрыть.
+            if (tree.Groups().All(group => group.Items.Count == 0))
+            {
+                window.View.Root = null;
+                window.Close();
+            }
         }
 
         foreach (var (id, where) in _asked)
@@ -966,6 +1051,13 @@ public sealed class StudioDock
 
         var side = where.Side.ToLowerInvariant();
 
+        // «В документы» указывает на дом документов, где бы он ни был: имя
+        // группы задаёт файл раскладки, и слово «documents» может не значить в
+        // ней ничего. Иначе документ, вернувшийся из закрытого окна, заводил бы
+        // себе одноимённую группу у правого края и оставался в ней навсегда.
+        if (string.Equals(side, Documents, StringComparison.Ordinal))
+            side = _home;
+
         if (DockTree.Group(root, side) is not { } waiting)
             return DockTree.Widen(DockTree.Insert(root, Home(root), Side(side), id, side), side, where.Size);
 
@@ -1023,10 +1115,11 @@ public sealed class StudioDock
     /// Правит дерево и показывает, что вышло.
     /// </summary>
     /// <remarks>
-    /// Правка, ничего не изменившая в дереве, всё равно требует перекладки:
-    /// панель у неё уже была своё место, и поменялось не дерево, а то, что за
-    /// именем стоит. Присвоить то же самое дерево мало — свойство сравнит
-    /// ссылки и промолчит, а панель так и не появится.
+    /// Правка, ничего не изменившая в дереве, ничего и не перекладывает. Смена
+    /// того, что стоит за именем — не правка дерева, и о ней просят прямо:
+    /// <see cref="Add"/> и <see cref="Open"/> зовут <see cref="DockView.Refresh"/>
+    /// сами. Перекладывать на всякий случай нельзя: перекладка сносит и ставит
+    /// заново всё окно, а с ним пропадает курсор в панели, где человек печатает.
     /// </remarks>
     private void Edit(Func<DockNode, DockNode> change)
     {
@@ -1036,10 +1129,7 @@ public sealed class StudioDock
         var next = change(root);
 
         if (ReferenceEquals(next, root))
-        {
-            _view.Refresh();
             return;
-        }
 
         _view.Root = next;
         _dirty = true;

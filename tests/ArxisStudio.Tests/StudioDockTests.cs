@@ -994,6 +994,203 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
+    /// Свёрнутое окно разворачивается, когда просят его панель.
+    /// </summary>
+    /// <remarks>
+    /// Свёрнутое окно Avalonia считает видимым, и один подъём оставляет его
+    /// свёрнутым. Кнопки на панели задач у оторванного окна нет — не развернув
+    /// его, студия отвечает на просьбу ничем, и панель становится недостижимой.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_minimized_window_comes_back_when_its_panel_is_asked_for()
+    {
+        var (dock, view, window) = Two();
+
+        Tear(view, window, "left");
+        Settle();
+
+        var torn = Assert.Single(dock.Floating);
+
+        torn.WindowState = WindowState.Minimized;
+        Settle();
+
+        dock.Show("hello:tree");
+        Settle();
+
+        Assert.Equal(WindowState.Normal, torn.WindowState);
+    }
+
+    /// <summary>
+    /// Показать уже показанное — не перекладка.
+    /// </summary>
+    /// <remarks>
+    /// Перекладка сносит и ставит заново всё дерево окна, а вместе с ним
+    /// пропадает место, где человек печатал. Просьба показать вкладку, которая и
+    /// так на виду, обязана не стоить ничего.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Showing_what_is_already_shown_leaves_the_window_alone()
+    {
+        var (dock, view, window) = Two();
+
+        Tear(view, window, "left");
+        Settle();
+
+        var torn = Assert.Single(dock.Floating);
+        var before = torn.View.Root;
+
+        dock.Show("hello:tree");
+        Settle();
+
+        Assert.Same(before, torn.View.Root);
+    }
+
+    /// <summary>
+    /// Уборка одного имени не трогает деревья, в которых его нет.
+    /// </summary>
+    /// <remarks>
+    /// Закрытая вкладка главного окна — не повод перекладывать чужое: там человек
+    /// мог печатать, и перекладка унесла бы его место в тексте.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Closing_a_tab_does_not_stir_the_other_windows()
+    {
+        var (dock, view, window) = Two();
+
+        dock.Open("hello", "doc:a.axaml", "a.axaml", new Border());
+        Settle();
+
+        Tear(view, window, "left");
+        Settle();
+
+        var torn = Assert.Single(dock.Floating);
+        var before = torn.View.Root;
+
+        dock.Remove("doc:a.axaml");
+        Settle();
+
+        Assert.Same(before, torn.View.Root);
+    }
+
+    /// <summary>
+    /// Окно, оставшееся без живых вкладок, уходит с экрана.
+    /// </summary>
+    /// <remarks>
+    /// Само оно не закроется: имя выключенного плагина в группе осталось, и для
+    /// дерева она не пуста. Человеку же остаётся пустая рамка с именем
+    /// документа, который он только что закрыл.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_window_without_a_live_tab_leaves_the_screen()
+    {
+        var (dock, view, window) = Two();
+
+        dock.Open("hello", "doc:a.axaml", "a.axaml", new Border());
+        Settle();
+
+        Tear(view, window, StudioDock.Documents);
+        Settle();
+
+        var torn = Assert.Single(dock.Floating);
+        var group = torn.View.Root!.Groups().Single().Id;
+
+        // В окно приносим панель другого плагина: выключенный, он оставит в
+        // группе своё имя, и для дерева она перестанет быть пустой.
+        DockMouse.Drag(
+            window,
+            DockMouse.Tab(view.View("right")!, 0, window),
+            DockMouse.Across(torn, DockMouse.Tab(torn.View.View(group)!, 0, torn), window));
+
+        Settle();
+
+        dock.RemoveOwnedBy("friend");
+        Settle();
+
+        Assert.True(torn.IsVisible);
+
+        dock.Remove("doc:a.axaml");
+        Settle();
+
+        Assert.False(torn.IsVisible);
+    }
+
+    /// <summary>
+    /// Показанный документ ищется и в оторванных окнах.
+    /// </summary>
+    /// <remarks>
+    /// Оболочка спрашивает об этом, закрыв соседа: кого будить взамен. Ответь
+    /// раскладка одним главным деревом — редактор, единственный оставшийся на
+    /// экране, так и не проснулся бы.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_shown_document_is_found_in_its_own_window_too()
+    {
+        var (dock, view, window) = Two();
+
+        dock.Open("hello", "doc:a.axaml", "a.axaml", new Border());
+        Settle();
+
+        Assert.Equal("doc:a.axaml", dock.Showing);
+
+        Tear(view, window, StudioDock.Documents);
+        Settle();
+
+        Assert.Single(dock.Floating);
+        Assert.Equal("doc:a.axaml", dock.Showing);
+    }
+
+    /// <summary>
+    /// За мёртвым именем показывать нечего, и студия об этом молчит.
+    /// </summary>
+    /// <remarks>
+    /// Плагин выключили, а место за ним в дереве осталось. Скажи раскладка
+    /// «показал» — оболочка пометила бы документ показанным и написала его путь в
+    /// строке состояния, хотя на экране не появилось ничего.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Showing_a_name_with_nothing_behind_it_says_nothing()
+    {
+        var (dock, _, _) = Two();
+        var heard = new List<string>();
+
+        dock.Chosen += (_, id) => heard.Add(id);
+        dock.RemoveOwnedBy("hello");
+        Settle();
+
+        dock.Show("hello:tree");
+        Settle();
+
+        Assert.Empty(heard);
+    }
+
+    /// <summary>
+    /// Открытый документ объявляется показанным — оба раза.
+    /// </summary>
+    /// <remarks>
+    /// Разница в том, помнила ли раскладка это имя, зовущего не касается:
+    /// открыть документ и не показать его нельзя. Молчи один из путей — тот, кто
+    /// слушает выбор вкладки, считал бы одни открытия и пропускал другие.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Opening_a_document_says_which_one_is_shown()
+    {
+        var (dock, _, _) = Two();
+        var heard = new List<string>();
+
+        dock.Chosen += (_, id) => heard.Add(id);
+
+        dock.Open("hello", "doc:a.axaml", "a.axaml", new Border());
+        Settle();
+
+        Assert.Equal(["doc:a.axaml"], heard);
+
+        dock.Open("hello", "doc:a.axaml", "a.axaml", new Border());
+        Settle();
+
+        Assert.Equal(["doc:a.axaml", "doc:a.axaml"], heard);
+    }
+
+    /// <summary>
     /// Сброс разбирает и оторванные окна.
     /// </summary>
     /// <remarks>
@@ -1168,6 +1365,138 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
+    /// Окно, у которого не осталось имён, на экран не выходит и в наборы не идёт.
+    /// </summary>
+    /// <remarks>
+    /// Испорченный файл мог записать имя разом в главное дерево и в окно; одно
+    /// из них вычёркивается, и окно остаётся ни с чем. Спрячь его студия —
+    /// спрятанное, оно так и лежало бы в списке окон, писалось в файл и
+    /// копировалось в каждый новый набор: пустая рамка, которую человеку нечем
+    /// ни открыть, ни закрыть.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_window_left_without_names_does_not_reach_the_screen()
+    {
+        var broken = new DockLayout
+        {
+            Layouts = new Dictionary<string, DockWorkspace>(StringComparer.Ordinal)
+            {
+                [DockLayout.DefaultName] = new()
+                {
+                    Root = new DockGroup { Id = "left", Items = ["hello:tree"], Selected = "hello:tree" },
+                    DocumentHome = StudioDock.Documents,
+                    Floating =
+                    [
+                        new DockWindow
+                        {
+                            Root = new DockGroup
+                            {
+                                Id = "float",
+                                Items = ["hello:tree"],
+                                Selected = "hello:tree",
+                            },
+                        },
+                    ],
+                },
+            },
+        };
+
+        System.IO.File.WriteAllText(File, DockLayoutSerializer.Write(broken));
+
+        var (dock, view) = Dock(new DockLayoutStore(File));
+
+        dock.Restore();
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
+        Settle();
+
+        Assert.Empty(dock.Floating);
+        Assert.Equal("left", DockTree.Holder(view.Root!, "hello:tree")?.Id);
+
+        // И в новый набор пустой рамке тоже не за чем идти.
+        dock.SaveAs("отладка");
+        Settle();
+
+        Assert.Empty(dock.Floating);
+    }
+
+    /// <summary>
+    /// Размер оторванного окна доходит до файла.
+    /// </summary>
+    /// <remarks>
+    /// Место и размер — часть раскладки, и спрашивать о них приходится порознь:
+    /// потянутый нижний угол окна не двигает, и одним переездом новая высота до
+    /// файла не доходит. Человек подгоняет окно под свою работу, а наутро
+    /// получает обратно заводские четыреста на триста.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_size_of_a_torn_window_reaches_the_file()
+    {
+        var store = new DockLayoutStore(File);
+        var (dock, view, window) = Two(store);
+
+        Tear(view, window, "left");
+        Settle();
+
+        // Записываем до правки: отрыв уже пометил раскладку изменившейся, и без
+        // этого запись дошла бы до файла сама, о размере не спросив.
+        dock.Flush();
+
+        dock.Floating[0].Height = 555;
+        Settle();
+
+        dock.Flush();
+
+        var saved = store.Load(out _);
+
+        Assert.Equal(555, Assert.Single(saved!.Current!.Floating).Height);
+    }
+
+    /// <summary>
+    /// Документ из закрытого окна возвращается в область документов.
+    /// </summary>
+    /// <remarks>
+    /// Имя этой области задаёт файл раскладки, и слово «documents» может не
+    /// значить в ней ничего. Пойми студия просьбу буквально — документ завёл бы
+    /// себе одноимённую группу у правого края и остался бы в ней навсегда, а
+    /// следующий открытый файл ушёл бы в настоящую область: документы разъехались
+    /// бы по двум местам.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_document_coming_home_finds_the_place_for_documents()
+    {
+        new DockLayoutStore(File).Save(new DockLayout
+        {
+            Active = DockLayout.DefaultName,
+            Layouts = new Dictionary<string, DockWorkspace>(StringComparer.Ordinal)
+            {
+                [DockLayout.DefaultName] = new()
+                {
+                    DocumentHome = "centre",
+                    Root = new DockGroup { Id = "centre" },
+                },
+            },
+        });
+
+        var (dock, view) = Dock(new DockLayoutStore(File));
+
+        dock.Restore();
+        dock.Open("hello", "doc:a.axaml", "a.axaml", new Border());
+        Settle();
+
+        var window = Assert.IsAssignableFrom<Window>(TopLevel.GetTopLevel(view));
+
+        Tear(view, window, "centre");
+        Settle();
+
+        Assert.Single(dock.Floating).Close();
+        Settle();
+
+        Assert.Equal(["centre"], Shown(view));
+        Assert.Equal("centre", DockTree.Holder(view.Root!, "doc:a.axaml")?.Id);
+        Assert.Equal("doc:a.axaml", dock.Showing);
+    }
+
+    /// <summary>
     /// Место для документов берётся из файла, а не из имени по умолчанию.
     /// </summary>
     /// <remarks>
@@ -1326,28 +1655,70 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
-    /// Забытый набор уносит и свои оторванные окна.
+    /// Уходя из набора, окна остаются ему, а возвращаясь — находятся на месте.
     /// </summary>
     /// <remarks>
-    /// Окно набора живёт ровно столько, сколько сам набор: оставь его на экране —
-    /// и панель окажется в двух деревьях разом, чего Avalonia не прощает.
+    /// Окно отрывается <b>до</b> сохранения: иначе стандартному набору достаётся
+    /// пустой список окон, и проверка не отличит запоминание от прежнего кода,
+    /// который окон не помнил вовсе.
     /// </remarks>
     [AvaloniaFact]
-    public void A_forgotten_set_takes_its_torn_windows_with_it()
+    public void The_set_left_behind_keeps_the_windows_it_had()
     {
         var (dock, view, window) = Two();
 
-        dock.SaveAs("отладка");
         Tear(view, window, "left");
         Settle();
 
-        Assert.Single(dock.Floating);
+        dock.SaveAs("отладка");
+        Settle();
+
+        // В «отладке» панель возвращаем домой — наборы расходятся, и каждому
+        // теперь есть что о себе помнить.
+        dock.Floating[0].Close();
+        Settle();
+
+        Assert.Empty(dock.Floating);
+
+        dock.Switch("default");
+        Settle();
+
+        var torn = Assert.Single(dock.Floating);
+
+        Assert.NotNull(DockTree.Holder(torn.View.Root!, "hello:tree"));
+        Assert.Null(DockTree.Holder(view.Root!, "hello:tree"));
+    }
+
+    /// <summary>
+    /// Забытый набор уступает место стандартному вместе с его окнами.
+    /// </summary>
+    /// <remarks>
+    /// Стандартный набор помнит свои окна не хуже прочих: забыть показанный —
+    /// значит вернуться к тому, что было у стандартного, а не к голому дереву.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_forgotten_set_returns_to_the_windows_of_the_standard_one()
+    {
+        var (dock, view, window) = Two();
+
+        Tear(view, window, "left");
+        Settle();
+
+        dock.SaveAs("отладка");
+        Settle();
+
+        dock.Floating[0].Close();
+        Settle();
+
+        Assert.Empty(dock.Floating);
 
         dock.Forget();
         Settle();
 
-        Assert.Empty(dock.Floating);
-        Assert.Equal("left", DockTree.Holder(view.Root!, "hello:tree")?.Id);
+        var torn = Assert.Single(dock.Floating);
+
+        Assert.Equal(["default"], dock.Layouts);
+        Assert.NotNull(DockTree.Holder(torn.View.Root!, "hello:tree"));
     }
 
     /// <summary>
