@@ -83,11 +83,8 @@ public static class DockLayoutSerializer
             if (JsonSerializer.Deserialize<DockLayout>(json, Options) is not { } layout)
                 return null;
 
-            if (!layout.Layouts.Values.All(workspace => Sound(workspace.Root)
-                && workspace.Floating.All(window => Sound(window.Root))))
-            {
+            if (!Sound(layout))
                 return null;
-            }
 
             problem = DockLayoutProblem.None;
 
@@ -119,6 +116,23 @@ public static class DockLayoutSerializer
     /// не создаётся никогда — прибирание такое схлопывает, — значит пришло не от
     /// нас, и доверять ему нечего.
     /// </remarks>
+    /// <summary>
+    /// Целая ли раскладка целиком.
+    /// </summary>
+    /// <remarks>
+    /// Проверяются не только узлы, но и сами записи. <c>null</c> посреди списка
+    /// окон или вместо набора — законный JSON, а разметка о необнуляемости на
+    /// элементы списков и значения словарей не распространяется: без этой
+    /// проверки испорченный файл ронял бы студию на старте разыменованием, а
+    /// оно — не <see cref="JsonException"/>, и разбор его не ловит.
+    /// </remarks>
+    private static bool Sound(DockLayout layout) =>
+        layout.Layouts.Values.All(workspace =>
+            workspace is not null
+            && Sound(workspace.Root)
+            && workspace.Floating is not null
+            && workspace.Floating.All(window => window is not null && Sound(window.Root)));
+
     private static bool Sound(DockNode? node) => node switch
     {
         DockGroup group => !group.Items.Contains(null!),

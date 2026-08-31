@@ -190,4 +190,33 @@ public class DockLayoutSerializerTests
             },
         },
     };
+
+    /// <summary>
+    /// Дырявая раскладка отвергается, а не роняет студию.
+    /// </summary>
+    /// <remarks>
+    /// <c>null</c> посреди списка окон или вместо целого набора — законный
+    /// JSON, и разметка о необнуляемости на элементы списков и значения
+    /// словарей не распространяется. Без проверки такой файл кончался бы
+    /// разыменованием, а его не ловит ни разбор, ни хранилище: студия не
+    /// поднялась бы вовсе.
+    /// </remarks>
+    [Theory]
+    [InlineData("""
+        {"version":1,"active":"default","layouts":{"default":{"root":{"kind":"group","id":"a","items":[]},"floating":[null]}}}
+        """)]
+    [InlineData("""
+        {"version":1,"active":"default","layouts":{"default":{"root":{"kind":"group","id":"a","items":[]},"floating":null}}}
+        """)]
+    [InlineData("""
+        {"version":1,"active":"default","layouts":{"default":null}}
+        """)]
+    public void A_layout_with_holes_is_refused_and_not_thrown(string json)
+    {
+        var read = Record.Exception(() => DockLayoutSerializer.Read(json, out _));
+
+        Assert.Null(read);
+        Assert.Null(DockLayoutSerializer.Read(json, out var problem));
+        Assert.Equal(DockLayoutProblem.Unreadable, problem);
+    }
 }
