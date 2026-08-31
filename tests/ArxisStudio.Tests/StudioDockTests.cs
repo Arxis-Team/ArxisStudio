@@ -745,11 +745,14 @@ public class StudioDockTests : IDisposable
 
         Assert.NotNull(promised);
 
-        // Обещание не врёт: окно встанет туда же и такого же размера.
+        // Место обещано точно: угол призрака — тот самый угол будущего окна.
         var where = promised.Position;
 
-        Assert.Equal(DockFloat.DefaultWidth, promised.Width);
-        Assert.Equal(DockFloat.DefaultHeight, promised.Height);
+        // А размер — нарочно меньше: рамка в полный рост окна закрыла бы собой
+        // ту самую раскладку, по которой человек и выбирает место.
+        Assert.True(
+            promised.Width < DockFloat.DefaultWidth && promised.Height < DockFloat.DefaultHeight,
+            "призрак ростом с окно");
 
         window.MouseUp(to, MouseButton.Left);
         Settle();

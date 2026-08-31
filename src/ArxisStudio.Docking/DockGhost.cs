@@ -13,10 +13,16 @@ namespace ArxisStudio.Docking;
 /// устроено и у Unity — промерено живьём: призрак виден и над чужим окном, и в
 /// середине области, и он там один и тот же.
 /// <para>
-/// Стоит призрак там же и такого размера, каким встанет настоящее окно:
-/// <see cref="DockFloat.DefaultWidth"/> на <see cref="DockFloat.DefaultHeight"/>
-/// от точки курсора, потому что от неё же <see cref="DockFloat"/> и заводится.
-/// Обещание, разошедшееся с тем, что человек получит, хуже, чем никакого.
+/// Левый верхний угол призрака — там же, где окажется угол настоящего окна:
+/// <see cref="DockFloat"/> заводится от точки курсора, и призрак стоит от неё
+/// же. Место обещано точно.
+/// </para>
+/// <para>
+/// Размер — нарочно меньше настоящего. Призрак говорит «здесь будет своё окно»,
+/// а не «оно будет вот такое»: рамка в полный рост окна закрывает собой то, ради
+/// чего человек и смотрит, — раскладку, по которой он выбирает место. Настоящий
+/// размер окно берёт себе само (<see cref="DockFloat.DefaultWidth"/> на
+/// <see cref="DockFloat.DefaultHeight"/>), и от призрака он заведомо больше.
 /// </para>
 /// <para>
 /// Ни ввода, ни внимания призрак не забирает: показывается неактивным, не встаёт
@@ -27,6 +33,16 @@ namespace ArxisStudio.Docking;
 /// </remarks>
 public class DockGhost : Window
 {
+    /// <summary>Ширина призрака.</summary>
+    /// <remarks>
+    /// Меньше настоящего окна и нарочно: в полный рост рамка закрывает собой ту
+    /// самую раскладку, по которой человек и выбирает место.
+    /// </remarks>
+    private const double Wide = 280;
+
+    /// <inheritdoc cref="Wide"/>
+    private const double Tall = 160;
+
     private readonly TextBlock _title = new();
 
     /// <summary>Заводит призрака и снимает с него всё, что делает окно окном.</summary>
@@ -41,8 +57,8 @@ public class DockGhost : Window
         Focusable = false;
         IsHitTestVisible = false;
 
-        Width = DockFloat.DefaultWidth;
-        Height = DockFloat.DefaultHeight;
+        Width = Wide;
+        Height = Tall;
 
         Content = new Border { Classes = { "dock-ghost" }, Child = _title };
     }
