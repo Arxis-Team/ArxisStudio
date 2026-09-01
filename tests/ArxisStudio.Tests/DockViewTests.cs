@@ -7,6 +7,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
@@ -255,10 +256,13 @@ public class DockViewTests
         DockDrag? dropped = null;
         view.Dropped += (_, drop) => dropped = drop;
 
+        // Правее середины вкладки, а не ровно в неё: середина — сама граница
+        // решения, и попадание в неё решает округление, а не правило. Проверять
+        // надо правило.
         DockMouse.Drag(
             window,
             DockMouse.Tab(view.View("left")!, 0, window),
-            DockMouse.Tab(view.View("right")!, 0, window));
+            DockMouse.Tab(view.View("right")!, 0, window) + new Vector(8, 0));
 
         Assert.NotNull(dropped);
         Assert.Equal(new DockAim.Tab("right", 1), view.Aim(dropped.At, dropped.Item));
@@ -934,5 +938,39 @@ public class DockViewTests
 
         Assert.NotEmpty(panels);
         Assert.All(panels, panel => Assert.Equal(default, panel.CornerRadius));
+    }
+
+    /// <summary>
+    /// Выбранную вкладку в шапке панели видно тремя знаками, а не одним.
+    /// </summary>
+    /// <remarks>
+    /// Карточка «Вкладки» размечает панельную вкладку тремя: цвет `#DFE1E5`
+    /// против `#9DA0A8`, начертание 500 и полоса в три пикселя. Класс
+    /// <c>compact</c> — это и есть она; без него вкладка приходит в шапку одетой
+    /// как вкладка документа, и от выбора остаётся одна черта в два пикселя.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_chosen_tab_in_a_panel_header_is_marked_three_ways()
+    {
+        var (view, _) = Pair();
+
+        var tabs = DockMouse.Tabs(view.View("left")!).Items.OfType<AxTabItem>().ToList();
+        var chosen = tabs.First(tab => tab.IsSelected);
+
+        Assert.Contains("compact", chosen.Classes);
+
+        // Цвет и начертание — на самой вкладке, полоса — в её шаблоне.
+        Assert.Equal(FontWeight.Medium, chosen.FontWeight);
+
+        var marker = chosen.GetVisualDescendants()
+            .OfType<Border>()
+            .First(border => border.Name == "PART_ActiveMarker");
+
+        Assert.True(marker.IsVisible, "полосы под выбранной вкладкой нет");
+        Assert.Equal(3d, marker.Bounds.Height);
+
+        // Вкладка заполняет полосу и не вылезает за неё: своя высота увела бы
+        // нижний пиксель полосы выбора под разделитель под шапкой.
+        Assert.Equal(DockMouse.Tabs(view.View("left")!).Bounds.Height, chosen.Bounds.Height);
     }
 }

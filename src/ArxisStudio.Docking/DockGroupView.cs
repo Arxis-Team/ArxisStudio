@@ -248,7 +248,11 @@ public class DockGroupView : TemplatedControl
                 if (_items.Find(id) is not { } item)
                     continue;
 
-                var tab = new AxTabItem { IsClosable = item.CanClose };
+                // Класс compact — это и есть вкладка в шапке панели: тема
+                // держит за ним начертание выбранной, толщину полосы под ней и
+                // скругление на наведении. Без него вкладка приходит в шапку
+                // одетой как вкладка документа, и выбор читается одной чертой.
+                var tab = new AxTabItem { Classes = { "compact" }, IsClosable = item.CanClose };
 
                 if (item.CanClose)
                 {
