@@ -16,7 +16,7 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Инструменты отладки интерфейса; подключаются только в Debug. -->
-    <PackageVersion Include="AvaDevTools" Version="12.1.7" />
+    <PackageVersion Include="AvaDevTools" Version="12.1.8" />
   </ItemGroup>
   <ItemGroup>
     <!-- Анализатор плагинов собирается против Roslyn. -->
