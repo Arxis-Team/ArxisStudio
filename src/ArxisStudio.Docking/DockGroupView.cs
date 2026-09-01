@@ -32,6 +32,19 @@ public class DockGroupView : TemplatedControl
         AvaloniaProperty.RegisterDirect<DockGroupView, bool>(nameof(HasTabs), view => view.HasTabs);
 
     /// <summary>
+    /// Группа стоит на месте, даже опустев, — это пол рабочей области.
+    /// </summary>
+    /// <remarks>
+    /// Красится она не как панель, а как сама оболочка. Панели — острова, и
+    /// видно их только потому, что лежат они на чём-то темнее себя; покрась пол
+    /// в цвет островов, и окно станет одним ровным пятном, где границы держит
+    /// одна пиксельная линия. Так же устроен и редактор в IntelliJ: он темнее
+    /// панелей вокруг.
+    /// </remarks>
+    public static readonly StyledProperty<bool> StandingProperty =
+        AvaloniaProperty.Register<DockGroupView, bool>(nameof(Standing));
+
+    /// <summary>
     /// Что показать в правом краю шапки; null — ничего.
     /// </summary>
     /// <remarks>
@@ -65,6 +78,13 @@ public class DockGroupView : TemplatedControl
 
     /// <summary>Имя показанной группы; пусто — вид ничем не занят.</summary>
     public string Id => _group?.Id ?? string.Empty;
+
+    /// <inheritdoc cref="StandingProperty"/>
+    public bool Standing
+    {
+        get => GetValue(StandingProperty);
+        set => SetValue(StandingProperty, value);
+    }
 
     /// <inheritdoc cref="ActionsProperty"/>
     public object? Actions

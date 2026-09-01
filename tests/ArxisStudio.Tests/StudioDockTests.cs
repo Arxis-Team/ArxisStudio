@@ -9,6 +9,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
@@ -1991,5 +1992,48 @@ public class StudioDockTests : IDisposable
         DockMouse.Click(window, empty);
 
         Assert.Equal(1, grabbed);
+    }
+
+    /// <summary>
+    /// Пол рабочей области темнее панелей, которые на нём лежат.
+    /// </summary>
+    /// <remarks>
+    /// Панели видно только потому, что они лежат на чём-то темнее себя. Покрась
+    /// пол в их цвет — и окно станет одним ровным пятном от заголовка до строки
+    /// состояния, где границы держит одна пиксельная линия; именно так и было,
+    /// пока область документов рисовалась такой же панелью, как боковые.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_floor_of_the_workspace_is_darker_than_the_panels_on_it()
+    {
+        var (_, view, _) = Two();
+
+        var floor = view.View(StudioDock.Documents)!;
+        var panel = view.View("left")!;
+
+        Assert.True(floor.Standing, "пол не назвался полом");
+        Assert.False(panel.Standing, "панель назвалась полом");
+
+        // Цвета берём из палитры, а не цифрами: тема их и задаёт.
+        Assert.Equal(Tone("AxBg1Brush"), Paint(floor));
+        Assert.Equal(Tone("AxBg2Brush"), Paint(panel));
+        Assert.NotEqual(Paint(floor), Paint(panel));
+    }
+
+    /// <summary>Чем закрашена группа на экране.</summary>
+    private static Color Paint(DockGroupView group) =>
+        Assert.IsAssignableFrom<ISolidColorBrush>(
+            group.GetVisualDescendants().OfType<AxToolWindow>().First().Background).Color;
+
+    /// <summary>Цвет из палитры темы по имени кисти.</summary>
+    private static Color Tone(string key)
+    {
+        // Спрашиваем с вариантом темы: палитра объявлена внутри тёмного и
+        // светлого словарей, и без варианта ключ не находится.
+        var app = Application.Current!;
+
+        Assert.True(app.TryFindResource(key, app.ActualThemeVariant, out var found));
+
+        return Assert.IsAssignableFrom<ISolidColorBrush>(found).Color;
     }
 }

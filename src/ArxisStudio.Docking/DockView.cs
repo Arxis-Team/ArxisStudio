@@ -724,6 +724,9 @@ public class DockView : Decorator
                 _groups[group.Id] = view;
             }
 
+            // Названная группа — пол рабочей области: она остаётся на месте,
+            // даже опустев, и красится в цвет оболочки, а не панели.
+            view.Standing = named;
             view.Update(group, items, named ? Empty : null);
 
             return view;
