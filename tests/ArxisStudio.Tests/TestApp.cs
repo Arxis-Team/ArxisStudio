@@ -1,4 +1,5 @@
 ﻿using ArxisStudio.Docking;
+using ArxisStudio.Shell;
 using ArxisStudio.Tests;
 using ArxisStudio.Themes.Arxis;
 using Avalonia;
@@ -33,12 +34,16 @@ public class TestApp : Application
     /// Один Fluent тестам мало: у контролов студии тема живёт в ArxisTheme, и
     /// без неё окно инструментов остаётся без шаблона — а тогда проверка
     /// «вкладка встала на место» доказывала бы только, что объект создан.
-    /// Стили докинга идут следом ровно там же, где их подключает приложение.
+    ///
+    /// Все четыре слоя и в том же порядке, что в App.axaml. Слоёв было три:
+    /// стили оболочки сюда не попали, и проверить их было нечем — порядок же
+    /// решает, кто кого перекроет.
     /// </remarks>
     public override void Initialize()
     {
         Styles.Add(new FluentTheme());
         Styles.Add(new ArxisTheme());
+        Styles.Add(new ShellStyles());
         Styles.Add(new DockingStyles());
     }
 }
