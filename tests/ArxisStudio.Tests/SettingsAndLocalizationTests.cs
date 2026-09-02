@@ -1,5 +1,6 @@
 ﻿using ArxisStudio.Shell.Localization;
 using ArxisStudio.Shell.Settings;
+using System.Text.Json;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -93,6 +94,45 @@ public class LocalizerTests
         Assert.Equal("Настройки", Localizer.Instance["welcome.nav.settings"]);
         Assert.Equal("Перезапустить", Localizer.Instance["panel.reload"]);
         Assert.Equal("Установить из папки…", Localizer.Instance["plugins.install"]);
+    }
+
+    /// <summary>
+    /// Словари студии, которые едут в поставке, — разбираемый JSON.
+    /// </summary>
+    /// <remarks>
+    /// Битый словарь не отказывает громко: он просто не читается, и весь
+    /// интерфейс показывает <c>!ключ!</c> вместо слов. Сверка ключей этого не
+    /// ловит — оба словаря становятся пустыми и потому «одинаковыми», — а
+    /// человек видит студию, разговаривающую восклицательными знаками.
+    /// </remarks>
+    [Theory]
+    [InlineData("src/ArxisStudio.Shell/Localization/Strings/ru.json")]
+    [InlineData("src/ArxisStudio.Shell/Localization/Strings/en.json")]
+    [InlineData("templates/Arxis.Language/lang/xx.json")]
+    public void A_shipped_dictionary_is_json_that_parses(string relative)
+    {
+        var path = Path.Combine(Repository(), relative.Replace('/', Path.DirectorySeparatorChar));
+
+        Assert.True(File.Exists(path), path);
+
+        var read = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path));
+
+        Assert.NotNull(read);
+        Assert.NotEmpty(read!);
+        Assert.All(read, pair => Assert.False(string.IsNullOrWhiteSpace(pair.Value), pair.Key));
+    }
+
+    /// <summary>Корень репозитория: тесты бегут из bin, файлы лежат выше.</summary>
+    private static string Repository()
+    {
+        var folder = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (folder is not null && !File.Exists(Path.Combine(folder.FullName, "ArxisStudio.slnx")))
+            folder = folder.Parent;
+
+        Assert.True(folder is not null, "не нашёл корень репозитория");
+
+        return folder!.FullName;
     }
 
     [Fact]
