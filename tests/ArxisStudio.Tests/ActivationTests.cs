@@ -27,6 +27,38 @@ public class ActivationTests
         Assert.True(PluginActivation.IsEager(Manifest("onToolWindow:hello.panel")));
     }
 
+    /// <summary>
+    /// Свой контрол в полосе поднимает плагин сразу — как панель.
+    /// </summary>
+    /// <remarks>
+    /// Отдельного события под полосу нет намеренно: манифест уже сказал
+    /// <c>custom</c>, и нарисовать чужой контрол, не подняв плагин, нечем.
+    /// Второе объявление в <c>activation</c> дало бы автору способ
+    /// противоречить себе: контрол объявлен, событие забыто — элемента нет, и
+    /// непонятно почему.
+    /// </remarks>
+    [Fact]
+    public void A_plugin_with_a_custom_toolbar_item_is_raised_at_startup()
+    {
+        var manifest = Manifest("onCommand:hello.greet");
+
+        manifest.Contributions.ToolBar.Add(new PluginToolBarItem { Id = "hello.strip", Kind = "custom" });
+
+        Assert.True(PluginActivation.IsEager(manifest));
+    }
+
+    /// <summary>Кнопку и меню студия рисует по манифесту — плагин они не будят.</summary>
+    [Fact]
+    public void A_declarative_toolbar_item_does_not_raise_the_plugin()
+    {
+        var manifest = Manifest("onCommand:hello.greet");
+
+        manifest.Contributions.ToolBar.Add(new PluginToolBarItem { Id = "hello.run", Command = "hello.greet" });
+        manifest.Contributions.ToolBar.Add(new PluginToolBarItem { Id = "hello.menu", Kind = "menu" });
+
+        Assert.False(PluginActivation.IsEager(manifest));
+    }
+
     [Fact]
     public void A_plugin_that_only_waits_for_a_command_is_not_raised_at_startup()
     {

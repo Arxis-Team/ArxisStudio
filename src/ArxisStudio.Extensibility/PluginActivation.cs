@@ -15,6 +15,13 @@ namespace ArxisStudio.Extensibility;
 /// заглушки, которая подменяет себя настоящей, — это отдельная работа, и делать
 /// её вслепую незачем.
 /// </para>
+/// <para>
+/// Свой контрол в полосе — тот же случай, и события под него нет намеренно:
+/// манифест уже сказал <c>custom</c>, а второе объявление в <c>activation</c>
+/// дало бы автору способ противоречить себе — контрол объявлен, событие
+/// забыто, элемента нет, и непонятно почему. Кнопки и меню плагин не будят:
+/// их студия рисует по манифесту.
+/// </para>
 /// </remarks>
 public static class PluginActivation
 {
@@ -43,7 +50,8 @@ public static class PluginActivation
         manifest.Activation.Count == 0 ||
         manifest.Activation.Any(activation =>
             Is(activation, OnStartup) ||
-            activation.StartsWith(OnToolWindow, StringComparison.OrdinalIgnoreCase));
+            activation.StartsWith(OnToolWindow, StringComparison.OrdinalIgnoreCase)) ||
+        manifest.Contributions.ToolBar.Any(item => item.IsCustom);
 
     /// <summary>Ждёт ли плагин вызова этой команды.</summary>
     /// <param name="manifest">Манифест плагина.</param>
