@@ -3,6 +3,8 @@ using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Services;
+using Avalonia.Automation;
+using Avalonia.Headless.XUnit;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -205,6 +207,13 @@ public class SdkContractTests
             Assert.All(
                 manifest.Contributions.ToolBar.Where(item => item.IsButton),
                 button => Assert.Contains(button.Command, commands));
+
+            // Всё, что рисует студия, названо: без подписи она элемент не
+            // ставит — ни подсказки, ни имени для средств доступности у него
+            // не будет.
+            Assert.All(
+                manifest.Contributions.ToolBar.Where(item => !item.IsCustom),
+                item => Assert.False(string.IsNullOrEmpty(item.Title), item.Id));
         }
         finally
         {
@@ -310,6 +319,74 @@ public class SdkContractTests
             }
         }
         """;
+
+    /// <summary>
+    /// Свой контрол примера в полосе называет себя сам.
+    /// </summary>
+    /// <remarks>
+    /// Кнопке из манифеста имя для средств доступности ставит студия — ей есть
+    /// откуда взять, из подписи. Своему контролу неоткуда: у <c>custom</c>
+    /// подписи в манифесте нет, и назвать себя может только автор. Кнопка со
+    /// сложным содержимым сама себя не называет — имя ей достаётся от
+    /// содержимого, а у раскладки со значком и текстом это имя её класса.
+    /// <para>
+    /// Проверяется на настоящем примере и построением: пример — это то, что
+    /// авторы плагинов копируют, вместе с тем, чего в нём нет.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void Every_custom_toolbar_control_of_the_example_names_itself()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"arxis-name-{Guid.NewGuid():N}");
+
+        try
+        {
+            var catalog = new PluginCatalog(root);
+
+            Assert.Null(catalog.InstallFromArchive(Archive()).Error);
+
+            var installed = Assert.Single(catalog.Scan());
+            var contexts = new StudioContextFactory(new StudioLog(), new StudioCommands(), null);
+
+            using var host = new PluginHost(contexts);
+
+            var loaded = Assert.Single(host.LoadStartup([installed]));
+
+            Assert.True(loaded.IsLoaded, loaded.Error);
+
+            var built = loaded.Assemblies
+                .SelectMany(assembly => assembly.GetTypes())
+                .Where(type => type.GetCustomAttribute<ToolBarItemAttribute>() is not null)
+                .ToList();
+
+            Assert.NotEmpty(built);
+
+            foreach (var type in built)
+            {
+                var item = (ToolBarItem)Activator.CreateInstance(type)!;
+
+                item.Attach(contexts.Create(installed));
+
+                Assert.False(
+                    string.IsNullOrEmpty(AutomationProperties.GetName(item.Content)),
+                    $"{type.Name}: контрол в полосе без имени для средств доступности");
+            }
+        }
+        finally
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+
+            try
+            {
+                if (Directory.Exists(root))
+                    Directory.Delete(root, recursive: true);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+    }
 
     private static PluginManifest Manifest()
     {

@@ -96,6 +96,12 @@ public class PluginTemplateTests : IDisposable
         Assert.All(
             manifest.Contributions.ToolBar.Where(item => item.IsButton),
             button => Assert.Contains(button.Command, declared));
+
+        // И названо: без подписи студия элемент полосы не ставит, и автор
+        // получил бы шаблон с кнопкой, которой не видно.
+        Assert.All(
+            manifest.Contributions.ToolBar.Where(item => !item.IsCustom),
+            item => Assert.False(string.IsNullOrEmpty(item.Title), item.Id));
     }
 
     /// <summary>

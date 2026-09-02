@@ -6,6 +6,7 @@ using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Services;
 using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
@@ -201,7 +202,7 @@ public class StudioToolBarTests : IDisposable
     [AvaloniaFact]
     public void A_button_without_a_command_is_refused_with_a_word()
     {
-        var plugin = Plugin("hello", new PluginToolBarItem { Id = "mute", Icon = "arxis:Play" });
+        var plugin = Plugin("hello", new PluginToolBarItem { Id = "mute", Icon = "arxis:Play", Title = "Тишина" });
 
         _bar.Add(plugin, plugin.Manifest!.Contributions.ToolBar[0]);
 
@@ -480,9 +481,14 @@ public class StudioToolBarTests : IDisposable
 
         Assert.Equal(russian, ToolTip.GetTip(button));
 
+        // Имя для средств доступности идёт той же дорогой: человек, который
+        // кнопку не видит, читает её тем же словом и на том же языке.
+        Assert.Equal(russian, AutomationProperties.GetName(button));
+
         Localizer.Instance.SetLanguage("en");
 
         Assert.Equal(Localizer.Instance["menu.tools"], ToolTip.GetTip(button));
+        Assert.Equal(Localizer.Instance["menu.tools"], AutomationProperties.GetName(button));
         Assert.NotEqual(russian, ToolTip.GetTip(button));
     }
 
@@ -508,30 +514,43 @@ public class StudioToolBarTests : IDisposable
     /// Значок, который не разобрался, оставляет текстовую кнопку и замечание.
     /// </summary>
     /// <remarks>
-    /// Без значка и без подписи остаётся вопросительный глиф: пустой кнопки в
-    /// полосе быть не должно — человек не поймёт, что это и почему.
+    /// Кнопку это не отменяет: подпись у неё есть, и без значка она читается —
+    /// а вот молча подменять значок чужим было бы хуже пропажи.
     /// </remarks>
     [AvaloniaFact]
     public void An_icon_that_does_not_resolve_leaves_a_text_button_and_a_complaint()
     {
-        var plugin = Plugin("hello",
-            ButtonOf("named", "hello.run", icon: "arxis:Nope", title: "Run"),
-            ButtonOf("blank", "hello.run", icon: "arxis:Nope", title: null));
+        var plugin = Plugin("hello", ButtonOf("named", "hello.run", icon: "arxis:Nope", title: "Run"));
 
-        foreach (var declared in plugin.Manifest!.Contributions.ToolBar)
-            _bar.Add(plugin, declared);
+        _bar.Add(plugin, plugin.Manifest!.Contributions.ToolBar[0]);
 
         var named = View<ToolBarButton>("hello:named");
 
         Assert.Contains("ghost", named.Classes);
         Assert.Equal("Run", named.Content);
 
-        var blank = View<ToolBarButton>("hello:blank");
+        Assert.Single(_complaints, message => message.Contains("arxis:Nope", StringComparison.Ordinal));
+    }
 
-        Assert.Contains("icon", blank.Classes);
-        Assert.Same(AxIcons.Question, Assert.IsType<AxIcon>(blank.Content).Data);
+    /// <summary>Элемент без подписи не ставится — и говорит почему.</summary>
+    /// <remarks>
+    /// Подпись — это и подсказка, и имя для средств доступности. Без неё в
+    /// полосе остаётся значок 24×24, про который нельзя узнать ничего: ни
+    /// наведя курсор, ни программой чтения с экрана. Раньше такой элемент
+    /// вставал молча — со значком вопроса, если не было и значка.
+    /// </remarks>
+    [AvaloniaFact]
+    public void An_item_without_a_title_is_refused_with_a_word()
+    {
+        var plugin = Plugin("hello",
+            ButtonOf("run", "hello.run", title: null),
+            MenuOf("more", null, title: null));
 
-        Assert.Equal(2, _complaints.Count(message => message.Contains("arxis:Nope", StringComparison.Ordinal)));
+        foreach (var declared in plugin.Manifest!.Contributions.ToolBar)
+            _bar.Add(plugin, declared);
+
+        Assert.Empty(_bar.Shown("right"));
+        Assert.Equal(2, _complaints.Count(message => message.Contains("подписи", StringComparison.Ordinal)));
     }
 
     /// <summary>Вид элемента по ключу — с той ленты, где он стоит.</summary>
@@ -614,11 +633,11 @@ public class StudioToolBarTests : IDisposable
         return new InstalledPlugin(Path.Combine(Path.GetTempPath(), $"arxis-bar-{id}"), manifest, null, IsEnabled: true, IsBuiltIn: builtIn);
     }
 
-    private static PluginToolBarItem ButtonOf(string id, string command, string? icon = "arxis:Play", string? title = null, string slot = "right") =>
+    private static PluginToolBarItem ButtonOf(string id, string command, string? icon = "arxis:Play", string? title = "Кнопка", string slot = "right") =>
         new() { Id = id, Command = command, Icon = icon, Title = title, Slot = slot };
 
-    private static PluginToolBarItem MenuOf(string id, string? path, string slot = "right") =>
-        new() { Id = id, Kind = "menu", Menu = path, Icon = "arxis:MoreHorizontal", Slot = slot };
+    private static PluginToolBarItem MenuOf(string id, string? path, string slot = "right", string? title = "Меню") =>
+        new() { Id = id, Kind = "menu", Menu = path, Icon = "arxis:MoreHorizontal", Title = title, Slot = slot };
 
     private static PluginToolBarItem CustomOf(string id, string slot = "right") =>
         new() { Id = id, Kind = "custom", Slot = slot };

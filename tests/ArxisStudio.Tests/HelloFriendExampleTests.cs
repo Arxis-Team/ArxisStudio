@@ -87,6 +87,10 @@ public class HelloFriendExampleTests : IDisposable
 
         Assert.True(button.IsButton);
         Assert.Equal("friend.cheer", button.Command);
+
+        // Подпись обязательна: без неё студия кнопку не поставит, и разбудить
+        // спящий пример станет нечем — а он весь про это.
+        Assert.False(string.IsNullOrEmpty(button.Title));
         Assert.False(PluginActivation.IsEager(friend.Manifest));
     }
 

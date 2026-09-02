@@ -170,6 +170,28 @@ public class BuiltInModuleTests
         Assert.All(buttons, button => Assert.Contains(button.Command, commands));
     }
 
+    /// <summary>
+    /// У всего, что студия рисует за пример, есть подпись.
+    /// </summary>
+    /// <remarks>
+    /// Без подписи элемент не встанет вовсе: она же подсказка и она же имя для
+    /// средств доступности, а в полосе из значков 24×24 узнать о кнопке больше
+    /// неоткуда. Пропажа была бы тихой — кнопка просто не появилась бы, а
+    /// замечание ушло бы в журнал.
+    /// </remarks>
+    [Fact]
+    public void Everything_the_studio_draws_for_the_sample_has_a_title()
+    {
+        var (manifest, error) = ModuleManifest.Load(typeof(SampleModule).Assembly);
+
+        Assert.Null(error);
+
+        var drawn = manifest!.Contributions.ToolBar.Where(item => !item.IsCustom).ToList();
+
+        Assert.NotEmpty(drawn);
+        Assert.All(drawn, item => Assert.False(string.IsNullOrEmpty(item.Title), item.Id));
+    }
+
     /// <summary>Сборка модуля со встроенным манифестом.</summary>
     private static Assembly Module() => TestAssembly.Emit(
         "Arxis.ProbeModule",
