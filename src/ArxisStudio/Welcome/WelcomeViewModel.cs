@@ -15,9 +15,6 @@ public enum WelcomeSection
     /// <summary>Недавние проекты и создание нового.</summary>
     Projects,
 
-    /// <summary>Установленные шаблоны dotnet new.</summary>
-    Templates,
-
     /// <summary>Документация и материалы.</summary>
     Learn,
 
@@ -29,19 +26,15 @@ public enum WelcomeSection
 }
 
 /// <summary>
-/// Состояние экрана Welcome: выбранный раздел, списки проектов, шаблонов и
-/// плагинов. Данные читаются с диска, поэтому обновляются явными вызовами —
-/// экран не обязан знать, когда пользователь поставил новый шаблон.
+/// Состояние экрана Welcome: выбранный раздел и список плагинов. Данные
+/// читаются с диска, поэтому обновляются явными вызовами — экран не обязан
+/// знать, когда пользователь поставил новый плагин.
 /// </summary>
 public sealed class WelcomeViewModel : INotifyPropertyChanged
 {
-    private readonly TemplateCatalog _templates = new();
     private WelcomeSection _section = WelcomeSection.Projects;
-    private bool _isLoadingTemplates;
     private readonly IStudioLog? _log;
 
-    private string _projectFilter = string.Empty;
-    private string _templateFilter = string.Empty;
     private string? _status;
 
     /// <summary>Создаёт модель экрана.</summary>
@@ -60,7 +53,6 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
         Plugins = plugins;
         _log = log;
 
-        RefreshRecent();
         RefreshPlugins();
     }
 
@@ -70,7 +62,15 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
     /// <summary>Настройки студии.</summary>
     public ISettingsStore SettingsStore { get; }
 
-    /// <summary>Недавние проекты.</summary>
+    /// <summary>
+    /// Недавние проекты.
+    /// </summary>
+    /// <remarks>
+    /// Экран их не показывает: работа с проектами приедет отдельным модулем, а
+    /// до тех пор в «Недавних» стоит заглушка. Сам список и его файл остаются
+    /// моделью, к которой модуль вернётся, — иначе формат пришлось бы
+    /// придумывать заново.
+    /// </remarks>
     public RecentProjects Recent { get; }
 
     /// <summary>Каталог плагинов.</summary>
@@ -78,12 +78,6 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
 
     /// <summary>Строки интерфейса.</summary>
     public Localizer Loc => Localizer.Instance;
-
-    /// <summary>Недавние проекты, отфильтрованные строкой поиска.</summary>
-    public ObservableCollection<RecentProject> RecentProjects { get; } = [];
-
-    /// <summary>Установленные шаблоны, отфильтрованные строкой поиска.</summary>
-    public ObservableCollection<ProjectTemplate> Templates { get; } = [];
 
     /// <summary>Установленные плагины.</summary>
     public ObservableCollection<PluginCard> InstalledPlugins { get; } = [];
@@ -112,7 +106,6 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
             _section = value;
             Notify();
             Notify(nameof(IsProjects));
-            Notify(nameof(IsTemplates));
             Notify(nameof(IsLearn));
             Notify(nameof(IsPlugins));
             Notify(nameof(IsSettings));
@@ -121,9 +114,6 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
 
     /// <summary>Открыт раздел проектов.</summary>
     public bool IsProjects => Section == WelcomeSection.Projects;
-
-    /// <summary>Открыт раздел шаблонов.</summary>
-    public bool IsTemplates => Section == WelcomeSection.Templates;
 
     /// <summary>Открыт раздел обучения.</summary>
     public bool IsLearn => Section == WelcomeSection.Learn;
@@ -134,59 +124,8 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
     /// <summary>Открыт раздел настроек.</summary>
     public bool IsSettings => Section == WelcomeSection.Settings;
 
-    /// <summary>Идёт чтение списка шаблонов.</summary>
-    public bool IsLoadingTemplates
-    {
-        get => _isLoadingTemplates;
-        private set
-        {
-            if (_isLoadingTemplates == value)
-                return;
-
-            _isLoadingTemplates = value;
-            Notify();
-            Notify(nameof(HasNoTemplates));
-        }
-    }
-
-    /// <summary>Шаблонов нет, и чтение уже закончилось.</summary>
-    public bool HasNoTemplates => !IsLoadingTemplates && Templates.Count == 0;
-
-    /// <summary>Список недавних пуст.</summary>
-    public bool HasNoRecent => RecentProjects.Count == 0;
-
     /// <summary>Плагинов не установлено.</summary>
     public bool HasNoPlugins => InstalledPlugins.Count == 0;
-
-    /// <summary>Строка поиска по проектам.</summary>
-    public string ProjectFilter
-    {
-        get => _projectFilter;
-        set
-        {
-            if (_projectFilter == value)
-                return;
-
-            _projectFilter = value;
-            Notify();
-            RefreshRecent();
-        }
-    }
-
-    /// <summary>Строка поиска по шаблонам.</summary>
-    public string TemplateFilter
-    {
-        get => _templateFilter;
-        set
-        {
-            if (_templateFilter == value)
-                return;
-
-            _templateFilter = value;
-            Notify();
-            ApplyTemplateFilter();
-        }
-    }
 
     /// <summary>Последнее сообщение операции: ошибка установки, результат создания.</summary>
     public string? Status
@@ -205,23 +144,6 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
 
     /// <summary>Есть ли сообщение для показа.</summary>
     public bool HasStatus => !string.IsNullOrEmpty(Status);
-
-    /// <summary>Перечитывает список недавних проектов с учётом фильтра.</summary>
-    public void RefreshRecent()
-    {
-        var filtered = Recent.Items.Where(Matches).ToList();
-
-        RecentProjects.Clear();
-        foreach (var project in filtered)
-            RecentProjects.Add(project);
-
-        Notify(nameof(HasNoRecent));
-
-        bool Matches(RecentProject project) =>
-            ProjectFilter.Length == 0 ||
-            project.Name.Contains(ProjectFilter, StringComparison.CurrentCultureIgnoreCase) ||
-            project.Path.Contains(ProjectFilter, StringComparison.CurrentCultureIgnoreCase);
-    }
 
     /// <summary>
     /// Пересобирает языки, принесённые плагинами.
@@ -288,48 +210,6 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
             plugin.Id,
             Plugins.Scan().Where(candidate => candidate.IsEnabled).ToList(),
             includeOptional: false);
-
-    /// <summary>Читает установленные шаблоны dotnet new.</summary>
-    /// <param name="cancellationToken">Токен отмены.</param>
-    public async Task LoadTemplatesAsync(CancellationToken cancellationToken = default)
-    {
-        IsLoadingTemplates = true;
-        try
-        {
-            AllTemplates = await _templates.ListAsync(cancellationToken);
-            ApplyTemplateFilter();
-        }
-        finally
-        {
-            IsLoadingTemplates = false;
-        }
-    }
-
-    /// <summary>Создаёт проект по шаблону.</summary>
-    /// <param name="template">Шаблон.</param>
-    /// <param name="name">Имя проекта.</param>
-    /// <param name="location">Папка, внутри которой создать проект.</param>
-    public Task<(string? EntryPoint, string? Error)> CreateProjectAsync(
-        ProjectTemplate template, string name, string location) =>
-        _templates.CreateAsync(template, name, location);
-
-    internal IReadOnlyList<ProjectTemplate> AllTemplates { get; private set; } = [];
-
-    private void ApplyTemplateFilter()
-    {
-        Templates.Clear();
-
-        foreach (var template in AllTemplates.Where(Matches))
-            Templates.Add(template);
-
-        Notify(nameof(HasNoTemplates));
-
-        bool Matches(ProjectTemplate template) =>
-            TemplateFilter.Length == 0 ||
-            template.Name.Contains(TemplateFilter, StringComparison.CurrentCultureIgnoreCase) ||
-            template.ShortName.Contains(TemplateFilter, StringComparison.CurrentCultureIgnoreCase) ||
-            template.TagLine.Contains(TemplateFilter, StringComparison.CurrentCultureIgnoreCase);
-    }
 
     private void Notify([CallerMemberName] string? property = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));

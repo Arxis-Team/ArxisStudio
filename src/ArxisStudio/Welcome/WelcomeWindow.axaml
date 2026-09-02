@@ -3,7 +3,6 @@
         xmlns:ax="using:ArxisStudio.Controls"
         xmlns:loc="using:ArxisStudio.Shell.Localization"
         xmlns:vm="using:ArxisStudio.Welcome"
-        xmlns:svc="using:ArxisStudio.Services"
         xmlns:ext="using:ArxisStudio.Extensibility"
         x:Class="ArxisStudio.Welcome.WelcomeWindow"
         x:DataType="vm:WelcomeViewModel"
@@ -60,13 +59,6 @@
               <TextBlock Text="{loc:Loc welcome.nav.projects}" VerticalAlignment="Center"/>
             </StackPanel>
           </ToggleButton>
-          <ToggleButton Classes="nav" IsChecked="{Binding IsTemplates, Mode=OneWay}"
-                        AutomationProperties.Name="{loc:Loc welcome.nav.templates}" Click="OnTemplatesClick">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <ax:AxIcon Data="{x:Static ax:AxIcons.Template}" Width="15" Height="15"/>
-              <TextBlock Text="{loc:Loc welcome.nav.templates}" VerticalAlignment="Center"/>
-            </StackPanel>
-          </ToggleButton>
           <ToggleButton Classes="nav" IsChecked="{Binding IsLearn, Mode=OneWay}"
                         AutomationProperties.Name="{loc:Loc welcome.nav.learn}" Click="OnLearnClick">
             <StackPanel Orientation="Horizontal" Spacing="8">
@@ -106,106 +98,30 @@
 
           <!-- ===== Projects ===== -->
           <StackPanel IsVisible="{Binding IsProjects}" Spacing="0" MaxWidth="980" HorizontalAlignment="Left">
-            <DockPanel>
-              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="10">
-                <ax:AxButton Classes="accent" Content="{loc:Loc projects.new}" Click="OnNewProjectClick"/>
-                <ax:AxButton Content="{loc:Loc projects.open}" Click="OnOpenProjectClick"/>
-                <ax:AxButton Content="{loc:Loc projects.clone}" Click="OnCloneClick"/>
-              </StackPanel>
-              <ax:AxSearchField Width="340" HorizontalAlignment="Left"
-                                PlaceholderText="{loc:Loc projects.search}"
-                                Text="{Binding ProjectFilter, Mode=TwoWay}"/>
-            </DockPanel>
+            <TextBlock Classes="section" Text="{loc:Loc projects.recent}" Margin="0,0,0,8"/>
 
-            <TextBlock Classes="section" Text="{loc:Loc projects.recent}" Margin="0,26,0,8"/>
+            <!--
+                Заглушка вместо списка. Работа с проектами приедет отдельным
+                модулем, а войти в студию нужно уже сейчас: строка одна и ведёт
+                в пустой каркас. Ни пути, ни времени открытия у неё нет —
+                открывать пока нечего.
 
-            <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,8"
-                       Text="{loc:Loc projects.empty}"
-                       IsVisible="{Binding HasNoRecent}"/>
-
-            <ItemsControl ItemsSource="{Binding RecentProjects}">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="svc:RecentProject">
-                  <Border Classes="row" Height="58" CornerRadius="{DynamicResource AxCornerRadiusLarge}" Padding="12,0"
-                          PointerPressed="OnRecentPressed" Tag="{Binding Path}">
-                    <DockPanel>
-                      <ax:AxAvatar DockPanel.Dock="Left" Initials="{Binding Initials}" Margin="0,0,12,0"/>
-                      <TextBlock DockPanel.Dock="Right" Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Width="120"
-                                 TextAlignment="Right" VerticalAlignment="Center"
-                                 Text="{Binding OpenedAt, StringFormat='{}{0:dd.MM.yyyy HH:mm}'}"/>
-                      <ax:AxChip DockPanel.Dock="Right" VerticalAlignment="Center" Margin="8,0"
-                                 Content="{loc:Loc projects.missing}"
-                                 IsVisible="{Binding !Exists}"/>
-                      <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Name}" FontWeight="Medium" FontSize="{DynamicResource AxFontSize}"/>
-                        <TextBlock Classes="mono dimmer" Text="{Binding Path}" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,1,0,0"
-                                   TextTrimming="CharacterEllipsis"/>
-                      </StackPanel>
-                    </DockPanel>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </StackPanel>
-
-          <!-- ===== Templates ===== -->
-          <StackPanel IsVisible="{Binding IsTemplates}" Spacing="0" MaxWidth="980" HorizontalAlignment="Left">
-            <DockPanel>
-              <ax:AxButton DockPanel.Dock="Right" Content="{loc:Loc templates.refresh}" Click="OnRefreshTemplatesClick"/>
-              <ax:AxSearchField Width="340" HorizontalAlignment="Left"
-                                PlaceholderText="{loc:Loc templates.search}"
-                                Text="{Binding TemplateFilter, Mode=TwoWay}"/>
-            </DockPanel>
-
-            <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,14,0,0"
-                       Text="{loc:Loc templates.subtitle}"/>
-
-            <TextBlock Classes="dim" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,18,0,0"
-                       Text="{loc:Loc templates.loading}"
-                       IsVisible="{Binding IsLoadingTemplates}"/>
-
-            <StackPanel IsVisible="{Binding HasNoTemplates}" Spacing="8" Margin="0,18,0,0">
-              <TextBlock Classes="dim" FontSize="{DynamicResource AxFontSizeSmall}" Text="{loc:Loc templates.empty}"/>
-              <Border Background="{DynamicResource AxInpBrush}" BorderBrush="{DynamicResource AxBrd2Brush}"
-                      BorderThickness="1" CornerRadius="{DynamicResource AxCornerRadius}" Padding="10,7" HorizontalAlignment="Left">
-                <SelectableTextBlock Classes="mono" FontSize="{DynamicResource AxFontSizeSmall}"
-                                     Text="dotnet new install Avalonia.Templates"/>
-              </Border>
-            </StackPanel>
-
-            <ItemsControl ItemsSource="{Binding Templates}" Margin="0,18,0,0">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <WrapPanel Orientation="Horizontal"/>
-                </ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="svc:ProjectTemplate">
-                  <ax:AxCard Classes="hoverable" Width="228" Height="150" Margin="0,0,12,12" Padding="14">
-                    <DockPanel>
-                      <StackPanel DockPanel.Dock="Top" Spacing="9">
-                        <Border Width="38" Height="38" CornerRadius="{DynamicResource AxCornerRadiusLarge}" Background="{DynamicResource AxBg3Brush}">
-                          <ax:AxIcon Width="20" Height="20"
-                                     Data="{x:Static ax:AxIcons.Window}"
-                                     Foreground="{DynamicResource AxAccBrush}"/>
-                        </Border>
-                        <StackPanel>
-                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="{DynamicResource AxFontSize}"
-                                     TextTrimming="CharacterEllipsis"/>
-                          <TextBlock Classes="mono dimmer" Text="{Binding ShortName}" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,2,0,0"/>
-                        </StackPanel>
-                      </StackPanel>
-                      <DockPanel DockPanel.Dock="Bottom" VerticalAlignment="Bottom">
-                        <TextBlock DockPanel.Dock="Right" Classes="link" Text="{loc:Loc templates.create}"
-                                   FontSize="{DynamicResource AxFontSizeSmall}" FontWeight="Medium" VerticalAlignment="Center"
-                                   PointerPressed="OnCreateFromTemplate" Tag="{Binding}"/>
-                        <ax:AxChip Content="{Binding Category}" HorizontalAlignment="Left"/>
-                      </DockPanel>
-                    </DockPanel>
-                  </ax:AxCard>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                Список недавних при этом никуда не делся: RecentProjects и
+                recent-projects.json остаются моделью, к которой модуль
+                вернётся, — исчезло только то, что её показывало.
+            -->
+            <Border Classes="row" Height="58" CornerRadius="{DynamicResource AxCornerRadiusLarge}" Padding="12,0"
+                    PointerPressed="OnStudioPressed">
+              <DockPanel>
+                <ax:AxAvatar DockPanel.Dock="Left" Initials="AX" Margin="0,0,12,0"/>
+                <StackPanel VerticalAlignment="Center">
+                  <TextBlock Text="{loc:Loc projects.stub}" FontWeight="Medium"
+                             FontSize="{DynamicResource AxFontSize}"/>
+                  <TextBlock Classes="dimmer" Text="{loc:Loc projects.stub.hint}"
+                             FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,1,0,0"/>
+                </StackPanel>
+              </DockPanel>
+            </Border>
           </StackPanel>
 
           <!-- ===== Learn ===== -->

@@ -36,13 +36,13 @@ public class PluginLanguagePacksTests : IDisposable
     [Fact]
     public void A_pack_gives_the_studio_a_language()
     {
-        var pack = Pack("arxis.lang-de", "de", "Deutsch", """{ "projects.open": "Öffnen" }""");
+        var pack = Pack("arxis.lang-de", "de", "Deutsch", """{ "projects.recent": "Öffnen" }""");
 
         Localizer.Instance.UsePacks(new PluginLanguages([pack]));
 
         Assert.Contains(Localizer.Instance.Languages, language => language is { Code: "de", Name: "Deutsch" });
         Assert.True(Localizer.Instance.SetLanguage("de"), "язык из пакета не выбрался");
-        Assert.Equal("Öffnen", Localizer.Instance["projects.open"]);
+        Assert.Equal("Öffnen", Localizer.Instance["projects.recent"]);
     }
 
     /// <summary>
@@ -55,7 +55,7 @@ public class PluginLanguagePacksTests : IDisposable
     [Fact]
     public void What_a_pack_misses_falls_into_english()
     {
-        var pack = Pack("arxis.lang-de", "de", "Deutsch", """{ "projects.open": "Öffnen" }""");
+        var pack = Pack("arxis.lang-de", "de", "Deutsch", """{ "projects.recent": "Öffnen" }""");
 
         Localizer.Instance.UsePacks(new PluginLanguages([pack]));
         Localizer.Instance.SetLanguage("de");
@@ -73,7 +73,7 @@ public class PluginLanguagePacksTests : IDisposable
     [Fact]
     public void A_pack_names_its_language_in_the_manifest()
     {
-        var pack = Pack("arxis.lang-fr", "fr", "Français", """{ "projects.open": "Ouvrir" }""");
+        var pack = Pack("arxis.lang-fr", "fr", "Français", """{ "projects.recent": "Ouvrir" }""");
 
         Localizer.Instance.UsePacks(new PluginLanguages([pack]));
 
@@ -91,7 +91,7 @@ public class PluginLanguagePacksTests : IDisposable
     [Fact]
     public void A_disabled_pack_gives_nothing()
     {
-        var pack = Pack("arxis.lang-de", "de", "Deutsch", """{ "projects.open": "Öffnen" }""") with { IsEnabled = false };
+        var pack = Pack("arxis.lang-de", "de", "Deutsch", """{ "projects.recent": "Öffnen" }""") with { IsEnabled = false };
 
         Localizer.Instance.UsePacks(new PluginLanguages([pack]));
 
@@ -109,15 +109,15 @@ public class PluginLanguagePacksTests : IDisposable
     [Fact]
     public void Two_packs_claiming_one_language_are_not_a_race()
     {
-        var first = Pack("arxis.lang-de", "de", "Deutsch", """{ "projects.open": "Первый" }""");
-        var second = Pack("other.lang-de", "de", "Deutsch", """{ "projects.open": "Второй" }""");
+        var first = Pack("arxis.lang-de", "de", "Deutsch", """{ "projects.recent": "Первый" }""");
+        var second = Pack("other.lang-de", "de", "Deutsch", """{ "projects.recent": "Второй" }""");
 
         var packs = new PluginLanguages([first, second]);
 
         Localizer.Instance.UsePacks(packs);
         Localizer.Instance.SetLanguage("de");
 
-        Assert.Equal("Первый", Localizer.Instance["projects.open"]);
+        Assert.Equal("Первый", Localizer.Instance["projects.recent"]);
         Assert.Contains(packs.Problems, problem => problem.Contains("de", StringComparison.Ordinal));
     }
 
@@ -151,16 +151,16 @@ public class PluginLanguagePacksTests : IDisposable
     [Fact]
     public void A_file_put_by_hand_wins_over_a_pack()
     {
-        var pack = Pack("arxis.lang-de", "de", "Deutsch", """{ "projects.open": "Из пакета" }""");
+        var pack = Pack("arxis.lang-de", "de", "Deutsch", """{ "projects.recent": "Из пакета" }""");
         var user = Folder();
 
-        File.WriteAllText(Path.Combine(user, "de.json"), """{ "projects.open": "Из папки" }""");
+        File.WriteAllText(Path.Combine(user, "de.json"), """{ "projects.recent": "Из папки" }""");
 
         Localizer.Instance.UsePacks(new PluginLanguages([pack]));
         Localizer.Instance.UseFolders(user: user);
         Localizer.Instance.SetLanguage("de");
 
-        Assert.Equal("Из папки", Localizer.Instance["projects.open"]);
+        Assert.Equal("Из папки", Localizer.Instance["projects.recent"]);
     }
 
     /// <summary>
@@ -173,7 +173,7 @@ public class PluginLanguagePacksTests : IDisposable
     [Fact]
     public void Removing_a_pack_returns_the_studio_to_the_base_language()
     {
-        var pack = Pack("arxis.lang-de", "de", "Deutsch", """{ "projects.open": "Öffnen" }""");
+        var pack = Pack("arxis.lang-de", "de", "Deutsch", """{ "projects.recent": "Öffnen" }""");
 
         Localizer.Instance.UsePacks(new PluginLanguages([pack]));
         Localizer.Instance.SetLanguage("de");
@@ -181,7 +181,7 @@ public class PluginLanguagePacksTests : IDisposable
         Localizer.Instance.UsePacks(new PluginLanguages([]));
 
         Assert.Equal(Localizer.FallbackLanguage, Localizer.Instance.Language);
-        Assert.Equal("Open", Localizer.Instance["projects.open"]);
+        Assert.Equal("Recent", Localizer.Instance["projects.recent"]);
     }
 
     /// <summary>
@@ -195,7 +195,7 @@ public class PluginLanguagePacksTests : IDisposable
     [Fact]
     public void A_language_pack_is_never_raised()
     {
-        var pack = Pack("arxis.lang-de", "de", "Deutsch", """{ "projects.open": "Öffnen" }""");
+        var pack = Pack("arxis.lang-de", "de", "Deutsch", """{ "projects.recent": "Öffnen" }""");
 
         using var host = new PluginHost(new StudioContextFactory(new StudioLog(), new StudioCommands(), null));
 
@@ -234,7 +234,7 @@ public class PluginLanguagePacksTests : IDisposable
 
         File.WriteAllText(
             Path.Combine(source, "lang", "de.json"),
-            """{ "projects.open": "Öffnen" }""");
+            """{ "projects.recent": "Öffnen" }""");
 
         System.IO.Compression.ZipFile.CreateFromDirectory(source, archive);
 
@@ -245,7 +245,7 @@ public class PluginLanguagePacksTests : IDisposable
         Localizer.Instance.UsePacks(new PluginLanguages(catalog.Scan()));
         Localizer.Instance.SetLanguage("de");
 
-        Assert.Equal("Öffnen", Localizer.Instance["projects.open"]);
+        Assert.Equal("Öffnen", Localizer.Instance["projects.recent"]);
     }
 
     /// <summary>
@@ -264,7 +264,7 @@ public class PluginLanguagePacksTests : IDisposable
             "arxis.lang-de",
             "de",
             "Deutsch",
-            """{ "projects.open": "Öffnen" }""",
+            """{ "projects.recent": "Öffnen" }""",
             ("arxis.hello", """{ "panel.main": "Fenster" }"""));
 
         Apply(pack);
@@ -292,7 +292,7 @@ public class PluginLanguagePacksTests : IDisposable
             "arxis.lang-de",
             "de",
             "Deutsch",
-            """{ "projects.open": "Öffnen" }""",
+            """{ "projects.recent": "Öffnen" }""",
             ("arxis.hello", """{ "panel.main": "Aus Paket" }"""));
 
         Apply(pack);
@@ -320,7 +320,7 @@ public class PluginLanguagePacksTests : IDisposable
             "arxis.lang-de",
             "de",
             "Deutsch",
-            """{ "projects.open": "Öffnen" }""",
+            """{ "projects.recent": "Öffnen" }""",
             ("arxis.hello", """{ "panel.main": "Fenster" }"""));
 
         Apply(pack);
@@ -345,7 +345,7 @@ public class PluginLanguagePacksTests : IDisposable
             "arxis.lang-de",
             "de",
             "Deutsch",
-            """{ "projects.open": "Öffnen" }""",
+            """{ "projects.recent": "Öffnen" }""",
             ("arxis.hello", """{ "panel.main": "Fenster" }"""));
 
         Apply(pack);
@@ -372,11 +372,11 @@ public class PluginLanguagePacksTests : IDisposable
         var plugin = Plugin("arxis.hello", ("strings.json", """{ "panel.main": "Панель" }"""));
 
         var first = Pack(
-            "arxis.lang-de", "de", "Deutsch", """{ "projects.open": "Öffnen" }""",
+            "arxis.lang-de", "de", "Deutsch", """{ "projects.recent": "Öffnen" }""",
             ("arxis.hello", """{ "panel.main": "Первый" }"""));
 
         var second = Pack(
-            "other.lang-de", "de", "Deutsch", """{ "projects.open": "Aufmachen" }""",
+            "other.lang-de", "de", "Deutsch", """{ "projects.recent": "Aufmachen" }""",
             ("arxis.hello", """{ "panel.main": "Второй" }"""));
 
         var packs = new PluginLanguages([first, second]);
@@ -385,7 +385,7 @@ public class PluginLanguagePacksTests : IDisposable
         PluginStrings.UseTranslations(packs);
         Localizer.Instance.SetLanguage("de");
 
-        Assert.Equal("Öffnen", Localizer.Instance["projects.open"]);
+        Assert.Equal("Öffnen", Localizer.Instance["projects.recent"]);
         Assert.Equal("Первый", plugin.Strings.Resolve("%panel.main%"));
     }
 
@@ -403,7 +403,7 @@ public class PluginLanguagePacksTests : IDisposable
         var plugin = Plugin("arxis.hello", ("strings.json", """{ "panel.main": "Панель" }"""));
 
         Apply(Pack(
-            "arxis.lang-de", "de", "Deutsch", """{ "projects.open": "Öffnen" }""",
+            "arxis.lang-de", "de", "Deutsch", """{ "projects.recent": "Öffnen" }""",
             ("arxis.hello", """{ "panel.main": "Из первого" }""")));
 
         Localizer.Instance.SetLanguage("de");
@@ -412,7 +412,7 @@ public class PluginLanguagePacksTests : IDisposable
 
         // Язык остаётся тем же — сменился только пакет, который его принёс.
         Apply(Pack(
-            "other.lang-de", "de", "Deutsch", """{ "projects.open": "Öffnen" }""",
+            "other.lang-de", "de", "Deutsch", """{ "projects.recent": "Öffnen" }""",
             ("arxis.hello", """{ "panel.main": "Из второго" }""")));
 
         Assert.Equal("de", Localizer.Instance.Language);
@@ -433,7 +433,7 @@ public class PluginLanguagePacksTests : IDisposable
             "arxis.lang-de",
             "de",
             "Deutsch",
-            """{ "projects.open": "Offnen", "projects.new": "Neu" }""");
+            """{ "projects.recent": "Offnen", "projects.stub": "Gerüst" }""");
 
         // Считаем, стоя на неполном языке: список ключей студии — это её
         // запасной язык, а не выбранный. Иначе неполный перевод мерили бы
@@ -479,7 +479,7 @@ public class PluginLanguagePacksTests : IDisposable
             "arxis.lang-de",
             "de",
             "Deutsch",
-            """{ "projects.open": "Offnen", "no.such.key": "Nichts" }""");
+            """{ "projects.recent": "Offnen", "no.such.key": "Nichts" }""");
 
         Assert.Equal(1, Assert.Single(pack.Coverage).Translated);
     }
@@ -497,7 +497,7 @@ public class PluginLanguagePacksTests : IDisposable
     [Fact]
     public void The_label_speaks_the_language_of_the_studio()
     {
-        var pack = Pack("arxis.lang-de", "de", "Deutsch", """{ "projects.open": "Offnen" }""");
+        var pack = Pack("arxis.lang-de", "de", "Deutsch", """{ "projects.recent": "Offnen" }""");
         var coverage = Assert.Single(pack.Coverage);
 
         Localizer.Instance.SetLanguage("ru");

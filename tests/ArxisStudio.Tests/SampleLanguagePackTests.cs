@@ -38,7 +38,7 @@ public class SampleLanguagePackTests : IDisposable
 
         Assert.Contains(Localizer.Instance.Languages, language => language is { Code: "de", Name: "Deutsch" });
         Assert.True(Localizer.Instance.SetLanguage("de"), "язык примера не выбрался");
-        Assert.Equal("Öffnen", Localizer.Instance["projects.open"]);
+        Assert.Equal("Zuletzt verwendet", Localizer.Instance["projects.recent"]);
     }
 
     /// <summary>

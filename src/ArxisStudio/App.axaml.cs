@@ -50,9 +50,9 @@ public class App : Application
     private WelcomeWindow CreateWelcome()
     {
         var welcome = new WelcomeWindow(_settings, _recent, _plugins, _log);
-        welcome.ProjectRequested += (_, path) =>
+        welcome.StudioRequested += (_, _) =>
         {
-            var studio = new MainWindow(_settings, path);
+            var studio = new MainWindow();
             studio.Show();
             welcome.Close();
         };

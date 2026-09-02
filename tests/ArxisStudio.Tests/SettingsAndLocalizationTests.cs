@@ -79,7 +79,7 @@ public class LocalizerTests
         Localizer.Instance.SetLanguage("ru");
 
         Assert.Equal("Проекты", Localizer.Instance["welcome.nav.projects"]);
-        Assert.Equal("Открыть", Localizer.Instance["projects.open"]);
+        Assert.Equal("Недавние", Localizer.Instance["projects.recent"]);
     }
 
     [Fact]
@@ -88,7 +88,6 @@ public class LocalizerTests
         Localizer.Instance.SetLanguage("ru");
 
         Assert.Equal("Проекты", Localizer.Instance["welcome.nav.projects"]);
-        Assert.Equal("Шаблоны", Localizer.Instance["welcome.nav.templates"]);
         Assert.Equal("Обучение", Localizer.Instance["welcome.nav.learn"]);
         Assert.Equal("Плагины", Localizer.Instance["welcome.nav.plugins"]);
         Assert.Equal("Настройки", Localizer.Instance["welcome.nav.settings"]);
@@ -122,13 +121,13 @@ public class LocalizerTests
     public void Switching_language_switches_strings()
     {
         Localizer.Instance.SetLanguage("en");
-        var english = Localizer.Instance["projects.open"];
+        var english = Localizer.Instance["projects.recent"];
 
         Localizer.Instance.SetLanguage("ru");
-        var russian = Localizer.Instance["projects.open"];
+        var russian = Localizer.Instance["projects.recent"];
 
-        Assert.Equal("Open", english);
-        Assert.Equal("Открыть", russian);
+        Assert.Equal("Recent", english);
+        Assert.Equal("Недавние", russian);
     }
 
     [Fact]
@@ -155,7 +154,7 @@ public class LocalizerTests
             Assert.False(Localizer.Instance.SetLanguage("xx"), "приняли язык без единого словаря");
 
             Assert.Equal("ru", Localizer.Instance.Language);
-            Assert.Equal("Открыть", Localizer.Instance["projects.open"]);
+            Assert.Equal("Недавние", Localizer.Instance["projects.recent"]);
         }
         finally
         {

@@ -40,12 +40,12 @@ public class StudioLanguagesTests : IDisposable
     [Fact]
     public void A_file_wins_over_the_embedded_dictionary_key_by_key()
     {
-        Write("ru.json", """{ "projects.open": "Раскрыть" }""");
+        Write("ru.json", """{ "projects.recent": "Раскрыть" }""");
 
         Localizer.Instance.UseFolders(_folder, _folder);
         Localizer.Instance.SetLanguage("ru");
 
-        Assert.Equal("Раскрыть", Localizer.Instance["projects.open"]);
+        Assert.Equal("Раскрыть", Localizer.Instance["projects.recent"]);
         Assert.Equal("Проекты", Localizer.Instance["welcome.nav.projects"]);
     }
 
@@ -59,13 +59,13 @@ public class StudioLanguagesTests : IDisposable
     [Fact]
     public void A_language_the_studio_does_not_ship_arrives_as_a_file()
     {
-        Write("de.json", """{ "language.name": "Deutsch", "projects.open": "Öffnen" }""");
+        Write("de.json", """{ "language.name": "Deutsch", "projects.recent": "Öffnen" }""");
 
         Localizer.Instance.UseFolders(_folder, _folder);
 
         Assert.Contains(Localizer.Instance.Languages, language => language is { Code: "de", Name: "Deutsch" });
         Assert.True(Localizer.Instance.SetLanguage("de"), "язык из файла не выбрался");
-        Assert.Equal("Öffnen", Localizer.Instance["projects.open"]);
+        Assert.Equal("Öffnen", Localizer.Instance["projects.recent"]);
     }
 
     /// <summary>
@@ -79,7 +79,7 @@ public class StudioLanguagesTests : IDisposable
     [Fact]
     public void What_a_partial_translation_misses_falls_into_english()
     {
-        Write("de.json", """{ "projects.open": "Öffnen" }""");
+        Write("de.json", """{ "projects.recent": "Öffnen" }""");
 
         Localizer.Instance.UseFolders(_folder, _folder);
         Localizer.Instance.SetLanguage("de");
@@ -91,7 +91,7 @@ public class StudioLanguagesTests : IDisposable
     [Fact]
     public void A_language_that_does_not_name_itself_is_shown_by_its_code()
     {
-        Write("xx.json", """{ "projects.open": "Открыть" }""");
+        Write("xx.json", """{ "projects.recent": "Недавние" }""");
 
         Localizer.Instance.UseFolders(_folder, _folder);
 
@@ -123,7 +123,7 @@ public class StudioLanguagesTests : IDisposable
         Localizer.Instance.UseFolders(_folder, _folder);
         Localizer.Instance.SetLanguage("ru");
 
-        Assert.Equal("Открыть", Localizer.Instance["projects.open"]);
+        Assert.Equal("Недавние", Localizer.Instance["projects.recent"]);
     }
 
     /// <summary>
@@ -136,17 +136,17 @@ public class StudioLanguagesTests : IDisposable
     [Fact]
     public void Reloading_picks_up_an_edited_file()
     {
-        Write("ru.json", """{ "projects.open": "Было" }""");
+        Write("ru.json", """{ "projects.recent": "Было" }""");
 
         Localizer.Instance.UseFolders(_folder, _folder);
         Localizer.Instance.SetLanguage("ru");
 
-        Assert.Equal("Было", Localizer.Instance["projects.open"]);
+        Assert.Equal("Было", Localizer.Instance["projects.recent"]);
 
-        Write("ru.json", """{ "projects.open": "Стало" }""");
+        Write("ru.json", """{ "projects.recent": "Стало" }""");
         Localizer.Instance.Reload();
 
-        Assert.Equal("Стало", Localizer.Instance["projects.open"]);
+        Assert.Equal("Стало", Localizer.Instance["projects.recent"]);
     }
 
     private void Write(string file, string content) =>

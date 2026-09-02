@@ -4,7 +4,6 @@ using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
-using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
 using ArxisStudio.Shell.Settings;
 using Avalonia.Controls;
@@ -15,10 +14,13 @@ using Avalonia.Platform.Storage;
 namespace ArxisStudio.Welcome;
 
 /// <summary>
-/// Экран Welcome: недавние проекты, шаблоны, обучение, плагины и настройки.
-/// Открытие проекта закрывает это окно и передаёт путь дальше через
-/// <see cref="ProjectRequested"/> — окно не знает, что со ним будет делать студия.
+/// Экран Welcome: вход в студию, обучение, плагины и настройки.
 /// </summary>
+/// <remarks>
+/// Проектов экран не открывает: этой работы у студии пока нет вовсе, она
+/// приедет отдельным модулем. Вход в каркас закрывает это окно и сообщает о
+/// себе через <see cref="StudioRequested"/> — что делать дальше, окно не знает.
+/// </remarks>
 public partial class WelcomeWindow : AxWindow
 {
     private readonly WelcomeViewModel _model;
@@ -43,8 +45,8 @@ public partial class WelcomeWindow : AxWindow
 
     }
 
-    /// <summary>Пользователь выбрал проект: путь к <c>.sln</c>, <c>.slnx</c> или <c>.csproj</c>.</summary>
-    public event EventHandler<string>? ProjectRequested;
+    /// <summary>Пользователь просит открыть студию.</summary>
+    public event EventHandler? StudioRequested;
 
     private void OnProjectsClick(object? sender, RoutedEventArgs e) => Select(WelcomeSection.Projects);
 
@@ -109,96 +111,12 @@ public partial class WelcomeWindow : AxWindow
         Select(WelcomeSection.Plugins);
     }
 
-    private async void OnTemplatesClick(object? sender, RoutedEventArgs e)
-    {
-        Select(WelcomeSection.Templates);
-
-        if (_model.AllTemplates.Count == 0)
-            await _model.LoadTemplatesAsync();
-    }
-
-    private async void OnRefreshTemplatesClick(object? sender, RoutedEventArgs e) =>
-        await _model.LoadTemplatesAsync();
-
     private void Select(WelcomeSection section) => _model.Section = section;
 
     private void OnDismissStatus(object? sender, RoutedEventArgs e) => _model.Status = null;
 
-    private void OnRecentPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (sender is Control { Tag: string path })
-            OpenProject(path);
-    }
-
-    private async void OnOpenProjectClick(object? sender, RoutedEventArgs e)
-    {
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = Localizer.Instance["projects.open"],
-            AllowMultiple = false,
-            FileTypeFilter =
-            [
-                new FilePickerFileType("Solution / project")
-                {
-                    Patterns = ["*.sln", "*.slnx", "*.csproj"],
-                },
-            ],
-        });
-
-        if (files.Count > 0 && files[0].TryGetLocalPath() is { } path)
-            OpenProject(path);
-    }
-
-    private async void OnNewProjectClick(object? sender, RoutedEventArgs e)
-    {
-        _model.Section = WelcomeSection.Templates;
-
-        if (_model.AllTemplates.Count == 0)
-            await _model.LoadTemplatesAsync();
-    }
-
-    private void OnCloneClick(object? sender, RoutedEventArgs e) =>
-        _model.Status = Localizer.Instance["vcs.clone.later"];
-
-    private async void OnCreateFromTemplate(object? sender, PointerPressedEventArgs e)
-    {
-        if (sender is not Control { Tag: ProjectTemplate template })
-            return;
-
-        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = Localizer.Instance["newproject.location"],
-            AllowMultiple = false,
-        });
-
-        if (folders.Count == 0 || folders[0].TryGetLocalPath() is not { } location)
-            return;
-
-        var name = MakeProjectName(template, location);
-        _model.Status = Localizer.Instance["newproject.creating"];
-
-        var (entryPoint, error) = await _model.CreateProjectAsync(template, name, location);
-
-        if (entryPoint is null)
-        {
-            _model.Status = $"{Localizer.Instance["common.error"]}: {error}";
-            return;
-        }
-
-        OpenProject(entryPoint);
-    }
-
-    private static string MakeProjectName(ProjectTemplate template, string location)
-    {
-        var baseName = template.ShortName.Replace('.', '-');
-        var name = baseName;
-        var index = 2;
-
-        while (Directory.Exists(Path.Combine(location, name)))
-            name = $"{baseName}-{index++}";
-
-        return name;
-    }
+    private void OnStudioPressed(object? sender, PointerPressedEventArgs e) =>
+        StudioRequested?.Invoke(this, EventArgs.Empty);
 
     private async void OnInstallPluginClick(object? sender, RoutedEventArgs e)
     {
@@ -470,19 +388,6 @@ public partial class WelcomeWindow : AxWindow
         {
             _loadingSettings = false;
         }
-    }
-
-    private void OpenProject(string path)
-    {
-        if (!File.Exists(path))
-        {
-            _model.Status = $"{Localizer.Instance["common.error"]}: {path} — {Localizer.Instance["projects.missing"]}";
-            _model.RefreshRecent();
-            return;
-        }
-
-        _model.Recent.Touch(path);
-        ProjectRequested?.Invoke(this, path);
     }
 
     private static void OpenInShell(string target)

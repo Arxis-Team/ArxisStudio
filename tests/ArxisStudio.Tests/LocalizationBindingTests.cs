@@ -35,11 +35,11 @@ public class LocalizationBindingTests : IDisposable
 
         var text = Shown(Studio);
 
-        Assert.Equal("Открыть", text.Text);
+        Assert.Equal("Недавние", text.Text);
 
         Localizer.Instance.SetLanguage("en");
 
-        Assert.Equal("Open", text.Text);
+        Assert.Equal("Recent", text.Text);
     }
 
     /// <summary>
@@ -59,13 +59,13 @@ public class LocalizationBindingTests : IDisposable
 
         var text = Shown(Studio);
 
-        Assert.Equal("Открыть", text.Text);
+        Assert.Equal("Недавние", text.Text);
 
         Collect();
 
         Localizer.Instance.SetLanguage("en");
 
-        Assert.Equal("Open", text.Text);
+        Assert.Equal("Recent", text.Text);
     }
 
     /// <summary>Строки плагина переживают сборку мусора так же.</summary>
@@ -80,15 +80,15 @@ public class LocalizationBindingTests : IDisposable
 
         Localizer.Instance.SetLanguage("ru");
 
-        var text = Shown(() => strings.Text("projects.open"));
+        var text = Shown(() => strings.Text("projects.recent"));
 
-        Assert.Equal("Открыть", text.Text);
+        Assert.Equal("Недавние", text.Text);
 
         Collect();
 
         Localizer.Instance.SetLanguage("en");
 
-        Assert.Equal("Open", text.Text);
+        Assert.Equal("Recent", text.Text);
     }
 
     /// <summary>На один ключ заводится одна строка, а не по одной на привязку.</summary>
@@ -99,11 +99,11 @@ public class LocalizationBindingTests : IDisposable
     [AvaloniaFact]
     public void One_key_means_one_tracked_string()
     {
-        Assert.Same(Localizer.Instance.Track("projects.open"), Localizer.Instance.Track("projects.open"));
+        Assert.Same(Localizer.Instance.Track("projects.recent"), Localizer.Instance.Track("projects.recent"));
     }
 
     private static Avalonia.Data.BindingBase Studio() =>
-        new LocExtension("projects.open").ProvideValue(null!);
+        new LocExtension("projects.recent").ProvideValue(null!);
 
     /// <summary>
     /// Ставит привязку и показывает её — как это делает загрузчик разметки:
