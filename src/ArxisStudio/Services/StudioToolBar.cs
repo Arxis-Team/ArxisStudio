@@ -115,6 +115,7 @@ public sealed class StudioToolBar
         var entry = new Entry
         {
             Key = key,
+            Owner = owner,
             OwnerKey = owner?.Id ?? Studio,
             OwnerId = owner?.Id ?? string.Empty,
             Rank = owner is null ? 0 : owner.IsBuiltIn ? 1 : 2,
@@ -232,6 +233,30 @@ public sealed class StudioToolBar
             Rebuild(entry.Slot);
     }
 
+    /// <summary>
+    /// Собирает меню элемента — ровно то, что покажет щелчок по нему.
+    /// </summary>
+    /// <param name="owner">Чей элемент; null — самой студии.</param>
+    /// <param name="itemId">Идентификатор из манифеста.</param>
+    /// <returns>Готовое меню; null — такого элемента нет или он не меню.</returns>
+    /// <remarks>
+    /// Каждый раз заново и целиком до показа: презентер Avalonia снимает пункты
+    /// в момент своего создания, и добавленное при открытии до экрана не
+    /// доезжает. Заодно смена языка и подъём новых плагинов доходят до меню
+    /// без единой подписки.
+    /// </remarks>
+    public AxMenuFlyout? BuildMenu(string? owner, string itemId)
+    {
+        if (!_entries.TryGetValue(Key(owner, itemId), out var entry) || !entry.Declared.IsMenu)
+            return null;
+
+        var flyout = new AxMenuFlyout { Placement = PlacementMode.BottomEdgeAlignedLeft };
+
+        Fill(flyout, entry.Owner, entry.Declared);
+
+        return flyout;
+    }
+
     /// <summary>Ключи элементов, стоящих в месте, в порядке показа.</summary>
     /// <param name="slot">Место: <c>left</c>, <c>center</c> или <c>right</c>.</param>
     public IReadOnlyList<string> Shown(string slot) =>
@@ -319,12 +344,16 @@ public sealed class StudioToolBar
     private ToolBarButton MenuButton(InstalledPlugin? owner, PluginToolBarItem declared)
     {
         var button = Button(owner, declared);
-        var flyout = new AxMenuFlyout { Placement = PlacementMode.BottomEdgeAlignedLeft };
+        var ownerId = owner?.Id;
+        var itemId = declared.Id;
 
-        // Меню собирается на каждом открытии: так смена языка и подъём новых
-        // плагинов доходят до него без подписок и без хранения дерева.
-        flyout.Opening += (_, _) => Fill(flyout, owner, declared);
-        button.Flyout = flyout;
+        // Не Button.Flyout: кнопка показала бы прежнее меню раньше, чем его
+        // успели бы собрать заново. Замыкание держит реестр и две строки.
+        button.Click += (_, _) =>
+        {
+            if (BuildMenu(ownerId, itemId) is { } flyout)
+                flyout.ShowAt(button);
+        };
 
         return button;
     }
@@ -465,6 +494,8 @@ public sealed class StudioToolBar
     private sealed class Entry
     {
         public required string Key { get; init; }
+
+        public InstalledPlugin? Owner { get; init; }
 
         public required string OwnerKey { get; init; }
 

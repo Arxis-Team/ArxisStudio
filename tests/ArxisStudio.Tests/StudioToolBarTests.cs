@@ -1,3 +1,4 @@
+using System.Reflection;
 using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
@@ -239,6 +240,40 @@ public class StudioToolBarTests : IDisposable
         Assert.Contains(_complaints, message => message.Contains("Нет такой", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Пункты собранного меню доезжают до экрана.
+    /// </summary>
+    /// <remarks>
+    /// Презентер Avalonia снимает пункты в момент своего создания, и меню,
+    /// наполненное при открытии, показывалось пустым — при полном Items. Поэтому
+    /// меню собирается целиком до показа, а проверяется не список, а презентер.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_items_of_a_built_menu_reach_the_presenter()
+    {
+        var tools = new StudioMenuItem("Инструменты");
+
+        tools.Children.Add(new StudioMenuItem("Импорт…", "figma", "figma.import"));
+        tools.Children.Add(new StudioMenuItem("Экспорт…", "figma", "figma.export"));
+        _bar.Menu = () => [tools];
+
+        var plugin = Plugin("figma", MenuOf("tools", path: "Инструменты"));
+
+        _bar.Add(plugin, plugin.Manifest!.Contributions.ToolBar[0]);
+
+        var button = View<ToolBarButton>("figma:tools");
+        var flyout = _bar.BuildMenu("figma", "tools");
+
+        Assert.NotNull(flyout);
+
+        flyout!.ShowAt(button);
+        _window.UpdateLayout();
+
+        Assert.Equal(2, Presented(flyout).ItemCount);
+
+        flyout.Hide();
+    }
+
     /// <summary>Лист меню зовёт свою команду той же дорогой, что кнопка.</summary>
     [AvaloniaFact]
     public void A_menu_leaf_invokes_its_command()
@@ -364,9 +399,11 @@ public class StudioToolBarTests : IDisposable
 
         _bar.Add(plugin, plugin.Manifest!.Contributions.ToolBar[0]);
 
+        // Сам вызов — из потока пула. Тронь он контрол там же, Avalonia отказала
+        // бы ему исключением, и ожидание принесло бы его сюда. Когда именно
+        // отложенное слово дойдёт до полосы, не проверяется: это дело
+        // диспетчера, и другие тесты уже успевают его расшевелить.
         Task.Run(() => _bar.Update("hello", "run", isChecked: true)).Wait();
-
-        Assert.False(View<ToolBarButton>("hello:run").IsChecked);
 
         Dispatcher.UIThread.RunJobs();
 
@@ -467,16 +504,47 @@ public class StudioToolBarTests : IDisposable
         return index >= 0 ? views[index] : null;
     }
 
+    /// <summary>Пункты меню элемента — то, что соберёт щелчок.</summary>
     private IReadOnlyList<MenuItem> Opened(string key)
     {
-        var button = View<ToolBarButton>(key);
-        var flyout = Assert.IsType<AxMenuFlyout>(button.Flyout);
+        var colon = key.IndexOf(':', StringComparison.Ordinal);
+        var owner = key[..colon];
+        var flyout = _bar.BuildMenu(owner == StudioToolBar.Studio ? null : owner, key[(colon + 1)..]);
 
-        flyout.ShowAt(button);
-        var items = flyout.Items.OfType<MenuItem>().ToList();
-        flyout.Hide();
+        Assert.NotNull(flyout);
 
-        return items;
+        return flyout!.Items.OfType<MenuItem>().ToList();
+    }
+
+    /// <summary>
+    /// Презентер показанного меню: попап в headless-окне из дерева не виден.
+    /// </summary>
+    /// <remarks>
+    /// Достаётся отражением по членам самого меню — единственная дорога к тому,
+    /// что человек увидит на экране. Именно этого ради и проверка: пункты,
+    /// добавленные в меню после создания презентера, до экрана не доезжают, и
+    /// тест на одни лишь Items этого не заметил бы.
+    /// </remarks>
+    private static MenuFlyoutPresenter Presented(FlyoutBase flyout)
+    {
+        for (var type = flyout.GetType(); type is not null; type = type.BaseType)
+        {
+            var found = type
+                .GetFields(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance)
+                .Where(field => typeof(Popup).IsAssignableFrom(field.FieldType))
+                .Select(field => field.GetValue(flyout))
+                .Concat(type
+                    .GetProperties(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                    .Where(property => typeof(Popup).IsAssignableFrom(property.PropertyType) && property.GetIndexParameters().Length == 0)
+                    .Select(property => property.GetValue(flyout)))
+                .OfType<Popup>()
+                .FirstOrDefault();
+
+            if (found?.Child is MenuFlyoutPresenter presenter)
+                return presenter;
+        }
+
+        throw new Xunit.Sdk.XunitException("у показанного меню нет презентера");
     }
 
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

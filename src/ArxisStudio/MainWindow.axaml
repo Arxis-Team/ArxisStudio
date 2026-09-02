@@ -20,14 +20,13 @@
   <shell:StudioShell>
 
     <!--
-        Верхний тулбар: пока один логотип. Высоту даёт сама AxTitleBar,
-        оболочка добавляет под ней линию.
+        Верхний тулбар: логотип студии и три ленты для вкладов. Высоту даёт
+        сама AxTitleBar, оболочка добавляет под ней линию.
 
-        Пусто здесь намеренно. Стояли имя проекта, конфигурация, меню команд и
-        переключатель темы — и всё это либо принадлежит работе с проектами,
-        которой у студии ещё нет, либо должно приезжать вкладом снаружи.
-        Наполнять полосу будут модули и плагины; до тех пор она держит одно
-        место и ничего не обещает.
+        Своих элементов у полосы нет: всё, что в ней стоит, приходит модулями и
+        плагинами через манифесты, а студия добавляет только меню команд — и то
+        как обычный вклад. Лент три, по одной на место, — AxToolBar даёт три
+        слота, а порядок внутри места держит реестр полосы.
 
         Слоты AxToolBar, а не DockPanel: у DockPanel «по центру» значит «по
         центру остатка», и вклад, вставший в середину, ездил бы вслед за
@@ -37,13 +36,22 @@
       <ax:AxTitleBar BorderThickness="0">
         <ax:AxToolBar Margin="12,0">
           <ax:AxToolBar.LeftContent>
-            <Border Width="24" Height="24" CornerRadius="{DynamicResource AxCornerRadius}"
-                    Background="{DynamicResource AxAccStrongBrush}">
-              <TextBlock Text="Ax" FontSize="{DynamicResource AxFontSizeCaption}" FontWeight="Bold"
-                         Foreground="{DynamicResource AxOnAccBrush}"
-                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            </Border>
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <Border Width="24" Height="24" CornerRadius="{DynamicResource AxCornerRadius}"
+                      Background="{DynamicResource AxAccStrongBrush}">
+                <TextBlock Text="Ax" FontSize="{DynamicResource AxFontSizeCaption}" FontWeight="Bold"
+                           Foreground="{DynamicResource AxOnAccBrush}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              </Border>
+              <shell:ToolBarStrip x:Name="LeftStrip"/>
+            </StackPanel>
           </ax:AxToolBar.LeftContent>
+          <ax:AxToolBar.CenterContent>
+            <shell:ToolBarStrip x:Name="CenterStrip"/>
+          </ax:AxToolBar.CenterContent>
+          <ax:AxToolBar.RightContent>
+            <shell:ToolBarStrip x:Name="RightStrip"/>
+          </ax:AxToolBar.RightContent>
         </ax:AxToolBar>
       </ax:AxTitleBar>
     </shell:StudioShell.TopBar>

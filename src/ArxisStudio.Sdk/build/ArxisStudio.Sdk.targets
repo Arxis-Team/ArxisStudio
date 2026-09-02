@@ -35,24 +35,27 @@
         <_AxPluginManifestText>$([System.IO.File]::ReadAllText('$(AxPluginManifest)'))</_AxPluginManifestText>
     </PropertyGroup>
 
-    <PropertyGroup Condition="'$(AxPluginId)' == '' And '$(_AxPluginManifestText)' != ''">
-        <!--
-            Ищем только до вкладов: у каждой команды и каждой панели там свой
-            id, и манифест без своего собственного отдал бы вместо него первый
-            попавшийся чужой — плагин уехал бы в папку с именем команды.
-        -->
+    <!--
+        Голова манифеста — всё до вкладов. У каждой команды, панели и кнопки в
+        полосе там свой id, а у кнопки — и свой icon; манифест без собственного
+        отдал бы вместо них первый попавшийся чужой: плагин уехал бы в папку с
+        именем команды, а значком плагина сочли бы значок кнопки.
+    -->
+    <PropertyGroup Condition="'$(_AxPluginManifestText)' != ''">
         <_AxPluginManifestHead>$([System.Text.RegularExpressions.Regex]::Replace($(_AxPluginManifestText), '"contributions"[\s\S]*$', ''))</_AxPluginManifestHead>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(AxPluginId)' == '' And '$(_AxPluginManifestHead)' != ''">
         <AxPluginId>$([System.Text.RegularExpressions.Regex]::Replace($(_AxPluginManifestHead), '^[\s\S]*?"id"\s*:\s*"([^"]+)"[\s\S]*$', '$1'))</AxPluginId>
     </PropertyGroup>
 
     <!--
-        Путь к значку достаётся из полного текста манифеста, а не из его
-        головы: голову считают только тогда, когда идентификатор не задан
-        снаружи. Спутать не с чем — значок в манифесте один, у панелей и
-        команд своего нет.
+        Значок плагина — из головы, и только из неё: у кнопок полосы тоже есть
+        icon, но это не файл, а имя из набора студии или контур. Проверка
+        существования файла к нему не относится.
     -->
-    <PropertyGroup Condition="'$(_AxPluginManifestText)' != '' And $([System.Text.RegularExpressions.Regex]::IsMatch($(_AxPluginManifestText), '&quot;icon&quot;\s*:\s*&quot;'))">
-        <AxPluginIcon>$([System.Text.RegularExpressions.Regex]::Replace($(_AxPluginManifestText), '^[\s\S]*?"icon"\s*:\s*"([^"]+)"[\s\S]*$', '$1'))</AxPluginIcon>
+    <PropertyGroup Condition="'$(_AxPluginManifestHead)' != '' And $([System.Text.RegularExpressions.Regex]::IsMatch($(_AxPluginManifestHead), '&quot;icon&quot;\s*:\s*&quot;'))">
+        <AxPluginIcon>$([System.Text.RegularExpressions.Regex]::Replace($(_AxPluginManifestHead), '^[\s\S]*?"icon"\s*:\s*"([^"]+)"[\s\S]*$', '$1'))</AxPluginIcon>
     </PropertyGroup>
 
     <!--

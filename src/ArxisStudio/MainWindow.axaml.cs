@@ -64,6 +64,10 @@ public partial class MainWindow : AxWindow
     // новые, — этим списком она и живёт.
     private readonly StudioDock _dock;
 
+    // Полоса: элементы модулей и плагинов по манифестам и по хозяину. Кнопки и
+    // меню спящих плагинов стоят с самого старта — сборку для них не загружают.
+    private readonly StudioToolBar _toolbar;
+
     /// <summary>Создаёт окно без проекта — состояние каркаса.</summary>
     public MainWindow()
     {
@@ -79,6 +83,16 @@ public partial class MainWindow : AxWindow
         _dock.Restore();
 
         _commands = new StudioCommands(_guard);
+
+        // Щелчок по кнопке идёт через реестр команд, а не напрямую: только он
+        // умеет разбудить спящего хозяина и приписать падение виновнику.
+        _toolbar = new StudioToolBar(LeftStrip, CenterStrip, RightStrip)
+        {
+            Invoke = _commands.Invoke,
+            Menu = () => StudioMenu.Build(Contributing()),
+        };
+
+        _toolbar.Complained += (_, message) => _log.Write(StudioLogLevel.Warning, "ToolBar", message);
 
         // Плагины поднимаются при открытии окна, а не при открытии проекта:
         // проекта у окна может не быть вовсе, а панели плагинов ему нужны
@@ -151,7 +165,8 @@ public partial class MainWindow : AxWindow
             tasks: _tasks,
             guard: _guard,
             plugins: roster,
-            exports: _exports));
+            exports: _exports,
+            toolbar: _toolbar));
 
         // Уборка реестров, заведённых на владельца, — по одному сигналу от
         // хоста: он один знает про все дороги выгрузки. Раньше её переписывал
@@ -190,6 +205,12 @@ public partial class MainWindow : AxWindow
         };
         _contributions.Conflict += (_, message) => _log.Write(StudioLogLevel.Warning, "Plugins", message);
 
+        // Полоса собирается по манифестам до подъёма кого бы то ни было: кнопки
+        // и меню сборки не требуют, и спящий плагин получает их здесь и только
+        // здесь. Модуль, поднятый следом, может тут же выключить свой элемент
+        // из Activate — слово должно найти запись.
+        MountDeclared(StudioModules.Describe().Concat(_installed));
+
         var modules = StudioModules.Assemblies.Select(host.LoadBuiltIn).ToList();
 
         _modules = modules.Select(loaded => loaded.Installed).ToList();
@@ -205,6 +226,46 @@ public partial class MainWindow : AxWindow
 
         foreach (var waiting in host.Deferred)
             _log.Write(StudioLogLevel.Debug, "Plugins", $"{waiting.DisplayName} ждёт своего события");
+
+        // Меню команд — элемент самой студии, а не каждого плагина: дерево
+        // общее на всех, ветки в нём сходятся по названию, и плагин, объявивший
+        // только menus, должен быть доступен, не зная о полосе. Стоит первым:
+        // своё выше принесённого.
+        if (StudioMenu.Build(Contributing()).Count > 0)
+        {
+            _toolbar.Add(null, new Sdk.Plugins.PluginToolBarItem
+            {
+                Id = "menu",
+                Kind = "menu",
+                Slot = "left",
+                Icon = "arxis:MoreHorizontal",
+                Title = "%toolbar.menu%",
+            });
+        }
+    }
+
+    /// <summary>
+    /// Кто сейчас вправе вкладываться в меню: модули и установленные, кроме
+    /// отключённых за сбои.
+    /// </summary>
+    private IEnumerable<InstalledPlugin> Contributing() =>
+        _modules.Concat(_installed).Where(plugin => !_guard.IsFaulty(plugin.Id));
+
+    /// <summary>
+    /// Ставит в полосу всё, что объявлено манифестами, — не поднимая никого.
+    /// </summary>
+    /// <remarks>
+    /// Кнопка и меню сборки не требуют: студия рисует их сама, а щелчок будит
+    /// хозяина через реестр команд. Свой контрол здесь только занимает место —
+    /// придёт он, когда плагин поднимут.
+    /// </remarks>
+    private void MountDeclared(IEnumerable<InstalledPlugin> plugins)
+    {
+        foreach (var plugin in plugins.Where(candidate => candidate is { IsEnabled: true, IsValid: true }))
+        {
+            foreach (var declared in plugin.Manifest!.Contributions.ToolBar)
+                _toolbar.Add(plugin, declared);
+        }
     }
 
     /// <summary>Принимает поднятый модуль или плагин: вклады и панели.</summary>
@@ -213,6 +274,10 @@ public partial class MainWindow : AxWindow
         if (loaded.Error is { } error)
         {
             _log.Write(StudioLogLevel.Error, "Plugins", $"{loaded.Installed.DisplayName}: {error}");
+
+            // Кнопки несостоявшегося плагина стоять не должны: команда за ними
+            // не найдётся никогда.
+            _toolbar.RemoveOwnedBy(loaded.Installed.Id);
             return;
         }
 
@@ -220,6 +285,7 @@ public partial class MainWindow : AxWindow
 
         _contributions.Add(loaded);
         MountPanels(loaded);
+        MountToolBar(loaded);
     }
 
     /// <summary>
@@ -547,8 +613,85 @@ public partial class MainWindow : AxWindow
     /// <summary>Имя панели в раскладке.</summary>
     private static string Panel(string pluginId, string toolWindowId) => $"{pluginId}:{toolWindowId}";
 
-    /// <summary>Снимает со стен всё, что поставил плагин.</summary>
-    private void Unmount(string pluginId) => _dock.RemoveOwnedBy(pluginId);
+    /// <summary>Снимает со стен и с полосы всё, что поставил плагин.</summary>
+    private void Unmount(string pluginId)
+    {
+        _dock.RemoveOwnedBy(pluginId);
+        _toolbar.RemoveOwnedBy(pluginId);
+    }
+
+    /// <summary>
+    /// Ставит в полосу свои контролы модуля или плагина.
+    /// </summary>
+    /// <remarks>
+    /// Кнопки и меню стоят с объявления; здесь достраивается то, чего без
+    /// сборки не нарисовать. Класс — по атрибуту, как у панели. Объявленное
+    /// объявляется заново: реестр ничего не пересобирает, а на дороге
+    /// перезагрузки возвращает снятое.
+    /// </remarks>
+    private void MountToolBar(LoadedPlugin loaded)
+    {
+        if (loaded.Installed.Manifest is not { } manifest || loaded.Studio is not { } studio)
+            return;
+
+        var items = loaded.Assemblies
+            .SelectMany(assembly => assembly.GetTypes())
+            .Where(type => type is { IsAbstract: false, IsPublic: true } && typeof(Sdk.ToolBarItem).IsAssignableFrom(type))
+            .Select(type => (Type: type, Attribute: type.GetCustomAttribute<ToolBarItemAttribute>()))
+            .Where(found => found.Attribute is not null)
+            .ToDictionary(found => found.Attribute!.Id, found => found.Type, StringComparer.Ordinal);
+
+        foreach (var declared in manifest.Contributions.ToolBar)
+        {
+            if (!declared.IsCustom)
+            {
+                _toolbar.Add(loaded.Installed, declared);
+                continue;
+            }
+
+            if (!items.TryGetValue(declared.Id, out var type))
+            {
+                _log.Write(StudioLogLevel.Warning, "Plugins",
+                    $"Элемент полосы {declared.Id} объявлен в манифесте, но в сборке его нет");
+                continue;
+            }
+
+            if (BuildItem(loaded, declared, type, studio) is not { } content)
+                continue;
+
+            var id = loaded.Installed.Id;
+
+            // Заглушки в полосе нет: в сорок пикселей она не поместится, а
+            // держала бы замыкание с типами плагина. Упавший элемент снимается
+            // — следующим проходом, потому что сюда приходят из прохода
+            // раскладки, и вынимать контрол посреди него нельзя.
+            var surface = new PluginSurface(
+                content,
+                error =>
+                {
+                    _guard.Report(id, $"раскладка элемента полосы {declared.Id}", error);
+                    Dispatcher.UIThread.Post(() => _toolbar.Remove(id, declared.Id));
+                });
+
+            _toolbar.Add(loaded.Installed, declared, surface);
+        }
+    }
+
+    /// <summary>Строит свой контрол плагина: создать, подключить, спросить содержимое — одним куском.</summary>
+    private Control? BuildItem(
+        LoadedPlugin loaded,
+        Sdk.Plugins.PluginToolBarItem declared,
+        Type type,
+        IStudioContext studio) =>
+        _guard.Get(loaded.Installed.Id, $"элемент полосы {declared.Id}", () =>
+        {
+            if (Activator.CreateInstance(type) is not Sdk.ToolBarItem item)
+                return null;
+
+            item.Attach(studio);
+
+            return item.Content;
+        });
 
     /// <summary>
     /// Закрывает документы, открытые редактором этого плагина.
