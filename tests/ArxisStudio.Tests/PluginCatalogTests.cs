@@ -126,6 +126,56 @@ public class PluginCatalogTests : IDisposable
     }
 
     /// <summary>
+    /// Элемент полосы читается с умолчаниями: кнопка, справа.
+    /// </summary>
+    /// <remarks>
+    /// Вид и место названы словами, и пропущенные — не ошибка, а самое обычное:
+    /// автору, которому нужна одна кнопка справа, писать больше нечего. А вот
+    /// незнакомый вид не становится ни одним из известных — иначе опечатка
+    /// делала бы из кнопки свой контрол.
+    /// </remarks>
+    [Fact]
+    public void A_toolbar_item_reads_its_defaults_without_loading_the_assembly()
+    {
+        Install("arxis.bar", """
+            {
+              "id": "arxis.bar",
+              "name": "Полоса",
+              "contributions": {
+                "commands": [ { "id": "bar.run" } ],
+                "toolBar": [
+                  { "id": "bar.run", "command": "bar.run", "icon": "arxis:Play", "title": "%toolbar.run%" },
+                  { "id": "bar.menu", "kind": "menu", "slot": "left", "menu": "%menu.tools%" },
+                  { "id": "bar.strip", "kind": "Custom", "slot": "center" },
+                  { "id": "bar.odd", "kind": "gizmo" }
+                ]
+              }
+            }
+            """);
+
+        var items = Assert.Single(new PluginCatalog(_root).Scan()).Manifest!.Contributions.ToolBar;
+
+        Assert.Equal(4, items.Count);
+
+        Assert.True(items[0].IsButton);
+        Assert.Equal("right", items[0].Slot);
+        Assert.Equal("bar.run", items[0].Command);
+        Assert.Equal("arxis:Play", items[0].Icon);
+
+        Assert.True(items[1].IsMenu);
+        Assert.Equal("left", items[1].Slot);
+        Assert.Equal("%menu.tools%", items[1].Menu);
+
+        // Регистр вида не важен — как у стороны панели.
+        Assert.True(items[2].IsCustom);
+        Assert.Equal("center", items[2].Slot);
+
+        Assert.False(items[3].IsButton);
+        Assert.False(items[3].IsMenu);
+        Assert.False(items[3].IsCustom);
+    }
+
+    /// <summary>
     /// Манифест со снятыми полями читается по-прежнему.
     /// </summary>
     /// <remarks>

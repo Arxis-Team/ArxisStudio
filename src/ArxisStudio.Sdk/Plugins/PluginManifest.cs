@@ -125,6 +125,9 @@ public sealed class PluginContributions
     /// <summary>Панели плагина.</summary>
     public IList<PluginToolWindow> ToolWindows { get; set; } = [];
 
+    /// <summary>Элементы главной полосы студии.</summary>
+    public IList<PluginToolBarItem> ToolBar { get; set; } = [];
+
     /// <summary>Настройки плагина, показываемые на экране Settings.</summary>
     public IList<PluginSetting> Settings { get; set; } = [];
 
@@ -234,6 +237,94 @@ public sealed class PluginPlacement
     /// плагином впереди: <c>arxis.hello:hello.tree</c>.
     /// </remarks>
     public string? Near { get; set; }
+}
+
+/// <summary>
+/// Элемент главной полосы студии.
+/// </summary>
+/// <remarks>
+/// Класс, а не позиционная запись — по той же причине, что у панели: поле,
+/// пропущенное в JSON, не должно молча становиться <c>null</c> там, где обещана
+/// строка.
+/// <para>
+/// Вид назван словом, а не выводится из того, какие поля заполнены: опечатка в
+/// <c>command</c> превращала бы кнопку в «свой контрол», и студия ждала бы класс,
+/// которого автор не писал. Кнопка (<c>button</c>) зовёт команду; меню
+/// (<c>menu</c>) раскрывает ветку из <c>menus</c>; свой контрол (<c>custom</c>)
+/// строит класс с атрибутом <see cref="ToolBarItemAttribute"/>. Первые два студия
+/// рисует по манифесту, не загружая сборку, и плагин с ними спит до первого
+/// щелчка; третий поднимает плагин сразу — как панель: нарисовать чужой контрол,
+/// не подняв плагин, нечем.
+/// </para>
+/// <para>
+/// Мест в полосе три: <c>left</c>, <c>center</c>, <c>right</c>. Порядка внутри
+/// места здесь нет намеренно — по тем же соображениям, что у
+/// <see cref="PluginPlacement"/>: внутри плагина он равен порядку в манифесте, а
+/// между плагинами его решает студия — модули первыми, затем по идентификатору.
+/// </para>
+/// </remarks>
+public sealed class PluginToolBarItem
+{
+    /// <summary>Идентификатор элемента — уникальный внутри своего плагина.</summary>
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Вид элемента: <c>button</c> (по умолчанию), <c>menu</c> или <c>custom</c>.</summary>
+    public string Kind { get; set; } = "button";
+
+    /// <summary>
+    /// Место в полосе: <c>left</c>, <c>center</c> или <c>right</c>.
+    /// </summary>
+    /// <remarks>
+    /// По умолчанию справа: слева стоит навигация — логотип и то, что принесёт
+    /// модуль проектов, — а действия плагинов в карточке «Toolbar» собраны у
+    /// правого края. Незнакомое слово читается как <c>right</c>.
+    /// </remarks>
+    public string Slot { get; set; } = "right";
+
+    /// <summary>Команда, которую зовёт кнопка; у меню и своего контрола не нужна.</summary>
+    public string? Command { get; set; }
+
+    /// <summary>
+    /// Ветка меню, которую раскрывает элемент вида <c>menu</c>.
+    /// </summary>
+    /// <remarks>
+    /// Путь в том же виде, что у <c>menus</c>: <c>%menu.tools%/%menu.hello%</c>.
+    /// Показывается то, что стоит под ним в общем меню студии; пустой путь —
+    /// всё меню целиком.
+    /// </remarks>
+    public string? Menu { get; set; }
+
+    /// <summary>
+    /// Подпись: подсказка под курсором и имя для средств доступности; у элемента
+    /// без значка — видимый текст кнопки. Ключ вида <c>%toolbar.run%</c>
+    /// переводится.
+    /// </summary>
+    public string? Title { get; set; }
+
+    /// <summary>
+    /// Значок: имя из набора студии — <c>arxis:Play</c> — или свой контур в
+    /// сетке 16×16, как рисуются все иконки набора: <c>M3.5 8H12.5</c>.
+    /// </summary>
+    /// <remarks>
+    /// Картинка файлом не принимается: набор студии — контурный, одной обводки,
+    /// и растр или чужой SVG расслаивали бы полосу по весу. Контур же
+    /// рисуется до загрузки сборки и красится цветом темы, как свой.
+    /// </remarks>
+    public string? Icon { get; set; }
+
+    /// <summary>Кнопка: вид по умолчанию, когда <see cref="Kind"/> пуст.</summary>
+    [JsonIgnore]
+    public bool IsButton => Kind is not { Length: > 0 } || Is("button");
+
+    /// <summary>Выпадающее меню.</summary>
+    [JsonIgnore]
+    public bool IsMenu => Is("menu");
+
+    /// <summary>Свой контрол плагина.</summary>
+    [JsonIgnore]
+    public bool IsCustom => Is("custom");
+
+    private bool Is(string kind) => string.Equals(Kind, kind, StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>

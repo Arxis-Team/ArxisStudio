@@ -17,6 +17,23 @@ public sealed class ToolWindowAttribute(string id) : Attribute
 }
 
 /// <summary>
+/// Помечает свой контрол в полосе студии: элемент манифеста вида <c>custom</c>.
+/// </summary>
+/// <remarks>
+/// Как и у панели, идентификатор должен совпадать с объявленным в манифесте:
+/// место в полосе студия отводит по манифесту, не загружая сборку, а класс по
+/// атрибуту находит уже потом, когда плагин поднят. Кнопки и меню атрибута не
+/// требуют — их студия рисует сама.
+/// </remarks>
+/// <param name="id">Идентификатор элемента, как в манифесте.</param>
+[AttributeUsage(AttributeTargets.Class, Inherited = false)]
+public sealed class ToolBarItemAttribute(string id) : Attribute
+{
+    /// <summary>Идентификатор элемента.</summary>
+    public string Id { get; } = id;
+}
+
+/// <summary>
 /// Помечает метод обработчиком команды, объявленной в манифесте.
 /// </summary>
 /// <remarks>

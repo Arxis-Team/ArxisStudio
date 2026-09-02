@@ -78,6 +78,32 @@ public class ManifestStringsAnalyzerTests
         Assert.Empty(await AnalyzeAsync(manifest, dictionary: null));
     }
 
+    /// <summary>
+    /// Ключи из секции полосы проверяются той же дорогой.
+    /// </summary>
+    /// <remarks>
+    /// Правило ищет ключи по всему манифесту, а не по известным ему полям, —
+    /// поэтому новая секция попадает под него без правки анализатора. Тест это
+    /// закрепляет: появись у правила список полей, полоса выпала бы из него
+    /// молча.
+    /// </remarks>
+    [Fact]
+    public async Task A_key_in_the_toolbar_section_is_checked_too()
+    {
+        const string manifest = """
+            {
+              "id": "arxis.probe",
+              "contributions": {
+                "toolBar": [ { "id": "probe.run", "command": "probe.run", "title": "%toolbar.run%" } ]
+              }
+            }
+            """;
+
+        var diagnostic = Assert.Single(await AnalyzeAsync(manifest, """{ "panel.other": "Другая" }"""));
+
+        Assert.Contains("toolbar.run", diagnostic.GetMessage());
+    }
+
     private static async Task<ImmutableArray<Diagnostic>> AnalyzeAsync(string manifest, string? dictionary)
     {
         var references = AppDomain.CurrentDomain.GetAssemblies()
