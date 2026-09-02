@@ -7,3 +7,6 @@ Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
 ARX0001 | ArxisStudio | Warning | Виджет Avalonia в интерфейсе плагина: строить нужно на контролах ArxisStudio.Controls
 ARX0002 | ArxisStudio | Warning | Ключ манифеста не найден в словаре плагина lang/strings.json
+ARX0003 | ArxisStudio | Warning | Кнопка полосы зовёт команду, которой плагин не объявлял
+ARX0004 | ArxisStudio | Warning | Свой контрол полосы объявлен, а класса с [ToolBarItem] нет
+ARX0005 | ArxisStudio | Warning | Класс помечен [ToolBarItem], а в манифесте его нет
