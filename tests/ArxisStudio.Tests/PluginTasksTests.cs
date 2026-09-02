@@ -19,16 +19,37 @@ public class PluginTasksTests
     /// <remarks>
     /// Это и есть всё содержание службы: если работа останется в потоке
     /// вызывающего, студия замрёт ровно так же, как без неё.
+    /// <para>
+    /// Зовут отсюда со своего потока, а не с потока теста. Тест идёт на потоке
+    /// пула, и, пока он ждёт, поток возвращается в пул: при нехватке потоков
+    /// пул отдавал под работу его же — номера совпадали, тест падал, а студия
+    /// при этом не замирала. Свой поток пулу не принадлежит и достаться работе
+    /// не может ни при какой загрузке, поэтому совпадение номеров означает
+    /// ровно одно: службу позвали, а она сделала работу на месте.
+    /// </para>
     /// </remarks>
     [Fact]
     public async Task The_work_leaves_the_thread_it_was_started_from()
     {
-        var caller = Environment.CurrentManagedThreadId;
+        var caller = new TaskCompletionSource<int>();
+        var started = new TaskCompletionSource<Task<int>>();
 
-        var inside = await Tasks().RunAsync("Проба", (_, _) =>
-            Task.FromResult(Environment.CurrentManagedThreadId));
+        var thread = new Thread(() =>
+        {
+            caller.SetResult(Environment.CurrentManagedThreadId);
 
-        Assert.NotEqual(caller, inside);
+            started.SetResult(Tasks().RunAsync("Проба", (_, _) =>
+                Task.FromResult(Environment.CurrentManagedThreadId)));
+        })
+        {
+            IsBackground = true,
+        };
+
+        thread.Start();
+
+        var inside = await await started.Task;
+
+        Assert.NotEqual(await caller.Task, inside);
     }
 
     /// <summary>Пока задача идёт, студия о ней знает; кончилась — забывает.</summary>
