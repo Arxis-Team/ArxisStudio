@@ -38,6 +38,7 @@
     -->
     <ItemGroup>
         <ProjectReference Include="../../external/ArxisStudio.Controls/src/ArxisStudio.Controls.csproj"/>
+        <ProjectReference Include="../../external/ArxisStudio.Icons/src/ArxisStudio.Icons.csproj"/>
     </ItemGroup>
 
 </Project>

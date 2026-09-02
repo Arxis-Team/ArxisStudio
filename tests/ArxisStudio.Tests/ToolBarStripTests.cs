@@ -1,4 +1,5 @@
 using ArxisStudio.Controls;
+using ArxisStudio.Icons;
 using ArxisStudio.Shell;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;

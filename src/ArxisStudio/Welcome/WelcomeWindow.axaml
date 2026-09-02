@@ -1,6 +1,7 @@
 ﻿<ax:AxWindow xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ax="using:ArxisStudio.Controls"
+        xmlns:axi="using:ArxisStudio.Icons"
         xmlns:loc="using:ArxisStudio.Shell.Localization"
         xmlns:vm="using:ArxisStudio.Welcome"
         xmlns:ext="using:ArxisStudio.Extensibility"
@@ -38,7 +39,7 @@
                         AutomationProperties.Name="{loc:Loc welcome.nav.settings}"
                         Click="OnSettingsClick">
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <ax:AxIcon Data="{x:Static ax:AxIcons.Settings}" Width="15" Height="15"/>
+              <axi:AxIcon Data="{x:Static axi:AxIcons.Settings}" Width="15" Height="15"/>
               <TextBlock Text="{loc:Loc welcome.nav.settings}" VerticalAlignment="Center"/>
             </StackPanel>
           </ToggleButton>
@@ -55,21 +56,21 @@
           <ToggleButton Classes="nav" IsChecked="{Binding IsProjects, Mode=OneWay}"
                         AutomationProperties.Name="{loc:Loc welcome.nav.projects}" Click="OnProjectsClick">
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <ax:AxIcon Data="{x:Static ax:AxIcons.Folder}" Width="15" Height="15"/>
+              <axi:AxIcon Data="{x:Static axi:AxIcons.Folder}" Width="15" Height="15"/>
               <TextBlock Text="{loc:Loc welcome.nav.projects}" VerticalAlignment="Center"/>
             </StackPanel>
           </ToggleButton>
           <ToggleButton Classes="nav" IsChecked="{Binding IsLearn, Mode=OneWay}"
                         AutomationProperties.Name="{loc:Loc welcome.nav.learn}" Click="OnLearnClick">
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <ax:AxIcon Data="{x:Static ax:AxIcons.Play}" Width="15" Height="15"/>
+              <axi:AxIcon Data="{x:Static axi:AxIcons.Play}" Width="15" Height="15"/>
               <TextBlock Text="{loc:Loc welcome.nav.learn}" VerticalAlignment="Center"/>
             </StackPanel>
           </ToggleButton>
           <ToggleButton Classes="nav" IsChecked="{Binding IsPlugins, Mode=OneWay}"
                         AutomationProperties.Name="{loc:Loc welcome.nav.plugins}" Click="OnPluginsClick">
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <ax:AxIcon Data="{x:Static ax:AxIcons.Package}" Width="15" Height="15"/>
+              <axi:AxIcon Data="{x:Static axi:AxIcons.Package}" Width="15" Height="15"/>
               <TextBlock Text="{loc:Loc welcome.nav.plugins}" VerticalAlignment="Center"/>
             </StackPanel>
           </ToggleButton>
@@ -133,25 +134,25 @@
               <StackPanel>
                 <Border Classes="link-row" Tag="https://github.com/Arxis-Team" PointerPressed="OnLinkPressed">
                   <DockPanel>
-                    <ax:AxIcon DockPanel.Dock="Left" Data="{x:Static ax:AxIcons.Document}" Margin="0,0,10,0"/>
+                    <axi:AxIcon DockPanel.Dock="Left" Data="{x:Static axi:AxIcons.Document}" Margin="0,0,10,0"/>
                     <TextBlock Classes="link" Text="{loc:Loc learn.docs}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
                   </DockPanel>
                 </Border>
                 <Border Classes="link-row" Tag="https://github.com/Arxis-Team" PointerPressed="OnLinkPressed">
                   <DockPanel>
-                    <ax:AxIcon DockPanel.Dock="Left" Data="{x:Static ax:AxIcons.List}" Margin="0,0,10,0"/>
+                    <axi:AxIcon DockPanel.Dock="Left" Data="{x:Static axi:AxIcons.List}" Margin="0,0,10,0"/>
                     <TextBlock Classes="link" Text="{loc:Loc learn.api}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
                   </DockPanel>
                 </Border>
                 <Border Classes="link-row" Tag="https://github.com/Arxis-Team" PointerPressed="OnLinkPressed">
                   <DockPanel>
-                    <ax:AxIcon DockPanel.Dock="Left" Data="{x:Static ax:AxIcons.Package}" Margin="0,0,10,0"/>
+                    <axi:AxIcon DockPanel.Dock="Left" Data="{x:Static axi:AxIcons.Package}" Margin="0,0,10,0"/>
                     <TextBlock Classes="link" Text="{loc:Loc learn.samples}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
                   </DockPanel>
                 </Border>
                 <Border Classes="link-row" Tag="https://github.com/Arxis-Team" PointerPressed="OnLinkPressed">
                   <DockPanel>
-                    <ax:AxIcon DockPanel.Dock="Left" Data="{x:Static ax:AxIcons.Bubble}" Margin="0,0,10,0"/>
+                    <axi:AxIcon DockPanel.Dock="Left" Data="{x:Static axi:AxIcons.Bubble}" Margin="0,0,10,0"/>
                     <TextBlock Classes="link" Text="{loc:Loc learn.community}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
                   </DockPanel>
                 </Border>
@@ -193,7 +194,7 @@
                                  прочиталась. Решает сама картинка, а не путь к
                                  ней, — иначе объявленный и битый файл оставлял
                                  бы на карточке пустое место. -->
-                            <ax:AxIcon Width="19" Height="19" Data="{x:Static ax:AxIcons.Package}"
+                            <axi:AxIcon Width="19" Height="19" Data="{x:Static axi:AxIcons.Package}"
                                        Foreground="{DynamicResource AxPurBrush}"
                                        IsVisible="{Binding #PluginIcon.Source, Converter={x:Static ObjectConverters.IsNull}}"/>
                           </Panel>

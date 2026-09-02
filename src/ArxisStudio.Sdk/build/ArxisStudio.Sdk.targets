@@ -1,4 +1,4 @@
-﻿<Project>
+<Project>
 
     <!--
         Упаковка плагина: сборка раскладывается в формат каталога из приложения A
@@ -183,7 +183,8 @@
                             Condition="'%(Extension)' != '.xml' And
                                        !$([System.String]::Copy('%(Filename)').StartsWith('Avalonia')) And
                                        !$([System.String]::Copy('%(Filename)').StartsWith('ArxisStudio.Sdk')) And
-                                       !$([System.String]::Copy('%(Filename)').StartsWith('ArxisStudio.Controls'))" />
+                                       !$([System.String]::Copy('%(Filename)').StartsWith('ArxisStudio.Controls')) And
+                                       !$([System.String]::Copy('%(Filename)').StartsWith('ArxisStudio.Icons'))" />
 
             <_AxPluginBin Include="$(TargetPath)" />
             <_AxPluginBin Include="@(_AxPluginCarry)" />
@@ -224,21 +225,24 @@
                              Condition="'%(None.CopyToOutputDirectory)' != '' And '%(None.CopyToOutputDirectory)' != 'Never' And
                                         ($([System.String]::Copy('%(None.Filename)').StartsWith('Avalonia')) Or
                                          $([System.String]::Copy('%(None.Filename)').StartsWith('ArxisStudio.Sdk')) Or
-                                         $([System.String]::Copy('%(None.Filename)').StartsWith('ArxisStudio.Controls')))" />
+                                         $([System.String]::Copy('%(None.Filename)').StartsWith('ArxisStudio.Controls')) Or
+                                         $([System.String]::Copy('%(None.Filename)').StartsWith('ArxisStudio.Icons')))" />
 
             <_AxPluginByHand Include="@(Content)"
                              Condition="'%(Content.CopyToOutputDirectory)' != '' And '%(Content.CopyToOutputDirectory)' != 'Never' And
                                         ($([System.String]::Copy('%(Content.Filename)').StartsWith('Avalonia')) Or
                                          $([System.String]::Copy('%(Content.Filename)').StartsWith('ArxisStudio.Sdk')) Or
-                                         $([System.String]::Copy('%(Content.Filename)').StartsWith('ArxisStudio.Controls')))" />
+                                         $([System.String]::Copy('%(Content.Filename)').StartsWith('ArxisStudio.Controls')) Or
+                                         $([System.String]::Copy('%(Content.Filename)').StartsWith('ArxisStudio.Icons')))" />
 
             <_AxPluginByHand Include="@(Reference)"
                              Condition="'%(Reference.HintPath)' != '' And '%(Reference.NuGetPackageId)' == '' And
                                         ($([System.String]::Copy('%(Reference.Filename)').StartsWith('Avalonia')) Or
                                          $([System.String]::Copy('%(Reference.Filename)').StartsWith('ArxisStudio.Sdk')) Or
-                                         $([System.String]::Copy('%(Reference.Filename)').StartsWith('ArxisStudio.Controls')))" />
+                                         $([System.String]::Copy('%(Reference.Filename)').StartsWith('ArxisStudio.Controls')) Or
+                                         $([System.String]::Copy('%(Reference.Filename)').StartsWith('ArxisStudio.Icons')))" />
 
-            <_AxPluginStray Include="$(_AxPluginBinDir)Avalonia*.dll;$(_AxPluginBinDir)ArxisStudio.Sdk*.dll;$(_AxPluginBinDir)ArxisStudio.Controls*.dll" />
+            <_AxPluginStray Include="$(_AxPluginBinDir)Avalonia*.dll;$(_AxPluginBinDir)ArxisStudio.Sdk*.dll;$(_AxPluginBinDir)ArxisStudio.Controls*.dll;$(_AxPluginBinDir)ArxisStudio.Icons*.dll" />
         </ItemGroup>
 
         <Warning Code="AXP0001" Condition="'@(_AxPluginByHand)' != ''"

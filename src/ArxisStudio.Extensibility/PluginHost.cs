@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
@@ -1003,5 +1003,6 @@ internal sealed class PluginLoadContext(string name, string entryPath)
     internal static bool IsShared(string name) =>
         name.StartsWith("Avalonia", StringComparison.Ordinal) ||
         name.StartsWith("ArxisStudio.Sdk", StringComparison.Ordinal) ||
-        name.StartsWith("ArxisStudio.Controls", StringComparison.Ordinal);
+        name.StartsWith("ArxisStudio.Controls", StringComparison.Ordinal) ||
+        name.StartsWith("ArxisStudio.Icons", StringComparison.Ordinal);
 }

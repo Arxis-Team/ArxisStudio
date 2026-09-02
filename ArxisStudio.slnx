@@ -8,6 +8,10 @@
   <Folder Name="/external/ArxisStudio.Fonts.Cascadia/src/">
     <Project Path="external/ArxisStudio.Fonts.Cascadia/src/ArxisStudio.Fonts.Cascadia.csproj" />
   </Folder>
+  <Folder Name="/external/ArxisStudio.Icons/" />
+  <Folder Name="/external/ArxisStudio.Icons/src/">
+    <Project Path="external/ArxisStudio.Icons/src/ArxisStudio.Icons.csproj" />
+  </Folder>
   <Folder Name="/external/ArxisStudio.Themes.Arxis/" />
   <Folder Name="/external/ArxisStudio.Themes.Arxis/src/">
     <Project Path="external/ArxisStudio.Themes.Arxis/src/ArxisStudio.Themes.Arxis.csproj" />

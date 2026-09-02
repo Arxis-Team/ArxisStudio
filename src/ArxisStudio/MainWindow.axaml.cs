@@ -1,5 +1,6 @@
 ﻿using System.Reflection;
 using ArxisStudio.Controls;
+using ArxisStudio.Icons;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;

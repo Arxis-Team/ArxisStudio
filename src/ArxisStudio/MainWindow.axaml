@@ -1,6 +1,7 @@
 ﻿<ax:AxWindow xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ax="using:ArxisStudio.Controls"
+        xmlns:axi="using:ArxisStudio.Icons"
         xmlns:shell="using:ArxisStudio.Shell"
         xmlns:dock="using:ArxisStudio.Docking"
         xmlns:loc="using:ArxisStudio.Shell.Localization"
@@ -91,7 +92,7 @@
           <ax:AxButton x:Name="TaskCancel" Classes="icon" Width="20" Height="20"
                        AutomationProperties.Name="{loc:Loc task.cancel}"
                        ToolTip.Tip="{loc:Loc task.cancel}" Click="OnCancelTaskClick">
-            <ax:AxIcon Classes="small" Data="{x:Static ax:AxIcons.Close}"/>
+            <axi:AxIcon Classes="small" Data="{x:Static axi:AxIcons.Close}"/>
           </ax:AxButton>
         </StackPanel>
 

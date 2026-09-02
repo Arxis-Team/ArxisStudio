@@ -1,6 +1,7 @@
 using System.Collections.Frozen;
 using System.Reflection;
 using ArxisStudio.Controls;
+using ArxisStudio.Icons;
 using Avalonia.Media;
 
 namespace ArxisStudio.Shell;

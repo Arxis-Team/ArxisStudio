@@ -16,3 +16,6 @@
 [submodule "external/ArxisStudio.Fonts.Cascadia"]
 	path = external/ArxisStudio.Fonts.Cascadia
 	url = https://github.com/Arxis-Team/ArxisStudio.Fonts.Cascadia.git
+[submodule "external/ArxisStudio.Icons"]
+	path = external/ArxisStudio.Icons
+	url = https://github.com/Arxis-Team/ArxisStudio.Icons.git
