@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Arxis",
+  "classifications": [ "ArxisStudio", "Plugin" ],
+  "identity": "ArxisStudio.Plugin",
+  "name": "ArxisStudio plugin",
+  "description": "Плагин ArxisStudio: манифест, точка входа, команда, кнопка в полосе и панель",
+  "shortName": "arxis-plugin",
+  "sourceName": "Arxis.MyPlugin",
+  "preferNameDirectory": true,
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "symbols": {
+    "id": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "arxis.my-plugin",
+      "description": "Идентификатор плагина вида vendor.name, строчными: по нему студия зовёт его папку",
+      "replaces": "arxis.my-plugin"
+    },
+    "display": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "My plugin",
+      "description": "Название плагина, каким его увидит человек",
+      "replaces": "PLUGIN-NAME"
+    },
+    "studio": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "../ArxisStudio",
+      "description": "Путь к репозиторию студии: пока SDK не приезжает пакетом, плагин собирается против исходников",
+      "replaces": "STUDIO-PATH"
+    }
+  }
+}

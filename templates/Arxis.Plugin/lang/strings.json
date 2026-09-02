@@ -1,0 +1,7 @@
+{
+  "plugin.description": "PLUGIN-NAME для ArxisStudio",
+  "plugin.name": "PLUGIN-NAME",
+  "menu.tools": "Команды плагинов",
+  "command.hello": "Поздороваться",
+  "panel.hint": "Отсюда начинается ваш плагин"
+}

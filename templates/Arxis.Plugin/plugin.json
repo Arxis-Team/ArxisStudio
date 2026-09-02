@@ -1,0 +1,36 @@
+{
+  "id": "arxis.my-plugin",
+  "name": "PLUGIN-NAME",
+  "version": "1.0.0",
+  "publisher": "",
+  "description": "%plugin.description%",
+  "sdk": { "min": "3.1" },
+  "entry": "bin/Arxis.MyPlugin.dll",
+  "contributions": {
+    "commands": [
+      { "id": "arxis.my-plugin.hello" }
+    ],
+    "menus": [
+      { "path": "%menu.tools%/%plugin.name%/%command.hello%", "command": "arxis.my-plugin.hello" }
+    ],
+    "toolBar": [
+      {
+        "id": "hello",
+        "command": "arxis.my-plugin.hello",
+        "icon": "arxis:Star",
+        "title": "%command.hello%"
+      }
+    ],
+    "toolWindows": [
+      {
+        "id": "panel",
+        "title": "%plugin.name%",
+        "placement": { "side": "right", "size": 0.22 }
+      }
+    ]
+  },
+  "activation": [
+    "onCommand:arxis.my-plugin.hello",
+    "onToolWindow:panel"
+  ]
+}

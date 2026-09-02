@@ -40,6 +40,15 @@
     <File Path="templates/Arxis.Language/lang/xx.json" />
     <File Path="templates/Arxis.Language/plugin.json" />
   </Folder>
+  <Folder Name="/templates/Arxis.Plugin/">
+    <File Path="templates/Arxis.Plugin/.template.config/template.json" />
+    <File Path="templates/Arxis.Plugin/Arxis.MyPlugin.csproj" />
+    <File Path="templates/Arxis.Plugin/Plugin.cs" />
+    <File Path="templates/Arxis.Plugin/PluginPanel.cs" />
+    <File Path="templates/Arxis.Plugin/README.md" />
+    <File Path="templates/Arxis.Plugin/lang/strings.json" />
+    <File Path="templates/Arxis.Plugin/plugin.json" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ArxisStudio.Tests/ArxisStudio.Tests.csproj" />
   </Folder>

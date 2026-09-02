@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+        Плагин ArxisStudio: ссылается только на SDK, о самой студии ничего не
+        знает и собирается в раскладку, которую она умеет ставить, — plugin.json
+        рядом с bin/.
+    -->
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <LangVersion>latest</LangVersion>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RootNamespace>Arxis.MyPlugin</RootNamespace>
+        <AssemblyName>Arxis.MyPlugin</AssemblyName>
+    </PropertyGroup>
+
+    <!--
+        Где лежит студия. Пока SDK не приезжает пакетом, плагин собирается
+        против исходников: путь правится здесь или задаётся сборке —
+        dotnet build -p:ArxisStudioPath=../ArxisStudio
+    -->
+    <PropertyGroup>
+        <ArxisStudioPath Condition="'$(ArxisStudioPath)' == ''">STUDIO-PATH</ArxisStudioPath>
+        <ArxisSdkPath>$(ArxisStudioPath)/src/ArxisStudio.Sdk</ArxisSdkPath>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="$(ArxisSdkPath)/ArxisStudio.Sdk.csproj"/>
+    </ItemGroup>
+
+    <!--
+        Анализатор подключается отдельной строкой: через цепочку
+        ProjectReference анализаторы не передаются — так умеют только пакеты.
+        Он ловит то, о чём студия сказала бы уже в журнал у пользователя:
+        виджет Avalonia в интерфейсе плагина, ключ без строки в словаре,
+        расхождение манифеста с кодом.
+    -->
+    <ItemGroup>
+        <ProjectReference Include="$(ArxisStudioPath)/src/ArxisStudio.Sdk.Analyzers/ArxisStudio.Sdk.Analyzers.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false"/>
+    </ItemGroup>
+
+    <!--
+        Таргет упаковки тоже приходит вместе с SDK и тоже не передаётся
+        ссылкой на проект — импортируется строкой. С пакетом SDK он
+        подхватится сам: оттого и лежит в папке build/.
+    -->
+    <Import Project="$(ArxisSdkPath)/build/ArxisStudio.Sdk.targets"/>
+
+</Project>
