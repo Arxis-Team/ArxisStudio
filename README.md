@@ -20,7 +20,7 @@
 | Репозиторий | Что делает |
 |---|---|
 | [ArxisStudio.Controls](https://github.com/Arxis-Team/ArxisStudio.Controls) | Контролы студии (`Ax*`) — из них строятся и её интерфейс, и плагины |
-| [ArxisStudio.Icons](https://github.com/Arxis-Team/ArxisStudio.Icons) | Набор иконок: контурные пути 16×16 и контрол `AxIcon`, который их рисует |
+| [ArxisStudio.Icons](https://github.com/Arxis-Team/ArxisStudio.Icons) | Набор иконок: контурные пути 16×16, контрол `AxIcon` и витрина, которая мерит резкость каждого |
 | [ArxisStudio.Themes.Arxis](https://github.com/Arxis-Team/ArxisStudio.Themes.Arxis) | Тема: тёмная и светлая палитры, шаблоны контролов |
 | [ArxisStudio.Fonts.Cascadia](https://github.com/Arxis-Team/ArxisStudio.Fonts.Cascadia) | Моноширинный шрифт, вшитый в сборку |
 
