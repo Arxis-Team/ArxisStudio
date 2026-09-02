@@ -20,6 +20,7 @@
 | Репозиторий | Что делает |
 |---|---|
 | [ArxisStudio.Controls](https://github.com/Arxis-Team/ArxisStudio.Controls) | Контролы студии (`Ax*`) — из них строятся и её интерфейс, и плагины |
+| [ArxisStudio.Icons](https://github.com/Arxis-Team/ArxisStudio.Icons) | Набор иконок: контурные пути 16×16 и контрол `AxIcon`, который их рисует |
 | [ArxisStudio.Themes.Arxis](https://github.com/Arxis-Team/ArxisStudio.Themes.Arxis) | Тема: тёмная и светлая палитры, шаблоны контролов |
 | [ArxisStudio.Fonts.Cascadia](https://github.com/Arxis-Team/ArxisStudio.Fonts.Cascadia) | Моноширинный шрифт, вшитый в сборку |
 
@@ -249,6 +250,11 @@ dotnet build src/Plugins/Arxis.HelloPlugin -p:AxPluginDeploy=true
 Общие контракты — SDK, контролы и Avalonia — в пакет не попадают: студия берёт их
 из своего контекста загрузки, и копия рядом с плагином стала бы вторым
 экземпляром того же типа.
+
+Иконки приезжают отдельной библиотекой, `ArxisStudio.Icons`: набор `AxIcons` и
+контрол `AxIcon`, который рисует путь в клетке 16×16. Библиотеке контролов набор
+не нужен — иконки в шаблоны ставит тема, а в интерфейс само приложение, — поэтому
+он и живёт своим репозиторием и своей версией. Плагину он приезжает вместе с SDK.
 
 Интерфейс плагина строится на контролах `Ax*`, а не на голых виджетах Avalonia:
 панели студии и панели плагинов стоят рядом, и разнобой видно сразу. Правило
