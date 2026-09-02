@@ -20,49 +20,30 @@
   <shell:StudioShell>
 
     <!--
-        Верхний тулбар: логотип, проект, меню команд, переключатель темы.
-        Высоту даёт сама AxTitleBar, оболочка добавляет под ней линию.
+        Верхний тулбар: пока один логотип. Высоту даёт сама AxTitleBar,
+        оболочка добавляет под ней линию.
+
+        Пусто здесь намеренно. Стояли имя проекта, конфигурация, меню команд и
+        переключатель темы — и всё это либо принадлежит работе с проектами,
+        которой у студии ещё нет, либо должно приезжать вкладом снаружи.
+        Наполнять полосу будут модули и плагины; до тех пор она держит одно
+        место и ничего не обещает.
 
         Слоты AxToolBar, а не DockPanel: у DockPanel «по центру» значит «по
-        центру остатка», и виджет запуска ездил бы вслед за длиной имени
-        проекта. Здесь середина — середина окна. Заодно левый блок заперт в
-        своей колонке и длинным именем правый край с полосы не сгоняет.
+        центру остатка», и вклад, вставший в середину, ездил бы вслед за
+        длиной соседа слева. Здесь середина — середина окна.
     -->
     <shell:StudioShell.TopBar>
       <ax:AxTitleBar BorderThickness="0">
         <ax:AxToolBar Margin="12,0">
           <ax:AxToolBar.LeftContent>
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <Border Width="24" Height="24" CornerRadius="{DynamicResource AxCornerRadius}"
-                      Background="{DynamicResource AxAccStrongBrush}">
-                <TextBlock Text="Ax" FontSize="{DynamicResource AxFontSizeCaption}" FontWeight="Bold"
-                           Foreground="{DynamicResource AxOnAccBrush}"
-                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
-              </Border>
-              <TextBlock x:Name="ProjectName" Text="{loc:Loc studio.noproject}"
-                         FontSize="{DynamicResource AxFontSize}" FontWeight="SemiBold"
-                         VerticalAlignment="Center"/>
-              <TextBlock Classes="dim" Text="{loc:Loc studio.configuration}"
-                         FontSize="{DynamicResource AxFontSizeSmall}"
-                         VerticalAlignment="Center" Margin="8,0,0,0"/>
-
-              <!-- Команды плагинов; кнопки нет, пока никто ничего не добавил. -->
-              <ax:AxButton x:Name="MenuButton" Classes="icon" IsVisible="False" Margin="8,0,0,0"
-                           AutomationProperties.Name="{loc:Loc menu.tools}"
-                           ToolTip.Tip="{loc:Loc menu.tools}"
-                           Click="OnMenuClick">
-                <ax:AxIcon Data="{x:Static ax:AxIcons.MoreHorizontal}" IsFilled="True"/>
-              </ax:AxButton>
-            </StackPanel>
+            <Border Width="24" Height="24" CornerRadius="{DynamicResource AxCornerRadius}"
+                    Background="{DynamicResource AxAccStrongBrush}">
+              <TextBlock Text="Ax" FontSize="{DynamicResource AxFontSizeCaption}" FontWeight="Bold"
+                         Foreground="{DynamicResource AxOnAccBrush}"
+                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
           </ax:AxToolBar.LeftContent>
-          <ax:AxToolBar.RightContent>
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <ax:AxSegmentedControl x:Name="ThemeSwitch" SelectionChanged="OnThemeChanged">
-                <ax:AxSegmentItem Content="{loc:Loc settings.theme.dark}"/>
-                <ax:AxSegmentItem Content="{loc:Loc settings.theme.light}"/>
-              </ax:AxSegmentedControl>
-            </StackPanel>
-          </ax:AxToolBar.RightContent>
         </ax:AxToolBar>
       </ax:AxTitleBar>
     </shell:StudioShell.TopBar>
@@ -106,15 +87,6 @@
           </ax:AxButton>
         </StackPanel>
 
-        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" VerticalAlignment="Center">
-          <TextBlock Classes="dim" Text="Avalonia 12.1.1" FontSize="{DynamicResource AxFontSizeSmall}"/>
-          <TextBlock Classes="dimmer" Text="·" FontSize="{DynamicResource AxFontSizeSmall}"/>
-          <TextBlock Classes="dim" Text="net10.0" FontSize="{DynamicResource AxFontSizeSmall}"/>
-          <TextBlock Classes="dimmer" Text="·" FontSize="{DynamicResource AxFontSizeSmall}"/>
-          <TextBlock Classes="dim" Text="UTF-8" FontSize="{DynamicResource AxFontSizeSmall}"/>
-          <TextBlock Classes="dimmer" Text="·" FontSize="{DynamicResource AxFontSizeSmall}"/>
-          <TextBlock Classes="dim" Text="100%" FontSize="{DynamicResource AxFontSizeSmall}"/>
-        </StackPanel>
       </DockPanel>
     </shell:StudioShell.StatusBar>
 

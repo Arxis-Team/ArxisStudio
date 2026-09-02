@@ -1,18 +1,12 @@
 ﻿using System.Reflection;
 using ArxisStudio.Controls;
-using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
-using ArxisStudio.Shell.Settings;
-using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Styling;
 using Avalonia.Threading;
 using IOPath = System.IO.Path;
 
@@ -45,7 +39,6 @@ public partial class MainWindow : AxWindow
     /// плагинов: панели студии должны стоять на своих местах раньше, чем к ним
     /// встанут чужие.
     /// </remarks>
-    private readonly ISettingsStore? _settings;
     private readonly List<OpenDocument> _documents = [];
     // Журнал отражается в стандартный вывод: панели, которая показывала бы его,
     // в студии нет, и без этого о сбое плагина не узнает никто. Запущенной без
@@ -64,7 +57,6 @@ public partial class MainWindow : AxWindow
     // держится отдельно: меню и сообщения знают о них ровно то же, что о
     // плагинах, — модуль отличается способом доставки, а не правами.
     private IReadOnlyList<InstalledPlugin> _modules = [];
-    private IReadOnlyList<StudioMenuItem> _menu = [];
     private DocumentView? _active;
 
     // Раскладка: дерево доков, живые панели в нём и уборка по хозяину.
@@ -85,11 +77,6 @@ public partial class MainWindow : AxWindow
         // Раскладка поднимается до панелей: иначе они успели бы разойтись по
         // стандартным местам, а прочитанное дерево тут же смело бы их оттуда.
         _dock.Restore();
-
-        // Выбранная вкладка ставится здесь, а не в разметке: заданная там, она
-        // поднимает событие ещё во время разбора, когда полей окна нет и в
-        // помине.
-        ThemeSwitch.SelectedIndex = Application.Current?.ActualThemeVariant == ThemeVariant.Light ? 1 : 0;
 
         _commands = new StudioCommands(_guard);
 
@@ -129,23 +116,6 @@ public partial class MainWindow : AxWindow
         };
     }
 
-    /// <summary>Создаёт окно для открытого проекта.</summary>
-    /// <param name="settings">Настройки студии.</param>
-    /// <param name="projectPath">Путь к решению или проекту.</param>
-    public MainWindow(ISettingsStore settings, string projectPath) : this()
-    {
-        _settings = settings;
-        ProjectPath = projectPath;
-
-        ProjectName.Text = IOPath.GetFileNameWithoutExtension(projectPath);
-        Title = $"{IOPath.GetFileNameWithoutExtension(projectPath)} — ArxisStudio";
-
-        Opened += (_, _) => StatusText.Text = projectPath;
-    }
-
-    /// <summary>Путь к открытому решению или проекту; null, если проект не открыт.</summary>
-    public string? ProjectPath { get; }
-
     /// <summary>
     /// Поднимает встроенные модули, а за ними — включённые плагины.
     /// </summary>
@@ -173,7 +143,9 @@ public partial class MainWindow : AxWindow
         var host = new PluginHost(new StudioContextFactory(
             _log,
             _commands,
-            ProjectPath,
+            // Проекта у студии пока нет: работа с ними приедет модулем.
+            // Место в контракте плагинов остаётся — сам контракт не менялся.
+            projectPath: null,
             services,
             settings: null,
             tasks: _tasks,
@@ -233,8 +205,6 @@ public partial class MainWindow : AxWindow
 
         foreach (var waiting in host.Deferred)
             _log.Write(StudioLogLevel.Debug, "Plugins", $"{waiting.DisplayName} ждёт своего события");
-
-        ShowMenu();
     }
 
     /// <summary>Принимает поднятый модуль или плагин: вклады и панели.</summary>
@@ -450,156 +420,6 @@ public partial class MainWindow : AxWindow
         StatusText.Text = document.Path;
     }
 
-    /// <summary>
-    /// Собирает меню студии; кнопка появляется, только если есть что показать.
-    /// </summary>
-    private void ShowMenu()
-    {
-        _menu = StudioMenu.Build([.. _modules, .. _installed]);
-
-        // Кнопка нужна и без единой команды: перезагрузить плагин — тоже
-        // действие, и другого места для него в окне нет.
-        MenuButton.IsVisible = _menu.Count > 0 || Reloadable().Count > 0;
-    }
-
-    /// <summary>
-    /// Плагины, которые можно поднять заново.
-    /// </summary>
-    /// <remarks>
-    /// Только внешние: у встроенного модуля нет своего контекста загрузки, и
-    /// предлагать перезагрузить то, что перезагрузить нельзя, — обещание,
-    /// которое студия не сдержит.
-    /// </remarks>
-    private IReadOnlyList<InstalledPlugin> Reloadable() =>
-        _plugins?.Loaded
-            .Where(plugin => plugin is { IsLoaded: true, Context: not null })
-            .Select(plugin => plugin.Installed)
-            .ToList() ?? [];
-
-    private void OnMenuClick(object? sender, RoutedEventArgs e)
-    {
-        var flyout = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedLeft };
-
-        foreach (var item in _menu)
-            flyout.Items.Add(Build(item));
-
-        if (Reloadable() is { Count: > 0 } plugins)
-        {
-            if (_menu.Count > 0)
-                flyout.Items.Add(new Separator());
-
-            var branch = new MenuItem { Header = Localizer.Instance["menu.plugins"] };
-
-            foreach (var plugin in plugins)
-            {
-                var item = new MenuItem
-                {
-                    Header = $"{Localizer.Instance["menu.reload"]} · {plugin.DisplayName}",
-                };
-
-                item.Click += async (_, _) => await ReloadPluginAsync(plugin.Id);
-                branch.Items.Add(item);
-            }
-
-            flyout.Items.Add(branch);
-        }
-
-        // Раскладка есть в меню всегда: перетаскивание иначе было бы дверью в
-        // одну сторону, и первый же промах мышью человек разбирал бы вручную.
-        if (flyout.Items.Count > 0)
-            flyout.Items.Add(new Separator());
-
-        flyout.Items.Add(Layouts());
-
-        if (flyout.Items.Count == 0)
-            return;
-
-        flyout.ShowAt(MenuButton);
-
-        MenuItem Layouts()
-        {
-            var branch = new MenuItem { Header = Localizer.Instance["menu.layout"] };
-
-            foreach (var name in _dock.Layouts)
-            {
-                var set = new MenuItem { Header = name };
-
-                // Показанный набор помечен галочкой в колонке значков, которую
-                // тема держит у каждого пункта: переключаться на самого себя
-                // человеку незачем, поэтому щелчка у него и нет.
-                if (string.Equals(name, _dock.Layout, StringComparison.Ordinal))
-                {
-                    set.Icon = new AxIcon { Classes = { "small" }, Data = AxIcons.Check };
-                }
-                else
-                {
-                    var chosen = name;
-
-                    set.Click += (_, _) => _dock.Switch(chosen);
-                }
-
-                branch.Items.Add(set);
-            }
-
-            branch.Items.Add(new Separator());
-
-            var save = new MenuItem { Header = Localizer.Instance["menu.layout.save"] };
-            var reset = new MenuItem { Header = Localizer.Instance["menu.layout.reset"] };
-
-            save.Click += async (_, _) => await SaveLayoutAsync();
-            reset.Click += (_, _) => _dock.Reset();
-
-            branch.Items.Add(save);
-            branch.Items.Add(reset);
-
-            // Стандартный набор не удаляется: он — то, куда возвращаются.
-            if (!string.Equals(_dock.Layout, DockLayout.DefaultName, StringComparison.Ordinal))
-            {
-                var forget = new MenuItem
-                {
-                    Header = Localizer.Instance["menu.layout.delete"],
-                    Classes = { "danger" },
-                };
-
-                forget.Click += (_, _) => _dock.Forget();
-                branch.Items.Add(forget);
-            }
-
-            return branch;
-        }
-
-        MenuItem Build(StudioMenuItem source)
-        {
-            var item = new MenuItem { Header = source.Title };
-
-            if (source.IsCommand)
-                item.Click += (_, _) => Run(source);
-
-            foreach (var child in source.Children)
-                item.Items.Add(Build(child));
-
-            return item;
-        }
-    }
-
-    /// <summary>
-    /// Выполняет команду пункта меню, подняв плагин, если тот ещё ждал.
-    /// </summary>
-    /// <remarks>
-    /// Плагин, объявивший <c>onCommand:</c>, до этого момента не был загружен —
-    /// значит и обработчика команды пока нет, и поднять его нужно раньше вызова.
-    /// </remarks>
-    private void Run(StudioMenuItem item)
-    {
-        if (item.CommandId is not { } command)
-            return;
-
-        // Спящего хозяина разбудит сам реестр: дорога у меню и у чужого кода
-        // одна, и второй здесь не нужно.
-        if (!_commands.Invoke(command))
-            _log.Write(StudioLogLevel.Warning, "Plugins", $"Команду {command} никто не обрабатывает");
-    }
-
     /// <summary>Поднимает ждущие плагины, которым подошло событие.</summary>
     /// <param name="matches">Какое событие произошло.</param>
     private void Activate(Func<InstalledPlugin, bool> matches)
@@ -731,112 +551,6 @@ public partial class MainWindow : AxWindow
     private void Unmount(string pluginId) => _dock.RemoveOwnedBy(pluginId);
 
     /// <summary>
-    /// Поднимает плагин заново, не перезапуская студию.
-    /// </summary>
-    /// <remarks>
-    /// Внутренний цикл автора плагина: собрал, выложил в папку плагинов,
-    /// перезагрузил. Порядок здесь важнее самих действий — сперва студия
-    /// отпускает всё, что держит: панели со стен, вклады из реестра, команды из
-    /// меню. Обработчик команды, оставленный в реестре, ссылается на типы
-    /// плагина, а через них — на его контекст загрузки, и тот не выгрузится:
-    /// перезагрузка копила бы в памяти по контексту за раз.
-    /// </remarks>
-    private async Task ReloadPluginAsync(string pluginId)
-    {
-        if (_plugins is not { } host)
-            return;
-
-        // Зависимые считаются по манифестам прежних копий: перезагружают
-        // потому, что плагин изменился, и свежий манифест мог зависимость
-        // убрать — а прежний зависимый всё ещё держит прежние типы. Вместе с
-        // необязательными: их гарантия «сосед стоит подо мной» не делится.
-        var dependents = PluginGraph.Dependents(
-                pluginId,
-                host.Loaded
-                    .Where(loaded => loaded is { IsLoaded: true, Context: not null })
-                    .Select(loaded => loaded.Installed)
-                    .ToList(),
-                includeOptional: true)
-            .Select(dependent => dependent.Id)
-            .ToList();
-
-        // Манифесты могли измениться вместе со сборками — записи берутся с
-        // диска. Опускаются зависимые первыми, зависимость последней;
-        // поднимается всё в обратном порядке.
-        _installed = new PluginCatalog().Scan();
-
-        if (_installed.FirstOrDefault(plugin => plugin.Id == pluginId) is not { } installed)
-        {
-            _log.Write(StudioLogLevel.Warning, "Plugins", $"Плагина {pluginId} больше нет в папке плагинов");
-            return;
-        }
-
-        var lower = dependents.Append(pluginId).ToList();
-        var raise = new List<InstalledPlugin> { installed };
-
-        foreach (var dependentId in dependents)
-        {
-            if (_installed.FirstOrDefault(plugin => plugin.Id == dependentId) is { } dependent)
-                raise.Add(dependent);
-            else
-                _log.Write(StudioLogLevel.Warning, "Plugins",
-                    $"{Named(dependentId)} зависел от {installed.DisplayName}, но пропал с диска — опущен и не поднят");
-        }
-
-        foreach (var id in lower)
-        {
-            // Задачи плагина держат его типы: не остановив их, мы выгрузим
-            // плагин только на словах — и сами же скажем, что копия осталась.
-            if (!await _tasks.StopAsync(id, TimeSpan.FromSeconds(5)))
-                _log.Write(StudioLogLevel.Warning, "Plugins", $"{Named(id)}: фоновая задача не остановилась за пять секунд");
-
-            await CloseDocumentsOfAsync(id);
-
-            // Реестры владельца уберёт подписка на Unloading; здесь —
-            // только то, чего хост знать не может: панели на экране и счёт
-            // сбоев.
-            Unmount(id);
-            _guard.Forget(id);
-        }
-
-        // Снятые контролы отпускает не список, а дерево: пока проход раскладки
-        // и отрисовки не прошёл, они ещё чьи-то. Ждём его — иначе проверка
-        // выгрузки увидит помеху, которой через миг не будет. Проход один на
-        // всех: дерево тоже одно.
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
-        var cascade = host.Reload(lower, raise);
-
-        foreach (var skipped in cascade.Skipped)
-            _log.Write(StudioLogLevel.Warning, "Plugins", skipped.Value);
-
-        foreach (var note in cascade.Notes)
-            _log.Write(StudioLogLevel.Warning, "Plugins", note);
-
-        foreach (var loaded in cascade.Raised)
-            Accept(loaded);
-
-        ShowMenu();
-
-        // Выгрузка кооперативная, и не удаться она может по вине любого из
-        // опущенных: подписка на событие студии, оставленный таймер,
-        // работающий поток. Каждый невыгрузившийся называется своим именем —
-        // безымянное предупреждение не говорит, кого чинить.
-        var stuck = cascade.Released
-            .Where(pair => !pair.Value)
-            .Select(pair => Named(pair.Key))
-            .ToList();
-
-        if (stuck.Count == 0)
-            return;
-
-        var warning = $"{string.Join(", ", stuck)}: прежняя копия осталась в памяти — надёжнее перезапустить студию";
-
-        _log.Write(StudioLogLevel.Warning, "Plugins", warning);
-        StatusText.Text = warning;
-    }
-
-    /// <summary>
     /// Закрывает документы, открытые редактором этого плагина.
     /// </summary>
     /// <remarks>
@@ -844,51 +558,6 @@ public partial class MainWindow : AxWindow
     /// загрузки. Оставить вкладку открытой значит и держать контекст, и
     /// показывать человеку окно, за которым уже ничего нет.
     /// </remarks>
-    /// <summary>
-    /// Спрашивает имя и сохраняет под ним нынешнюю раскладку.
-    /// </summary>
-    /// <remarks>
-    /// Имя спрашивают модальным окном, а не полем в меню: меню закрывается от
-    /// первого же щелчка мимо, и набор пропал бы вместе с недопечатанным именем.
-    /// </remarks>
-    private async Task SaveLayoutAsync()
-    {
-        var box = new AxTextBox { PlaceholderText = Localizer.Instance["layout.name.hint"], Width = 260 };
-        var cancel = new AxButton { Content = Localizer.Instance["common.cancel"], MinWidth = 96 };
-        var save = new AxButton
-        {
-            Content = Localizer.Instance["common.save"],
-            MinWidth = 96,
-            Classes = { "accent" },
-        };
-
-        var dialog = new AxDialog
-        {
-            Title = Localizer.Instance["layout.name.title"],
-            Content = box,
-            Buttons = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 8,
-                Children = { cancel, save },
-            },
-        };
-
-        // Курсор сразу в поле: другого дела у этого окна нет.
-        dialog.Opened += (_, _) => box.Focus();
-        cancel.Click += (_, _) => dialog.Close(null);
-        save.Click += (_, _) => dialog.Close(box.Text);
-
-        box.KeyDown += (_, key) =>
-        {
-            if (key.Key == Key.Enter)
-                dialog.Close(box.Text);
-        };
-
-        if (await dialog.ShowDialog<string?>(this) is { } name)
-            _dock.SaveAs(name);
-    }
-
     private async Task CloseDocumentsOfAsync(string pluginId)
     {
         foreach (var document in _documents.Where(document => document.PluginId == pluginId).ToList())
@@ -937,18 +606,6 @@ public partial class MainWindow : AxWindow
             await document.View.DisposeAsync();
 
         _documents.Clear();
-    }
-
-    private void OnThemeChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        var theme = ThemeSwitch.SelectedIndex == 1 ? StudioTheme.Light : StudioTheme.Dark;
-        StudioTheming.Apply(theme);
-
-        if (_settings is not null)
-        {
-            _settings.Current.Theme = theme;
-            _settings.Save();
-        }
     }
 
     /// <summary>Открытый документ.</summary>
