@@ -82,6 +82,29 @@
     <Setter Property="FontWeight" Value="Medium"/>
   </Style>
 
+  <!--
+      Полоса студии: включённая текстовая кнопка и разделитель между вкладами
+      разных хозяев. Иконочной кнопке состояние :selected рисует сама тема;
+      у текстовой (ghost) такого состояния в теме нет — нужно оно только
+      полосе, здесь и живёт.
+  -->
+  <Style Selector="ax|AxButton.ghost:selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AxSelBrush}"/>
+  </Style>
+  <Style Selector="ax|AxButton.ghost:selected">
+    <Setter Property="Foreground" Value="{DynamicResource AxFgBrush}"/>
+  </Style>
+  <!--
+      Разделитель полосы: 20 высотой и цветом нажатия, а не рамки, — так его
+      рисует карточка «Toolbar», где он на ступень заметнее линий снаружи.
+      Токена под эти двадцать в теме нет: число живёт в одной карточке.
+  -->
+  <Style Selector="ax|AxDivider.toolbar">
+    <Setter Property="Height" Value="20"/>
+    <Setter Property="Margin" Value="2,0"/>
+    <Setter Property="Background" Value="{DynamicResource AxBg4Brush}"/>
+  </Style>
+
   <!-- Кликабельная строка списка: подсветка под курсором. -->
   <Style Selector="Border.row">
     <Setter Property="Background" Value="Transparent"/>
