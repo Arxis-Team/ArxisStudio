@@ -1,4 +1,5 @@
-﻿using ArxisStudio.Extensibility;
+﻿using System.Reflection;
+using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Services;
@@ -139,6 +140,71 @@ public class SdkContractTests
                 command => Assert.Contains(command.Id, commands.Registered));
 
             Assert.True(commands.Invoke("hello.greet"), "команда не вызвалась");
+        }
+        finally
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+
+            try
+            {
+                if (Directory.Exists(root))
+                    Directory.Delete(root, recursive: true);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+    }
+
+    /// <summary>
+    /// Свой контрол, объявленный манифестом примера, есть в сборке — и наоборот.
+    /// </summary>
+    /// <remarks>
+    /// Проверяется на настоящем примере, как и команды: манифест и атрибут — две
+    /// записи об одном, и разойтись они могут молча. Кнопки примера при этом
+    /// зовут только объявленные команды.
+    /// </remarks>
+    [Fact]
+    public void The_toolbar_of_the_example_matches_its_manifest()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"arxis-bar-{Guid.NewGuid():N}");
+
+        try
+        {
+            var catalog = new PluginCatalog(root);
+
+            Assert.Null(catalog.InstallFromArchive(Archive()).Error);
+
+            using var host = new PluginHost(new StudioContextFactory(new StudioLog(), new StudioCommands(), null));
+
+            var loaded = Assert.Single(host.LoadStartup(catalog.Scan()));
+
+            Assert.True(loaded.IsLoaded, loaded.Error);
+
+            var manifest = Manifest();
+
+            var declared = manifest.Contributions.ToolBar
+                .Where(item => item.IsCustom)
+                .Select(item => item.Id)
+                .Order(StringComparer.Ordinal)
+                .ToList();
+
+            var built = loaded.Assemblies
+                .SelectMany(assembly => assembly.GetTypes())
+                .Select(type => type.GetCustomAttribute<ToolBarItemAttribute>()?.Id)
+                .OfType<string>()
+                .Order(StringComparer.Ordinal)
+                .ToList();
+
+            Assert.NotEmpty(declared);
+            Assert.Equal(declared, built);
+
+            var commands = manifest.Contributions.Commands.Select(command => command.Id).ToList();
+
+            Assert.All(
+                manifest.Contributions.ToolBar.Where(item => item.IsButton),
+                button => Assert.Contains(button.Command, commands));
         }
         finally
         {

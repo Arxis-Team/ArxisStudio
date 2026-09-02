@@ -141,7 +141,33 @@ public class BuiltInModuleTests
         Assert.Null(loaded.Context);
         Assert.Equal("arxis.sample", loaded.Installed.Id);
         Assert.Contains(SampleModule.AboutCommand, commands.Registered);
+        Assert.Contains(SampleModule.VerboseCommand, commands.Registered);
         Assert.NotEmpty(loaded.Services);
+
+        // Переключатель зовёт полосу, которой у этой студии нет, — и обязан
+        // это пережить: службы контекста необязательны по контракту.
+        Assert.True(commands.Invoke(SampleModule.VerboseCommand), "переключатель не вызвался");
+    }
+
+    /// <summary>
+    /// Каждая кнопка модуля в полосе зовёт команду, которую модуль объявил.
+    /// </summary>
+    /// <remarks>
+    /// Кнопка и команда — две записи об одном; разойдясь, они дали бы кнопку,
+    /// за которой никого нет, и щелчок отвечал бы замечанием в журнал.
+    /// </remarks>
+    [Fact]
+    public void Every_toolbar_button_of_the_sample_names_a_declared_command()
+    {
+        var (manifest, error) = ModuleManifest.Load(typeof(SampleModule).Assembly);
+
+        Assert.Null(error);
+
+        var commands = manifest!.Contributions.Commands.Select(command => command.Id).ToList();
+        var buttons = manifest.Contributions.ToolBar.Where(item => item.IsButton).ToList();
+
+        Assert.NotEmpty(buttons);
+        Assert.All(buttons, button => Assert.Contains(button.Command, commands));
     }
 
     /// <summary>Сборка модуля со встроенным манифестом.</summary>

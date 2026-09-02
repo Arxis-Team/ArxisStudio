@@ -98,6 +98,7 @@
   "menu.tools": "Команды плагинов",
   "menu.activating": "Поднимаю плагин",
   "toolbar.menu": "Меню команд",
+  "toolbar.sample.verbose": "Подробный журнал примера",
   "canvas.grid": "Сетка",
   "canvas.snap": "Привязка",
   "canvas.zoomreset": "Вернуть 100%",

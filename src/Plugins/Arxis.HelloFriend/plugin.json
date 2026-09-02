@@ -15,6 +15,9 @@
     ],
     "menus": [
       { "path": "%menu.tools%/%menu.friend%/%command.cheer%", "command": "friend.cheer" }
+    ],
+    "toolBar": [
+      { "id": "friend.cheer", "command": "friend.cheer", "icon": "arxis:Bubble", "title": "%command.cheer%" }
     ]
   },
   "activation": [

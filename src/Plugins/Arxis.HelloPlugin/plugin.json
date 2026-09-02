@@ -6,7 +6,7 @@
   "description": "%plugin.description%",
   "icon": "assets/icon.png",
   "sdk": {
-    "min": "3.0"
+    "min": "3.1"
   },
   "entry": "bin/Arxis.HelloPlugin.dll",
   "provides": {
@@ -32,6 +32,21 @@
           "side": "right",
           "size": 0.24
         }
+      }
+    ],
+    "toolBar": [
+      {
+        "id": "hello.menu",
+        "kind": "menu",
+        "slot": "right",
+        "icon": "arxis:Star",
+        "title": "%toolbar.menu%",
+        "menu": "%menu.tools%/%menu.hello%"
+      },
+      {
+        "id": "hello.strip",
+        "kind": "custom",
+        "slot": "right"
       }
     ],
     "settings": [

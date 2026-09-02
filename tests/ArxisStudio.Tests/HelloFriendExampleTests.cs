@@ -68,6 +68,28 @@ public class HelloFriendExampleTests : IDisposable
             host.Loaded.Select(loaded => loaded.Installed.Id));
     }
 
+    /// <summary>
+    /// Кнопка в полосе не будит пример: он по-прежнему ждёт своей команды.
+    /// </summary>
+    /// <remarks>
+    /// Пример нарочно отложенный, и кнопка — то, ради чего он таким остаётся:
+    /// она стоит, пока плагин спит, и будит его щелчком той же командой.
+    /// </remarks>
+    [Fact]
+    public void The_friend_example_stays_deferred_with_its_toolbar_button()
+    {
+        var catalog = new PluginCatalog(_root);
+
+        Assert.Null(catalog.InstallFromArchive(Archive("Arxis.HelloFriend", "arxis.hello-friend.axplugin")).Error);
+
+        var friend = catalog.Scan().Single();
+        var button = Assert.Single(friend.Manifest!.Contributions.ToolBar);
+
+        Assert.True(button.IsButton);
+        Assert.Equal("friend.cheer", button.Command);
+        Assert.False(PluginActivation.IsEager(friend.Manifest));
+    }
+
     /// <summary>Манифест примера объявляет зависимость, и граф её видит.</summary>
     [Fact]
     public void The_friend_example_declares_its_dependency()

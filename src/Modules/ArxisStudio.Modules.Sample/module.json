@@ -6,13 +6,18 @@
   "description": "%module.sample.description%",
   "contributions": {
     "commands": [
-      { "id": "sample.about" }
+      { "id": "sample.about" },
+      { "id": "sample.verbose" }
     ],
     "menus": [
       { "path": "%menu.tools%/%menu.sample%/%menu.sample.about%", "command": "sample.about" }
     ],
     "toolWindows": [
       { "id": "sample.panel", "title": "%panel.sample%", "placement": { "side": "left", "size": 0.22 } }
+    ],
+    "toolBar": [
+      { "id": "sample.verbose", "kind": "button", "slot": "left", "command": "sample.verbose",
+        "icon": "arxis:Package", "title": "%toolbar.sample.verbose%" }
     ]
   },
   "activation": [ "onStartup" ]
