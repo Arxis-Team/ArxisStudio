@@ -34,8 +34,9 @@
 В самом репозитории — приложение-оболочка (`src/ArxisStudio`), каркас окна и
 настройки (`src/ArxisStudio.Shell`), контракт расширяемости (`src/ArxisStudio.Sdk`)
 с анализатором и таргетом упаковки, хост плагинов
-(`src/ArxisStudio.Extensibility`), встроенные модули (`src/Modules/`) и пример
-внешнего плагина (`src/Plugins/Arxis.HelloPlugin`).
+(`src/ArxisStudio.Extensibility`), встроенные модули (`src/Modules/`), пример
+внешнего плагина (`src/Plugins/Arxis.HelloPlugin`) и шаблоны `dotnet new`
+(`templates/`) — с них начинают плагин и перевод.
 
 В оболочке нет ни одной панели и ни одного формата документа. Зоны, вкладки, меню
 и статус-бар она умеет, а чем их наполнить — сообщают манифесты плагинов.
@@ -151,6 +152,21 @@ dotnet test tests/ArxisStudio.Tests
 Плагин ссылается на `ArxisStudio.Sdk`, библиотеку контролов и — если говорит с
 соседом типизированно — на его контрактную сборку. Про саму
 студию он ничего не знает и обращается к ней через `IStudioContext`.
+
+Начинают не с чистого листа:
+
+```bash
+dotnet new install templates/Arxis.Plugin
+```
+
+```bash
+dotnet new arxis-plugin -n Arxis.Figma --id arxis.figma --display Figma --studio ../ArxisStudio
+```
+
+Выйдет собирающийся плагин со всем, что описано ниже: манифест, точка входа,
+команда, пункт меню, кнопка в полосе, панель и словарь. Путь к студии нужен,
+пока SDK не приезжает пакетом: плагин собирается против её исходников, и тот же
+путь можно задать сборке — `dotnet build -p:ArxisStudioPath=...`.
 
 ```csharp
 public sealed class HelloPlugin : StudioPlugin
