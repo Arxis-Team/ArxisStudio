@@ -46,6 +46,7 @@ public sealed record StudioContext(
 /// <param name="guard">Шов вызовов плагина; null — завести свой.</param>
 /// <param name="plugins">Ядро службы соседей; null — службы нет.</param>
 /// <param name="exports">Реестр экспортов; null — обмена реализациями нет.</param>
+/// <param name="toolbar">Полоса студии; null — состояние элементов менять негде.</param>
 public sealed class StudioContextFactory(
     IStudioLog log,
     IStudioCommands commands,
@@ -55,7 +56,8 @@ public sealed class StudioContextFactory(
     StudioTaskRegistry? tasks = null,
     PluginGuard? guard = null,
     StudioPluginRoster? plugins = null,
-    StudioExportRegistry? exports = null)
+    StudioExportRegistry? exports = null,
+    StudioToolBar? toolbar = null)
     : IStudioContextFactory
 {
     private readonly StudioTaskRegistry _tasks = tasks ?? new StudioTaskRegistry();
@@ -106,7 +108,7 @@ public sealed class StudioContextFactory(
         // знать хозяина.
         var granted = services;
 
-        if (plugins is not null || exports is not null)
+        if (plugins is not null || exports is not null || toolbar is not null)
         {
             var extended = services is null
                 ? new Dictionary<Type, object>()
@@ -122,6 +124,11 @@ public sealed class StudioContextFactory(
             // одной «соседа нет», а от другой получал его реализацию.
             if (exports is not null)
                 extended[typeof(IStudioExports)] = new PluginExports(exports, plugin, neighbours);
+
+            // Полоса — тоже именной фасад: плагин меняет состояние только своих
+            // элементов, и чей это вызов, знает лишь тот, кто выдал контекст.
+            if (toolbar is not null)
+                extended[typeof(IStudioToolBar)] = new PluginToolBar(toolbar, plugin.Id);
 
             granted = extended;
         }
