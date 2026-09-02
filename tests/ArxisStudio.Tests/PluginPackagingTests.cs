@@ -1,4 +1,5 @@
-﻿using ArxisStudio.Extensibility;
+﻿using System.Text.RegularExpressions;
+using ArxisStudio.Extensibility;
 using ArxisStudio.Services;
 using Xunit;
 
@@ -21,8 +22,38 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class PluginPackagingTests
 {
-    private static readonly string[] Shared =
-        ["Avalonia", "ArxisStudio.Sdk", "ArxisStudio.Controls"];
+    /// <summary>
+    /// Общие контракты — не списком здесь, а тем, что считает общим резолвер.
+    /// </summary>
+    /// <remarks>
+    /// Список руками был дырой: сборку, добавленную к общим, забывали дописать
+    /// сюда — и проверка молча переставала её касаться, а плагин увозил её с собой.
+    /// Имена вычитываются из <c>IsShared</c>: дописать список и не заметить
+    /// этого больше нельзя.
+    /// </remarks>
+    private static string[] Shared()
+    {
+        var found = Regex.Matches(Resolver(), @"name\.StartsWith\(([^,]+),")
+            .Select(match => match.Groups[1].Value.Trim('"'))
+            .ToArray();
+
+        Assert.NotEmpty(found);
+
+        return found;
+    }
+
+    public static TheoryData<string> SharedPrefixes
+    {
+        get
+        {
+            var data = new TheoryData<string>();
+
+            foreach (var prefix in Shared())
+                data.Add(prefix);
+
+            return data;
+        }
+    }
 
     /// <summary>Каталог собран по формату: манифест в корне, сборка в bin/.</summary>
     [Fact]
@@ -74,7 +105,7 @@ public class PluginPackagingTests
         var strays = Directory
             .GetFiles(Path.Combine(Package(), "bin"), "*.dll")
             .Select(Path.GetFileNameWithoutExtension)
-            .Where(name => Shared.Any(shared => name!.StartsWith(shared, StringComparison.Ordinal)))
+            .Where(name => Shared().Any(shared => name!.StartsWith(shared, StringComparison.Ordinal)))
             .ToList();
 
         Assert.True(strays.Count == 0, $"в пакете общие контракты: {string.Join(", ", strays)}");
@@ -207,18 +238,54 @@ public class PluginPackagingTests
     /// возьмёт свою: тип из другой сборки — другой тип, и панель не встанет.
     /// </remarks>
     [Theory]
-    [InlineData("Avalonia")]
-    [InlineData("ArxisStudio.Sdk")]
-    [InlineData("ArxisStudio.Controls")]
+    [MemberData(nameof(SharedPrefixes))]
     public void The_target_and_the_resolver_mean_the_same_by_shared(string prefix)
     {
-        var root = Repository();
-        var targets = File.ReadAllText(Path.Combine(root, "src", "ArxisStudio.Sdk", "build", "ArxisStudio.Sdk.targets"));
-        var resolver = File.ReadAllText(Path.Combine(root, "src", "ArxisStudio.Extensibility", "PluginHost.cs"));
+        var targets = File.ReadAllText(
+            Path.Combine(Repository(), "src", "ArxisStudio.Sdk", "build", "ArxisStudio.Sdk.targets"));
 
         Assert.Contains($"'{prefix}'", targets, StringComparison.Ordinal);
-        Assert.Contains($"\"{prefix}\"", resolver, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Всё, что плагин видит через SDK, объявлено общим.
+    /// </summary>
+    /// <remarks>
+    /// Плагин ссылается на SDK, а через него — на то, на что ссылается сам SDK.
+    /// Каждая такая сборка обязана быть одной на всех: иначе копия рядом с
+    /// плагином даст второй экземпляр того же типа, и ни панель, ни иконка
+    /// плагина в интерфейс не встанет.
+    ///
+    /// Это и есть корень списка общих сборок: список пишется руками, а ссылки
+    /// SDK — решением, и порваться они могут молча: добавили ссылку — обязаны
+    /// объявить её общей.
+    /// </remarks>
+    [Fact]
+    public void Everything_the_sdk_shows_a_plugin_is_shared()
+    {
+        var shared = Shared();
+
+        var exposed = File.ReadAllLines(
+            Path.Combine(Repository(), "src", "ArxisStudio.Sdk", "ArxisStudio.Sdk.csproj"))
+            .Where(line => line.Contains("ProjectReference", StringComparison.Ordinal))
+            .Select(line => line.Split('"'))
+            .Where(parts => parts.Length > 1)
+            .Select(parts => Path.GetFileNameWithoutExtension(parts[1]))
+            .Where(name => name.StartsWith("ArxisStudio.", StringComparison.Ordinal)
+                // Анализатор приходит без ссылки на сборку — плагин его типов не видит.
+                && !name.EndsWith(".Analyzers", StringComparison.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.NotEmpty(exposed);
+        Assert.All(
+            exposed,
+            name => Assert.Contains(shared, prefix => name.StartsWith(prefix, StringComparison.Ordinal)));
+    }
+
+    /// <summary>Текст резолвера: список общих сборок объявлен в нём.</summary>
+    private static string Resolver() => File.ReadAllText(
+        Path.Combine(Repository(), "src", "ArxisStudio.Extensibility", "PluginHost.cs"));
 
     private static string Package() => Path.Combine(Sample(), "package");
 
