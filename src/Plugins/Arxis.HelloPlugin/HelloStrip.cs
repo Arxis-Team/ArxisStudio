@@ -1,5 +1,6 @@
 using ArxisStudio.Controls;
 using ArxisStudio.Sdk;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
 
@@ -14,6 +15,13 @@ namespace Arxis.HelloPlugin;
 /// плагин поднимается при старте: чужой контрол не нарисовать, не подняв
 /// плагин. Подпись — привязкой к словарю, тем же ключом, что пункт меню: смена
 /// языка в студии должна перерисовать и её.
+/// <para>
+/// Имя для средств доступности ставится отдельно и тем же ключом. Кнопка со
+/// сложным содержимым сама себя не называет: имя ей достаётся от содержимого, а
+/// у раскладки с значком и текстом это имя её класса — в полосе из кнопок
+/// 24×24 имя и есть вся кнопка. Своим контролам студия его не поставит: у
+/// <c>custom</c> в манифесте нет подписи, взять неоткуда — это забота автора.
+/// </para>
 /// </remarks>
 [ToolBarItem("hello.strip")]
 public sealed class HelloStrip : ToolBarItem
@@ -39,6 +47,8 @@ public sealed class HelloStrip : ToolBarItem
                 },
             },
         };
+
+        button.Bind(AutomationProperties.NameProperty, Context.Strings.Text("command.greet"));
 
         // Та же команда, что у пункта меню и у кнопки на панели: дорога одна.
         button.Click += (_, _) => Context.Commands.Invoke("hello.greet");
