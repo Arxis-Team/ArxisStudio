@@ -71,6 +71,10 @@ public partial class MainWindow : AxWindow
     // меню спящих плагинов стоят с самого старта — сборку для них не загружают.
     private readonly StudioToolBar _toolbar;
 
+    // Уборка перед выгрузкой: задачи, документы, экран — в одном порядке на все
+    // дороги. Реестры владельца хост убирает сам, по своему Unloading.
+    private readonly PluginRelease _release;
+
     /// <summary>Создаёт окно без проекта — состояние каркаса.</summary>
     public MainWindow()
     {
@@ -97,6 +101,15 @@ public partial class MainWindow : AxWindow
         };
 
         _toolbar.Complained += (_, message) => _log.Write(StudioLogLevel.Warning, "ToolBar", message);
+
+        _release = new PluginRelease(_tasks)
+        {
+            Documents = CloseDocumentsOfAsync,
+            Views = Unmount,
+        };
+
+        _release.Lingered += (_, id) => _log.Write(StudioLogLevel.Warning, "Plugins",
+            $"{Named(id)}: фоновая задача не остановилась за пять секунд");
 
         // Плагины поднимаются при открытии окна, а не при открытии проекта:
         // проекта у окна может не быть вовсе, а панели плагинов ему нужны
@@ -545,22 +558,31 @@ public partial class MainWindow : AxWindow
         _log.Write(StudioLogLevel.Error, "Plugins",
             $"{Named(failure.PluginId)}: отключён после {failure.Count} сбоев подряд");
 
-        // Через хост, а не Unload напрямую: только он снимет запись со счёта
-        // и разошлёт уборку реестрам.
-        _plugins?.Drop(failure.PluginId);
-
-        // Снятие панелей откладываем. Сюда попадают в том числе из прохода
-        // раскладки — барьер панели сообщает о сбое прямо на замере, — а
+        // Всё откладывается. Сюда попадают в том числе из прохода раскладки —
+        // барьер панели сообщает о сбое прямо на замере, — а ни ждать задачи, ни
         // вынимать контролы из дерева окна во время его же прохода нельзя.
         //
-        // Документы закрываются вместе с панелями и в том же порядке, что при
-        // перезагрузке плагина: оставь их в списке — и студия будет считать
-        // открытым файл, редактора которому больше неоткуда взять. Человек
-        // откроет его снова, а студия молча покажет ему пустое место.
+        // Ждать не страшно: гвард пометил плагина сбойным раньше, чем позвал
+        // сюда, и звать его код он уже отказывается.
         Dispatcher.UIThread.Post(async () =>
         {
-            await CloseDocumentsOfAsync(failure.PluginId);
-            Unmount(failure.PluginId);
+            try
+            {
+                await _release.LetGoAsync(failure.PluginId);
+
+                // Снятые контролы отпускает дерево, а не список: ждём его
+                // проход, иначе выгрузка упрётся в помеху, которой через миг
+                // не будет.
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            }
+            finally
+            {
+                // Через хост, а не Unload напрямую: только он снимет запись со
+                // счёта и разошлёт уборку реестрам. В finally, потому что выше
+                // закрываются документы плагина — его же кодом, и упасть он
+                // волен и здесь; бросить плагина неснятым нельзя.
+                _plugins?.Drop(failure.PluginId);
+            }
         });
     }
 
@@ -874,17 +896,11 @@ public partial class MainWindow : AxWindow
 
         foreach (var id in lower)
         {
-            // Задачи плагина держат его типы: не остановив их, мы выгрузим
-            // плагин только на словах — и сами же скажем, что копия осталась.
-            if (!await _tasks.StopAsync(id, TimeSpan.FromSeconds(5)))
-                _log.Write(StudioLogLevel.Warning, "Plugins", $"{Named(id)}: фоновая задача не остановилась за пять секунд");
+            await _release.LetGoAsync(id);
 
-            await CloseDocumentsOfAsync(id);
-
-            // Реестры владельца уберёт подписка на Unloading; здесь —
-            // только то, чего хост знать не может: панели на экране и счёт
-            // сбоев.
-            Unmount(id);
+            // Счёт сбоев обнуляется только здесь: обновлённый плагин отвечает за
+            // себя, а не за грехи прежней копии. Отключённому упавшему такого
+            // прощения не полагается — потому это и не в общей уборке.
             _guard.Forget(id);
         }
 
