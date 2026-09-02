@@ -140,19 +140,27 @@ public sealed class StudioToolBar
         {
             entry.View = content;
         }
-        else if (declared.IsMenu)
+        else if (declared.IsMenu || declared.IsButton)
         {
-            entry.View = entry.Button = MenuButton(owner, declared);
-        }
-        else if (declared.IsButton)
-        {
-            if (declared.Command is not { Length: > 0 })
+            // Подпись обязательна всему, что рисует студия: она же подсказка,
+            // она же имя для средств доступности, а у элемента без значка — и
+            // видимый текст. В полосе из кнопок 24×24 узнать о кнопке больше
+            // неоткуда: имя — это вся кнопка. Безымянную ставить некуда.
+            if (declared.Title is not { Length: > 0 })
+            {
+                Complained?.Invoke(this, $"У элемента {key} нет подписи — элемент не поставлен");
+                return;
+            }
+
+            if (declared.IsButton && declared.Command is not { Length: > 0 })
             {
                 Complained?.Invoke(this, $"У кнопки {key} не названа команда — кнопка не поставлена");
                 return;
             }
 
-            entry.View = entry.Button = CommandButton(owner, declared);
+            entry.View = entry.Button = declared.IsMenu
+                ? MenuButton(owner, declared)
+                : CommandButton(owner, declared);
         }
         else
         {
@@ -439,8 +447,8 @@ public sealed class StudioToolBar
     /// </summary>
     /// <remarks>
     /// Значок, который не разобрался, кнопку не отменяет: она становится
-    /// текстовой, а о значке остаётся замечание. Без значка и без подписи
-    /// остаётся вопросительный глиф — пустой кнопки в полосе быть не должно.
+    /// текстовой, а о значке остаётся замечание. Подпись к этому месту уже
+    /// проверена — без неё элемент не ставится вовсе.
     /// </remarks>
     private ToolBarButton Button(InstalledPlugin? owner, PluginToolBarItem declared)
     {
@@ -450,11 +458,7 @@ public sealed class StudioToolBar
         if (problem is not null)
             Complained?.Invoke(this, $"{Key(owner?.Id, declared.Id)}: {problem}");
 
-        var title = declared.Title is { Length: > 0 } text ? text : null;
-
-        if (glyph is null && title is null)
-            glyph = AxIcons.Question;
-
+        var title = declared.Title!;
         var button = new ToolBarButton();
 
         if (glyph is not null)
@@ -471,7 +475,7 @@ public sealed class StudioToolBar
             {
                 var label = new TextBlock { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
 
-                Text(label, TextBlock.TextProperty, title!, strings);
+                Text(label, TextBlock.TextProperty, title, strings);
 
                 button.Content = new StackPanel
                 {
@@ -486,15 +490,15 @@ public sealed class StudioToolBar
             }
             else
             {
-                Text(button, ContentControl.ContentProperty, title!, strings);
+                Text(button, ContentControl.ContentProperty, title, strings);
             }
         }
 
-        if (title is not null)
-        {
-            Text(button, ToolTip.TipProperty, title, strings);
-            Text(button, AutomationProperties.NameProperty, title, strings);
-        }
+        // Имя ставится и текстовой кнопке: у кнопки со сложным содержимым — а у
+        // меню оно такое — своего имени нет, ей досталось бы имя класса
+        // раскладки.
+        Text(button, ToolTip.TipProperty, title, strings);
+        Text(button, AutomationProperties.NameProperty, title, strings);
 
         return button;
     }
