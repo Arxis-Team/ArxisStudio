@@ -61,6 +61,7 @@
   "task.cancel": "Cancel task",
   "studio.canvas.hint": "Documents open here — plugins bring them",
   "common.cancel": "Cancel",
+  "common.save": "Save",
   "common.close": "Close",
   "common.error": "Error",
   "editor.loading": "Loading document…",
@@ -97,6 +98,14 @@
   "console.clear": "Clear",
   "menu.tools": "Plugin commands",
   "menu.activating": "Loading the plugin",
+  "menu.plugins": "Plugins",
+  "menu.reload": "Reload",
+  "menu.layout": "Layout",
+  "menu.layout.save": "Save set…",
+  "menu.layout.reset": "Reset layout",
+  "menu.layout.delete": "Delete set",
+  "layout.name.title": "Save layout",
+  "layout.name.hint": "Set name",
   "toolbar.menu": "Command menu",
   "toolbar.sample.verbose": "Verbose sample log",
   "canvas.grid": "Grid",
@@ -107,5 +116,7 @@
   "panel.sample": "Sample module",
   "menu.sample": "Sample module",
   "menu.sample.about": "About the module",
-  "module.sample.description": "A built-in sample module: a panel, a command and a service"
+  "module.sample.description": "A built-in sample module: a panel, a command and a service",
+  "module.verbose.on": "Sample: verbose log on",
+  "module.verbose.off": "Sample: verbose log off"
 }

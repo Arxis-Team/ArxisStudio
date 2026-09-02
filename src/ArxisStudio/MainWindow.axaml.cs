@@ -6,6 +6,9 @@ using ArxisStudio.Services;
 using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
 using Avalonia.Controls;
+using ArxisStudio.Docking;
+using Avalonia.Input;
+using Avalonia.Layout;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using IOPath = System.IO.Path;
@@ -90,6 +93,7 @@ public partial class MainWindow : AxWindow
         {
             Invoke = _commands.Invoke,
             Menu = () => StudioMenu.Build(Contributing()),
+            Extra = StudioBranches,
         };
 
         _toolbar.Complained += (_, message) => _log.Write(StudioLogLevel.Warning, "ToolBar", message);
@@ -227,21 +231,170 @@ public partial class MainWindow : AxWindow
         foreach (var waiting in host.Deferred)
             _log.Write(StudioLogLevel.Debug, "Plugins", $"{waiting.DisplayName} ждёт своего события");
 
-        // Меню команд — элемент самой студии, а не каждого плагина: дерево
+        // Меню — элемент самой студии, а не каждого плагина: дерево команд
         // общее на всех, ветки в нём сходятся по названию, и плагин, объявивший
         // только menus, должен быть доступен, не зная о полосе. Стоит первым:
         // своё выше принесённого.
-        if (StudioMenu.Build(Contributing()).Count > 0)
+        //
+        // Стоит оно всегда, даже когда вкладываться некому: раскладка живёт
+        // здесь же, и без меню перетаскивание было бы дверью в одну сторону —
+        // первый же промах мышью человек разбирал бы вручную.
+        _toolbar.Add(null, new Sdk.Plugins.PluginToolBarItem
         {
-            _toolbar.Add(null, new Sdk.Plugins.PluginToolBarItem
+            Id = "menu",
+            Kind = "menu",
+            Slot = "left",
+            Icon = "arxis:MoreHorizontal",
+            Title = "%toolbar.menu%",
+        });
+    }
+
+    /// <summary>
+    /// Собственные ветки студии в её меню: перезагрузка плагина и раскладка.
+    /// </summary>
+    /// <remarks>
+    /// Манифестами они не объявлены и объявлены быть не могут: пункты зависят
+    /// от того, что сейчас поднято и какая раскладка показана, — список
+    /// собирается на каждом открытии заново.
+    /// </remarks>
+    private IReadOnlyList<MenuItem> StudioBranches()
+    {
+        var branches = new List<MenuItem>();
+
+        if (Reloadable() is { Count: > 0 } plugins)
+        {
+            var branch = new AxMenuItem { Header = Localizer.Instance["menu.plugins"] };
+
+            foreach (var plugin in plugins)
             {
-                Id = "menu",
-                Kind = "menu",
-                Slot = "left",
-                Icon = "arxis:MoreHorizontal",
-                Title = "%toolbar.menu%",
-            });
+                var item = new AxMenuItem
+                {
+                    Header = $"{Localizer.Instance["menu.reload"]} · {plugin.DisplayName}",
+                };
+
+                var id = plugin.Id;
+
+                item.Click += async (_, _) => await ReloadPluginAsync(id);
+                branch.Items.Add(item);
+            }
+
+            branches.Add(branch);
         }
+
+        branches.Add(Layouts());
+
+        return branches;
+
+        MenuItem Layouts()
+        {
+            var branch = new AxMenuItem { Header = Localizer.Instance["menu.layout"] };
+
+            foreach (var name in _dock.Layouts)
+            {
+                var set = new AxMenuItem { Header = name };
+
+                // Показанный набор помечен галочкой в колонке значков, которую
+                // тема держит у каждого пункта: переключаться на самого себя
+                // человеку незачем, поэтому щелчка у него и нет.
+                if (string.Equals(name, _dock.Layout, StringComparison.Ordinal))
+                {
+                    set.Icon = new AxIcon { Classes = { "small" }, Data = AxIcons.Check };
+                }
+                else
+                {
+                    var chosen = name;
+
+                    set.Click += (_, _) => _dock.Switch(chosen);
+                }
+
+                branch.Items.Add(set);
+            }
+
+            branch.Items.Add(new Separator());
+
+            var save = new AxMenuItem { Header = Localizer.Instance["menu.layout.save"] };
+            var reset = new AxMenuItem { Header = Localizer.Instance["menu.layout.reset"] };
+
+            save.Click += async (_, _) => await SaveLayoutAsync();
+            reset.Click += (_, _) => _dock.Reset();
+
+            branch.Items.Add(save);
+            branch.Items.Add(reset);
+
+            // Стандартный набор не удаляется: он — то, куда возвращаются.
+            if (!string.Equals(_dock.Layout, DockLayout.DefaultName, StringComparison.Ordinal))
+            {
+                var forget = new AxMenuItem
+                {
+                    Header = Localizer.Instance["menu.layout.delete"],
+                    Classes = { "danger" },
+                };
+
+                forget.Click += (_, _) => _dock.Forget();
+                branch.Items.Add(forget);
+            }
+
+            return branch;
+        }
+    }
+
+    /// <summary>
+    /// Плагины, которые можно поднять заново.
+    /// </summary>
+    /// <remarks>
+    /// Только внешние: у встроенного модуля нет своего контекста загрузки, и
+    /// предлагать перезагрузить то, что перезагрузить нельзя, — обещание,
+    /// которое студия не сдержит.
+    /// </remarks>
+    private IReadOnlyList<InstalledPlugin> Reloadable() =>
+        _plugins?.Loaded
+            .Where(plugin => plugin is { IsLoaded: true, Context: not null })
+            .Select(plugin => plugin.Installed)
+            .ToList() ?? [];
+
+    /// <summary>
+    /// Спрашивает имя и сохраняет под ним нынешнюю раскладку.
+    /// </summary>
+    /// <remarks>
+    /// Имя спрашивают модальным окном, а не полем в меню: меню закрывается от
+    /// первого же щелчка мимо, и набор пропал бы вместе с недопечатанным именем.
+    /// </remarks>
+    private async Task SaveLayoutAsync()
+    {
+        var box = new AxTextBox { PlaceholderText = Localizer.Instance["layout.name.hint"], Width = 260 };
+        var cancel = new AxButton { Content = Localizer.Instance["common.cancel"], MinWidth = 96 };
+        var save = new AxButton
+        {
+            Content = Localizer.Instance["common.save"],
+            MinWidth = 96,
+            Classes = { "accent" },
+        };
+
+        var dialog = new AxDialog
+        {
+            Title = Localizer.Instance["layout.name.title"],
+            Content = box,
+            Buttons = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                Children = { cancel, save },
+            },
+        };
+
+        // Курсор сразу в поле: другого дела у этого окна нет.
+        dialog.Opened += (_, _) => box.Focus();
+        cancel.Click += (_, _) => dialog.Close(null);
+        save.Click += (_, _) => dialog.Close(box.Text);
+
+        box.KeyDown += (_, key) =>
+        {
+            if (key.Key == Key.Enter)
+                dialog.Close(box.Text);
+        };
+
+        if (await dialog.ShowDialog<string?>(this) is { } name)
+            _dock.SaveAs(name);
     }
 
     /// <summary>
@@ -675,6 +828,99 @@ public partial class MainWindow : AxWindow
 
             _toolbar.Add(loaded.Installed, declared, surface);
         }
+    }
+
+    private async Task ReloadPluginAsync(string pluginId)
+    {
+        if (_plugins is not { } host)
+            return;
+
+        // Зависимые считаются по манифестам прежних копий: перезагружают
+        // потому, что плагин изменился, и свежий манифест мог зависимость
+        // убрать — а прежний зависимый всё ещё держит прежние типы. Вместе с
+        // необязательными: их гарантия «сосед стоит подо мной» не делится.
+        var dependents = PluginGraph.Dependents(
+                pluginId,
+                host.Loaded
+                    .Where(loaded => loaded is { IsLoaded: true, Context: not null })
+                    .Select(loaded => loaded.Installed)
+                    .ToList(),
+                includeOptional: true)
+            .Select(dependent => dependent.Id)
+            .ToList();
+
+        // Манифесты могли измениться вместе со сборками — записи берутся с
+        // диска. Опускаются зависимые первыми, зависимость последней;
+        // поднимается всё в обратном порядке.
+        _installed = new PluginCatalog().Scan();
+
+        if (_installed.FirstOrDefault(plugin => plugin.Id == pluginId) is not { } installed)
+        {
+            _log.Write(StudioLogLevel.Warning, "Plugins", $"Плагина {pluginId} больше нет в папке плагинов");
+            return;
+        }
+
+        var lower = dependents.Append(pluginId).ToList();
+        var raise = new List<InstalledPlugin> { installed };
+
+        foreach (var dependentId in dependents)
+        {
+            if (_installed.FirstOrDefault(plugin => plugin.Id == dependentId) is { } dependent)
+                raise.Add(dependent);
+            else
+                _log.Write(StudioLogLevel.Warning, "Plugins",
+                    $"{Named(dependentId)} зависел от {installed.DisplayName}, но пропал с диска — опущен и не поднят");
+        }
+
+        foreach (var id in lower)
+        {
+            // Задачи плагина держат его типы: не остановив их, мы выгрузим
+            // плагин только на словах — и сами же скажем, что копия осталась.
+            if (!await _tasks.StopAsync(id, TimeSpan.FromSeconds(5)))
+                _log.Write(StudioLogLevel.Warning, "Plugins", $"{Named(id)}: фоновая задача не остановилась за пять секунд");
+
+            await CloseDocumentsOfAsync(id);
+
+            // Реестры владельца уберёт подписка на Unloading; здесь —
+            // только то, чего хост знать не может: панели на экране и счёт
+            // сбоев.
+            Unmount(id);
+            _guard.Forget(id);
+        }
+
+        // Снятые контролы отпускает не список, а дерево: пока проход раскладки
+        // и отрисовки не прошёл, они ещё чьи-то. Ждём его — иначе проверка
+        // выгрузки увидит помеху, которой через миг не будет. Проход один на
+        // всех: дерево тоже одно.
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        var cascade = host.Reload(lower, raise);
+
+        foreach (var skipped in cascade.Skipped)
+            _log.Write(StudioLogLevel.Warning, "Plugins", skipped.Value);
+
+        foreach (var note in cascade.Notes)
+            _log.Write(StudioLogLevel.Warning, "Plugins", note);
+
+        foreach (var loaded in cascade.Raised)
+            Accept(loaded);
+
+        // Выгрузка кооперативная, и не удаться она может по вине любого из
+        // опущенных: подписка на событие студии, оставленный таймер,
+        // работающий поток. Каждый невыгрузившийся называется своим именем —
+        // безымянное предупреждение не говорит, кого чинить.
+        var stuck = cascade.Released
+            .Where(pair => !pair.Value)
+            .Select(pair => Named(pair.Key))
+            .ToList();
+
+        if (stuck.Count == 0)
+            return;
+
+        var warning = $"{string.Join(", ", stuck)}: прежняя копия осталась в памяти — надёжнее перезапустить студию";
+
+        _log.Write(StudioLogLevel.Warning, "Plugins", warning);
+        StatusText.Text = warning;
     }
 
     /// <summary>Строит свой контрол плагина: создать, подключить, спросить содержимое — одним куском.</summary>

@@ -73,6 +73,18 @@ public sealed class StudioToolBar
     /// <summary>Чем собирать дерево меню; null — меню пусты.</summary>
     public Func<IReadOnlyList<StudioMenuItem>>? Menu { get; set; }
 
+    /// <summary>
+    /// Чем студия дополняет своё меню снизу; null — нечем.
+    /// </summary>
+    /// <remarks>
+    /// Собственные дела студии — перезагрузка плагина, наборы раскладок — в
+    /// манифестах не объявлены и объявлены быть не могут: их пункты зависят от
+    /// того, что сейчас поднято и какая раскладка показана. Поэтому их строит
+    /// сама студия и подаёт готовыми — но только в своё меню: у плагина в его
+    /// ветке им делать нечего.
+    /// </remarks>
+    public Func<IReadOnlyList<MenuItem>>? Extra { get; set; }
+
     /// <summary>Ключ записи: хозяин и идентификатор из манифеста.</summary>
     /// <param name="owner">Плагин; null — сама студия.</param>
     /// <param name="itemId">Идентификатор элемента внутри плагина.</param>
@@ -390,6 +402,17 @@ public sealed class StudioToolBar
 
         foreach (var item in level)
             flyout.Items.Add(Build(item));
+
+        // Дела самой студии идут после чужих и за чертой: своё ниже
+        // принесённого — в меню, в отличие от полосы, вклады читают сверху.
+        if (owner is not null || Extra?.Invoke() is not { Count: > 0 } extra)
+            return;
+
+        if (flyout.Items.Count > 0)
+            flyout.Items.Add(new Separator());
+
+        foreach (var item in extra)
+            flyout.Items.Add(item);
     }
 
     private AxMenuItem Build(StudioMenuItem source)

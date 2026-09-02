@@ -61,6 +61,7 @@
   "task.cancel": "Отменить задачу",
   "studio.canvas.hint": "Здесь открываются документы — их приносят плагины",
   "common.cancel": "Отмена",
+  "common.save": "Сохранить",
   "common.close": "Закрыть",
   "common.error": "Ошибка",
   "editor.loading": "Загружаю документ…",
@@ -97,6 +98,14 @@
   "console.clear": "Очистить",
   "menu.tools": "Команды плагинов",
   "menu.activating": "Поднимаю плагин",
+  "menu.plugins": "Плагины",
+  "menu.reload": "Перезагрузить",
+  "menu.layout": "Раскладка",
+  "menu.layout.save": "Сохранить набор…",
+  "menu.layout.reset": "Сбросить раскладку",
+  "menu.layout.delete": "Удалить набор",
+  "layout.name.title": "Сохранить раскладку",
+  "layout.name.hint": "Имя набора",
   "toolbar.menu": "Меню команд",
   "toolbar.sample.verbose": "Подробный журнал примера",
   "canvas.grid": "Сетка",
@@ -107,5 +116,7 @@
   "panel.sample": "Пример модуля",
   "menu.sample": "Пример модуля",
   "menu.sample.about": "О модуле",
-  "module.sample.description": "Встроенный модуль-образец: панель, команда и служба"
+  "module.sample.description": "Встроенный модуль-образец: панель, команда и служба",
+  "module.verbose.on": "Пример: подробный журнал включён",
+  "module.verbose.off": "Пример: подробный журнал выключен"
 }

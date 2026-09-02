@@ -274,6 +274,59 @@ public class StudioToolBarTests : IDisposable
         flyout.Hide();
     }
 
+    /// <summary>
+    /// Собственные ветки студии стоят в её меню — и только в нём.
+    /// </summary>
+    /// <remarks>
+    /// Перезагрузка плагина и раскладка манифестами не объявлены и объявлены
+    /// быть не могут: их пункты зависят от того, что сейчас поднято. Строит их
+    /// студия и подаёт готовыми, а в чужую ветку они не попадают — плагину там
+    /// делать нечего.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_studio_adds_its_own_branches_to_its_own_menu_only()
+    {
+        var tools = new StudioMenuItem("Инструменты");
+
+        tools.Children.Add(new StudioMenuItem("Импорт…", "figma", "figma.import"));
+        _bar.Menu = () => [tools];
+        _bar.Extra = () => [new AxMenuItem { Header = "Раскладка" }];
+
+        var plugin = Plugin("figma", MenuOf("tools", path: null));
+
+        _bar.Add(plugin, plugin.Manifest!.Contributions.ToolBar[0]);
+        _bar.Add(null, MenuOf("menu", path: null));
+
+        var own = _bar.BuildMenu(null, "menu");
+
+        Assert.NotNull(own);
+        Assert.Equal(["Инструменты", null, "Раскладка"], own!.Items.Select(item => (item as MenuItem)?.Header));
+
+        // У плагина — только его дерево: ни черты, ни чужих веток.
+        Assert.Equal(["Инструменты"], _bar.BuildMenu("figma", "tools")!.Items.Select(item => ((MenuItem)item!).Header));
+    }
+
+    /// <summary>
+    /// Нечего показать сверху — и черты нет.
+    /// </summary>
+    /// <remarks>
+    /// Студия без единого плагина показывает одну раскладку, и висящая над ней
+    /// черта отделяла бы её от пустоты.
+    /// </remarks>
+    [AvaloniaFact]
+    public void An_empty_tree_leaves_the_studio_branches_without_a_separator()
+    {
+        _bar.Menu = () => [];
+        _bar.Extra = () => [new AxMenuItem { Header = "Раскладка" }];
+
+        _bar.Add(null, MenuOf("menu", path: null));
+
+        var own = _bar.BuildMenu(null, "menu");
+
+        Assert.NotNull(own);
+        Assert.Equal(["Раскладка"], own!.Items.Select(item => ((MenuItem)item!).Header));
+    }
+
     /// <summary>Лист меню зовёт свою команду той же дорогой, что кнопка.</summary>
     [AvaloniaFact]
     public void A_menu_leaf_invokes_its_command()
