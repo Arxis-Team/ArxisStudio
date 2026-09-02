@@ -17,7 +17,7 @@
     ],
     "toolBar": [
       { "id": "sample.verbose", "kind": "button", "slot": "left", "command": "sample.verbose",
-        "icon": "arxis:Package", "title": "%toolbar.sample.verbose%" }
+        "icon": "arxis:Terminal", "title": "%toolbar.sample.verbose%" }
     ]
   },
   "activation": [ "onStartup" ]

@@ -61,14 +61,28 @@ public sealed class SampleModule : StudioPlugin
     /// </summary>
     /// <remarks>
     /// Кнопка в полосе становится переключателем не сама: студия ничего у
-    /// модуля не спрашивает, а помнит то, что он сказал. Служба может
-    /// отсутствовать — у студии без полосы, — и модуль обязан это пережить.
+    /// модуля не спрашивает, а помнит то, что он сказал. Обе службы могут
+    /// отсутствовать — у студии без полосы или без строки состояния, — и модуль
+    /// обязан это пережить.
+    /// <para>
+    /// О переключении сказано и в строке состояния: сам журнал уходит в
+    /// стандартный вывод, панели под него в студии нет, и без этого нажатие
+    /// оставалось бы без единого видимого следа.
+    /// </para>
     /// </remarks>
     private void ToggleVerbose()
     {
+        if (_context is null)
+            return;
+
         _verbose = !_verbose;
 
-        _context?.GetService<IStudioToolBar>()?.Update(VerboseCommand, isChecked: _verbose);
-        _context?.Log.Write(StudioLogLevel.Info, "Пример", _verbose ? "Подробный журнал включён" : "Подробный журнал выключен");
+        var said = _verbose
+            ? _context.Strings["module.verbose.on"]
+            : _context.Strings["module.verbose.off"];
+
+        _context.GetService<IStudioToolBar>()?.Update(VerboseCommand, isChecked: _verbose);
+        _context.GetService<IStudioStatus>()?.Show(said);
+        _context.Log.Write(StudioLogLevel.Info, "Пример", said);
     }
 }
