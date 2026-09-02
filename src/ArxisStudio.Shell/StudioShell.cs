@@ -16,7 +16,7 @@ namespace ArxisStudio.Shell;
 /// </remarks>
 public class StudioShell : ContentControl
 {
-    /// <summary>Содержимое верхнего тулбара (42px).</summary>
+    /// <summary>Содержимое верхнего тулбара; высоту задаёт оно само.</summary>
     public static readonly StyledProperty<object?> TopBarProperty =
         AvaloniaProperty.Register<StudioShell, object?>(nameof(TopBar));
 
