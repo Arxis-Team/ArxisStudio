@@ -29,7 +29,15 @@ public sealed class AvaloniaWidgetAnalyzer : DiagnosticAnalyzer
     /// <summary>Код диагностики.</summary>
     public const string DiagnosticId = "ARX0001";
 
-    private const string ControlsAssembly = "ArxisStudio.Controls";
+    /// <summary>
+    /// Сборки, чьи контролы считаются контролами студии.
+    /// </summary>
+    /// <remarks>
+    /// Их две: виджеты и набор иконок. <c>AxIcon</c> живёт отдельной
+    /// библиотекой, но остаётся контролом студии: наследника от него
+    /// правило трогать не должно по той же причине, что и наследника <c>AxButton</c>.
+    /// </remarks>
+    private static readonly string[] StudioAssemblies = ["ArxisStudio.Controls", "ArxisStudio.Icons"];
     private const string TemplatedControl = "Avalonia.Controls.Primitives.TemplatedControl";
 
     private static readonly DiagnosticDescriptor Rule = new(
@@ -123,7 +131,7 @@ public sealed class AvaloniaWidgetAnalyzer : DiagnosticAnalyzer
     }
 
     private static bool IsStudioControl(ISymbol type) =>
-        type.ContainingAssembly?.Name == ControlsAssembly;
+        type.ContainingAssembly?.Name is { } name && System.Array.IndexOf(StudioAssemblies, name) >= 0;
 
     private static bool IsAvalonia(ISymbol type) =>
         type.ContainingAssembly?.Name is { } name &&
