@@ -25,8 +25,24 @@ internal static class TestAssembly
     /// <param name="name">Имя сборки.</param>
     /// <param name="source">Исходный код.</param>
     /// <param name="manifest">Содержимое <c>module.json</c>; null — без манифеста.</param>
-    public static Assembly Emit(string name, string source, string? manifest = null)
+    public static Assembly Emit(string name, string source, string? manifest = null) =>
+        Emit(name, [source], manifest);
+
+    /// <summary>
+    /// Компилирует сборку из нескольких файлов.
+    /// </summary>
+    /// <param name="name">Имя сборки.</param>
+    /// <param name="sources">Исходные файлы.</param>
+    /// <param name="manifest">Содержимое <c>module.json</c>; null — без манифеста.</param>
+    /// <remarks>
+    /// Файлов бывает больше одного там, где проверяется не случай, а готовая
+    /// раскладка: у шаблона плагина точка входа и панель лежат порознь, и
+    /// склеить их в один файл значило бы проверять не то, что получит автор.
+    /// </remarks>
+    public static Assembly Emit(string name, IEnumerable<string> sources, string? manifest = null)
     {
+        ArgumentNullException.ThrowIfNull(sources);
+
         var references = AppDomain.CurrentDomain.GetAssemblies()
             .Where(assembly => !assembly.IsDynamic && assembly.Location.Length > 0)
             .Select(assembly => assembly.Location)
@@ -36,7 +52,7 @@ internal static class TestAssembly
 
         var compilation = CSharpCompilation.Create(
             name,
-            [CSharpSyntaxTree.ParseText(source)],
+            sources.Select(text => CSharpSyntaxTree.ParseText(text)),
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
