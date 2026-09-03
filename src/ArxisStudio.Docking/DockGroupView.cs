@@ -1,7 +1,10 @@
 using ArxisStudio.Controls;
+using ArxisStudio.Icons;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 
 namespace ArxisStudio.Docking;
 
@@ -20,6 +23,8 @@ public class DockGroupView : TemplatedControl
     private readonly List<IDisposable> _bound = [];
     private AxTabStrip? _tabs;
     private ContentControl? _content;
+    private Button? _collapse;
+    private AxIcon? _fold;
     /// <summary>
     /// Есть ли в группе хоть одна вкладка.
     /// </summary>
@@ -54,6 +59,36 @@ public class DockGroupView : TemplatedControl
     public static readonly StyledProperty<object?> ActionsProperty =
         AvaloniaProperty.Register<DockGroupView, object?>(nameof(Actions));
 
+    /// <summary>
+    /// Группа свёрнута: тело спрятано, полоса вкладок осталась.
+    /// </summary>
+    /// <remarks>
+    /// Свойство вида повторяет то, что записано в дереве: рисует вид, а решает
+    /// хозяин раскладки — он же и сохраняет решение между запусками.
+    /// </remarks>
+    public static readonly StyledProperty<bool> CollapsedProperty =
+        AvaloniaProperty.Register<DockGroupView, bool>(nameof(Collapsed));
+
+    /// <summary>
+    /// Показывать ли кнопку сворачивания.
+    /// </summary>
+    /// <remarks>
+    /// Сворачивать имеет смысл там, где освободившееся место кому-то достанется:
+    /// у группы должен быть сосед. Одинокая группа, свёрнутая в полосу, оставила
+    /// бы под собой пустоту, а пол рабочей области не сворачивается вовсе —
+    /// документы не прячут.
+    /// </remarks>
+    public static readonly StyledProperty<bool> CanCollapseProperty =
+        AvaloniaProperty.Register<DockGroupView, bool>(nameof(CanCollapse));
+
+    /// <summary>Подпись кнопки, когда она сворачивает.</summary>
+    public static readonly StyledProperty<string?> CollapseTitleProperty =
+        AvaloniaProperty.Register<DockGroupView, string?>(nameof(CollapseTitle));
+
+    /// <summary>Подпись кнопки, когда она разворачивает.</summary>
+    public static readonly StyledProperty<string?> ExpandTitleProperty =
+        AvaloniaProperty.Register<DockGroupView, string?>(nameof(ExpandTitle));
+
     private bool _hasTabs;
     private DockGroup? _group;
     private DockItems? _items;
@@ -67,6 +102,15 @@ public class DockGroupView : TemplatedControl
     /// правки, и спрашивать о них — не дело вида.
     /// </remarks>
     public event EventHandler<string>? Closing;
+
+    /// <summary>
+    /// Человек попросил свернуть или развернуть группу; в поле — чего он хочет.
+    /// </summary>
+    /// <remarks>
+    /// Как и с закрытием, вид только просит: свёрнутость живёт в дереве
+    /// раскладки, и записать её может лишь тот, кто деревом владеет.
+    /// </remarks>
+    public event EventHandler<bool>? CollapseRequested;
 
     /// <summary>Человек выбрал вкладку; в поле — имя панели.</summary>
     /// <remarks>
@@ -91,6 +135,34 @@ public class DockGroupView : TemplatedControl
     {
         get => GetValue(ActionsProperty);
         set => SetValue(ActionsProperty, value);
+    }
+
+    /// <inheritdoc cref="CollapsedProperty"/>
+    public bool Collapsed
+    {
+        get => GetValue(CollapsedProperty);
+        set => SetValue(CollapsedProperty, value);
+    }
+
+    /// <inheritdoc cref="CanCollapseProperty"/>
+    public bool CanCollapse
+    {
+        get => GetValue(CanCollapseProperty);
+        set => SetValue(CanCollapseProperty, value);
+    }
+
+    /// <inheritdoc cref="CollapseTitleProperty"/>
+    public string? CollapseTitle
+    {
+        get => GetValue(CollapseTitleProperty);
+        set => SetValue(CollapseTitleProperty, value);
+    }
+
+    /// <inheritdoc cref="ExpandTitleProperty"/>
+    public string? ExpandTitle
+    {
+        get => GetValue(ExpandTitleProperty);
+        set => SetValue(ExpandTitleProperty, value);
     }
 
     /// <inheritdoc cref="HasTabsProperty"/>
@@ -188,6 +260,7 @@ public class DockGroupView : TemplatedControl
         _items = items;
         _empty = empty;
         _ghost = ghost;
+        Collapsed = group.Collapsed;
 
         Fill();
     }
@@ -216,11 +289,21 @@ public class DockGroupView : TemplatedControl
         if (_tabs is not null)
             _tabs.SelectionChanged -= OnChosen;
 
+        if (_collapse is not null)
+            _collapse.Click -= OnCollapse;
+
         _tabs = e.NameScope.Find<AxTabStrip>("PART_Tabs");
         _content = e.NameScope.Find<ContentControl>("PART_Content");
+        _collapse = e.NameScope.Find<Button>("PART_Collapse");
+        _fold = e.NameScope.Find<AxIcon>("PART_Fold");
 
         if (_tabs is not null)
             _tabs.SelectionChanged += OnChosen;
+
+        if (_collapse is not null)
+            _collapse.Click += OnCollapse;
+
+        Describe();
 
         Fill();
     }
@@ -325,6 +408,45 @@ public class DockGroupView : TemplatedControl
         }
     }
 
+    /// <inheritdoc/>
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+
+        if (change.Property == CollapsedProperty
+            || change.Property == CollapseTitleProperty
+            || change.Property == ExpandTitleProperty)
+        {
+            Describe();
+        }
+    }
+
+    /// <summary>
+    /// Подписывает кнопку тем, что она сделает.
+    /// </summary>
+    /// <remarks>
+    /// Подпись у кнопки одна, а смыслов два, и меняются они местами вместе со
+    /// свёрнутостью: «свернуть» на развёрнутой, «развернуть» на свёрнутой. Она
+    /// же подсказка и она же имя для средств доступности — на кнопке значок
+    /// 12×12, и узнать о ней больше неоткуда.
+    /// </remarks>
+    private void Describe()
+    {
+        if (_fold is not null)
+            _fold.Data = Collapsed ? AxIcons.WindowRestore : AxIcons.WindowMinimize;
+
+        if (_collapse is null)
+            return;
+
+        var title = Collapsed ? ExpandTitle : CollapseTitle;
+
+        ToolTip.SetTip(_collapse, title);
+        AutomationProperties.SetName(_collapse, title ?? string.Empty);
+    }
+
+    /// <summary>Кнопка в шапке просит перевернуть свёрнутость.</summary>
+    private void OnCollapse(object? sender, RoutedEventArgs e) => CollapseRequested?.Invoke(this, !Collapsed);
+
     private void OnChosen(object? sender, SelectionChangedEventArgs e)
     {
         if (_filling || _tabs is null || _content is null)
@@ -339,6 +461,11 @@ public class DockGroupView : TemplatedControl
         // щелчок по вкладке обязан показать панель, даже если хозяин раскладки
         // ответит на это событие позже или не ответит вовсе.
         _content.Content = _items?.Find(_shown[at])?.Content;
+
+        // Выбранная вкладка свёрнутой группы — просьба её развернуть: человек
+        // ткнул в панель, чтобы её увидеть, а не чтобы выбрать её вслепую.
+        if (Collapsed)
+            CollapseRequested?.Invoke(this, false);
 
         Chosen?.Invoke(this, _shown[at]);
     }

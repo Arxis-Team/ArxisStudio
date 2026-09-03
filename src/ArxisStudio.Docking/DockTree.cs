@@ -113,7 +113,9 @@ public static class DockTree
 
             items.Insert(at < 0 || at > items.Count ? items.Count : at, item);
 
-            return new DockGroup { Id = group.Id, Items = items, Selected = item };
+            // Свёрнутость переносится: панель, пришедшая в свёрнутую группу,
+            // не повод разворачивать её человеку за спиной.
+            return new DockGroup { Id = group.Id, Items = items, Selected = item, Collapsed = group.Collapsed };
         });
     }
 
@@ -314,6 +316,42 @@ public static class DockTree
             Id = group.Id,
             Items = group.Items,
             Selected = item,
+            Collapsed = group.Collapsed,
+        });
+    }
+
+    /// <summary>
+    /// Сворачивает или разворачивает группу.
+    /// </summary>
+    /// <param name="root">Корень дерева.</param>
+    /// <param name="groupId">Какую группу.</param>
+    /// <param name="collapsed">Свернуть или развернуть.</param>
+    /// <returns>Новое дерево; прежнее, если группы нет или она уже такая.</returns>
+    /// <remarks>
+    /// Доля группы в делении не трогается, и это главное: свёрнутая группа
+    /// занимает столько, сколько нужно её полосе вкладок, а её прежний размер
+    /// ждёт в дереве. Иначе разворот возвращал бы панель шириной в шапку.
+    /// <para>
+    /// Правка, ничего не изменившая, возвращает то же дерево: перекладка ради
+    /// неё снесла бы и построила заново всё окно, а с ним пропал бы курсор в
+    /// панели, где человек печатает.
+    /// </para>
+    /// </remarks>
+    public static DockNode Collapse(DockNode root, string groupId, bool collapsed)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+
+        var group = root.Groups().FirstOrDefault(candidate => string.Equals(candidate.Id, groupId, StringComparison.Ordinal));
+
+        if (group is null || group.Collapsed == collapsed)
+            return root;
+
+        return Rewrite(root, groupId, node => new DockGroup
+        {
+            Id = node.Id,
+            Items = node.Items,
+            Selected = node.Selected,
+            Collapsed = collapsed,
         });
     }
 
@@ -614,6 +652,7 @@ public static class DockTree
                     Selected = group.Selected is { } chosen && items.Contains(chosen, StringComparer.Ordinal)
                         ? chosen
                         : items.FirstOrDefault(),
+                    Collapsed = group.Collapsed,
                 };
 
             case DockSplit split:

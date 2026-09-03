@@ -27,6 +27,8 @@
 
     <ItemGroup>
         <ProjectReference Include="../../external/ArxisStudio.Controls/src/ArxisStudio.Controls.csproj"/>
+        <!-- Набор иконок: кнопка сворачивания рисуется тем же контуром, что и вся студия. -->
+        <ProjectReference Include="../../external/ArxisStudio.Icons/src/ArxisStudio.Icons.csproj"/>
     </ItemGroup>
 
     <!--

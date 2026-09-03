@@ -21,6 +21,17 @@ namespace ArxisStudio.Docking;
 public sealed record DockResize(IReadOnlyList<int> Path, IReadOnlyList<double> Weights);
 
 /// <summary>
+/// Просьба свернуть или развернуть группу: чью и чего хотят.
+/// </summary>
+/// <param name="Group">Имя группы.</param>
+/// <param name="Collapsed">Свернуть или развернуть.</param>
+/// <remarks>
+/// В просьбе — желаемое, а не «переверни»: пока она идёт до дерева и обратно,
+/// щелчок мог повториться, и «переверни» дважды вернуло бы всё как было.
+/// </remarks>
+public sealed record DockCollapse(string Group, bool Collapsed);
+
+/// <summary>
 /// Вкладка в пути или отпущенная: что несут и где сейчас курсор.
 /// </summary>
 /// <param name="Item">Имя панели.</param>
@@ -126,6 +137,20 @@ public class DockView : Decorator
     public static readonly StyledProperty<Func<Control>?> ActionsProperty =
         AvaloniaProperty.Register<DockView, Func<Control>?>(nameof(Actions));
 
+    /// <summary>
+    /// Подписи кнопки сворачивания: что она сделает, свёрнутая и развёрнутая.
+    /// </summary>
+    /// <remarks>
+    /// Текст приходит снаружи: движок докинга не знает ни о языках студии, ни
+    /// о её словарях, и знать не должен — он живёт отдельной библиотекой.
+    /// </remarks>
+    public static readonly StyledProperty<string?> CollapseTitleProperty =
+        AvaloniaProperty.Register<DockView, string?>(nameof(CollapseTitle));
+
+    /// <inheritdoc cref="CollapseTitleProperty"/>
+    public static readonly StyledProperty<string?> ExpandTitleProperty =
+        AvaloniaProperty.Register<DockView, string?>(nameof(ExpandTitle));
+
     /// <summary>Черта в полосе вкладок: у неё вкладка и встанет.</summary>
     private Border? _caret;
 
@@ -136,6 +161,13 @@ public class DockView : Decorator
         EmptyProperty.Changed.AddClassHandler<DockView>((view, _) => view.Rebuild());
         EmptyGroupProperty.Changed.AddClassHandler<DockView>((view, _) => view.Rebuild());
         ActionsProperty.Changed.AddClassHandler<DockView>((view, _) => view.Hang());
+
+        // Подписи раздаются значением, а не привязкой: привязка на каждую
+        // перекладку оставляла бы за собой подписку на вид группы, а живой вид
+        // держит контрол панели — и плагин, которого выключили, не выгрузился
+        // бы никогда.
+        CollapseTitleProperty.Changed.AddClassHandler<DockView>((view, _) => view.Retitle());
+        ExpandTitleProperty.Changed.AddClassHandler<DockView>((view, _) => view.Retitle());
     }
 
     /// <summary>Заводит вид и подписывается на мышь.</summary>
@@ -185,6 +217,13 @@ public class DockView : Decorator
     /// </remarks>
     public event EventHandler<DockDrag>? Dropped;
 
+    /// <summary>Человек попросил свернуть или развернуть группу.</summary>
+    /// <remarks>
+    /// Как и с размером, вид только просит: свёрнутость живёт в дереве, а дерево
+    /// принадлежит студии — она же его и сохраняет.
+    /// </remarks>
+    public event EventHandler<DockCollapse>? Collapsing;
+
     /// <summary>Человек попросил закрыть панель; в поле — её имя.</summary>
     public event EventHandler<string>? Closing;
 
@@ -222,6 +261,20 @@ public class DockView : Decorator
     {
         get => GetValue(ActionsProperty);
         set => SetValue(ActionsProperty, value);
+    }
+
+    /// <inheritdoc cref="CollapseTitleProperty"/>
+    public string? CollapseTitle
+    {
+        get => GetValue(CollapseTitleProperty);
+        set => SetValue(CollapseTitleProperty, value);
+    }
+
+    /// <inheritdoc cref="ExpandTitleProperty"/>
+    public string? ExpandTitle
+    {
+        get => GetValue(ExpandTitleProperty);
+        set => SetValue(ExpandTitleProperty, value);
     }
 
     /// <inheritdoc cref="EmptyGroupProperty"/>
@@ -674,6 +727,16 @@ public class DockView : Decorator
         Hang();
     }
 
+    /// <summary>Раздаёт группам нынешние подписи кнопки сворачивания.</summary>
+    private void Retitle()
+    {
+        foreach (var view in _groups.Values)
+        {
+            view.CollapseTitle = CollapseTitle;
+            view.ExpandTitle = ExpandTitle;
+        }
+    }
+
     /// <summary>Вешает кнопки в шапку угловой группы, у остальных снимает.</summary>
     /// <remarks>
     /// Угол считается среди показанных групп: у панели выключенного плагина имя
@@ -721,12 +784,24 @@ public class DockView : Decorator
                 view = new DockGroupView();
                 view.Chosen += (_, id) => Chosen?.Invoke(this, id);
                 view.Closing += (_, id) => Closing?.Invoke(this, id);
+
+                // Имя группы берётся у самого вида, а не из замыкания: та же
+                // группа переживает перекладку, а её узел в дереве — нет.
+                view.CollapseRequested += (sender, collapsed) =>
+                    Collapsing?.Invoke(this, new DockCollapse(((DockGroupView)sender!).Id, collapsed));
+
                 _groups[group.Id] = view;
             }
 
             // Названная группа — пол рабочей области: она остаётся на месте,
             // даже опустев, и красится в цвет оболочки, а не панели.
             view.Standing = named;
+
+            // Сворачивать одинокую группу и пол рабочей области не дают: место
+            // первой никому не достанется, а документы не прячут.
+            view.CanCollapse = false;
+            view.CollapseTitle = CollapseTitle;
+            view.ExpandTitle = ExpandTitle;
             view.Update(group, items, named ? Empty : null);
 
             return view;
@@ -750,39 +825,80 @@ public class DockView : Decorator
             return shown[0].Control;
 
         var grid = new Grid();
-        var visible = shown.Select(child => child.At).ToList();
+
+        // Полосы, которые делят место между собой. Свёрнутая группа в дележе
+        // не участвует: на экране она занимает столько, сколько нужно её
+        // шапке, а её доля ждёт в дереве нетронутой.
+        var sized = new List<(int At, int Row)>();
 
         for (var number = 0; number < shown.Count; number++)
         {
-            if (number > 0)
-                Line(grid, down, path, shares, visible);
+            var (control, at) = shown[number];
+            var folded = Folded(split.Children[at]);
 
-            Put(grid, down, shown[number].Control,
-                Row(grid, down, new GridLength(shares[shown[number].At], GridUnitType.Star)));
+            // Соседей у показанного здесь по определению больше одного —
+            // значит, освободившееся место достанется им.
+            if (control is DockGroupView neighbour && !neighbour.Standing)
+                neighbour.CanCollapse = true;
+
+            if (number > 0)
+                Line(grid, down, path, shares, sized, folded || Folded(split.Children[shown[number - 1].At]));
+
+            var row = Row(grid, down, folded ? GridLength.Auto : new GridLength(shares[at], GridUnitType.Star));
+
+            Put(grid, down, control, row);
+
+            if (!folded)
+                sized.Add((at, row));
         }
 
         return grid;
     }
 
-    /// <summary>Ставит между соседями границу, за которую можно взяться.</summary>
+    /// <summary>
+    /// Ставит между соседями границу, за которую можно взяться.
+    /// </summary>
+    /// <param name="grid">Сетка деления.</param>
+    /// <param name="down">Деление идёт сверху вниз.</param>
+    /// <param name="path">Путь к делению от корня.</param>
+    /// <param name="shares">Доли всех детей — и показанных, и нет.</param>
+    /// <param name="sized">Кто делит место: номер ребёнка и его полоса в сетке.</param>
+    /// <param name="frozen">
+    /// Граница рядом со свёрнутой группой: линия остаётся, тянуть нечего.
+    /// </param>
+    /// <remarks>
+    /// Неподвижная граница не просто не слушает тягу — она её и не принимает:
+    /// у свёрнутой группы размер по шапке, и сплиттер, дотянувшись до неё,
+    /// молча выдал бы ей пиксели вместо доли, а из пикселей доля обратно уже
+    /// не считается.
+    /// </remarks>
     private void Line(
         Grid grid,
         bool down,
         IReadOnlyList<int> path,
         IReadOnlyList<double> shares,
-        IReadOnlyList<int> visible)
+        IReadOnlyList<(int At, int Row)> sized,
+        bool frozen)
     {
         var splitter = new GridSplitter
         {
             Classes = { down ? "dock-h" : "dock-v" },
             ResizeDirection = down ? GridResizeDirection.Rows : GridResizeDirection.Columns,
+            IsEnabled = !frozen,
         };
 
-        splitter.DragCompleted += (_, _) =>
-            Resized?.Invoke(this, new DockResize(path, Spread(shares, visible, Shares(grid, down))));
+        if (!frozen)
+        {
+            splitter.DragCompleted += (_, _) => Resized?.Invoke(this, new DockResize(
+                path,
+                Spread(shares, [.. sized.Select(item => item.At)], Shares(grid, down, [.. sized.Select(item => item.Row)]))));
+        }
 
         Put(grid, down, splitter, Row(grid, down, new GridLength(1)));
     }
+
+    /// <summary>Свёрнут ли узел; свёрнутой бывает только группа.</summary>
+    private static bool Folded(DockNode node) => node is DockGroup { Collapsed: true };
 
     /// <summary>
     /// Раскладывает померенные доли по местам, не трогая спрятанных.
@@ -833,25 +949,26 @@ public class DockView : Decorator
         grid.Children.Add(control);
     }
 
-    /// <summary>Снимает доли с сетки.</summary>
+    /// <summary>Снимает доли с названных полос сетки.</summary>
+    /// <param name="grid">Сетка деления.</param>
+    /// <param name="down">Деление идёт сверху вниз.</param>
+    /// <param name="rows">Полосы, делящие место, по порядку детей.</param>
     /// <remarks>
     /// Берём объявленные длины, а не занятое место: сплиттер переписывает
     /// длины сразу, а место обновится только на следующем проходе раскладки, и
     /// доли вышли бы вчерашними — граница возвращалась бы на место, едва её
     /// отпустили.
     /// <para>
-    /// Содержимое стоит по чётным полосам, между ними линии; единица измерения
-    /// для отбора не годится — сплиттер вправе переписать доли в пиксели, и
-    /// тогда «звёздочка» перестала бы отличать одно от другого.
+    /// Полосы названы поимённо, а не отобраны по чётности: между содержимым
+    /// стоят линии, а свёрнутая группа сидит на полосе с размером по шапке —
+    /// ни то, ни другое к дележу места отношения не имеет.
     /// </para>
     /// </remarks>
-    private static IReadOnlyList<double> Shares(Grid grid, bool down)
+    private static IReadOnlyList<double> Shares(Grid grid, bool down, IReadOnlyList<int> rows)
     {
-        var count = down ? grid.RowDefinitions.Count : grid.ColumnDefinitions.Count;
-        var sizes = new List<double>();
-
-        for (var at = 0; at < count; at += 2)
-            sizes.Add(down ? grid.RowDefinitions[at].Height.Value : grid.ColumnDefinitions[at].Width.Value);
+        var sizes = rows
+            .Select(at => down ? grid.RowDefinitions[at].Height.Value : grid.ColumnDefinitions[at].Width.Value)
+            .ToList();
 
         return DockTree.Normalize(sizes);
     }

@@ -94,6 +94,7 @@
   "action.add": "Add",
   "action.find": "Find",
   "action.collapse": "Collapse the panel",
+  "action.expand": "Expand panel",
   "action.options": "Panel options",
   "console.clear": "Clear",
   "menu.tools": "Plugin commands",

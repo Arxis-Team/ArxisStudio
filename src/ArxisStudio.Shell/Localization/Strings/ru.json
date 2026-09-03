@@ -94,6 +94,7 @@
   "action.add": "Добавить",
   "action.find": "Найти",
   "action.collapse": "Свернуть панель",
+  "action.expand": "Развернуть панель",
   "action.options": "Настройки панели",
   "console.clear": "Очистить",
   "menu.tools": "Команды плагинов",

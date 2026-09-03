@@ -9,6 +9,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -481,6 +482,48 @@ public class StudioDockTests : IDisposable
         Assert.Equal(
             "hello:tree",
             saved.Current.Floating[0].Root.Groups().Single().Items.Single());
+    }
+
+    /// <summary>
+    /// Свёрнутая панель остаётся свёрнутой и после перезапуска.
+    /// </summary>
+    /// <remarks>
+    /// Кнопка в шапке только просит: записывает свёрнутость в дерево студия, и
+    /// она же уносит её в файл вместе с остальной раскладкой. Разорвись эта
+    /// дорога — панель разворачивалась бы обратно при каждом запуске, а человек
+    /// сворачивал бы её заново.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_folded_panel_comes_back_folded()
+    {
+        var store = new DockLayoutStore(File);
+        var (first, view, _) = Two(store);
+        var group = view.View("left")!;
+
+        Assert.True(group.CanCollapse, "у панели с соседом нет кнопки сворачивания");
+
+        var button = group.GetVisualDescendants().OfType<AxButton>().Single(item => item.Name == "PART_Collapse");
+
+        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(
+            view.Root!.Groups().Single(candidate => candidate.Id == "left").Collapsed,
+            "нажатие на кнопку не дошло до дерева");
+
+        first.Flush();
+
+        var (second, next) = Dock(new DockLayoutStore(File));
+
+        second.Restore();
+        second.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
+        second.Add("friend", "friend:tips", At("right"), "Советы", Strings, new Border());
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(
+            next.Root!.Groups().Single(candidate => candidate.Id == "left").Collapsed,
+            "после перезапуска панель развернулась сама");
+        Assert.True(next.View("left")!.Collapsed, "дерево помнит свёрнутость, а вид её не показывает");
     }
 
     /// <summary>Оторванные окна переживают перезапуск студии вместе с местом на экране.</summary>
@@ -1985,8 +2028,10 @@ public class StudioDockTests : IDisposable
 
         Assert.Equal(0, grabbed);
 
-        // Пустое место той же шапки — правее последней вкладки.
-        var empty = DockMouse.Inside(group, 0.9, 0, window)
+        // Пустое место той же шапки — правее последней вкладки, но левее
+        // кнопки сворачивания: правый край шапки принадлежит ей, и нажатие на
+        // кнопку окна не двигает — это нажатие на кнопку.
+        var empty = DockMouse.Inside(group, 0.6, 0, window)
             + new Vector(0, group.HeaderHeight / 2);
 
         DockMouse.Click(window, empty);

@@ -1,4 +1,4 @@
-<!--
+﻿<!--
     Стили движка докинга: вид группы вкладок и границы между областями.
     Подключается приложением после темы:  <dock:DockingStyles/>
 -->
@@ -6,7 +6,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="ArxisStudio.Docking.DockingStyles"
         xmlns:dock="using:ArxisStudio.Docking"
-        xmlns:ax="using:ArxisStudio.Controls">
+        xmlns:ax="using:ArxisStudio.Controls"
+        xmlns:axi="using:ArxisStudio.Icons">
 
   <Styles.Resources>
     <ResourceDictionary>
@@ -30,10 +31,36 @@
                              ShowHeader="{TemplateBinding HasTabs}"
                              Actions="{TemplateBinding Actions}"
                              CornerRadius="0">
+              <!--
+                  Кнопка сворачивания едет вместе с вкладками, а не в правом
+                  краю шапки: правый край принадлежит хозяину группы — туда
+                  оторванное окно кладёт свои кнопки, — и заняв его собой, мы
+                  оставили бы окно без крестика. Скрытый ребёнок DockPanel
+                  места не занимает, поэтому у группы, которой сворачиваться
+                  некуда, шапка остаётся прежней, а вкладки — во всю ширину.
+
+                  Подпись у кнопки меняется вместе с её смыслом, и ставит её
+                  код: смыслов два, а свойство одно.
+              -->
               <ax:AxToolWindow.Tabs>
-                <ax:AxTabStrip x:Name="PART_Tabs" Theme="{DynamicResource AxToolWindowTabStrip}"/>
+                <DockPanel>
+                  <ax:AxButton x:Name="PART_Collapse" DockPanel.Dock="Right" Classes="icon"
+                               VerticalAlignment="Center"
+                               IsVisible="{TemplateBinding CanCollapse}">
+                    <!--
+                        Контур ставит код, а не привязка. Содержимое кнопки
+                        переезжает в её собственный шаблон, и хозяин шаблона у
+                        переехавшего меняется с группы на кнопку: и привязка к
+                        TemplatedParent, и TemplateBinding перестают находить
+                        свойство молча — оба значка остались бы на виду разом.
+                    -->
+                    <axi:AxIcon x:Name="PART_Fold" Classes="small"/>
+                  </ax:AxButton>
+                  <ax:AxTabStrip x:Name="PART_Tabs" Theme="{DynamicResource AxToolWindowTabStrip}"/>
+                </DockPanel>
               </ax:AxToolWindow.Tabs>
-              <ContentControl x:Name="PART_Content"/>
+              <ContentControl x:Name="PART_Content"
+                              IsVisible="{TemplateBinding Collapsed, Converter={x:Static BoolConverters.Not}}"/>
             </ax:AxToolWindow>
           </ControlTemplate>
         </Setter>

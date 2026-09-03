@@ -857,13 +857,17 @@ public class DockViewTests
     }
 
     /// <summary>
-    /// Полоса вкладок занимает шапку целиком, не считая её отступов.
+    /// Полоса вкладок занимает шапку целиком, не считая отступов и кнопки.
     /// </summary>
     /// <remarks>
     /// Отступ до вкладок принадлежит заголовку панели: он их от него отделяет. У
     /// группы доков заголовка нет никогда — подписаны сами вкладки, — и лишние
     /// двенадцать пикселей отделяли вкладки от пустоты, съедая место, на которое
     /// их и помещается на одну больше.
+    /// <para>
+    /// Правый край шапки занимает кнопка сворачивания, и вкладки кончаются ровно
+    /// у неё: пустого места между ними быть не должно по той же причине.
+    /// </para>
     /// </remarks>
     [AvaloniaFact]
     public void The_tab_strip_fills_the_header_it_lives_in()
@@ -877,14 +881,24 @@ public class DockViewTests
 
         var strip = group.GetVisualDescendants().OfType<AxTabStrip>().First();
         var corner = strip.TranslatePoint(default, header);
+        var button = group.GetVisualDescendants()
+            .OfType<AxButton>()
+            .Single(candidate => candidate.Name == "PART_Collapse");
+        var edge = button.TranslatePoint(default, header);
 
         Assert.NotNull(corner);
+        Assert.NotNull(edge);
+        Assert.True(button.IsVisible, "кнопка сворачивания спряталась у группы с соседом");
 
         // Ровно отступ шапки — и ни пикселем больше.
         Assert.Equal(header.Padding.Left, corner.Value.X);
+
+        // Вкладки кончаются там, где начинается кнопка, а кнопка — у правого
+        // отступа шапки: ни одного потерянного пикселя между ними.
+        Assert.Equal(edge.Value.X, corner.Value.X + strip.Bounds.Width);
         Assert.Equal(
-            header.Bounds.Width - header.Padding.Left - header.Padding.Right,
-            strip.Bounds.Width);
+            header.Bounds.Width - header.Padding.Right,
+            edge.Value.X + button.Bounds.Width);
     }
 
     /// <summary>

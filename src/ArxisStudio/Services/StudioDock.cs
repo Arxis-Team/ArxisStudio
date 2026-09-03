@@ -143,6 +143,7 @@ public sealed class StudioDock
         };
 
         _view.Resized += (_, resize) => Edit(root => DockTree.Resize(root, resize.Path, resize.Weights));
+        _view.Collapsing += (_, fold) => Edit(root => DockTree.Collapse(root, fold.Group, fold.Collapsed));
         _view.Closing += (_, id) => Closing?.Invoke(this, id);
 
         Follow(_view);
@@ -605,6 +606,9 @@ public sealed class StudioDock
 
         window.View.Resized += (_, resize) =>
             Change(window, root => DockTree.Resize(root, resize.Path, resize.Weights));
+
+        window.View.Collapsing += (_, fold) =>
+            Change(window, root => DockTree.Collapse(root, fold.Group, fold.Collapsed));
 
         window.View.Closing += (_, id) => Closing?.Invoke(this, id);
 

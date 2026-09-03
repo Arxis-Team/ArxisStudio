@@ -62,7 +62,9 @@
         документы открываются в названную группу; заставка достаётся ей же,
         пока в ней пусто.
     -->
-    <dock:DockView x:Name="Dock">
+    <dock:DockView x:Name="Dock"
+                   CollapseTitle="{loc:Loc action.collapse}"
+                   ExpandTitle="{loc:Loc action.expand}">
       <dock:DockView.Empty>
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
           <TextBlock Classes="dim" Text="ArxisStudio" FontSize="{DynamicResource AxFontSizeTitle}" FontWeight="SemiBold" HorizontalAlignment="Center"/>
