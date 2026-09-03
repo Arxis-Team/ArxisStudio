@@ -184,7 +184,8 @@ public partial class MainWindow : AxWindow
             guard: _guard,
             plugins: roster,
             exports: _exports,
-            toolbar: _toolbar));
+            toolbar: _toolbar,
+            dock: _dock));
 
         // Уборка реестров, заведённых на владельца, — по одному сигналу от
         // хоста: он один знает про все дороги выгрузки. Раньше её переписывал
