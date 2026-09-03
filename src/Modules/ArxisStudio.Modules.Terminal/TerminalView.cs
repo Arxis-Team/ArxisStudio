@@ -184,10 +184,20 @@ public sealed class TerminalView : Control
         InvalidateVisual();
     }
 
-    /// <summary>Очищает экран и историю — как <c>clear</c>, только без участия оболочки.</summary>
+    /// <summary>Можно ли чистить экран: он наш, а не полноэкранной программы.</summary>
+    public bool CanClear => _session?.CanClearScreen == true;
+
+    /// <summary>
+    /// Очищает экран, оставив приглашение оболочки на месте.
+    /// </summary>
+    /// <remarks>
+    /// Как <c>cls</c>, но без участия оболочки и без её ведома — поэтому
+    /// строка, на которой она сейчас стоит, и остаётся: стерев её, мы оставили
+    /// бы человека перед пустым экраном без приглашения.
+    /// </remarks>
     public void ClearScreen()
     {
-        _session?.Terminal.Clear();
+        _session?.ClearScreen();
         InvalidateVisual();
     }
 

@@ -167,6 +167,111 @@ public class TerminalSessionTests
         Assert.Equal(expected, pty.WaitForWritten(text => text.Length >= expected.Length, Timeout));
     }
 
+    /// <summary>
+    /// Чистить экран просят саму оболочку, если она умеет.
+    /// </summary>
+    /// <remarks>
+    /// Ctrl+L — и оболочка перерисует приглашение, сохранит набранное и
+    /// оставит свой экран и наш одним и тем же. Последнее и есть причина:
+    /// ConPTY держит свою копию экрана, и уборка только на нашей стороне с ней
+    /// разошлась бы — PSReadLine рисует строку ввода по запомненным
+    /// координатам, и следующая набранная буква появилась бы не там, где
+    /// курсор.
+    /// </remarks>
+    [Fact]
+    public void Clearing_asks_a_capable_shell_to_do_it()
+    {
+        using var pty = new FakePty();
+        using var session = Start(pty);
+
+        Fill(session, pty);
+
+        var before = session.Terminal.GetVisibleLines();
+
+        Assert.True(session.CanClearScreen);
+
+        session.ClearScreen();
+
+        Assert.Equal("\f", pty.WaitForWritten(text => text.Length > 0, Timeout));
+
+        // Экран не тронут: его почистит оболочка, когда получит просьбу.
+        Assert.Equal(before, session.Terminal.GetVisibleLines());
+    }
+
+    /// <summary>
+    /// За оболочку без редактора строки терминал чистит сам, оставляя приглашение.
+    /// </summary>
+    /// <remarks>
+    /// Это <c>cmd</c>: Ctrl+L для него просто символ. Строка курсора остаётся —
+    /// на ней приглашение, и стереть её вместе с остальным (а это ровно то, что
+    /// делает <c>Clear</c> эмулятора) значит оставить пустой экран без
+    /// приглашения, которого оболочка заново не нарисует. Цвета при этом её
+    /// собственные: перерисовка текстом их потеряла бы.
+    /// </remarks>
+    [Fact]
+    public void Clearing_a_shell_without_a_line_editor_keeps_the_prompt()
+    {
+        using var pty = new FakePty();
+        using var session = new TerminalSession(
+            Probe with { ClearsItself = false },
+            pty,
+            TerminalSession.Options(TerminalSettings.Default, 40, 10),
+            post: action => action());
+
+
+        Fill(session, pty);
+
+        var buffer = session.Terminal.Buffer;
+
+        Assert.True(buffer.YBase > 0, "истории не набралось — проверять было бы нечего");
+        Assert.True(session.CanClearScreen);
+
+        session.ClearScreen();
+
+        Assert.Equal(string.Empty, pty.WrittenText);
+
+        Assert.Equal(0, buffer.YBase);
+        Assert.Equal(0, buffer.YDisp);
+        Assert.Equal(0, buffer.Y);
+        Assert.Equal(session.Terminal.Rows, buffer.Lines.Length);
+        Assert.Equal("PS C:>", session.Terminal.GetVisibleLines()[0].TrimEnd());
+        var top = buffer.Lines[0];
+
+        Assert.NotNull(top);
+        Assert.Equal(2, top![0].Attributes.GetFgColor());
+        Assert.All(session.Terminal.GetVisibleLines().Skip(1), line => Assert.Equal(string.Empty, line.TrimEnd()));
+    }
+
+    /// <summary>
+    /// На альтернативном экране очистка не делает ничего.
+    /// </summary>
+    /// <remarks>
+    /// Там рисует полноэкранная программа по своей модели: подъём её строк был
+    /// бы ложью о том, что у неё на экране, а истории, которую можно было бы
+    /// убрать, у альтернативного экрана нет вовсе.
+    /// </remarks>
+    [Fact]
+    public void Clearing_leaves_a_full_screen_program_alone()
+    {
+        using var pty = new FakePty();
+        using var session = Start(pty);
+        using var changed = new SemaphoreSlim(0);
+
+        session.Changed += (_, _) => changed.Release();
+
+        pty.Emit(Esc + "[?1049h" + "меню программы\r\nвторая строка");
+        Assert.True(changed.Wait(Timeout, TestContext.Current.CancellationToken));
+
+        Assert.True(session.Terminal.IsAlternateBufferActive);
+        Assert.False(session.CanClearScreen);
+
+        var before = session.Terminal.GetVisibleLines();
+
+        session.ClearScreen();
+
+        Assert.Equal(before, session.Terminal.GetVisibleLines());
+    }
+
     /// <summary>Размер уходит и эмулятору, и оболочке — но только когда он изменился.</summary>
     [Fact]
     public void Resize_reaches_both_sides_once()
@@ -222,6 +327,29 @@ public class TerminalSessionTests
 
         Assert.Equal(string.Empty, pty.WaitForWritten(text => text.Length > 0, TimeSpan.FromMilliseconds(300)));
     }
+
+    /// <summary>
+    /// Насыпает истории и ставит приглашение, дожидаясь, пока всё дойдёт.
+    /// </summary>
+    /// <remarks>
+    /// Ждать первого сигнала об изменении нельзя: порций тридцать одна, а
+    /// приглашение приходит последним — проверка началась бы на половине.
+    /// </remarks>
+    private static void Fill(TerminalSession session, FakePty pty)
+    {
+        for (var i = 0; i < 30; i++)
+            pty.Emit($"строка{i}\r\n");
+
+        pty.Emit(Esc + "[32mPS" + Esc + "[0m C:> ");
+
+        Assert.True(
+            SpinWait.SpinUntil(() => session.Terminal.Buffer.Y > 0 && Prompt(session), Timeout),
+            "приглашение не дошло до экрана");
+    }
+
+    /// <summary>Приглашение стоит на строке курсора.</summary>
+    private static bool Prompt(TerminalSession session) =>
+        session.Terminal.GetVisibleLines()[session.Terminal.Buffer.Y].StartsWith("PS C:>", StringComparison.Ordinal);
 
     private static TerminalSession Start(FakePty pty) =>
         new(Probe, pty, TerminalSession.Options(TerminalSettings.Default, 40, 10), post: action => action());

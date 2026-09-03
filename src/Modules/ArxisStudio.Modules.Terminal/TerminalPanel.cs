@@ -393,8 +393,12 @@ public sealed class TerminalPanel : ToolWindow
             var open = Current is not null;
 
             rename.IsEnabled = open;
-            clear.IsEnabled = open;
             close.IsEnabled = open;
+
+            // Чистить нечего, пока экраном распоряжается полноэкранная
+            // программа: она рисует его по своей модели и о чужой уборке не
+            // узнает.
+            clear.IsEnabled = Current?.View.CanClear == true;
         };
 
         return flyout;
@@ -438,8 +442,13 @@ public sealed class TerminalPanel : ToolWindow
         flyout.Items.Add(selectAll);
         flyout.Items.Add(clear);
 
-        // Копировать нечего, пока ничего не выделено, — пункт об этом говорит.
-        flyout.Opening += (_, _) => copy.IsEnabled = view.HasSelection;
+        // Копировать нечего, пока ничего не выделено, а чистить — пока экраном
+        // распоряжается полноэкранная программа. Пункты об этом говорят.
+        flyout.Opening += (_, _) =>
+        {
+            copy.IsEnabled = view.HasSelection;
+            clear.IsEnabled = view.CanClear;
+        };
 
         return flyout;
     }

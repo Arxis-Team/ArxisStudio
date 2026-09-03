@@ -15,7 +15,19 @@ namespace ArxisStudio.Modules.Terminal.Shells;
 /// <param name="Title">Подпись вкладки.</param>
 /// <param name="App">Что запускать: имя из <c>PATH</c> или полный путь.</param>
 /// <param name="Arguments">С чем запускать.</param>
-public sealed record ShellProfile(string Id, string Title, string App, IReadOnlyList<string> Arguments)
+/// <param name="ClearsItself">
+/// Оболочка сама чистит экран по Ctrl+L. Так умеют все, у кого есть построчный
+/// редактор — PSReadLine, readline в bash, zle в zsh, — и делают это лучше
+/// терминала: перерисуют приглашение, сохранят набранное и, главное, оставят
+/// свой экран и наш одним и тем же. Не умеет этого <c>cmd</c>: редактора
+/// строки у него нет, и Ctrl+L для него просто символ.
+/// </param>
+public sealed record ShellProfile(
+    string Id,
+    string Title,
+    string App,
+    IReadOnlyList<string> Arguments,
+    bool ClearsItself = true)
 {
     /// <summary>Имя профиля SSH: у него нет своего пункта в списке оболочек, он собирается диалогом.</summary>
     public const string SshId = "ssh";
@@ -91,7 +103,7 @@ public static class ShellCatalog
                 return
                 [
                     new ShellProfile(WindowsPowerShellId, "Windows PowerShell", "powershell.exe", ["-NoLogo"]),
-                    new ShellProfile(CommandPromptId, "Command Prompt", "cmd.exe", []),
+                    new ShellProfile(CommandPromptId, "Command Prompt", "cmd.exe", [], ClearsItself: false),
                 ];
 
             case TerminalPlatform.MacOS:

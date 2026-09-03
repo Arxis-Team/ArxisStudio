@@ -302,7 +302,12 @@ public class TerminalViewTests
             Dispatcher.UIThread.RunJobs();
             Open(menu, panel);
 
-            Assert.All(items, item => Assert.True(item.IsEnabled, $"«{item.Header}» выключен при открытой вкладке"));
+            Assert.True(items[0].IsEnabled, "переименование выключено при открытой вкладке");
+            Assert.True(items[^1].IsEnabled, "закрытие выключено при открытой вкладке");
+
+            // А чистить нечего: оболочки за этой вкладкой нет, экран пуст, и
+            // пункт об этом говорит вместо того, чтобы сработать вхолостую.
+            Assert.False(items[1].IsEnabled, "очистка предложена для вкладки без оболочки");
             Assert.Single(Tabs(panel));
 
             items[^1].RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));

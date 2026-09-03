@@ -72,6 +72,28 @@ public class ShellCatalogTests
         Assert.Equal(ShellCatalog.WindowsPowerShellId, ShellCatalog.Default(shells, string.Empty).Id);
     }
 
+    /// <summary>
+    /// Чистить экран умеют сами все, кроме <c>cmd</c>.
+    /// </summary>
+    /// <remarks>
+    /// Признак решает, кому уйдёт Ctrl+L, а за кого будет чистить терминал.
+    /// Ошибись он в сторону cmd — человек нажимал бы «очистить» и не видел
+    /// ничего; в другую сторону — терминал чистил бы свою копию экрана, разойдясь
+    /// с той, которую держит ConPTY.
+    /// </remarks>
+    [Fact]
+    public void Every_shell_but_cmd_clears_its_own_screen()
+    {
+        var windows = ShellCatalog.Available(TerminalPlatform.Windows, NoEnvironment);
+
+        Assert.True(windows.Single(shell => shell.Id == ShellCatalog.WindowsPowerShellId).ClearsItself);
+        Assert.False(windows.Single(shell => shell.Id == ShellCatalog.CommandPromptId).ClearsItself);
+
+        Assert.True(Assert.Single(ShellCatalog.Available(TerminalPlatform.MacOS, NoEnvironment)).ClearsItself);
+        Assert.True(Assert.Single(ShellCatalog.Available(TerminalPlatform.Linux, NoEnvironment)).ClearsItself);
+        Assert.True(ShellCatalog.Ssh("host", null, 22, TerminalPlatform.Linux).ClearsItself);
+    }
+
     /// <summary>Команда SSH: адрес с пользователем, порт только нестандартный, клиент — системный.</summary>
     [Fact]
     public void Ssh_builds_the_system_client_command()
