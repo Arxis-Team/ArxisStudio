@@ -123,6 +123,42 @@ public class TerminalViewTests
         Assert.False(view.HasSelection, "щелчок без протяжки выделил");
     }
 
+    /// <summary>
+    /// Shift+Escape выпускает клавиатуру из терминала.
+    /// </summary>
+    /// <remarks>
+    /// Tab отсюда не уводит и уводить не должен — он нужен оболочке для
+    /// дополнения имён. Без отдельного сочетания человек, пришедший сюда
+    /// клавишами, остался бы в терминале до самой мыши.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Shift_escape_lets_the_keyboard_out()
+    {
+        var pty = new FakePty();
+        var session = new TerminalSession(Probe, pty, TerminalSession.Options(TerminalSettings.Default, 40, 10));
+        var view = new TerminalView();
+        var neighbour = new AxButton { Content = "рядом" };
+        var window = new Window { Width = 800, Height = 600, Content = new StackPanel { Children = { view, neighbour } } };
+
+        window.Show();
+        view.Session = session;
+        Dispatcher.UIThread.RunJobs();
+
+        view.Focus();
+        Assert.True(view.IsFocused, "вид не взял фокус");
+
+        // Обычный Tab уходит оболочке — это и есть повод для отдельного выхода.
+        window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, "\t");
+        Assert.True(view.IsFocused, "Tab увёл фокус — оболочка его не получит");
+
+        window.KeyPress(Key.Escape, RawInputModifiers.Shift, PhysicalKey.Escape, "");
+
+        Assert.False(view.IsFocused, "Shift+Escape не выпустил клавиатуру");
+        Assert.True(neighbour.IsFocused, "фокус ушёл не к соседу");
+
+        session.Dispose();
+    }
+
     /// <summary>Вид называет себя для средств доступности, а не остаётся безымянным контролом.</summary>
     [AvaloniaFact]
     public void The_view_names_itself_for_accessibility()
@@ -149,16 +185,7 @@ public class TerminalViewTests
 
         try
         {
-            var (manifest, error) = ModuleManifest.Load(typeof(TerminalModule).Assembly);
-
-            Assert.Null(error);
-
-            var plugin = new InstalledPlugin(AppContext.BaseDirectory, manifest, null, IsEnabled: true, IsBuiltIn: true);
-            var context = new StudioContextFactory(new StudioLog(), new StudioCommands(), null).Create(plugin);
-            var panel = new TerminalPanel();
-
-            panel.Attach(context);
-
+            var panel = Panel();
             var content = panel.Content;
             var buttons = content.GetLogicalDescendants().OfType<AxButton>().ToList();
 
@@ -172,6 +199,77 @@ public class TerminalViewTests
         {
             TerminalHub.Reset();
         }
+    }
+
+    /// <summary>
+    /// Курсор идёт за человеком, а не за появлением панели.
+    /// </summary>
+    /// <remarks>
+    /// Панель встаёт в раскладку при подъёме студии и заводит себе первый
+    /// сеанс — человек в этот миг у терминала ничего не просил, и отобранный
+    /// курсор увёл бы его набор в чужую оболочку. Сеанс, открытый нажатием,
+    /// курсор берёт: за этим и нажимали.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Focus_follows_the_person_and_not_the_panel()
+    {
+        TerminalHub.Reset();
+
+        var panel = Panel();
+
+        try
+        {
+            var elsewhere = new AxButton { Content = "рядом" };
+            var window = new Window
+            {
+                Width = 900,
+                Height = 500,
+                Content = new StackPanel { Children = { elsewhere, panel.Content } },
+            };
+
+            window.Show();
+            elsewhere.Focus();
+            Dispatcher.UIThread.RunJobs();
+
+            // Ждём, пока панель заведёт себе сеанс сама: проверять до этого
+            // значило бы проверять «ещё не успела», а не «не забирает».
+            Wait(() => panel.Sessions.Count > 0);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.True(elsewhere.IsFocused, "панель забрала курсор, хотя её никто не просил");
+
+            // Оболочки с таким именем нет, и это к лучшему: проверяется курсор,
+            // а не запуск — вид появляется раньше, чем сеанс не заводится.
+            panel.Open(new ShellProfile("probe", "Проба", "arxis-нет-такой-оболочки", []));
+            Dispatcher.UIThread.RunJobs();
+
+            var opened = window.GetLogicalDescendants().OfType<TerminalView>().Last();
+
+            Assert.True(opened.IsFocused, "сеанс, открытый по требованию, курсор не взял");
+        }
+        finally
+        {
+            foreach (var session in panel.Sessions)
+                panel.Close(session);
+
+            TerminalHub.Reset();
+        }
+    }
+
+    /// <summary>Панель терминала с настоящим контекстом студии, но без дока.</summary>
+    private static TerminalPanel Panel()
+    {
+        var (manifest, error) = ModuleManifest.Load(typeof(TerminalModule).Assembly);
+
+        Assert.Null(error);
+
+        var plugin = new InstalledPlugin(AppContext.BaseDirectory, manifest, null, IsEnabled: true, IsBuiltIn: true);
+        var context = new StudioContextFactory(new StudioLog(), new StudioCommands(), null).Create(plugin);
+        var panel = new TerminalPanel();
+
+        panel.Attach(context);
+
+        return panel;
     }
 
     private static (Window Window, TerminalView View, FakePty Pty, TerminalSession Session) Show()
@@ -191,6 +289,18 @@ public class TerminalViewTests
     /// <summary>Крутит диспетчер, пока условие не выполнится; иначе — падает с объяснением.</summary>
     private static void Until(Func<bool> ready)
     {
+        Assert.True(Wait(ready), "не дождались");
+    }
+
+    /// <summary>
+    /// Крутит диспетчер, пока условие не выполнится, и говорит, дождался ли.
+    /// </summary>
+    /// <remarks>
+    /// Без утверждения: бывает, что ожидаемое зависит от машины — например,
+    /// поднимется ли на ней оболочка, — а проверяемое от этого не зависит.
+    /// </remarks>
+    private static bool Wait(Func<bool> ready)
+    {
         var deadline = DateTime.UtcNow + Timeout;
 
         while (!ready() && DateTime.UtcNow < deadline)
@@ -199,6 +309,6 @@ public class TerminalViewTests
             Thread.Sleep(10);
         }
 
-        Assert.True(ready(), "не дождались");
+        return ready();
     }
 }

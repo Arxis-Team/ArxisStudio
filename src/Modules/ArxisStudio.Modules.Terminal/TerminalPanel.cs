@@ -34,6 +34,7 @@ public sealed class TerminalPanel : ToolWindow
     private Border _body = null!;
     private Control _empty = null!;
     private Control _root = null!;
+    private bool _focusOnSelect = true;
     private bool _shown;
 
     /// <summary>Открытые сеансы в порядке вкладок.</summary>
@@ -88,7 +89,7 @@ public sealed class TerminalPanel : ToolWindow
             _shown = true;
 
             if (_entries.Count == 0)
-                Open(TerminalModule.DefaultProfile(Context.Settings));
+                Open(TerminalModule.DefaultProfile(Context.Settings), focus: false);
         };
 
         Context.Settings.Changed += (_, _) => ApplySettings();
@@ -97,9 +98,21 @@ public sealed class TerminalPanel : ToolWindow
         return _root;
     }
 
-    /// <summary>Открывает сеанс оболочки новой вкладкой и делает её текущей.</summary>
+    /// <summary>
+    /// Открывает сеанс оболочки новой вкладкой и делает её текущей.
+    /// </summary>
     /// <param name="profile">Какую оболочку.</param>
-    public void Open(ShellProfile profile)
+    /// <param name="focus">
+    /// Ставить ли курсор в новый сеанс.
+    /// </param>
+    /// <remarks>
+    /// Фокус идёт за действием человека, а не за появлением панели. Сеанс,
+    /// открытый нажатием или командой, курсор забирает — за этим и нажимали.
+    /// Первый сеанс, который панель заводит себе сама при подъёме студии, —
+    /// нет: человек в этот миг ничего у терминала не просил, и отобранный
+    /// курсор увёл бы его набор в чужую оболочку.
+    /// </remarks>
+    public void Open(ShellProfile profile, bool focus = true)
     {
         ArgumentNullException.ThrowIfNull(profile);
 
@@ -140,9 +153,13 @@ public sealed class TerminalPanel : ToolWindow
 
         _entries.Add(entry);
         _tabs.Items.Add(tab);
-        _tabs.SelectedItem = tab;
 
-        _ = StartAsync(entry, settings);
+        // Выбор вкладки сам зовёт ShowSelected: ему и говорим, нужен ли курсор.
+        _focusOnSelect = focus;
+        _tabs.SelectedItem = tab;
+        _focusOnSelect = true;
+
+        _ = StartAsync(entry, settings, focus);
     }
 
     /// <summary>Закрывает сеанс вместе с оболочкой.</summary>
@@ -153,7 +170,7 @@ public sealed class TerminalPanel : ToolWindow
             Close(found);
     }
 
-    private async Task StartAsync(Entry entry, TerminalSettings settings)
+    private async Task StartAsync(Entry entry, TerminalSettings settings, bool focus)
     {
         var strings = Context.Strings;
 
@@ -183,7 +200,7 @@ public sealed class TerminalPanel : ToolWindow
 
             entry.View.Session = session;
 
-            if (ReferenceEquals(_tabs.SelectedItem, entry.Tab))
+            if (focus && ReferenceEquals(_tabs.SelectedItem, entry.Tab))
                 entry.View.Focus();
 
             Context.Log.Write(StudioLogLevel.Debug, TerminalModule.LogSource, $"Открыт сеанс {entry.Profile.Title}");
@@ -220,7 +237,7 @@ public sealed class TerminalPanel : ToolWindow
 
         _body.Child = entry?.Host ?? _empty;
 
-        if (entry is not null)
+        if (entry is not null && _focusOnSelect)
             Dispatcher.UIThread.Post(() => entry.View.Focus(), DispatcherPriority.Input);
     }
 

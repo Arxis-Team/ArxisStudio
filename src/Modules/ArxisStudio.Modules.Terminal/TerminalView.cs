@@ -309,6 +309,18 @@ public sealed class TerminalView : Control
         var control = modifiers.HasFlag(KeyModifiers.Control);
         var shift = modifiers.HasFlag(KeyModifiers.Shift);
 
+        // Выход с клавиатуры. Tab отсюда не уводит — он нужен оболочке для
+        // дополнения имён, — и без отдельного сочетания человек, попавший
+        // сюда клавишами, остался бы в терминале навсегда. Shift+Escape взят
+        // у JetBrains: оболочкам он не нужен, а простой Escape нужен, и его
+        // отбирать нельзя.
+        if (shift && e.Key == Key.Escape)
+        {
+            TopLevel.GetTopLevel(this)?.FocusManager?.TryMoveFocus(NavigationDirection.Next);
+            e.Handled = true;
+            return;
+        }
+
         // Сочетания студии — раньше оболочки: Ctrl+Shift+C/V и Shift+Insert —
         // договорённость всех терминалов, Ctrl+V — привычка Windows. Ctrl+C с
         // выделением копирует, без него — прерывает, как в Windows Terminal.
