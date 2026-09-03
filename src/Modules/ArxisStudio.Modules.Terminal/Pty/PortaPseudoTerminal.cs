@@ -43,6 +43,14 @@ public sealed class PortaPseudoTerminal : IPseudoTerminal
     public int? ExitCode => _exitCode;
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Своя копия экрана есть у ConPTY, то есть в Windows. На POSIX за
+    /// псевдотерминалом стоит ядро, и никакого экрана у него нет: там счёт
+    /// строк ведёт только терминал.
+    /// </remarks>
+    public bool KeepsOwnScreen => OperatingSystem.IsWindows();
+
+    /// <inheritdoc/>
     public event EventHandler<int>? Exited;
 
     /// <summary>

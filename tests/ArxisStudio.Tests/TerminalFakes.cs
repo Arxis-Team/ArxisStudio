@@ -25,6 +25,9 @@ internal sealed class FakePty : IPseudoTerminal
 
     public int? ExitCode { get; private set; }
 
+    /// <summary>Своя копия экрана, как у ConPTY; ставится тестом.</summary>
+    public bool KeepsOwnScreen { get; set; }
+
     public bool Disposed { get; private set; }
 
     public List<(int Columns, int Rows)> Sizes { get; } = [];

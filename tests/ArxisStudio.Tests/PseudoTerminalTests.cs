@@ -45,6 +45,11 @@ public class PseudoTerminalTests
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         using var pty = await PortaPseudoTerminal.StartAsync(profile, Path.GetTempPath(), 80, 24, cancellation.Token);
 
+        // За псевдотерминалом Windows стоит консоль со своим буфером, и от
+        // этого зависит поправка окна при изменении размера: без признака
+        // терминал растил бы экран не туда, куда его растит ConPTY.
+        Assert.True(pty.KeepsOwnScreen, "ConPTY не признан хозяином своего экрана");
+
         var exited = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         var output = new StringBuilder();
 

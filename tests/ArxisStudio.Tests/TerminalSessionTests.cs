@@ -288,6 +288,105 @@ public class TerminalSessionTests
     }
 
     /// <summary>
+    /// При росте высоты строка курсора остаётся на своём месте, если экран держит ConPTY.
+    /// </summary>
+    /// <remarks>
+    /// Расхождение о том, куда растёт окно, и есть та поломка разметки, из-за
+    /// которой набранное появлялось посреди списка файлов. ConPTY со своим
+    /// экраном растит окно вниз: строка курсора стоит там же, а пустое
+    /// добавляется под ней. Эмулятор растит вверх — подтягивает историю сверху
+    /// и уводит курсор в самый низ. После этого установка курсора абсолютными
+    /// координатами, которой оболочка рисует строку ввода, бьёт мимо ровно на
+    /// разницу — и ложится поверх старого вывода.
+    /// </remarks>
+    [Fact]
+    public void Growing_keeps_the_cursor_where_the_console_keeps_it()
+    {
+        using var pty = new FakePty { KeepsOwnScreen = true };
+        using var session = Start(pty);
+
+        Fill(session, pty);
+
+        var buffer = session.Terminal.Buffer;
+        var row = buffer.Y;
+        var top = buffer.YBase;
+
+        Assert.True(top > 0, "истории не набралось — расхождению негде взяться");
+
+        session.Resize(40, session.Terminal.Rows + 6);
+
+        Assert.Equal(top, buffer.YBase);
+        Assert.Equal(row, buffer.Y);
+        Assert.True(Prompt(session), "курсор ушёл со строки приглашения");
+
+        // Под приглашением — пустое, как и у ConPTY.
+        Assert.All(
+            session.Terminal.GetVisibleLines().Skip(row + 1),
+            line => Assert.Equal(string.Empty, line.TrimEnd()));
+    }
+
+    /// <summary>
+    /// Псевдотерминалу без своего экрана окно не поправляют.
+    /// </summary>
+    /// <remarks>
+    /// На POSIX за псевдотерминалом стоит ядро, счёт строк ведёт только
+    /// терминал, и подтянутая сверху история — то, чего человек там и ждёт:
+    /// растянул окно — увидел больше. Поправка была бы порчей.
+    /// </remarks>
+    [Fact]
+    public void A_plain_pseudo_terminal_keeps_the_emulator_behaviour()
+    {
+        using var pty = new FakePty();
+        using var session = Start(pty);
+
+        Fill(session, pty);
+
+        var buffer = session.Terminal.Buffer;
+        var top = buffer.YBase;
+
+        session.Resize(40, session.Terminal.Rows + 6);
+
+        Assert.True(buffer.YBase < top, "историю сверху не подтянули");
+        Assert.True(Prompt(session), "курсор ушёл со строки приглашения");
+    }
+
+    /// <summary>
+    /// Всё прочитанное попадает на экран прежнего размера, а не нового.
+    /// </summary>
+    /// <remarks>
+    /// Байты копятся на фоновом потоке, а размер меняется на потоке
+    /// интерфейса: в накопленном есть установки курсора абсолютными
+    /// координатами прежнего экрана, и применить их к новому — та же промашка
+    /// мимо строки. Поэтому размер меняется только после разбора накопленного.
+    /// </remarks>
+    [Fact]
+    public void Everything_read_lands_on_the_screen_it_was_written_for()
+    {
+        using var pty = new FakePty { KeepsOwnScreen = true };
+        var queue = new List<Action>();
+
+        using var session = new TerminalSession(
+            Probe,
+            pty,
+            TerminalSession.Options(TerminalSettings.Default, 20, 10),
+            post: queue.Add);
+
+        // Двадцать пять знаков при ширине 20 переносятся на вторую строку; при
+        // ширине 60 остались бы на первой. Ровно двадцать не годятся: курсор
+        // после последнего знака в строке ждёт следующего, а не переносится.
+        pty.Emit(new string('x', 25));
+
+        Assert.True(
+            SpinWait.SpinUntil(() => queue.Count > 0, Timeout),
+            "чтение не дошло до потока интерфейса");
+
+        session.Resize(60, 10);
+
+        Assert.Equal(1, session.Terminal.Buffer.Y);
+        Assert.Equal(new string('x', 20), session.Terminal.GetVisibleLines()[0].TrimEnd());
+    }
+
+    /// <summary>
     /// Выход оболочки замечен сразу, а псевдотерминал отпущен чуть позже — после хвоста вывода.
     /// </summary>
     [Fact]

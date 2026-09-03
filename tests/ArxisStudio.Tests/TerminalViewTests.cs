@@ -46,6 +46,69 @@ public class TerminalViewTests
         Assert.Equal(view.Rows, session.Terminal.Rows);
     }
 
+    /// <summary>
+    /// Оболочка узнаёт один размер — тот, на котором раскладка остановилась.
+    /// </summary>
+    /// <remarks>
+    /// Тяга границы даёт десятки размеров в секунду, и каждый, доехавший до
+    /// оболочки, — это её перерисовка строки ввода по абсолютным координатам
+    /// того экрана, который она считает нынешним. Наш экран после своего
+    /// пересчёта строк держит на этом месте другую строку, и перерисовка
+    /// ложится поверх старого вывода: приглашение оказывается посреди списка
+    /// файлов, а набранное — не там, где курсор. Заново прошлый экран никто не
+    /// пришлёт, и починить это потом нечем.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_shell_hears_one_size_and_not_every_layout_pass()
+    {
+        var (window, view, pty, _) = Show();
+
+        var first = Assert.Single(pty.Sizes);
+
+        // Тяга границы: высота идёт шагами, как от мыши.
+        for (var height = 560; height >= 300; height -= 20)
+        {
+            window.Height = height;
+            Dispatcher.UIThread.RunJobs();
+        }
+
+        Assert.Equal([first], pty.Sizes);
+
+        view.Settle();
+
+        var settled = Assert.Single(pty.Sizes.Skip(1));
+
+        Assert.NotEqual(first, settled);
+        Assert.Equal((view.Columns, view.Rows), settled);
+    }
+
+    /// <summary>
+    /// Вырожденный размер до оболочки не доезжает вовсе.
+    /// </summary>
+    /// <remarks>
+    /// Панель, переезжающая в своё окно, успевает встать шириной в пару знаков.
+    /// Экран, пересчитанный под такую щель, обратно уже не собрать: строки
+    /// перевёрнуты, а прошлый вывод никто не пришлёт заново.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_degenerate_size_never_reaches_the_shell()
+    {
+        var (window, view, pty, _) = Show();
+
+        var good = Assert.Single(pty.Sizes);
+        var columns = view.Columns;
+        var rows = view.Rows;
+
+        window.Width = 24;
+        window.Height = 18;
+        Dispatcher.UIThread.RunJobs();
+        view.Settle();
+
+        Assert.Equal([good], pty.Sizes);
+        Assert.Equal(columns, view.Columns);
+        Assert.Equal(rows, view.Rows);
+    }
+
     /// <summary>Набранное уходит текстом, Enter и Ctrl+C — кодами.</summary>
     [AvaloniaFact]
     public void Typing_goes_to_the_shell_and_special_keys_go_as_codes()

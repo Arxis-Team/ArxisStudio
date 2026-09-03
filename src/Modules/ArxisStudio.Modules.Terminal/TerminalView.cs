@@ -47,10 +47,35 @@ public sealed class TerminalView : Control
     /// <summary>Ширина полосы прокрутки справа.</summary>
     public const double ScrollBarWidth = 8;
 
+    /// <summary>
+    /// Сколько тишины в раскладке ждать, прежде чем сказать оболочке новый размер.
+    /// </summary>
+    /// <remarks>
+    /// Каждый промежуточный размер, доехавший до оболочки, — это её перерисовка
+    /// строки ввода по абсолютным координатам того экрана, который она считает
+    /// нынешним. Наш экран после своего пересчёта строк держит на этом месте уже
+    /// другую строку, и перерисовка ложится поверх старого вывода: приглашение
+    /// оказывается посреди списка файлов, а набранное — не там, где курсор.
+    /// Починить это потом нечем — заново прошлый экран никто не пришлёт.
+    /// <para>
+    /// Поэтому размер отдаётся один раз, когда движение кончилось: тяга границы
+    /// даёт десятки размеров в секунду, а вынос панели в своё окно — ещё и
+    /// вырожденный, пока окно не встало на место.
+    /// </para>
+    /// </remarks>
+    public static readonly TimeSpan ResizeQuiet = TimeSpan.FromMilliseconds(120);
+
+    /// <summary>Уже меньше — не терминал, а щель: такие размеры бывают только на полпути.</summary>
+    public const int MinColumns = 20;
+
+    /// <inheritdoc cref="MinColumns"/>
+    public const int MinRows = 3;
+
     private static readonly FontFamily FallbackFont = new("Cascadia Mono,Consolas,Menlo,DejaVu Sans Mono,monospace");
 
     private readonly Dictionary<int, IImmutableBrush> _brushes = new();
     private readonly DispatcherTimer _blink = new() { Interval = TimeSpan.FromMilliseconds(530) };
+    private readonly DispatcherTimer _settle = new() { Interval = ResizeQuiet };
 
     private TerminalSession? _session;
     private FontFamily _fontFamily = FallbackFont;
@@ -87,6 +112,8 @@ public sealed class TerminalView : Control
             _blinkOn = !_blinkOn;
             InvalidateVisual();
         };
+
+        _settle.Tick += (_, _) => Settle();
     }
 
     /// <inheritdoc cref="FontSizeProperty"/>
@@ -129,6 +156,10 @@ public sealed class TerminalView : Control
                 _session.Terminal.CursorStyleChanged += OnCursorStyleChanged;
                 _session.Terminal.Scrolled += OnScrolled;
                 ApplyTheme();
+
+                // Первый размер отдаётся сразу: оболочка только что поднялась и
+                // ждёт его, а тишины в раскладке к этому времени уже не будет.
+                _settle.Stop();
                 _session.Resize(_columns, _rows);
             }
 
@@ -217,6 +248,24 @@ public sealed class TerminalView : Control
         _blink.Stop();
     }
 
+    /// <summary>
+    /// Отдаёт оболочке размер, которого экран держится сейчас.
+    /// </summary>
+    /// <remarks>
+    /// Зовётся по тишине в раскладке. Отдельным методом, а не лямбдой в
+    /// конструкторе: этим же именем его зовёт тест, которому ждать вживую
+    /// нечего.
+    /// <para>
+    /// Своей памяти о сказанном здесь нет: размер, не изменившийся с прошлого
+    /// раза, не пускает к оболочке сам сеанс — и это его дело, а не наше.
+    /// </para>
+    /// </remarks>
+    public void Settle()
+    {
+        _settle.Stop();
+        _session?.Resize(_columns, _rows);
+    }
+
     /// <inheritdoc/>
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
@@ -241,17 +290,30 @@ public sealed class TerminalView : Control
         return new Size(width, height);
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Считает, сколько знаков помещается, и просит сказать это оболочке.
+    /// </summary>
+    /// <remarks>
+    /// Просит, а не говорит: размер уйдёт по тишине в раскладке —
+    /// см. <see cref="ResizeQuiet"/>. Вырожденный размер не идёт даже в счёт:
+    /// панель, которую переносят в своё окно, успевает встать шириной в пару
+    /// знаков, и экран, пересчитанный под неё, обратно уже не собрать.
+    /// </remarks>
     protected override Size ArrangeOverride(Size finalSize)
     {
-        var columns = Math.Max(2, (int)Math.Floor((finalSize.Width - (2 * Inset) - ScrollBarWidth) / _cellWidth));
-        var rows = Math.Max(1, (int)Math.Floor((finalSize.Height - (2 * Inset)) / _cellHeight));
+        var columns = (int)Math.Floor((finalSize.Width - (2 * Inset) - ScrollBarWidth) / _cellWidth);
+        var rows = (int)Math.Floor((finalSize.Height - (2 * Inset)) / _cellHeight);
+
+        if (columns < MinColumns || rows < MinRows)
+            return finalSize;
 
         if (columns != _columns || rows != _rows)
         {
             _columns = columns;
             _rows = rows;
-            _session?.Resize(columns, rows);
+
+            _settle.Stop();
+            _settle.Start();
         }
 
         return finalSize;
