@@ -326,6 +326,342 @@ public class TerminalSessionTests
     }
 
     /// <summary>
+    /// При сужении строка ввода получает столько строк, сколько даёт ей ConPTY.
+    /// </summary>
+    /// <remarks>
+    /// Переплетения строк у эмулятора нет вовсе: при сужении он обрезает строку
+    /// по новой ширине. ConPTY же переплетает, и строка ввода, не влезшая в
+    /// новую ширину, начинается у него выше — на столько строк, сколько добавил
+    /// перенос. Не отведи мы их, его перерисовка строки ввода легла бы выше
+    /// приглашения, поверх старого вывода: ровно это и оставалось после
+    /// первого захода на изменение размера.
+    /// </remarks>
+    [Fact]
+    public void Narrowing_reserves_the_rows_the_console_gives_the_wrapped_input()
+    {
+        using var pty = new FakePty { KeepsOwnScreen = true };
+        using var session = Wide(pty, 60);
+
+        // Пятьдесят девять знаков: при ширине 60 это одна строка, при 50 — две.
+        pty.Emit(new string('q', 59));
+
+        Assert.True(SpinWait.SpinUntil(() => session.Terminal.Buffer.X == 59, Timeout), "набранное не дошло");
+
+        var buffer = session.Terminal.Buffer;
+        var row = buffer.Y;
+
+        session.Resize(50, session.Terminal.Rows);
+
+        // Снизу было место: перенос ушёл вниз, курсор — за ним.
+        Assert.Equal(row + 1, buffer.Y);
+        Assert.Equal(9, buffer.X);
+
+        // И знаки ушли вместе с ним: хвост, обрезанный при сужении, на месте.
+        Assert.Equal(new string('q', 50), session.Terminal.GetVisibleLines()[row].TrimEnd());
+        Assert.Equal(new string('q', 9), session.Terminal.GetVisibleLines()[row + 1].TrimEnd());
+    }
+
+    /// <summary>
+    /// Строке ввода у самого низа перенос отводят, подняв экран.
+    /// </summary>
+    /// <remarks>
+    /// Вниз некуда — значит наверх уезжает всё, и курсор остаётся на последней
+    /// строке. Так же решает и ConPTY: его окно следует за курсором и
+    /// двигается лишь тогда, когда иначе курсор из него выпал бы. Это и есть
+    /// обычное положение дел: приглашение стоит у нижнего края.
+    /// </remarks>
+    [Fact]
+    public void Narrowing_lifts_the_screen_when_the_input_sits_at_the_bottom()
+    {
+        using var pty = new FakePty { KeepsOwnScreen = true };
+        using var session = Wide(pty, 60);
+
+        // Загоняем курсор на последнюю строку, а потом набираем длинное.
+        for (var line = 0; line < session.Terminal.Rows; line++)
+            pty.Emit($"строка{line}\r\n");
+
+        pty.Emit(new string('q', 59));
+
+        Assert.True(
+            SpinWait.SpinUntil(() => session.Terminal.Buffer.X == 59, Timeout),
+            "набранное не дошло");
+
+        var buffer = session.Terminal.Buffer;
+        var bottom = session.Terminal.Rows - 1;
+
+        Assert.Equal(bottom, buffer.Y);
+
+        session.Resize(50, session.Terminal.Rows);
+
+        Assert.Equal(bottom, buffer.Y);
+        Assert.Equal(9, buffer.X);
+        Assert.StartsWith("qqq", session.Terminal.GetVisibleLines()[bottom - 1], StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Уже перенесённой строке отводят столько строк, сколько нужно ей целиком.
+    /// </summary>
+    /// <remarks>
+    /// Два счёта, которые легко перепутать. Длина считается по всей логической
+    /// строке, а не по столбцу курсора: строка уже перенесена, и в столбце
+    /// лежит лишь остаток последней её части. А число новых строк считается по
+    /// новой ширине, а не «на одну больше»: сужение втрое добавляет не одну
+    /// строку, а сколько придётся.
+    /// </remarks>
+    [Fact]
+    public void An_already_wrapped_input_gets_all_the_rows_it_needs()
+    {
+        using var pty = new FakePty { KeepsOwnScreen = true };
+        using var session = Wide(pty, 60);
+
+        // Сто тридцать знаков при ширине 60 — это три строки: 60, 60 и 10.
+        pty.Emit(new string('q', 130));
+
+        Assert.True(
+            SpinWait.SpinUntil(() => session.Terminal.Buffer is { X: 10, Y: 2 }, Timeout),
+            "набранное не легло в три строки");
+
+        var buffer = session.Terminal.Buffer;
+
+        // При ширине 30 те же 130 знаков — уже пять строк: четыре по 30 и 10.
+        session.Resize(30, session.Terminal.Rows);
+
+        Assert.Equal(4, buffer.Y);
+        Assert.Equal(10, buffer.X);
+    }
+
+    /// <summary>Строке, которая и на новой ширине умещается, ничего не отводят.</summary>
+    [Fact]
+    public void A_short_input_needs_no_reserved_rows()
+    {
+        using var pty = new FakePty { KeepsOwnScreen = true };
+        using var session = Wide(pty, 60);
+
+        pty.Emit(new string('q', 30));
+
+        Assert.True(SpinWait.SpinUntil(() => session.Terminal.Buffer.X == 30, Timeout), "набранное не дошло");
+
+        var buffer = session.Terminal.Buffer;
+        var row = buffer.Y;
+
+        session.Resize(50, session.Terminal.Rows);
+
+        Assert.Equal(row, buffer.Y);
+        Assert.Equal(30, buffer.X);
+    }
+
+    /// <summary>
+    /// При расширении перенесённую строку сшивают обратно — как её сшивает ConPTY.
+    /// </summary>
+    /// <remarks>
+    /// Замерено на живой оболочке: после расширения ConPTY считает строку ввода
+    /// одной и следующее же нажатие рисует строкой выше. Оставь мы перенос как
+    /// был — под сшитой строкой висело бы брошенное продолжение, а курсор
+    /// стоял бы строкой ниже, чем целится оболочка.
+    /// </remarks>
+    [Fact]
+    public void Widening_sews_the_wrapped_input_back_together()
+    {
+        using var pty = new FakePty { KeepsOwnScreen = true };
+        using var session = Wide(pty, 50);
+
+        // На ширине 50 эмулятор перенёс строку сам, как ему и положено.
+        pty.Emit(new string('q', 59));
+
+        Assert.True(SpinWait.SpinUntil(() => session.Terminal.Buffer.X == 9, Timeout), "набранное не дошло");
+
+        var buffer = session.Terminal.Buffer;
+        var row = buffer.Y - 1;
+
+        session.Resize(120, session.Terminal.Rows);
+
+        Assert.Equal(row, buffer.Y);
+        Assert.Equal(59, buffer.X);
+        Assert.Equal(new string('q', 59), session.Terminal.GetVisibleLines()[row].TrimEnd());
+        Assert.Equal(string.Empty, session.Terminal.GetVisibleLines()[row + 1].TrimEnd());
+    }
+
+    /// <summary>
+    /// Строку длиннее всего экрана раскладывают по его хвосту.
+    /// </summary>
+    /// <remarks>
+    /// Вставить в оболочку большой кусок текста — обычное дело, и при сужении
+    /// такая строка требует больше строк, чем есть в окне. Терминал в этом
+    /// случае показывает её конец — тот, где стоит курсор.
+    /// </remarks>
+    [Fact]
+    public void An_input_taller_than_the_screen_shows_its_tail()
+    {
+        using var pty = new FakePty { KeepsOwnScreen = true };
+        using var session = Wide(pty, 60);
+
+        // Пятьсот девяносто пять знаков при ширине 60 — ровно десять строк, все,
+        // что есть; при ширине 20 их понадобилось бы тридцать.
+        pty.Emit(new string('q', 595));
+
+        Assert.True(
+            SpinWait.SpinUntil(() => session.Terminal.Buffer is { X: 55, Y: 9 }, Timeout),
+            "набранное не легло в десять строк");
+
+        var buffer = session.Terminal.Buffer;
+
+        session.Resize(20, session.Terminal.Rows);
+
+        // Курсор на последней строке окна, а перед ним — конец набранного.
+        Assert.Equal(session.Terminal.Rows - 1, buffer.Y);
+        Assert.Equal(15, buffer.X);
+        Assert.Equal(new string('q', 15), session.Terminal.GetVisibleLines()[^1].TrimEnd());
+
+        // Показать хвост — не то же самое, что прогнать экран в историю:
+        // недостающие строки не отматывают, их просто не показывают.
+        Assert.Equal(0, buffer.YBase);
+    }
+
+    /// <summary>
+    /// Знак, вставший ровно в конец строки, курсор на следующую не переводит.
+    /// </summary>
+    /// <remarks>
+    /// Терминал в этом месте ждёт: курсор остаётся на последнем столбце, и
+    /// перенос случится со следующим знаком. Так же считает и ConPTY — а
+    /// поставь мы курсор в начало следующей строки, его перерисовка строки
+    /// ввода легла бы строкой ниже.
+    /// </remarks>
+    [Fact]
+    public void An_input_filling_the_row_exactly_keeps_the_cursor_on_it()
+    {
+        using var pty = new FakePty { KeepsOwnScreen = true };
+        using var session = Wide(pty, 60);
+
+        pty.Emit(new string('q', 40));
+
+        Assert.True(SpinWait.SpinUntil(() => session.Terminal.Buffer.X == 40, Timeout), "набранное не дошло");
+
+        var buffer = session.Terminal.Buffer;
+        var row = buffer.Y;
+
+        // Сорок знаков при ширине 40 занимают строку целиком и ровно.
+        session.Resize(40, session.Terminal.Rows);
+
+        Assert.Equal(row, buffer.Y);
+        Assert.Equal(39, buffer.X);
+
+        // И следующей строки под них не отводят: продолжения тут нет.
+        Assert.False(
+            buffer.Lines[buffer.YBase + row + 1]?.IsWrapped,
+            "под полной строкой осталось пустое продолжение");
+    }
+
+    /// <summary>
+    /// Перенос, сделанный нами, живёт дальше: следующее сужение его видит.
+    /// </summary>
+    /// <remarks>
+    /// Признак переноса — единственный след, по которому логическая строка
+    /// собирается обратно. Не поставь мы его на новые строки, второе сужение
+    /// сочло бы продолжение отдельной строкой и порвало бы набранное надвое.
+    /// </remarks>
+    [Fact]
+    public void The_rows_we_wrapped_stay_marked_for_the_next_resize()
+    {
+        using var pty = new FakePty { KeepsOwnScreen = true };
+        using var session = Wide(pty, 90);
+
+        pty.Emit(new string('q', 80));
+
+        Assert.True(SpinWait.SpinUntil(() => session.Terminal.Buffer.X == 80, Timeout), "набранное не дошло");
+
+        var buffer = session.Terminal.Buffer;
+        var row = buffer.Y;
+
+        // Восемьдесят знаков — это две строки при ширине 60 и три при 30.
+        session.Resize(60, session.Terminal.Rows);
+
+        Assert.Equal(20, buffer.X);
+        Assert.True(buffer.Lines[buffer.YBase + row + 1]?.IsWrapped, "продолжение не помечено переносом");
+
+        session.Resize(30, session.Terminal.Rows);
+
+        Assert.Equal(row + 2, buffer.Y);
+        Assert.Equal(20, buffer.X);
+        Assert.Equal(new string('q', 20), session.Terminal.GetVisibleLines()[row + 2].TrimEnd());
+    }
+
+    /// <summary>
+    /// Курсор за концом набранного остаётся за концом и на новой ширине.
+    /// </summary>
+    /// <remarks>
+    /// Пробелы в конце строки — знаки, которых на экране не видно: эмулятор о
+    /// них не помнит, а оболочка помнит и рисует по ним. Считай мы длину
+    /// строки по одному видимому, курсор после сужения уехал бы к концу
+    /// текста, а перерисовка оболочки легла бы мимо него.
+    /// </remarks>
+    [Fact]
+    public void A_cursor_past_the_typed_text_keeps_its_place()
+    {
+        using var pty = new FakePty { KeepsOwnScreen = true };
+        using var session = Wide(pty, 60);
+
+        pty.Emit(new string('q', 30) + new string(' ', 10));
+
+        Assert.True(SpinWait.SpinUntil(() => session.Terminal.Buffer.X == 40, Timeout), "набранное не дошло");
+
+        var buffer = session.Terminal.Buffer;
+        var row = buffer.Y;
+
+        // Сорок знаков при ширине 20 — ровно две строки, и курсор ждёт в конце.
+        session.Resize(20, session.Terminal.Rows);
+
+        Assert.Equal(row + 1, buffer.Y);
+        Assert.Equal(19, buffer.X);
+    }
+
+    /// <summary>
+    /// Изменение одной высоты строку ввода не трогает — со всем, что в ней есть.
+    /// </summary>
+    /// <remarks>
+    /// Перенос считает ширина: та же ширина — та же раскладка, и перекладывать
+    /// нечего. А перекладка не бесплатна: клетки копируются со знаками и
+    /// цветом, но без ссылок, которыми оболочки размечают вывод и приглашение.
+    /// </remarks>
+    [Fact]
+    public void A_height_change_leaves_the_input_line_untouched()
+    {
+        using var pty = new FakePty { KeepsOwnScreen = true };
+        using var session = Wide(pty, 60);
+
+        pty.Emit(Esc + "]8;;https://arxis.devссылка" + Esc + "]8;; хвост");
+
+        Assert.True(SpinWait.SpinUntil(() => session.Terminal.Buffer.X == 12, Timeout), "вывод не дошёл");
+
+        var buffer = session.Terminal.Buffer;
+
+        session.Resize(session.Terminal.Cols, session.Terminal.Rows + 4);
+
+        Assert.True(
+            buffer.Lines[buffer.YBase + buffer.Y]?.TryGetLinkAt(1, out _),
+            "ссылка пропала из строки ввода");
+    }
+
+    /// <summary>Псевдотерминалу без своего экрана строки под перенос не отводят.</summary>
+    [Fact]
+    public void A_plain_pseudo_terminal_gets_no_reserved_rows()
+    {
+        using var pty = new FakePty();
+        using var session = Wide(pty, 60);
+
+        pty.Emit(new string('q', 59));
+
+        Assert.True(SpinWait.SpinUntil(() => session.Terminal.Buffer.X == 59, Timeout), "набранное не дошло");
+
+        var buffer = session.Terminal.Buffer;
+        var row = buffer.Y;
+
+        session.Resize(50, session.Terminal.Rows);
+
+        Assert.Equal(row, buffer.Y);
+        Assert.Equal(49, buffer.X);
+    }
+
+    /// <summary>
     /// Псевдотерминалу без своего экрана окно не поправляют.
     /// </summary>
     /// <remarks>
@@ -371,10 +707,11 @@ public class TerminalSessionTests
             TerminalSession.Options(TerminalSettings.Default, 20, 10),
             post: queue.Add);
 
-        // Двадцать пять знаков при ширине 20 переносятся на вторую строку; при
-        // ширине 60 остались бы на первой. Ровно двадцать не годятся: курсор
-        // после последнего знака в строке ждёт следующего, а не переносится.
-        pty.Emit(new string('x', 25));
+        // «В последний столбец» — это столбец 19 на экране шириной 20 и столбец
+        // 59 на экране шириной 60. Куда встал знак, там байты и применили. А
+        // по переплетению строк, в отличие от этого, размера не узнать: строку
+        // под курсором эмулятор не переплетает вовсе.
+        pty.Emit(Esc + "[999GМ");
 
         Assert.True(
             SpinWait.SpinUntil(() => queue.Count > 0, Timeout),
@@ -382,8 +719,8 @@ public class TerminalSessionTests
 
         session.Resize(60, 10);
 
-        Assert.Equal(1, session.Terminal.Buffer.Y);
-        Assert.Equal(new string('x', 20), session.Terminal.GetVisibleLines()[0].TrimEnd());
+        Assert.Equal(new string(' ', 19) + "М", session.Terminal.GetVisibleLines()[0].TrimEnd());
+        Assert.Equal(20, session.Terminal.Buffer.X);
     }
 
     /// <summary>
@@ -449,6 +786,10 @@ public class TerminalSessionTests
     /// <summary>Приглашение стоит на строке курсора.</summary>
     private static bool Prompt(TerminalSession session) =>
         session.Terminal.GetVisibleLines()[session.Terminal.Buffer.Y].StartsWith("PS C:>", StringComparison.Ordinal);
+
+    /// <summary>Сеанс заданной ширины: изменение размера проверяется на ширине.</summary>
+    private static TerminalSession Wide(FakePty pty, int columns) =>
+        new(Probe, pty, TerminalSession.Options(TerminalSettings.Default, columns, 10), post: action => action());
 
     private static TerminalSession Start(FakePty pty) =>
         new(Probe, pty, TerminalSession.Options(TerminalSettings.Default, 40, 10), post: action => action());

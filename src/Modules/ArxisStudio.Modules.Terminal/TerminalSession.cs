@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
 using XTerm.Options;
+using BufferLine = XTerm.Buffer.BufferLine;
 using XTerminal = XTerm.Terminal;
 
 namespace ArxisStudio.Modules.Terminal;
@@ -293,25 +294,194 @@ public sealed class TerminalSession : IDisposable
         var buffer = Terminal.Buffer;
         var top = buffer.YBase;
         var cursorRow = buffer.Y;
+        var input = CursorLine();
 
         Terminal.Resize(columns, rows);
 
-        // Расхождение о том, куда растёт окно. ConPTY со своим экраном растит
-        // его вниз: строка курсора остаётся на своём месте, а под ней
-        // появляется пустое. Эмулятор растит вверх — подтягивает историю
-        // сверху и уводит курсор в самый низ. После этого установка курсора
-        // абсолютными координатами, которой оболочка рисует строку ввода, бьёт
-        // мимо ровно на разницу: набранное ложится посреди старого вывода.
-        // Возвращаем окно туда, где его держит ConPTY.
-        if (_pty.KeepsOwnScreen && buffer.YBase < top)
+        if (_pty.KeepsOwnScreen)
         {
-            buffer.ScrollUp(top - buffer.YBase, false);
-            buffer.SetCursor(buffer.X, cursorRow);
+            // Расхождение о том, куда растёт окно. ConPTY со своим экраном
+            // растит его вниз: строка курсора остаётся на своём месте, а под
+            // ней появляется пустое. Эмулятор растит вверх — подтягивает
+            // историю сверху и уводит курсор в самый низ. После этого
+            // установка курсора абсолютными координатами, которой оболочка
+            // рисует строку ввода, бьёт мимо ровно на разницу: набранное
+            // ложится посреди старого вывода.
+            if (buffer.YBase < top)
+            {
+                buffer.ScrollUp(top - buffer.YBase, false);
+                buffer.SetCursor(buffer.X, cursorRow);
+            }
+
+            Reflow(input, columns, rows);
         }
 
         // Оболочке — последней: её ответ на новый размер придёт уже в экран,
         // который этот размер знает.
         _pty.Resize(columns, rows);
+    }
+
+    /// <summary>
+    /// Логическая строка курсора, снятая до изменения размера.
+    /// </summary>
+    /// <param name="Width">Ширина экрана, по которой она была разложена.</param>
+    /// <param name="Length">Сколько в ней знаков всего.</param>
+    /// <param name="Offset">Каким по счёту знаком стоит курсор.</param>
+    /// <param name="Wrapped">Продолжает ли она строку, ушедшую за верх экрана.</param>
+    /// <param name="Rows">Снимки строк экрана, которые она занимала.</param>
+    private readonly record struct LogicalLine(
+        int Width,
+        int Length,
+        int Offset,
+        bool Wrapped,
+        BufferLine[] Rows);
+
+    /// <summary>
+    /// Снимает логическую строку курсора — набранное вместе с приглашением.
+    /// </summary>
+    /// <remarks>
+    /// Снимок нужен целиком, с клетками: при сужении эмулятор обрезает каждую
+    /// строку по новой ширине, и хвоста набранного потом уже не найти. Клетки
+    /// копируются, а не пересказываются текстом, чтобы вместе со знаками
+    /// сохранились цвета — приглашение и подсветка набранного.
+    /// </remarks>
+    private LogicalLine CursorLine()
+    {
+        var buffer = Terminal.Buffer;
+        var first = buffer.Y;
+
+        // Признак переноса стоит на продолжении, а не на начале: идём вверх,
+        // пока строка объявляет себя продолжением предыдущей.
+        while (first > 0 && buffer.Lines[buffer.YBase + first]?.IsWrapped == true)
+            first--;
+
+        var rows = new BufferLine[buffer.Y - first + 1];
+
+        for (var row = 0; row < rows.Length; row++)
+        {
+            rows[row] = buffer.Lines[buffer.YBase + first + row]?.Clone()
+                ?? buffer.GetBlankLine(default, row > 0);
+        }
+
+        // Перенесённая строка полна по определению: знаки есть только в
+        // последней, остальные заняты целиком.
+        var offset = ((rows.Length - 1) * Terminal.Cols) + buffer.X;
+        var length = ((rows.Length - 1) * Terminal.Cols) + rows[^1].GetTrimmedLength();
+
+        return new LogicalLine(
+            Terminal.Cols,
+            Math.Max(length, offset),
+            offset,
+            rows[0].IsWrapped,
+            rows);
+    }
+
+    /// <summary>
+    /// Раскладывает строку ввода по новой ширине — как это делает ConPTY.
+    /// </summary>
+    /// <param name="line">Какой она была до изменения размера.</param>
+    /// <param name="columns">Новая ширина.</param>
+    /// <param name="rows">Новая высота.</param>
+    /// <remarks>
+    /// Замерено на эмуляторе: перенесённые строки он переплетает сам — при
+    /// сужении делит, при расширении сшивает, — но ровно одну оставляет как
+    /// есть: ту, на которой стоит курсор. Это и есть строка ввода. При сужении
+    /// у неё пропадает обрезанный хвост, при расширении под сшитой строкой
+    /// остаётся брошенное продолжение, и ConPTY, который переплетает и её,
+    /// начинает считать строку ввода на строку выше или ниже нашего. Дальше
+    /// его перерисовка по абсолютным координатам ложится поверх старого
+    /// вывода — то самое, из-за чего набранное оказывалось посреди листинга.
+    /// <para>
+    /// Поэтому строку курсора переплетаем сами, и знаками, а не пустыми
+    /// строками: экран сразу показывает набранное так, как показал бы любой
+    /// терминал, а курсор встаёт туда, куда целится оболочка.
+    /// </para>
+    /// <para>
+    /// Куда именно ложится перенос, зависит от того, есть ли место снизу.
+    /// Если строка ввода стоит не у самого низа, перенос уходит вниз, и
+    /// курсор идёт за ним; если у низа — вниз некуда, и наверх уезжает весь
+    /// экран. Так же решает и ConPTY: его окно следует за курсором и
+    /// двигается лишь тогда, когда иначе курсор из него выпал бы.
+    /// </para>
+    /// </remarks>
+    private void Reflow(LogicalLine line, int columns, int rows)
+    {
+        // Высота на раскладку строки не влияет: перенос считает ширина. А зря
+        // перекладывать нельзя: клетки копируются со знаками и цветом, но без
+        // ссылок, которыми оболочки размечают вывод.
+        if (columns == line.Width)
+            return;
+
+        var buffer = Terminal.Buffer;
+        var blank = buffer.GetBlankLine(default, false)[0];
+        var needed = ((Math.Max(1, line.Length) - 1) / columns) + 1;
+        var was = line.Rows.Length;
+
+        // Строка длиннее всего экрана: видно хвост, как в любом терминале.
+        var skip = Math.Max(0, needed - rows);
+        var first = buffer.Y - (was - 1);
+        var overflow = first + needed - skip - rows;
+
+        if (overflow > 0)
+        {
+            buffer.ScrollUp(overflow, false);
+            first -= overflow;
+        }
+
+        for (var row = skip; row < needed; row++)
+        {
+            var target = Screen(first + row - skip, rows);
+
+            if (target is null)
+                continue;
+
+            target.ResetInPlace(blank, row > 0 || line.Wrapped);
+            Carry(line, row * columns, Math.Min(columns, line.Length - (row * columns)), target);
+        }
+
+        // Строки, освободившиеся при сшивке: у ConPTY под ними пусто.
+        for (var row = needed - skip; row < was; row++)
+            Screen(first + row, rows)?.ResetInPlace(blank, false);
+
+        // Знак, вставший ровно на последнее место строки, курсор на следующую
+        // не переводит: терминал держит его на месте и переносит со следующим.
+        var offset = Math.Min(line.Offset, line.Length);
+        var pending = offset > 0 && offset % columns == 0;
+        var cursorRow = pending ? (offset / columns) - 1 : offset / columns;
+
+        buffer.SetCursor(
+            pending ? columns - 1 : offset % columns,
+            Math.Clamp(first + cursorRow - skip, 0, rows - 1));
+    }
+
+    /// <summary>Строка экрана по её месту в окне, если такое место есть.</summary>
+    private BufferLine? Screen(int row, int rows)
+        => row >= 0 && row < rows ? Terminal.Buffer.Lines[Terminal.Buffer.YBase + row] : null;
+
+    /// <summary>
+    /// Переносит кусок логической строки в строку экрана новой ширины.
+    /// </summary>
+    /// <remarks>
+    /// Знаки в снимке лежат по прежней ширине, и кусок новой ширины почти
+    /// всегда собирается из двух прежних строк: копируем частями, по границам
+    /// снимка.
+    /// </remarks>
+    private static void Carry(LogicalLine line, int from, int count, BufferLine target)
+    {
+        var carried = 0;
+
+        while (carried < count)
+        {
+            var at = from + carried;
+
+            if (at / line.Width >= line.Rows.Length)
+                return;
+
+            var run = Math.Min(count - carried, line.Width - (at % line.Width));
+
+            target.CopyCellsFrom(line.Rows[at / line.Width], at % line.Width, carried, run, false);
+            carried += run;
+        }
     }
 
     /// <inheritdoc/>
