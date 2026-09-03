@@ -19,11 +19,21 @@ public class StudioModulesTests
     [Fact]
     public void Modules_are_described_from_their_manifests()
     {
-        var module = Assert.Single(StudioModules.Describe());
+        var described = StudioModules.Describe();
 
-        Assert.Equal("arxis.sample", module.Id);
-        Assert.True(module.IsBuiltIn);
-        Assert.True(module.IsEnabled);
+        // Каждая заявленная сборка описана ровно одной записью. Модуль с
+        // забытым манифестом выпал бы отсюда молча: студия показывала бы его
+        // панель, а менеджер плагинов считал бы его отсутствующим — и
+        // зависимость на него выглядела бы невыполненной.
+        Assert.Equal(StudioModules.Assemblies.Count, described.Count);
+        Assert.All(described, module => Assert.True(module.IsBuiltIn, module.Id));
+        Assert.All(described, module => Assert.True(module.IsEnabled, module.Id));
+
+        var ids = described.Select(module => module.Id).ToList();
+
+        Assert.Equal(ids.Count, ids.Distinct(StringComparer.Ordinal).Count());
+        Assert.Contains("arxis.sample", ids);
+        Assert.Contains("arxis.terminal", ids);
     }
 
     /// <summary>На карточке зависимость от модуля выглядит присутствующей.</summary>

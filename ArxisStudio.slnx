@@ -18,6 +18,7 @@
   </Folder>
   <Folder Name="/src/Modules/">
     <Project Path="src/Modules/ArxisStudio.Modules.Sample/ArxisStudio.Modules.Sample.csproj" />
+    <Project Path="src/Modules/ArxisStudio.Modules.Terminal/ArxisStudio.Modules.Terminal.csproj" />
   </Folder>
   <Folder Name="/src/Plugins/">
     <Project Path="src/Plugins/Arxis.Hello.Contracts/Arxis.Hello.Contracts.csproj" />

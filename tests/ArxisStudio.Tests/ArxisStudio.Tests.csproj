@@ -51,6 +51,7 @@
         <ProjectReference Include="../../src/ArxisStudio.Extensibility/ArxisStudio.Extensibility.csproj"/>
         <ProjectReference Include="../../src/ArxisStudio.Shell/ArxisStudio.Shell.csproj"/>
         <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Sample/ArxisStudio.Modules.Sample.csproj"/>
+        <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Terminal/ArxisStudio.Modules.Terminal.csproj"/>
     </ItemGroup>
 
 </Project>

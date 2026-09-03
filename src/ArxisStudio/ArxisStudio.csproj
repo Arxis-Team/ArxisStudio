@@ -38,6 +38,7 @@
         <ProjectReference Include="../ArxisStudio.Docking/ArxisStudio.Docking.csproj"/>
         <ProjectReference Include="../ArxisStudio.Shell/ArxisStudio.Shell.csproj"/>
         <ProjectReference Include="../Modules/ArxisStudio.Modules.Sample/ArxisStudio.Modules.Sample.csproj"/>
+        <ProjectReference Include="../Modules/ArxisStudio.Modules.Terminal/ArxisStudio.Modules.Terminal.csproj"/>
         <ProjectReference Include="../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
         <ProjectReference Include="../ArxisStudio.Extensibility/ArxisStudio.Extensibility.csproj"/>
         <ProjectReference Include="../../external/ArxisStudio.Themes.Arxis/src/ArxisStudio.Themes.Arxis.csproj"/>

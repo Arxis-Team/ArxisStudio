@@ -1,0 +1,34 @@
+{
+  "id": "arxis.terminal",
+  "name": "%panel.terminal%",
+  "version": "1.0.0",
+  "publisher": "Arxis",
+  "description": "%module.terminal.description%",
+  "contributions": {
+    "commands": [
+      { "id": "terminal.open" },
+      { "id": "terminal.new" },
+      { "id": "terminal.newSsh" },
+      { "id": "terminal.settings" }
+    ],
+    "menus": [
+      { "path": "%menu.tools%/%menu.terminal%/%menu.terminal.new%", "command": "terminal.new" },
+      { "path": "%menu.tools%/%menu.terminal%/%menu.terminal.ssh%", "command": "terminal.newSsh" },
+      { "path": "%menu.tools%/%menu.terminal%/%menu.terminal.settings%", "command": "terminal.settings" }
+    ],
+    "toolWindows": [
+      { "id": "terminal.panel", "title": "%panel.terminal%", "placement": { "side": "bottom", "size": 0.3 } }
+    ],
+    "toolBar": [
+      { "id": "terminal.open", "kind": "button", "slot": "right", "command": "terminal.open",
+        "icon": "arxis:Terminal", "title": "%toolbar.terminal.open%" }
+    ],
+    "settings": [
+      { "key": "terminal.shell", "type": "string", "scope": "user", "title": "%settings.terminal.shell%", "default": "" },
+      { "key": "terminal.fontSize", "type": "number", "scope": "user", "title": "%settings.terminal.fontSize%", "default": 13 },
+      { "key": "terminal.scrollback", "type": "number", "scope": "user", "title": "%settings.terminal.scrollback%", "default": 5000 },
+      { "key": "terminal.cursorBlink", "type": "bool", "scope": "user", "title": "%settings.terminal.cursorBlink%", "default": true }
+    ]
+  },
+  "activation": [ "onStartup" ]
+}

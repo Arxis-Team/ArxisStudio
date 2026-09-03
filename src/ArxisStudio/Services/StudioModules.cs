@@ -18,6 +18,7 @@ public static class StudioModules
     public static IReadOnlyList<Assembly> Assemblies { get; } =
     [
         typeof(Modules.Sample.SampleModule).Assembly,
+        typeof(Modules.Terminal.TerminalModule).Assembly,
     ];
 
     /// <summary>

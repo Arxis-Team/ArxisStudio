@@ -15,6 +15,15 @@
     <!-- Текстовый редактор XAML-вкладки. -->
   </ItemGroup>
   <ItemGroup>
+    <!--
+        Терминал: псевдотерминал под три ОС и эмулятор VT. Версии прибиты
+        намеренно — обе библиотеки молодые, и обновлять их надо глядя, а не
+        плавающим диапазоном.
+    -->
+    <PackageVersion Include="Porta.Pty" Version="2.2.2" />
+    <PackageVersion Include="XTerm.NET" Version="2.0.1" />
+  </ItemGroup>
+  <ItemGroup>
     <!-- Инструменты отладки интерфейса; подключаются только в Debug. -->
     <PackageVersion Include="AvaDevTools" Version="12.1.8" />
   </ItemGroup>
