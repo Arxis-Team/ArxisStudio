@@ -57,12 +57,16 @@ public sealed class TerminalPanel : ToolWindow
 
         shells.Flyout = BuildMenu(strings);
 
+        var more = IconButton(AxIcons.MoreVertical, strings["terminal.more"]);
+
+        more.Flyout = BuildSessionMenu(strings);
+
         var actions = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 2,
             VerticalAlignment = VerticalAlignment.Center,
-            Children = { add, shells },
+            Children = { add, shells, more },
         };
 
         DockPanel.SetDock(actions, Dock.Right);
@@ -215,8 +219,16 @@ public sealed class TerminalPanel : ToolWindow
         }
     }
 
-    private void Close(Entry entry)
+    /// <summary>Вкладка, выбранная сейчас; null — ни одного сеанса.</summary>
+    private Entry? Current =>
+        _entries.FirstOrDefault(candidate => ReferenceEquals(candidate.Tab, _tabs.SelectedItem));
+
+    /// <summary>Закрывает сеанс; null — закрывать нечего.</summary>
+    private void Close(Entry? entry)
     {
+        if (entry is null)
+            return;
+
         var index = _tabs.Items.IndexOf(entry.Tab);
 
         entry.View.Session = null;
@@ -233,7 +245,7 @@ public sealed class TerminalPanel : ToolWindow
 
     private void ShowSelected()
     {
-        var entry = _entries.FirstOrDefault(candidate => ReferenceEquals(candidate.Tab, _tabs.SelectedItem));
+        var entry = Current;
 
         _body.Child = entry?.Host ?? _empty;
 
@@ -349,6 +361,62 @@ public sealed class TerminalPanel : ToolWindow
         flyout.Items.Add(settings);
 
         return flyout;
+    }
+
+    /// <summary>
+    /// Меню «⋮»: что сделать с открытым сеансом.
+    /// </summary>
+    /// <remarks>
+    /// Два меню в шапке делят обязанности, а не повторяют друг друга: шеврон
+    /// отвечает на «что открыть» — оболочки, SSH, настройки, — а это на «что
+    /// сделать с тем, что открыто». Пунктов, которым не над чем работать, здесь
+    /// не бывает: без сеанса они выключены, а не молча ничего не делают.
+    /// </remarks>
+    private AxMenuFlyout BuildSessionMenu(IStudioStrings strings)
+    {
+        var rename = new AxMenuItem { Header = strings["terminal.rename"] };
+        var clear = new AxMenuItem { Header = strings["terminal.clear"] };
+        var close = new AxMenuItem { Header = strings["terminal.close"] };
+
+        rename.Click += (_, _) => _ = RenameAsync();
+        clear.Click += (_, _) => Current?.View.ClearScreen();
+        close.Click += (_, _) => Close(Current);
+
+        var flyout = new AxMenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight };
+
+        flyout.Items.Add(rename);
+        flyout.Items.Add(clear);
+        flyout.Items.Add(close);
+
+        flyout.Opening += (_, _) =>
+        {
+            var open = Current is not null;
+
+            rename.IsEnabled = open;
+            clear.IsEnabled = open;
+            close.IsEnabled = open;
+        };
+
+        return flyout;
+    }
+
+    /// <summary>
+    /// Спрашивает новое имя вкладки и ставит его.
+    /// </summary>
+    /// <remarks>
+    /// Имя, данное человеком, за оболочкой больше не следует: подсказка на
+    /// вкладке по-прежнему показывает то, чем себя называет она сама, а
+    /// подпись остаётся той, которую выбрали.
+    /// </remarks>
+    private async Task RenameAsync()
+    {
+        if (Owner() is not { } owner || Current is not { } entry)
+            return;
+
+        var current = entry.Tab.Content as string ?? entry.Profile.Title;
+
+        if (await RenameDialog.AskAsync(owner, Context.Strings, current) is { } name)
+            entry.Tab.Content = name;
     }
 
     private static AxMenuFlyout BuildContextMenu(TerminalView view, IStudioStrings strings)

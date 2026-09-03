@@ -4,6 +4,9 @@ using ArxisStudio.Modules.Terminal;
 using ArxisStudio.Modules.Terminal.Shells;
 using ArxisStudio.Services;
 using Avalonia;
+using ArxisStudio.Icons;
+using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -254,6 +257,101 @@ public class TerminalViewTests
 
             TerminalHub.Reset();
         }
+    }
+
+    /// <summary>
+    /// Меню «⋮» действует над открытым сеансом, а без него молчит.
+    /// </summary>
+    /// <remarks>
+    /// Пункт, которому не над чем работать, выключен, а не делает вид, что
+    /// сработал: человек, нажавший «закрыть сеанс» в пустой панели, вправе
+    /// увидеть, что закрывать нечего.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_session_menu_acts_on_the_open_session()
+    {
+        TerminalHub.Reset();
+
+        var panel = Panel();
+
+        try
+        {
+            var window = new Window { Width = 900, Height = 500, Content = panel.Content };
+
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+
+            var menu = Assert.IsType<AxMenuFlyout>(Header(panel, AxIcons.MoreVertical).Flyout);
+            var items = menu.Items.OfType<AxMenuItem>().ToList();
+
+            Assert.Equal(3, items.Count);
+            Assert.All(items, item => Assert.False(string.IsNullOrEmpty(item.Header as string), "пункт без подписи"));
+
+            // Панель могла успеть завести себе сеанс сама: закрываем всё, чтобы
+            // проверять именно пустоту.
+            while (panel.Sessions.Count > 0)
+                panel.Close(panel.Sessions[0]);
+
+            Wait(() => Tabs(panel).Count == 0);
+            Open(menu, panel);
+
+            Assert.All(items, item => Assert.False(item.IsEnabled, $"«{item.Header}» доступен без сеанса"));
+
+            // Оболочки с таким именем нет, но вкладка есть — над ней и действуют.
+            panel.Open(new ShellProfile("probe", "Проба", "arxis-нет-такой-оболочки", []));
+            Dispatcher.UIThread.RunJobs();
+            Open(menu, panel);
+
+            Assert.All(items, item => Assert.True(item.IsEnabled, $"«{item.Header}» выключен при открытой вкладке"));
+            Assert.Single(Tabs(panel));
+
+            items[^1].RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Empty(Tabs(panel));
+
+            window.Close();
+        }
+        finally
+        {
+            foreach (var session in panel.Sessions)
+                panel.Close(session);
+
+            TerminalHub.Reset();
+        }
+    }
+
+    /// <summary>Имя вкладки чистится перед тем, как встать: без пробелов, без пустоты, без простыни.</summary>
+    [Theory]
+    [InlineData(" сборка ", "сборка")]
+    [InlineData("", null)]
+    [InlineData("   ", null)]
+    [InlineData(null, null)]
+    public void A_tab_name_is_cleaned_before_it_lands(string? typed, string? expected) =>
+        Assert.Equal(expected, RenameDialog.Clean(typed));
+
+    /// <summary>Слишком длинное имя обрезается, а не выдавливает соседние вкладки.</summary>
+    [Fact]
+    public void A_long_tab_name_is_cut_to_size() =>
+        Assert.Equal(RenameDialog.MaxLength, RenameDialog.Clean(new string('я', 200))!.Length);
+
+    /// <summary>Кнопка шапки с этим значком.</summary>
+    private static AxButton Header(TerminalPanel panel, Geometry icon) =>
+        panel.Content.GetLogicalDescendants()
+            .OfType<AxButton>()
+            .Single(button => button.Content is AxIcon glyph && ReferenceEquals(glyph.Data, icon));
+
+    /// <summary>Вкладки сеансов панели.</summary>
+    private static IReadOnlyList<object> Tabs(TerminalPanel panel) =>
+        [.. panel.Content.GetLogicalDescendants().OfType<AxTabStrip>().First().Items.OfType<object>()];
+
+    /// <summary>Открывает меню и закрывает: пункты решают о доступности в этот миг.</summary>
+    private static void Open(AxMenuFlyout menu, TerminalPanel panel)
+    {
+        menu.ShowAt(Header(panel, AxIcons.MoreVertical));
+        Dispatcher.UIThread.RunJobs();
+        menu.Hide();
+        Dispatcher.UIThread.RunJobs();
     }
 
     /// <summary>Панель терминала с настоящим контекстом студии, но без дока.</summary>
