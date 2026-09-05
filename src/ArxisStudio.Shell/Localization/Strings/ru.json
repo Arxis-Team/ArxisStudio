@@ -165,5 +165,8 @@
   "splash.stage.plugins": "Каталог плагинов…",
   "splash.stage.language": "Словари интерфейса…",
   "splash.stage.theme": "Оформление…",
-  "splash.stage.shell": "Сборка оболочки…"
+  "splash.stage.shell": "Сборка оболочки…",
+  "splash.stage.modules": "Загрузка модулей…",
+  "splash.stage.extensions": "Загрузка плагинов…",
+  "splash.stage.welcome": "Экран приветствия…"
 }

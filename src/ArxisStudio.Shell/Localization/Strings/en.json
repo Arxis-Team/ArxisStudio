@@ -165,5 +165,8 @@
   "splash.stage.plugins": "Plugin catalogue…",
   "splash.stage.language": "Interface dictionaries…",
   "splash.stage.theme": "Appearance…",
-  "splash.stage.shell": "Building the shell…"
+  "splash.stage.shell": "Building the shell…",
+  "splash.stage.modules": "Loading modules…",
+  "splash.stage.extensions": "Loading plugins…",
+  "splash.stage.welcome": "Welcome screen…"
 }

@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using ArxisStudio.Controls;
 using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
@@ -401,6 +401,60 @@ public class StudioPluginsTests : IDisposable
         Assert.Contains(_log.Records, record => record.Level == StudioLogLevel.Error);
     }
 
+    /// <summary>
+    /// Модули и плагины поднимаются двумя шагами, а не одним.
+    /// </summary>
+    /// <remarks>
+    /// Шаги порознь нужны заставке: она называет человеку, что грузится сейчас,
+    /// и «загрузка модулей» с «загрузкой плагинов» — это две строки, а не одна.
+    /// Проверяется, что шаг делает ровно свою часть: после первого плагинов ещё
+    /// нет.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Modules_and_plugins_rise_in_two_steps()
+    {
+        Install();
+
+        var plugins = Build(modules: typeof(SampleModule).Assembly);
+
+        plugins.LoadModules();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("arxis.sample", Assert.Single(plugins.Modules).Id);
+        Assert.Empty(plugins.Reloadable);
+
+        plugins.LoadPlugins();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("arxis.hello", Assert.Single(plugins.Reloadable).Id);
+    }
+
+    /// <summary>
+    /// Подготовка зовётся сама и повторов не боится.
+    /// </summary>
+    /// <remarks>
+    /// Порядок трёх шагов иначе стал бы ловушкой: забывший подготовку получил
+    /// бы пустую студию без единого слова о том, почему. Здесь шаг зовут вторым
+    /// и лишний раз — студия обязана подняться целиком и один раз.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Preparing_calls_itself_and_survives_a_repeat()
+    {
+        Install();
+
+        var plugins = Build();
+
+        plugins.Prepare();
+        plugins.Prepare();
+        plugins.LoadPlugins();
+
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("arxis.hello", Assert.Single(plugins.Installed).Id);
+        Assert.Equal("arxis.hello", Assert.Single(plugins.Reloadable).Id);
+        Assert.Single(_toolbar.Shown("right"), StudioToolBar.Key("arxis.hello", "hello.menu"));
+    }
+
     /// <summary>Ставит пример плагина во временную папку студии.</summary>
     private void Install()
     {
@@ -451,6 +505,17 @@ public class StudioPluginsTests : IDisposable
     /// <param name="modules">Встроенные модули; без них студия — пустой каркас.</param>
     private StudioPlugins Start(bool sleeping = false, params Assembly[] modules)
     {
+        var plugins = Build(sleeping, modules);
+
+        plugins.Start();
+        Dispatcher.UIThread.RunJobs();
+
+        return plugins;
+    }
+
+    /// <summary>Собирает службу, никого не поднимая.</summary>
+    private StudioPlugins Build(bool sleeping = false, params Assembly[] modules)
+    {
         var plugins = new StudioPlugins(_log, _guard, _tasks, _contributions)
         {
             Commands = _commands,
@@ -470,9 +535,6 @@ public class StudioPluginsTests : IDisposable
         };
 
         _plugins = plugins;
-        plugins.Start();
-
-        Dispatcher.UIThread.RunJobs();
 
         return plugins;
     }

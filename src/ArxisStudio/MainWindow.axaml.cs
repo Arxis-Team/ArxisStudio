@@ -1,4 +1,4 @@
-using ArxisStudio.Controls;
+﻿using ArxisStudio.Controls;
 using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Icons;
@@ -60,6 +60,17 @@ public partial class MainWindow : AxWindow
 
     // Жизнь расширений: подъём, пробуждение, перезагрузка, отключение за сбои.
     private readonly StudioPlugins _plugins;
+
+    /// <summary>
+    /// Жизнь расширений студии — чтобы запуск мог поднимать их по шагам.
+    /// </summary>
+    /// <remarks>
+    /// Окно собирается на запуске, под заставкой, и там же поднимаются модули
+    /// и плагины: заставка в студии одна и показывается при старте, а не при
+    /// открытии окна. Отдаётся служба целиком, а не три её метода обёртками:
+    /// шаги — её дело, а окну про них знать нечего.
+    /// </remarks>
+    public StudioPlugins Extensions => _plugins;
 
     /// <summary>Создаёт окно без проекта — состояние каркаса.</summary>
     public MainWindow()
@@ -133,11 +144,6 @@ public partial class MainWindow : AxWindow
             Icon = "arxis:MoreHorizontal",
             Title = "%toolbar.menu%",
         });
-
-        // Расширения поднимаются при открытии окна, а не при открытии проекта:
-        // проекта у окна может не быть вовсе, а панели плагинов ему нужны
-        // в любом случае.
-        Opened += (_, _) => _plugins.Start();
 
         // Исключение, пришедшее мимо шва, — из обработчика события плагина, из
         // его же задачи, — иначе доходит до платформы и роняет студию. Виновник

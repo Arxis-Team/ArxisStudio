@@ -125,15 +125,38 @@ public sealed class StudioPlugins
             .ToList() ?? [];
 
     /// <summary>
-    /// Поднимает встроенные модули, а за ними — включённые плагины.
+    /// Поднимает всё разом: подготовка, модули, плагины.
     /// </summary>
     /// <remarks>
-    /// Подписки ставятся здесь же, а не в конструкторе: свойства инициализации
-    /// к этому моменту заполнены, а до первого подъёма событий, на которые тут
-    /// подписываются, всё равно нет.
+    /// Три шага порознь нужны заставке: она называет человеку, что именно
+    /// сейчас грузится, и «загрузка модулей» с «загрузкой плагинов» — это
+    /// разные строки, а не одна. Тому, кому подробности не нужны, довольно
+    /// этого вызова.
     /// </remarks>
     public void Start()
     {
+        Prepare();
+        LoadModules();
+        LoadPlugins();
+    }
+
+    /// <summary>
+    /// Готовит хост, реестры и полосу — не поднимая ничьего кода.
+    /// </summary>
+    /// <remarks>
+    /// Подписки ставятся здесь, а не в конструкторе: свойства инициализации к
+    /// этому моменту заполнены, а до первого подъёма событий, на которые тут
+    /// подписываются, всё равно нет.
+    /// <para>
+    /// Повторный вызов ничего не делает: два следующих шага зовут подготовку
+    /// сами, и порядок из-за этого перестаёт быть ловушкой — забыть его нельзя.
+    /// </para>
+    /// </remarks>
+    public void Prepare()
+    {
+        if (_host is not null)
+            return;
+
         var roster = new StudioPluginRoster();
 
         // Уборка перед выгрузкой: задачи, документы, экран — в одном порядке на
@@ -215,12 +238,39 @@ public sealed class StudioPlugins
         // здесь. Модуль, поднятый следом, может тут же выключить свой элемент
         // из Activate — слово должно найти запись.
         MountDeclared(StudioModules.Describe(Assemblies).Concat(_installed));
+    }
+
+    /// <summary>
+    /// Поднимает встроенные модули.
+    /// </summary>
+    /// <remarks>
+    /// Первыми, до внешних плагинов: панели студии должны стоять на своих
+    /// местах раньше, чем к ним встанут чужие.
+    /// </remarks>
+    public void LoadModules()
+    {
+        Prepare();
+
+        if (_host is not { } host)
+            return;
 
         var modules = Assemblies.Select(host.LoadBuiltIn).ToList();
 
         _modules = modules.Select(loaded => loaded.Installed).ToList();
 
-        foreach (var loaded in modules.Concat(host.LoadStartup(_installed)))
+        foreach (var loaded in modules)
+            Accept(loaded);
+    }
+
+    /// <summary>Поднимает включённые плагины — тех из них, кто не ждёт события.</summary>
+    public void LoadPlugins()
+    {
+        Prepare();
+
+        if (_host is not { } host)
+            return;
+
+        foreach (var loaded in host.LoadStartup(_installed))
             Accept(loaded);
 
         // Заметки графа — не отказы, но молчать о них нельзя: устаревший

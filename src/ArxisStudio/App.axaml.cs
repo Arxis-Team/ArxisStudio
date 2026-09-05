@@ -35,6 +35,11 @@ public class App : Application
     private RecentProjects _recent = null!;
     private PluginCatalog _plugins = null!;
 
+    // Окно студии собирается на запуске и ждёт, пока его позовут: заставка в
+    // студии одна и показывается при старте — значит и грузиться под ней должно
+    // всё, включая модули и плагины. Показ окна после этого мгновенный.
+    private MainWindow _studio = null!;
+
     /// <inheritdoc/>
     public override void Initialize()
     {
@@ -103,7 +108,10 @@ public class App : Application
             })
             .Add("splash.stage.language", () => Localizer.Instance.SetLanguage(_settings.Current.Language))
             .Add("splash.stage.theme", () => StudioTheming.Apply(_settings.Current.Theme))
-            .Add("splash.stage.shell", () => desktop.MainWindow = CreateWelcome());
+            .Add("splash.stage.shell", () => _studio = new MainWindow())
+            .Add("splash.stage.modules", () => _studio.Extensions.LoadModules())
+            .Add("splash.stage.extensions", () => _studio.Extensions.LoadPlugins())
+            .Add("splash.stage.welcome", () => desktop.MainWindow = CreateWelcome());
 
         await startup.RunAsync();
         await splash.LingerAsync();
@@ -115,13 +123,20 @@ public class App : Application
         splash.Close();
     }
 
+    /// <summary>
+    /// Экран Welcome поверх уже собранной студии.
+    /// </summary>
+    /// <remarks>
+    /// Окно студии к этому времени построено и наполнено: показать его —
+    /// значит только показать. Ждать при этом человеку нечего, и заставка
+    /// второй раз не нужна.
+    /// </remarks>
     private WelcomeWindow CreateWelcome()
     {
         var welcome = new WelcomeWindow(_settings, _recent, _plugins, _log);
         welcome.StudioRequested += (_, _) =>
         {
-            var studio = new MainWindow();
-            studio.Show();
+            _studio.Show();
             welcome.Close();
         };
 
