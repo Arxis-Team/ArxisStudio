@@ -46,17 +46,6 @@ public sealed class StudioStartup
     /// <summary>Сколько времени занял запуск.</summary>
     public TimeSpan Elapsed { get; private set; }
 
-    /// <summary>
-    /// Сколько прошло с запуска процесса.
-    /// </summary>
-    /// <remarks>
-    /// Считается от старта процесса, а не от первой своей строки: до неё
-    /// успевают поднять среду и разобрать темы, и это тоже время, которое
-    /// человек ждёт. Мерить с середины значило бы мерить не то.
-    /// </remarks>
-    public static TimeSpan SinceLaunch =>
-        DateTime.Now - Process.GetCurrentProcess().StartTime;
-
     /// <summary>Этапы в порядке выполнения — их имена, как их видит человек.</summary>
     public IReadOnlyList<string> Stages => [.. _stages.Select(stage => stage.Key)];
 
@@ -89,6 +78,14 @@ public sealed class StudioStartup
 
         _splash.Expect(_stages.Count);
 
+        // Первый кадр — отдельная фаза, и ждать его надо здесь. Окно заставки
+        // показано, но ещё не нарисовано: рисует его тот же поток, который
+        // сейчас читает эти строки. Не уступив ему до первого этапа, студия
+        // приписала бы стоимость первой отрисовки чтению папок — так и вышло,
+        // и в отчёте «paths» стоил двести миллисекунд вместо двух.
+        await Idle();
+        StudioLaunch.Mark("кадр");
+
         foreach (var stage in _stages)
         {
             _splash.Begin(Localizer.Instance[stage.Key]);
@@ -101,13 +98,21 @@ public sealed class StudioStartup
             Run(stage);
 
             _splash.Done();
+
+            StudioLaunch.Mark(Short(stage.Key));
         }
 
         Elapsed = clock.Elapsed;
-
-        _log.Write(StudioLogLevel.Debug, "Startup",
-            $"Этапы пройдены за {Elapsed.TotalMilliseconds:F0} мс, всего с запуска {SinceLaunch.TotalMilliseconds:F0} мс");
     }
+
+    /// <summary>
+    /// Короткое имя этапа для журнала: <c>splash.stage.settings</c> → <c>settings</c>.
+    /// </summary>
+    /// <remarks>
+    /// В журнал идёт ключ, а не подпись: подпись переводится, а строку отчёта
+    /// ищут глазами и грепом — она обязана быть одной и той же на любом языке.
+    /// </remarks>
+    private static string Short(string key) => key[(key.LastIndexOf('.') + 1)..];
 
     /// <summary>
     /// Делает этап, чего бы это ни стоило.

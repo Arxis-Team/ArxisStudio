@@ -234,18 +234,33 @@ public class SplashTests : IDisposable
         Assert.Equal(100d, model.Progress);
     }
 
-    /// <summary>Запуск говорит, сколько он занял: это первое число в отчёте о медленном старте.</summary>
+    /// <summary>
+    /// Каждый этап отмечается на часах запуска — своим коротким именем.
+    /// </summary>
+    /// <remarks>
+    /// Из этих отметок собирается строка отчёта в журнале: следующему, кто
+    /// спросит «почему студия стартует секунду», отвечать будет она, а не
+    /// расставленные заново замеры. Имя в отметке — ключ, а не подпись: подпись
+    /// переводится, а отчёт ищут грепом.
+    /// </remarks>
     [AvaloniaFact]
-    public async Task Startup_says_how_long_it_took()
+    public async Task Every_stage_leaves_a_mark_on_the_launch_clock()
     {
-        var startup = new StudioStartup(new SplashViewModel(), _log).Add("splash.stage.theme", () => { });
+        StudioLaunch.Forget();
+
+        var startup = new StudioStartup(new SplashViewModel(), _log)
+            .Add("splash.stage.theme", () => { })
+            .Add("splash.stage.welcome", () => { });
 
         await startup.RunAsync();
 
         Assert.True(startup.Elapsed > TimeSpan.Zero, "запуск не измерил себя");
 
-        Assert.Contains(_log.Records, record =>
-            record.Level == StudioLogLevel.Debug && record.Source == "Startup");
+        Assert.Equal(
+            ["кадр", "theme", "welcome"],
+            StudioLaunch.Phases.Select(phase => phase.What));
+
+        StudioLaunch.Forget();
     }
 
     /// <summary>

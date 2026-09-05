@@ -43,13 +43,19 @@ public class App : Application
     /// <inheritdoc/>
     public override void Initialize()
     {
+        StudioLaunch.Mark("платформа");
+
         AvaloniaXamlLoader.Load(this);
+        StudioLaunch.Mark("стили");
+
         StudioDevTools.Attach(this);
     }
 
     /// <inheritdoc/>
     public override void OnFrameworkInitializationCompleted()
     {
+        StudioLaunch.Mark("оболочка");
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.ShutdownMode = ShutdownMode.OnLastWindowClose;
@@ -73,9 +79,7 @@ public class App : Application
         var splash = new SplashWindow(new SplashViewModel());
 
         splash.Show();
-
-        _log.Write(StudioLogLevel.Debug, "Startup",
-            $"Заставка на экране через {StudioStartup.SinceLaunch.TotalMilliseconds:F0} мс после запуска");
+        StudioLaunch.Mark("заставка");
 
         Dispatcher.UIThread.Post(
             async () => await RunAsync(desktop, splash),
@@ -121,6 +125,13 @@ public class App : Application
         // промежутком без студии.
         desktop.MainWindow?.Show();
         splash.Close();
+
+        StudioLaunch.Mark("окно");
+
+        // Отчёт пишется один раз и одной строкой: следующему, кто спросит
+        // «почему студия стартует секунду», отвечать будет журнал, а не
+        // расставленные заново отметки.
+        _log.Write(StudioLogLevel.Debug, "Startup", StudioLaunch.Report());
     }
 
     /// <summary>

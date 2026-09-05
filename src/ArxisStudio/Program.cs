@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using ArxisStudio.Services;
 using Avalonia;
 
 namespace ArxisStudio;
@@ -8,6 +9,10 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // Первая отметка — здесь: всё, что было до неё, это старт среды, и
+        // приложению оно не принадлежит. Но ждёт-то его человек.
+        StudioLaunch.Mark("среда");
+
         UseUtf8();
 
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
