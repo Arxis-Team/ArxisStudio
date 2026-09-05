@@ -1,7 +1,7 @@
 ﻿<ax:AxWindow xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
-        xmlns:vm="using:ArxisStudio"
+        xmlns:vm="using:ArxisStudio.ViewModels"
         x:Class="ArxisStudio.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="ArxisStudio"

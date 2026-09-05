@@ -1,7 +1,8 @@
 ﻿<ax:AxWindow xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
-        xmlns:vm="using:ArxisStudio.Welcome"
+        xmlns:vm="using:ArxisStudio.ViewModels"
+        xmlns:welcome="using:ArxisStudio.Welcome"
         xmlns:ext="using:ArxisStudio.Extensibility"
         x:Class="ArxisStudio.Welcome.WelcomeWindow"
         x:DataType="vm:WelcomeViewModel"
@@ -186,7 +187,7 @@
                           <Panel>
                             <Image x:Name="PluginIcon" Width="24" Height="24"
                                    RenderOptions.BitmapInterpolationMode="HighQuality"
-                                   Source="{Binding Plugin.IconPath, Converter={x:Static vm:PluginIconConverter.Instance}}"/>
+                                   Source="{Binding Plugin.IconPath, Converter={x:Static welcome:PluginIconConverter.Instance}}"/>
                             <!-- Общий значок показывается тогда, когда картинки
                                  нет: не объявлена, потерялась или не
                                  прочиталась. Решает сама картинка, а не путь к
@@ -204,7 +205,7 @@
                         <ax:AxButton DockPanel.Dock="Right" MinWidth="96" Height="26" FontSize="{DynamicResource AxFontSizeSmall}"
                                      VerticalAlignment="Center" Margin="10,0,0,0"
                                      Click="OnTogglePluginClick" Tag="{Binding Plugin}"
-                                     Content="{Binding Plugin.IsEnabled, Converter={x:Static vm:PluginToggleConverter.Instance}}"
+                                     Content="{Binding Plugin.IsEnabled, Converter={x:Static welcome:PluginToggleConverter.Instance}}"
                                      IsVisible="{Binding Plugin.IsValid}"/>
                         <TextBlock DockPanel.Dock="Right" Classes="mono dimmer" FontSize="{DynamicResource AxFontSizeSmall}"
                                    VerticalAlignment="Center" Text="{Binding Plugin.Manifest.Version}"/>
@@ -254,7 +255,7 @@
                               <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="ext:PluginDependencyState">
                                   <ax:AxChip Content="{Binding Label}"
-                                             Foreground="{Binding IsProblem, Converter={x:Static vm:DependencyProblemBrushConverter.Instance}}"/>
+                                             Foreground="{Binding IsProblem, Converter={x:Static welcome:DependencyProblemBrushConverter.Instance}}"/>
                                 </DataTemplate>
                               </ItemsControl.ItemTemplate>
                             </ItemsControl>

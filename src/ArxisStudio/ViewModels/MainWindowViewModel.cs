@@ -5,7 +5,7 @@ using ArxisStudio.Extensibility;
 using ArxisStudio.Shell.Localization;
 using Avalonia.Threading;
 
-namespace ArxisStudio;
+namespace ArxisStudio.ViewModels;
 
 /// <summary>
 /// Модель главного окна: то, что окно рассказывает о себе самом.

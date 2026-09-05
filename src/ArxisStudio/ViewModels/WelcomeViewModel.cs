@@ -7,7 +7,7 @@ using ArxisStudio.Services;
 using ArxisStudio.Shell.Localization;
 using ArxisStudio.Shell.Settings;
 
-namespace ArxisStudio.Welcome;
+namespace ArxisStudio.ViewModels;
 
 /// <summary>Раздел экрана Welcome.</summary>
 public enum WelcomeSection

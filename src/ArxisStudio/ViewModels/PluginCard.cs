@@ -1,6 +1,6 @@
 using ArxisStudio.Extensibility;
 
-namespace ArxisStudio.Welcome;
+namespace ArxisStudio.ViewModels;
 
 /// <summary>
 /// Строка списка плагинов: запись каталога плюс состояние её зависимостей.

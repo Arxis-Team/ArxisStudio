@@ -5,6 +5,7 @@ using ArxisStudio.Icons;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using ArxisStudio.Shell.Localization;
+using ArxisStudio.ViewModels;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;

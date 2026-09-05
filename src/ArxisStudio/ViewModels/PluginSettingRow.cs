@@ -2,7 +2,7 @@ using System.ComponentModel;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk.Plugins;
 
-namespace ArxisStudio.Welcome;
+namespace ArxisStudio.ViewModels;
 
 /// <summary>
 /// Строка настройки плагина в экране настроек.
