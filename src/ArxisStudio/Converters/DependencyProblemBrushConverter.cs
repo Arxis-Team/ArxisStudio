@@ -4,7 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
 
-namespace ArxisStudio.Welcome;
+namespace ArxisStudio.Converters;
 
 /// <summary>
 /// Красит подпись зависимости: обычную — приглушённо, проблемную — жёлтым.

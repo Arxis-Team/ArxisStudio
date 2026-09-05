@@ -2,7 +2,7 @@ using System.Globalization;
 using ArxisStudio.Shell.Localization;
 using Avalonia.Data.Converters;
 
-namespace ArxisStudio.Welcome;
+namespace ArxisStudio.Converters;
 
 /// <summary>
 /// Надпись на кнопке плагина: она предлагает действие, а не сообщает состояние,

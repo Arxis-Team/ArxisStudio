@@ -2,7 +2,7 @@ using System.Globalization;
 using ArxisStudio.Services;
 using Avalonia.Data.Converters;
 
-namespace ArxisStudio.Welcome;
+namespace ArxisStudio.Converters;
 
 /// <summary>
 /// Превращает путь к значку плагина в картинку для карточки.
