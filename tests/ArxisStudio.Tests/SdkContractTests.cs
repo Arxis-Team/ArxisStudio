@@ -21,6 +21,32 @@ namespace ArxisStudio.Tests;
 public class SdkContractTests
 {
     /// <summary>
+    /// Версия сборки SDK не двигается — никогда.
+    /// </summary>
+    /// <remarks>
+    /// Плагин собирается против <c>ArxisStudio.Sdk</c> и запоминает его имя
+    /// вместе с версией. Сдвинув её, студия перестаёт быть тем, на что он
+    /// ссылался: каждый уже установленный плагин падает при загрузке с «Could
+    /// not load file or assembly». Проверено дорогой ценой — версия сборки
+    /// однажды поехала за версией релиза, и плагин у человека перестал
+    /// грузиться после простого обновления студии.
+    /// <para>
+    /// Совместимость меряется не этим числом, а <c>sdk.min</c> в манифесте: у
+    /// неё своя шкала, и растёт она отдельно. Здесь же закреплена именно
+    /// идентичность, и число в тесте написано числом нарочно — считать его от
+    /// сборки значило бы проверять, что она равна себе.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_binding_identity_of_the_sdk_never_moves()
+    {
+        foreach (var assembly in new[] { typeof(IStudioContext).Assembly, typeof(InstalledPlugin).Assembly })
+        {
+            Assert.Equal(new Version(1, 0, 0, 0), assembly.GetName().Version);
+        }
+    }
+
+    /// <summary>
     /// Студия годится плагину, которому нужен SDK не новее её.
     /// </summary>
     /// <remarks>

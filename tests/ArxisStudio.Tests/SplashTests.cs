@@ -121,6 +121,24 @@ public class SplashTests : IDisposable
     }
 
     /// <summary>
+    /// Номер сборки идёт от версии файла, а не от версии связывания.
+    /// </summary>
+    /// <remarks>
+    /// Версия сборки у студии закреплена навсегда — ею плагины ссылаются на
+    /// SDK. Номер, который человек называет в отчёте о сбое, обязан меняться, и
+    /// берётся он из версии файла. Сойдись они — значит версия файла молча
+    /// поехала за закреплённой единицей, и заставка показывает «1.0.0» на любой
+    /// сборке. Так однажды и вышло.
+    /// </remarks>
+    [Fact]
+    public void The_build_number_is_not_the_binding_identity()
+    {
+        var binding = typeof(StudioRelease).Assembly.GetName().Version?.ToString(3);
+
+        Assert.NotEqual(binding, StudioRelease.Build);
+    }
+
+    /// <summary>
     /// Смена языка доходит до строки версии.
     /// </summary>
     /// <remarks>

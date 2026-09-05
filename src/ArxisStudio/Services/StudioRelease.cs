@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Runtime.InteropServices;
 
 namespace ArxisStudio.Services;
@@ -19,8 +19,20 @@ public static class StudioRelease
 {
     private static readonly Assembly Studio = typeof(StudioRelease).Assembly;
 
-    /// <summary>Сборка — то, чем версию называет загрузчик: <c>0.1.1</c>.</summary>
-    public static string Build { get; } = Version3(Studio);
+    /// <summary>
+    /// Сборка — то, чем версию называет человек в отчёте о сбое: <c>0.1.1</c>.
+    /// </summary>
+    /// <remarks>
+    /// Берётся из версии файла, а не из версии сборки. Версия сборки у студии
+    /// закреплена навсегда: плагин собран против <c>ArxisStudio.Sdk</c> и помнит
+    /// его имя вместе с версией — сдвинув её, студия перестала бы быть тем, на
+    /// что он ссылался. Спрашивать её здесь значило бы всегда получать
+    /// <c>1.0.0</c>.
+    /// </remarks>
+    public static string Build { get; } =
+        Studio.GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version is { Length: > 0 } file
+            ? Trim(file)
+            : Version3(Studio);
 
     /// <summary>
     /// Релиз — то, чем версию называет человек: <c>2026.1</c>.
@@ -64,6 +76,10 @@ public static class StudioRelease
     /// <summary>Версия сборки в трёх числах — четвёртое человеку не говорит ничего.</summary>
     private static string Version3(Assembly assembly) =>
         assembly.GetName().Version is { } version ? version.ToString(3) : "?";
+
+    /// <summary>Оставляет от версии файла три числа: <c>0.1.1.0</c> → <c>0.1.1</c>.</summary>
+    private static string Trim(string version) =>
+        System.Version.TryParse(version, out var parsed) ? parsed.ToString(3) : version;
 
     /// <summary>
     /// Имя среды: <c>.NET 10</c>.
