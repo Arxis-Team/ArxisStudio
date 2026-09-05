@@ -1,0 +1,71 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:brand="using:ArxisStudio.Brand"
+             xmlns:vm="using:ArxisStudio.ViewModels"
+             x:Class="ArxisStudio.Splash.Art.Splash2026"
+             x:DataType="vm:SplashViewModel"
+             IsHitTestVisible="False">
+
+  <!--
+      Оформление заставки релиза 2026.1.
+
+      Это единственный файл, который переписывают к новой версии: окно заставки
+      даёт раму, полосу хода и подвал, а всё, что здесь, — картинка. Договор
+      между ними — модель заставки: отсюда можно взять любое её свойство и
+      нельзя сломать ни одного этапа запуска.
+
+      Мыши здесь делать нечего — IsHitTestVisible снят со всего слоя разом.
+  -->
+  <Grid ClipToBounds="True">
+
+    <!--
+        Водяной знак: в кадр попадает одна буква, её стойки уходят за нижний
+        край окна. Ни рельса, ни скамьи — иначе поперёк заставки пошла бы
+        горизонтальная полоса и спорила бы с полосой хода.
+
+        Толщина здесь своя, не как у знака: Viewbox растягивает и штрих, и
+        0.15 канвы дают на этом размере ровно два пикселя на экране.
+    -->
+    <Viewbox Width="640" Height="640" Margin="64,-25,0,0"
+             HorizontalAlignment="Left" VerticalAlignment="Top"
+             Opacity="0.07" Stretch="Uniform">
+      <Canvas Width="48" Height="48">
+        <Canvas.Styles>
+          <Style Selector="Path">
+            <Setter Property="Stroke" Value="{DynamicResource AxFgBrush}"/>
+            <Setter Property="StrokeJoin" Value="Miter"/>
+            <Setter Property="StrokeThickness" Value="0.15"/>
+          </Style>
+        </Canvas.Styles>
+
+        <Path Data="M21.84 6H26.16L38.76 31.95H33.51L24 10.2L14.49 31.95H9.24Z"/>
+        <Path Data="M24 18.6L28.82 31H19.18Z"/>
+
+        <Ellipse Canvas.Left="23.05" Canvas.Top="9.25" Width="1.9" Height="1.9"
+                 Stroke="{DynamicResource AxFgBrush}" StrokeThickness="0.15"/>
+      </Canvas>
+    </Viewbox>
+
+    <!-- Лок-ап: знак, вордмарк и строка версии под ним. -->
+    <StackPanel Orientation="Horizontal" Margin="40,96,0,0"
+                HorizontalAlignment="Left" VerticalAlignment="Top">
+      <brand:ArxisMark/>
+
+      <!--
+          Вордмарк центрируется по букве и рельсу, а не по всей высоте знака:
+          знак шире, чем выше, и текст, выровненный по его середине, читался бы
+          осевшим. Поднят на 6 % высоты — три пикселя из сорока восьми.
+      -->
+      <StackPanel Margin="11,3,0,0" VerticalAlignment="Top">
+        <TextBlock FontSize="26" LetterSpacing="-0.52">
+          <Run Text="Arxis" FontWeight="Bold" Foreground="{DynamicResource AxFgBrush}"/><Run Text="Studio" Foreground="{DynamicResource AxFg2Brush}"/>
+        </TextBlock>
+
+        <TextBlock Text="{Binding Edition}" Margin="1,6,0,0"
+                   FontFamily="{DynamicResource AxFontFamilyMono}"
+                   FontSize="{DynamicResource AxFontSizeSmall}"
+                   Foreground="{DynamicResource AxFg3Brush}"/>
+      </StackPanel>
+    </StackPanel>
+  </Grid>
+</UserControl>

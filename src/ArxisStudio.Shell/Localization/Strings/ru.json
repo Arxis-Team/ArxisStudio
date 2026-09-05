@@ -157,5 +157,13 @@
   "terminal.settings.shell": "Оболочка по умолчанию",
   "terminal.settings.fontSize": "Кегль",
   "terminal.settings.scrollback": "Строк истории",
-  "terminal.settings.cursorBlink": "Мигающий курсор"
+  "terminal.settings.cursorBlink": "Мигающий курсор",
+
+  "splash.build": "сборка",
+  "splash.stage.paths": "Подготовка рабочих файлов…",
+  "splash.stage.settings": "Чтение настроек…",
+  "splash.stage.plugins": "Каталог плагинов…",
+  "splash.stage.language": "Словари интерфейса…",
+  "splash.stage.theme": "Оформление…",
+  "splash.stage.shell": "Сборка оболочки…"
 }

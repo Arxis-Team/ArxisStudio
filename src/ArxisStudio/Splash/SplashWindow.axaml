@@ -1,0 +1,65 @@
+﻿<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
+        xmlns:art="using:ArxisStudio.Splash.Art"
+        xmlns:vm="using:ArxisStudio.ViewModels"
+        x:Class="ArxisStudio.Splash.SplashWindow"
+        x:DataType="vm:SplashViewModel"
+        Title="ArxisStudio"
+        Width="640" Height="360"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Topmost="True"
+        WindowStartupLocation="CenterScreen"
+        WindowDecorations="None"
+        TransparencyLevelHint="Transparent"
+        Background="Transparent">
+
+  <!--
+      Рама заставки и полоса хода: то, что при смене оформления остаётся.
+      Картинку релиза даёт art:Splash2026 — один элемент ниже, и меняют к новой
+      версии именно его.
+
+      Своей рамки у окна нет вовсе: скруглить системную нельзя, а заставка со
+      скруглением 12 — часть узнаваемости студии. Поэтому прозрачное окно и
+      скруглённая подложка внутри.
+  -->
+  <Border Background="{DynamicResource AxBg1Brush}"
+          BorderBrush="{DynamicResource AxBrdBrush}"
+          BorderThickness="1"
+          CornerRadius="12"
+          ClipToBounds="True">
+    <Grid>
+      <art:Splash2026/>
+
+      <StackPanel VerticalAlignment="Bottom" Margin="40,0,40,24">
+        <TextBlock Text="{Binding Stage}"
+                   FontSize="{DynamicResource AxFontSizeSmall}"
+                   Foreground="{DynamicResource AxFg2Brush}"
+                   TextTrimming="CharacterEllipsis"/>
+
+        <ax:AxProgressBar Margin="0,9,0,0"
+                          Minimum="0" Maximum="100"
+                          Value="{Binding Progress}"
+                          IsIndeterminate="{Binding IsIndeterminate}"/>
+
+        <!--
+            Подвал: слева права и набор инструментов, справа среда. Обе строки
+            нужны в отчёте о сбое — человек снимает заставку, и на снимке уже
+            есть всё, о чём его иначе пришлось бы расспрашивать.
+        -->
+        <Grid Margin="0,16,0,0">
+          <TextBlock Text="{Binding Credit}" HorizontalAlignment="Left"
+                     FontFamily="{DynamicResource AxFontFamilyMono}"
+                     FontSize="{DynamicResource AxFontSizeCaption}"
+                     Foreground="{DynamicResource AxFg3Brush}"/>
+
+          <TextBlock Text="{Binding Runtime}" HorizontalAlignment="Right"
+                     FontFamily="{DynamicResource AxFontFamilyMono}"
+                     FontSize="{DynamicResource AxFontSizeCaption}"
+                     Foreground="{DynamicResource AxFg3Brush}"/>
+        </Grid>
+      </StackPanel>
+    </Grid>
+  </Border>
+</Window>

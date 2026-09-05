@@ -22,4 +22,25 @@
         <IsPackable>false</IsPackable>
     </PropertyGroup>
 
+    <!--
+        Кем и когда собрано. Заставка, «О программе» и журнал берут это отсюда,
+        а не из строк в разметке: строка, переписываемая руками в трёх местах,
+        разъезжается на первом же релизе.
+
+        Релиз — то, чем версию называет человек (2026.1); сборка — чем её
+        называет загрузчик (0.1.1). Это разные числа, и путать их нельзя:
+        релиз меняется раз в квартал, сборка — каждой правкой.
+    -->
+    <PropertyGroup>
+        <ArxisRelease>2026.1</ArxisRelease>
+        <Version>0.1.1</Version>
+        <Company>Arxis</Company>
+        <Product>ArxisStudio</Product>
+        <Copyright>© 2026 Arxis</Copyright>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <AssemblyMetadata Include="Release" Value="$(ArxisRelease)"/>
+    </ItemGroup>
+
 </Project>

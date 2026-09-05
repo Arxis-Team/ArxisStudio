@@ -1,0 +1,56 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="ArxisStudio.Brand.ArxisMark"
+             Width="48" Height="48">
+
+  <!--
+      Знак студии: полая Λ на рельсе со скамьёй, семь узлов. Канва 48×48, знак
+      занимает 42 × 35.95 — он шире, чем выше, и по горизонтали упирается в
+      поле: крайние точки это кольца, надетые на торцы рельса.
+
+      Рисуется в натуральную величину, без Viewbox. Толщина штриха у знака
+      разная у разных фигур (1.15 буква и остров, 1.0 рельс и скамья, 0.9
+      перемычка и тяги, 0.85 узлы) и задана для отрисовки в 48 пикселей;
+      растянув канву, мы растянули бы и её, а лесенка толщин на том и держится,
+      что она постоянная. Нужен другой размер — нужен другой набор толщин, как
+      сделано в исходных SVG.
+
+      Цвет линий — цвет текста темы, заливка узлов — цвет носителя. Узлы
+      непрозрачны нарочно: под ними прерываются торцевые кромки рельса и стык
+      внутреннего пика.
+  -->
+  <Canvas Width="48" Height="48">
+    <Canvas.Styles>
+      <Style Selector="Path">
+        <Setter Property="Stroke" Value="{DynamicResource AxFgBrush}"/>
+        <Setter Property="StrokeJoin" Value="Miter"/>
+      </Style>
+      <Style Selector="Ellipse">
+        <Setter Property="Stroke" Value="{DynamicResource AxFgBrush}"/>
+        <Setter Property="Fill" Value="{DynamicResource AxBg1Brush}"/>
+        <Setter Property="StrokeThickness" Value="0.85"/>
+      </Style>
+    </Canvas.Styles>
+
+    <!-- Буква: вершина срезана, пяты срезаны вертикально по кромке рельса. -->
+    <Path Data="M21.84 6H26.16L38.76 31.95H33.51L24 10.2L14.49 31.95H9.24Z" StrokeThickness="1.15"/>
+
+    <!-- Остров: отдельная фигура внутри буквы, а не вырез в ней. -->
+    <Path Data="M24 18.6L28.82 31H19.18Z" StrokeThickness="1.15"/>
+
+    <!-- Рельс и скамья с арочным вырезом. -->
+    <Path Data="M4 31.95H44V35.4H4Z" StrokeThickness="1"/>
+    <Path Data="M7.15 35.4L4 41.95H15.23L17.21 36.39H30.79L32.77 41.95H44L40.85 35.4Z" StrokeThickness="1"/>
+
+    <!-- Перемычка между центральными узлами и тяги скамьи. -->
+    <Path Data="M21.5 33.67H26.5M12.27 35.4L11.71 37.5M35.73 35.4L36.29 37.5" StrokeThickness="0.9"/>
+
+    <Ellipse Canvas.Left="23.05" Canvas.Top="9.25" Width="1.9" Height="1.9"/>
+    <Ellipse Canvas.Left="3" Canvas.Top="32.67" Width="2" Height="2"/>
+    <Ellipse Canvas.Left="19.5" Canvas.Top="32.67" Width="2" Height="2"/>
+    <Ellipse Canvas.Left="26.5" Canvas.Top="32.67" Width="2" Height="2"/>
+    <Ellipse Canvas.Left="43" Canvas.Top="32.67" Width="2" Height="2"/>
+    <Ellipse Canvas.Left="10.28" Canvas.Top="37.36" Width="2" Height="2"/>
+    <Ellipse Canvas.Left="35.72" Canvas.Top="37.36" Width="2" Height="2"/>
+  </Canvas>
+</UserControl>

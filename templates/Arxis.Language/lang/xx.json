@@ -157,5 +157,13 @@
   "terminal.settings.shell": "Default shell",
   "terminal.settings.fontSize": "Font size",
   "terminal.settings.scrollback": "Scrollback lines",
-  "terminal.settings.cursorBlink": "Blinking cursor"
+  "terminal.settings.cursorBlink": "Blinking cursor",
+
+  "splash.build": "build",
+  "splash.stage.paths": "Preparing working files…",
+  "splash.stage.settings": "Reading settings…",
+  "splash.stage.plugins": "Plugin catalogue…",
+  "splash.stage.language": "Interface dictionaries…",
+  "splash.stage.theme": "Appearance…",
+  "splash.stage.shell": "Building the shell…"
 }
