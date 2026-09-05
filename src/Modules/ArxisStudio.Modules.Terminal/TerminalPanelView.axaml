@@ -1,0 +1,84 @@
+<!--
+    Панель терминала: полоса сеансов и кнопки над экраном.
+
+    Полоса стоит первой строкой содержимого, а не в шапке панели: в доке студии
+    шапка принадлежит группе вкладок — там живут вкладки соседних панелей и
+    кнопки студии, — и делить её с ними панель не может. Устроена полоса теми
+    же вкладками compact, что и шапка, и читается так же.
+-->
+<AxUserControl xmlns="https://github.com/Arxis-Team/ArxisStudio"
+               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+               xmlns:a="https://github.com/avaloniaui"
+               xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
+               x:Class="ArxisStudio.Modules.Terminal.TerminalPanelView">
+
+  <a:DockPanel>
+
+    <a:Border a:DockPanel.Dock="Top"
+              Padding="4,2"
+              BorderThickness="0,0,0,1"
+              BorderBrush="{a:DynamicResource AxBrdBrush}">
+      <a:DockPanel>
+
+        <!--
+            Класс кнопок один: icon делает кнопку квадратной по высоте строки, а
+            добавленный к нему compact вернул бы минимальную ширину кнопки с
+            текстом — 64 пикселя под значок 12×12.
+
+            Подпись у каждой двойная: подсказка под курсором и имя для средств
+            доступности. Значка средствам доступности мало.
+        -->
+        <a:StackPanel a:DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2"
+                      VerticalAlignment="Center">
+
+          <AxButton x:Name="Add" Classes="icon"
+                    a:ToolTip.Tip="{Text terminal.new}"
+                    a:AutomationProperties.Name="{Text terminal.new}">
+            <AxIcon Classes="small" Data="{x:Static ax:AxIcons.Plus}"/>
+          </AxButton>
+
+          <AxButton x:Name="Shells" Classes="icon"
+                    a:ToolTip.Tip="{Text terminal.shells}"
+                    a:AutomationProperties.Name="{Text terminal.shells}">
+            <AxIcon Classes="small" Data="{x:Static ax:AxIcons.ChevronDownSmall}"/>
+          </AxButton>
+
+          <AxButton x:Name="More" Classes="icon"
+                    a:ToolTip.Tip="{Text terminal.more}"
+                    a:AutomationProperties.Name="{Text terminal.more}">
+            <AxIcon Classes="small" Data="{x:Static ax:AxIcons.MoreVertical}"/>
+
+            <AxButton.Flyout>
+              <AxMenuFlyout Placement="BottomEdgeAlignedRight">
+                <AxMenuItem x:Name="Rename" Header="{Text terminal.rename}"/>
+                <AxMenuItem x:Name="Clear" Header="{Text terminal.clear}"/>
+                <AxMenuItem x:Name="CloseSession" Header="{Text terminal.close}"/>
+              </AxMenuFlyout>
+            </AxButton.Flyout>
+          </AxButton>
+
+        </a:StackPanel>
+
+        <AxTabStrip x:Name="Tabs" Classes="compact" VerticalAlignment="Center"/>
+
+      </a:DockPanel>
+    </a:Border>
+
+    <!--
+        Экран сеанса и приглашение открыть первый лежат рядом, а не подменяют
+        друг друга: подмена значила бы, что экран каждый раз собирают заново, а
+        он держит живую оболочку.
+    -->
+    <a:Panel>
+      <a:Border x:Name="Body"/>
+
+      <a:StackPanel x:Name="Empty" Spacing="10"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+        <a:TextBlock Text="{Text terminal.empty}" TextAlignment="Center"/>
+        <AxButton x:Name="Start" Content="{Text terminal.new}" HorizontalAlignment="Center"/>
+      </a:StackPanel>
+    </a:Panel>
+
+  </a:DockPanel>
+
+</AxUserControl>

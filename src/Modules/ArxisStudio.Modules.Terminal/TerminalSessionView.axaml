@@ -1,0 +1,35 @@
+<!--
+    Один сеанс: экран во всю панель и строка о том, что оболочка кончилась.
+    Строка внизу и до поры скрыта — пока сеанс жив, сказать о нём нечего.
+-->
+<AxUserControl xmlns="https://github.com/Arxis-Team/ArxisStudio"
+               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+               xmlns:a="https://github.com/avaloniaui"
+               xmlns:terminal="using:ArxisStudio.Modules.Terminal"
+               x:Class="ArxisStudio.Modules.Terminal.TerminalSessionView">
+
+  <a:DockPanel>
+
+    <a:Border x:Name="Note"
+              a:DockPanel.Dock="Bottom"
+              IsVisible="False"
+              Padding="8,4"
+              BorderThickness="0,1,0,0"
+              BorderBrush="{a:DynamicResource AxBrdBrush}">
+      <a:TextBlock x:Name="Reason" TextWrapping="Wrap"/>
+    </a:Border>
+
+    <terminal:TerminalView x:Name="Screen">
+      <a:Control.ContextFlyout>
+        <AxMenuFlyout>
+          <AxMenuItem x:Name="Copy" Header="{Text terminal.copy}"/>
+          <AxMenuItem x:Name="Paste" Header="{Text terminal.paste}"/>
+          <AxMenuItem x:Name="SelectAll" Header="{Text terminal.selectAll}"/>
+          <AxMenuItem x:Name="Clear" Header="{Text terminal.clear}"/>
+        </AxMenuFlyout>
+      </a:Control.ContextFlyout>
+    </terminal:TerminalView>
+
+  </a:DockPanel>
+
+</AxUserControl>

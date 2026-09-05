@@ -1,12 +1,8 @@
 using System.Globalization;
 using ArxisStudio.Controls;
-using ArxisStudio.Icons;
 using ArxisStudio.Modules.Terminal.Shells;
 using ArxisStudio.Sdk;
-using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Layout;
-using Avalonia.Media;
 using Avalonia.Threading;
 
 namespace ArxisStudio.Modules.Terminal;
@@ -30,10 +26,7 @@ namespace ArxisStudio.Modules.Terminal;
 public sealed class TerminalPanel : ToolWindow
 {
     private readonly List<Entry> _entries = [];
-    private AxTabStrip _tabs = null!;
-    private Border _body = null!;
-    private Control _empty = null!;
-    private Control _root = null!;
+    private TerminalPanelView _view = null!;
     private bool _focusOnSelect = true;
     private bool _shown;
 
@@ -46,46 +39,16 @@ public sealed class TerminalPanel : ToolWindow
     {
         var strings = Context.Strings;
 
-        _tabs = new AxTabStrip { Classes = { "compact" }, VerticalAlignment = VerticalAlignment.Center };
-        _tabs.SelectionChanged += (_, _) => ShowSelected();
+        _view = new TerminalPanelView();
 
-        var add = IconButton(AxIcons.Plus, strings["terminal.new"]);
+        _view.Tabs.SelectionChanged += (_, _) => ShowSelected();
+        _view.Add.Click += (_, _) => Open(TerminalModule.DefaultProfile(Context.Settings));
+        _view.Start.Click += (_, _) => Open(TerminalModule.DefaultProfile(Context.Settings));
+        _view.Shells.Flyout = BuildMenu(strings);
 
-        add.Click += (_, _) => Open(TerminalModule.DefaultProfile(Context.Settings));
+        WireSessionMenu();
 
-        var shells = IconButton(AxIcons.ChevronDownSmall, strings["terminal.shells"]);
-
-        shells.Flyout = BuildMenu(strings);
-
-        var more = IconButton(AxIcons.MoreVertical, strings["terminal.more"]);
-
-        more.Flyout = BuildSessionMenu(strings);
-
-        var actions = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 2,
-            VerticalAlignment = VerticalAlignment.Center,
-            Children = { add, shells, more },
-        };
-
-        DockPanel.SetDock(actions, Dock.Right);
-
-        var header = new Border
-        {
-            Padding = new Thickness(4, 2),
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Child = new DockPanel { Children = { actions, _tabs } },
-        };
-
-        header.Bind(Border.BorderBrushProperty, header.GetResourceObservable("AxBrdBrush"));
-        DockPanel.SetDock(header, Dock.Top);
-
-        _empty = BuildEmpty(strings);
-        _body = new Border { Child = _empty };
-        _root = new DockPanel { Children = { header, _body } };
-
-        _root.AttachedToVisualTree += (_, _) =>
+        _view.AttachedToVisualTree += (_, _) =>
         {
             if (_shown)
                 return;
@@ -99,7 +62,7 @@ public sealed class TerminalPanel : ToolWindow
         Context.Settings.Changed += (_, _) => ApplySettings();
         TerminalHub.Attach(Handle);
 
-        return _root;
+        return _view;
     }
 
     /// <summary>
@@ -123,23 +86,12 @@ public sealed class TerminalPanel : ToolWindow
         var strings = Context.Strings;
         var settings = TerminalSettings.Read(Context.Settings);
 
-        var view = new TerminalView { FontSize = settings.FontSize, CursorBlink = settings.CursorBlink };
+        var host = new TerminalSessionView();
+        var view = host.Screen;
 
+        view.FontSize = settings.FontSize;
+        view.CursorBlink = settings.CursorBlink;
         view.Describe(string.Format(CultureInfo.CurrentCulture, strings["terminal.view"], profile.Title));
-        view.ContextFlyout = BuildContextMenu(view, strings);
-
-        var message = new TextBlock { TextWrapping = TextWrapping.Wrap };
-
-        var footer = new Border
-        {
-            IsVisible = false,
-            Padding = new Thickness(8, 4),
-            BorderThickness = new Thickness(0, 1, 0, 0),
-            Child = message,
-        };
-
-        footer.Bind(Border.BorderBrushProperty, footer.GetResourceObservable("AxBrdBrush"));
-        DockPanel.SetDock(footer, Dock.Bottom);
 
         var tab = new AxTabItem { Classes = { "compact" }, Content = Title(profile), IsClosable = true };
 
@@ -147,20 +99,17 @@ public sealed class TerminalPanel : ToolWindow
         {
             Profile = profile,
             Tab = tab,
-            View = view,
-            Host = new DockPanel { Children = { footer, view } },
-            Footer = footer,
-            Message = message,
+            Host = host,
         };
 
         tab.CloseRequested += (_, _) => Close(entry);
 
         _entries.Add(entry);
-        _tabs.Items.Add(tab);
+        _view.Tabs.Items.Add(tab);
 
         // Выбор вкладки сам зовёт ShowSelected: ему и говорим, нужен ли курсор.
         _focusOnSelect = focus;
-        _tabs.SelectedItem = tab;
+        _view.Tabs.SelectedItem = tab;
         _focusOnSelect = true;
 
         _ = StartAsync(entry, settings, focus);
@@ -193,10 +142,7 @@ public sealed class TerminalPanel : ToolWindow
             entry.Session = session;
 
             session.Exited += (_, code) =>
-            {
-                entry.Message.Text = string.Format(CultureInfo.CurrentCulture, strings["terminal.exited"], code);
-                entry.Footer.IsVisible = true;
-            };
+                entry.Host.Say(string.Format(CultureInfo.CurrentCulture, strings["terminal.exited"], code));
 
             // Оболочка называет себя сама — путём, командой; подпись вкладки
             // при этом остаётся именем оболочки, иначе вкладки не отличить.
@@ -204,24 +150,25 @@ public sealed class TerminalPanel : ToolWindow
 
             entry.View.Session = session;
 
-            if (focus && ReferenceEquals(_tabs.SelectedItem, entry.Tab))
+            if (focus && ReferenceEquals(_view.Tabs.SelectedItem, entry.Tab))
                 entry.View.Focus();
 
             Context.Log.Write(StudioLogLevel.Debug, TerminalModule.LogSource, $"Открыт сеанс {entry.Profile.Title}");
         }
         catch (Exception e) when (e is not OutOfMemoryException)
         {
-            entry.Message.Text = string.Format(CultureInfo.CurrentCulture, strings["terminal.failed"], entry.Profile.App, e.Message);
-            entry.Footer.IsVisible = true;
+            var reason = string.Format(CultureInfo.CurrentCulture, strings["terminal.failed"], entry.Profile.App, e.Message);
 
-            Context.Log.Write(StudioLogLevel.Error, TerminalModule.LogSource, entry.Message.Text);
-            Context.GetService<IStudioStatus>()?.Show(entry.Message.Text);
+            entry.Host.Say(reason);
+
+            Context.Log.Write(StudioLogLevel.Error, TerminalModule.LogSource, reason);
+            Context.GetService<IStudioStatus>()?.Show(reason);
         }
     }
 
     /// <summary>Вкладка, выбранная сейчас; null — ни одного сеанса.</summary>
     private Entry? Current =>
-        _entries.FirstOrDefault(candidate => ReferenceEquals(candidate.Tab, _tabs.SelectedItem));
+        _entries.FirstOrDefault(candidate => ReferenceEquals(candidate.Tab, _view.Tabs.SelectedItem));
 
     /// <summary>Закрывает сеанс; null — закрывать нечего.</summary>
     private void Close(Entry? entry)
@@ -229,16 +176,16 @@ public sealed class TerminalPanel : ToolWindow
         if (entry is null)
             return;
 
-        var index = _tabs.Items.IndexOf(entry.Tab);
+        var index = _view.Tabs.Items.IndexOf(entry.Tab);
 
         entry.View.Session = null;
         entry.Session?.Dispose();
         entry.Session = null;
         _entries.Remove(entry);
-        _tabs.Items.Remove(entry.Tab);
+        _view.Tabs.Items.Remove(entry.Tab);
 
-        if (_tabs.Items.Count > 0)
-            _tabs.SelectedIndex = Math.Clamp(index, 0, _tabs.Items.Count - 1);
+        if (_view.Tabs.Items.Count > 0)
+            _view.Tabs.SelectedIndex = Math.Clamp(index, 0, _view.Tabs.Items.Count - 1);
         else
             ShowSelected();
     }
@@ -247,7 +194,10 @@ public sealed class TerminalPanel : ToolWindow
     {
         var entry = Current;
 
-        _body.Child = entry?.Host ?? _empty;
+        // Приглашение не подменяют экраном, а прячут: экран держит живую
+        // оболочку, и пересобирать его на каждом переключении вкладки нельзя.
+        _view.Body.Child = entry?.Host;
+        _view.Empty.IsVisible = entry is null;
 
         if (entry is not null && _focusOnSelect)
             Dispatcher.UIThread.Post(() => entry.View.Focus(), DispatcherPriority.Input);
@@ -314,7 +264,7 @@ public sealed class TerminalPanel : ToolWindow
         }
     }
 
-    private Window? Owner() => TopLevel.GetTopLevel(_root) as Window;
+    private Window? Owner() => TopLevel.GetTopLevel(_view) as Window;
 
     /// <summary>Где начинать оболочку: в папке проекта, а без проекта — дома.</summary>
     private string WorkingDirectory()
@@ -338,6 +288,15 @@ public sealed class TerminalPanel : ToolWindow
         return same == 0 ? profile.Title : $"{profile.Title} ({same + 1})";
     }
 
+    /// <summary>
+    /// Меню шеврона: что открыть.
+    /// </summary>
+    /// <remarks>
+    /// Единственное меню терминала, оставшееся в коде, и по причине: его
+    /// начало — список оболочек, найденных в системе. Разметкой такой список
+    /// не записать, а половина меню в разметке и половина в коде читалась бы
+    /// хуже целого.
+    /// </remarks>
     private AxMenuFlyout BuildMenu(IStudioStrings strings)
     {
         var flyout = new AxMenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight };
@@ -364,44 +323,37 @@ public sealed class TerminalPanel : ToolWindow
     }
 
     /// <summary>
-    /// Меню «⋮»: что сделать с открытым сеансом.
+    /// Связывает меню «⋮»: что сделать с открытым сеансом.
     /// </summary>
     /// <remarks>
-    /// Два меню в шапке делят обязанности, а не повторяют друг друга: шеврон
-    /// отвечает на «что открыть» — оболочки, SSH, настройки, — а это на «что
-    /// сделать с тем, что открыто». Пунктов, которым не над чем работать, здесь
-    /// не бывает: без сеанса они выключены, а не молча ничего не делают.
+    /// Пункты объявлены разметкой, а доступность и действия — здесь: над чем
+    /// работать, знает панель. Два меню в шапке делят обязанности, а не
+    /// повторяют друг друга: шеврон отвечает на «что открыть» — оболочки, SSH,
+    /// настройки, — а это на «что сделать с тем, что открыто». Пунктов,
+    /// которым не над чем работать, здесь не бывает: без сеанса они выключены,
+    /// а не молча ничего не делают.
     /// </remarks>
-    private AxMenuFlyout BuildSessionMenu(IStudioStrings strings)
+    private void WireSessionMenu()
     {
-        var rename = new AxMenuItem { Header = strings["terminal.rename"] };
-        var clear = new AxMenuItem { Header = strings["terminal.clear"] };
-        var close = new AxMenuItem { Header = strings["terminal.close"] };
+        _view.Rename.Click += (_, _) => _ = RenameAsync();
+        _view.Clear.Click += (_, _) => Current?.View.ClearScreen();
+        _view.CloseSession.Click += (_, _) => Close(Current);
 
-        rename.Click += (_, _) => _ = RenameAsync();
-        clear.Click += (_, _) => Current?.View.ClearScreen();
-        close.Click += (_, _) => Close(Current);
+        if (_view.More.Flyout is not AxMenuFlyout menu)
+            return;
 
-        var flyout = new AxMenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight };
-
-        flyout.Items.Add(rename);
-        flyout.Items.Add(clear);
-        flyout.Items.Add(close);
-
-        flyout.Opening += (_, _) =>
+        menu.Opening += (_, _) =>
         {
             var open = Current is not null;
 
-            rename.IsEnabled = open;
-            close.IsEnabled = open;
+            _view.Rename.IsEnabled = open;
+            _view.CloseSession.IsEnabled = open;
 
             // Чистить нечего, пока экраном распоряжается полноэкранная
             // программа: она рисует его по своей модели и о чужой уборке не
             // узнает.
-            clear.IsEnabled = Current?.View.CanClear == true;
+            _view.Clear.IsEnabled = Current?.View.CanClear == true;
         };
-
-        return flyout;
     }
 
     /// <summary>
@@ -423,91 +375,17 @@ public sealed class TerminalPanel : ToolWindow
             entry.Tab.Content = name;
     }
 
-    private static AxMenuFlyout BuildContextMenu(TerminalView view, IStudioStrings strings)
-    {
-        var copy = new AxMenuItem { Header = strings["terminal.copy"] };
-        var paste = new AxMenuItem { Header = strings["terminal.paste"] };
-        var selectAll = new AxMenuItem { Header = strings["terminal.selectAll"] };
-        var clear = new AxMenuItem { Header = strings["terminal.clear"] };
-
-        copy.Click += (_, _) => _ = view.CopyAsync();
-        paste.Click += (_, _) => _ = view.PasteAsync();
-        selectAll.Click += (_, _) => view.SelectAll();
-        clear.Click += (_, _) => view.ClearScreen();
-
-        var flyout = new AxMenuFlyout();
-
-        flyout.Items.Add(copy);
-        flyout.Items.Add(paste);
-        flyout.Items.Add(selectAll);
-        flyout.Items.Add(clear);
-
-        // Копировать нечего, пока ничего не выделено, а чистить — пока экраном
-        // распоряжается полноэкранная программа. Пункты об этом говорят.
-        flyout.Opening += (_, _) =>
-        {
-            copy.IsEnabled = view.HasSelection;
-            clear.IsEnabled = view.CanClear;
-        };
-
-        return flyout;
-    }
-
-    private Control BuildEmpty(IStudioStrings strings)
-    {
-        var open = new AxButton { Content = strings["terminal.new"], HorizontalAlignment = HorizontalAlignment.Center };
-
-        open.Click += (_, _) => Open(TerminalModule.DefaultProfile(Context.Settings));
-
-        return new StackPanel
-        {
-            Spacing = 10,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Children =
-            {
-                new TextBlock { Text = strings["terminal.empty"], TextAlignment = TextAlignment.Center },
-                open,
-            },
-        };
-    }
-
-    /// <summary>
-    /// Кнопка со значком: подпись — подсказка и имя для средств доступности.
-    /// </summary>
-    /// <remarks>
-    /// Класс один: <c>icon</c> делает кнопку квадратной по высоте строки, а
-    /// добавленный к нему <c>compact</c> вернул бы минимальную ширину кнопки с
-    /// текстом — 64 пикселя под значок 12×12.
-    /// </remarks>
-    private static AxButton IconButton(Geometry icon, string title)
-    {
-        var button = new AxButton
-        {
-            Classes = { "icon" },
-            Content = new AxIcon { Classes = { "small" }, Data = icon },
-        };
-
-        Avalonia.Automation.AutomationProperties.SetName(button, title);
-        ToolTip.SetTip(button, title);
-
-        return button;
-    }
-
-    /// <summary>Вкладка и всё, что за ней: сеанс, его экран и строка о завершении.</summary>
+    /// <summary>Вкладка и всё, что за ней: сеанс и его вид.</summary>
     private sealed class Entry
     {
         public required ShellProfile Profile { get; init; }
 
         public required AxTabItem Tab { get; init; }
 
-        public required TerminalView View { get; init; }
+        public required TerminalSessionView Host { get; init; }
 
-        public required DockPanel Host { get; init; }
-
-        public required Border Footer { get; init; }
-
-        public required TextBlock Message { get; init; }
+        /// <summary>Экран сеанса: он живёт в своём виде, но нужен на каждом шагу.</summary>
+        public TerminalView View => Host.Screen;
 
         public TerminalSession? Session { get; set; }
     }
