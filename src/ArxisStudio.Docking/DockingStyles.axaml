@@ -1,13 +1,11 @@
 ﻿<!--
     Стили движка докинга: вид группы вкладок и границы между областями.
-    Подключается приложением после темы:  <dock:DockingStyles/>
+    Подключается приложением после темы — стилями в App.axaml.
 -->
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="ArxisStudio.Docking.DockingStyles"
-        xmlns:dock="using:ArxisStudio.Docking"
-        xmlns:ax="using:ArxisStudio.Controls"
-        xmlns:axi="using:ArxisStudio.Icons">
+        xmlns:ax="https://github.com/Arxis-Team/ArxisStudio">
 
   <Styles.Resources>
     <ResourceDictionary>
@@ -18,7 +16,7 @@
           панель выглядит так же, как соседка в паре, — иначе перетаскивание
           превращало бы одно устройство в другое прямо под рукой.
       -->
-      <ControlTheme x:Key="{x:Type dock:DockGroupView}" TargetType="dock:DockGroupView">
+      <ControlTheme x:Key="{x:Type ax:DockGroupView}" TargetType="ax:DockGroupView">
         <Setter Property="Template">
           <ControlTemplate>
             <!--
@@ -54,7 +52,7 @@
                         TemplatedParent, и TemplateBinding перестают находить
                         свойство молча — оба значка остались бы на виду разом.
                     -->
-                    <axi:AxIcon x:Name="PART_Fold" Classes="small"/>
+                    <ax:AxIcon x:Name="PART_Fold" Classes="small"/>
                   </ax:AxButton>
                   <ax:AxTabStrip x:Name="PART_Tabs" Theme="{DynamicResource AxToolWindowTabStrip}"/>
                 </DockPanel>
@@ -99,7 +97,7 @@
       Карточка «Заголовок панели» этим не нарушена — шапка по-прежнему без своего
       фона и одного цвета с телом группы, каким бы оно ни было.
   -->
-  <Style Selector="dock|DockGroupView[Standing=True] /template/ ax|AxToolWindow">
+  <Style Selector="ax|DockGroupView[Standing=True] /template/ ax|AxToolWindow">
     <Setter Property="Background" Value="{DynamicResource AxBg1Brush}"/>
   </Style>
 
