@@ -1,0 +1,42 @@
+<!--
+    Диалог настроек терминала. Свой, а не экран настроек студии: у студии его
+    пока нет, а ждать его терминалу незачем — настройки объявлены манифестом, и
+    когда экран появится, он покажет их сам, теми же ключами.
+-->
+<AxDialog xmlns="https://github.com/Arxis-Team/ArxisStudio"
+          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+          xmlns:a="https://github.com/avaloniaui"
+          x:Class="ArxisStudio.Modules.Terminal.SettingsDialog"
+          Title="{Text terminal.settings.title}">
+
+  <a:StackPanel x:Name="Form" Spacing="10" Width="320">
+
+    <a:StackPanel Spacing="4">
+      <a:TextBlock Text="{Text terminal.settings.shell}"/>
+      <AxComboBox x:Name="ShellBox"
+                  HorizontalAlignment="Stretch"
+                  a:AutomationProperties.Name="{Text terminal.settings.shell}"/>
+    </a:StackPanel>
+
+    <a:StackPanel Spacing="4">
+      <a:TextBlock Text="{Text terminal.settings.fontSize}"/>
+      <AxTextBox x:Name="FontSizeBox" a:AutomationProperties.Name="{Text terminal.settings.fontSize}"/>
+    </a:StackPanel>
+
+    <a:StackPanel Spacing="4">
+      <a:TextBlock Text="{Text terminal.settings.scrollback}"/>
+      <AxTextBox x:Name="ScrollbackBox" a:AutomationProperties.Name="{Text terminal.settings.scrollback}"/>
+    </a:StackPanel>
+
+    <AxCheckBox x:Name="BlinkBox" Content="{Text terminal.settings.cursorBlink}"/>
+
+  </a:StackPanel>
+
+  <AxDialog.Buttons>
+    <a:StackPanel Orientation="Horizontal" Spacing="8">
+      <AxButton x:Name="Cancel" Content="{Text common.cancel}" MinWidth="96"/>
+      <AxButton x:Name="Save" Classes="accent" Content="{Text common.save}" MinWidth="96"/>
+    </a:StackPanel>
+  </AxDialog.Buttons>
+
+</AxDialog>

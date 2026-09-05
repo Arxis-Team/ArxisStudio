@@ -290,7 +290,7 @@ public sealed class TerminalPanel : ToolWindow
         if (Owner() is not { } owner)
             return;
 
-        if (await SshDialog.AskAsync(owner, Context.Strings) is { } profile)
+        if (await SshDialog.AskAsync(owner) is { } profile)
             Open(profile);
     }
 
@@ -299,7 +299,7 @@ public sealed class TerminalPanel : ToolWindow
         if (Owner() is not { } owner)
             return;
 
-        await SettingsDialog.EditAsync(owner, Context.Strings, Context.Settings, ShellCatalog.Available());
+        await SettingsDialog.EditAsync(owner, Context.Settings, ShellCatalog.Available());
     }
 
     /// <summary>Разносит изменённые настройки по открытым сеансам; история — только у новых.</summary>
@@ -419,7 +419,7 @@ public sealed class TerminalPanel : ToolWindow
 
         var current = entry.Tab.Content as string ?? entry.Profile.Title;
 
-        if (await RenameDialog.AskAsync(owner, Context.Strings, current) is { } name)
+        if (await RenameDialog.AskAsync(owner, current) is { } name)
             entry.Tab.Content = name;
     }
 

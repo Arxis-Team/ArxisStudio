@@ -1,0 +1,40 @@
+<!--
+    Диалог нового сеанса SSH. Подписи полей стоят над ними, а не подсказкой
+    внутри: подсказку человек читает как уже введённое значение.
+-->
+<AxDialog xmlns="https://github.com/Arxis-Team/ArxisStudio"
+          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+          xmlns:a="https://github.com/avaloniaui"
+          x:Class="ArxisStudio.Modules.Terminal.SshDialog"
+          Title="{Text terminal.ssh.title}">
+
+  <a:StackPanel x:Name="Form" Spacing="10" Width="320">
+
+    <a:StackPanel Spacing="4">
+      <a:TextBlock Text="{Text terminal.ssh.host}"/>
+      <AxTextBox x:Name="HostBox" a:AutomationProperties.Name="{Text terminal.ssh.host}"/>
+    </a:StackPanel>
+
+    <a:StackPanel Spacing="4">
+      <a:TextBlock Text="{Text terminal.ssh.user}"/>
+      <AxTextBox x:Name="UserBox" a:AutomationProperties.Name="{Text terminal.ssh.user}"/>
+    </a:StackPanel>
+
+    <a:StackPanel Spacing="4">
+      <a:TextBlock Text="{Text terminal.ssh.port}"/>
+      <AxTextBox x:Name="PortBox" a:AutomationProperties.Name="{Text terminal.ssh.port}"/>
+    </a:StackPanel>
+
+  </a:StackPanel>
+
+  <AxDialog.Buttons>
+    <a:StackPanel Orientation="Horizontal" Spacing="8">
+      <AxButton x:Name="Cancel" Content="{Text common.cancel}" MinWidth="96"/>
+
+      <!-- Без хоста подключаться некуда: кнопка выключена, пока поле пустое. -->
+      <AxButton x:Name="Connect" Classes="accent" Content="{Text terminal.ssh.connect}"
+                MinWidth="96" IsEnabled="False"/>
+    </a:StackPanel>
+  </AxDialog.Buttons>
+
+</AxDialog>

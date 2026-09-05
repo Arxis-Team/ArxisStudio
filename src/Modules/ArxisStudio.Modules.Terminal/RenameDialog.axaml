@@ -1,0 +1,35 @@
+<!--
+    Диалог переименования сеанса. По умолчанию словарь студии: контрол без
+    префикса — её контрол, всё родное Avalonia пишется через a:.
+
+    Подписи ставит {Text ключ} — привязка к словарю модуля, а не снимок: смена
+    языка перерисовывает и открытый диалог.
+-->
+<AxDialog xmlns="https://github.com/Arxis-Team/ArxisStudio"
+          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+          xmlns:a="https://github.com/avaloniaui"
+          xmlns:terminal="using:ArxisStudio.Modules.Terminal"
+          x:Class="ArxisStudio.Modules.Terminal.RenameDialog"
+          Title="{Text terminal.rename.title}">
+
+  <a:StackPanel x:Name="Form" Spacing="4">
+    <a:TextBlock Text="{Text terminal.rename.name}"/>
+
+    <!--
+        Ширина здесь, а не у диалога: поле задаёт её всей карточке, и заголовок
+        с кнопками встают по нему.
+    -->
+    <AxTextBox x:Name="Chosen"
+               Width="320"
+               MaxLength="{x:Static terminal:RenameDialog.MaxLength}"
+               a:AutomationProperties.Name="{Text terminal.rename.name}"/>
+  </a:StackPanel>
+
+  <AxDialog.Buttons>
+    <a:StackPanel Orientation="Horizontal" Spacing="8">
+      <AxButton x:Name="Cancel" Content="{Text common.cancel}" MinWidth="96"/>
+      <AxButton x:Name="Save" Classes="accent" Content="{Text common.save}" MinWidth="96"/>
+    </a:StackPanel>
+  </AxDialog.Buttons>
+
+</AxDialog>
