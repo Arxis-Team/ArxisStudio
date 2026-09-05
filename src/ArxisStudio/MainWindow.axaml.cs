@@ -43,7 +43,6 @@ public partial class MainWindow : AxWindow
     /// плагинов: панели студии должны стоять на своих местах раньше, чем к ним
     /// встанут чужие.
     /// </remarks>
-    private readonly List<OpenDocument> _documents = [];
     // Журнал отражается в стандартный вывод: панели, которая показывала бы его,
     // в студии нет, и без этого о сбое плагина не узнает никто. Запущенной без
     // терминала студии писать некуда — и это ровно то, что нужно.
@@ -66,12 +65,19 @@ public partial class MainWindow : AxWindow
     // держится отдельно: меню и сообщения знают о них ровно то же, что о
     // плагинах, — модуль отличается способом доставки, а не правами.
     private IReadOnlyList<InstalledPlugin> _modules = [];
-    private DocumentView? _active;
 
     // Раскладка: дерево доков, живые панели в нём и уборка по хозяину.
     // Перезагрузка плагина только и делает, что снимает старые панели и ставит
     // новые, — этим списком она и живёт.
     private readonly StudioDock _dock;
+
+    // Открытые файлы: кто открыт, кто показан и кого закрыть. Окно их только
+    // размещает — правила открытия и закрытия живут в службе, где их и видно.
+    private readonly StudioDocuments _documents;
+
+    // Строка состояния одна на студию: и служба документов, и плагины говорят
+    // в неё же.
+    private readonly IStudioStatus _status;
 
     // Полоса: элементы модулей и плагинов по манифестам и по хозяину. Кнопки и
     // меню спящих плагинов стоят с самого старта — сборку для них не загружают.
@@ -90,9 +96,15 @@ public partial class MainWindow : AxWindow
         DataContext = _model;
 
         _dock = new StudioDock(Dock, new DockLayoutStore());
-        _dock.Chosen += (_, id) => ShowDocument(id);
         _dock.Complained += (_, message) => _log.Write(StudioLogLevel.Warning, "Layout", message);
-        _dock.Closing += async (_, id) => await CloseDocumentAsync(id);
+
+        _status = new StatusSink(_model);
+        _documents = new StudioDocuments(_dock, _contributions.EditorFor, _status);
+
+        // Открытие файла — тоже событие: плагин, объявивший его тип, ждал
+        // именно этого.
+        _documents.Opening += (_, path) => Activate(
+            waiting => PluginActivation.WaitsForFileType(waiting.Manifest, IOPath.GetExtension(path)));
 
         // Раскладка поднимается до панелей: иначе они успели бы разойтись по
         // стандартным местам, а прочитанное дерево тут же смело бы их оттуда.
@@ -113,7 +125,7 @@ public partial class MainWindow : AxWindow
 
         _release = new PluginRelease(_tasks)
         {
-            Documents = CloseDocumentsOfAsync,
+            Documents = _documents.CloseOwnedByAsync,
             Views = Unmount,
         };
 
@@ -149,7 +161,7 @@ public partial class MainWindow : AxWindow
             TaskScheduler.UnobservedTaskException -= OnUnobserved;
 
             _plugins?.Dispose();
-            await CloseDocumentsAsync();
+            await _documents.CloseAllAsync();
         };
     }
 
@@ -167,8 +179,8 @@ public partial class MainWindow : AxWindow
         {
             [typeof(IStudioLogFeed)] = _log,
             [typeof(IStudioProblems)] = _problems,
-            [typeof(IStudioDocuments)] = new DocumentSink(this),
-            [typeof(IStudioStatus)] = new StatusSink(_model),
+            [typeof(IStudioDocuments)] = new DocumentSink(_documents),
+            [typeof(IStudioStatus)] = _status,
             [typeof(PluginContributionRegistry)] = _contributions,
             [typeof(PluginGuard)] = _guard,
         };
@@ -559,81 +571,6 @@ public partial class MainWindow : AxWindow
         });
     }
 
-    /// <summary>
-    /// Открывает файл во вкладке, спросив редактор у реестра вкладов.
-    /// </summary>
-    /// <remarks>
-    /// Оболочка не знает ни одного расширения: какой модуль возьмётся за файл,
-    /// решает объявленный им тип файла. Панель проекта просит «открой этот
-    /// путь» — и на этом её знание о содержимом кончается.
-    /// </remarks>
-    /// <param name="filePath">Путь к файлу.</param>
-    private async Task OpenDocumentAsync(string filePath)
-    {
-        var id = Document(filePath);
-
-        if (_documents.Any(document => string.Equals(document.Id, id, StringComparison.Ordinal)))
-        {
-            _dock.Show(id);
-            return;
-        }
-
-        // Открытие файла — тоже событие: плагин, объявивший его тип, ждал
-        // именно этого.
-        Activate(waiting => PluginActivation.WaitsForFileType(waiting.Manifest, IOPath.GetExtension(filePath)));
-
-        if (_contributions.EditorFor(filePath) is not { } match)
-        {
-            _model.Say(Localizer.Instance["editor.noeditor"]);
-            return;
-        }
-
-        _model.Say(Localizer.Instance["editor.loading"]);
-
-        var (view, error) = await match.Editor.OpenAsync(filePath);
-
-        if (view is null)
-        {
-            _model.Say($"{Localizer.Instance["editor.loadfailed"]}: {error}");
-            return;
-        }
-
-        _documents.Add(new OpenDocument(id, filePath, view, match.PluginId));
-        _dock.Open(match.PluginId, id, view.Title, view.Content);
-        ShowDocument(id);
-    }
-
-    /// <summary>Имя документа в раскладке.</summary>
-    /// <remarks>
-    /// Путь и есть имя: два документа одного файла студии не нужны, а сравнение
-    /// путей — единственное, чем «этот файл уже открыт» и проверяется.
-    /// </remarks>
-    private static string Document(string filePath) => $"doc:{filePath}";
-
-    /// <summary>
-    /// Показывает выбранный документ, если выбран документ.
-    /// </summary>
-    /// <remarks>
-    /// Выбор приходит на любую вкладку, а не только на документную: щелчок по
-    /// панели внизу документ не меняет и не обязан менять. Поэтому чужое имя
-    /// здесь просто ни к чему не приводит.
-    /// </remarks>
-    private void ShowDocument(string? id)
-    {
-        var document = id is null
-            ? null
-            : _documents.FirstOrDefault(open => string.Equals(open.Id, id, StringComparison.Ordinal));
-
-        if (document is null || ReferenceEquals(_active, document.View))
-            return;
-
-        _active?.OnDeactivated();
-        _active = document.View;
-        _active.OnActivated();
-
-        _model.Say(document.Path);
-    }
-
     /// <summary>Поднимает ждущие плагины, которым подошло событие.</summary>
     /// <param name="matches">Какое событие произошло.</param>
     private void Activate(Func<InstalledPlugin, bool> matches)
@@ -928,79 +865,6 @@ public partial class MainWindow : AxWindow
             return item.Content;
         });
 
-    /// <summary>
-    /// Закрывает документы, открытые редактором этого плагина.
-    /// </summary>
-    /// <remarks>
-    /// Представление документа построил плагин, и живёт оно в его контексте
-    /// загрузки. Оставить вкладку открытой значит и держать контекст, и
-    /// показывать человеку окно, за которым уже ничего нет.
-    /// </remarks>
-    private async Task CloseDocumentsOfAsync(string pluginId)
-    {
-        foreach (var document in _documents.Where(document => document.PluginId == pluginId).ToList())
-            await CloseAsync(document);
-
-        // Место закрытого документа занял сосед — его и показываем.
-        ShowDocument(_dock.Showing);
-    }
-
-    /// <summary>Закрывает документ по просьбе человека — крестиком на вкладке.</summary>
-    /// <param name="id">Имя документа в раскладке.</param>
-    private async Task CloseDocumentAsync(string id)
-    {
-        if (_documents.FirstOrDefault(open => string.Equals(open.Id, id, StringComparison.Ordinal))
-            is not { } document)
-        {
-            return;
-        }
-
-        await CloseAsync(document);
-
-        ShowDocument(_dock.Showing);
-    }
-
-    /// <summary>Убирает документ отовсюду и отпускает его представление.</summary>
-    private async Task CloseAsync(OpenDocument document)
-    {
-        if (ReferenceEquals(_active, document.View))
-        {
-            _active.OnDeactivated();
-            _active = null;
-        }
-
-        _documents.Remove(document);
-        _dock.Remove(document.Id);
-
-        await document.View.DisposeAsync();
-    }
-
-    private async Task CloseDocumentsAsync()
-    {
-        _active?.OnDeactivated();
-        _active = null;
-
-        foreach (var document in _documents)
-            await document.View.DisposeAsync();
-
-        _documents.Clear();
-    }
-
-    /// <summary>Открытый документ.</summary>
-    /// <param name="Id">
-    /// Имя документа в раскладке. По имени, а не по номеру: номер разъезжается,
-    /// стоит отсеять хоть одну вкладку, — от этого и умирала прежняя связь
-    /// списка документов с полосой вкладок.
-    /// </param>
-    /// <param name="Path">Путь к файлу.</param>
-    /// <param name="View">Представление, построенное редактором.</param>
-    /// <param name="PluginId">
-    /// Чей редактор его открыл: при перезагрузке плагина документ придётся
-    /// закрыть — иначе останется вкладка, за которой стоит объект из
-    /// выгруженного контекста.
-    /// </param>
-    private sealed record OpenDocument(string Id, string Path, DocumentView View, string PluginId);
-
     /// <summary>Строка состояния как служба для модулей и плагинов.</summary>
     /// <param name="model">Модель окна, которая её показывает.</param>
     private sealed class StatusSink(MainWindowViewModel model) : IStudioStatus
@@ -1011,9 +875,9 @@ public partial class MainWindow : AxWindow
 
     /// <summary>Открытие документов как служба для модулей и плагинов.</summary>
     /// <param name="owner">Окно, которое ставит вкладки.</param>
-    private sealed class DocumentSink(MainWindow owner) : IStudioDocuments
+    private sealed class DocumentSink(StudioDocuments documents) : IStudioDocuments
     {
         /// <inheritdoc/>
-        public Task OpenAsync(string filePath) => owner.OpenDocumentAsync(filePath);
+        public Task OpenAsync(string filePath) => documents.OpenAsync(filePath);
     }
 }
