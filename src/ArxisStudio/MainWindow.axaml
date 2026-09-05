@@ -1,7 +1,9 @@
 ﻿<ax:AxWindow xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
+        xmlns:vm="using:ArxisStudio"
         x:Class="ArxisStudio.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
         Title="ArxisStudio"
         Width="1440" Height="900"
         MinWidth="1360" MinHeight="700">
@@ -73,21 +75,23 @@
     <!-- Статус-бар: 24, как в макете экрана Editor. -->
     <ax:StudioShell.StatusBar>
       <DockPanel Height="{DynamicResource AxControlHeightCompact}" Margin="12,0">
-        <TextBlock x:Name="StatusText" Classes="dim" Text="{ax:Loc studio.ready}" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+        <TextBlock Classes="dim" Text="{Binding Status}" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
         <!--
             Идущая задача: имя, чем занята, полоса и отмена. Место одно на всех
             плагинов — иначе каждый заведёт свою мельницу, и человек будет
             искать, где у кого что крутится.
         -->
-        <StackPanel x:Name="TaskStrip" DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8"
-                    VerticalAlignment="Center" Margin="16,0" IsVisible="False">
-          <TextBlock x:Name="TaskTitle" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center"/>
-          <TextBlock x:Name="TaskMessage" Classes="dim" FontSize="{DynamicResource AxFontSizeSmall}"
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8"
+                    VerticalAlignment="Center" Margin="16,0" IsVisible="{Binding HasTask}">
+          <TextBlock Text="{Binding TaskTitle}" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center"/>
+          <TextBlock Text="{Binding TaskMessage}" Classes="dim" FontSize="{DynamicResource AxFontSizeSmall}"
                      VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="220"/>
-          <ax:AxProgressBar x:Name="TaskProgress" Width="120" VerticalAlignment="Center"/>
-          <TextBlock x:Name="TaskRest" Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}"
-                     VerticalAlignment="Center" IsVisible="False"/>
-          <ax:AxButton x:Name="TaskCancel" Classes="icon" Width="20" Height="20"
+          <ax:AxProgressBar Width="120" VerticalAlignment="Center"
+                            IsIndeterminate="{Binding IsTaskIndeterminate}" Value="{Binding TaskProgress}"/>
+          <TextBlock Text="{Binding MoreTasks}" IsVisible="{Binding HasMoreTasks}"
+                     Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}"
+                     VerticalAlignment="Center"/>
+          <ax:AxButton Classes="icon" Width="20" Height="20" IsEnabled="{Binding CanCancelTask}"
                        AutomationProperties.Name="{ax:Loc task.cancel}"
                        ToolTip.Tip="{ax:Loc task.cancel}" Click="OnCancelTaskClick">
             <ax:AxIcon Classes="small" Data="{x:Static ax:AxIcons.Close}"/>

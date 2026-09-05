@@ -51,6 +51,11 @@ public partial class MainWindow : AxWindow
     private readonly StudioProblems _problems = new();
     private readonly PluginGuard _guard = new();
     private readonly StudioTaskRegistry _tasks = new();
+
+    // Что окно рассказывает о себе — строка состояния и полоса задачи. Раньше
+    // это лежало именованными частями разметки, и правила показа держал метод,
+    // который без окна не позвать.
+    private readonly MainWindowViewModel _model;
     private readonly StudioCommands _commands;
     private readonly StudioExportRegistry _exports = new();
     private readonly PluginContributionRegistry _contributions = new();
@@ -80,6 +85,9 @@ public partial class MainWindow : AxWindow
     public MainWindow()
     {
         InitializeComponent();
+
+        _model = new MainWindowViewModel(_tasks);
+        DataContext = _model;
 
         _dock = new StudioDock(Dock, new DockLayoutStore());
         _dock.Chosen += (_, id) => ShowDocument(id);
@@ -123,9 +131,6 @@ public partial class MainWindow : AxWindow
 
         _guard.Disabled += (_, failure) => Disable(failure);
 
-        // Задачи идут не в потоке интерфейса, а показывать их надо в нём.
-        _tasks.Changed += (_, _) => Dispatcher.UIThread.Post(ShowTasks);
-
         // Исключение, пришедшее мимо шва, — из обработчика события плагина, из
         // его же задачи, — иначе доходит до платформы и роняет студию. Виновник
         // узнаётся по стеку: назвать себя тут некому.
@@ -163,7 +168,7 @@ public partial class MainWindow : AxWindow
             [typeof(IStudioLogFeed)] = _log,
             [typeof(IStudioProblems)] = _problems,
             [typeof(IStudioDocuments)] = new DocumentSink(this),
-            [typeof(IStudioStatus)] = new StatusSink(StatusText),
+            [typeof(IStudioStatus)] = new StatusSink(_model),
             [typeof(PluginContributionRegistry)] = _contributions,
             [typeof(PluginGuard)] = _guard,
         };
@@ -499,42 +504,8 @@ public partial class MainWindow : AxWindow
         return true;
     }
 
-    /// <summary>
-    /// Показывает в строке состояния, что делается в фоне.
-    /// </summary>
-    /// <remarks>
-    /// Показывается свежая задача: она та, ради которой человек только что
-    /// что-то нажал. Об остальных говорит счётчик — строка состояния узкая, а
-    /// список задач студии пока не нужен: заводить его стоит, когда задач
-    /// станет столько, что счётчик перестанет отвечать на вопрос.
-    /// </remarks>
-    private void ShowTasks()
-    {
-        var running = _tasks.Running;
-
-        TaskStrip.IsVisible = running.Count > 0;
-
-        if (running.Count == 0)
-            return;
-
-        var task = running[^1];
-
-        TaskTitle.Text = task.Title;
-        TaskMessage.Text = task.Message;
-        TaskProgress.IsIndeterminate = task.Fraction is null;
-        TaskProgress.Value = (task.Fraction ?? 0) * 100;
-        TaskCancel.IsEnabled = !task.IsCancelling;
-
-        TaskRest.IsVisible = running.Count > 1;
-        TaskRest.Text = $"+{running.Count - 1}";
-    }
-
     /// <summary>Отменяет задачу, которую человек видит.</summary>
-    private void OnCancelTaskClick(object? sender, RoutedEventArgs e)
-    {
-        if (_tasks.Running is { Count: > 0 } running)
-            running[^1].Cancel();
-    }
+    private void OnCancelTaskClick(object? sender, RoutedEventArgs e) => _model.CancelTask();
 
     /// <summary>Как плагин называется в сообщениях.</summary>
     private string Named(string pluginId) =>
@@ -613,17 +584,17 @@ public partial class MainWindow : AxWindow
 
         if (_contributions.EditorFor(filePath) is not { } match)
         {
-            StatusText.Text = Localizer.Instance["editor.noeditor"];
+            _model.Say(Localizer.Instance["editor.noeditor"]);
             return;
         }
 
-        StatusText.Text = Localizer.Instance["editor.loading"];
+        _model.Say(Localizer.Instance["editor.loading"]);
 
         var (view, error) = await match.Editor.OpenAsync(filePath);
 
         if (view is null)
         {
-            StatusText.Text = $"{Localizer.Instance["editor.loadfailed"]}: {error}";
+            _model.Say($"{Localizer.Instance["editor.loadfailed"]}: {error}");
             return;
         }
 
@@ -660,7 +631,7 @@ public partial class MainWindow : AxWindow
         _active = document.View;
         _active.OnActivated();
 
-        StatusText.Text = document.Path;
+        _model.Say(document.Path);
     }
 
     /// <summary>Поднимает ждущие плагины, которым подошло событие.</summary>
@@ -938,7 +909,7 @@ public partial class MainWindow : AxWindow
         var warning = $"{string.Join(", ", stuck)}: прежняя копия осталась в памяти — надёжнее перезапустить студию";
 
         _log.Write(StudioLogLevel.Warning, "Plugins", warning);
-        StatusText.Text = warning;
+        _model.Say(warning);
     }
 
     /// <summary>Строит свой контрол плагина: создать, подключить, спросить содержимое — одним куском.</summary>
@@ -1031,11 +1002,11 @@ public partial class MainWindow : AxWindow
     private sealed record OpenDocument(string Id, string Path, DocumentView View, string PluginId);
 
     /// <summary>Строка состояния как служба для модулей и плагинов.</summary>
-    /// <param name="target">Куда писать.</param>
-    private sealed class StatusSink(TextBlock target) : IStudioStatus
+    /// <param name="model">Модель окна, которая её показывает.</param>
+    private sealed class StatusSink(MainWindowViewModel model) : IStudioStatus
     {
         /// <inheritdoc/>
-        public void Show(string message) => target.Text = message;
+        public void Show(string message) => model.Say(message);
     }
 
     /// <summary>Открытие документов как служба для модулей и плагинов.</summary>

@@ -11,6 +11,12 @@
             здесь работает только с документами открытого проекта.
         -->
         <NoWarn>$(NoWarn);AVLN3001</NoWarn>
+        <!--
+            Привязки проверяются при сборке: опечатка в имени свойства модели
+            становится ошибкой компиляции, а не пустым местом в окне. Ради этого
+            у каждого корня разметки и каждого шаблона стоит x:DataType.
+        -->
+        <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     </PropertyGroup>
 
     <ItemGroup>
