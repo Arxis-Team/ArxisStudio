@@ -10,3 +10,4 @@ ARX0002 | ArxisStudio | Warning | Ключ манифеста не найден 
 ARX0003 | ArxisStudio | Warning | Кнопка полосы зовёт команду, которой плагин не объявлял
 ARX0004 | ArxisStudio | Warning | Свой контрол полосы объявлен, а класса с [ToolBarItem] нет
 ARX0005 | ArxisStudio | Warning | Класс помечен [ToolBarItem], а в манифесте его нет
+ARX0006 | ArxisStudio | Warning | Виджет Avalonia в разметке плагина: строить нужно на контролах ArxisStudio.Controls
