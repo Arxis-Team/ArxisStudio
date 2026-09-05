@@ -835,6 +835,13 @@ public sealed class PluginHost : IDisposable
                 .OfType<StudioService>()
                 .ToList();
 
+            // Разметка расширения не знает ни плагина, ни его контекста: она
+            // видит только свою сборку. Связь «сборка → словарь» кладётся
+            // здесь, до первой построенной панели, и одинаково для плагина и
+            // для встроенного модуля — путь подъёма у них один.
+            foreach (var assembly in assemblies)
+                StudioText.Remember(assembly, studio.Strings);
+
             foreach (var plugin in entries)
                 plugin.Activate(studio);
 

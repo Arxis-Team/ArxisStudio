@@ -1,0 +1,24 @@
+<!--
+    Панель примера — разметкой, а не кодом: модуль живёт тем же контрактом,
+    что и внешний плагин, и показывает, как этот контракт пишется.
+
+    По умолчанию словарь студии: контрол без префикса — контрол студии. Всё
+    родное Avalonia пишется через a: — и раскладка, и привязка, — так видно,
+    чего в наборе Ax* ещё нет.
+-->
+<AxUserControl xmlns="https://github.com/Arxis-Team/ArxisStudio"
+               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+               xmlns:a="https://github.com/avaloniaui"
+               xmlns:vm="using:ArxisStudio.Modules.Sample"
+               x:Class="ArxisStudio.Modules.Sample.SamplePanelView"
+               x:DataType="vm:SamplePanelModel">
+
+  <a:StackPanel Spacing="10" Margin="12" VerticalAlignment="Top">
+    <a:TextBlock Text="Пример встроенного модуля" TextWrapping="Wrap"/>
+    <a:TextBlock Text="Манифест: ресурс module.json в сборке" TextWrapping="Wrap"/>
+    <a:TextBlock Text="Контекст загрузки: основной, выгрузке не подлежит" TextWrapping="Wrap"/>
+    <a:TextBlock Text="{a:Binding Project}" TextWrapping="Wrap"/>
+    <AxButton Content="Записать в журнал" HorizontalAlignment="Left" Click="OnLogClick"/>
+  </a:StackPanel>
+
+</AxUserControl>

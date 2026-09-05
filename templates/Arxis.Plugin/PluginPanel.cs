@@ -1,7 +1,5 @@
-using ArxisStudio.Controls;
 using ArxisStudio.Sdk;
 using Avalonia.Controls;
-using Avalonia.Layout;
 
 namespace Arxis.MyPlugin;
 
@@ -14,38 +12,20 @@ namespace Arxis.MyPlugin;
 /// поднят. Разойдутся — человек увидит пустое место вместо панели, и об этом
 /// скажет анализатор при сборке.
 /// <para>
-/// Интерфейс строится на контролах <c>Ax*</c>: панель плагина стоит рядом с
-/// панелями студии, и разнобой видно сразу. Правило проверяет
-/// <c>ARX0001</c>; панели раскладки, рамки, текст и фигуры под него не
-/// попадают — своего оформления они не несут.
+/// Интерфейс написан разметкой — файл <c>PluginPanelView.axaml</c> рядом.
+/// Панель отвечает за то, когда он появится и с чем его свяжут; как он
+/// выглядит, сказано в разметке.
+/// </para>
+/// <para>
+/// Строится он на контролах <c>Ax*</c>: панель плагина стоит рядом с панелями
+/// студии, и разнобой видно сразу. Правило проверяют <c>ARX0001</c> в коде и
+/// <c>ARX0006</c> в разметке; панели раскладки, рамки, текст и фигуры под него
+/// не попадают — своего оформления они не несут.
 /// </para>
 /// </remarks>
 [ToolWindow("panel")]
 public sealed class PluginPanel : ToolWindow
 {
     /// <inheritdoc/>
-    protected override Control Build()
-    {
-        var hint = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap };
-
-        // Привязкой, а не строкой: смена языка в студии должна перерисовать и
-        // панель плагина.
-        hint.Bind(TextBlock.TextProperty, Context.Strings.Text("panel.hint"));
-
-        var button = new AxButton();
-
-        button.Bind(ContentControl.ContentProperty, Context.Strings.Text("command.hello"));
-
-        // Через команду, а не напрямую: та же дорога, что у пункта меню и у
-        // кнопки в полосе, — и одно место, где написано, что делать.
-        button.Click += (_, _) => Context.Commands.Invoke("arxis.my-plugin.hello");
-
-        return new StackPanel
-        {
-            Spacing = 10,
-            Margin = new Avalonia.Thickness(12),
-            VerticalAlignment = VerticalAlignment.Top,
-            Children = { hint, button },
-        };
-    }
+    protected override Control Build() => new PluginPanelView { Studio = Context };
 }

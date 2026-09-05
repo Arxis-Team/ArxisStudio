@@ -64,7 +64,7 @@ public class PluginTemplateTests : IDisposable
 
         using var host = new PluginHost(new StudioContextFactory(new StudioLog(), commands, null));
 
-        var assembly = TestAssembly.Emit("Probe.Figma", made.Sources, made.Manifest);
+        var assembly = TestAssembly.Emit("Probe.Figma", [.. made.Sources, Populate("Probe.Figma")], made.Manifest);
         var loaded = host.LoadBuiltIn(assembly);
 
         Assert.True(loaded.IsLoaded, loaded.Error);
@@ -130,13 +130,16 @@ public class PluginTemplateTests : IDisposable
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-        var files = ImmutableArray.Create<AdditionalText>(
-            new Given("C:/probe/plugin.json", made.Manifest),
-            new Given("C:/probe/lang/strings.json", made.Strings));
+        var files = made.Markup
+            .Select(file => (AdditionalText)new Given(file.Path, file.Text))
+            .Append(new Given("C:/probe/plugin.json", made.Manifest))
+            .Append(new Given("C:/probe/lang/strings.json", made.Strings))
+            .ToImmutableArray();
 
         var analyzed = compilation.WithAnalyzers(
             ImmutableArray.Create<DiagnosticAnalyzer>(
                 new AvaloniaWidgetAnalyzer(),
+                new MarkupWidgetAnalyzer(),
                 new ManifestStringsAnalyzer(),
                 new ToolBarAnalyzer()),
             new AnalyzerOptions(files));
@@ -180,6 +183,7 @@ public class PluginTemplateTests : IDisposable
 
         var files = new List<string>();
         var sources = new List<string>();
+        var markup = new List<(string Path, string Text)>();
         string? manifest = null;
         string? strings = null;
         string? project = null;
@@ -203,6 +207,8 @@ public class PluginTemplateTests : IDisposable
 
             if (relative.EndsWith(".cs", StringComparison.Ordinal))
                 sources.Add(text);
+            else if (relative.EndsWith(".axaml", StringComparison.Ordinal))
+                markup.Add((written, text));
             else if (Path.GetFileName(relative) == "plugin.json")
                 manifest = text;
             else if (Path.GetFileName(relative) == "strings.json")
@@ -216,7 +222,9 @@ public class PluginTemplateTests : IDisposable
         Assert.NotNull(project);
         Assert.NotEmpty(sources);
 
-        return new Made(files, sources, manifest!, strings!, project!);
+        Assert.NotEmpty(markup);
+
+        return new Made(files, sources, markup, manifest!, strings!, project!);
     }
 
     /// <summary>Поднимает в домен сборки, против которых собирается плагин.</summary>
@@ -281,6 +289,18 @@ public class PluginTemplateTests : IDisposable
         return rules;
     }
 
+    /// <summary>
+    /// Заглушка вместо того, что в настоящей сборке пишет компилятор разметки.
+    /// </summary>
+    /// <remarks>
+    /// <c>InitializeComponent</c> появляется у представления при сборке —
+    /// вместе с разобранной разметкой, — а здесь плагин собирается в память
+    /// одним Roslyn, и компилятора разметки в этой дороге нет. Проверяется тут
+    /// не разметка, а то, что плагин поднимается и сходится с манифестом.
+    /// </remarks>
+    private static string Populate(string name) =>
+        "namespace " + name + ";\n\npublic partial class PluginPanelView\n{\n    private void InitializeComponent()\n    {\n    }\n}\n";
+
     private static IReadOnlyCollection<string> Ids<T>(Assembly assembly, Func<T, string> id) where T : Attribute =>
         assembly.GetTypes()
             .Select(type => type.GetCustomAttribute<T>())
@@ -305,6 +325,7 @@ public class PluginTemplateTests : IDisposable
     private sealed record Made(
         IReadOnlyList<string> Files,
         IReadOnlyList<string> Sources,
+        IReadOnlyList<(string Path, string Text)> Markup,
         string Manifest,
         string Strings,
         string Project);

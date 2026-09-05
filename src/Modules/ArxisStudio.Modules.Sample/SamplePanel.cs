@@ -1,7 +1,5 @@
-using ArxisStudio.Controls;
 using ArxisStudio.Sdk;
 using Avalonia.Controls;
-using Avalonia.Layout;
 
 namespace ArxisStudio.Modules.Sample;
 
@@ -9,9 +7,11 @@ namespace ArxisStudio.Modules.Sample;
 /// Панель примера: показывает то, что модуль знает о себе и о студии.
 /// </summary>
 /// <remarks>
-/// Интерфейс собран на контролах <c>Ax*</c> — правило одно и для плагинов, и
-/// для модулей: панели стоят рядом, и разнобой видно сразу. Панелей раскладки
-/// Avalonia это не касается, своего оформления они не несут.
+/// Интерфейс написан разметкой — файл <c>SamplePanelView.axaml</c> рядом.
+/// Панель остаётся тем же <see cref="ToolWindow"/>: она отвечает за то, когда
+/// интерфейс появится и с чем его свяжут, а как он выглядит — сказано в
+/// разметке. Правило «строить на контролах <c>Ax*</c>» действует и там:
+/// разметку проверяет <c>ARX0006</c>.
 /// <para>
 /// Строится панель по требованию: пока её никто не показал, её содержимого не
 /// существует. Всё, что ей нужно от студии, приходит контекстом — жёсткой
@@ -22,29 +22,8 @@ namespace ArxisStudio.Modules.Sample;
 public sealed class SamplePanel : ToolWindow
 {
     /// <inheritdoc/>
-    protected override Control Build()
+    protected override Control Build() => new SamplePanelView
     {
-        var button = new AxButton { Content = "Записать в журнал", HorizontalAlignment = HorizontalAlignment.Left };
-
-        button.Click += (_, _) => Context.Commands.Invoke(SampleModule.AboutCommand);
-
-        return new StackPanel
-        {
-            Spacing = 10,
-            Margin = new Avalonia.Thickness(12),
-            VerticalAlignment = VerticalAlignment.Top,
-            Children =
-            {
-                Line("Пример встроенного модуля"),
-                Line("Манифест: ресурс module.json в сборке"),
-                Line("Контекст загрузки: основной, выгрузке не подлежит"),
-                Line(Context.ProjectPath is { Length: > 0 } path
-                    ? $"Проект: {Path.GetFileName(path)}"
-                    : "Проект не открыт"),
-                button,
-            },
-        };
-    }
-
-    private static TextBlock Line(string text) => new() { Text = text, TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+        DataContext = new SamplePanelModel(Context),
+    };
 }

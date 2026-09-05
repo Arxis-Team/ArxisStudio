@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <!--
         Пример встроенного модуля: панель, команда и служба — тем же контрактом,
@@ -18,6 +18,18 @@
     <ItemGroup>
         <ProjectReference Include="../../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
         <ProjectReference Include="../../../external/ArxisStudio.Controls/src/ArxisStudio.Controls.csproj"/>
+    </ItemGroup>
+
+    <!--
+        Анализатор — отдельной строкой, как и у плагина: через цепочку
+        ProjectReference анализаторы не передаются. Правила у модуля и у
+        плагина одни, и проверяться они должны одинаково — иначе код,
+        переносимый между режимами, менял бы смысл при переносе.
+    -->
+    <ItemGroup>
+        <ProjectReference Include="../../ArxisStudio.Sdk.Analyzers/ArxisStudio.Sdk.Analyzers.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false"/>
     </ItemGroup>
 
     <!--

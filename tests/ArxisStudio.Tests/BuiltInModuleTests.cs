@@ -1,8 +1,12 @@
 ﻿using System.Reflection;
+using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Modules.Sample;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
+using Avalonia.Controls;
+using Avalonia.Headless.XUnit;
+using Avalonia.Interactivity;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -190,6 +194,44 @@ public class BuiltInModuleTests
 
         Assert.NotEmpty(drawn);
         Assert.All(drawn, item => Assert.False(string.IsNullOrEmpty(item.Title), item.Id));
+    }
+
+    /// <summary>
+    /// Панель примера собирается из своей разметки и работает.
+    /// </summary>
+    /// <remarks>
+    /// Разметка модуля проходит тот же путь, что и разметка плагина: она
+    /// компилируется в сборку расширения и строится в чужом окне. Проверяется
+    /// здесь он целиком — что панель построилась, что привязка нашла модель и
+    /// что кнопка зовёт команду модуля.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_panel_of_the_sample_module_is_built_from_its_markup()
+    {
+        var log = new StudioLog();
+
+        using var host = new PluginHost(new StudioContextFactory(log, new StudioCommands(), null));
+
+        var loaded = host.LoadBuiltIn(typeof(SampleModule).Assembly);
+
+        Assert.True(loaded.IsLoaded, loaded.Error);
+
+        var panel = new SamplePanel();
+
+        panel.Attach(loaded.Studio!);
+
+        var view = Assert.IsType<SamplePanelView>(panel.Content);
+        var lines = Assert.IsType<StackPanel>(view.Content);
+
+        // Привязка нашла модель: строку про проект даёт она, а не разметка.
+        Assert.Equal("Проект не открыт", Assert.IsType<TextBlock>(lines.Children[3]).Text);
+
+        var button = Assert.IsType<AxButton>(lines.Children[^1]);
+        var before = log.Records.Count;
+
+        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        Assert.True(log.Records.Count > before, "кнопка панели не позвала команду модуля");
     }
 
     /// <summary>Сборка модуля со встроенным манифестом.</summary>
