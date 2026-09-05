@@ -1,18 +1,15 @@
-﻿using System.Reflection;
 using ArxisStudio.Controls;
-using ArxisStudio.Icons;
+using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
+using ArxisStudio.Icons;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
-using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
 using Avalonia.Controls;
-using ArxisStudio.Docking;
 using Avalonia.Input;
-using Avalonia.Layout;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Threading;
-using IOPath = System.IO.Path;
 
 namespace ArxisStudio;
 
@@ -24,25 +21,15 @@ namespace ArxisStudio;
 /// приходят встроенными модулями через тот же SDK-контракт, что и внешние
 /// плагины. Оболочка знает только, что бывают зоны, вкладки и редакторы
 /// документов, — а какие именно, ей сообщают манифесты.
+/// <para>
+/// Работы у окна с тех пор осталось три вида: собрать службы, показать своё
+/// меню и отдать платформе то, что она спрашивает, — исключение мимо шва и
+/// закрытие. Правила расширений, документов и полосы задач живут в службах и
+/// моделях рядом: там их видно и там их можно проверить без окна.
+/// </para>
 /// </remarks>
 public partial class MainWindow : AxWindow
 {
-    /// <summary>
-    /// Сборки встроенных модулей — состав студии.
-    /// </summary>
-    /// <remarks>
-    /// Порядок здесь виден человеку: модули встают в зоны по очереди, и вкладки
-    /// внизу идут в том же порядке, что строки этого списка.
-    /// </remarks>
-    /// <summary>
-    /// Модули, приезжающие вместе со студией.
-    /// </summary>
-    /// <remarks>
-    /// Список здесь, а не в настройках: встроенный модуль — часть поставки, и
-    /// выключать его отдельно нечем. Поднимаются они первыми, до внешних
-    /// плагинов: панели студии должны стоять на своих местах раньше, чем к ним
-    /// встанут чужие.
-    /// </remarks>
     // Журнал отражается в стандартный вывод: панели, которая показывала бы его,
     // в студии нет, и без этого о сбое плагина не узнает никто. Запущенной без
     // терминала студии писать некуда — и это ровно то, что нужно.
@@ -50,42 +37,28 @@ public partial class MainWindow : AxWindow
     private readonly StudioProblems _problems = new();
     private readonly PluginGuard _guard = new();
     private readonly StudioTaskRegistry _tasks = new();
+    private readonly PluginContributionRegistry _contributions = new();
 
-    // Что окно рассказывает о себе — строка состояния и полоса задачи. Раньше
-    // это лежало именованными частями разметки, и правила показа держал метод,
-    // который без окна не позвать.
+    // Что окно рассказывает о себе — строка состояния и полоса задачи.
     private readonly MainWindowViewModel _model;
     private readonly StudioCommands _commands;
-    private readonly StudioExportRegistry _exports = new();
-    private readonly PluginContributionRegistry _contributions = new();
-    private PluginHost? _plugins;
-    private IReadOnlyList<InstalledPlugin> _installed = [];
-
-    // Модули приезжают со студией, и в каталоге плагинов их нет. Список
-    // держится отдельно: меню и сообщения знают о них ровно то же, что о
-    // плагинах, — модуль отличается способом доставки, а не правами.
-    private IReadOnlyList<InstalledPlugin> _modules = [];
 
     // Раскладка: дерево доков, живые панели в нём и уборка по хозяину.
-    // Перезагрузка плагина только и делает, что снимает старые панели и ставит
-    // новые, — этим списком она и живёт.
     private readonly StudioDock _dock;
 
-    // Открытые файлы: кто открыт, кто показан и кого закрыть. Окно их только
-    // размещает — правила открытия и закрытия живут в службе, где их и видно.
+    // Открытые файлы: кто открыт, кто показан и кого закрыть.
     private readonly StudioDocuments _documents;
 
-    // Строка состояния одна на студию: и служба документов, и плагины говорят
-    // в неё же.
+    // Строка состояния одна на студию: и служба документов, и расширения
+    // говорят в неё же.
     private readonly IStudioStatus _status;
 
     // Полоса: элементы модулей и плагинов по манифестам и по хозяину. Кнопки и
     // меню спящих плагинов стоят с самого старта — сборку для них не загружают.
     private readonly StudioToolBar _toolbar;
 
-    // Уборка перед выгрузкой: задачи, документы, экран — в одном порядке на все
-    // дороги. Реестры владельца хост убирает сам, по своему Unloading.
-    private readonly PluginRelease _release;
+    // Жизнь расширений: подъём, пробуждение, перезагрузка, отключение за сбои.
+    private readonly StudioPlugins _plugins;
 
     /// <summary>Создаёт окно без проекта — состояние каркаса.</summary>
     public MainWindow()
@@ -101,11 +74,6 @@ public partial class MainWindow : AxWindow
         _status = new StatusSink(_model);
         _documents = new StudioDocuments(_dock, _contributions.EditorFor, _status);
 
-        // Открытие файла — тоже событие: плагин, объявивший его тип, ждал
-        // именно этого.
-        _documents.Opening += (_, path) => Activate(
-            waiting => PluginActivation.WaitsForFileType(waiting.Manifest, IOPath.GetExtension(path)));
-
         // Раскладка поднимается до панелей: иначе они успели бы разойтись по
         // стандартным местам, а прочитанное дерево тут же смело бы их оттуда.
         _dock.Restore();
@@ -117,31 +85,58 @@ public partial class MainWindow : AxWindow
         _toolbar = new StudioToolBar(LeftStrip, CenterStrip, RightStrip)
         {
             Invoke = _commands.Invoke,
-            Menu = () => StudioMenu.Build(Contributing()),
             Extra = StudioBranches,
         };
 
         _toolbar.Complained += (_, message) => _log.Write(StudioLogLevel.Warning, "ToolBar", message);
 
-        _release = new PluginRelease(_tasks)
+        _plugins = new StudioPlugins(_log, _guard, _tasks, _contributions)
         {
-            Documents = _documents.CloseOwnedByAsync,
-            Views = Unmount,
+            Commands = _commands,
+            Dock = _dock,
+            ToolBar = _toolbar,
+            Documents = _documents,
+
+            // Чем студия делится с расширениями — решение оболочки, а не
+            // порядка подъёма: список стоит здесь и виден целиком.
+            Services = new Dictionary<Type, object>
+            {
+                [typeof(IStudioLogFeed)] = _log,
+                [typeof(IStudioProblems)] = _problems,
+                [typeof(IStudioDocuments)] = new DocumentSink(_documents),
+                [typeof(IStudioStatus)] = _status,
+                [typeof(PluginContributionRegistry)] = _contributions,
+                [typeof(PluginGuard)] = _guard,
+            },
         };
 
-        _release.Lingered += (_, id) => _log.Write(StudioLogLevel.Warning, "Plugins",
-            $"{Named(id)}: фоновая задача не остановилась за пять секунд");
+        // Дерево меню собирается по манифестам, а спрашивают его при каждом
+        // открытии: список вкладывающихся меняется от подъёма к подъёму. Ставится
+        // после службы — до неё спрашивать было бы не у кого.
+        _toolbar.Menu = () => StudioMenu.Build(_plugins.Contributing);
 
-        // Плагины поднимаются при открытии окна, а не при открытии проекта:
+        // Меню — элемент самой студии, а не каждого плагина: дерево команд
+        // общее на всех, ветки в нём сходятся по названию, и плагин, объявивший
+        // только menus, должен быть доступен, не зная о полосе. В полосе оно
+        // первое: своё выше принесённого — этим и заведён нулевой ранг у
+        // элемента без хозяина.
+        //
+        // Стоит оно всегда, даже когда вкладываться некому: раскладка живёт
+        // здесь же, и без меню перетаскивание было бы дверью в одну сторону —
+        // первый же промах мышью человек разбирал бы вручную.
+        _toolbar.Add(null, new Sdk.Plugins.PluginToolBarItem
+        {
+            Id = "menu",
+            Kind = "menu",
+            Slot = "left",
+            Icon = "arxis:MoreHorizontal",
+            Title = "%toolbar.menu%",
+        });
+
+        // Расширения поднимаются при открытии окна, а не при открытии проекта:
         // проекта у окна может не быть вовсе, а панели плагинов ему нужны
         // в любом случае.
-        Opened += (_, _) => LoadModulesAndPlugins();
-
-        _guard.Failed += (_, failure) => _log.Write(
-            StudioLogLevel.Error, "Plugins",
-            $"{Named(failure.PluginId)}: {failure.What} — {failure.Message}");
-
-        _guard.Disabled += (_, failure) => Disable(failure);
+        Opened += (_, _) => _plugins.Start();
 
         // Исключение, пришедшее мимо шва, — из обработчика события плагина, из
         // его же задачи, — иначе доходит до платформы и роняет студию. Виновник
@@ -160,125 +155,9 @@ public partial class MainWindow : AxWindow
             Dispatcher.UIThread.UnhandledException -= OnUnhandled;
             TaskScheduler.UnobservedTaskException -= OnUnobserved;
 
-            _plugins?.Dispose();
+            _plugins.Stop();
             await _documents.CloseAllAsync();
         };
-    }
-
-    /// <summary>
-    /// Поднимает встроенные модули, а за ними — включённые плагины.
-    /// </summary>
-    /// <remarks>
-    /// Путь у них один: и модуль, и плагин активируются общим контрактом,
-    /// заявляют панели и редакторы, попадают в реестр вкладов. Разница только в
-    /// доставке — модуль приезжает со студией и живёт в основном контексте.
-    /// </remarks>
-    private void LoadModulesAndPlugins()
-    {
-        var services = new Dictionary<Type, object>
-        {
-            [typeof(IStudioLogFeed)] = _log,
-            [typeof(IStudioProblems)] = _problems,
-            [typeof(IStudioDocuments)] = new DocumentSink(_documents),
-            [typeof(IStudioStatus)] = _status,
-            [typeof(PluginContributionRegistry)] = _contributions,
-            [typeof(PluginGuard)] = _guard,
-        };
-
-        var catalog = new PluginCatalog();
-        var roster = new StudioPluginRoster();
-
-        _exports.Conflict += (_, message) => _log.Write(StudioLogLevel.Warning, "Plugins", message);
-        var host = new PluginHost(new StudioContextFactory(
-            _log,
-            _commands,
-            // Проекта у студии пока нет: работа с ними приедет модулем.
-            // Место в контракте плагинов остаётся — сам контракт не менялся.
-            projectPath: null,
-            services,
-            settings: null,
-            tasks: _tasks,
-            guard: _guard,
-            plugins: roster,
-            exports: _exports,
-            toolbar: _toolbar,
-            dock: _dock));
-
-        // Уборка реестров, заведённых на владельца, — по одному сигналу от
-        // хоста: он один знает про все дороги выгрузки. Раньше её переписывал
-        // каждый, кто выгружает, и списки успели разъехаться — снятие
-        // упавшего забывало команды, а закрытие студии не убирало ничего.
-        host.Unloading += (_, id) =>
-        {
-            _commands.RemoveOwnedBy(id);
-            _exports.RemoveOwnedBy(id);
-            _contributions.Remove(id);
-        };
-
-        _plugins = host;
-        _installed = catalog.Scan();
-
-        // Ядро подключается до первого подъёма: контексты раздаются при
-        // загрузке, и служба соседей обязана отвечать правду с первого.
-        roster.Attach(host, () => _installed);
-
-        // Пробуждение по команде живёт в реестре, а не только в меню: команду
-        // соседа зовут и из кода плагина, и дорога обязана быть одна. Подъём
-        // ставит панели, поэтому вне потока интерфейса он откладывается — тот
-        // Invoke честно вернёт false, а хозяин поднимется следом.
-        _commands.Awaken = command =>
-        {
-            if (Dispatcher.UIThread.CheckAccess())
-            {
-                Activate(waiting => PluginActivation.WaitsForCommand(waiting.Manifest, command));
-                return;
-            }
-
-            _log.Write(StudioLogLevel.Warning, "Plugins",
-                $"Команда {command} позвана вне потока интерфейса — хозяин поднимется следом");
-            Dispatcher.UIThread.Post(() =>
-                Activate(waiting => PluginActivation.WaitsForCommand(waiting.Manifest, command)));
-        };
-        _contributions.Conflict += (_, message) => _log.Write(StudioLogLevel.Warning, "Plugins", message);
-
-        // Полоса собирается по манифестам до подъёма кого бы то ни было: кнопки
-        // и меню сборки не требуют, и спящий плагин получает их здесь и только
-        // здесь. Модуль, поднятый следом, может тут же выключить свой элемент
-        // из Activate — слово должно найти запись.
-        MountDeclared(StudioModules.Describe().Concat(_installed));
-
-        var modules = StudioModules.Assemblies.Select(host.LoadBuiltIn).ToList();
-
-        _modules = modules.Select(loaded => loaded.Installed).ToList();
-
-        foreach (var loaded in modules.Concat(host.LoadStartup(_installed)))
-            Accept(loaded);
-
-        // Заметки графа — не отказы, но молчать о них нельзя: устаревший
-        // необязательный сосед считается отсутствующим, и человек должен
-        // узнать об этом отсюда, а не гадать, почему связка не работает.
-        foreach (var note in host.Resolution?.Notes ?? [])
-            _log.Write(StudioLogLevel.Warning, "Plugins", note);
-
-        foreach (var waiting in host.Deferred)
-            _log.Write(StudioLogLevel.Debug, "Plugins", $"{waiting.DisplayName} ждёт своего события");
-
-        // Меню — элемент самой студии, а не каждого плагина: дерево команд
-        // общее на всех, ветки в нём сходятся по названию, и плагин, объявивший
-        // только menus, должен быть доступен, не зная о полосе. Стоит первым:
-        // своё выше принесённого.
-        //
-        // Стоит оно всегда, даже когда вкладываться некому: раскладка живёт
-        // здесь же, и без меню перетаскивание было бы дверью в одну сторону —
-        // первый же промах мышью человек разбирал бы вручную.
-        _toolbar.Add(null, new Sdk.Plugins.PluginToolBarItem
-        {
-            Id = "menu",
-            Kind = "menu",
-            Slot = "left",
-            Icon = "arxis:MoreHorizontal",
-            Title = "%toolbar.menu%",
-        });
     }
 
     /// <summary>
@@ -293,7 +172,7 @@ public partial class MainWindow : AxWindow
     {
         var branches = new List<MenuItem>();
 
-        if (Reloadable() is { Count: > 0 } plugins)
+        if (_plugins.Reloadable is { Count: > 0 } plugins)
         {
             var branch = new AxMenuItem { Header = Localizer.Instance["menu.plugins"] };
 
@@ -306,7 +185,15 @@ public partial class MainWindow : AxWindow
 
                 var id = plugin.Id;
 
-                item.Click += async (_, _) => await ReloadPluginAsync(id);
+                // Жалоба на невыгрузившуюся копию приходит ответом и попадает в
+                // строку состояния: журнал о ней уже написал, но человек, нажавший
+                // «перезагрузить», ждёт ответа там, где нажимал.
+                item.Click += async (_, _) =>
+                {
+                    if (await _plugins.ReloadAsync(id) is { } complaint)
+                        _model.Say(complaint);
+                };
+
                 branch.Items.Add(item);
             }
 
@@ -371,20 +258,6 @@ public partial class MainWindow : AxWindow
     }
 
     /// <summary>
-    /// Плагины, которые можно поднять заново.
-    /// </summary>
-    /// <remarks>
-    /// Только внешние: у встроенного модуля нет своего контекста загрузки, и
-    /// предлагать перезагрузить то, что перезагрузить нельзя, — обещание,
-    /// которое студия не сдержит.
-    /// </remarks>
-    private IReadOnlyList<InstalledPlugin> Reloadable() =>
-        _plugins?.Loaded
-            .Where(plugin => plugin is { IsLoaded: true, Context: not null })
-            .Select(plugin => plugin.Installed)
-            .ToList() ?? [];
-
-    /// <summary>
     /// Спрашивает имя и сохраняет под ним нынешнюю раскладку.
     /// </summary>
     /// <remarks>
@@ -430,50 +303,6 @@ public partial class MainWindow : AxWindow
     }
 
     /// <summary>
-    /// Кто сейчас вправе вкладываться в меню: модули и установленные, кроме
-    /// отключённых за сбои.
-    /// </summary>
-    private IEnumerable<InstalledPlugin> Contributing() =>
-        _modules.Concat(_installed).Where(plugin => !_guard.IsFaulty(plugin.Id));
-
-    /// <summary>
-    /// Ставит в полосу всё, что объявлено манифестами, — не поднимая никого.
-    /// </summary>
-    /// <remarks>
-    /// Кнопка и меню сборки не требуют: студия рисует их сама, а щелчок будит
-    /// хозяина через реестр команд. Свой контрол здесь только занимает место —
-    /// придёт он, когда плагин поднимут.
-    /// </remarks>
-    private void MountDeclared(IEnumerable<InstalledPlugin> plugins)
-    {
-        foreach (var plugin in plugins.Where(candidate => candidate is { IsEnabled: true, IsValid: true }))
-        {
-            foreach (var declared in plugin.Manifest!.Contributions.ToolBar)
-                _toolbar.Add(plugin, declared);
-        }
-    }
-
-    /// <summary>Принимает поднятый модуль или плагин: вклады и панели.</summary>
-    private void Accept(LoadedPlugin loaded)
-    {
-        if (loaded.Error is { } error)
-        {
-            _log.Write(StudioLogLevel.Error, "Plugins", $"{loaded.Installed.DisplayName}: {error}");
-
-            // Кнопки несостоявшегося плагина стоять не должны: команда за ними
-            // не найдётся никогда.
-            _toolbar.RemoveOwnedBy(loaded.Installed.Id);
-            return;
-        }
-
-        _log.Write(StudioLogLevel.Info, "Plugins", $"{loaded.Installed.DisplayName} поднят");
-
-        _contributions.Add(loaded);
-        MountPanels(loaded);
-        MountToolBar(loaded);
-    }
-
-    /// <summary>
     /// Ловит исключение потока интерфейса.
     /// </summary>
     /// <remarks>
@@ -484,7 +313,7 @@ public partial class MainWindow : AxWindow
     /// </remarks>
     private void OnUnhandled(object? sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        if (Blame(e.Exception, "необработанное исключение"))
+        if (_plugins.Blame(e.Exception, "необработанное исключение"))
             e.Handled = true;
     }
 
@@ -498,372 +327,12 @@ public partial class MainWindow : AxWindow
     /// </remarks>
     private void OnUnobserved(object? sender, UnobservedTaskExceptionEventArgs e)
     {
-        if (Blame(e.Exception, "исключение забытой задачи"))
+        if (_plugins.Blame(e.Exception, "исключение забытой задачи"))
             e.SetObserved();
-    }
-
-    /// <summary>
-    /// Приписывает исключение плагину, если его код есть в стеке.
-    /// </summary>
-    /// <returns><c>true</c>, если виновник найден и записан.</returns>
-    private bool Blame(Exception? error, string what)
-    {
-        if (_plugins?.Blame(error) is not { } plugin || error is null)
-            return false;
-
-        _guard.Report(plugin.Installed.Id, what, error);
-
-        return true;
     }
 
     /// <summary>Отменяет задачу, которую человек видит.</summary>
     private void OnCancelTaskClick(object? sender, RoutedEventArgs e) => _model.CancelTask();
-
-    /// <summary>Как плагин называется в сообщениях.</summary>
-    private string Named(string pluginId) =>
-        _modules.Concat(_installed).FirstOrDefault(plugin => plugin.Id == pluginId)?.DisplayName ?? pluginId;
-
-    /// <summary>
-    /// Отключает плагин, падающий раз за разом.
-    /// </summary>
-    /// <remarks>
-    /// Три падения подряд — это не случайность, а сломанный плагин, и звать его
-    /// дальше значит показывать человеку одну и ту же ошибку до конца сеанса.
-    /// <para>
-    /// Панели при этом уходят со стен, хотя раньше обещалось оставить вместо них
-    /// заглушки. Обещание было невыполнимым: заглушка панели держит замыкание
-    /// перезапуска, а оно — типы плагина и через них его контекст загрузки.
-    /// Студия выгружала бы плагин только на словах и сама же потом жаловалась,
-    /// что прежняя копия осталась в памяти. О случившемся говорит журнал и
-    /// менеджер плагинов, а не пустая рамка на экране.
-    /// </para>
-    /// </remarks>
-    private void Disable(PluginFailure failure)
-    {
-        _log.Write(StudioLogLevel.Error, "Plugins",
-            $"{Named(failure.PluginId)}: отключён после {failure.Count} сбоев подряд");
-
-        // Всё откладывается. Сюда попадают в том числе из прохода раскладки —
-        // барьер панели сообщает о сбое прямо на замере, — а ни ждать задачи, ни
-        // вынимать контролы из дерева окна во время его же прохода нельзя.
-        //
-        // Ждать не страшно: гвард пометил плагина сбойным раньше, чем позвал
-        // сюда, и звать его код он уже отказывается.
-        Dispatcher.UIThread.Post(async () =>
-        {
-            try
-            {
-                await _release.LetGoAsync(failure.PluginId);
-
-                // Снятые контролы отпускает дерево, а не список: ждём его
-                // проход, иначе выгрузка упрётся в помеху, которой через миг
-                // не будет.
-                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-            }
-            finally
-            {
-                // Через хост, а не Unload напрямую: только он снимет запись со
-                // счёта и разошлёт уборку реестрам. В finally, потому что выше
-                // закрываются документы плагина — его же кодом, и упасть он
-                // волен и здесь; бросить плагина неснятым нельзя.
-                _plugins?.Drop(failure.PluginId);
-            }
-        });
-    }
-
-    /// <summary>Поднимает ждущие плагины, которым подошло событие.</summary>
-    /// <param name="matches">Какое событие произошло.</param>
-    private void Activate(Func<InstalledPlugin, bool> matches)
-    {
-        if (_plugins is not { } host)
-            return;
-
-        foreach (var waiting in host.Deferred.Where(matches).ToList())
-        {
-            _log.Write(StudioLogLevel.Info, "Plugins", $"{Localizer.Instance["menu.activating"]}: {waiting.DisplayName}");
-
-            foreach (var loaded in host.Activate(waiting.Id))
-                Accept(loaded);
-        }
-    }
-
-    /// <summary>
-    /// Ставит панели модуля или плагина в объявленные зоны.
-    /// </summary>
-    /// <remarks>
-    /// Зону и заголовок берём из манифеста, а сам класс панели — из сборки по
-    /// атрибуту: манифест студия читает, не загружая сборку, и список панелей у
-    /// неё есть раньше, чем атрибут вообще становится виден.
-    /// </remarks>
-    private void MountPanels(LoadedPlugin loaded)
-    {
-        if (loaded.Installed.Manifest is not { } manifest || loaded.Studio is not { } studio)
-            return;
-
-        var panels = loaded.Assemblies
-            .SelectMany(assembly => assembly.GetTypes())
-            .Where(type => type is { IsAbstract: false, IsPublic: true } && typeof(Sdk.ToolWindow).IsAssignableFrom(type))
-            .Select(type => (Type: type, Attribute: type.GetCustomAttribute<ToolWindowAttribute>()))
-            .Where(found => found.Attribute is not null)
-            .ToDictionary(found => found.Attribute!.Id, found => found.Type, StringComparer.Ordinal);
-
-        foreach (var declared in manifest.Contributions.ToolWindows)
-        {
-            if (!panels.TryGetValue(declared.Id, out var type))
-            {
-                _log.Write(StudioLogLevel.Warning, "Plugins",
-                    $"Панель {declared.Id} объявлена в манифесте, но в сборке её нет");
-                continue;
-            }
-
-            if (Build(loaded, declared, type, studio) is not { } content)
-                continue;
-
-            // Панель живёт не прямо в дереве окна, а в своей поверхности: сбой
-            // на замере или раскладке иначе унёс бы весь проход, а с ним и окно
-            // студии со всеми открытыми документами.
-            PluginSurface? surface = null;
-
-            surface = new PluginSurface(
-                content,
-                error => _guard.Report(loaded.Installed.Id, $"раскладка панели {declared.Id}", error),
-                () => Reload(loaded, declared, type, studio, surface!));
-
-            Mount(loaded.Installed, declared, surface);
-        }
-    }
-
-    /// <summary>
-    /// Строит панель плагина: создать, подключить, спросить содержимое.
-    /// </summary>
-    /// <remarks>
-    /// Три чужих вызова подряд, и упасть плагин может на любом. Идут они одним
-    /// куском: панель, построенная наполовину, студии не нужна.
-    /// </remarks>
-    private Control? Build(
-        LoadedPlugin loaded,
-        Sdk.Plugins.PluginToolWindow declared,
-        Type type,
-        IStudioContext studio) =>
-        _guard.Get(loaded.Installed.Id, $"панель {declared.Id}", () =>
-        {
-            if (Activator.CreateInstance(type) is not Sdk.ToolWindow panel)
-                return null;
-
-            panel.Attach(studio);
-
-            return panel.Content;
-        });
-
-    /// <summary>
-    /// Строит упавшую панель заново по кнопке в заглушке.
-    /// </summary>
-    /// <remarks>
-    /// Счёт падений при этом обнуляется: человек попросил новую попытку, и
-    /// отказать ему на том основании, что прежняя копия падала, значит сделать
-    /// кнопку бессмысленной.
-    /// </remarks>
-    private void Reload(
-        LoadedPlugin loaded,
-        Sdk.Plugins.PluginToolWindow declared,
-        Type type,
-        IStudioContext studio,
-        PluginSurface surface)
-    {
-        _guard.Forget(loaded.Installed.Id);
-
-        if (Build(loaded, declared, type, studio) is { } content)
-            surface.Reset(content);
-    }
-
-    /// <summary>Ставит содержимое панели в раскладку студии.</summary>
-    /// <param name="plugin">Чья это панель — по нему её потом и снимут.</param>
-    /// <param name="declared">Объявление панели из манифеста.</param>
-    /// <param name="content">Построенное содержимое панели.</param>
-    /// <remarks>
-    /// Имя панели в раскладке — с именем плагина впереди: манифест обещает
-    /// уникальность только внутри своего плагина, а дерево доков одно на всю
-    /// студию и переживает перезапуск.
-    /// </remarks>
-    private void Mount(InstalledPlugin plugin, Sdk.Plugins.PluginToolWindow declared, Control content)
-    {
-        var id = Panel(plugin.Id, declared.Id);
-
-        _dock.Add(plugin.Id, id, declared.Wanted, declared.Title, plugin.Strings, content);
-
-        _log.Write(StudioLogLevel.Debug, "Plugins",
-            $"Панель «{plugin.Strings.Resolve(declared.Title)}» встала в раскладку");
-    }
-
-    /// <summary>Имя панели в раскладке.</summary>
-    private static string Panel(string pluginId, string toolWindowId) => $"{pluginId}:{toolWindowId}";
-
-    /// <summary>Снимает со стен и с полосы всё, что поставил плагин.</summary>
-    private void Unmount(string pluginId)
-    {
-        _dock.RemoveOwnedBy(pluginId);
-        _toolbar.RemoveOwnedBy(pluginId);
-    }
-
-    /// <summary>
-    /// Ставит в полосу свои контролы модуля или плагина.
-    /// </summary>
-    /// <remarks>
-    /// Кнопки и меню стоят с объявления; здесь достраивается то, чего без
-    /// сборки не нарисовать. Класс — по атрибуту, как у панели. Объявленное
-    /// объявляется заново: реестр ничего не пересобирает, а на дороге
-    /// перезагрузки возвращает снятое.
-    /// </remarks>
-    private void MountToolBar(LoadedPlugin loaded)
-    {
-        if (loaded.Installed.Manifest is not { } manifest || loaded.Studio is not { } studio)
-            return;
-
-        var items = loaded.Assemblies
-            .SelectMany(assembly => assembly.GetTypes())
-            .Where(type => type is { IsAbstract: false, IsPublic: true } && typeof(Sdk.ToolBarItem).IsAssignableFrom(type))
-            .Select(type => (Type: type, Attribute: type.GetCustomAttribute<ToolBarItemAttribute>()))
-            .Where(found => found.Attribute is not null)
-            .ToDictionary(found => found.Attribute!.Id, found => found.Type, StringComparer.Ordinal);
-
-        foreach (var declared in manifest.Contributions.ToolBar)
-        {
-            if (!declared.IsCustom)
-            {
-                _toolbar.Add(loaded.Installed, declared);
-                continue;
-            }
-
-            if (!items.TryGetValue(declared.Id, out var type))
-            {
-                _log.Write(StudioLogLevel.Warning, "Plugins",
-                    $"Элемент полосы {declared.Id} объявлен в манифесте, но в сборке его нет");
-                continue;
-            }
-
-            if (BuildItem(loaded, declared, type, studio) is not { } content)
-                continue;
-
-            var id = loaded.Installed.Id;
-
-            // Заглушки в полосе нет: в сорок пикселей она не поместится, а
-            // держала бы замыкание с типами плагина. Упавший элемент снимается
-            // — следующим проходом, потому что сюда приходят из прохода
-            // раскладки, и вынимать контрол посреди него нельзя.
-            var surface = new PluginSurface(
-                content,
-                error =>
-                {
-                    _guard.Report(id, $"раскладка элемента полосы {declared.Id}", error);
-                    Dispatcher.UIThread.Post(() => _toolbar.Remove(id, declared.Id));
-                });
-
-            _toolbar.Add(loaded.Installed, declared, surface);
-        }
-    }
-
-    private async Task ReloadPluginAsync(string pluginId)
-    {
-        if (_plugins is not { } host)
-            return;
-
-        // Зависимые считаются по манифестам прежних копий: перезагружают
-        // потому, что плагин изменился, и свежий манифест мог зависимость
-        // убрать — а прежний зависимый всё ещё держит прежние типы. Вместе с
-        // необязательными: их гарантия «сосед стоит подо мной» не делится.
-        var dependents = PluginGraph.Dependents(
-                pluginId,
-                host.Loaded
-                    .Where(loaded => loaded is { IsLoaded: true, Context: not null })
-                    .Select(loaded => loaded.Installed)
-                    .ToList(),
-                includeOptional: true)
-            .Select(dependent => dependent.Id)
-            .ToList();
-
-        // Манифесты могли измениться вместе со сборками — записи берутся с
-        // диска. Опускаются зависимые первыми, зависимость последней;
-        // поднимается всё в обратном порядке.
-        _installed = new PluginCatalog().Scan();
-
-        if (_installed.FirstOrDefault(plugin => plugin.Id == pluginId) is not { } installed)
-        {
-            _log.Write(StudioLogLevel.Warning, "Plugins", $"Плагина {pluginId} больше нет в папке плагинов");
-            return;
-        }
-
-        var lower = dependents.Append(pluginId).ToList();
-        var raise = new List<InstalledPlugin> { installed };
-
-        foreach (var dependentId in dependents)
-        {
-            if (_installed.FirstOrDefault(plugin => plugin.Id == dependentId) is { } dependent)
-                raise.Add(dependent);
-            else
-                _log.Write(StudioLogLevel.Warning, "Plugins",
-                    $"{Named(dependentId)} зависел от {installed.DisplayName}, но пропал с диска — опущен и не поднят");
-        }
-
-        foreach (var id in lower)
-        {
-            await _release.LetGoAsync(id);
-
-            // Счёт сбоев обнуляется только здесь: обновлённый плагин отвечает за
-            // себя, а не за грехи прежней копии. Отключённому упавшему такого
-            // прощения не полагается — потому это и не в общей уборке.
-            _guard.Forget(id);
-        }
-
-        // Снятые контролы отпускает не список, а дерево: пока проход раскладки
-        // и отрисовки не прошёл, они ещё чьи-то. Ждём его — иначе проверка
-        // выгрузки увидит помеху, которой через миг не будет. Проход один на
-        // всех: дерево тоже одно.
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
-        var cascade = host.Reload(lower, raise);
-
-        foreach (var skipped in cascade.Skipped)
-            _log.Write(StudioLogLevel.Warning, "Plugins", skipped.Value);
-
-        foreach (var note in cascade.Notes)
-            _log.Write(StudioLogLevel.Warning, "Plugins", note);
-
-        foreach (var loaded in cascade.Raised)
-            Accept(loaded);
-
-        // Выгрузка кооперативная, и не удаться она может по вине любого из
-        // опущенных: подписка на событие студии, оставленный таймер,
-        // работающий поток. Каждый невыгрузившийся называется своим именем —
-        // безымянное предупреждение не говорит, кого чинить.
-        var stuck = cascade.Released
-            .Where(pair => !pair.Value)
-            .Select(pair => Named(pair.Key))
-            .ToList();
-
-        if (stuck.Count == 0)
-            return;
-
-        var warning = $"{string.Join(", ", stuck)}: прежняя копия осталась в памяти — надёжнее перезапустить студию";
-
-        _log.Write(StudioLogLevel.Warning, "Plugins", warning);
-        _model.Say(warning);
-    }
-
-    /// <summary>Строит свой контрол плагина: создать, подключить, спросить содержимое — одним куском.</summary>
-    private Control? BuildItem(
-        LoadedPlugin loaded,
-        Sdk.Plugins.PluginToolBarItem declared,
-        Type type,
-        IStudioContext studio) =>
-        _guard.Get(loaded.Installed.Id, $"элемент полосы {declared.Id}", () =>
-        {
-            if (Activator.CreateInstance(type) is not Sdk.ToolBarItem item)
-                return null;
-
-            item.Attach(studio);
-
-            return item.Content;
-        });
 
     /// <summary>Строка состояния как служба для модулей и плагинов.</summary>
     /// <param name="model">Модель окна, которая её показывает.</param>
@@ -874,7 +343,7 @@ public partial class MainWindow : AxWindow
     }
 
     /// <summary>Открытие документов как служба для модулей и плагинов.</summary>
-    /// <param name="owner">Окно, которое ставит вкладки.</param>
+    /// <param name="documents">Служба, которая ставит вкладки.</param>
     private sealed class DocumentSink(StudioDocuments documents) : IStudioDocuments
     {
         /// <inheritdoc/>

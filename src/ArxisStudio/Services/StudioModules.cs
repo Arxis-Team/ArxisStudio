@@ -28,8 +28,19 @@ public static class StudioModules
     /// Читаются манифесты из сборок, сами модули не поднимаются: менеджеру
     /// нужны цели зависимостей, а не работающий код.
     /// </remarks>
-    public static IReadOnlyList<InstalledPlugin> Describe() =>
-        Assemblies
+    public static IReadOnlyList<InstalledPlugin> Describe() => Describe(Assemblies);
+
+    /// <summary>
+    /// То же о названных сборках.
+    /// </summary>
+    /// <param name="assemblies">Чьи манифесты читать.</param>
+    /// <remarks>
+    /// Состав студии — не всегда весь список: тест поднимает её со своим
+    /// набором модулей или вовсе без них, и описание обязано считать модулями
+    /// ровно тех, кого поднимут.
+    /// </remarks>
+    public static IReadOnlyList<InstalledPlugin> Describe(IEnumerable<Assembly> assemblies) =>
+        assemblies
             .Select(assembly =>
             {
                 var (manifest, error) = ModuleManifest.Load(assembly);
