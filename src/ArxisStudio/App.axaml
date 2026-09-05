@@ -1,15 +1,13 @@
 ﻿<Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:themes="using:ArxisStudio.Themes.Arxis"
-             xmlns:shell="using:ArxisStudio.Shell"
-             xmlns:dock="using:ArxisStudio.Docking"
+             xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
              x:Class="ArxisStudio.App"
              RequestedThemeVariant="Dark">
   <!-- FluentTheme — базовый слой M0 для не-Ax примитивов; поверх — тема и стили студии. -->
   <Application.Styles>
     <FluentTheme/>
-    <themes:ArxisTheme/>
-    <shell:ShellStyles/>
-    <dock:DockingStyles/>
+    <ax:ArxisTheme/>
+    <ax:ShellStyles/>
+    <ax:DockingStyles/>
   </Application.Styles>
 </Application>

@@ -1,10 +1,6 @@
 ﻿<ax:AxWindow xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:ax="using:ArxisStudio.Controls"
-        xmlns:axi="using:ArxisStudio.Icons"
-        xmlns:shell="using:ArxisStudio.Shell"
-        xmlns:dock="using:ArxisStudio.Docking"
-        xmlns:loc="using:ArxisStudio.Shell.Localization"
+        xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
         x:Class="ArxisStudio.MainWindow"
         Title="ArxisStudio"
         Width="1440" Height="900"
@@ -18,7 +14,7 @@
       Раскладку определяет человек, а не эта разметка: где какая панель стоит и
       какой она ширины, знает дерево доков, а оно приходит из файла раскладки.
   -->
-  <shell:StudioShell>
+  <ax:StudioShell>
 
     <!--
         Верхний тулбар: логотип студии и три ленты для вкладов. Высоту даёт
@@ -33,7 +29,7 @@
         центру остатка», и вклад, вставший в середину, ездил бы вслед за
         длиной соседа слева. Здесь середина — середина окна.
     -->
-    <shell:StudioShell.TopBar>
+    <ax:StudioShell.TopBar>
       <ax:AxTitleBar BorderThickness="0">
         <ax:AxToolBar Margin="12,0">
           <ax:AxToolBar.LeftContent>
@@ -44,40 +40,40 @@
                            Foreground="{DynamicResource AxOnAccBrush}"
                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
               </Border>
-              <shell:ToolBarStrip x:Name="LeftStrip"/>
+              <ax:ToolBarStrip x:Name="LeftStrip"/>
             </StackPanel>
           </ax:AxToolBar.LeftContent>
           <ax:AxToolBar.CenterContent>
-            <shell:ToolBarStrip x:Name="CenterStrip"/>
+            <ax:ToolBarStrip x:Name="CenterStrip"/>
           </ax:AxToolBar.CenterContent>
           <ax:AxToolBar.RightContent>
-            <shell:ToolBarStrip x:Name="RightStrip"/>
+            <ax:ToolBarStrip x:Name="RightStrip"/>
           </ax:AxToolBar.RightContent>
         </ax:AxToolBar>
       </ax:AxTitleBar>
-    </shell:StudioShell.TopBar>
+    </ax:StudioShell.TopBar>
 
     <!--
         Рабочая область — дерево доков. Панели встают в него из манифестов, а
         документы открываются в названную группу; заставка достаётся ей же,
         пока в ней пусто.
     -->
-    <dock:DockView x:Name="Dock"
-                   CollapseTitle="{loc:Loc action.collapse}"
-                   ExpandTitle="{loc:Loc action.expand}">
-      <dock:DockView.Empty>
+    <ax:DockView x:Name="Dock"
+                   CollapseTitle="{ax:Loc action.collapse}"
+                   ExpandTitle="{ax:Loc action.expand}">
+      <ax:DockView.Empty>
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
           <TextBlock Classes="dim" Text="ArxisStudio" FontSize="{DynamicResource AxFontSizeTitle}" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-          <TextBlock Classes="dimmer" Text="{loc:Loc studio.canvas.hint}"
+          <TextBlock Classes="dimmer" Text="{ax:Loc studio.canvas.hint}"
                      FontSize="{DynamicResource AxFontSizeSmall}" HorizontalAlignment="Center"/>
         </StackPanel>
-      </dock:DockView.Empty>
-    </dock:DockView>
+      </ax:DockView.Empty>
+    </ax:DockView>
 
     <!-- Статус-бар: 24, как в макете экрана Editor. -->
-    <shell:StudioShell.StatusBar>
+    <ax:StudioShell.StatusBar>
       <DockPanel Height="{DynamicResource AxControlHeightCompact}" Margin="12,0">
-        <TextBlock x:Name="StatusText" Classes="dim" Text="{loc:Loc studio.ready}" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+        <TextBlock x:Name="StatusText" Classes="dim" Text="{ax:Loc studio.ready}" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
         <!--
             Идущая задача: имя, чем занята, полоса и отмена. Место одно на всех
             плагинов — иначе каждый заведёт свою мельницу, и человек будет
@@ -92,14 +88,14 @@
           <TextBlock x:Name="TaskRest" Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}"
                      VerticalAlignment="Center" IsVisible="False"/>
           <ax:AxButton x:Name="TaskCancel" Classes="icon" Width="20" Height="20"
-                       AutomationProperties.Name="{loc:Loc task.cancel}"
-                       ToolTip.Tip="{loc:Loc task.cancel}" Click="OnCancelTaskClick">
-            <axi:AxIcon Classes="small" Data="{x:Static axi:AxIcons.Close}"/>
+                       AutomationProperties.Name="{ax:Loc task.cancel}"
+                       ToolTip.Tip="{ax:Loc task.cancel}" Click="OnCancelTaskClick">
+            <ax:AxIcon Classes="small" Data="{x:Static ax:AxIcons.Close}"/>
           </ax:AxButton>
         </StackPanel>
 
       </DockPanel>
-    </shell:StudioShell.StatusBar>
+    </ax:StudioShell.StatusBar>
 
-  </shell:StudioShell>
+  </ax:StudioShell>
 </ax:AxWindow>

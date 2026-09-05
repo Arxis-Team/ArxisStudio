@@ -5,8 +5,7 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="ArxisStudio.Shell.ShellStyles"
-        xmlns:sh="using:ArxisStudio.Shell"
-        xmlns:ax="using:ArxisStudio.Controls">
+        xmlns:ax="https://github.com/Arxis-Team/ArxisStudio">
 
   <Styles.Resources>
     <ResourceDictionary>
@@ -16,7 +15,7 @@
           отдаёт целиком: что там за дерево доков и какой ширины его области,
           он не знает и знать не должен.
       -->
-      <ControlTheme x:Key="{x:Type sh:StudioShell}" TargetType="sh:StudioShell">
+      <ControlTheme x:Key="{x:Type ax:StudioShell}" TargetType="ax:StudioShell">
         <Setter Property="Background" Value="{DynamicResource AxBg1Brush}"/>
         <Setter Property="Template">
           <ControlTemplate>
