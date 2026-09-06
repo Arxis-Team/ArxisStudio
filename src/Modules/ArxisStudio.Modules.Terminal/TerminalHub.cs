@@ -16,9 +16,6 @@ public enum TerminalRequestKind
 
     /// <summary>Показать диалог настроек.</summary>
     Settings,
-
-    /// <summary>Закрыть все сеансы: модуль выключают.</summary>
-    Shutdown,
 }
 
 /// <summary>Просьба к панели.</summary>
@@ -87,34 +84,6 @@ public static class TerminalHub
         {
             _panel = null;
         }
-    }
-
-    /// <summary>
-    /// Модуль выключают: панель закрывает сеансы, и хаб её отпускает.
-    /// </summary>
-    /// <remarks>
-    /// Не через <see cref="Open"/>: та просьба, не застав панели, легла бы в
-    /// очередь — и следующая панель, построившись, первым делом закрылась бы
-    /// по просьбе прошлой жизни. Прощание не копится: некому прощаться —
-    /// значит и закрывать нечего.
-    /// <para>
-    /// Панель отпускается здесь, а не ею самой: держит её ссылка в этом
-    /// статическом поле, и пока она цела, живы и панель, и её вид, и сборка
-    /// модуля за ними.
-    /// </para>
-    /// </remarks>
-    public static void Close()
-    {
-        Action<TerminalRequest>? panel;
-
-        lock (Gate)
-        {
-            panel = _panel;
-            _panel = null;
-            Waiting.Clear();
-        }
-
-        panel?.Invoke(new TerminalRequest(TerminalRequestKind.Shutdown));
     }
 
     /// <summary>Забывает и панель, и очередь — для тестов, которые делят один процесс.</summary>

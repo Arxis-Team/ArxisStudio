@@ -391,11 +391,13 @@ public class TerminalViewTests
     }
 
     /// <summary>
-    /// Прощание панели закрывает вкладки и оболочки за ними.
+    /// Прощание панели закрывает вкладки, оболочки за ними и отпускает хаб.
     /// </summary>
     /// <remarks>
-    /// Просьба идёт той же дорогой, что и все остальные, — через хаб: так её
-    /// шлёт и выключаемый модуль.
+    /// Зовёт его студия, когда выключают модуль: у панели для этого есть
+    /// <see cref="ToolWindow.Release"/>. Прежде такой точки в контракте не
+    /// было, и модулю приходилось тянуться к своей панели статикой — другой
+    /// дороги у него не существовало.
     /// </remarks>
     [AvaloniaFact]
     public void The_panel_closes_everything_it_opened_when_it_is_asked_to_go()
@@ -420,11 +422,22 @@ public class TerminalViewTests
 
             Assert.NotEmpty(Tabs(panel));
 
-            TerminalHub.Open(new TerminalRequest(TerminalRequestKind.Shutdown));
+            // Прощание зовёт студия — так же, как позвала бы при выключении
+            // модуля.
+            panel.Release();
             Dispatcher.UIThread.RunJobs();
 
             Assert.Empty(Tabs(panel));
             Assert.Empty(panel.Sessions);
+
+            // И хаб отпущен: пока в его статическом поле лежит эта панель, жива
+            // и она, и сборка модуля за ней.
+            var received = new List<TerminalRequest>();
+
+            TerminalHub.Open(new TerminalRequest(TerminalRequestKind.Open));
+            TerminalHub.Attach(received.Add);
+
+            Assert.Single(received);
 
             if (started)
                 Assert.False(Wait(() => panel.Sessions.Count > 0), "сеанс пережил прощание панели");

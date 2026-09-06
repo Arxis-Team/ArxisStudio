@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Shell;
@@ -33,6 +33,18 @@ public sealed class StudioPlugins
     private readonly PluginContributionRegistry _contributions;
     private readonly StudioExportRegistry _exports = new();
     private readonly PluginRelease _release;
+
+    /// <summary>
+    /// Панели и элементы полосы, созданные расширениями, — по хозяину.
+    /// </summary>
+    /// <remarks>
+    /// Держатся ради прощания: у панели есть <c>Release</c>, и позвать его
+    /// можно только тому, у кого экземпляр на руках. Прежде студия брала у
+    /// панели содержимое и саму панель отпускала — а вместе с ней и всё, что
+    /// панель держала: процессы, потоки, подписки. Дотянуться до этого не мог
+    /// никто: расширение своих экземпляров не видит, их создаёт студия.
+    /// </remarks>
+    private readonly Dictionary<string, List<object>> _built = new(StringComparer.Ordinal);
 
     private PluginHost? _host;
     private IReadOnlyList<InstalledPlugin> _installed = [];
@@ -75,6 +87,15 @@ public sealed class StudioPlugins
 
     /// <summary>Документы: их закрывают перед выгрузкой хозяина.</summary>
     public required StudioDocuments Documents { get; init; }
+
+    /// <summary>
+    /// Находки: их снимают вместе с хозяином; null — студия без панели проблем.
+    /// </summary>
+    /// <remarks>
+    /// Не обязательное: студию собирают и без панели проблем — в тестах и у
+    /// встраивающих, — а расширения при этом поднимаются те же.
+    /// </remarks>
+    public StudioProblems? Problems { get; init; }
 
     /// <summary>Что студия даёт расширениям сверх обязательного.</summary>
     public required IReadOnlyDictionary<Type, object> Services { get; init; }
@@ -165,7 +186,6 @@ public sealed class StudioPlugins
         _release.Views = Unmount;
 
         _exports.Conflict += (_, message) => _log.Write(StudioLogLevel.Warning, "Plugins", message);
-        _contributions.Conflict += (_, message) => _log.Write(StudioLogLevel.Warning, "Plugins", message);
 
         _guard.Failed += (_, failure) => _log.Write(
             StudioLogLevel.Error, "Plugins",
@@ -202,9 +222,19 @@ public sealed class StudioPlugins
         // упавшего забывало команды, а закрытие студии не убирало ничего.
         host.Unloading += (_, id) =>
         {
+            // Прощание первым: панель ещё жива и вправе позвать студию —
+            // отписаться, снять свои находки, отпустить задачу. После уборки
+            // реестров ей отвечали бы уже пустотой.
+            ReleaseBuilt(id);
+
             Commands.RemoveOwnedBy(id);
             _exports.RemoveOwnedBy(id);
             _contributions.Remove(id);
+
+            // Находки ушедшего снимает студия: сам он этого уже не сделает, а
+            // висели бы они в панели до конца сеанса — без источника, без
+            // исправления и без способа убрать.
+            Problems?.RemoveOwnedBy(id);
         };
 
         _host = host;
@@ -565,7 +595,14 @@ public sealed class StudioPlugins
 
             panel.Attach(studio);
 
-            return panel.Content;
+            var content = panel.Content;
+
+            // Запоминаем после того, как панель построилась: недостроенной
+            // прощаться нечем, а звать Release у той, что упала на Build,
+            // значит звать её во второй раз подряд по тому же поводу.
+            Remember(loaded.Installed.Id, panel);
+
+            return content;
         });
 
     /// <summary>
@@ -683,8 +720,56 @@ public sealed class StudioPlugins
 
             item.Attach(studio);
 
-            return item.Content;
+            var content = item.Content;
+
+            Remember(loaded.Installed.Id, item);
+
+            return content;
         });
+
+    /// <summary>Запоминает созданное расширением — чтобы было с кем прощаться.</summary>
+    /// <param name="pluginId">Чьё это.</param>
+    /// <param name="built">Панель или элемент полосы.</param>
+    private void Remember(string pluginId, object built)
+    {
+        if (!_built.TryGetValue(pluginId, out var mine))
+            _built[pluginId] = mine = [];
+
+        mine.Add(built);
+    }
+
+    /// <summary>
+    /// Прощается с панелями и элементами полосы расширения.
+    /// </summary>
+    /// <remarks>
+    /// Зовётся с уборкой хоста, до выгрузки сборки: панели она и нужна — там
+    /// закрываются процессы и снимаются подписки, которые иначе не дали бы
+    /// контексту загрузки уйти.
+    /// <para>
+    /// Через шов, как всякий чужой вызов: расширение вольно упасть и на
+    /// прощании, а выгрузка от этого останавливаться не должна.
+    /// </para>
+    /// </remarks>
+    /// <param name="pluginId">Кто уходит.</param>
+    private void ReleaseBuilt(string pluginId)
+    {
+        if (!_built.Remove(pluginId, out var mine))
+            return;
+
+        foreach (var built in mine)
+        {
+            switch (built)
+            {
+                case ToolWindow panel:
+                    _guard.Run(pluginId, "прощание панели", panel.Release);
+                    break;
+
+                case ToolBarItem item:
+                    _guard.Run(pluginId, "прощание элемента полосы", item.Release);
+                    break;
+            }
+        }
+    }
 
     /// <summary>
     /// Классы расширения, помеченные атрибутом вклада, — по объявленному имени.

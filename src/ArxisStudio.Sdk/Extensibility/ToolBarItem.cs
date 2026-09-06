@@ -42,4 +42,16 @@ public abstract class ToolBarItem
     /// <summary>Строит контрол.</summary>
     /// <returns>Корневой контрол элемента.</returns>
     protected abstract Control Build();
+
+    /// <summary>
+    /// Элемент уходит: пора отпустить всё, что он держал.
+    /// </summary>
+    /// <remarks>
+    /// То же и по тем же причинам, что у <see cref="ToolWindow.Release"/>:
+    /// экземпляр создаёт студия, и дотянуться до него расширению неоткуда.
+    /// Зовётся, когда расширение выключают, перед выгрузкой его сборки.
+    /// </remarks>
+    public virtual void Release()
+    {
+    }
 }

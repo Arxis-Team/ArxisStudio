@@ -51,6 +51,44 @@ public sealed class StudioProblems : IStudioProblems
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Снимает всё, что сообщало расширение.
+    /// </summary>
+    /// <remarks>
+    /// Зовётся, когда расширение выгружают. Само оно этого уже не сделает, а
+    /// находки без источника висели бы в панели до конца сеанса: исправить их
+    /// некому, перепроверить некому, убрать нечем.
+    /// <para>
+    /// Узнаются они по имени источника: у расширения оно начинается с его
+    /// идентификатора — так же, как имя панели в раскладке и имя элемента в
+    /// полосе. Ставит приставку не расширение, а тот, кто выдал ему контекст.
+    /// </para>
+    /// </remarks>
+    /// <param name="pluginId">Кто ушёл.</param>
+    public void RemoveOwnedBy(string pluginId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
+
+        var prefix = Owned(pluginId, string.Empty);
+        var mine = _order.Where(source => source.StartsWith(prefix, StringComparison.Ordinal)).ToList();
+
+        if (mine.Count == 0)
+            return;
+
+        foreach (var source in mine)
+        {
+            _bySource.Remove(source);
+            _order.Remove(source);
+        }
+
+        _flattened = null;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Имя источника с хозяином впереди.</summary>
+    /// <param name="pluginId">Хозяин.</param>
+    /// <param name="source">Как источник назвал себя сам.</param>
+    public static string Owned(string pluginId, string source) => $"{pluginId}:{source}";
 
     private List<StudioProblem> Flatten() =>
         [.. _order

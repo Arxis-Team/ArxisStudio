@@ -3,6 +3,7 @@ using ArxisStudio.Controls;
 using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Modules.Sample;
+using ArxisStudio.Modules.Terminal;
 using ArxisStudio.Sdk;
 using ArxisStudio.Shell;
 using ArxisStudio.Services;
@@ -132,6 +133,59 @@ public class StudioPluginsTests : IDisposable
         Assert.Equal("arxis.sample", module.Id);
         Assert.True(module.IsBuiltIn);
         Assert.Contains(_dock.Items.Known(), id => id.StartsWith("arxis.sample:", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Выключая расширение, студия прощается с его панелями.
+    /// </summary>
+    /// <remarks>
+    /// Панель держит то, до чего точке входа не дотянуться: процессы, потоки,
+    /// подписки. Создаёт её студия, и своих экземпляров расширение не видит —
+    /// значит и звать <see cref="ToolWindow.Release"/> может только студия.
+    /// Прежде такой точки в контракте не было вовсе: студия брала у панели
+    /// содержимое, а саму панель отпускала вместе со всем, что та держала.
+    /// <para>
+    /// Проверяется на терминале: его панель — единственная, которой есть что
+    /// отпускать, и она отпускает хаб. Оболочек в этом прогоне нет — панель на
+    /// экран не ставили, — но прощание идёт по той же дороге.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void Switching_an_extension_off_says_goodbye_to_its_panels()
+    {
+        TerminalHub.Reset();
+
+        try
+        {
+            var plugins = Start(modules: typeof(TerminalModule).Assembly);
+
+            Assert.Contains(_dock.Items.Known(), id => id.StartsWith("arxis.terminal:", StringComparison.Ordinal));
+
+            // Панель встала и заняла хаб: до прощания просьба идёт прямо ей.
+            var before = new List<TerminalRequest>();
+
+            TerminalHub.Attach(before.Add);
+            TerminalHub.Open(new TerminalRequest(TerminalRequestKind.Open));
+
+            Assert.Single(before);
+
+            plugins.Stop();
+            Dispatcher.UIThread.RunJobs();
+
+            // Панель попрощалась и отпустила хаб: просьба больше никому не
+            // идёт, а ложится в очередь.
+            var after = new List<TerminalRequest>();
+
+            TerminalHub.Open(new TerminalRequest(TerminalRequestKind.Open));
+            TerminalHub.Attach(after.Add);
+
+            Assert.Single(after);
+            Assert.Single(before);
+        }
+        finally
+        {
+            TerminalHub.Reset();
+        }
     }
 
     /// <summary>
@@ -333,9 +387,15 @@ public class StudioPluginsTests : IDisposable
     /// Реестр вкладов отпускает выгруженного вместе с остальными.
     /// </summary>
     /// <remarks>
-    /// Рисовальщик свойства — объект из контекста загрузки плагина: оставленная
+    /// Редактор документов — объект из контекста загрузки плагина: оставленная
     /// запись держит и его, и весь контекст. Уборка одна на все дороги выгрузки
     /// именно поэтому — разнеси её, и один из путей о ней забудет.
+    /// <para>
+    /// Вклад подкладывается тестом от имени плагина: своих у примера не
+    /// осталось — рисовальщик, которым эта проверка держалась прежде, снят
+    /// вместе со своим контрактом. Реестру всё равно, откуда пришла сборка;
+    /// проверяется здесь не он, а то, что дорога выгрузки его зовёт.
+    /// </para>
     /// </remarks>
     [AvaloniaFact]
     public void The_contributions_of_an_unloaded_plugin_go_too()
@@ -343,12 +403,15 @@ public class StudioPluginsTests : IDisposable
         Install();
 
         var plugins = Start();
+        var note = Path.Combine(Path.GetTempPath(), "Список.note");
 
-        Assert.NotEmpty(_contributions.DrawnTypes);
+        _contributions.Add("arxis.hello", "Hello", [typeof(NoteEditor).Assembly]);
+
+        Assert.NotNull(_contributions.EditorFor(note));
 
         plugins.Stop();
 
-        Assert.Empty(_contributions.DrawnTypes);
+        Assert.Null(_contributions.EditorFor(note));
     }
 
     /// <summary>

@@ -108,6 +108,7 @@ public partial class MainWindow : AxWindow
             Dock = _dock,
             ToolBar = _toolbar,
             Documents = _documents,
+            Problems = _problems,
 
             // Чем студия делится с расширениями — решение оболочки, а не
             // порядка подъёма: список стоит здесь и виден целиком.
