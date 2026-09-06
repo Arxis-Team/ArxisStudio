@@ -780,6 +780,26 @@ public class StudioDockTests : IDisposable
         Assert.Null(DockTree.Holder(next.Root!, "hello:tree"));
     }
 
+    /// <summary>
+    /// Щёлкает дважды подряд — так, чтобы вышел двойной щелчок.
+    /// </summary>
+    /// <param name="window">Окно, которому шлём ввод.</param>
+    /// <param name="at">Куда.</param>
+    /// <remarks>
+    /// Счёт щелчков ставит не тест, а сама Avalonia: она считает их по времени
+    /// и расстоянию между нажатиями. Отсюда и два нажатия подряд без единой
+    /// паузы: пауза между ними и есть то, что отличает двойной щелчок от двух
+    /// одиночных.
+    /// </remarks>
+    private static void Double(Window window, Point at)
+    {
+        window.MouseMove(at);
+        window.MouseDown(at, MouseButton.Left);
+        window.MouseUp(at, MouseButton.Left);
+        window.MouseDown(at, MouseButton.Left);
+        window.MouseUp(at, MouseButton.Left);
+    }
+
     /// <summary>Уносит первую вкладку названной области за пределы дерева.</summary>
     private static void Tear(DockView view, Window window, string group)
     {
@@ -2490,21 +2510,22 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
-    /// В шапке оторванного окна нет ни уборки на рейку, ни сворачивания.
+    /// В шапке оторванного окна остаётся один крестик.
     /// </summary>
     /// <remarks>
-    /// Обе кнопки — дороги в один конец. Рейки у оторванного окна нет, и
-    /// убранной панели неоткуда было бы вернуться; кнопки в панели задач у него
-    /// нет тоже, и свёрнутое окно исчезает, не оставив человеку способа его
-    /// найти. Так же решает Visual Studio: плавающую панель там сперва
-    /// пристыковывают.
+    /// Окно при студии — палитра со всех сторон: своего места ни в панели
+    /// задач, ни в Alt+Tab у него нет, лежит оно над хозяйкой и уходит вместе с
+    /// ней. У палитры в Windows узкая шапка и один крестик; так же выглядят
+    /// плавающие окна инструментов в Visual Studio и Rider.
     /// <para>
-    /// Развернуть окно можно: это обратимо и повторяет двойной щелчок по
-    /// шапке. Закрыть — тем более.
+    /// Каждая из снятых кнопок обещала своё. Рейки у оторванного окна нет, и
+    /// убранной панели неоткуда было бы вернуться. Свёрнутое окно исчезает без
+    /// следа, и найти его человеку нечем. Разворот же остался — жестом, и он
+    /// проверяется отдельно.
     /// </para>
     /// </remarks>
     [AvaloniaFact]
-    public void A_torn_window_offers_neither_stowing_nor_minimizing()
+    public void A_torn_window_wears_a_palette_chrome()
     {
         var (dock, view, window) = Two();
 
@@ -2522,13 +2543,57 @@ public class StudioDockTests : IDisposable
         var buttons = Assert.Single(torn.GetVisualDescendants().OfType<AxWindowControls>());
 
         Assert.False(buttons.ShowMinimize, "оторванное окно предлагает свернуть себя в никуда");
-        Assert.DoesNotContain(
-            buttons.GetVisualDescendants().OfType<Button>(),
-            button => button.Name == "PART_Minimize" && button.IsVisible);
+        Assert.False(buttons.ShowMaximize, "в шапке палитры стоит кнопка разворота");
 
-        // Развернуть и закрыть остаются: оба обратимы, и оба человек ищет там же.
-        Assert.Contains(buttons.GetVisualDescendants().OfType<Button>(), button => button.Name == "PART_Maximize");
-        Assert.Contains(buttons.GetVisualDescendants().OfType<Button>(), button => button.Name == "PART_Close");
+        var shown = buttons.GetVisualDescendants()
+            .OfType<Button>()
+            .Where(button => button.IsVisible)
+            .Select(button => button.Name)
+            .ToList();
+
+        Assert.Equal(["PART_Close"], shown);
+    }
+
+    /// <summary>
+    /// Развернуть оторванное окно можно двойным щелчком, и тем же вернуть.
+    /// </summary>
+    /// <remarks>
+    /// Кнопки разворота у палитры нет, но сама возможность нужна: панель
+    /// уносят на второй монитор и разворачивают там во весь экран. Жест — тот
+    /// же, что у всякого окна Windows, и он сам себе обратный, поэтому
+    /// развёрнутое окно тупиком не становится: другой дороги назад у него и не
+    /// осталось бы.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_torn_window_still_maximizes_by_a_double_click()
+    {
+        var (dock, view, window) = Two();
+
+        Tear(view, window, "left");
+        Settle();
+
+        var torn = Assert.Single(dock.Floating);
+        var group = Assert.Single(torn.View.GetVisualDescendants().OfType<DockGroupView>());
+
+        // Пустое место шапки — правее последней вкладки: там окно и берут.
+        var empty = DockMouse.Inside(group, 0.7, 0, torn)
+            + new Vector(0, group.HeaderHeight / 2);
+
+        Double(torn, empty);
+        Settle();
+
+        Assert.Equal(WindowState.Maximized, torn.WindowState);
+
+        // Между двумя жестами человек отводит мышь, и счёт щелчков начинается
+        // заново. В безголовом Avalonia часы не идут, и счёт сбрасывает только
+        // расстояние: без этого щелчка второй жест пришёл бы третьим и
+        // четвёртым нажатием подряд, а не первым и вторым.
+        DockMouse.Click(torn, DockMouse.Inside(group, 0.5, 0.7, torn));
+
+        Double(torn, empty);
+        Settle();
+
+        Assert.Equal(WindowState.Normal, torn.WindowState);
     }
 
     /// <summary>
