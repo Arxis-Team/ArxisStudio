@@ -86,12 +86,17 @@ public class ShellCatalogTests
     {
         var windows = ShellCatalog.Available(TerminalPlatform.Windows, NoEnvironment);
 
-        Assert.True(windows.Single(shell => shell.Id == ShellCatalog.WindowsPowerShellId).ClearsItself);
-        Assert.False(windows.Single(shell => shell.Id == ShellCatalog.CommandPromptId).ClearsItself);
+        Assert.Equal(
+            ShellProfile.FormFeed,
+            windows.Single(shell => shell.Id == ShellCatalog.WindowsPowerShellId).ClearRequest);
 
-        Assert.True(Assert.Single(ShellCatalog.Available(TerminalPlatform.MacOS, NoEnvironment)).ClearsItself);
-        Assert.True(Assert.Single(ShellCatalog.Available(TerminalPlatform.Linux, NoEnvironment)).ClearsItself);
-        Assert.True(ShellCatalog.Ssh("host", null, 22, TerminalPlatform.Linux).ClearsItself);
+        Assert.Equal(
+            ShellProfile.ClearCommand,
+            windows.Single(shell => shell.Id == ShellCatalog.CommandPromptId).ClearRequest);
+
+        Assert.Equal(ShellProfile.FormFeed, Assert.Single(ShellCatalog.Available(TerminalPlatform.MacOS, NoEnvironment)).ClearRequest);
+        Assert.Equal(ShellProfile.FormFeed, Assert.Single(ShellCatalog.Available(TerminalPlatform.Linux, NoEnvironment)).ClearRequest);
+        Assert.Equal(ShellProfile.FormFeed, ShellCatalog.Ssh("host", null, 22, TerminalPlatform.Linux).ClearRequest);
     }
 
     /// <summary>Команда SSH: адрес с пользователем, порт только нестандартный, клиент — системный.</summary>

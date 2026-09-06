@@ -59,10 +59,31 @@ public sealed class TerminalPanel : ToolWindow
                 Open(TerminalModule.DefaultProfile(Context.Settings), focus: false);
         };
 
-        Context.Settings.Changed += (_, _) => ApplySettings();
+        // Именованный обработчик, а не лямбда: с ним панель может отписаться,
+        // а подписка на событие студии — ровно то, чем расширение переживает
+        // собственное выключение.
+        Context.Settings.Changed += OnSettingsChanged;
         TerminalHub.Attach(Handle);
 
         return _view;
+    }
+
+    /// <summary>
+    /// Закрывает все сеансы и отпускает всё, что панель держала.
+    /// </summary>
+    /// <remarks>
+    /// Зовётся, когда выключают модуль. За каждым сеансом — процесс оболочки,
+    /// фоновый поток чтения и задача записи; за подпиской на настройки —
+    /// сама панель. Не отпустив этого, студия закрывалась бы, оставляя
+    /// оболочки доживать до конца процесса, а снятая с раскладки панель
+    /// держала бы их работающими и невидимыми.
+    /// </remarks>
+    public void Shutdown()
+    {
+        Context.Settings.Changed -= OnSettingsChanged;
+
+        foreach (var entry in _entries.ToList())
+            Close(entry);
     }
 
     /// <summary>
@@ -232,6 +253,10 @@ public sealed class TerminalPanel : ToolWindow
             case TerminalRequestKind.Settings:
                 _ = EditSettingsAsync();
                 break;
+
+            case TerminalRequestKind.Shutdown:
+                Shutdown();
+                break;
         }
     }
 
@@ -251,6 +276,9 @@ public sealed class TerminalPanel : ToolWindow
 
         await SettingsDialog.EditAsync(owner, Context.Settings, ShellCatalog.Available());
     }
+
+    /// <summary>Настройку поменяли; какую именно — панели неважно, она перечитывает все.</summary>
+    private void OnSettingsChanged(object? sender, string key) => ApplySettings();
 
     /// <summary>Разносит изменённые настройки по открытым сеансам; история — только у новых.</summary>
     private void ApplySettings()
@@ -280,12 +308,33 @@ public sealed class TerminalPanel : ToolWindow
         return Path.GetDirectoryName(path) is { Length: > 0 } folder && Directory.Exists(folder) ? folder : home;
     }
 
-    /// <summary>Подпись вкладки: имя оболочки, а у второй такой же — с номером.</summary>
+    /// <summary>
+    /// Подпись вкладки: имя оболочки, а у второй такой же — с номером.
+    /// </summary>
+    /// <remarks>
+    /// Номер ищется по занятым подписям, а не считается по числу сеансов той
+    /// же оболочки. Счёт давал повтор на обычной дороге: открыть три
+    /// PowerShell, закрыть средний — и следующий снова назвался бы «(2)»,
+    /// рядом с уже стоящей «(2)». Заодно учитываются и подписи, данные
+    /// человеком: занятое имя занято, кем бы оно ни было дано.
+    /// </remarks>
     private string Title(ShellProfile profile)
     {
-        var same = _entries.Count(entry => string.Equals(entry.Profile.Title, profile.Title, StringComparison.Ordinal));
+        var taken = _entries
+            .Select(entry => entry.Tab.Content as string)
+            .Where(name => name is not null)
+            .ToHashSet(StringComparer.Ordinal);
 
-        return same == 0 ? profile.Title : $"{profile.Title} ({same + 1})";
+        if (!taken.Contains(profile.Title))
+            return profile.Title;
+
+        for (var number = 2; ; number++)
+        {
+            var candidate = $"{profile.Title} ({number})";
+
+            if (!taken.Contains(candidate))
+                return candidate;
+        }
     }
 
     /// <summary>

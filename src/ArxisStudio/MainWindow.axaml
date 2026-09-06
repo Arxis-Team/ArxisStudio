@@ -6,7 +6,8 @@
         x:DataType="vm:MainWindowViewModel"
         Title="ArxisStudio"
         Width="1440" Height="900"
-        MinWidth="1360" MinHeight="700">
+        MinWidth="1360" MinHeight="700"
+        WindowStartupLocation="CenterScreen">
 
   <!--
       Окно — только оболочка: дерево доков, заголовок и запуск. Всё остальное

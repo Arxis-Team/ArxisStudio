@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
 using XTerm.Options;
+using AttributeData = XTerm.Buffer.AttributeData;
 using BufferLine = XTerm.Buffer.BufferLine;
 using XTerminal = XTerm.Terminal;
 
@@ -40,6 +41,18 @@ public sealed class TerminalSession : IDisposable
     /// значило бы потерять «Процесс завершён» или последнюю строку ошибки.
     /// </remarks>
     public static readonly TimeSpan TailGrace = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>
+    /// Пустая клетка: цвета по умолчанию, а не нулевой индекс палитры.
+    /// </summary>
+    /// <remarks>
+    /// <c>default(AttributeData)</c> — это не «цвет по умолчанию»: у эмулятора
+    /// умолчание названо числами (256 у текста, 257 у фона), а ноль — обычный
+    /// индекс палитры, то есть чёрный Campbell. Клетки, очищенные нулём,
+    /// рисовались чёрными на фоне студии: строка ввода после изменения
+    /// размера ложилась чёрной полосой во всю ширину окна.
+    /// </remarks>
+    private static readonly AttributeData Blank = AttributeData.Default;
 
     private readonly IPseudoTerminal _pty;
     private readonly Action<Action> _post;
@@ -218,29 +231,27 @@ public sealed class TerminalSession : IDisposable
     public bool CanClearScreen => IsRunning && !Terminal.IsAlternateBufferActive;
 
     /// <summary>
-    /// Очищает экран, оставив строку, на которой стоит курсор.
+    /// Просит оболочку очистить экран.
     /// </summary>
     /// <remarks>
-    /// Чистит по возможности не терминал, а сама оболочка: Ctrl+L умеют все, у
-    /// кого есть построчный редактор, и делают это лучше нас — приглашение
-    /// перерисовано, набранное сохранено, а экраны остались одним и тем же.
-    /// Последнее и есть главное: ConPTY держит свою копию экрана, и уборка
-    /// только на нашей стороне с ней разошлась бы — PSReadLine рисует строку
-    /// ввода по запомненным координатам и попал бы ими в пустоту, так что
-    /// следующая набранная буква появилась бы не там, где курсор.
+    /// Чистит не терминал, а оболочка — какая бы она ни была. Чем её попросить,
+    /// знает её профиль: Ctrl+L там, где есть построчный редактор, команда
+    /// <c>cls</c> у <c>cmd</c>, где его нет.
     /// <para>
-    /// Своими руками — только для оболочки без редактора строки, то есть для
-    /// <c>cmd</c>. Строка курсора при этом остаётся: на ней стоит приглашение,
-    /// и стереть её вместе с остальным — а это ровно то, что делает
-    /// <c>Clear</c> эмулятора, — значит оставить пустой экран без приглашения,
-    /// которое оболочка заново не нарисует. Собрано из трёх шагов, потому что
-    /// готового такого действия у эмулятора нет: строка курсора уезжает
-    /// наверх, курсор идёт за ней, а история чистится следом.
+    /// Своими руками нельзя, и это проверено дважды. За псевдотерминалом
+    /// Windows стоит консоль со своей копией экрана, и адресует она её
+    /// абсолютно: перед эхом каждой набранной буквы идёт установка курсора
+    /// вроде <c>ESC[10;16H</c>. Уборка только на нашей стороне с этой копией
+    /// расходится, и следующая же буква ложится туда, где приглашение стояло
+    /// до уборки, — строками ниже и с отступом в его ширину. Прежде это
+    /// объясняли построчным редактором и считали, что <c>cmd</c>, у которого
+    /// его нет, в безопасности; редактор ни при чём — координаты ставит сама
+    /// консоль.
     /// </para>
     /// <para>
     /// На альтернативном экране не делает ничего: там рисует полноэкранная
-    /// программа по своей модели, и подъём её строк был бы ложью о том, что у
-    /// неё на экране.
+    /// программа по своей модели, и уборка была бы ложью о том, что у неё на
+    /// экране.
     /// </para>
     /// </remarks>
     public void ClearScreen()
@@ -248,24 +259,8 @@ public sealed class TerminalSession : IDisposable
         if (!CanClearScreen)
             return;
 
-        if (Profile.ClearsItself)
-        {
-            Send("\f");
-            return;
-        }
-
-        var buffer = Terminal.Buffer;
-        var row = buffer.Y;
-
-        if (row > 0)
-        {
-            buffer.ScrollUp(row, false);
-            buffer.SetCursor(buffer.X, 0);
-        }
-
-        buffer.ClearScrollback();
         Terminal.ScrollToBottom();
-        Changed?.Invoke(this, EventArgs.Empty);
+        Send(Profile.ClearRequest);
     }
 
     /// <summary>Сообщает оболочке и эмулятору новый размер окна.</summary>
@@ -294,6 +289,7 @@ public sealed class TerminalSession : IDisposable
         var buffer = Terminal.Buffer;
         var top = buffer.YBase;
         var cursorRow = buffer.Y;
+        var added = rows - Terminal.Rows;
         var input = CursorLine();
 
         Terminal.Resize(columns, rows);
@@ -307,9 +303,18 @@ public sealed class TerminalSession : IDisposable
             // установка курсора абсолютными координатами, которой оболочка
             // рисует строку ввода, бьёт мимо ровно на разницу: набранное
             // ложится посреди старого вывода.
-            if (buffer.YBase < top)
+            //
+            // Поправка отмеряется добавленными строками, а не всей разницей
+            // YBase. Разниц там две, и вторая законная: расширение по ширине
+            // сшивает перенесённые строки обратно, и история честно занимает
+            // меньше места. Вычтя и её, студия уносила за верх экрана весь
+            // вывод — окно, растянутое после узкого, оказывалось пустым, с
+            // одним приглашением внизу.
+            var lifted = Math.Min(top - buffer.YBase, Math.Max(0, added));
+
+            if (lifted > 0)
             {
-                buffer.ScrollUp(top - buffer.YBase, false);
+                buffer.ScrollUp(lifted, false);
                 buffer.SetCursor(buffer.X, cursorRow);
             }
 
@@ -360,7 +365,7 @@ public sealed class TerminalSession : IDisposable
         for (var row = 0; row < rows.Length; row++)
         {
             rows[row] = buffer.Lines[buffer.YBase + first + row]?.Clone()
-                ?? buffer.GetBlankLine(default, row > 0);
+                ?? buffer.GetBlankLine(Blank, row > 0);
         }
 
         // Перенесённая строка полна по определению: знаки есть только в
@@ -413,7 +418,7 @@ public sealed class TerminalSession : IDisposable
             return;
 
         var buffer = Terminal.Buffer;
-        var blank = buffer.GetBlankLine(default, false)[0];
+        var blank = buffer.GetBlankLine(Blank, false)[0];
         var needed = ((Math.Max(1, line.Length) - 1) / columns) + 1;
         var was = line.Rows.Length;
 

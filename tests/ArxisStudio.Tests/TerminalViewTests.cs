@@ -13,6 +13,7 @@ using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using Xunit;
 
@@ -389,6 +390,122 @@ public class TerminalViewTests
         }
     }
 
+    /// <summary>
+    /// Прощание панели закрывает вкладки и оболочки за ними.
+    /// </summary>
+    /// <remarks>
+    /// Просьба идёт той же дорогой, что и все остальные, — через хаб: так её
+    /// шлёт и выключаемый модуль.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_panel_closes_everything_it_opened_when_it_is_asked_to_go()
+    {
+        TerminalHub.Reset();
+
+        var panel = Panel();
+
+        try
+        {
+            var window = new Window { Width = 900, Height = 500, Content = panel.Content };
+
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+
+            // Оболочка панели по умолчанию — настоящая, и на этой машине она
+            // может подняться, а может и нет: вкладка есть в обоих случаях.
+            var started = Wait(() => panel.Sessions.Count > 0);
+
+            panel.Open(new ShellProfile("probe", "Проба", "arxis-нет-такой-оболочки", []));
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.NotEmpty(Tabs(panel));
+
+            TerminalHub.Open(new TerminalRequest(TerminalRequestKind.Shutdown));
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Empty(Tabs(panel));
+            Assert.Empty(panel.Sessions);
+
+            if (started)
+                Assert.False(Wait(() => panel.Sessions.Count > 0), "сеанс пережил прощание панели");
+
+            window.Close();
+        }
+        finally
+        {
+            foreach (var session in panel.Sessions)
+                panel.Close(session);
+
+            TerminalHub.Reset();
+        }
+    }
+
+    /// <summary>
+    /// Номера у одинаковых вкладок не повторяются.
+    /// </summary>
+    /// <remarks>
+    /// Номер прежде считался по числу сеансов той же оболочки, и обычная
+    /// дорога давала повтор: открыть три, закрыть средний — и следующий снова
+    /// назвался бы «(2)» рядом с уже стоящей «(2)». По подписи вкладки её и
+    /// находят; две одинаковые не находит никто.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Two_tabs_never_wear_the_same_name()
+    {
+        TerminalHub.Reset();
+
+        var panel = Panel();
+        var probe = new ShellProfile("probe", "Проба", "arxis-нет-такой-оболочки", []);
+
+        try
+        {
+            var window = new Window { Width = 900, Height = 500, Content = panel.Content };
+
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+
+            // Панель могла завести себе сеанс сама: считать номера надо с пустой
+            // полосы, иначе первым именем окажется имя её оболочки.
+            foreach (var tab in Tabs(panel).OfType<AxTabItem>().ToList())
+                tab.RaiseEvent(new RoutedEventArgs(AxTabItem.CloseRequestedEvent));
+
+            Dispatcher.UIThread.RunJobs();
+            Assert.Empty(Tabs(panel));
+
+            for (var i = 0; i < 3; i++)
+            {
+                panel.Open(probe);
+                Dispatcher.UIThread.RunJobs();
+            }
+
+            Assert.Equal(["Проба", "Проба (2)", "Проба (3)"], Names(panel));
+
+            // Закрыли средний — освободившееся имя и достаётся следующему.
+            Tabs(panel).OfType<AxTabItem>().ElementAt(1)
+                .RaiseEvent(new RoutedEventArgs(AxTabItem.CloseRequestedEvent));
+
+            Dispatcher.UIThread.RunJobs();
+            panel.Open(probe);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal(["Проба", "Проба (3)", "Проба (2)"], Names(panel));
+            Assert.Equal(3, Names(panel).Distinct(StringComparer.Ordinal).Count());
+
+            window.Close();
+        }
+        finally
+        {
+            foreach (var session in panel.Sessions)
+                panel.Close(session);
+
+            TerminalHub.Reset();
+        }
+    }
+
+    /// <summary>Подписи вкладок панели по порядку.</summary>
+    private static IReadOnlyList<string> Names(TerminalPanel panel) =>
+        [.. Tabs(panel).OfType<AxTabItem>().Select(tab => tab.Content as string ?? string.Empty)];
+
     /// <summary>Имя вкладки чистится перед тем, как встать: без пробелов, без пустоты, без простыни.</summary>
     [Theory]
     [InlineData(" сборка ", "сборка")]
@@ -402,6 +519,75 @@ public class TerminalViewTests
     [Fact]
     public void A_long_tab_name_is_cut_to_size() =>
         Assert.Equal(RenameDialog.MaxLength, RenameDialog.Clean(new string('я', 200))!.Length);
+
+    /// <summary>
+    /// Смена темы студии перекрашивает и терминал.
+    /// </summary>
+    /// <remarks>
+    /// Цвета берутся из темы один раз — при постановке на экран, — и этого
+    /// хватало ровно до первого переключения: студия становилась светлой, а
+    /// панель терминала оставалась тёмной дырой посреди неё. Спрашивается
+    /// эмулятор, а не поле вида: в его палитру цвета и уезжают, и по ней он
+    /// отвечает программам на вопрос «какой у тебя фон».
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_terminal_follows_the_studio_theme()
+    {
+        var (window, _, _, session) = Show();
+
+        window.RequestedThemeVariant = ThemeVariant.Dark;
+        Dispatcher.UIThread.RunJobs();
+
+        var dark = session.Terminal.Colors.Background;
+
+        window.RequestedThemeVariant = ThemeVariant.Light;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.NotEqual(dark, session.Terminal.Colors.Background);
+        Assert.Equal(0xFFFFFF, session.Terminal.Colors.Background);
+    }
+
+    /// <summary>
+    /// Снятый с экрана вид не досказывает размер оболочке.
+    /// </summary>
+    /// <remarks>
+    /// Размер уходит по тишине в раскладке, то есть таймером. Вид, ушедший с
+    /// экрана с заведённым таймером, будит сеанс уже никому не видимого
+    /// экрана — и держит себя и его в памяти, пока таймер идёт. Переключение
+    /// вкладок терминала — это и есть снятие с экрана.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_view_taken_off_the_screen_stops_asking_for_a_resize()
+    {
+        var (window, view, pty, session) = Show();
+
+        var first = Assert.Single(pty.Sizes);
+
+        window.Height = 320;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(view.IsSettling, "новый размер не пошёл в отсчёт");
+
+        // Ушёл с экрана посреди отсчёта — часам здесь больше нечего отмерять.
+        window.Content = null;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(view.IsSettling, "снятый с экрана вид продолжает отсчёт");
+        Assert.Equal([first], pty.Sizes);
+
+        // Но и потерять несказанный размер нельзя: вернулся на экран — досказал.
+        window.Content = view;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(view.IsSettling, "вернувшийся вид забыл досказать размер");
+
+        view.Settle();
+
+        var settled = Assert.Single(pty.Sizes.Skip(1));
+
+        Assert.Equal((view.Columns, view.Rows), settled);
+        Assert.Equal(view.Rows, session.Terminal.Rows);
+    }
 
     /// <summary>Кнопка шапки с этим значком.</summary>
     private static AxButton Header(TerminalPanel panel, Geometry icon) =>

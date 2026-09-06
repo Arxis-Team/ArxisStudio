@@ -73,7 +73,7 @@ public sealed class TerminalView : Control
 
     private static readonly FontFamily FallbackFont = new("Cascadia Mono,Consolas,Menlo,DejaVu Sans Mono,monospace");
 
-    private readonly Dictionary<int, IImmutableBrush> _brushes = new();
+    private readonly Dictionary<(int Rgb, double Opacity), IImmutableBrush> _brushes = new();
     private readonly DispatcherTimer _blink = new() { Interval = TimeSpan.FromMilliseconds(530) };
     private readonly DispatcherTimer _settle = new() { Interval = ResizeQuiet };
 
@@ -114,6 +114,11 @@ public sealed class TerminalView : Control
         };
 
         _settle.Tick += (_, _) => Settle();
+
+        // Тему студии переключают на ходу, и терминал обязан переключиться
+        // вместе с ней: панель, оставшаяся тёмной посреди светлой студии, —
+        // это не «свой вид», а невынутый цвет.
+        ActualThemeVariantChanged += (_, _) => AdoptTheme();
     }
 
     /// <inheritdoc cref="FontSizeProperty"/>
@@ -236,16 +241,30 @@ public sealed class TerminalView : Control
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        ReadTheme();
-        Remeasure();
-        ApplyTheme();
+        AdoptTheme();
+
+        // Размер, до которого не дошёл отсчёт: вид сняли с экрана посреди
+        // тишины, и оболочка о последнем размере так и не услышала. Своего
+        // размера экран не менял — значит досказать его некому, кроме нас.
+        if (_session is { } session && (session.Terminal.Cols != _columns || session.Terminal.Rows != _rows))
+            _settle.Start();
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Вид ушёл с экрана: часам здесь больше нечего отсчитывать.
+    /// </summary>
+    /// <remarks>
+    /// Обоим таймерам, а не одному мигающему курсору. Идущий
+    /// <see cref="DispatcherTimer"/> держит вид, а вид — сеанс с его оболочкой
+    /// и фоновым потоком; отсчёт, переживший снятие с экрана, доскажет размер
+    /// экрану, которого никто не видит. Переключение вкладок терминала — это
+    /// и есть снятие с экрана, так что случается это не в углу.
+    /// </remarks>
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
         _blink.Stop();
+        _settle.Stop();
     }
 
     /// <summary>
@@ -265,6 +284,17 @@ public sealed class TerminalView : Control
         _settle.Stop();
         _session?.Resize(_columns, _rows);
     }
+
+    /// <summary>
+    /// Идёт ли отсчёт тишины: вид ещё не досказал оболочке размер.
+    /// </summary>
+    /// <remarks>
+    /// Читается тестом, и другого способа у него нет: в headless часы
+    /// диспетчера не идут — оттого <see cref="Settle"/> там и зовут руками, —
+    /// а вопрос «остановлен ли отсчёт» задавать всё равно надо. Отсчёт,
+    /// переживший снятие вида с экрана, держит и вид, и сеанс с его оболочкой.
+    /// </remarks>
+    public bool IsSettling => _settle.IsEnabled;
 
     /// <inheritdoc/>
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -783,6 +813,23 @@ public sealed class TerminalView : Control
             _blink.Start();
     }
 
+    /// <summary>
+    /// Берёт тему студии целиком: шрифт, цвета, размер ячейки, палитру эмулятора.
+    /// </summary>
+    /// <remarks>
+    /// Все четыре шага вместе и одним именем: шрифт из темы задаёт ячейку, а
+    /// ячейка — сколько знаков помещается, и разошедшись, эти шаги оставили бы
+    /// экран, размеченный под прежний шрифт. Зовётся и при постановке на
+    /// экран, и при смене темы: разницы между «взяли впервые» и «взяли снова»
+    /// здесь нет.
+    /// </remarks>
+    private void AdoptTheme()
+    {
+        ReadTheme();
+        Remeasure();
+        ApplyTheme();
+    }
+
     /// <summary>Берёт из темы студии шрифт и цвета; чего в теме нет — остаётся встроенным.</summary>
     private void ReadTheme()
     {
@@ -825,9 +872,21 @@ public sealed class TerminalView : Control
 
     private static int Rgb(Color color) => (color.R << 16) | (color.G << 8) | color.B;
 
+    /// <summary>
+    /// Кисть цвета; одинаковые берутся из кэша, а не заводятся на каждую ячейку.
+    /// </summary>
+    /// <param name="rgb">Цвет вида <c>0xRRGGBB</c>.</param>
+    /// <param name="opacity">Прозрачность: тусклый текст и ползунок полосы.</param>
+    /// <remarks>
+    /// В ключе и цвет, и прозрачность. Прежде прозрачность сжималась в один
+    /// бит «не единица», и две разные — 0.6 у тусклого текста и 0.7 у ползунка
+    /// — делили одну запись: чей цвет совпал бы с чужим, тот и получил бы
+    /// чужую прозрачность. Совпасть им есть на чём — программа вправе
+    /// напечатать любой цвет truecolor.
+    /// </remarks>
     private IImmutableBrush Brush(int rgb, double opacity = 1)
     {
-        var key = opacity >= 1 ? rgb : rgb | (1 << 24);
+        var key = (rgb, opacity);
 
         if (!_brushes.TryGetValue(key, out var brush))
         {

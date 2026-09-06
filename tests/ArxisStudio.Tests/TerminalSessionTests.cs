@@ -199,47 +199,46 @@ public class TerminalSessionTests
     }
 
     /// <summary>
-    /// За оболочку без редактора строки терминал чистит сам, оставляя приглашение.
+    /// Оболочку без редактора строки просят командой, а не убирают за неё.
     /// </summary>
     /// <remarks>
-    /// Это <c>cmd</c>: Ctrl+L для него просто символ. Строка курсора остаётся —
-    /// на ней приглашение, и стереть её вместе с остальным (а это ровно то, что
-    /// делает <c>Clear</c> эмулятора) значит оставить пустой экран без
-    /// приглашения, которого оболочка заново не нарисует. Цвета при этом её
-    /// собственные: перерисовка текстом их потеряла бы.
+    /// Это <c>cmd</c>: Ctrl+L для него просто символ, зато есть <c>cls</c> — та
+    /// же уборка, которую человек набрал бы сам. Escape впереди стирает
+    /// набранное, но не отправленное: без него команда дописалась бы к
+    /// недописанной строке и ушла бы исполняться вместе с ней.
+    /// <para>
+    /// Прежде терминал чистил за cmd своими руками и оставлял приглашение
+    /// наверху — картинка выходила красивее, но неправдой: консоль за
+    /// псевдотерминалом держит свою копию экрана и ставит курсор абсолютно, и
+    /// следующая же набранная буква ложилась строками ниже приглашения, с
+    /// отступом в его ширину. Экран после уборки не трогаем вовсе — его
+    /// почистит тот, кто копией владеет.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void Clearing_a_shell_without_a_line_editor_keeps_the_prompt()
+    public void A_shell_without_a_line_editor_is_asked_with_a_command()
     {
         using var pty = new FakePty();
         using var session = new TerminalSession(
-            Probe with { ClearsItself = false },
+            Probe with { ClearRequest = ShellProfile.ClearCommand },
             pty,
             TerminalSession.Options(TerminalSettings.Default, 40, 10),
             post: action => action());
 
-
         Fill(session, pty);
 
         var buffer = session.Terminal.Buffer;
+        var before = session.Terminal.GetVisibleLines();
 
         Assert.True(buffer.YBase > 0, "истории не набралось — проверять было бы нечего");
         Assert.True(session.CanClearScreen);
 
         session.ClearScreen();
 
-        Assert.Equal(string.Empty, pty.WrittenText);
+        Assert.Equal(ShellProfile.ClearCommand, pty.WaitForWritten(text => text.Length > 0, Timeout));
 
-        Assert.Equal(0, buffer.YBase);
-        Assert.Equal(0, buffer.YDisp);
-        Assert.Equal(0, buffer.Y);
-        Assert.Equal(session.Terminal.Rows, buffer.Lines.Length);
-        Assert.Equal("PS C:>", session.Terminal.GetVisibleLines()[0].TrimEnd());
-        var top = buffer.Lines[0];
-
-        Assert.NotNull(top);
-        Assert.Equal(2, top![0].Attributes.GetFgColor());
-        Assert.All(session.Terminal.GetVisibleLines().Skip(1), line => Assert.Equal(string.Empty, line.TrimEnd()));
+        // Экран не тронут: его почистит оболочка, когда получит просьбу.
+        Assert.Equal(before, session.Terminal.GetVisibleLines());
     }
 
     /// <summary>
@@ -781,6 +780,110 @@ public class TerminalSessionTests
         Assert.True(
             SpinWait.SpinUntil(() => session.Terminal.Buffer.Y > 0 && Prompt(session), Timeout),
             "приглашение не дошло до экрана");
+    }
+
+    /// <summary>
+    /// Переложенная строка ввода остаётся на фоне терминала, а не на чёрной полосе.
+    /// </summary>
+    /// <remarks>
+    /// Пустые клетки при перекладке брались у <c>GetBlankLine(default, …)</c>, а
+    /// <c>default(AttributeData)</c> — это не «цвет по умолчанию», а нулевой
+    /// индекс палитры, то есть Campbell Black. Умолчание у эмулятора своё:
+    /// 256 для текста и 257 для фона. Разница видна сразу — строка ввода
+    /// ложилась чёрной полосой во всю ширину, и чем шире окно, тем длиннее
+    /// полоса.
+    /// <para>
+    /// Спрашивается разрешённый цвет, а не индекс: рисует вид именно его, и
+    /// проверять надо то, что увидит глаз.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_reflowed_line_keeps_the_terminal_background()
+    {
+        using var pty = new FakePty { KeepsOwnScreen = true };
+        using var session = Wide(pty, 60);
+
+        pty.Emit(new string('q', 59));
+
+        Assert.True(SpinWait.SpinUntil(() => session.Terminal.Buffer.X == 59, Timeout), "набранное не дошло");
+
+        var buffer = session.Terminal.Buffer;
+        var row = buffer.Y;
+
+        session.Resize(50, session.Terminal.Rows);
+
+        var colors = session.Terminal.Colors;
+        var wrapped = buffer.Lines[buffer.YBase + row + 1]!;
+
+        // Девять знаков перенеслись, дальше — пустое место той же строки.
+        for (var column = 9; column < 50; column++)
+        {
+            var (_, background) = TerminalTheme.Resolve(wrapped[column].Attributes, colors, false);
+
+            Assert.Equal(colors.Background, background);
+        }
+    }
+
+    /// <summary>
+    /// Строки, уже уехавшие в историю, изменение размера не трогает.
+    /// </summary>
+    /// <remarks>
+    /// Перекладывать надо одну строку — ту, на которой стоит курсор. Всё, что
+    /// выше, оболочка уже отпустила, и переписывать это значит терять чужой
+    /// вывод: на экране от строки оставался хвост без начала — набранная
+    /// команда без приглашения перед ней.
+    /// </remarks>
+    [Fact]
+    public void Resizing_leaves_the_lines_above_the_cursor_alone()
+    {
+        using var pty = new FakePty { KeepsOwnScreen = true };
+        using var session = Wide(pty, 60);
+
+        pty.Emit("PS C:> ls\r\nMode  Name\r\nd---- .claude\r\nPS C:> ");
+
+        Assert.True(SpinWait.SpinUntil(() => session.Terminal.Buffer.Y == 3, Timeout), "вывод не дошёл");
+
+        var before = session.Terminal.GetVisibleLines().Take(3).Select(line => line.TrimEnd()).ToList();
+
+        Assert.Equal(["PS C:> ls", "Mode  Name", "d---- .claude"], before);
+
+        // Туда и обратно: так его и тянут за угол.
+        session.Resize(40, session.Terminal.Rows);
+        session.Resize(60, session.Terminal.Rows);
+
+        Assert.Equal(before, session.Terminal.GetVisibleLines().Take(3).Select(line => line.TrimEnd()).ToList());
+    }
+
+    /// <summary>
+    /// Расширение по ширине не уносит вывод за верх экрана.
+    /// </summary>
+    /// <remarks>
+    /// Узкое окно переносит длинные строки, широкое сшивает их обратно, и
+    /// история честно занимает меньше строк. Поправка «ConPTY растит окно
+    /// вниз» вычитала и эту разницу, хотя её причина другая: окно по высоте не
+    /// менялось. Экран после этого уезжал наверх целиком — растянутое окно
+    /// оказывалось пустым, с одним приглашением у нижнего края.
+    /// </remarks>
+    [Fact]
+    public void Widening_does_not_carry_the_output_off_the_top()
+    {
+        using var pty = new FakePty { KeepsOwnScreen = true };
+        using var session = Wide(pty, 46);
+
+        // Восемь длинных строк: при ширине 46 каждая переносится, при 100 — нет.
+        for (var line = 0; line < 8; line++)
+            pty.Emit(new string((char)('a' + line), 90) + "\r\n");
+
+        pty.Emit("PS C:> ");
+
+        Assert.True(SpinWait.SpinUntil(() => session.Terminal.Buffer.YBase > 0, Timeout), "истории не набралось");
+
+        session.Resize(100, session.Terminal.Rows);
+
+        var shown = session.Terminal.GetVisibleLines().Count(line => line.TrimEnd().Length > 0);
+
+        Assert.True(shown > 1, $"на экране осталось строк: {shown} — вывод уехал за верх");
+        Assert.Contains(new string('h', 90), session.Terminal.GetVisibleLines().Select(line => line.TrimEnd()));
     }
 
     /// <summary>Приглашение стоит на строке курсора.</summary>

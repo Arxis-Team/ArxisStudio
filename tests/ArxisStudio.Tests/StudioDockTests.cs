@@ -875,6 +875,85 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
+    /// Кончившаяся тяга не оставляет призрака открытым.
+    /// </summary>
+    /// <remarks>
+    /// Призрака прятали, а не закрывали, и для Avalonia он оставался открытым
+    /// окном. Студия закрывается по последнему окну — и после одной тяги
+    /// переставала закрываться вовсе: главное окно пропадало с экрана, а
+    /// процесс жил дальше, держа свои файлы занятыми. Снаружи это выглядело
+    /// как «студия не пересобирается».
+    /// <para>
+    /// Спрашивается закрытие, а не <see cref="StudioDock.Promised"/>: тот
+    /// отвечает, виден ли призрак, — и спрятанный отвечал «нет» одинаково, и
+    /// когда его не стало, и когда он остался жить.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_finished_drag_leaves_no_window_behind()
+    {
+        var (dock, view, window) = Two();
+
+        var from = DockMouse.Tab(view.View("left")!, 0, window);
+        var to = DockMouse.Inside(view.View("right")!, 0.5, 0.5, window);
+
+        window.MouseMove(from);
+        window.MouseDown(from, MouseButton.Left);
+        window.MouseMove(to);
+        Settle();
+
+        var promised = dock.Promised;
+
+        Assert.NotNull(promised);
+
+        var closed = false;
+
+        promised.Closed += (_, _) => closed = true;
+
+        window.MouseUp(to, MouseButton.Left);
+        Settle();
+
+        Assert.True(closed, "призрак пережил тягу и держит студию открытой");
+        Assert.Null(dock.Promised);
+    }
+
+    /// <summary>
+    /// Прощаясь, студия закрывает и оторванные окна.
+    /// </summary>
+    /// <remarks>
+    /// Хозяином им главное окно достаётся не всегда: раскладка поднимается под
+    /// заставкой, когда окно студии построено, но ещё не показано, — и окно,
+    /// восстановленное из файла, встаёт без хозяина. Пережив главное, оно
+    /// держало студию открытой: та закрывается по последнему окну, и человек
+    /// получал процесс без единого видимого окна.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Saying_goodbye_closes_the_torn_off_windows()
+    {
+        var (dock, view, window) = Two();
+
+        var from = DockMouse.Tab(view.View("left")!, 0, window);
+        var to = DockMouse.Inside(view.View("right")!, 0.5, 0.5, window);
+
+        window.MouseMove(from);
+        window.MouseDown(from, MouseButton.Left);
+        window.MouseMove(to);
+        window.MouseUp(to, MouseButton.Left);
+        Settle();
+
+        var torn = Assert.Single(dock.Floating);
+        var closed = false;
+
+        torn.Closed += (_, _) => closed = true;
+
+        dock.Farewell();
+        Settle();
+
+        Assert.True(closed, "оторванное окно пережило студию и держит её открытой");
+        Assert.Empty(dock.Floating);
+    }
+
+    /// <summary>
     /// Тяга через ничью землю не теряет прицел.
     /// </summary>
     /// <remarks>

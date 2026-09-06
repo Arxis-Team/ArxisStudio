@@ -8,7 +8,8 @@
         x:DataType="vm:WelcomeViewModel"
         Title="{ax:Loc welcome.title}"
         Width="1100" Height="720"
-        MinWidth="900" MinHeight="600">
+        MinWidth="900" MinHeight="600"
+        WindowStartupLocation="CenterScreen">
 
   <DockPanel>
 

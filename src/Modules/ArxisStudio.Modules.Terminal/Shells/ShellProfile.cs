@@ -15,20 +15,50 @@ namespace ArxisStudio.Modules.Terminal.Shells;
 /// <param name="Title">Подпись вкладки.</param>
 /// <param name="App">Что запускать: имя из <c>PATH</c> или полный путь.</param>
 /// <param name="Arguments">С чем запускать.</param>
-/// <param name="ClearsItself">
-/// Оболочка сама чистит экран по Ctrl+L. Так умеют все, у кого есть построчный
-/// редактор — PSReadLine, readline в bash, zle в zsh, — и делают это лучше
-/// терминала: перерисуют приглашение, сохранят набранное и, главное, оставят
-/// свой экран и наш одним и тем же. Не умеет этого <c>cmd</c>: редактора
-/// строки у него нет, и Ctrl+L для него просто символ.
+/// <param name="ClearRequest">
+/// Чем попросить оболочку очистить экран.
+/// <para>
+/// Просят всегда её, а не убирают за неё. За псевдотерминалом Windows стоит
+/// консоль со своей копией экрана, и вывод она адресует абсолютно:
+/// <c>ESC[10;16H</c> перед каждым эхом набранной буквы. Уборка только на нашей
+/// стороне с этой копией расходится, и следующая же буква ложится туда, где
+/// приглашение стояло до уборки, — строками ниже и с отступом в его ширину.
+/// Чистит тот, кто копией владеет.
+/// </para>
 /// </param>
 public sealed record ShellProfile(
     string Id,
     string Title,
     string App,
     IReadOnlyList<string> Arguments,
-    bool ClearsItself = true)
+    string ClearRequest = ShellProfile.FormFeed)
 {
+    /// <summary>
+    /// Ctrl+L: так просят оболочку с построчным редактором.
+    /// </summary>
+    /// <remarks>
+    /// Умеют все, у кого он есть, — PSReadLine, readline в bash, zle в zsh, — и
+    /// делают лучше терминала: перерисуют приглашение и сохранят набранное.
+    /// </remarks>
+    public const string FormFeed = "\f";
+
+    /// <summary>
+    /// Escape и команда: так просят <c>cmd</c>.
+    /// </summary>
+    /// <remarks>
+    /// Построчного редактора у cmd нет, и Ctrl+L для него просто символ. Зато
+    /// есть <c>cls</c> — та же уборка, которую человек набрал бы сам, и
+    /// консоль остаётся хозяйкой своего экрана. Escape впереди стирает
+    /// набранное, но не отправленное: без него команда дописалась бы к
+    /// недописанной строке и ушла бы на исполнение вместе с ней.
+    /// <para>
+    /// Набранное при этом теряется — у cmd нет способа очистить экран, не
+    /// тронув строку ввода. Прежде оно не терялось, но и не работало: экран
+    /// чистился, а печатать после этого было некуда.
+    /// </para>
+    /// </remarks>
+    public const string ClearCommand = "\u001bcls\r";
+
     /// <summary>Имя профиля SSH: у него нет своего пункта в списке оболочек, он собирается диалогом.</summary>
     public const string SshId = "ssh";
 
@@ -103,7 +133,7 @@ public static class ShellCatalog
                 return
                 [
                     new ShellProfile(WindowsPowerShellId, "Windows PowerShell", "powershell.exe", ["-NoLogo"]),
-                    new ShellProfile(CommandPromptId, "Command Prompt", "cmd.exe", [], ClearsItself: false),
+                    new ShellProfile(CommandPromptId, "Command Prompt", "cmd.exe", [], ShellProfile.ClearCommand),
                 ];
 
             case TerminalPlatform.MacOS:
