@@ -918,6 +918,103 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
+    /// Оторванные окна ждут окна студии и появляются вместе с ним.
+    /// </summary>
+    /// <remarks>
+    /// Оторванная панель — окно при студии: всегда над ней, сворачивается и
+    /// закрывается вместе с ней, своей кнопки в панели задач не заводит. Всё
+    /// это держится на владельце, а владельцем может быть только показанное
+    /// окно.
+    /// <para>
+    /// Прежде окна восстановленной раскладки показывались сразу — под
+    /// заставкой, когда окна студии ещё нет, — и человек видел панель над
+    /// экраном Welcome, где рабочего места не бывает. Хозяином им доставалось
+    /// окно, которого никто не видел, и за студию они потом уходили вместо
+    /// того, чтобы держаться над ней.
+    /// </para>
+    /// <para>
+    /// Спрашивать окно бесполезно: у <c>Window</c>, который ещё ни разу не
+    /// показывали, <c>IsVisible</c> уже <c>true</c> — умолчание <c>Visual</c>.
+    /// Ровно на этот вопрос раскладка и получала «да» задолго до появления
+    /// окна.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void Torn_off_windows_wait_for_the_studio_window()
+    {
+        var view = new DockView();
+        var dock = new StudioDock(view);
+        var window = new Window { Content = view, Width = 1200, Height = 800 };
+
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
+        dock.Add("friend", "friend:tips", At("right"), "Советы", Strings, new Border());
+
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        // Окно студии показано, но раскладке об этом ещё не сказали: так
+        // выглядит подъём под заставкой.
+        var from = DockMouse.Tab(view.View("left")!, 0, window);
+        var to = DockMouse.Inside(view.View("right")!, 0.5, 0.5, window);
+
+        window.MouseMove(from);
+        window.MouseDown(from, MouseButton.Left);
+        window.MouseMove(to);
+        window.MouseUp(to, MouseButton.Left);
+        Settle();
+
+        var torn = Assert.Single(dock.Floating);
+
+        Assert.False(torn.IsVisible, "оторванное окно вышло на экран раньше студии");
+
+        dock.Shown();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(torn.IsVisible, "оторванное окно не появилось вместе со студией");
+        Assert.False(torn.ShowInTaskbar, "окно при студии завело себе кнопку в панели задач");
+    }
+
+    /// <summary>
+    /// Окно, записанное на исчезнувшем мониторе, возвращается на видное место.
+    /// </summary>
+    /// <remarks>
+    /// Место записано при той раскладке экранов, какая была тогда: отключили
+    /// второй монитор, сменили разрешение, принесли ноутбук домой — и окно
+    /// приходит туда, где смотреть его некому. Найти его нечем: кнопки в панели
+    /// задач у окна при студии нет.
+    /// <para>
+    /// Достаточно пересечения, а не полного вхождения: окно, наполовину
+    /// свешенное за край, человек так и оставил.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_window_saved_on_a_monitor_that_is_gone_comes_back_into_view()
+    {
+        var primary = new PixelRect(0, 0, 1920, 1040);
+        var screens = new[] { new PixelRect(0, 0, 1920, 1080) };
+
+        // Записано на втором мониторе справа, которого больше нет.
+        Assert.Equal(
+            new PixelPoint(750, 360),
+            DockFloat.Landed(new PixelRect(2200, 300, 420, 320), screens, primary));
+
+        // На месте — не трогаем.
+        Assert.Equal(
+            new PixelPoint(100, 200),
+            DockFloat.Landed(new PixelRect(100, 200, 420, 320), screens, primary));
+
+        // Свешено за край, но задевает монитор — человек так и оставил.
+        Assert.Equal(
+            new PixelPoint(1800, 900),
+            DockFloat.Landed(new PixelRect(1800, 900, 420, 320), screens, primary));
+
+        // Мониторов не знаем — возвращать некуда, оставляем как записано.
+        Assert.Equal(
+            new PixelPoint(2200, 300),
+            DockFloat.Landed(new PixelRect(2200, 300, 420, 320), screens, fallback: null));
+    }
+
+    /// <summary>
     /// Прощаясь, студия закрывает и оторванные окна.
     /// </summary>
     /// <remarks>
@@ -2003,6 +2100,7 @@ public class StudioDockTests : IDisposable
         };
 
         window.Show();
+        dock.Shown();
 
         dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
         dock.Add("friend", "friend:tips", At("right"), "Советы", Strings, new Border());
@@ -2017,6 +2115,10 @@ public class StudioDockTests : IDisposable
         var dock = new StudioDock(view, store);
 
         new Window { Content = view, Width = 1200, Height = 800 }.Show();
+
+        // То же, что делает окно студии, открывшись: без этого оторванные окна
+        // остаются скрытыми — им нужен показанный хозяин.
+        dock.Shown();
         Dispatcher.UIThread.RunJobs();
 
         return (dock, view);

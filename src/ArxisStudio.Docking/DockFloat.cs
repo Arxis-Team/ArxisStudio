@@ -79,8 +79,17 @@ public class DockFloat : AxWindow
         Height = Height,
     };
 
-    /// <summary>Ставит окно туда и такого размера, как записано.</summary>
+    /// <summary>
+    /// Ставит окно туда и такого размера, как записано.
+    /// </summary>
     /// <param name="window">Запись из файла раскладки.</param>
+    /// <remarks>
+    /// Место сверяется с мониторами, которые есть сейчас. Записано оно было при
+    /// той раскладке экранов, какая была тогда: отключили второй монитор,
+    /// сменили его разрешение, принесли ноутбук домой — и окно возвращается
+    /// туда, где смотреть его некому. Найти его после этого нечем: кнопки в
+    /// панели задач у окна при студии нет.
+    /// </remarks>
     public void Restore(DockWindow window)
     {
         ArgumentNullException.ThrowIfNull(window);
@@ -88,9 +97,43 @@ public class DockFloat : AxWindow
         View.Root = window.Root;
         Width = window.Width;
         Height = window.Height;
-        Position = new PixelPoint((int)window.X, (int)window.Y);
+        Position = Landed(
+            new PixelRect((int)window.X, (int)window.Y, (int)window.Width, (int)window.Height),
+            [.. Screens.All.Select(screen => screen.Bounds)],
+            Screens.Primary?.WorkingArea);
 
         Retitle();
+    }
+
+    /// <summary>
+    /// Место окна, которое видно хотя бы на одном мониторе.
+    /// </summary>
+    /// <param name="wanted">Прямоугольник, записанный в раскладке.</param>
+    /// <param name="screens">Мониторы, какие есть сейчас.</param>
+    /// <param name="fallback">Рабочая область основного монитора; null — некуда возвращать.</param>
+    /// <returns>Записанное место или новое, если записанное потерялось.</returns>
+    /// <remarks>
+    /// Достаточно пересечения, а не полного вхождения: окно, наполовину
+    /// свешенное за край, человек так и оставил — двигать его значит спорить с
+    /// ним о том, где ему удобно. Двигаем потерявшееся: то, чей прямоугольник
+    /// не задевает ни одного монитора.
+    /// <para>
+    /// Отдельная функция, потому что решение здесь — про числа, а не про окна:
+    /// проверяется она без единого монитора и без единого окна.
+    /// </para>
+    /// </remarks>
+    public static PixelPoint Landed(PixelRect wanted, IReadOnlyList<PixelRect> screens, PixelRect? fallback)
+    {
+        ArgumentNullException.ThrowIfNull(screens);
+
+        if (fallback is not { } home || screens.Any(screen => screen.Intersects(wanted)))
+            return wanted.Position;
+
+        // По центру основного монитора: окно, потерявшее свой, человек ищет
+        // глазами там же, где ищет всё остальное.
+        return new PixelPoint(
+            home.X + Math.Max(0, (home.Width - wanted.Width) / 2),
+            home.Y + Math.Max(0, (home.Height - wanted.Height) / 2));
     }
 
     /// <summary>
