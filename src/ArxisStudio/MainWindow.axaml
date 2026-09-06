@@ -78,8 +78,15 @@
       <ax:DockRail x:Name="RailRight" DockPanel.Dock="Right" Side="Right" BorderThickness="1,0,0,0"/>
       <ax:DockRail x:Name="RailBottom" DockPanel.Dock="Bottom" Side="Bottom" BorderThickness="0,1,0,0"/>
 
+      <!--
+          Подписи кнопок дока приходят отсюда: движок докинга о языках студии не
+          знает и знать не должен. Две последние достаются оторванному окну —
+          раскладка переносит их в его дерево.
+      -->
       <ax:DockView x:Name="Dock"
-                   StowTitle="{ax:Loc action.stow}">
+                   StowTitle="{ax:Loc action.stow}"
+                   DockTitle="{ax:Loc action.dock}"
+                   HideTitle="{ax:Loc action.hide}">
         <ax:DockView.Empty>
           <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
             <TextBlock Classes="dim" Text="ArxisStudio" FontSize="{DynamicResource AxFontSizeTitle}" FontWeight="SemiBold" HorizontalAlignment="Center"/>

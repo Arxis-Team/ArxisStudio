@@ -4,6 +4,7 @@ using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Services;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
@@ -779,6 +780,20 @@ public class StudioDockTests : IDisposable
         Assert.Equal(new PixelPoint(300, 200), torn.Position);
         Assert.Null(DockTree.Holder(next.Root!, "hello:tree"));
     }
+
+    /// <summary>Кнопки в правом краю шапки оторванного окна, слева направо.</summary>
+    /// <param name="window">Оторванное окно.</param>
+    /// <remarks>
+    /// Кнопка уборки на рейку сюда не попадает: в оторванном окне её нет, а в
+    /// главном она стоит в той же полосе — отбираем по имени, чтобы тест не
+    /// зависел от порядка детей.
+    /// </remarks>
+    private static IReadOnlyList<AxButton> Chrome(DockFloat window) =>
+        [.. window.GetVisualDescendants().OfType<AxButton>().Where(button => button.Name != "PART_Stow")];
+
+    /// <summary>Нажимает кнопку так, как это делает человек.</summary>
+    private static void Press(AxButton button) =>
+        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
     /// <summary>
     /// Щёлкает дважды подряд — так, чтобы вышел двойной щелчок.
@@ -2501,22 +2516,29 @@ public class StudioDockTests : IDisposable
 
         Assert.Empty(torn.GetVisualDescendants().OfType<AxTitleBar>());
 
-        // Кнопки окна стоят в шапке группы, а не в отдельной полосе над ней.
-        var buttons = Assert.Single(torn.GetVisualDescendants().OfType<AxWindowControls>());
+        // Кнопки стоят в шапке группы, а не в отдельной полосе над ней.
         var group = Assert.Single(torn.View.GetVisualDescendants().OfType<DockGroupView>());
+        var buttons = Chrome(torn);
 
-        Assert.Contains(group, buttons.GetVisualAncestors());
-        Assert.True(buttons.TranslatePoint(default, group)?.Y < group.HeaderHeight);
+        Assert.All(buttons, button => Assert.Contains(group, button.GetVisualAncestors()));
+        Assert.All(buttons, button => Assert.True(button.TranslatePoint(default, group)?.Y < group.HeaderHeight));
     }
 
     /// <summary>
-    /// В шапке оторванного окна остаётся один крестик.
+    /// В шапке оторванного окна две кнопки, и обе — про панель.
     /// </summary>
     /// <remarks>
     /// Окно при студии — палитра со всех сторон: своего места ни в панели
     /// задач, ни в Alt+Tab у него нет, лежит оно над хозяйкой и уходит вместе с
-    /// ней. У палитры в Windows узкая шапка и один крестик; так же выглядят
-    /// плавающие окна инструментов в Visual Studio и Rider.
+    /// ней. У палитры в Windows узкая шапка без «свернуть» и «развернуть», и
+    /// обычных кнопок окна в ней нет вовсе; так же устроена шапка плавающего
+    /// окна инструментов в Rider.
+    /// <para>
+    /// Остаются две, и они делают разное: вернуть панель в студию и убрать её с
+    /// глаз. Прежде обе роли исполнял один крестик — и не говорил, какую
+    /// именно: крестик окна возвращал панель домой, а крестик на вкладке её
+    /// скрывал.
+    /// </para>
     /// <para>
     /// Каждая из снятых кнопок обещала своё. Рейки у оторванного окна нет, и
     /// убранной панели неоткуда было бы вернуться. Свёрнутое окно исчезает без
@@ -2529,6 +2551,9 @@ public class StudioDockTests : IDisposable
     {
         var (dock, view, window) = Two();
 
+        view.DockTitle = "Вернуть в студию";
+        view.HideTitle = "Скрыть панель";
+
         Tear(view, window, "left");
         Settle();
 
@@ -2540,18 +2565,63 @@ public class StudioDockTests : IDisposable
             torn.GetVisualDescendants().OfType<AxButton>(),
             button => button.Name == "PART_Stow" && button.IsVisible);
 
-        var buttons = Assert.Single(torn.GetVisualDescendants().OfType<AxWindowControls>());
+        // Кнопок окна нет ни одной: ни своих, ни от AxWindowControls.
+        Assert.Empty(torn.GetVisualDescendants().OfType<AxWindowControls>());
 
-        Assert.False(buttons.ShowMinimize, "оторванное окно предлагает свернуть себя в никуда");
-        Assert.False(buttons.ShowMaximize, "в шапке палитры стоит кнопка разворота");
+        var buttons = Chrome(torn);
 
-        var shown = buttons.GetVisualDescendants()
-            .OfType<Button>()
-            .Where(button => button.IsVisible)
-            .Select(button => button.Name)
-            .ToList();
+        Assert.Equal(2, buttons.Count);
+        Assert.Equal(
+            ["Вернуть в студию", "Скрыть панель"],
+            buttons.Select(AutomationProperties.GetName));
 
-        Assert.Equal(["PART_Close"], shown);
+        // Язык сменился — сменились и подписи в уже оторванном окне.
+        view.HideTitle = "Hide the panel";
+        Settle();
+
+        Assert.Equal("Hide the panel", AutomationProperties.GetName(buttons[1]));
+        Assert.Equal("Hide the panel", ToolTip.GetTip(buttons[1]));
+    }
+
+    /// <summary>
+    /// Кнопка возврата ставит панель обратно в студию, кнопка «скрыть» её убирает.
+    /// </summary>
+    /// <remarks>
+    /// Две кнопки рядом обязаны делать разное — иначе одна из них лишняя.
+    /// Возврат ставит панель туда, где она стояла до отрыва; «скрыть» уводит её
+    /// в список закрытых, откуда её достают из меню «Панели». Оторванное окно и
+    /// в том, и в другом случае закрывается: держать пустую рамку незачем.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_two_buttons_of_a_torn_window_do_different_things()
+    {
+        var (dock, view, window) = Two();
+
+        Tear(view, window, "left");
+        Settle();
+
+        Press(Chrome(Assert.Single(dock.Floating))[0]);
+        Settle();
+
+        Assert.Empty(dock.Floating);
+        Assert.Equal("left", DockTree.Holder(view.Root!, "hello:tree")?.Id);
+        Assert.True(dock.Panels.Single(panel => panel.Id == "hello:tree").Standing);
+
+        Tear(view, window, "left");
+        Settle();
+
+        Press(Chrome(Assert.Single(dock.Floating))[1]);
+        Settle();
+
+        Assert.Empty(dock.Floating);
+        Assert.Null(DockTree.Holder(view.Root!, "hello:tree"));
+        Assert.False(dock.Panels.Single(panel => panel.Id == "hello:tree").Standing);
+
+        // И возвращается она оттуда, куда ушла, — из меню «Панели».
+        dock.Reopen("hello:tree");
+        Settle();
+
+        Assert.Equal("left", DockTree.Holder(view.Root!, "hello:tree")?.Id);
     }
 
     /// <summary>
@@ -2597,7 +2667,7 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
-    /// Кнопки окна стоят в шапке угловой группы, а не в каждой.
+    /// Кнопки шапки стоят у угловой группы, а не у каждой.
     /// </summary>
     /// <remarks>
     /// Разделив окно надвое, человек ищет их там же, где и до этого: в правом
@@ -2605,7 +2675,7 @@ public class StudioDockTests : IDisposable
     /// родитель у контрола Avalonia ровно один.
     /// </remarks>
     [AvaloniaFact]
-    public void The_window_buttons_stand_in_the_corner_group_alone()
+    public void The_header_buttons_stand_in_the_corner_group_alone()
     {
         var (dock, view, window) = Two();
 
@@ -2625,9 +2695,12 @@ public class StudioDockTests : IDisposable
 
         Assert.Equal(2, torn.View.GetVisualDescendants().OfType<DockGroupView>().Count());
 
-        var buttons = Assert.Single(torn.GetVisualDescendants().OfType<AxWindowControls>());
+        var buttons = Chrome(torn);
 
-        Assert.Equal(group, Assert.Single(buttons.GetVisualAncestors().OfType<DockGroupView>()).Id);
+        Assert.Equal(2, buttons.Count);
+        Assert.All(
+            buttons,
+            button => Assert.Equal(group, Assert.Single(button.GetVisualAncestors().OfType<DockGroupView>()).Id));
     }
 
     /// <summary>

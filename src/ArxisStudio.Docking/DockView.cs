@@ -167,6 +167,22 @@ public class DockView : Decorator
     public static readonly StyledProperty<string?> StowTitleProperty =
         AvaloniaProperty.Register<DockView, string?>(nameof(StowTitle));
 
+    /// <summary>
+    /// Подпись кнопки «вернуть в главное окно».
+    /// </summary>
+    /// <remarks>
+    /// Нужна одному <see cref="DockFloat"/>, а живёт здесь, рядом с
+    /// <see cref="StowTitleProperty"/>: подписи кнопок дока приходят из студии,
+    /// и место у них одно — иначе оболочке пришлось бы помнить, какие из них
+    /// ставить виду, а какие окну.
+    /// </remarks>
+    public static readonly StyledProperty<string?> DockTitleProperty =
+        AvaloniaProperty.Register<DockView, string?>(nameof(DockTitle));
+
+    /// <inheritdoc cref="DockTitleProperty"/>
+    public static readonly StyledProperty<string?> HideTitleProperty =
+        AvaloniaProperty.Register<DockView, string?>(nameof(HideTitle));
+
     /// <summary>Черта в полосе вкладок: у неё вкладка и встанет.</summary>
     private Border? _caret;
 
@@ -284,6 +300,20 @@ public class DockView : Decorator
     {
         get => GetValue(StowTitleProperty);
         set => SetValue(StowTitleProperty, value);
+    }
+
+    /// <inheritdoc cref="DockTitleProperty"/>
+    public string? DockTitle
+    {
+        get => GetValue(DockTitleProperty);
+        set => SetValue(DockTitleProperty, value);
+    }
+
+    /// <inheritdoc cref="HideTitleProperty"/>
+    public string? HideTitle
+    {
+        get => GetValue(HideTitleProperty);
+        set => SetValue(HideTitleProperty, value);
     }
 
     /// <inheritdoc cref="RailedProperty"/>

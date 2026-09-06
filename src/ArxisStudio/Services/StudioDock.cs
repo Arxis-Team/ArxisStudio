@@ -855,6 +855,13 @@ public sealed class StudioDock
         // «кнопка» и ничего больше. В самом движке докинга взять их неоткуда: он
         // о языках студии не знает и знать не должен.
         window.View.Bind(DockView.StowTitleProperty, _view.GetObservable(DockView.StowTitleProperty));
+        window.View.Bind(DockView.DockTitleProperty, _view.GetObservable(DockView.DockTitleProperty));
+        window.View.Bind(DockView.HideTitleProperty, _view.GetObservable(DockView.HideTitleProperty));
+
+        // «Скрыть» в шапке — то же, что крестик на каждой вкладке этого окна:
+        // панели уходят с глаз и возвращаются из меню «Панели». Опустевшее
+        // окно закроется само.
+        window.Hiding += (_, _) => Conceal(window);
 
         window.View.Chosen += (_, id) =>
         {
@@ -883,6 +890,28 @@ public sealed class StudioDock
         _floats.Add(window);
 
         return window;
+    }
+
+    /// <summary>
+    /// Убирает с глаз все панели оторванного окна.
+    /// </summary>
+    /// <param name="window">Чьи панели скрываем.</param>
+    /// <remarks>
+    /// Именно скрывает, а не возвращает домой: возврат — это соседняя кнопка, и
+    /// две кнопки, делающие одно, человеку не нужны. Панели уходят в список
+    /// закрытых и возвращаются оттуда меню «Панели».
+    /// <para>
+    /// Список имён снимается заранее: <see cref="Hide"/> правит то самое дерево,
+    /// по которому мы идём, а опустевшее окно ещё и закрывается на последнем
+    /// имени.
+    /// </para>
+    /// </remarks>
+    private void Conceal(DockFloat window)
+    {
+        var items = window.View.Root?.Groups().SelectMany(group => group.Items).ToList() ?? [];
+
+        foreach (var id in items)
+            Hide(id);
     }
 
     /// <summary>

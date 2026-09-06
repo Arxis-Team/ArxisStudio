@@ -94,6 +94,8 @@
   "action.add": "Добавить",
   "action.find": "Найти",
   "action.stow": "Убрать на рейку",
+  "action.dock": "Вернуть в студию",
+  "action.hide": "Скрыть панель",
   "action.options": "Настройки панели",
   "console.clear": "Очистить",
   "menu.tools": "Команды плагинов",

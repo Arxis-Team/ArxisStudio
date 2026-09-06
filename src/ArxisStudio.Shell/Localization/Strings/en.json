@@ -94,6 +94,8 @@
   "action.add": "Add",
   "action.find": "Find",
   "action.stow": "Hide to the rail",
+  "action.dock": "Dock back into the studio",
+  "action.hide": "Hide the panel",
   "action.options": "Panel options",
   "console.clear": "Clear",
   "menu.tools": "Plugin commands",
