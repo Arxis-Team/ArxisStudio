@@ -2060,6 +2060,49 @@ public class StudioDockTests : IDisposable
     private static IReadOnlyList<string> Shown(DockView view) =>
         [.. view.GetVisualDescendants().OfType<DockGroupView>().Select(group => group.Id)];
 
+    /// <summary>
+    /// Оторванное окно берёт подписи кнопки сворачивания у главного дерева.
+    /// </summary>
+    /// <remarks>
+    /// Без них кнопка остаётся безымянной: программа чтения с экрана скажет о
+    /// ней «кнопка» и ничего больше. В главном окне подпись задаёт разметка, а
+    /// дерево оторванного окна студия заводит кодом — и подписи ему прежде не
+    /// доставалось ни одной. Нашлось это не глазами: смотреть там не на что,
+    /// имя для средств доступности не рисуется.
+    /// <para>
+    /// Привязкой, а не копией: подпись меняется вместе с языком студии, и
+    /// снятая однажды осталась бы на языке той минуты, когда окно оторвали.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_torn_off_window_takes_its_button_titles_from_the_studio()
+    {
+        var (dock, view, window) = Two();
+
+        view.CollapseTitle = "Свернуть панель";
+        view.ExpandTitle = "Развернуть панель";
+
+        var from = DockMouse.Tab(view.View("left")!, 0, window);
+
+        window.MouseMove(from);
+        window.MouseDown(from, MouseButton.Left);
+        window.MouseMove(new Point(-80, 60));
+        Settle();
+        window.MouseUp(new Point(-80, 60), MouseButton.Left);
+        Settle();
+
+        var torn = Assert.Single(dock.Floating);
+
+        Assert.Equal("Свернуть панель", torn.View.CollapseTitle);
+        Assert.Equal("Развернуть панель", torn.View.ExpandTitle);
+
+        // Язык сменился — сменилась и подпись в уже оторванном окне.
+        view.CollapseTitle = "Collapse the panel";
+        Settle();
+
+        Assert.Equal("Collapse the panel", torn.View.CollapseTitle);
+    }
+
     /// <summary>Две группы рядом: слева панель одного плагина, справа другого.</summary>
     private static (StudioDock Dock, DockView View, Window Window) Two(DockLayoutStore? store = null)
     {

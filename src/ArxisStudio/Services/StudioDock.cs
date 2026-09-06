@@ -656,6 +656,15 @@ public sealed class StudioDock
 
         window.View.Items = Items;
 
+        // Подписи кнопки сворачивания приходят из главного дерева: там их задала
+        // разметка, там они и меняются вместе с языком. Своих у оторванного окна
+        // быть не должно — это то же дерево, только в другом окне, — а без них
+        // кнопка остаётся безымянной: программа чтения с экрана скажет о ней
+        // «кнопка» и ничего больше. В самом движке докинга взять их неоткуда: он
+        // о языках студии не знает и знать не должен.
+        window.View.Bind(DockView.CollapseTitleProperty, _view.GetObservable(DockView.CollapseTitleProperty));
+        window.View.Bind(DockView.ExpandTitleProperty, _view.GetObservable(DockView.ExpandTitleProperty));
+
         window.View.Chosen += (_, id) =>
         {
             Change(window, root => DockTree.Select(root, id));
