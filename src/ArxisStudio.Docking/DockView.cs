@@ -857,9 +857,11 @@ public class DockView : Decorator
             var (control, at) = shown[number];
 
             // Соседей у показанного здесь по определению больше одного —
-            // значит, освободившееся место достанется им.
+            // значит, освободившееся место достанется им. Реек при этом может
+            // и не быть: в оторванном окне кнопка обещала бы рейку, которой там
+            // нет, и убранной панели неоткуда было бы вернуться.
             if (control is DockGroupView neighbour && !neighbour.Standing)
-                neighbour.CanStow = true;
+                neighbour.CanStow = Railed;
 
             if (number > 0)
                 Line(grid, down, path, shares, sized);

@@ -2490,6 +2490,48 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
+    /// В шапке оторванного окна нет ни уборки на рейку, ни сворачивания.
+    /// </summary>
+    /// <remarks>
+    /// Обе кнопки — дороги в один конец. Рейки у оторванного окна нет, и
+    /// убранной панели неоткуда было бы вернуться; кнопки в панели задач у него
+    /// нет тоже, и свёрнутое окно исчезает, не оставив человеку способа его
+    /// найти. Так же решает Visual Studio: плавающую панель там сперва
+    /// пристыковывают.
+    /// <para>
+    /// Развернуть окно можно: это обратимо и повторяет двойной щелчок по
+    /// шапке. Закрыть — тем более.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_torn_window_offers_neither_stowing_nor_minimizing()
+    {
+        var (dock, view, window) = Two();
+
+        Tear(view, window, "left");
+        Settle();
+
+        var torn = Assert.Single(dock.Floating);
+        var group = Assert.Single(torn.View.GetVisualDescendants().OfType<DockGroupView>());
+
+        Assert.False(group.CanStow, "оторванное окно предлагает убрать панель на рейку, которой у него нет");
+        Assert.DoesNotContain(
+            torn.GetVisualDescendants().OfType<AxButton>(),
+            button => button.Name == "PART_Stow" && button.IsVisible);
+
+        var buttons = Assert.Single(torn.GetVisualDescendants().OfType<AxWindowControls>());
+
+        Assert.False(buttons.ShowMinimize, "оторванное окно предлагает свернуть себя в никуда");
+        Assert.DoesNotContain(
+            buttons.GetVisualDescendants().OfType<Button>(),
+            button => button.Name == "PART_Minimize" && button.IsVisible);
+
+        // Развернуть и закрыть остаются: оба обратимы, и оба человек ищет там же.
+        Assert.Contains(buttons.GetVisualDescendants().OfType<Button>(), button => button.Name == "PART_Maximize");
+        Assert.Contains(buttons.GetVisualDescendants().OfType<Button>(), button => button.Name == "PART_Close");
+    }
+
+    /// <summary>
     /// Кнопки окна стоят в шапке угловой группы, а не в каждой.
     /// </summary>
     /// <remarks>

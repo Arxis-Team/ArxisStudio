@@ -248,6 +248,13 @@ public class DockRailTests
     /// <remarks>
     /// Одинокой группе убираться некуда — под ней осталась бы пустота, — а
     /// пол рабочей области не убирается вовсе: документы не прячут.
+    /// <para>
+    /// Спрашивается не только свойство, но и сама кнопка. Прежде показ ей
+    /// задавала привязка в шаблоне — и не задавала ничего: содержимое шапки
+    /// переезжает в шаблон <c>AxToolWindow</c>, хозяин шаблона у переехавшего
+    /// теряется, и <c>TemplateBinding</c> перестаёт находить свойство молча.
+    /// Кнопка стояла у всех групп подряд.
+    /// </para>
     /// </remarks>
     [AvaloniaFact]
     public void Only_a_group_with_a_neighbour_offers_the_button()
@@ -256,21 +263,52 @@ public class DockRailTests
 
         Assert.True(Group(pair, "top").CanStow);
         Assert.True(Group(pair, "bottom").CanStow);
+        Assert.True(Button(Group(pair, "top")).IsVisible);
 
         window.Close();
 
         var (alone, lonely) = Shown(new DockGroup { Id = "top", Items = ["solution"], Selected = "solution" });
 
         Assert.False(Group(alone, "top").CanStow, "одинокая группа предлагает убраться в никуда");
+        Assert.False(
+            Button(Group(alone, "top")).IsVisible,
+            "кнопка стоит в шапке одинокой группы, хотя убираться ей некуда");
 
         lonely.Close();
 
         var (floor, room) = Shown(Split(), documents: "bottom");
 
         Assert.False(Group(floor, "bottom").CanStow, "пол рабочей области предлагает убраться");
+        Assert.False(Button(Group(floor, "bottom")).IsVisible, "кнопка стоит в шапке пола рабочей области");
         Assert.True(Group(floor, "top").CanStow);
 
         room.Close();
+    }
+
+    /// <summary>
+    /// Дереву без реек кнопка уборки не достаётся вовсе.
+    /// </summary>
+    /// <remarks>
+    /// Это оторванное окно. Рейки там нет — 420×320 с рейкой это почти одна
+    /// рейка, — и кнопка обещала бы то, чего не будет: убранной панели неоткуда
+    /// было бы вернуться. Так же решает Visual Studio: плавающую панель там
+    /// сперва пристыковывают.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_tree_without_rails_offers_no_button_at_all()
+    {
+        var (view, window) = Shown(Split());
+
+        Assert.True(Group(view, "top").CanStow);
+
+        view.Railed = false;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(Group(view, "top").CanStow, "окно без реек предлагает убрать панель в никуда");
+        Assert.False(Button(Group(view, "top")).IsVisible, "кнопка уборки осталась в окне без реек");
+        Assert.False(Group(view, "bottom").CanStow);
+
+        window.Close();
     }
 
     /// <summary>
