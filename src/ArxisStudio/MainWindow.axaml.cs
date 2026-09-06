@@ -83,6 +83,15 @@ public partial class MainWindow : AxWindow
         _dock = new StudioDock(Dock, new DockLayoutStore());
         _dock.Complained += (_, message) => _log.Write(StudioLogLevel.Warning, "Layout", message);
 
+        // Рейки стоят снаружи дерева и о нём ничего не знают: движок докинга не
+        // ведает ни живых панелей, ни хозяев. Связь двусторонняя и вся здесь —
+        // раскладка сдвинулась, рейки пересобрались; нажали кнопку, панель
+        // вернулась.
+        _dock.Shifted += (_, _) => Restack();
+
+        foreach (var rail in Rails)
+            rail.Chosen += (_, chosen) => _dock.Unstow(chosen);
+
         _status = new StatusSink(_model);
         _documents = new StudioDocuments(_dock, _contributions.EditorFor, _status);
 
@@ -174,6 +183,26 @@ public partial class MainWindow : AxWindow
         };
     }
 
+    /// <summary>Рейки окна — по одной на край рабочей области.</summary>
+    /// <remarks>
+    /// Их три, а не четыре: верх окна занят полосой инструментов, и убранная
+    /// туда панель встала бы рейкой под рейкой. Так же считают Visual Studio и
+    /// Rider.
+    /// </remarks>
+    private DockRail[] Rails => [RailLeft, RailRight, RailBottom];
+
+    /// <summary>Пересобирает рейки по тому, что сейчас убрано.</summary>
+    /// <remarks>
+    /// Целиком, а не по одной изменившейся: какая из трёх сторон поменялась,
+    /// правка дерева не рассказывает, а три коротких списка стоят дешевле
+    /// сторожа, который бы это выяснял.
+    /// </remarks>
+    private void Restack()
+    {
+        foreach (var rail in Rails)
+            rail.Update(_dock.Stowed(rail.Side));
+    }
+
     /// <summary>
     /// Собственные ветки студии в её меню: перезагрузка плагина и раскладка.
     /// </summary>
@@ -214,9 +243,43 @@ public partial class MainWindow : AxWindow
             branches.Add(branch);
         }
 
+        if (_dock.Panels is { Count: > 0 } panels)
+            branches.Add(Panels(panels));
+
         branches.Add(Layouts());
 
         return branches;
+
+        // Ветка «Панели» — единственная дорога назад для закрытой панели: её
+        // имени нет ни в дереве, ни на рейке, и найти её человеку больше негде.
+        // Галочка у стоящей — тем же способом, что и у показанного набора.
+        MenuItem Panels(IReadOnlyList<StudioPanel> panels)
+        {
+            var branch = new AxMenuItem { Header = Localizer.Instance["menu.panels"] };
+
+            foreach (var panel in panels)
+            {
+                var item = new AxMenuItem { Header = panel.Title };
+
+                if (panel.Standing)
+                    item.Icon = new AxIcon { Classes = { "small" }, Data = AxIcons.Check };
+
+                var id = panel.Id;
+                var standing = panel.Standing;
+
+                item.Click += (_, _) =>
+                {
+                    if (standing)
+                        _dock.Hide(id);
+                    else
+                        _dock.Reopen(id);
+                };
+
+                branch.Items.Add(item);
+            }
+
+            return branch;
+        }
 
         MenuItem Layouts()
         {

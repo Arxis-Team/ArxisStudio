@@ -865,7 +865,7 @@ public class DockViewTests
     /// двенадцать пикселей отделяли вкладки от пустоты, съедая место, на которое
     /// их и помещается на одну больше.
     /// <para>
-    /// Правый край шапки занимает кнопка сворачивания, и вкладки кончаются ровно
+    /// Правый край шапки занимает кнопка уборки, и вкладки кончаются ровно
     /// у неё: пустого места между ними быть не должно по той же причине.
     /// </para>
     /// </remarks>
@@ -883,12 +883,12 @@ public class DockViewTests
         var corner = strip.TranslatePoint(default, header);
         var button = group.GetVisualDescendants()
             .OfType<AxButton>()
-            .Single(candidate => candidate.Name == "PART_Collapse");
+            .Single(candidate => candidate.Name == "PART_Stow");
         var edge = button.TranslatePoint(default, header);
 
         Assert.NotNull(corner);
         Assert.NotNull(edge);
-        Assert.True(button.IsVisible, "кнопка сворачивания спряталась у группы с соседом");
+        Assert.True(button.IsVisible, "кнопка уборки спряталась у группы с соседом");
 
         // Ровно отступ шапки — и ни пикселем больше.
         Assert.Equal(header.Padding.Left, corner.Value.X);

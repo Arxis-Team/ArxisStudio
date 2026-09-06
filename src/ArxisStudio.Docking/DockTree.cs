@@ -113,9 +113,9 @@ public static class DockTree
 
             items.Insert(at < 0 || at > items.Count ? items.Count : at, item);
 
-            // Свёрнутость переносится: панель, пришедшая в свёрнутую группу,
-            // не повод разворачивать её человеку за спиной.
-            return new DockGroup { Id = group.Id, Items = items, Selected = item, Collapsed = group.Collapsed };
+            // Рейка переносится: панель, пришедшая в убранную группу, не повод
+            // возвращать её на экран человеку за спиной.
+            return new DockGroup { Id = group.Id, Items = items, Selected = item, Rail = group.Rail };
         });
     }
 
@@ -316,34 +316,35 @@ public static class DockTree
             Id = group.Id,
             Items = group.Items,
             Selected = item,
-            Collapsed = group.Collapsed,
+            Rail = group.Rail,
         });
     }
 
     /// <summary>
-    /// Сворачивает или разворачивает группу.
+    /// Убирает группу на рейку стороны или возвращает её в дерево.
     /// </summary>
     /// <param name="root">Корень дерева.</param>
     /// <param name="groupId">Какую группу.</param>
-    /// <param name="collapsed">Свернуть или развернуть.</param>
+    /// <param name="rail">На какую рейку; null — вернуть в дерево.</param>
     /// <returns>Новое дерево; прежнее, если группы нет или она уже такая.</returns>
     /// <remarks>
-    /// Доля группы в делении не трогается, и это главное: свёрнутая группа
-    /// занимает столько, сколько нужно её полосе вкладок, а её прежний размер
-    /// ждёт в дереве. Иначе разворот возвращал бы панель шириной в шапку.
+    /// Доля группы в делении не трогается, и это главное: место убранной
+    /// группы достаётся соседям на время, а её прежний размер ждёт в дереве.
+    /// Иначе возврат отдавал бы панели среднее по палате вместо той ширины, к
+    /// которой человек её привёл.
     /// <para>
     /// Правка, ничего не изменившая, возвращает то же дерево: перекладка ради
     /// неё снесла бы и построила заново всё окно, а с ним пропал бы курсор в
     /// панели, где человек печатает.
     /// </para>
     /// </remarks>
-    public static DockNode Collapse(DockNode root, string groupId, bool collapsed)
+    public static DockNode Stow(DockNode root, string groupId, DockSide? rail)
     {
         ArgumentNullException.ThrowIfNull(root);
 
         var group = root.Groups().FirstOrDefault(candidate => string.Equals(candidate.Id, groupId, StringComparison.Ordinal));
 
-        if (group is null || group.Collapsed == collapsed)
+        if (group is null || group.Rail == rail)
             return root;
 
         return Rewrite(root, groupId, node => new DockGroup
@@ -351,7 +352,7 @@ public static class DockTree
             Id = node.Id,
             Items = node.Items,
             Selected = node.Selected,
-            Collapsed = collapsed,
+            Rail = rail,
         });
     }
 
@@ -652,7 +653,7 @@ public static class DockTree
                     Selected = group.Selected is { } chosen && items.Contains(chosen, StringComparer.Ordinal)
                         ? chosen
                         : items.FirstOrDefault(),
-                    Collapsed = group.Collapsed,
+                    Rail = group.Rail,
                 };
 
             case DockSplit split:

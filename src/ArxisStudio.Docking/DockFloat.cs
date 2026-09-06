@@ -49,7 +49,10 @@ public class DockFloat : AxWindow
         ShowInTaskbar = false;
         WindowStartupLocation = WindowStartupLocation.Manual;
 
-        View = new DockView { Actions = () => new AxWindowControls() };
+        // Реек у оторванного окна нет: 420×320 с рейкой — это почти одна
+        // рейка, а убранной панели неоткуда было бы вернуться. Так же решает
+        // Visual Studio: плавающую панель там сперва пристыковывают.
+        View = new DockView { Actions = () => new AxWindowControls(), Railed = false };
 
         // Своей полосы заголовка у окна нет: полоса вкладок и есть его
         // заголовок, а кнопки окна стоят в её правом краю. Отдельная полоса

@@ -23,8 +23,7 @@ public class DockGroupView : TemplatedControl
     private readonly List<IDisposable> _bound = [];
     private AxTabStrip? _tabs;
     private ContentControl? _content;
-    private Button? _collapse;
-    private AxIcon? _fold;
+    private Button? _stow;
     /// <summary>
     /// Есть ли в группе хоть одна вкладка.
     /// </summary>
@@ -60,34 +59,20 @@ public class DockGroupView : TemplatedControl
         AvaloniaProperty.Register<DockGroupView, object?>(nameof(Actions));
 
     /// <summary>
-    /// Группа свёрнута: тело спрятано, полоса вкладок осталась.
+    /// Показывать ли кнопку уборки на рейку.
     /// </summary>
     /// <remarks>
-    /// Свойство вида повторяет то, что записано в дереве: рисует вид, а решает
-    /// хозяин раскладки — он же и сохраняет решение между запусками.
-    /// </remarks>
-    public static readonly StyledProperty<bool> CollapsedProperty =
-        AvaloniaProperty.Register<DockGroupView, bool>(nameof(Collapsed));
-
-    /// <summary>
-    /// Показывать ли кнопку сворачивания.
-    /// </summary>
-    /// <remarks>
-    /// Сворачивать имеет смысл там, где освободившееся место кому-то достанется:
-    /// у группы должен быть сосед. Одинокая группа, свёрнутая в полосу, оставила
-    /// бы под собой пустоту, а пол рабочей области не сворачивается вовсе —
+    /// Убирать имеет смысл там, где освободившееся место кому-то достанется:
+    /// у группы должен быть сосед. Одинокая группа, ушедшая на рейку, оставила
+    /// бы под собой пустоту, а пол рабочей области не убирается вовсе —
     /// документы не прячут.
     /// </remarks>
-    public static readonly StyledProperty<bool> CanCollapseProperty =
-        AvaloniaProperty.Register<DockGroupView, bool>(nameof(CanCollapse));
+    public static readonly StyledProperty<bool> CanStowProperty =
+        AvaloniaProperty.Register<DockGroupView, bool>(nameof(CanStow));
 
-    /// <summary>Подпись кнопки, когда она сворачивает.</summary>
-    public static readonly StyledProperty<string?> CollapseTitleProperty =
-        AvaloniaProperty.Register<DockGroupView, string?>(nameof(CollapseTitle));
-
-    /// <summary>Подпись кнопки, когда она разворачивает.</summary>
-    public static readonly StyledProperty<string?> ExpandTitleProperty =
-        AvaloniaProperty.Register<DockGroupView, string?>(nameof(ExpandTitle));
+    /// <summary>Подпись кнопки уборки.</summary>
+    public static readonly StyledProperty<string?> StowTitleProperty =
+        AvaloniaProperty.Register<DockGroupView, string?>(nameof(StowTitle));
 
     private bool _hasTabs;
     private DockGroup? _group;
@@ -104,13 +89,17 @@ public class DockGroupView : TemplatedControl
     public event EventHandler<string>? Closing;
 
     /// <summary>
-    /// Человек попросил свернуть или развернуть группу; в поле — чего он хочет.
+    /// Человек попросил убрать группу на рейку.
     /// </summary>
     /// <remarks>
-    /// Как и с закрытием, вид только просит: свёрнутость живёт в дереве
-    /// раскладки, и записать её может лишь тот, кто деревом владеет.
+    /// Как и с закрытием, вид только просит: рейка живёт в дереве раскладки, и
+    /// записать её может лишь тот, кто деревом владеет.
+    /// <para>
+    /// Просьба односторонняя — вернуть себя вид не может: убранная группа с
+    /// экрана уходит, и просить за неё некому, кроме кнопки на рейке.
+    /// </para>
     /// </remarks>
-    public event EventHandler<bool>? CollapseRequested;
+    public event EventHandler? StowRequested;
 
     /// <summary>Человек выбрал вкладку; в поле — имя панели.</summary>
     /// <remarks>
@@ -137,32 +126,18 @@ public class DockGroupView : TemplatedControl
         set => SetValue(ActionsProperty, value);
     }
 
-    /// <inheritdoc cref="CollapsedProperty"/>
-    public bool Collapsed
+    /// <inheritdoc cref="CanStowProperty"/>
+    public bool CanStow
     {
-        get => GetValue(CollapsedProperty);
-        set => SetValue(CollapsedProperty, value);
+        get => GetValue(CanStowProperty);
+        set => SetValue(CanStowProperty, value);
     }
 
-    /// <inheritdoc cref="CanCollapseProperty"/>
-    public bool CanCollapse
+    /// <inheritdoc cref="StowTitleProperty"/>
+    public string? StowTitle
     {
-        get => GetValue(CanCollapseProperty);
-        set => SetValue(CanCollapseProperty, value);
-    }
-
-    /// <inheritdoc cref="CollapseTitleProperty"/>
-    public string? CollapseTitle
-    {
-        get => GetValue(CollapseTitleProperty);
-        set => SetValue(CollapseTitleProperty, value);
-    }
-
-    /// <inheritdoc cref="ExpandTitleProperty"/>
-    public string? ExpandTitle
-    {
-        get => GetValue(ExpandTitleProperty);
-        set => SetValue(ExpandTitleProperty, value);
+        get => GetValue(StowTitleProperty);
+        set => SetValue(StowTitleProperty, value);
     }
 
     /// <inheritdoc cref="HasTabsProperty"/>
@@ -260,7 +235,6 @@ public class DockGroupView : TemplatedControl
         _items = items;
         _empty = empty;
         _ghost = ghost;
-        Collapsed = group.Collapsed;
 
         Fill();
     }
@@ -289,19 +263,18 @@ public class DockGroupView : TemplatedControl
         if (_tabs is not null)
             _tabs.SelectionChanged -= OnChosen;
 
-        if (_collapse is not null)
-            _collapse.Click -= OnCollapse;
+        if (_stow is not null)
+            _stow.Click -= OnStow;
 
         _tabs = e.NameScope.Find<AxTabStrip>("PART_Tabs");
         _content = e.NameScope.Find<ContentControl>("PART_Content");
-        _collapse = e.NameScope.Find<Button>("PART_Collapse");
-        _fold = e.NameScope.Find<AxIcon>("PART_Fold");
+        _stow = e.NameScope.Find<Button>("PART_Stow");
 
         if (_tabs is not null)
             _tabs.SelectionChanged += OnChosen;
 
-        if (_collapse is not null)
-            _collapse.Click += OnCollapse;
+        if (_stow is not null)
+            _stow.Click += OnStow;
 
         Describe();
 
@@ -413,9 +386,7 @@ public class DockGroupView : TemplatedControl
     {
         base.OnPropertyChanged(change);
 
-        if (change.Property == CollapsedProperty
-            || change.Property == CollapseTitleProperty
-            || change.Property == ExpandTitleProperty)
+        if (change.Property == StowTitleProperty)
         {
             Describe();
         }
@@ -425,27 +396,26 @@ public class DockGroupView : TemplatedControl
     /// Подписывает кнопку тем, что она сделает.
     /// </summary>
     /// <remarks>
-    /// Подпись у кнопки одна, а смыслов два, и меняются они местами вместе со
-    /// свёрнутостью: «свернуть» на развёрнутой, «развернуть» на свёрнутой. Она
-    /// же подсказка и она же имя для средств доступности — на кнопке значок
-    /// 12×12, и узнать о ней больше неоткуда.
+    /// Подпись у кнопки одна и смысл один — убрать группу на рейку. Она же
+    /// подсказка и она же имя для средств доступности: на кнопке значок 12×12,
+    /// и узнать о ней больше неоткуда.
+    /// <para>
+    /// Прежде смыслов было два, и они менялись местами вместе со
+    /// свёрнутостью. Возвращает панель теперь кнопка на рейке — а у неё своя
+    /// подпись, имя самой панели.
+    /// </para>
     /// </remarks>
     private void Describe()
     {
-        if (_fold is not null)
-            _fold.Data = Collapsed ? AxIcons.WindowRestore : AxIcons.WindowMinimize;
-
-        if (_collapse is null)
+        if (_stow is null)
             return;
 
-        var title = Collapsed ? ExpandTitle : CollapseTitle;
-
-        ToolTip.SetTip(_collapse, title);
-        AutomationProperties.SetName(_collapse, title ?? string.Empty);
+        ToolTip.SetTip(_stow, StowTitle);
+        AutomationProperties.SetName(_stow, StowTitle ?? string.Empty);
     }
 
-    /// <summary>Кнопка в шапке просит перевернуть свёрнутость.</summary>
-    private void OnCollapse(object? sender, RoutedEventArgs e) => CollapseRequested?.Invoke(this, !Collapsed);
+    /// <summary>Кнопка в шапке просит убрать группу на рейку.</summary>
+    private void OnStow(object? sender, RoutedEventArgs e) => StowRequested?.Invoke(this, EventArgs.Empty);
 
     private void OnChosen(object? sender, SelectionChangedEventArgs e)
     {
@@ -461,11 +431,6 @@ public class DockGroupView : TemplatedControl
         // щелчок по вкладке обязан показать панель, даже если хозяин раскладки
         // ответит на это событие позже или не ответит вовсе.
         _content.Content = _items?.Find(_shown[at])?.Content;
-
-        // Выбранная вкладка свёрнутой группы — просьба её развернуть: человек
-        // ткнул в панель, чтобы её увидеть, а не чтобы выбрать её вслепую.
-        if (Collapsed)
-            CollapseRequested?.Invoke(this, false);
 
         Chosen?.Invoke(this, _shown[at]);
     }

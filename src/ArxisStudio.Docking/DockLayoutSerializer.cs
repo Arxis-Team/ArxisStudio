@@ -131,7 +131,9 @@ public static class DockLayoutSerializer
             workspace is not null
             && Sound(workspace.Root)
             && workspace.Floating is not null
-            && workspace.Floating.All(window => window is not null && Sound(window.Root)));
+            && workspace.Floating.All(window => window is not null && Sound(window.Root))
+            && workspace.Hidden is not null
+            && !workspace.Hidden.Contains(null!));
 
     private static bool Sound(DockNode? node) => node switch
     {

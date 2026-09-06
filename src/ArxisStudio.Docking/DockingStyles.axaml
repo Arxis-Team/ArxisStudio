@@ -16,6 +16,26 @@
           панель выглядит так же, как соседка в паре, — иначе перетаскивание
           превращало бы одно устройство в другое прямо под рукой.
       -->
+      <!--
+          Рейка: полоса вдоль края окна с кнопками убранных панелей. Фон —
+          цвет оболочки, а не панели: рейка принадлежит окну, а не тому, что в
+          нём стоит. Линия отделяет её от рабочей области с той стороны, где
+          эта область начинается.
+      -->
+      <ControlTheme x:Key="{x:Type ax:DockRail}" TargetType="ax:DockRail">
+        <Setter Property="Background" Value="{DynamicResource AxBg1Brush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AxBrdBrush}"/>
+        <Setter Property="Template">
+          <ControlTemplate>
+            <Border Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}">
+              <StackPanel x:Name="PART_Items" Spacing="2" Margin="2"/>
+            </Border>
+          </ControlTemplate>
+        </Setter>
+      </ControlTheme>
+
       <ControlTheme x:Key="{x:Type ax:DockGroupView}" TargetType="ax:DockGroupView">
         <Setter Property="Template">
           <ControlTemplate>
@@ -30,35 +50,36 @@
                              Actions="{TemplateBinding Actions}"
                              CornerRadius="0">
               <!--
-                  Кнопка сворачивания едет вместе с вкладками, а не в правом
-                  краю шапки: правый край принадлежит хозяину группы — туда
+                  Кнопка уборки едет вместе с вкладками, а не в правом краю
+                  шапки: правый край принадлежит хозяину группы — туда
                   оторванное окно кладёт свои кнопки, — и заняв его собой, мы
-                  оставили бы окно без крестика. Скрытый ребёнок DockPanel
-                  места не занимает, поэтому у группы, которой сворачиваться
-                  некуда, шапка остаётся прежней, а вкладки — во всю ширину.
+                  оставили бы окно без крестика. Скрытый ребёнок DockPanel места
+                  не занимает, поэтому у группы, которой убираться некуда, шапка
+                  остаётся прежней, а вкладки — во всю ширину.
 
-                  Подпись у кнопки меняется вместе с её смыслом, и ставит её
-                  код: смыслов два, а свойство одно.
+                  Подпись у кнопки ставит код: она же имя для средств
+                  доступности и подсказка, а приходит из студии — движок о её
+                  языках не знает.
               -->
               <ax:AxToolWindow.Tabs>
                 <DockPanel>
-                  <ax:AxButton x:Name="PART_Collapse" DockPanel.Dock="Right" Classes="icon"
+                  <ax:AxButton x:Name="PART_Stow" DockPanel.Dock="Right" Classes="icon"
                                VerticalAlignment="Center"
-                               IsVisible="{TemplateBinding CanCollapse}">
+                               IsVisible="{TemplateBinding CanStow}">
                     <!--
-                        Контур ставит код, а не привязка. Содержимое кнопки
-                        переезжает в её собственный шаблон, и хозяин шаблона у
-                        переехавшего меняется с группы на кнопку: и привязка к
-                        TemplatedParent, и TemplateBinding перестают находить
-                        свойство молча — оба значка остались бы на виду разом.
+                        Контур один и не меняется: кнопка убирает, а возвращает
+                        панель кнопка на рейке. Ставится он статикой, а не
+                        привязкой к группе: содержимое кнопки переезжает в её
+                        собственный шаблон, и хозяин шаблона у переехавшего
+                        меняется с группы на кнопку — TemplateBinding перестал
+                        бы находить свойство молча.
                     -->
-                    <ax:AxIcon x:Name="PART_Fold" Classes="small"/>
+                    <ax:AxIcon Classes="small" Data="{x:Static ax:AxIcons.WindowMinimize}"/>
                   </ax:AxButton>
                   <ax:AxTabStrip x:Name="PART_Tabs" Theme="{DynamicResource AxToolWindowTabStrip}"/>
                 </DockPanel>
               </ax:AxToolWindow.Tabs>
-              <ContentControl x:Name="PART_Content"
-                              IsVisible="{TemplateBinding Collapsed, Converter={x:Static BoolConverters.Not}}"/>
+              <ContentControl x:Name="PART_Content"/>
             </ax:AxToolWindow>
           </ControlTemplate>
         </Setter>
@@ -129,6 +150,26 @@
   -->
   <Style Selector="Border.dock-caret">
     <Setter Property="Background" Value="{DynamicResource AxAccStrongBrush}"/>
+  </Style>
+
+  <!--
+      Кнопка на рейке. Своей ширины у неё нет — её задаёт подпись, а на боковой
+      рейке подпись повёрнута, и шириной кнопки становится высота строки. Так
+      рейка и выходит тонкой: два десятка пикселей вместо колонки в подпись.
+  -->
+  <Style Selector="ax|AxButton.rail">
+    <Setter Property="MinWidth" Value="0"/>
+    <Setter Property="Height" Value="NaN"/>
+    <Setter Property="Padding" Value="6,8"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Foreground" Value="{DynamicResource AxFg2Brush}"/>
+    <Setter Property="FontSize" Value="{DynamicResource AxFontSizeSmall}"/>
+    <Setter Property="CornerRadius" Value="{DynamicResource AxCornerRadius}"/>
+  </Style>
+  <Style Selector="ax|AxButton.rail:pointerover">
+    <Setter Property="Background" Value="{DynamicResource AxBg3Brush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource AxFgBrush}"/>
   </Style>
 
   <!--
