@@ -23,7 +23,7 @@ public class ManifestStringsAnalyzerTests
           "id": "arxis.probe",
           "name": "Проба",
           "contributions": {
-            "toolWindows": [ { "id": "probe.panel", "title": "%panel.probe%", "zone": "left" } ]
+            "toolWindows": [ { "id": "probe.panel", "title": "%panel.probe%" } ]
           }
         }
         """;
@@ -104,7 +104,53 @@ public class ManifestStringsAnalyzerTests
         Assert.Contains("toolbar.run", diagnostic.GetMessage());
     }
 
-    private static async Task<ImmutableArray<Diagnostic>> AnalyzeAsync(string manifest, string? dictionary)
+    /// <summary>
+    /// Манифест встроенного модуля проверяется так же, как манифест плагина.
+    /// </summary>
+    /// <remarks>
+    /// Прежде правило смотрело только на имя <c>plugin.json</c>, и у модулей
+    /// ключ без строки не ловился вовсе: манифест зовётся <c>module.json</c>.
+    /// Правила у модуля и у плагина одни — иначе код, переносимый между
+    /// режимами, менял бы смысл при переносе.
+    /// <para>
+    /// Словарь модулю дают словари студии: своей папки у него нет. Имя файла
+    /// проверке безразлично — словарём считается всё поданное, кроме самих
+    /// манифестов.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task The_manifest_of_a_built_in_module_is_checked_too()
+    {
+        var found = await AnalyzeAsync(
+            Manifest,
+            """{ "panel.other": "Другая" }""",
+            manifestName: "module.json",
+            dictionaryPath: "C:/studio/Localization/Strings/en.json");
+
+        var diagnostic = Assert.Single(found);
+
+        Assert.Contains("panel.probe", diagnostic.GetMessage());
+        Assert.EndsWith("module.json", diagnostic.Location.GetLineSpan().Path, StringComparison.Ordinal);
+    }
+
+    /// <summary>Ключ модуля, который в словаре студии есть, замечанием не становится.</summary>
+    [Fact]
+    public async Task A_module_key_that_the_studio_declares_is_left_alone()
+    {
+        var found = await AnalyzeAsync(
+            Manifest,
+            """{ "panel.probe": "Проба" }""",
+            manifestName: "module.json",
+            dictionaryPath: "C:/studio/Localization/Strings/en.json");
+
+        Assert.Empty(found);
+    }
+
+    private static async Task<ImmutableArray<Diagnostic>> AnalyzeAsync(
+        string manifest,
+        string? dictionary,
+        string manifestName = "plugin.json",
+        string dictionaryPath = "C:/probe/lang/strings.json")
     {
         var references = AppDomain.CurrentDomain.GetAssemblies()
             .Where(assembly => !assembly.IsDynamic && assembly.Location.Length > 0)
@@ -119,10 +165,10 @@ public class ManifestStringsAnalyzerTests
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-        var files = new List<AdditionalText> { new Given("C:/probe/plugin.json", manifest) };
+        var files = new List<AdditionalText> { new Given($"C:/probe/{manifestName}", manifest) };
 
         if (dictionary is not null)
-            files.Add(new Given("C:/probe/lang/strings.json", dictionary));
+            files.Add(new Given(dictionaryPath, dictionary));
 
         var analyzed = compilation.WithAnalyzers(
             ImmutableArray.Create<DiagnosticAnalyzer>(new ManifestStringsAnalyzer()),

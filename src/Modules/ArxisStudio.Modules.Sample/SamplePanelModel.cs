@@ -1,3 +1,4 @@
+using System.Globalization;
 using ArxisStudio.Sdk;
 
 namespace ArxisStudio.Modules.Sample;
@@ -13,10 +14,18 @@ namespace ArxisStudio.Modules.Sample;
 /// </remarks>
 public sealed class SamplePanelModel(IStudioContext context)
 {
-    /// <summary>Открытый проект — или сообщение о том, что его нет.</summary>
+    /// <summary>
+    /// Открытый проект — или сообщение о том, что его нет.
+    /// </summary>
+    /// <remarks>
+    /// Текст из словаря, а не строкой в коде: модуль — образец, и зашитая
+    /// строка в нём означала бы, что так и надо. Словарь у встроенного модуля
+    /// не свой — его строки написала студия, — но берутся они той же дорогой,
+    /// что и у плагина: через <see cref="IStudioContext.Strings"/>.
+    /// </remarks>
     public string Project => context.ProjectPath is { Length: > 0 } path
-        ? $"Проект: {Path.GetFileName(path)}"
-        : "Проект не открыт";
+        ? string.Format(CultureInfo.CurrentCulture, context.Strings["module.sample.project"], Path.GetFileName(path))
+        : context.Strings["module.sample.noproject"];
 
     /// <summary>
     /// Просит студию исполнить команду модуля.

@@ -36,7 +36,7 @@ public class BuiltInModuleTests
           "name": "Проба",
           "version": "1.0.0",
           "contributions": {
-            "toolWindows": [ { "id": "probe.panel", "title": "Проба", "zone": "left" } ]
+            "toolWindows": [ { "id": "probe.panel", "title": "Проба" } ]
           },
           "activation": [ "onStartup" ]
         }
@@ -224,7 +224,12 @@ public class BuiltInModuleTests
         var lines = Assert.IsType<StackPanel>(view.Content);
 
         // Привязка нашла модель: строку про проект даёт она, а не разметка.
-        Assert.Equal("Проект не открыт", Assert.IsType<TextBlock>(lines.Children[3]).Text);
+        // Сверяется со словарём, а не с написанным здесь текстом: он зависит от
+        // языка студии, и тест, знающий его наизусть, проверял бы язык прогона.
+        var expected = loaded.Studio!.Strings["module.sample.noproject"];
+
+        Assert.False(expected.StartsWith('!'), "строки нет в словаре студии");
+        Assert.Equal(expected, Assert.IsType<TextBlock>(lines.Children[3]).Text);
 
         var button = Assert.IsType<AxButton>(lines.Children[^1]);
         var before = log.Records.Count;
@@ -232,6 +237,56 @@ public class BuiltInModuleTests
         button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
         Assert.True(log.Records.Count > before, "кнопка панели не позвала команду модуля");
+    }
+
+    /// <summary>
+    /// Проект модуля подаёт сборке манифест и словарь — иначе правило молчит.
+    /// </summary>
+    /// <remarks>
+    /// Анализатор может быть прав, а проект — забыть его накормить: <c>ARX0002</c>
+    /// разбирает то, что пришло входом сборки, и без <c>AdditionalFiles</c>
+    /// проверять ему нечего и не с чем. Молчание при этом неотличимо от «всё в
+    /// порядке» — ровно так дыра и прожила: правило было, модули были, а
+    /// встречались они только в намерении.
+    /// <para>
+    /// Читается сам проект: другого места, где эта связь записана, нет.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_module_project_feeds_the_analyzer()
+    {
+        var projects = Directory
+            .EnumerateFiles(Modules(), "*.csproj", SearchOption.AllDirectories)
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .ToList();
+
+        Assert.NotEmpty(projects);
+
+        foreach (var project in projects)
+        {
+            var text = File.ReadAllText(project);
+            var name = Path.GetFileName(project);
+
+            Assert.Contains("<AdditionalFiles Include=\"module.json\"", text, StringComparison.Ordinal);
+
+            Assert.True(
+                text.Contains("Localization/Strings/en.json", StringComparison.Ordinal),
+                $"{name}: словарь студии не подан сборке — сверять ключи манифеста не с чем");
+        }
+    }
+
+    /// <summary>Папка встроенных модулей в репозитории.</summary>
+    private static string Modules()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            var candidate = Path.Combine(directory.FullName, "src", "Modules");
+
+            if (Directory.Exists(candidate))
+                return candidate;
+        }
+
+        throw new InvalidOperationException("Не найдена папка src/Modules");
     }
 
     /// <summary>Сборка модуля со встроенным манифестом.</summary>

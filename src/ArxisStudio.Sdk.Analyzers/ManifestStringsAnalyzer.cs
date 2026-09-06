@@ -9,16 +9,29 @@ using Microsoft.CodeAnalysis.Text;
 namespace ArxisStudio.Sdk.Analyzers;
 
 /// <summary>
-/// Следит за тем, чтобы <c>%ключ%</c> из манифеста нашёлся в словаре плагина.
+/// Следит за тем, чтобы <c>%ключ%</c> из манифеста нашёлся в словаре расширения.
 /// </summary>
 /// <remarks>
 /// Ненайденный ключ студия показывает как <c>!ключ!</c> — пропуск виден, но
 /// увидит его человек, а не автор, и не при сборке, а в чужой уже студии.
 /// Опечатку в ключе дешевле поймать здесь.
 /// <para>
-/// Сверяется словарь по умолчанию (<c>lang/strings.json</c>), а не переводы:
-/// перевод отсутствует у любого языка, на который плагин ещё не переведён, и
-/// требовать полноты от каждого файла значило бы запретить переводить по частям.
+/// Оба манифеста: <c>plugin.json</c> у внешнего плагина и <c>module.json</c> у
+/// встроенного модуля. Правила у них одни, и проверяться они должны одинаково —
+/// иначе код, переносимый между режимами, менял бы смысл при переносе. Прежде
+/// проверка смотрела только на имя <c>plugin.json</c>, и у модулей ключ без
+/// строки не ловился вовсе.
+/// </para>
+/// <para>
+/// Словарём считается любой поданный сборкой файл, кроме самих манифестов: у
+/// плагина это <c>lang/strings.json</c>, у модуля — словарь студии, её строки
+/// он и показывает. Ни то, ни другое имя здесь не написано: расположение
+/// словарей — дело того, кто их подаёт, а не проверки.
+/// </para>
+/// <para>
+/// Сверяется словарь по умолчанию, а не переводы: перевод отсутствует у любого
+/// языка, на который расширение ещё не переведено, и требовать полноты от
+/// каждого файла значило бы запретить переводить по частям.
 /// </para>
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
@@ -27,19 +40,19 @@ public sealed class ManifestStringsAnalyzer : DiagnosticAnalyzer
     /// <summary>Код диагностики.</summary>
     public const string DiagnosticId = "ARX0002";
 
-    private const string DefaultDictionary = "strings.json";
+    private static readonly string[] Manifests = { "plugin.json", "module.json" };
 
     private static readonly Regex Keys = new(@"%([A-Za-z0-9._-]+)%", RegexOptions.Compiled);
     private static readonly Regex Declared = new(@"""([^""]+)""\s*:", RegexOptions.Compiled);
 
     private static readonly DiagnosticDescriptor Rule = new(
         DiagnosticId,
-        "Ключ манифеста не найден в словаре плагина",
-        "{0}: такого ключа нет в lang/strings.json — студия покажет !{0}!",
+        "Ключ манифеста не найден в словаре расширения",
+        "{0}: такого ключа нет в словаре — студия покажет !{0}!",
         "ArxisStudio",
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "Текст, который студия показывает за плагин — заголовок панели, пункт меню, подпись настройки, — " +
+        description: "Текст, который студия показывает за расширение — заголовок панели, пункт меню, подпись настройки, — " +
                      "берётся из его словарей. Ключа нет в словаре по умолчанию — человек увидит !ключ! вместо текста.");
 
     /// <inheritdoc/>
@@ -67,7 +80,7 @@ public sealed class ManifestStringsAnalyzer : DiagnosticAnalyzer
     {
         var manifest = context.AdditionalFile;
 
-        if (!string.Equals(FileName(manifest.Path), "plugin.json", System.StringComparison.OrdinalIgnoreCase))
+        if (!IsManifest(manifest.Path))
         {
             return;
         }
@@ -79,7 +92,7 @@ public sealed class ManifestStringsAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        var known = Known(Find(context.Options.AdditionalFiles, DefaultDictionary), context);
+        var known = Known(context);
         var source = text.ToString();
 
         foreach (Match match in Keys.Matches(source))
@@ -102,8 +115,21 @@ public sealed class ManifestStringsAnalyzer : DiagnosticAnalyzer
 
     private static readonly char[] Separators = { '/', '\\' };
 
-    private static AdditionalText? Find(ImmutableArray<AdditionalText> files, string name) =>
-        files.FirstOrDefault(file => string.Equals(FileName(file.Path), name, System.StringComparison.OrdinalIgnoreCase));
+    /// <summary>Манифест ли это — по имени файла.</summary>
+    private static bool IsManifest(string path)
+    {
+        var name = FileName(path);
+
+        foreach (var manifest in Manifests)
+        {
+            if (string.Equals(name, manifest, System.StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private static string FileName(string path)
     {
@@ -112,21 +138,32 @@ public sealed class ManifestStringsAnalyzer : DiagnosticAnalyzer
         return separator < 0 ? path : path.Substring(separator + 1);
     }
 
-    private static HashSet<string> Known(AdditionalText? dictionary, AdditionalFileAnalysisContext context)
+    /// <summary>
+    /// Ключи, объявленные словарями сборки.
+    /// </summary>
+    /// <remarks>
+    /// Словарём считается всё поданное, кроме самих манифестов: у плагина это
+    /// <c>lang/strings.json</c>, у модуля — словарь студии. Имена здесь не
+    /// написаны нарочно — где лежат словари, решает тот, кто их подаёт.
+    /// </remarks>
+    private static HashSet<string> Known(AdditionalFileAnalysisContext context)
     {
         var known = new HashSet<string>(System.StringComparer.Ordinal);
 
-        if (dictionary?.GetText(context.CancellationToken) is not { } text)
+        foreach (var file in context.Options.AdditionalFiles)
         {
-            return known;
-        }
+            if (IsManifest(file.Path) || file.GetText(context.CancellationToken) is not { } text)
+            {
+                continue;
+            }
 
-        // Словарь плоский: имя свойства — ключ, значение — строка. Разбирать
-        // JSON целиком анализатору нечем, да и незачем: нужен только список
-        // имён, а вложенности в этом файле не бывает.
-        foreach (Match match in Declared.Matches(text.ToString()))
-        {
-            known.Add(match.Groups[1].Value);
+            // Словарь плоский: имя свойства — ключ, значение — строка. Разбирать
+            // JSON целиком анализатору нечем, да и незачем: нужен только список
+            // имён, а вложенности в этом файле не бывает.
+            foreach (Match match in Declared.Matches(text.ToString()))
+            {
+                known.Add(match.Groups[1].Value);
+            }
         }
 
         return known;

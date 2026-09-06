@@ -47,6 +47,32 @@ public class SdkContractTests
     }
 
     /// <summary>
+    /// Свойств у контекста семь, и восьмого не будет.
+    /// </summary>
+    /// <remarks>
+    /// Каждое новое ломает всякую реализацию интерфейса — а реализуют его и
+    /// тесты расширений, и те, кто встраивает студию, — и требует старшего
+    /// номера версии контракта. Растёт список услуг через
+    /// <c>GetService&lt;T&gt;</c>: новая служба невидима тому, кому она не
+    /// нужна.
+    /// <para>
+    /// Число написано числом нарочно, как и версия сборки выше: считать его от
+    /// самого интерфейса значило бы проверять, что он равен себе. Восьмое
+    /// свойство должно упереться в этот тест и в разговор, а не приехать
+    /// молча.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_context_does_not_grow_new_properties()
+    {
+        var properties = typeof(IStudioContext).GetProperties();
+        var methods = typeof(IStudioContext).GetMethods().Where(method => !method.IsSpecialName).ToList();
+
+        Assert.Equal(7, properties.Length);
+        Assert.Equal(nameof(IStudioContext.GetService), Assert.Single(methods).Name);
+    }
+
+    /// <summary>
     /// Студия годится плагину, которому нужен SDK не новее её.
     /// </summary>
     /// <remarks>

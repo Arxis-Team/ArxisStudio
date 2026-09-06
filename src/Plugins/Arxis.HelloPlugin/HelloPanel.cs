@@ -15,6 +15,11 @@ public sealed class HelloPanel : ToolWindow
 {
     private readonly TextBlock _result = new() { TextWrapping = TextWrapping.Wrap };
 
+    // Панель ушла, а её задача — нет: обход папки идёт своим чередом и по
+    // окончании пишет в контрол, которого на экране больше нет. Отменяется он
+    // прощанием — тем самым, ради которого у панели и есть Release.
+    private CancellationTokenSource? _walking;
+
     /// <inheritdoc/>
     /// <remarks>
     /// Подписи не написаны в коде, а взяты из словарей плагина — теми же
@@ -75,10 +80,21 @@ public sealed class HelloPanel : ToolWindow
 
         var folder = System.IO.Path.GetDirectoryName(path)!;
 
+        _walking?.Cancel();
+        _walking?.Dispose();
+
+        using var walking = new CancellationTokenSource();
+
+        _walking = walking;
+
         try
         {
             var found = await Context.Tasks.RunAsync(strings["task.walk"], async (progress, token) =>
             {
+                using var stop = CancellationTokenSource.CreateLinkedTokenSource(token, walking.Token);
+
+                token = stop.Token;
+
                 var files = System.IO.Directory.EnumerateFiles(folder, "*", System.IO.SearchOption.AllDirectories).ToList();
                 var counted = 0;
 
@@ -102,7 +118,30 @@ public sealed class HelloPanel : ToolWindow
         }
         catch (OperationCanceledException)
         {
+            // Отменить могли и человеком, и прощанием панели. Во втором случае
+            // писать некуда — но и вредного в этом нет: контрол уже снят, и
+            // строка никому не покажется.
             _result.Text = strings["panel.cancelled"];
         }
+        finally
+        {
+            if (ReferenceEquals(_walking, walking))
+                _walking = null;
+        }
+    }
+
+    /// <summary>
+    /// Панель уходит: обход папки останавливается вместе с ней.
+    /// </summary>
+    /// <remarks>
+    /// Задача живёт своей жизнью и о панели ничего не знает: она досчитала бы
+    /// файлы до конца и написала бы ответ в контрол, которого на экране больше
+    /// нет. Отменить её может только та, кто её начала, — и <c>Release</c>
+    /// затем и существует.
+    /// </remarks>
+    public override void Release()
+    {
+        _walking?.Cancel();
+        _walking = null;
     }
 }

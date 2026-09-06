@@ -120,6 +120,8 @@
   "module.sample.description": "A built-in sample module: a panel, a command and a service",
   "module.verbose.on": "Sample: verbose log on",
   "module.verbose.off": "Sample: verbose log off",
+  "module.sample.project": "Project: {0}",
+  "module.sample.noproject": "No project open",
   "module.terminal.description": "Terminal: a shell inside the studio, local or over SSH",
   "panel.terminal": "Terminal",
   "menu.terminal": "Terminal",

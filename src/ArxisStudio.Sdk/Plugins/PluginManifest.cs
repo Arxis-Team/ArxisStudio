@@ -173,17 +173,6 @@ public sealed class PluginToolWindow
     /// <summary>Заголовок панели; ключ вида <c>%panel.main%</c> переводится.</summary>
     public string Title { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Прежнее описание места одним словом.
-    /// </summary>
-    /// <remarks>
-    /// Оставлено ради манифестов, написанных до <see cref="Placement"/>: студия
-    /// умеет его читать, но новые плагины пишут <c>placement</c>. Одно поле
-    /// вместо другого — не потеря: <c>zone: "left"</c> и есть
-    /// <c>placement: { side: "left" }</c>.
-    /// </remarks>
-    public string? Zone { get; set; }
-
     /// <summary>Где панель просит её поставить; отсутствует — как решит студия.</summary>
     public PluginPlacement? Placement { get; set; }
 
@@ -191,13 +180,11 @@ public sealed class PluginToolWindow
     /// Место, о котором панель просит на самом деле.
     /// </summary>
     /// <remarks>
-    /// Единственное место, знающее про старое поле: остальная студия видит
-    /// только <see cref="PluginPlacement"/> и про <c>zone</c> не спрашивает.
+    /// Не сказавшая ничего просит умолчания, а не пустоты: панель без стороны
+    /// пришлось бы искать по всему окну.
     /// </remarks>
     [JsonIgnore]
-    public PluginPlacement Wanted =>
-        Placement
-        ?? (Zone is { Length: > 0 } zone ? new PluginPlacement { Side = zone } : new PluginPlacement());
+    public PluginPlacement Wanted => Placement ?? new PluginPlacement();
 }
 
 /// <summary>

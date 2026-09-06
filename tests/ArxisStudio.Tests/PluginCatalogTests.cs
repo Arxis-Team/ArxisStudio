@@ -19,7 +19,7 @@ public class PluginCatalogTests : IDisposable
           "entry": "bin/Arxis.FigmaImport.dll",
           "contributions": {
             "commands": [ { "id": "figma.import", "title": "Импорт из Figma" } ],
-            "toolWindows": [ { "id": "figma.panel", "title": "Figma", "zone": "bottom" } ]
+            "toolWindows": [ { "id": "figma.panel", "title": "Figma", "placement": { "side": "bottom" } } ]
           },
           "activation": [ "onCommand:figma.import" ]
         }
@@ -95,18 +95,16 @@ public class PluginCatalogTests : IDisposable
 
         Assert.Equal("figma.import", Assert.Single(contributions.Commands).Id);
         // Сторона нарочно не «right»: она же — сторона по умолчанию, и на ней
-        // проверка прошла бы даже с выключенным чтением старого поля.
+        // проверка прошла бы, даже перестань манифест читаться вовсе.
         Assert.Equal("bottom", Assert.Single(contributions.ToolWindows).Wanted.Side);
         Assert.Equal("onCommand:figma.import", Assert.Single(plugin.Manifest.Activation));
     }
 
     /// <summary>
-    /// Место панели читается из нового поля, а без него — из старого.
+    /// Место панели читается из манифеста, а без него — берётся умолчание.
     /// </summary>
     /// <remarks>
-    /// Старое поле оставлено ради манифестов, написанных до <c>placement</c>:
-    /// <c>zone: "left"</c> и есть <c>placement: { side: "left" }</c>. Панель,
-    /// не сказавшая ни того ни другого, тоже получает место — сторону по
+    /// Панель, не сказавшая о месте ничего, тоже его получает — сторону по
     /// умолчанию, а не пустую строку, из-за которой её потом ищут по всему окну.
     /// </remarks>
     [Fact]

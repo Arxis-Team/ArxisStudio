@@ -50,6 +50,8 @@
     <File Path="templates/Arxis.Plugin/Arxis.MyPlugin.csproj" />
     <File Path="templates/Arxis.Plugin/Plugin.cs" />
     <File Path="templates/Arxis.Plugin/PluginPanel.cs" />
+    <File Path="templates/Arxis.Plugin/PluginPanelView.axaml" />
+    <File Path="templates/Arxis.Plugin/PluginPanelView.axaml.cs" />
     <File Path="templates/Arxis.Plugin/README.md" />
     <File Path="templates/Arxis.Plugin/lang/strings.json" />
     <File Path="templates/Arxis.Plugin/plugin.json" />

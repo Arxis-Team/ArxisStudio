@@ -120,6 +120,8 @@
   "module.sample.description": "Встроенный модуль-образец: панель, команда и служба",
   "module.verbose.on": "Пример: подробный журнал включён",
   "module.verbose.off": "Пример: подробный журнал выключен",
+  "module.sample.project": "Проект: {0}",
+  "module.sample.noproject": "Проект не открыт",
   "module.terminal.description": "Терминал: оболочка в панели студии, локальная или по SSH",
   "panel.terminal": "Терминал",
   "menu.terminal": "Терминал",

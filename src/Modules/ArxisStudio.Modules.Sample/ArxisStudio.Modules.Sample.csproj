@@ -40,4 +40,16 @@
         <EmbeddedResource Include="module.json"/>
     </ItemGroup>
 
+    <!--
+        Манифест и словарь — входами сборки, чтобы ARX0002 сверил одно с другим.
+        Словарь у модуля не свой: своей папки у него нет, и текст ему дают
+        словари самой студии — его строки студия и написала. Подаётся язык, на
+        котором она написана: перевод есть не у каждого ключа, и требовать
+        полноты от перевода значило бы запретить переводить по частям.
+    -->
+    <ItemGroup>
+        <AdditionalFiles Include="module.json"/>
+        <AdditionalFiles Include="../../ArxisStudio.Shell/Localization/Strings/en.json"/>
+    </ItemGroup>
+
 </Project>

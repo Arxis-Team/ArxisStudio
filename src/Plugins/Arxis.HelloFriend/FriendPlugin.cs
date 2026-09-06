@@ -19,6 +19,8 @@ public sealed class FriendPlugin : StudioPlugin
     /// <inheritdoc/>
     public override void Activate(IStudioContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+
         _context = context;
 
         context.Log.Write(StudioLogLevel.Info, "Friend", "Плагин поднят — сосед уже стоит");

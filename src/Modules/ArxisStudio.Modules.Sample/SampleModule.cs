@@ -26,6 +26,8 @@ public sealed class SampleModule : StudioPlugin
     /// <inheritdoc/>
     public override void Activate(IStudioContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+
         _context = context;
 
         context.Commands.Register(AboutCommand, About);
