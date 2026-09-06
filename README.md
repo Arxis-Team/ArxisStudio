@@ -130,8 +130,10 @@
 
 ## Сборка
 
-Нужен .NET SDK 10. Сборке нужны три подмодуля из пяти — контролы, тема и шрифт;
-остальные два лежат в репозитории, но ни одним проектом не собираются.
+Нужен .NET SDK 10. Сборке нужны четыре подмодуля из семи — контролы, иконки, тема
+и шрифт; остальные три лежат в репозитории, но ни одним проектом не собираются.
+Шрифт называет не решение, а тема: она набирает им код и пути и ждёт его
+репозиторий рядом с собой.
 
 ```bash
 git clone --recurse-submodules https://github.com/Arxis-Team/ArxisStudio.git
@@ -143,7 +145,7 @@ dotnet run --project src/ArxisStudio
 Если репозиторий уже склонирован без подмодулей, хватит нужных:
 
 ```bash
-git submodule update --init external/ArxisStudio.Controls external/ArxisStudio.Themes.Arxis external/ArxisStudio.Fonts.Cascadia
+git submodule update --init external/ArxisStudio.Controls external/ArxisStudio.Icons external/ArxisStudio.Themes.Arxis external/ArxisStudio.Fonts.Cascadia
 ```
 
 Тесты:
