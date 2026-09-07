@@ -113,9 +113,7 @@ public static class DockTree
 
             items.Insert(at < 0 || at > items.Count ? items.Count : at, item);
 
-            // Рейка переносится: панель, пришедшая в убранную группу, не повод
-            // возвращать её на экран человеку за спиной.
-            return new DockGroup { Id = group.Id, Items = items, Selected = item, Rail = group.Rail };
+            return new DockGroup { Id = group.Id, Items = items, Selected = item };
         });
     }
 
@@ -316,43 +314,6 @@ public static class DockTree
             Id = group.Id,
             Items = group.Items,
             Selected = item,
-            Rail = group.Rail,
-        });
-    }
-
-    /// <summary>
-    /// Убирает группу на рейку стороны или возвращает её в дерево.
-    /// </summary>
-    /// <param name="root">Корень дерева.</param>
-    /// <param name="groupId">Какую группу.</param>
-    /// <param name="rail">На какую рейку; null — вернуть в дерево.</param>
-    /// <returns>Новое дерево; прежнее, если группы нет или она уже такая.</returns>
-    /// <remarks>
-    /// Доля группы в делении не трогается, и это главное: место убранной
-    /// группы достаётся соседям на время, а её прежний размер ждёт в дереве.
-    /// Иначе возврат отдавал бы панели среднее по палате вместо той ширины, к
-    /// которой человек её привёл.
-    /// <para>
-    /// Правка, ничего не изменившая, возвращает то же дерево: перекладка ради
-    /// неё снесла бы и построила заново всё окно, а с ним пропал бы курсор в
-    /// панели, где человек печатает.
-    /// </para>
-    /// </remarks>
-    public static DockNode Stow(DockNode root, string groupId, DockSide? rail)
-    {
-        ArgumentNullException.ThrowIfNull(root);
-
-        var group = root.Groups().FirstOrDefault(candidate => string.Equals(candidate.Id, groupId, StringComparison.Ordinal));
-
-        if (group is null || group.Rail == rail)
-            return root;
-
-        return Rewrite(root, groupId, node => new DockGroup
-        {
-            Id = node.Id,
-            Items = node.Items,
-            Selected = node.Selected,
-            Rail = rail,
         });
     }
 
@@ -398,7 +359,7 @@ public static class DockTree
         {
             Orientation = split.Orientation,
             Children = [.. kept.Select(child => child.Node)],
-            Weights = Normalize([.. kept.Select(child => shares[child.At])]),
+            Weights = Handover([.. kept.Select(child => shares[child.At])], Floor(kept, keep)),
         };
     }
 
@@ -472,17 +433,26 @@ public static class DockTree
     }
 
     /// <summary>
-    /// Отдаёт группе долю места у её родителя, остальное соседи делят как делили.
+    /// Отдаёт группе долю места у её родителя; платит за это пол рабочей области.
     /// </summary>
     /// <param name="root">Корень дерева.</param>
     /// <param name="groupId">Имя группы.</param>
     /// <param name="share">Доля от нуля до единицы; вне промежутка — дерево не меняется.</param>
+    /// <param name="keep">Имена, которые стоят и опустев, — пол рабочей области.</param>
     /// <returns>Новое дерево; прежнее, если группы нет или доля бессмысленна.</returns>
     /// <remarks>
-    /// Соседи делят остаток в прежней пропорции, а не поровну: раздвинув одну
-    /// область, человек не просил перекроить все остальные.
+    /// То же правило, что и при уходе панели (<see cref="Prune"/>), только в
+    /// обратную сторону: боковая панель держит свою ширину, а платит за приход
+    /// новичка область документов. Иначе панель, вернувшаяся домой из
+    /// оторванного окна, отбирала бы ширину у той, которой никто не касался.
+    /// <para>
+    /// Некому платить — или столько у пола и нет, — соседи делят остаток в
+    /// прежней пропорции, а не поровну: раздвинув одну область, человек не
+    /// просил перекроить все остальные.
+    /// </para>
     /// </remarks>
-    public static DockNode Widen(DockNode root, string groupId, double share)
+    public static DockNode Widen(
+        DockNode root, string groupId, double share, IReadOnlySet<string>? keep = null)
     {
         ArgumentNullException.ThrowIfNull(root);
 
@@ -506,7 +476,7 @@ public static class DockTree
             return new DockSplit
             {
                 Orientation = split.Orientation,
-                Children = [.. split.Children.Select(child => Widen(child, groupId, share))],
+                Children = [.. split.Children.Select(child => Widen(child, groupId, share, keep))],
                 Weights = split.Weights,
             };
         }
@@ -515,6 +485,34 @@ public static class DockTree
             return root;
 
         var shares = Shares(split).ToList();
+
+        // Место новичку отдаёт пол рабочей области, а не все соседи понемногу.
+        // То же правило, что и при уходе панели (<see cref="Handover"/>), только
+        // в обратную сторону: боковая панель держит свою ширину, а платит за
+        // приход область документов. Иначе панель, вернувшаяся домой из
+        // оторванного окна, отбирала бы ширину у той, которой никто не касался.
+        var floor = Floor([.. split.Children.Select((node, number) => (node, number))], keep);
+
+        if (floor >= 0 && floor != at)
+        {
+            var paid = shares[floor] - (share - shares[at]);
+
+            // Заплатить может — платит один пол; не может, потому что столько у
+            // него и нет, — делят пропорционально, как прежде.
+            if (paid > 0)
+            {
+                shares[floor] = paid;
+                shares[at] = share;
+
+                return new DockSplit
+                {
+                    Orientation = split.Orientation,
+                    Children = split.Children,
+                    Weights = Normalize(shares),
+                };
+            }
+        }
+
         var others = shares.Where((_, number) => number != at).Sum();
         var rest = 1 - share;
 
@@ -636,6 +634,64 @@ public static class DockTree
         }
     }
 
+    /// <summary>
+    /// Отдаёт освободившееся место одному ребёнку, а не всем поровну.
+    /// </summary>
+    /// <param name="room">Доли уцелевших, как они были в прежнем делении.</param>
+    /// <param name="floor">Кому достаётся освободившееся; -1 — некому.</param>
+    /// <returns>Доли, приведённые к единице.</returns>
+    /// <remarks>
+    /// Это правило раскладки, а не арифметика. Доли уцелевших не складываются в
+    /// единицу — ушедший унёс свою, — и привести их к единице можно двумя
+    /// способами. Пропорционально: тогда из <c>[0.2 | 0.6 | 0.2]</c> после ухода
+    /// правой выходит <c>[0.25 | 0.75]</c>, и боковая панель, которой человек не
+    /// касался, становится шире на четверть. Отдав всё одному: тогда выходит
+    /// <c>[0.2 | 0.8]</c> — боковая держит свою ширину, а место берёт область
+    /// документов. Так ведут себя Visual Studio, Rider и Unity, и так же
+    /// устроено обратное движение: пришедшая панель отнимает место у неё же.
+    /// <para>
+    /// Некому отдать — делим пропорционально: в оторванном окне пола рабочей
+    /// области нет вовсе, и выбирать там между соседями не за что.
+    /// </para>
+    /// </remarks>
+    private static IReadOnlyList<double> Handover(IReadOnlyList<double> room, int floor)
+    {
+        if (floor < 0 || floor >= room.Count)
+            return Normalize(room);
+
+        var next = room.ToList();
+        var lost = 1 - next.Sum();
+
+        next[floor] += lost;
+
+        return Normalize(next);
+    }
+
+    /// <summary>
+    /// Кто из уцелевших несёт в себе пол рабочей области.
+    /// </summary>
+    /// <param name="kept">Уцелевшие дети деления.</param>
+    /// <param name="keep">Имена, которые стоят и опустев, — пол рабочей области.</param>
+    /// <returns>Место в списке уцелевших; -1 — пола среди них нет.</returns>
+    /// <remarks>
+    /// Не прямым ребёнком, а «несёт в себе»: обычная раскладка студии — ряд из
+    /// панелей и документов сверху, терминал снизу. Уходит терминал, и место
+    /// должен взять ряд, потому что документы лежат внутри него.
+    /// </remarks>
+    private static int Floor(IReadOnlyList<(DockNode Node, int At)> kept, IReadOnlySet<string>? keep)
+    {
+        if (keep is null || keep.Count == 0)
+            return -1;
+
+        for (var at = 0; at < kept.Count; at++)
+        {
+            if (kept[at].Node.Groups().Any(group => keep.Contains(group.Id)))
+                return at;
+        }
+
+        return -1;
+    }
+
     /// <summary>Оставляет в группах только те панели, что прошли отбор.</summary>
     private static DockNode Filter(DockNode node, Func<string, bool> keep)
     {
@@ -653,7 +709,6 @@ public static class DockTree
                     Selected = group.Selected is { } chosen && items.Contains(chosen, StringComparer.Ordinal)
                         ? chosen
                         : items.FirstOrDefault(),
-                    Rail = group.Rail,
                 };
 
             case DockSplit split:

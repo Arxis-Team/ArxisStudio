@@ -86,8 +86,8 @@ public sealed class StudioDock
     /// <remarks>
     /// Документ от панели отличается только этим списком. По дереву их не
     /// различить — документ волен уехать в боковую группу, а панель встать в
-    /// область документов; по крестику тоже: с рейками и меню «Панели» дорога
-    /// назад появилась и у панели, и закрываются теперь обе.
+    /// область документов; по крестику тоже: дорога назад есть у обоих, и
+    /// закрываются они одинаково.
     /// </remarks>
     private readonly HashSet<string> _documents = new(StringComparer.Ordinal);
 
@@ -198,7 +198,7 @@ public sealed class StudioDock
         };
 
         _view.Resized += (_, resize) => Edit(root => DockTree.Resize(root, resize.Path, resize.Weights));
-        _view.Stowing += (_, stow) => Edit(root => DockTree.Stow(root, stow.Group, stow.Rail));
+        _view.Hiding += (_, group) => Conceal(group);
         _view.Closing += (_, id) => Shut(id);
 
         Follow(_view);
@@ -220,17 +220,6 @@ public sealed class StudioDock
     /// открыл.
     /// </remarks>
     public event EventHandler<string>? Closing;
-
-    /// <summary>
-    /// Раскладка сдвинулась — рейкам пора пересобраться.
-    /// </summary>
-    /// <remarks>
-    /// Рейка считается по дереву и по живым панелям
-    /// (<see cref="Stowed(DockSide)"/>), а меняются те двое в двух местах:
-    /// правка дерева и перевес окон. Оттуда и зовётся — по одному разу, вместо
-    /// сторожа у каждой двери.
-    /// </remarks>
-    public event EventHandler? Shifted;
 
     /// <summary>Живые панели по именам.</summary>
     public DockItems Items { get; } = new();
@@ -285,15 +274,22 @@ public sealed class StudioDock
     {
         get
         {
-            if (_view.Root is { } root && DockTree.Group(root, _home)?.Selected is { } home)
+            // Выбранное имя может не быть на экране: панель убрали с глаз, а
+            // выбор в группе остался за ней. Назвать её показанной значит
+            // соврать — и тот, кто спрашивал, покажет не то, что видит человек.
+            if (_view.Root is { } root
+                && DockTree.Group(root, _home)?.Selected is { } home
+                && Onscreen(home))
+            {
                 return home;
+            }
 
             return _floats
                 .Select(window => window.View.Root)
                 .OfType<DockNode>()
                 .SelectMany(tree => tree.Groups())
                 .Select(group => group.Selected)
-                .FirstOrDefault(id => id is not null && _documents.Contains(id));
+                .FirstOrDefault(id => id is not null && _documents.Contains(id) && Onscreen(id));
         }
     }
 
@@ -450,6 +446,7 @@ public sealed class StudioDock
         // «Как при первом запуске» — значит и закрытых панелей нет: при первом
         // запуске стоят все.
         _hidden.Clear();
+        Announce();
 
         // Оторванных окон при первом запуске нет, а сброс возвращает раскладку
         // именно к нему. Оставь мы окно — панель оказалась бы разом и в нём, и
@@ -463,11 +460,6 @@ public sealed class StudioDock
 
         _view.Root = root;
         _dirty = true;
-
-        // Дерево здесь встаёт целиком и мимо Edit, поэтому и сказать о нём
-        // некому: без этого на рейке остались бы кнопки убранных панелей,
-        // которые сброс только что вернул на места.
-        Rehang();
 
         Flush();
     }
@@ -588,17 +580,6 @@ public sealed class StudioDock
             return;
         }
 
-        // Закрытую панель подъём плагина не возвращает. Места за ней в дереве
-        // нет намеренно, и поставить её сюда значило бы отменить решение
-        // человека — в следующий раз он закрывал бы её после каждой
-        // перезагрузки плагина.
-        if (_hidden.Contains(id))
-        {
-            Rehang();
-
-            return;
-        }
-
         Edit(root => Place(root, id, where));
     }
 
@@ -611,6 +592,10 @@ public sealed class StudioDock
     {
         Items.Add(owner, new DockItem(id, content) { Title = title, CanClose = true });
         _documents.Add(id);
+
+        // Документы движку называются списком: по нему он решает, какой группе
+        // кнопка «скрыть» не достаётся.
+        Announce();
 
         if (!_asked.Any(asked => string.Equals(asked.Id, id, StringComparison.Ordinal)))
             _asked.Add((id, new PluginPlacement { Side = Documents }));
@@ -640,9 +625,22 @@ public sealed class StudioDock
     /// <remarks>
     /// Не то же, что <see cref="Remove"/>. Тот выбрасывает и контрол, и запись
     /// о просьбе — после него панель не вернуть ничем: плагин зовёт
-    /// <see cref="Add"/> однажды, при подъёме. Здесь уходит одно имя из дерева,
-    /// а контрол, просьба и место остаются — по ним <see cref="Reopen"/> и
-    /// поставит панель обратно.
+    /// <see cref="Add"/> однажды, при подъёме. Здесь не уходит ничего: имя
+    /// остаётся в дереве вместе с местом и долей, а с глаз панель убирает
+    /// список убранных — по нему <see cref="Reopen"/> и вернёт её туда же.
+    /// <para>
+    /// Живого контрола за именем может и не быть — плагин выключен, — но
+    /// просьба его в списке есть, и решение человека записать нужно: иначе
+    /// группа исчезнет с экрана, не будучи убранной, и вернётся сама, стоит
+    /// включить плагин.
+    /// </para>
+    /// <para>
+    /// А вот имени, о котором студия не знает ничего, скрыть нельзя. Такие в
+    /// дереве бывают: имя документа приезжает из файла раскладки, а сам
+    /// документ при запуске никто не открывает — списка открытых у него в этом
+    /// сеансе ещё нет, и запрет на документы такое имя не поймал бы. Уйди оно
+    /// в убранные, вернуть его было бы нечем: документов в меню «Панели» нет.
+    /// </para>
     /// <para>
     /// Документ сюда не попадает: за ним стоит файл, и закрывать его — дело
     /// того, кто его открыл.
@@ -650,15 +648,16 @@ public sealed class StudioDock
     /// </remarks>
     public void Hide(string id)
     {
-        if (_documents.Contains(id) || Items.Find(id) is null || !_hidden.Add(id))
+        if (_documents.Contains(id) || !Declared(id) || !_hidden.Add(id))
             return;
 
-        if (Tree(id) is { } holder)
-            Edit(holder, root => DockTree.Remove(root, id, Standing(holder)));
+        // Имя из дерева не снимается: там его место в полосе и доля его группы,
+        // и по ним панель вернётся туда же и такой же ширины. Ровно так же
+        // ведёт себя имя панели выключенного плагина.
+        Announce();
 
-        // Список закрытых — часть раскладки, и меняется он и без правки
-        // дерева: закрыли панель, которой в дереве не было. Без этого файл
-        // остался бы со вчерашним списком.
+        // Список убранных — часть раскладки, и меняется он без правки дерева.
+        // Без этого файл остался бы со вчерашним списком.
         Note();
 
         Rehang();
@@ -669,18 +668,27 @@ public sealed class StudioDock
     /// </summary>
     /// <param name="id">Имя панели.</param>
     /// <remarks>
-    /// На объявленное, а не на то, где она стояла в последний раз: места в
-    /// дереве за ней не числится — тем закрытие и отличается от уборки на
-    /// рейку, — и вспомнить его неоткуда.
+    /// Туда, где она стояла: имя её осталось в дереве, а с ним место в полосе и
+    /// доля группы. На объявленное манифестом место встаёт лишь бесприютная —
+    /// такие приходят из файла раскладки, написанного студией, которая имена
+    /// убранных из дерева снимала.
     /// </remarks>
     public void Reopen(string id)
     {
         if (!_hidden.Remove(id))
             return;
 
+        Announce();
         Note();
 
-        Edit(root => Place(root, id, Asked(id)));
+        if (Tree(id) is null)
+            Edit(root => Place(root, id, Asked(id)));
+
+        // Окно могло уйти с экрана, пока показывать в нём было нечего: панель
+        // жила в оторванном окне, и Rehang его спрятал. Возврат обязан позвать
+        // его обратно — иначе панель числится стоящей, а нет её нигде.
+        Rehang();
+
         Show(id);
     }
 
@@ -692,6 +700,11 @@ public sealed class StudioDock
         _documents.Remove(id);
         _hidden.Remove(id);
         _asked.RemoveAll(asked => string.Equals(asked.Id, id, StringComparison.Ordinal));
+
+        // Видам рассказывают всегда: наборы здесь меняются на месте, и без
+        // этого в их копиях осталось бы имя, которого у студии больше нет, — а
+        // панель под тем же именем встала бы невидимой.
+        Announce();
 
         if (Tree(id) is { } holder)
             Edit(holder, root => DockTree.Remove(root, id, Standing(holder)));
@@ -736,56 +749,23 @@ public sealed class StudioDock
         if (Items.Find(id) is null)
             return;
 
+        // Убранную с глаз не показываем, и это не забывчивость. Показать
+        // просит плагин — службой IStudioToolWindows, из Activate в том числе, —
+        // а убрал панель человек. Отменяй мы его решение, панель возвращалась
+        // бы с каждым запуском студии, и убирать её приходилось бы каждое
+        // утро. Вернуть убранную можно из меню «Панели»: там об этом просит
+        // человек, и там просьба сильнее.
+        if (_hidden.Contains(id))
+            return;
+
         // Панель могла уехать в своё окно, и выбор в главном дереве её там не
-        // достанет. А могла уйти на рейку — тогда выбора мало: показать её
-        // значит вернуть с рейки, иначе «показал» опять будет неправдой.
-        Edit(id, root => DockTree.Holder(root, id) is { Rail: not null } stowed
-            ? DockTree.Stow(DockTree.Select(root, id), stowed.Id, null)
-            : DockTree.Select(root, id));
+        // достанет — потому правится то дерево, в котором она лежит.
+        Edit(id, root => DockTree.Select(root, id));
 
         if (Torn(id) is { } torn)
             Reveal(torn);
 
         Chosen?.Invoke(this, id);
-    }
-
-    /// <summary>
-    /// Что стоит на рейке этой стороны.
-    /// </summary>
-    /// <param name="side">Какая рейка.</param>
-    /// <returns>Кнопки по одной на живую панель убранных групп.</returns>
-    /// <remarks>
-    /// Кнопка на панель, а не на группу: группа из трёх вкладок даёт три
-    /// кнопки, и человек возвращает ту, что ему нужна. Панели выключенного
-    /// плагина кнопки не достаётся — за её именем нет живого контрола, и
-    /// показывать по щелчку было бы нечего.
-    /// <para>
-    /// Считается по дереву на каждый спрос, а не помнится списком: список
-    /// разошёлся бы с деревом на первой же правке, а дерево здесь одно и
-    /// правится в одном месте.
-    /// </para>
-    /// </remarks>
-    public IReadOnlyList<DockRailItem> Stowed(DockSide side) =>
-        _view.Root is not { } root
-            ? []
-            : [.. root.Groups()
-                .Where(group => group.Rail == side)
-                .SelectMany(group => group.Items
-                    .Select(id => (Group: group.Id, Item: Items.Find(id)))
-                    .Where(found => found.Item is not null)
-                    .Select(found => new DockRailItem(found.Group, found.Item!)))];
-
-    /// <summary>
-    /// Возвращает убранную группу в дерево и показывает названную панель.
-    /// </summary>
-    /// <param name="chosen">Кнопка, которую нажали на рейке.</param>
-    public void Unstow(DockRailItem chosen)
-    {
-        ArgumentNullException.ThrowIfNull(chosen);
-
-        Edit(root => DockTree.Stow(DockTree.Select(root, chosen.Item.Id), chosen.Group, null));
-
-        Chosen?.Invoke(this, chosen.Item.Id);
     }
 
     /// <summary>
@@ -854,7 +834,8 @@ public sealed class StudioDock
         // кнопка остаётся безымянной: программа чтения с экрана скажет о ней
         // «кнопка» и ничего больше. В самом движке докинга взять их неоткуда: он
         // о языках студии не знает и знать не должен.
-        window.View.Bind(DockView.StowTitleProperty, _view.GetObservable(DockView.StowTitleProperty));
+        window.View.Bind(DockView.HiddenProperty, _view.GetObservable(DockView.HiddenProperty));
+        window.View.Bind(DockView.FixedProperty, _view.GetObservable(DockView.FixedProperty));
         window.View.Bind(DockView.DockTitleProperty, _view.GetObservable(DockView.DockTitleProperty));
         window.View.Bind(DockView.HideTitleProperty, _view.GetObservable(DockView.HideTitleProperty));
 
@@ -872,9 +853,9 @@ public sealed class StudioDock
         window.View.Resized += (_, resize) =>
             Change(window, root => DockTree.Resize(root, resize.Path, resize.Weights));
 
-        // Уборка на рейку в оторванном окне не предлагается и не слушается:
-        // реек у него нет, и убранной группе неоткуда было бы вернуться. Так же
-        // решает Visual Studio — плавающую панель там сперва пристыковывают.
+        // Кнопки «скрыть» в шапке группы у оторванного окна нет — вид её
+        // прячет, — и слушать её здесь некого: скрыть себя это окно просит
+        // само, целиком.
         window.View.Closing += (_, id) => Shut(id);
 
         Follow(window.View);
@@ -890,6 +871,32 @@ public sealed class StudioDock
         _floats.Add(window);
 
         return window;
+    }
+
+    /// <summary>
+    /// Убирает с глаз все панели названной группы.
+    /// </summary>
+    /// <param name="groupId">Какую группу скрываем.</param>
+    /// <remarks>
+    /// Всю группу, а не выбранную вкладку: кнопка стоит в шапке группы, и
+    /// человек, нажавший её, убирает то, на что смотрит. Так же поступает
+    /// кнопка «скрыть» в шапке оторванного окна — <see cref="Conceal(DockFloat)"/>.
+    /// <para>
+    /// Имена снимаются с узла заранее, одним списком: <see cref="Hide"/>
+    /// рассказывает видам об убранном, вид перекладывается, и группа, в которой
+    /// показывать стало нечего, с экрана уходит — искать её вид по ходу дела
+    /// значило бы искать то, чего уже нет.
+    /// </para>
+    /// </remarks>
+    private void Conceal(string groupId)
+    {
+        if (_view.Root is not { } root)
+            return;
+
+        var items = DockTree.Group(root, groupId)?.Items.ToList() ?? [];
+
+        foreach (var id in items)
+            Hide(id);
     }
 
     /// <summary>
@@ -912,6 +919,21 @@ public sealed class StudioDock
 
         foreach (var id in items)
             Hide(id);
+
+        // Закрываем окно, только если показывать в нём стало нечего. Документ
+        // Hide пропускает — за ним стоит файл, — и закрыв окно с документом
+        // внутри, кнопка «скрыть» сделала бы работу соседней, «вернуть в
+        // студию»: две кнопки, делающие одно, это и есть недосмотр.
+        if (items.Any(Onscreen))
+            return;
+
+        // Показывать нечего — окно своё отслужило, и различие здесь
+        // осмысленное. Панель выключенного плагина окно только прячет и имя её
+        // держит: включат плагин — панель вернётся в своё окно, на то же
+        // место. А человек, убравший панели с глаз, окном больше не
+        // пользуется: имена уходят домой, в дерево студии, и меню «Панели»
+        // возвращает их туда.
+        window.Close();
     }
 
     /// <summary>
@@ -953,9 +975,12 @@ public sealed class StudioDock
 
         foreach (var window in _floats.ToList())
         {
+            // Живо не то окно, в чьём дереве есть имена, а то, которому есть
+            // что показать: имена выключенного плагина и убранных с глаз
+            // панелей в дереве остаются, а рамка с пустотой внутри — нет.
             var alive = window.View.Root?.Groups()
                 .SelectMany(group => group.Items)
-                .Any(id => Items.Find(id) is not null) == true;
+                .Any(Onscreen) == true;
 
             if (!alive)
             {
@@ -975,11 +1000,21 @@ public sealed class StudioDock
 
             window.Show(owner);
         }
-
-        // Живых панелей стало больше или меньше, а рейка показывает только
-        // живых: за именем выключенного плагина по щелчку не появится ничего.
-        Shifted?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <summary>
+    /// Просила ли эта панель себе место в этом сеансе.
+    /// </summary>
+    /// <param name="id">Имя панели.</param>
+    /// <returns>true — просьба есть, значит студия знает о ней как о панели.</returns>
+    /// <remarks>
+    /// Просьба остаётся и у панели выключенного плагина: список просьб
+    /// <see cref="RemoveOwnedBy"/> не чистит. А вот у имени, приехавшего из
+    /// файла раскладки и ничем в этом сеансе не подтверждённого, просьбы нет —
+    /// и трогать такое имя студии не за что.
+    /// </remarks>
+    private bool Declared(string id) =>
+        _asked.Any(asked => string.Equals(asked.Id, id, StringComparison.Ordinal));
 
     /// <summary>Место, о котором панель просила; неизвестная просится вправо.</summary>
     private PluginPlacement Asked(string id) =>
@@ -996,10 +1031,45 @@ public sealed class StudioDock
     /// </remarks>
     private IEnumerable<DockView> Views => _floats.Select(window => window.View).Append(_view);
 
+    /// <summary>
+    /// Рассказывает видам, что сейчас убрано с глаз и что скрытию не подлежит.
+    /// </summary>
+    /// <remarks>
+    /// Копией, а не самим набором: набор здесь меняется на месте, и вид,
+    /// получив ссылку на него, о правке не узнал бы — свойство не сменилось.
+    /// Копия заодно и не даёт движку править то, что принадлежит студии.
+    /// <para>
+    /// Оторванным окнам этого хватает: их деревья привязаны к этому свойству
+    /// в <see cref="Float"/>, и убранное у них то же самое.
+    /// </para>
+    /// </remarks>
+    private void Announce()
+    {
+        _view.Hidden = _hidden.ToHashSet(StringComparer.Ordinal);
+        _view.Fixed = _documents.ToHashSet(StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Есть ли этой панели что показать прямо сейчас.
+    /// </summary>
+    /// <param name="id">Имя панели.</param>
+    /// <returns>true — панель жива и не убрана с глаз.</returns>
+    /// <remarks>
+    /// Две причины не показывать, и обе оставляют имя в дереве: плагин
+    /// выключили, либо человек убрал панель с глаз.
+    /// </remarks>
+    private bool Onscreen(string id) => Items.Find(id) is not null && !_hidden.Contains(id);
+
     /// <summary>Что в этом дереве не сносится, даже опустев.</summary>
     /// <remarks>
     /// Область документов есть только в главном окне: там пустое место человек
     /// видит и узнаёт. В оторванном окне пустая рамка не нужна никому.
+    /// <para>
+    /// Она же берёт себе место ушедшей панели — <see cref="DockTree.Prune"/>
+    /// отдаёт освободившуюся долю тому, кто несёт в себе эту группу. У
+    /// оторванного окна пола нет, и доли там делятся пропорционально: выбирать
+    /// между соседями не за что.
+    /// </para>
     /// </remarks>
     private IReadOnlySet<string> Standing(DockView view) =>
         ReferenceEquals(view, _view) ? _standing : Nothing;
@@ -1335,6 +1405,7 @@ public sealed class StudioDock
         _standing = new HashSet<string>([_home], StringComparer.Ordinal);
         _view.EmptyGroup = _home;
         _hidden = new HashSet<string>(workspace.Hidden, StringComparer.Ordinal);
+        Announce();
 
         Sweep();
 
@@ -1380,14 +1451,13 @@ public sealed class StudioDock
             }
         }
 
-        // Имя, стоящее в дереве, закрытым не считается. Разойтись эти двое
-        // могут только в правленом руками файле, и правда там за деревом: его
-        // человек видит, а список закрытых — нет.
-        _hidden.ExceptWith(taken);
-
+        // Убранная панель стоит в дереве — там её место и доля, — поэтому имя
+        // в дереве о ней ничего не говорит, и вычитать одно из другого больше
+        // нечего. Место получает всякая бесприютная: убранная просто не
+        // покажется, зато будет знать, куда возвращаться.
         foreach (var (id, where) in _asked)
         {
-            if (taken.Contains(id) || _hidden.Contains(id))
+            if (taken.Contains(id))
                 continue;
 
             root = Place(root, id, where);
@@ -1455,11 +1525,16 @@ public sealed class StudioDock
             side = _home;
 
         if (DockTree.Group(root, side) is not { } waiting)
-            return DockTree.Widen(DockTree.Insert(root, Home(root), Side(side), id, side), side, where.Size);
+        {
+            return DockTree.Widen(
+                DockTree.Insert(root, Home(root), Side(side), id, side), side, where.Size, _standing);
+        }
 
         var next = DockTree.Attach(root, side, id);
 
-        return waiting.Items.Count == 0 ? DockTree.Widen(next, side, where.Size) : next;
+        return waiting.Items.Count == 0
+            ? DockTree.Widen(next, side, where.Size, _standing)
+            : next;
     }
 
     /// <summary>Сторона по названию; незнакомое слово уводит вправо.</summary>
@@ -1530,8 +1605,6 @@ public sealed class StudioDock
 
         _view.Root = next;
         _dirty = true;
-
-        Shifted?.Invoke(this, EventArgs.Empty);
 
         // Отсчёт начинается заново с каждой правкой: пока границу тянут, писать
         // нечего — итог станет известен, когда её отпустят.

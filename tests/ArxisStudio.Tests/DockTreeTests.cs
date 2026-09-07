@@ -560,6 +560,153 @@ public class DockTreeTests
         Assert.All(shares, share => Assert.True(share > 0));
     }
 
+    /// <summary>
+    /// Место ушедшей панели достаётся полу рабочей области, а не всем подряд.
+    /// </summary>
+    /// <remarks>
+    /// Это главное правило раскладки, и до него доли делились пропорционально:
+    /// из `[0.2 | 0.6 | 0.2]` после ухода правой выходило `[0.25 | 0.75]`, и
+    /// левая панель, которой человек не касался, становилась шире на четверть.
+    /// Так не ведёт себя ни один док: боковая панель держит свою ширину, а
+    /// отданное и взятое место идёт области документов.
+    /// </remarks>
+    [Fact]
+    public void The_room_of_a_departed_panel_goes_to_the_floor()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children = [Group("left", "solution"), Group("documents", "a.axaml"), Group("right", "properties")],
+            Weights = [0.2, 0.6, 0.2],
+        };
+
+        var after = Assert.IsType<DockSplit>(DockTree.Remove(root, "properties", Floor));
+        var shares = DockTree.Shares(after);
+
+        Assert.Equal(2, shares.Count);
+        Assert.Equal(0.2, shares[0], 6);
+        Assert.Equal(0.8, shares[1], 6);
+    }
+
+    /// <summary>
+    /// Пол рабочей области может лежать не прямым ребёнком деления.
+    /// </summary>
+    /// <remarks>
+    /// Обычная раскладка студии такая и есть: сверху ряд из панелей и
+    /// документов, снизу полосы. Уходит полоса — место берёт ряд, потому что
+    /// документы лежат в нём, а не вторая полоса.
+    /// <para>
+    /// Детей у внешнего деления трое, и это не для красоты: с двумя деление
+    /// свернулось бы в единственного уцелевшего, <c>Handover</c> на нём не
+    /// позвался бы вовсе, и тест проходил бы с отменённой правкой — то есть не
+    /// проверял бы ничего. Глубокий поиск пола проверяется только там, где
+    /// делить остаётся между кем.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_floor_takes_the_room_even_from_inside_a_nested_split()
+    {
+        var row = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children = [Group("left", "solution"), Group("documents", "a.axaml")],
+            Weights = [0.25, 0.75],
+        };
+
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Vertical,
+            Children = [row, Group("bottom", "terminal"), Group("extra", "output")],
+            Weights = [0.5, 0.3, 0.2],
+        };
+
+        var after = Assert.IsType<DockSplit>(DockTree.Remove(root, "terminal", Floor));
+        var shares = DockTree.Shares(after);
+
+        // Место полосы взял ряд — он несёт в себе документы, — а вторая полоса
+        // осталась при своём. Пропорционально вышло бы [0.714 | 0.286].
+        Assert.Equal(2, shares.Count);
+        Assert.Equal(0.8, shares[0], 6);
+        Assert.Equal(0.2, shares[1], 6);
+
+        // И доли внутри ряда не двигались.
+        var kept = Assert.IsType<DockSplit>(after.Children[0]);
+
+        Assert.Equal(0.25, DockTree.Shares(kept)[0], 6);
+        Assert.Equal(0.75, DockTree.Shares(kept)[1], 6);
+    }
+
+    /// <summary>
+    /// Без пола место делят соседи — делить его больше некому.
+    /// </summary>
+    [Fact]
+    public void Without_a_floor_the_neighbours_share_the_room()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children = [Group("left", "solution"), Group("middle", "console"), Group("right", "properties")],
+            Weights = [0.2, 0.6, 0.2],
+        };
+
+        var shares = DockTree.Shares(Assert.IsType<DockSplit>(DockTree.Remove(root, "properties")));
+
+        Assert.Equal(0.25, shares[0], 6);
+        Assert.Equal(0.75, shares[1], 6);
+    }
+
+    /// <summary>
+    /// Место новичку тоже отдаёт пол, а не все соседи понемногу.
+    /// </summary>
+    /// <remarks>
+    /// Правило одно на оба движения. Уходит панель — её долю берёт пол; приходит
+    /// — за неё платит он же. Прежде платили все пропорционально, и панель,
+    /// вернувшаяся домой из оторванного окна, отбирала ширину у боковой, которой
+    /// человек не касался.
+    /// </remarks>
+    [Fact]
+    public void The_floor_pays_for_a_newcomer_too()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children = [Group("left", "solution"), Group("documents", "a.axaml"), Group("right", "properties")],
+            Weights = [0.2, 0.6, 0.2],
+        };
+
+        // Правая просит четверть окна: разницу отдаёт область документов.
+        var shares = DockTree.Shares(Assert.IsType<DockSplit>(DockTree.Widen(root, "right", 0.25, Floor)));
+
+        Assert.Equal(0.2, shares[0], 6);
+        Assert.Equal(0.55, shares[1], 6);
+        Assert.Equal(0.25, shares[2], 6);
+    }
+
+    /// <summary>
+    /// Столько у пола и нет — тогда платят соседи, как платили прежде.
+    /// </summary>
+    [Fact]
+    public void When_the_floor_cannot_pay_the_neighbours_do()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children = [Group("left", "solution"), Group("documents", "a.axaml"), Group("right", "properties")],
+            Weights = [0.4, 0.1, 0.5],
+        };
+
+        // Правая просит 0.8 — у пола всего 0.1, взять с него столько нечего.
+        var shares = DockTree.Shares(Assert.IsType<DockSplit>(DockTree.Widen(root, "right", 0.8, Floor)));
+
+        Assert.Equal(0.8, shares[2], 6);
+        Assert.True(shares[0] > 0, "левая доля обнулилась");
+        Assert.True(shares[1] > 0, "доля пола обнулилась");
+    }
+
+    /// <summary>Пол рабочей области — он же тот, кого не выбрасывают опустевшим.</summary>
+    private static readonly IReadOnlySet<string> Floor =
+        new HashSet<string>(["documents"], StringComparer.Ordinal);
+
     private static DockGroup Group(string id, string item) =>
         new() { Id = id, Items = [item], Selected = item };
 

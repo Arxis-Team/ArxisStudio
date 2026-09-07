@@ -130,7 +130,11 @@ public class DockViewTests
         Assert.Equal(["solution", "ghost"], ((DockGroup)view.Root!).Items);
     }
 
-    /// <summary>Деление ставит между соседями границу и раздаёт им доли.</summary>
+    /// <summary>Деление ставит между соседями границы и раздаёт им доли.</summary>
+    /// <remarks>
+    /// Детей трое, а не двое: у пары граница одна, и правило «границ на одну
+    /// меньше, чем соседей» от частного случая не отличить.
+    /// </remarks>
     [AvaloniaFact]
     public void A_split_puts_a_border_between_neighbours()
     {
@@ -140,19 +144,29 @@ public class DockViewTests
             Children =
             [
                 new DockGroup { Id = "left", Items = ["solution"], Selected = "solution" },
+                new DockGroup { Id = "middle", Items = ["console"], Selected = "console" },
                 new DockGroup { Id = "right", Items = ["properties"], Selected = "properties" },
             ],
-            Weights = [0.3, 0.7],
+            Weights = [0.3, 0.3, 0.4],
         };
 
-        var (view, _) = Shown(root, "solution", "properties");
+        var (view, _) = Shown(root, "solution", "console", "properties");
         var grid = Assert.IsType<Grid>(view.Child);
 
-        Assert.Equal(3, grid.ColumnDefinitions.Count);
-        Assert.Single(grid.Children.OfType<GridSplitter>());
+        Assert.Equal(5, grid.ColumnDefinitions.Count);
+        Assert.Equal(2, grid.Children.OfType<GridSplitter>().Count());
+
+        // Доли — звёздочные у всех трёх областей: пикселей движок не выдаёт
+        // никому, иначе сплиттер, дотянувшись, отдал бы место в обход долей.
+        Assert.All(
+            new[] { 0, 2, 4 },
+            at => Assert.Equal(GridUnitType.Star, grid.ColumnDefinitions[at].Width.GridUnitType));
+
         Assert.Equal(0.3, grid.ColumnDefinitions[0].Width.Value, 6);
         Assert.Equal(1, grid.ColumnDefinitions[1].Width.Value);
-        Assert.Equal(0.7, grid.ColumnDefinitions[2].Width.Value, 6);
+        Assert.Equal(0.3, grid.ColumnDefinitions[2].Width.Value, 6);
+        Assert.Equal(1, grid.ColumnDefinitions[3].Width.Value);
+        Assert.Equal(0.4, grid.ColumnDefinitions[4].Width.Value, 6);
     }
 
     /// <summary>
@@ -513,6 +527,182 @@ public class DockViewTests
     }
 
     /// <summary>
+    /// Место соседа, которого нет на экране, на экране берёт пол рабочей области.
+    /// </summary>
+    /// <remarks>
+    /// Доли сетки — звёздочные, а звёздочные приводятся к сумме показанных: не
+    /// вмешайся мы, из <c>[0.2 | 0.6 | 0.2]</c> без правой вышло бы
+    /// <c>[0.25 | 0.75]</c>, и боковая панель, которой человек не касался,
+    /// стала бы шире на четверть. В дереве её доля при этом остаётся прежней —
+    /// правило одно и то же, просто здесь оно про показ, а не про правку.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_floor_takes_the_room_of_a_neighbour_that_is_not_on_screen()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children =
+            [
+                new DockGroup { Id = "left", Items = ["solution"], Selected = "solution" },
+                new DockGroup { Id = "documents", Items = ["a.axaml"], Selected = "a.axaml" },
+                new DockGroup { Id = "right", Items = ["gone"], Selected = "gone" },
+            ],
+            Weights = [0.2, 0.6, 0.2],
+        };
+
+        // Панели «gone» среди живых нет: её плагин выключен.
+        var (view, _) = Shown(root, "solution", "a.axaml");
+
+        view.EmptyGroup = "documents";
+        Dispatcher.UIThread.RunJobs();
+
+        var grid = Assert.IsType<Grid>(view.Child);
+
+        Assert.Equal(3, grid.ColumnDefinitions.Count);
+        Assert.Equal(0.2, grid.ColumnDefinitions[0].Width.Value, 6);
+        Assert.Equal(0.8, grid.ColumnDefinitions[2].Width.Value, 6);
+
+        // В дереве доля ушедшей осталась при ней — вернётся прежней ширины.
+        Assert.Equal([0.2, 0.6, 0.2], ((DockSplit)view.Root!).Weights.Select(w => Math.Round(w, 6)));
+    }
+
+    /// <summary>
+    /// Потянутая граница возвращается в дерево ровно тем, что видно на экране.
+    /// </summary>
+    /// <remarks>
+    /// Пол рабочей области показан шире своей доли — он взял место соседа,
+    /// которого нет на экране. Значит и обратный путь обязан снять эту добавку,
+    /// иначе первое же перетаскивание тихо съело бы долю отсутствующего, и
+    /// панель, вернувшись, встала бы шириной в ноль.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_drag_gives_the_tree_back_what_the_screen_showed()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children =
+            [
+                new DockGroup { Id = "left", Items = ["solution"], Selected = "solution" },
+                new DockGroup { Id = "documents", Items = ["a.axaml"], Selected = "a.axaml" },
+                new DockGroup { Id = "right", Items = ["gone"], Selected = "gone" },
+            ],
+            Weights = [0.2, 0.6, 0.2],
+        };
+
+        var (view, _) = Shown(root, "solution", "a.axaml");
+
+        view.EmptyGroup = "documents";
+        Dispatcher.UIThread.RunJobs();
+
+        view.Resized += (_, resize) => view.Root = DockTree.Resize(view.Root!, resize.Path, resize.Weights);
+
+        var window = Assert.IsAssignableFrom<Window>(TopLevel.GetTopLevel(view));
+        var splitter = Assert.IsType<Grid>(view.Child).Children.OfType<GridSplitter>().Single();
+        var grip = splitter.TranslatePoint(
+            new Point(splitter.Bounds.Width / 2, splitter.Bounds.Height / 2), window);
+
+        Assert.NotNull(grip);
+
+        window.MouseMove(grip.Value);
+        window.MouseDown(grip.Value, MouseButton.Left);
+
+        for (var step = 1; step <= 4; step++)
+            window.MouseMove(grip.Value.WithX(grip.Value.X + (step * 45)));
+
+        window.MouseUp(grip.Value.WithX(grip.Value.X + 180), MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        var after = Assert.IsType<DockSplit>(view.Root);
+        var grown = Assert.IsType<Grid>(view.Child);
+
+        // Доля отсутствующего не тронута — это и есть её сохранность.
+        Assert.Equal(3, after.Weights.Count);
+        Assert.Equal(0.2, after.Weights[2], 6);
+
+        // Левая выросла, а показанное совпало с тем, что записано в дерево.
+        Assert.True(after.Weights[0] > 0.2, $"левая доля осталась {after.Weights[0]:0.000}");
+        Assert.Equal(after.Weights[0], grown.ColumnDefinitions[0].Width.Value, 6);
+        Assert.Equal(after.Weights[1] + 0.2, grown.ColumnDefinitions[2].Width.Value, 6);
+    }
+
+    /// <summary>
+    /// Границу нельзя утянуть за место, которое пол держит за отсутствующих.
+    /// </summary>
+    /// <remarks>
+    /// На экране пол шире своей доли, и границу можно дотянуть туда, где его
+    /// собственная доля выходит отрицательной. Такому экрану нет соответствия в
+    /// дереве: прежде отрицательную долю молча обращала в ноль
+    /// <c>Normalize</c>, и стоило вернуть скрытую панель, как область
+    /// документов раскладывалась шириной в ноль. Теперь правка отклоняется
+    /// целиком — граница отскакивает к пределу, а доли остаются те же.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_floor_never_goes_below_nothing_however_far_the_border_is_dragged()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children =
+            [
+                new DockGroup { Id = "left", Items = ["solution"], Selected = "solution" },
+                new DockGroup { Id = "documents", Items = ["a.axaml"], Selected = "a.axaml" },
+                new DockGroup { Id = "right", Items = ["gone"], Selected = "gone" },
+            ],
+            Weights = [0.18, 0.60, 0.22],
+        };
+
+        var (view, _) = Shown(root, "solution", "a.axaml");
+
+        view.EmptyGroup = "documents";
+        Dispatcher.UIThread.RunJobs();
+
+        view.Resized += (_, resize) => view.Root = DockTree.Resize(view.Root!, resize.Path, resize.Weights);
+
+        var window = Assert.IsAssignableFrom<Window>(TopLevel.GetTopLevel(view));
+        var splitter = Assert.IsType<Grid>(view.Child).Children.OfType<GridSplitter>().Single();
+        var grip = splitter.TranslatePoint(
+            new Point(splitter.Bounds.Width / 2, splitter.Bounds.Height / 2), window);
+
+        Assert.NotNull(grip);
+
+        window.MouseMove(grip.Value);
+        window.MouseDown(grip.Value, MouseButton.Left);
+
+        // Тянем до упора вправо — пол на экране становится уже своей доли.
+        for (var step = 1; step <= 10; step++)
+            window.MouseMove(grip.Value.WithX(grip.Value.X + (step * 65)));
+
+        window.MouseUp(grip.Value.WithX(grip.Value.X + 650), MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        var after = Assert.IsType<DockSplit>(view.Root);
+
+        Assert.Equal(3, after.Weights.Count);
+
+        // Доля отсутствующего не тронута — панель вернётся прежней ширины.
+        Assert.Equal(0.22, after.Weights[2], 6);
+
+        // И пол не обнулён: вернув скрытую панель, документы не исчезнут.
+        Assert.True(after.Weights[1] > 0, $"доля пола обратилась в {after.Weights[1]:0.0000}");
+
+        // Возвращаем скрытую и убеждаемся, что документам есть где стоять.
+        var items = new DockItems();
+
+        foreach (var id in new[] { "solution", "a.axaml", "gone" })
+            items.Add("hello", new DockItem(id, new Border()) { Title = id });
+
+        view.Items = items;
+        Dispatcher.UIThread.RunJobs();
+
+        var columns = Assert.IsType<Grid>(view.Child).ColumnDefinitions;
+
+        Assert.Equal(5, columns.Count);
+        Assert.True(columns[2].Width.Value > 0, "область документов раскладывается шириной в ноль");
+    }
+
+    /// <summary>
     /// Спрятанный сосед сохраняет свою долю, когда границу тянут без него.
     /// </summary>
     /// <remarks>
@@ -865,7 +1055,7 @@ public class DockViewTests
     /// двенадцать пикселей отделяли вкладки от пустоты, съедая место, на которое
     /// их и помещается на одну больше.
     /// <para>
-    /// Правый край шапки занимает кнопка уборки, и вкладки кончаются ровно
+    /// Правый край шапки занимает кнопка «скрыть», и вкладки кончаются ровно
     /// у неё: пустого места между ними быть не должно по той же причине.
     /// </para>
     /// </remarks>
@@ -883,12 +1073,12 @@ public class DockViewTests
         var corner = strip.TranslatePoint(default, header);
         var button = group.GetVisualDescendants()
             .OfType<AxButton>()
-            .Single(candidate => candidate.Name == "PART_Stow");
+            .Single(candidate => candidate.Name == "PART_Hide");
         var edge = button.TranslatePoint(default, header);
 
         Assert.NotNull(corner);
         Assert.NotNull(edge);
-        Assert.True(button.IsVisible, "кнопка уборки спряталась у группы с соседом");
+        Assert.True(button.IsVisible, "кнопка «скрыть» спряталась у группы, которой есть что скрыть");
 
         // Ровно отступ шапки — и ни пикселем больше.
         Assert.Equal(header.Padding.Left, corner.Value.X);

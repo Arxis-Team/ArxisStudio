@@ -148,6 +148,50 @@ public class DockLayoutSerializerTests
         Assert.Equal(["console"], ((DockGroup)layout.Current!.Root).Items);
     }
 
+    /// <summary>
+    /// Раскладка времён реек открывается, а рейка из неё молча пропадает.
+    /// </summary>
+    /// <remarks>
+    /// Версию формата не поднимали ни когда поле завели, ни когда убрали, и
+    /// причина одна: калитка наказывает не того. Поднятая версия заставила бы
+    /// студию постарше вернуть <see cref="DockLayoutProblem.Newer"/> и
+    /// выбросить раскладку целиком — вместо того чтобы потерять одно поле,
+    /// человек потерял бы все свои панели.
+    /// <para>
+    /// Обе стороны деградируют мягко: незнакомое поле разбор пропускает, а
+    /// группа встаёт в дерево — то есть туда, где панель и видно. Проверяется
+    /// именно это, а не отсутствие поля: свойства, о котором спрашивать, в
+    /// модели больше нет.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_layout_from_the_days_of_rails_still_opens()
+    {
+        const string Text = """
+            {
+              "version": 1,
+              "active": "default",
+              "layouts": {
+                "default": {
+                  "root": {
+                    "kind": "group", "id": "left", "items": ["solution"],
+                    "selected": "solution", "rail": "left"
+                  }
+                }
+              }
+            }
+            """;
+
+        var after = DockLayoutSerializer.Read(Text, out var problem);
+
+        Assert.Equal(DockLayoutProblem.None, problem);
+
+        var group = Assert.IsType<DockGroup>(after!.Current!.Root);
+
+        Assert.Equal(["solution"], group.Items);
+        Assert.Equal("solution", group.Selected);
+    }
+
     private static DockLayout Sample() => new()
     {
         Active = "work",

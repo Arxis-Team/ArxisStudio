@@ -23,7 +23,7 @@ public class DockGroupView : TemplatedControl
     private readonly List<IDisposable> _bound = [];
     private AxTabStrip? _tabs;
     private ContentControl? _content;
-    private Button? _stow;
+    private Button? _hide;
     /// <summary>
     /// Есть ли в группе хоть одна вкладка.
     /// </summary>
@@ -59,14 +59,14 @@ public class DockGroupView : TemplatedControl
         AvaloniaProperty.Register<DockGroupView, object?>(nameof(Actions));
 
     /// <summary>
-    /// Показывать ли кнопку уборки на рейку.
+    /// Показывать ли кнопку «скрыть панель».
     /// </summary>
     /// <remarks>
-    /// Убирать имеет смысл там, где освободившееся место кому-то достанется:
-    /// у группы должен быть сосед. Одинокая группа, ушедшая на рейку, оставила
-    /// бы под собой пустоту, а пол рабочей области не убирается вовсе —
-    /// документы не прячут. Нет реек — нет и кнопки: в оторванном окне убранной
-    /// панели неоткуда было бы вернуться.
+    /// Пол рабочей области ею не прячут — документы не скрывают, — как и
+    /// группу, в которой скрывать нечего. Всякая другая прячется, даже
+    /// одинокая: имя её остаётся в дереве вместе с местом и долей, и вернуть
+    /// панель есть откуда. У дерева оторванного окна кнопки нет вовсе:
+    /// «скрыть» у него стоит в шапке самого окна.
     /// <para>
     /// Показ кнопки ставит код, а не привязка в шаблоне. Содержимое шапки
     /// переезжает в шаблон <c>AxToolWindow</c>, и хозяин шаблона у переехавшего
@@ -75,12 +75,24 @@ public class DockGroupView : TemplatedControl
     /// нажимать её было некуда.
     /// </para>
     /// </remarks>
-    public static readonly StyledProperty<bool> CanStowProperty =
-        AvaloniaProperty.Register<DockGroupView, bool>(nameof(CanStow));
+    public static readonly StyledProperty<bool> CanHideProperty =
+        AvaloniaProperty.Register<DockGroupView, bool>(nameof(CanHide));
 
-    /// <summary>Подпись кнопки уборки.</summary>
-    public static readonly StyledProperty<string?> StowTitleProperty =
-        AvaloniaProperty.Register<DockGroupView, string?>(nameof(StowTitle));
+    /// <summary>Подпись кнопки скрытия.</summary>
+    public static readonly StyledProperty<string?> HideTitleProperty =
+        AvaloniaProperty.Register<DockGroupView, string?>(nameof(HideTitle));
+
+    /// <summary>
+    /// Имена панелей, которые убраны с глаз.
+    /// </summary>
+    /// <remarks>
+    /// Вкладки им не достаётся, а имя в группе остаётся: по нему панель
+    /// вернётся на своё место в полосе. Ровно так же ведёт себя имя панели
+    /// выключенного плагина, и <see cref="Slot"/> считает место в полосе по
+    /// счёту дерева именно поэтому.
+    /// </remarks>
+    public static readonly StyledProperty<IReadOnlySet<string>?> HiddenProperty =
+        AvaloniaProperty.Register<DockGroupView, IReadOnlySet<string>?>(nameof(Hidden));
 
     private bool _hasTabs;
     private DockGroup? _group;
@@ -97,17 +109,17 @@ public class DockGroupView : TemplatedControl
     public event EventHandler<string>? Closing;
 
     /// <summary>
-    /// Человек попросил убрать группу на рейку.
+    /// Человек попросил скрыть группу.
     /// </summary>
     /// <remarks>
-    /// Как и с закрытием, вид только просит: рейка живёт в дереве раскладки, и
-    /// записать её может лишь тот, кто деревом владеет.
+    /// Как и с закрытием, вид только просит: какие панели лежат в группе, знает
+    /// хозяин дерева — он же держит список скрытых.
     /// <para>
-    /// Просьба односторонняя — вернуть себя вид не может: убранная группа с
-    /// экрана уходит, и просить за неё некому, кроме кнопки на рейке.
+    /// Просьба односторонняя — вернуть себя вид не может: скрытая группа
+    /// уходит с экрана целиком, и просить за неё некому, кроме меню «Панели».
     /// </para>
     /// </remarks>
-    public event EventHandler? StowRequested;
+    public event EventHandler? HideRequested;
 
     /// <summary>Человек выбрал вкладку; в поле — имя панели.</summary>
     /// <remarks>
@@ -134,18 +146,25 @@ public class DockGroupView : TemplatedControl
         set => SetValue(ActionsProperty, value);
     }
 
-    /// <inheritdoc cref="CanStowProperty"/>
-    public bool CanStow
+    /// <inheritdoc cref="CanHideProperty"/>
+    public bool CanHide
     {
-        get => GetValue(CanStowProperty);
-        set => SetValue(CanStowProperty, value);
+        get => GetValue(CanHideProperty);
+        set => SetValue(CanHideProperty, value);
     }
 
-    /// <inheritdoc cref="StowTitleProperty"/>
-    public string? StowTitle
+    /// <inheritdoc cref="HideTitleProperty"/>
+    public string? HideTitle
     {
-        get => GetValue(StowTitleProperty);
-        set => SetValue(StowTitleProperty, value);
+        get => GetValue(HideTitleProperty);
+        set => SetValue(HideTitleProperty, value);
+    }
+
+    /// <inheritdoc cref="HiddenProperty"/>
+    public IReadOnlySet<string>? Hidden
+    {
+        get => GetValue(HiddenProperty);
+        set => SetValue(HiddenProperty, value);
     }
 
     /// <inheritdoc cref="HasTabsProperty"/>
@@ -271,18 +290,18 @@ public class DockGroupView : TemplatedControl
         if (_tabs is not null)
             _tabs.SelectionChanged -= OnChosen;
 
-        if (_stow is not null)
-            _stow.Click -= OnStow;
+        if (_hide is not null)
+            _hide.Click -= OnHide;
 
         _tabs = e.NameScope.Find<AxTabStrip>("PART_Tabs");
         _content = e.NameScope.Find<ContentControl>("PART_Content");
-        _stow = e.NameScope.Find<Button>("PART_Stow");
+        _hide = e.NameScope.Find<Button>("PART_Hide");
 
         if (_tabs is not null)
             _tabs.SelectionChanged += OnChosen;
 
-        if (_stow is not null)
-            _stow.Click += OnStow;
+        if (_hide is not null)
+            _hide.Click += OnHide;
 
         Describe();
 
@@ -306,10 +325,11 @@ public class DockGroupView : TemplatedControl
 
             foreach (var id in _group.Items)
             {
-                // Панели может не быть: плагин выключили, а имя в дереве
-                // осталось — чтобы панель вернулась на своё место, когда его
-                // включат обратно.
-                if (_items.Find(id) is not { } item)
+                // Показать может быть нечего, и по двум причинам: плагин
+                // выключили, и живого контрола за именем нет; либо человек
+                // убрал панель с глаз. Имя в группе в обоих случаях остаётся —
+                // чтобы панель вернулась на своё место в полосе.
+                if (_items.Find(id) is not { } item || Hidden?.Contains(id) == true)
                     continue;
 
                 // Класс compact — это и есть вкладка в шапке панели: тема
@@ -394,40 +414,39 @@ public class DockGroupView : TemplatedControl
     {
         base.OnPropertyChanged(change);
 
-        if (change.Property == StowTitleProperty || change.Property == CanStowProperty)
+        if (change.Property == HideTitleProperty || change.Property == CanHideProperty)
         {
             Describe();
         }
     }
 
     /// <summary>
-    /// Показывает кнопку уборки, когда ей есть что сделать, и подписывает её.
+    /// Показывает кнопку скрытия, когда ей есть что сделать, и подписывает её.
     /// </summary>
     /// <remarks>
     /// И показ, и подпись ставит код: содержимое шапки переезжает в шаблон
     /// <c>AxToolWindow</c>, и <c>TemplateBinding</c> оттуда своего свойства уже
     /// не находит — молча, без единой жалобы.
     /// <para>
-    /// Подпись у кнопки одна и смысл один — убрать группу на рейку. Она же
-    /// подсказка и она же имя для средств доступности: на кнопке значок 12×12,
-    /// и узнать о ней больше неоткуда. Прежде смыслов было два, и они менялись
-    /// местами вместе со свёрнутостью; возвращает панель теперь кнопка на
-    /// рейке — а у неё своя подпись, имя самой панели.
+    /// Подпись у кнопки одна и смысл один — скрыть группу. Она же подсказка и
+    /// она же имя для средств доступности: на кнопке значок 12×12, и узнать о
+    /// ней больше неоткуда. Дорога назад у скрытой панели своя и не здесь — из
+    /// меню «Панели».
     /// </para>
     /// </remarks>
     private void Describe()
     {
-        if (_stow is null)
+        if (_hide is null)
             return;
 
-        _stow.IsVisible = CanStow;
+        _hide.IsVisible = CanHide;
 
-        ToolTip.SetTip(_stow, StowTitle);
-        AutomationProperties.SetName(_stow, StowTitle ?? string.Empty);
+        ToolTip.SetTip(_hide, HideTitle);
+        AutomationProperties.SetName(_hide, HideTitle ?? string.Empty);
     }
 
-    /// <summary>Кнопка в шапке просит убрать группу на рейку.</summary>
-    private void OnStow(object? sender, RoutedEventArgs e) => StowRequested?.Invoke(this, EventArgs.Empty);
+    /// <summary>Кнопка в шапке просит скрыть группу.</summary>
+    private void OnHide(object? sender, RoutedEventArgs e) => HideRequested?.Invoke(this, EventArgs.Empty);
 
     private void OnChosen(object? sender, SelectionChangedEventArgs e)
     {

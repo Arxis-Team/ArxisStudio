@@ -486,144 +486,6 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
-    /// Убранная панель остаётся убранной и после перезапуска.
-    /// </summary>
-    /// <remarks>
-    /// Кнопка в шапке только просит: сторону записывает в дерево студия, и она
-    /// же уносит её в файл вместе с остальной раскладкой. Разорвись эта дорога
-    /// — панель возвращалась бы на экран при каждом запуске, а человек убирал
-    /// бы её заново.
-    /// </remarks>
-    [AvaloniaFact]
-    public void A_stowed_panel_comes_back_stowed()
-    {
-        var store = new DockLayoutStore(File);
-        var (first, view, _) = Two(store);
-        var group = view.View("left")!;
-
-        Assert.True(group.CanStow, "у панели с соседом нет кнопки уборки");
-
-        var button = group.GetVisualDescendants().OfType<AxButton>().Single(item => item.Name == "PART_Stow");
-
-        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        Dispatcher.UIThread.RunJobs();
-
-        Assert.Equal(
-            DockSide.Left,
-            view.Root!.Groups().Single(candidate => candidate.Id == "left").Rail);
-
-        first.Flush();
-
-        var (second, next) = Dock(new DockLayoutStore(File));
-
-        second.Restore();
-        second.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
-        second.Add("friend", "friend:tips", At("right"), "Советы", Strings, new Border());
-        Dispatcher.UIThread.RunJobs();
-
-        Assert.Equal(
-            DockSide.Left,
-            next.Root!.Groups().Single(candidate => candidate.Id == "left").Rail);
-
-        // Убранной группы на экране нет вовсе: её место у соседа, а размер
-        // ждёт в дереве.
-        Assert.Null(next.View("left"));
-    }
-
-    /// <summary>
-    /// Убранная панель встаёт кнопкой на рейку своей стороны и возвращается щелчком.
-    /// </summary>
-    /// <remarks>
-    /// Рейка — единственная дорога назад: убранной группы на экране нет, и в
-    /// дереве от неё остаётся одно имя. Разорвись эта дорога — кнопка «убрать»
-    /// стала бы кнопкой «потерять».
-    /// </remarks>
-    [AvaloniaFact]
-    public void A_stowed_panel_waits_on_the_rail_of_its_side()
-    {
-        var (dock, view, _) = Two();
-
-        Assert.Empty(dock.Stowed(DockSide.Left));
-
-        view.Root = DockTree.Stow(view.Root!, "left", DockSide.Left);
-        Settle();
-
-        var button = Assert.Single(dock.Stowed(DockSide.Left));
-
-        Assert.Equal("left", button.Group);
-        Assert.Equal("hello:tree", button.Item.Id);
-        Assert.Empty(dock.Stowed(DockSide.Right));
-
-        dock.Unstow(button);
-        Settle();
-
-        Assert.Empty(dock.Stowed(DockSide.Left));
-        Assert.NotNull(view.View("left"));
-    }
-
-    /// <summary>
-    /// Панели выключенного плагина кнопки на рейке не достаётся.
-    /// </summary>
-    /// <remarks>
-    /// За её именем нет контрола, и по щелчку человек получил бы пустое место
-    /// вместо панели. Место в дереве при этом за ней числится — плагин
-    /// включат, и она вернётся на рейку сама.
-    /// </remarks>
-    [AvaloniaFact]
-    public void A_dead_panel_gets_no_button_on_the_rail()
-    {
-        var (dock, view, _) = Two();
-
-        view.Root = DockTree.Stow(view.Root!, "left", DockSide.Left);
-        Settle();
-
-        Assert.Single(dock.Stowed(DockSide.Left));
-
-        dock.RemoveOwnedBy("hello");
-        Settle();
-
-        Assert.Empty(dock.Stowed(DockSide.Left));
-
-        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
-        Settle();
-
-        Assert.Single(dock.Stowed(DockSide.Left));
-    }
-
-    /// <summary>
-    /// Оболочку зовут пересобрать рейки на каждой правке раскладки.
-    /// </summary>
-    /// <remarks>
-    /// Рейки живут снаружи дерева, и другого способа узнать о правке у них нет.
-    /// Молчание здесь выглядит как пропавшая панель: с экрана она ушла, а
-    /// кнопки не появилось.
-    /// </remarks>
-    [AvaloniaFact]
-    public void The_shell_hears_about_every_shift()
-    {
-        var (dock, view, _) = Two();
-        var heard = 0;
-
-        dock.Shifted += (_, _) => heard++;
-
-        view.Root = DockTree.Stow(view.Root!, "left", DockSide.Left);
-        Settle();
-
-        Assert.Equal(0, heard);
-
-        dock.Unstow(Assert.Single(dock.Stowed(DockSide.Left)));
-        Settle();
-
-        Assert.True(heard > 0, "правку дерева оболочка не услышала");
-
-        heard = 0;
-        dock.RemoveOwnedBy("hello");
-        Settle();
-
-        Assert.True(heard > 0, "выключение плагина оболочка не услышала");
-    }
-
-    /// <summary>
     /// Панель, закрытую крестиком, возвращает меню — и на объявленное место.
     /// </summary>
     /// <remarks>
@@ -644,29 +506,476 @@ public class StudioDockTests : IDisposable
         Settle();
 
         Assert.Null(view.View("left"));
-        Assert.Null(DockTree.Holder(view.Root!, "hello:tree"));
         Assert.False(dock.Panels.Single(panel => panel.Id == "hello:tree").Standing);
 
-        // Контрол при этом никуда не делся: панель закрыта, а не выброшена.
+        // Контрол при этом никуда не делся: панель убрана, а не выброшена. Имя
+        // тоже осталось в дереве — там её место и доля её группы, и по ним она
+        // и вернётся.
         Assert.NotNull(dock.Items.Find("hello:tree"));
+        Assert.Equal("left", DockTree.Holder(view.Root!, "hello:tree")?.Id);
 
         dock.Reopen("hello:tree");
         Settle();
 
-        // На объявленное место, а не куда придётся: панель просилась влево.
+        // Туда же, где стояла.
         Assert.Equal("left", DockTree.Holder(view.Root!, "hello:tree")?.Id);
         Assert.NotNull(view.View("left"));
         Assert.True(dock.Panels.Single(panel => panel.Id == "hello:tree").Standing);
     }
 
     /// <summary>
+    /// Панель, убранную в оторванном окне, меню возвращает вместе с окном.
+    /// </summary>
+    /// <remarks>
+    /// Окно уходит с экрана, когда показывать в нём нечего, — и это правильно.
+    /// Но имя убранной панели осталось в его дереве, поэтому возврат не ставит
+    /// панель заново, а показывает прежнее место; позвать окно обратно при этом
+    /// некому, кроме самого возврата. Без этого панель числилась стоящей, а не
+    /// было её нигде: у оторванного окна нет ни кнопки в панели задач, ни места
+    /// в Alt+Tab, и найти его человеку было нечем.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_panel_hidden_in_a_torn_off_window_comes_back_with_its_window()
+    {
+        var (dock, view, window) = Two();
+
+        Tear(view, window, "left");
+        Settle();
+
+        var torn = Assert.Single(dock.Floating);
+
+        Assert.True(torn.IsVisible, "оторванное окно не показалось");
+
+        // Крестик на вкладке, а не кнопка шапки: он зовёт Hide, а не Conceal.
+        dock.Hide("hello:tree");
+        Settle();
+
+        Assert.False(torn.IsVisible, "окно осталось на экране, хотя показывать в нём нечего");
+        Assert.False(dock.Panels.Single(panel => panel.Id == "hello:tree").Standing);
+
+        dock.Reopen("hello:tree");
+        Settle();
+
+        Assert.True(torn.IsVisible, "окно не вернулось — панель числится стоящей, а её нигде нет");
+        Assert.True(dock.Panels.Single(panel => panel.Id == "hello:tree").Standing);
+
+        // И панель снова на экране — в том же окне, где её убрали.
+        var home = DockTree.Holder(torn.View.Root!, "hello:tree");
+
+        Assert.NotNull(home);
+        Assert.NotNull(torn.View.View(home.Id));
+    }
+
+    /// <summary>
+    /// Просьба плагина показать панель не отменяет решения человека убрать её.
+    /// </summary>
+    /// <remarks>
+    /// Показать просит плагин — службой <c>IStudioToolWindows</c>, из
+    /// <c>Activate</c> в том числе, — а убрал панель человек. Отменяй студия
+    /// его решение, панель возвращалась бы с каждым запуском, и убирать её
+    /// приходилось бы каждое утро. Дорога назад одна и она человеческая: меню
+    /// «Панели».
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_request_to_show_does_not_undo_a_hide()
+    {
+        var (dock, view, _) = Two();
+
+        dock.Hide("hello:tree");
+        Settle();
+
+        dock.Show("hello:tree");
+        Settle();
+
+        Assert.Null(view.View("left"));
+        Assert.False(dock.Panels.Single(panel => panel.Id == "hello:tree").Standing);
+
+        // А из меню — возвращается.
+        dock.Reopen("hello:tree");
+        Settle();
+
+        Assert.NotNull(view.View("left"));
+    }
+
+    /// <summary>
+    /// Скрытие группы записывается и за панель выключенного плагина.
+    /// </summary>
+    /// <remarks>
+    /// Живого контрола за её именем нет, но имя в дереве есть, и решение
+    /// человека надо записать: иначе группа исчезает с экрана, не будучи
+    /// убранной, и возвращается сама, стоит включить плагин обратно.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Hiding_a_group_sticks_even_for_a_panel_whose_plugin_is_off()
+    {
+        var (dock, view, _) = Two();
+
+        dock.Add("friend", "friend:extra", At("left"), "Ещё", Strings, new Border());
+        Settle();
+
+        // Плагин выключили: контрол ушёл, имя в дереве осталось.
+        dock.RemoveOwnedBy("friend");
+        Settle();
+
+        Assert.Equal(["hello:tree", "friend:extra"], DockTree.Group(view.Root!, "left")!.Items);
+
+        dock.Hide("hello:tree");
+        dock.Hide("friend:extra");
+        Settle();
+
+        Assert.Null(view.View("left"));
+
+        // Плагин вернулся — панель осталась убранной, как её и убрали.
+        dock.Add("friend", "friend:extra", At("left"), "Ещё", Strings, new Border());
+        Settle();
+
+        Assert.Null(view.View("left"));
+        Assert.False(dock.Panels.Single(panel => panel.Id == "friend:extra").Standing);
+    }
+
+    /// <summary>
+    /// Оторванное окно с документом кнопка «скрыть» не закрывает.
+    /// </summary>
+    /// <remarks>
+    /// Документ <c>Hide</c> пропускает — за ним стоит файл. Закрой кнопка окно
+    /// всё равно, она сделала бы работу соседней, «вернуть в студию»: две
+    /// кнопки, делающие одно, это и есть недосмотр, которого в этой шапке как
+    /// раз и не должно быть.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Hiding_a_float_that_holds_a_document_leaves_it_alone()
+    {
+        var (dock, view, window) = Two();
+
+        dock.Open("hello", "doc:a.axaml", "a.axaml", new Border());
+        Settle();
+
+        Tear(view, window, StudioDock.Documents);
+        Settle();
+
+        var torn = Assert.Single(dock.Floating);
+
+        Press(Chrome(torn)[1]);
+        Settle();
+
+        Assert.Single(dock.Floating);
+        Assert.True(torn.IsVisible, "окно с документом закрылось от кнопки «скрыть»");
+        Assert.NotNull(DockTree.Holder(torn.View.Root!, "doc:a.axaml"));
+    }
+
+    /// <summary>
+    /// Показанным не считается имя, которого нет на экране.
+    /// </summary>
+    /// <remarks>
+    /// Выбор в группе остаётся за убранной панелью — имя её из дерева не
+    /// уходит. Назови студия её показанной, и тот, кто спрашивал, показал бы не
+    /// то, что видит человек: соседний документ так и не получил бы
+    /// <c>OnActivated</c>, а строка состояния осталась бы с прежним путём.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_shown_name_is_never_one_that_is_off_screen()
+    {
+        var (dock, view, _) = Two();
+
+        dock.Open("hello", "doc:a.axaml", "a.axaml", new Border());
+        Settle();
+
+        Assert.Equal("doc:a.axaml", dock.Showing);
+
+        // Панель переезжает в область документов и становится выбранной.
+        view.Root = DockTree.Attach(
+            DockTree.Remove(view.Root!, "hello:tree", new HashSet<string> { StudioDock.Documents }),
+            StudioDock.Documents,
+            "hello:tree");
+        Settle();
+
+        Assert.Equal("hello:tree", DockTree.Group(view.Root!, StudioDock.Documents)!.Selected);
+
+        dock.Hide("hello:tree");
+        Settle();
+
+        Assert.NotEqual("hello:tree", dock.Showing);
+    }
+
+    /// <summary>
+    /// Имя документа из прежнего сеанса скрыть нельзя.
+    /// </summary>
+    /// <remarks>
+    /// Имя документа приезжает в дереве из файла раскладки, а сам документ при
+    /// запуске никто не открывает: списка открытых у студии в этом сеансе ещё
+    /// нет, и запрет на документы такое имя не поймал бы. Уйди оно в убранные —
+    /// вернуть было бы нечем: документов в меню «Панели» нет, и человек остался
+    /// бы с файлом, который открывается в пустоту. Поэтому скрыть можно лишь
+    /// то, о чём студия знает как о панели.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_document_name_left_by_an_earlier_session_cannot_be_hidden()
+    {
+        var store = new DockLayoutStore(File);
+        var (first, _, _) = Two(store);
+
+        first.Open("hello", "doc:a.axaml", "a.axaml", new Border());
+        Settle();
+        first.Flush();
+
+        // Новый сеанс: дерево прочитано, панели заявлены, документ — нет.
+        var (second, next) = Dock(new DockLayoutStore(File));
+
+        second.Restore();
+        second.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
+        Settle();
+
+        Assert.NotNull(DockTree.Holder(next.Root!, "doc:a.axaml"));
+
+        second.Hide("doc:a.axaml");
+        Settle();
+
+        // Имя осталось не убранным — и документ открывается как обычно.
+        second.Open("hello", "doc:a.axaml", "a.axaml", new Border());
+        Settle();
+
+        Assert.Equal("doc:a.axaml", second.Showing);
+    }
+
+    /// <summary>
+    /// Раскладка студии как она есть: панели по краям, полоса снизу, документы в середине.
+    /// </summary>
+    /// <remarks>
+    /// Плоское деление из двух панелей и документов — не то, что человек видит:
+    /// нижняя полоса делает дерево вложенным, и правила долей и мест ведут себя
+    /// на нём иначе. Проверять их на плоском значит проверять не ту форму.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_panel_hidden_in_a_nested_layout_comes_back_where_it_stood()
+    {
+        var (dock, view, _) = Two();
+
+        dock.Add("term", "term:panel", At("bottom"), "Терминал", Strings, new Border());
+        Settle();
+
+        var before = Widths(view);
+
+        // Форма именно та: четыре группы, и полоса снизу — вложенная.
+        Assert.Equal(
+            ["bottom", StudioDock.Documents, "left", "right"],
+            before.Keys.Order(StringComparer.Ordinal));
+
+        dock.Hide("friend:tips");
+        Settle();
+
+        Assert.Null(view.View("right"));
+        Assert.Equal("right", DockTree.Holder(view.Root!, "friend:tips")?.Id);
+        Assert.Equal(before["left"], Widths(view)["left"], 3);
+
+        dock.Reopen("friend:tips");
+        Settle();
+
+        var after = Widths(view);
+
+        Assert.NotNull(view.View("right"));
+        Assert.NotNull(view.View("left"));
+        Assert.Equal("right", DockTree.Holder(view.Root!, "friend:tips")?.Id);
+        Assert.Equal(before["left"], after["left"], 3);
+        Assert.Equal(before["right"], after["right"], 3);
+    }
+
+    /// <summary>Ширины показанных групп по именам.</summary>
+    private static Dictionary<string, double> Widths(DockView view) =>
+        view.GetVisualDescendants()
+            .OfType<DockGroupView>()
+            .Where(group => group.Id.Length > 0)
+            .ToDictionary(group => group.Id, group => group.Bounds.Width, StringComparer.Ordinal);
+
+    /// <summary>
+    /// Отрыв панели не двигает ширину той, которой не касались.
+    /// </summary>
+    /// <remarks>
+    /// Уходит панель из дерева — уходит и её доля, а привести остальные к
+    /// единице можно двумя способами. Пропорционально: тогда шире становятся
+    /// все, включая боковую панель у другого края окна, до которой человеку
+    /// дела нет. Отдав всё области документов: тогда боковая держит свою
+    /// ширину. Правило то же, что при скрытии, и место ему одно — прибирание
+    /// дерева.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Tearing_a_panel_off_leaves_its_neighbour_the_width_it_had()
+    {
+        var (dock, view, window) = Two();
+
+        var left = view.View("left")!.Bounds.Width;
+
+        Assert.True(left > 0, "левой панели нет на экране — мерить нечего");
+
+        Tear(view, window, "right");
+        Settle();
+
+        Assert.Single(dock.Floating);
+        Assert.Null(view.View("right"));
+        Assert.Equal(left, view.View("left")!.Bounds.Width, 3);
+    }
+
+    /// <summary>
+    /// Скрытая панель возвращается туда же, где стояла, и той же ширины.
+    /// </summary>
+    /// <remarks>
+    /// Имя скрытой панели остаётся в дереве — ровно так же, как имя панели
+    /// выключенного плагина. Оттуда берутся и место, и доля: возврат не ищет
+    /// панели новый дом, а показывает прежний. До этого скрытие снимало имя с
+    /// дерева, и меню ставило панель на объявленное манифестом место — то есть
+    /// куда угодно, кроме того, откуда её убрали.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_hidden_panel_comes_back_where_it_stood()
+    {
+        var (dock, view, _) = Two();
+
+        var before = Assert.IsType<DockSplit>(view.Root).Weights.ToList();
+
+        dock.Hide("friend:tips");
+        Settle();
+
+        // С экрана ушла, из дерева — нет.
+        Assert.Null(view.View("right"));
+        Assert.Equal("right", DockTree.Holder(view.Root!, "friend:tips")?.Id);
+        Assert.Equal(before, Assert.IsType<DockSplit>(view.Root).Weights);
+
+        dock.Reopen("friend:tips");
+        Settle();
+
+        Assert.NotNull(view.View("right"));
+        Assert.Equal("right", DockTree.Holder(view.Root!, "friend:tips")?.Id);
+        Assert.Equal(before, Assert.IsType<DockSplit>(view.Root).Weights);
+    }
+
+    /// <summary>
+    /// Скрытие соседа не двигает ширину той панели, которой не касались.
+    /// </summary>
+    /// <remarks>
+    /// Жалоба, с которой начался разбор: скрываешь правую панель — шире
+    /// становится левая. Место скрытой берёт область документов, а боковая
+    /// держит свою ширину; так ведут себя Visual Studio, Rider и Unity.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Hiding_a_panel_leaves_its_neighbour_the_width_it_had()
+    {
+        var (dock, view, _) = Two();
+
+        var left = view.View("left")!.Bounds.Width;
+
+        Assert.True(left > 0, "левой панели нет на экране — мерить нечего");
+
+        dock.Hide("friend:tips");
+        Settle();
+
+        Assert.Null(view.View("right"));
+        Assert.Equal(left, view.View("left")!.Bounds.Width, 3);
+
+        dock.Reopen("friend:tips");
+        Settle();
+
+        Assert.Equal(left, view.View("left")!.Bounds.Width, 3);
+    }
+
+    /// <summary>
+    /// Кнопка в шапке уносит всю группу, а не выбранную вкладку.
+    /// </summary>
+    /// <remarks>
+    /// Кнопка стоит в шапке группы, и человек, нажавший её, убирает то, на что
+    /// смотрит. Так же поступает кнопка «скрыть» в шапке оторванного окна.
+    /// <para>
+    /// Группа уходит с экрана целиком, и её место достаётся полу рабочей
+    /// области — иначе на месте скрытой панели осталась бы пустая колонка. Имя
+    /// её при этом остаётся в дереве, а сами панели живы: скрыты, а не
+    /// выброшены, — и меню возвращает каждую туда же.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_hidden_group_takes_every_panel_with_it()
+    {
+        var (dock, view, _) = Two();
+
+        dock.Add("hello", "hello:notes", At("left"), "Заметки", Strings, new Border());
+        Settle();
+
+        var group = view.View("left")!;
+
+        Assert.Equal(["hello:tree", "hello:notes"], DockTree.Group(view.Root!, "left")!.Items);
+
+        Press(group.GetVisualDescendants().OfType<AxButton>().Single(button => button.Name == "PART_Hide"));
+        Settle();
+
+        // Ушли с экрана обе, а не одна выбранная; имена и место остались за
+        // ними в дереве.
+        Assert.Null(view.View("left"));
+        Assert.NotNull(view.View("right"));
+        Assert.Equal(["hello:tree", "hello:notes"], DockTree.Group(view.Root!, "left")!.Items);
+        Assert.All(
+            new[] { "hello:tree", "hello:notes" },
+            id => Assert.False(dock.Panels.Single(panel => panel.Id == id).Standing));
+
+        // Скрыты, а не выброшены: контролы на месте, меню знает о них.
+        foreach (var id in new[] { "hello:tree", "hello:notes" })
+        {
+            Assert.NotNull(dock.Items.Find(id));
+            Assert.False(dock.Panels.Single(panel => panel.Id == id).Standing);
+
+            dock.Reopen(id);
+            Settle();
+
+            Assert.NotNull(DockTree.Holder(view.Root!, id));
+            Assert.True(dock.Panels.Single(panel => panel.Id == id).Standing);
+        }
+    }
+
+    /// <summary>
+    /// Документ в боковой группе скрытие переживает.
+    /// </summary>
+    /// <remarks>
+    /// Документы не скрывают: у них своя дорога — крестик на вкладке, и он
+    /// спрашивает о несохранённых правках. <c>Hide</c> их пропускает, поэтому
+    /// кнопка в шапке группы, куда переехал документ, уносит панели и оставляет
+    /// его. Кнопка при этом остаётся на месте: группа с документом — не пол
+    /// рабочей области, и прятать в ней есть что.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_document_survives_a_group_being_hidden()
+    {
+        var (dock, view, _) = Two();
+
+        dock.Open("hello", "doc:a.axaml", "a.axaml", new Border());
+        Settle();
+
+        // Документ волен уехать в боковую группу — этим он от панели и не
+        // отличается на вид, а различает их только список открытых. Снять имя
+        // с прежней группы обязательно: Attach убирает его лишь из той, куда
+        // кладёт, и один контрол запросили бы два вида сразу.
+        view.Root = DockTree.Attach(
+            DockTree.Remove(view.Root!, "doc:a.axaml", new HashSet<string> { StudioDock.Documents }),
+            "left",
+            "doc:a.axaml");
+        Settle();
+
+        Assert.Equal(["hello:tree", "doc:a.axaml"], DockTree.Group(view.Root!, "left")!.Items);
+
+        Press(view.View("left")!.GetVisualDescendants().OfType<AxButton>()
+            .Single(button => button.Name == "PART_Hide"));
+        Settle();
+
+        // Документ остался и на экране, и в дереве; панель — только в дереве.
+        Assert.NotNull(view.View("left"));
+        Assert.NotNull(DockTree.Holder(view.Root!, "doc:a.axaml"));
+        Assert.Equal("left", DockTree.Holder(view.Root!, "hello:tree")?.Id);
+        Assert.False(dock.Panels.Single(panel => panel.Id == "hello:tree").Standing);
+    }
+
+    /// <summary>
     /// Закрытая панель остаётся закрытой и после перезапуска.
     /// </summary>
     /// <remarks>
-    /// В дереве её имени нет — но нет его и у панели, которая просто ещё не
-    /// вставала, и такую студия ставит на объявленное место. Не запиши она
-    /// закрытых списком, панель возвращалась бы с каждым запуском, и человек
-    /// закрывал бы её заново каждое утро.
+    /// Имя её в дереве стоит — там её место, — и от панели, стоящей на экране,
+    /// её отличает только список убранных. Не запиши студия его в файл, панель
+    /// возвращалась бы с каждым запуском, и человек убирал бы её заново каждое
+    /// утро.
     /// </remarks>
     [AvaloniaFact]
     public void A_closed_panel_stays_closed_after_a_restart()
@@ -684,8 +993,9 @@ public class StudioDockTests : IDisposable
         second.Add("friend", "friend:tips", At("right"), "Советы", Strings, new Border());
         Settle();
 
-        Assert.Null(DockTree.Holder(next.Root!, "hello:tree"));
-        Assert.NotNull(DockTree.Holder(next.Root!, "friend:tips"));
+        Assert.Null(next.View("left"));
+        Assert.NotNull(next.View("right"));
+        Assert.Equal("left", DockTree.Holder(next.Root!, "hello:tree")?.Id);
         Assert.False(second.Panels.Single(panel => panel.Id == "hello:tree").Standing);
 
         // И возвращается она из меню — там же, где закрытую и ищут.
@@ -696,40 +1006,32 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
-    /// Сброс раскладки возвращает и закрытые, и убранные панели — и говорит об этом.
+    /// Сброс раскладки возвращает скрытые панели.
     /// </summary>
     /// <remarks>
     /// «Как при первом запуске» — значит все панели на местах: при первом
-    /// запуске ни закрытых, ни убранных нет. Иначе сброс, к которому человек
-    /// прибегает, когда потерял панель, как раз её бы и не вернул.
-    /// <para>
-    /// Дерево при сбросе встаёт целиком и мимо <c>Edit</c>, и об этом надо
-    /// сказать отдельно: промолчи раскладка — на рейке остались бы кнопки
-    /// панелей, которые сброс только что вернул на места.
-    /// </para>
+    /// запуске скрытых нет. Иначе сброс, к которому человек прибегает, когда
+    /// потерял панель, как раз её бы и не вернул.
     /// </remarks>
     [AvaloniaFact]
-    public void A_reset_brings_every_panel_back_and_says_so()
+    public void A_reset_brings_every_panel_back()
     {
         var (dock, view, _) = Two();
 
         dock.Hide("hello:tree");
-        view.Root = DockTree.Stow(view.Root!, "right", DockSide.Right);
+        dock.Hide("friend:tips");
         Settle();
 
-        Assert.Null(DockTree.Holder(view.Root!, "hello:tree"));
-        Assert.Single(dock.Stowed(DockSide.Right));
+        Assert.Null(view.View("left"));
+        Assert.Null(view.View("right"));
+        Assert.All(dock.Panels, panel => Assert.False(panel.Standing));
 
-        var heard = 0;
-
-        dock.Shifted += (_, _) => heard++;
         dock.Reset();
         Settle();
 
-        Assert.NotNull(DockTree.Holder(view.Root!, "hello:tree"));
+        Assert.NotNull(view.View("left"));
+        Assert.NotNull(view.View("right"));
         Assert.All(dock.Panels, panel => Assert.True(panel.Standing));
-        Assert.Empty(dock.Stowed(DockSide.Right));
-        Assert.True(heard > 0, "о сбросе оболочке не сказали — рейка осталась со вчерашними кнопками");
     }
 
     /// <summary>
@@ -784,12 +1086,12 @@ public class StudioDockTests : IDisposable
     /// <summary>Кнопки в правом краю шапки оторванного окна, слева направо.</summary>
     /// <param name="window">Оторванное окно.</param>
     /// <remarks>
-    /// Кнопка уборки на рейку сюда не попадает: в оторванном окне её нет, а в
-    /// главном она стоит в той же полосе — отбираем по имени, чтобы тест не
-    /// зависел от порядка детей.
+    /// Кнопка «скрыть» из шапки группы сюда не попадает: в оторванном окне вид
+    /// её прячет, а в главном она стоит в той же полосе — отбираем по имени,
+    /// чтобы тест не зависел от порядка детей.
     /// </remarks>
     private static IReadOnlyList<AxButton> Chrome(DockFloat window) =>
-        [.. window.GetVisualDescendants().OfType<AxButton>().Where(button => button.Name != "PART_Stow")];
+        [.. window.GetVisualDescendants().OfType<AxButton>().Where(button => button.Name != "PART_Hide")];
 
     /// <summary>Нажимает кнопку так, как это делает человек.</summary>
     private static void Press(AxButton button) =>
@@ -992,59 +1294,6 @@ public class StudioDockTests : IDisposable
 
         // Полоса — сосед всего прежнего дерева, а не чьей-то колонки.
         Assert.IsType<DockSplit>(split.Children[1]);
-    }
-
-    /// <summary>
-    /// Вкладка, брошенная на рейку, встаёт полосой с её стороны.
-    /// </summary>
-    /// <remarks>
-    /// Ради этого рейка и стоит снаружи дерева, а не внутри него: точку внутри
-    /// окна, но вне дерева, вид уже считает корневой стыковкой, и бросок на
-    /// рейку работает сам собой. Поставь рейку внутрь вида — и этот бросок
-    /// пришлось бы разбирать отдельно, правя самый рискованный код движка.
-    /// </remarks>
-    [AvaloniaFact]
-    public void A_tab_dropped_on_the_rail_docks_to_that_side()
-    {
-        var rail = new DockRail { Side = DockSide.Left };
-        var view = new DockView();
-        var dock = new StudioDock(view);
-
-        rail[DockPanel.DockProperty] = Avalonia.Controls.Dock.Left;
-
-        var window = new Window
-        {
-            Width = 1200,
-            Height = 800,
-            Content = new DockPanel { Children = { rail, view } },
-        };
-
-        window.Show();
-        dock.Shown();
-
-        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
-        dock.Add("friend", "friend:tips", At("right"), "Советы", Strings, new Border());
-        Settle();
-
-        // Пустая рейка места не занимает, и целиться было бы некуда: сперва
-        // убираем на неё панель — так рейка и появляется у человека.
-        view.Root = DockTree.Stow(view.Root!, "left", DockSide.Left);
-        rail.Update(dock.Stowed(DockSide.Left));
-        Settle();
-
-        Assert.True(rail.Bounds.Width > 0, "рейки на экране нет — бросать не на что");
-
-        DockMouse.Drag(
-            window,
-            DockMouse.Tab(view.View("right")!, 0, window),
-            new Point(rail.Bounds.Width / 2, 400));
-
-        var split = Assert.IsType<DockSplit>(view.Root);
-
-        Assert.Equal(DockOrientation.Horizontal, split.Orientation);
-        Assert.Equal("friend:tips", Assert.IsType<DockGroup>(split.Children[0]).Items.Single());
-
-        window.Close();
     }
 
     /// <summary>
@@ -2410,7 +2659,8 @@ public class StudioDockTests : IDisposable
     {
         var (dock, view, window) = Two();
 
-        view.StowTitle = "Убрать на рейку";
+        view.DockTitle = "Вернуть в студию";
+        view.HideTitle = "Скрыть панель";
 
         var from = DockMouse.Tab(view.View("left")!, 0, window);
 
@@ -2423,13 +2673,16 @@ public class StudioDockTests : IDisposable
 
         var torn = Assert.Single(dock.Floating);
 
-        Assert.Equal("Убрать на рейку", torn.View.StowTitle);
+        Assert.Equal("Вернуть в студию", torn.View.DockTitle);
+        Assert.Equal("Скрыть панель", torn.View.HideTitle);
 
-        // Язык сменился — сменилась и подпись в уже оторванном окне.
-        view.StowTitle = "Hide to the rail";
+        // Язык сменился — сменились и подписи в уже оторванном окне.
+        view.DockTitle = "Dock back into the studio";
+        view.HideTitle = "Hide the panel";
         Settle();
 
-        Assert.Equal("Hide to the rail", torn.View.StowTitle);
+        Assert.Equal("Dock back into the studio", torn.View.DockTitle);
+        Assert.Equal("Hide the panel", torn.View.HideTitle);
     }
 
     /// <summary>Две группы рядом: слева панель одного плагина, справа другого.</summary>
@@ -2540,10 +2793,10 @@ public class StudioDockTests : IDisposable
     /// скрывал.
     /// </para>
     /// <para>
-    /// Каждая из снятых кнопок обещала своё. Рейки у оторванного окна нет, и
-    /// убранной панели неоткуда было бы вернуться. Свёрнутое окно исчезает без
-    /// следа, и найти его человеку нечем. Разворот же остался — жестом, и он
-    /// проверяется отдельно.
+    /// Кнопки «скрыть» в шапке группы здесь тоже нет, и это не пропажа:
+    /// «скрыть» стоит в шапке самого окна и убирает всё, что в нём лежит.
+    /// Свёрнутое окно исчезало бы без следа, и найти его человеку нечем;
+    /// разворот же остался — жестом, и он проверяется отдельно.
     /// </para>
     /// </remarks>
     [AvaloniaFact]
@@ -2560,10 +2813,12 @@ public class StudioDockTests : IDisposable
         var torn = Assert.Single(dock.Floating);
         var group = Assert.Single(torn.View.GetVisualDescendants().OfType<DockGroupView>());
 
-        Assert.False(group.CanStow, "оторванное окно предлагает убрать панель на рейку, которой у него нет");
+        Assert.False(
+            group.CanHide,
+            "оторванное окно предлагает скрыть группу — а кнопка «скрыть» у него уже есть в шапке окна");
         Assert.DoesNotContain(
             torn.GetVisualDescendants().OfType<AxButton>(),
-            button => button.Name == "PART_Stow" && button.IsVisible);
+            button => button.Name == "PART_Hide" && button.IsVisible);
 
         // Кнопок окна нет ни одной: ни своих, ни от AxWindowControls.
         Assert.Empty(torn.GetVisualDescendants().OfType<AxWindowControls>());
@@ -2613,14 +2868,17 @@ public class StudioDockTests : IDisposable
         Press(Chrome(Assert.Single(dock.Floating))[1]);
         Settle();
 
+        // Окно закрылось, а панель ушла домой — в дерево студии, но с глаз.
         Assert.Empty(dock.Floating);
-        Assert.Null(DockTree.Holder(view.Root!, "hello:tree"));
+        Assert.Null(view.View("left"));
+        Assert.Equal("left", DockTree.Holder(view.Root!, "hello:tree")?.Id);
         Assert.False(dock.Panels.Single(panel => panel.Id == "hello:tree").Standing);
 
         // И возвращается она оттуда, куда ушла, — из меню «Панели».
         dock.Reopen("hello:tree");
         Settle();
 
+        Assert.NotNull(view.View("left"));
         Assert.Equal("left", DockTree.Holder(view.Root!, "hello:tree")?.Id);
     }
 

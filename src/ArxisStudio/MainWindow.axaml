@@ -57,45 +57,26 @@
     </ax:StudioShell.TopBar>
 
     <!--
-        Рабочая область — дерево доков и три рейки по её краям. Панели встают в
-        дерево из манифестов, а документы открываются в названную группу;
-        заставка достаётся ей же, пока в ней пусто.
+        Рабочая область — дерево доков. Панели встают в него из манифестов, а
+        документы открываются в названную группу; заставка достаётся ей же,
+        пока в ней пусто.
 
-        Рейки стоят снаружи дерева, а не внутри него. Так они и не занимают
-        места, пока пусты, и получают в подарок стыковку: точку внутри окна, но
-        вне дерева, DockView.Aim считает корневой — вкладка, брошенная на
-        рейку, сама встаёт полосой с этой стороны.
-
-        Их три, а не четыре: сверху стоит полоса инструментов, и убранная вверх
-        панель оказалась бы рейкой под рейкой. Так же считают Visual Studio и
-        Rider.
-
-        Линия у рейки — с той стороны, где начинается рабочая область: рейка
-        принадлежит окну, и от того, что в окне стоит, её отделяет граница.
+        Подписи кнопок дока приходят отсюда: движок докинга о языках студии не
+        знает и знать не должен. Первая достаётся оторванному окну, вторая —
+        и ему, и шапке каждой пристыкованной группы; раскладка переносит их в
+        дерево оторванного окна.
     -->
-    <DockPanel>
-      <ax:DockRail x:Name="RailLeft" DockPanel.Dock="Left" Side="Left" BorderThickness="0,0,1,0"/>
-      <ax:DockRail x:Name="RailRight" DockPanel.Dock="Right" Side="Right" BorderThickness="1,0,0,0"/>
-      <ax:DockRail x:Name="RailBottom" DockPanel.Dock="Bottom" Side="Bottom" BorderThickness="0,1,0,0"/>
-
-      <!--
-          Подписи кнопок дока приходят отсюда: движок докинга о языках студии не
-          знает и знать не должен. Две последние достаются оторванному окну —
-          раскладка переносит их в его дерево.
-      -->
-      <ax:DockView x:Name="Dock"
-                   StowTitle="{ax:Loc action.stow}"
-                   DockTitle="{ax:Loc action.dock}"
-                   HideTitle="{ax:Loc action.hide}">
-        <ax:DockView.Empty>
-          <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
-            <TextBlock Classes="dim" Text="ArxisStudio" FontSize="{DynamicResource AxFontSizeTitle}" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-            <TextBlock Classes="dimmer" Text="{ax:Loc studio.canvas.hint}"
-                       FontSize="{DynamicResource AxFontSizeSmall}" HorizontalAlignment="Center"/>
-          </StackPanel>
-        </ax:DockView.Empty>
-      </ax:DockView>
-    </DockPanel>
+    <ax:DockView x:Name="Dock"
+                 DockTitle="{ax:Loc action.dock}"
+                 HideTitle="{ax:Loc action.hide}">
+      <ax:DockView.Empty>
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+          <TextBlock Classes="dim" Text="ArxisStudio" FontSize="{DynamicResource AxFontSizeTitle}" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+          <TextBlock Classes="dimmer" Text="{ax:Loc studio.canvas.hint}"
+                     FontSize="{DynamicResource AxFontSizeSmall}" HorizontalAlignment="Center"/>
+        </StackPanel>
+      </ax:DockView.Empty>
+    </ax:DockView>
 
     <!-- Статус-бар: 24, как в макете экрана Editor. -->
     <ax:StudioShell.StatusBar>
