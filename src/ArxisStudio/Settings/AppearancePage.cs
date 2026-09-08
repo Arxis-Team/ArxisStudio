@@ -14,7 +14,8 @@ namespace ArxisStudio.Settings;
 /// Единственная страница, чьи правки видны до сохранения, и это не небрежность,
 /// а условие задачи: тему и язык выбирают глазами. Поэтому обе применяются
 /// сразу — предпросмотром, — а записываются только по «Сохранить»; «Отмена»
-/// возвращает то, что было при открытии окна.
+/// возвращает то, что было при открытии окна или с последней записи: удавшееся
+/// «Сохранить» и есть новое «как было».
 /// <para>
 /// Язык при открытии снимается <b>действующий</b>, а не записанный в
 /// настройках: словарь могли удалить, и студия осталась на запасном. Вернув по
@@ -24,9 +25,9 @@ namespace ArxisStudio.Settings;
 public sealed class AppearancePage : ISettingsPage, INotifyPropertyChanged
 {
     private readonly ISettingsStore _studio;
-    private readonly StudioTheme _themeAtOpen;
-    private readonly string _languageAtOpen;
 
+    private StudioTheme _themeAtOpen;
+    private string _languageAtOpen;
     private StudioTheme _theme;
     private string _language;
 
@@ -147,7 +148,19 @@ public sealed class AppearancePage : ISettingsPage, INotifyPropertyChanged
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             problems.Add($"{Localizer.Instance["settings.title"]}: {e.Message}");
+            return;
         }
+
+        // Записанное становится тем, «что было при открытии». Иначе страница
+        // остаётся изменённой после «Сохранить», и закрытие — а «Сохранить»
+        // закрывает окно — спрашивает о потере правок, которые уже в файле;
+        // ответив «закрыть», человек получал бы откат темы и языка к прежним
+        // при уже переписанном файле.
+        //
+        // Только после удавшейся записи: не легло — значит не сохранено, и
+        // окно обязано остаться при своих правках.
+        _themeAtOpen = _theme;
+        _languageAtOpen = _language;
     }
 
     /// <inheritdoc/>

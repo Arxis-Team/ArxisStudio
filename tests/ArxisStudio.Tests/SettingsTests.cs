@@ -118,6 +118,32 @@ public class SettingsTests : IDisposable
         Assert.False(model.HasChanges);
     }
 
+    /// <summary>
+    /// После «Сохранить» несохранённого не остаётся — и на странице оформления.
+    /// </summary>
+    /// <remarks>
+    /// Страница держала тему и язык рядом с теми, что застала при открытии, и
+    /// после записи их не обновляла: «Сохранить» закрывает окно, закрытие
+    /// спрашивало о потере правок — уже лежащих в файле, — а ответ «закрыть»
+    /// откатывал тему и язык к прежним при переписанном файле.
+    /// </remarks>
+    [Fact]
+    public void Saving_the_appearance_leaves_nothing_unsaved()
+    {
+        var model = Model(out _, Module());
+        var appearance = Assert.IsType<AppearancePage>(model.Nodes[0].Page);
+
+        appearance.ThemeIndex = 1;
+
+        Assert.True(model.Save());
+        Assert.False(model.HasChanges, "записанное несохранённым не считается");
+
+        // Так закрывается окно после удавшегося сохранения.
+        model.Revert();
+
+        Assert.Equal(1, appearance.ThemeIndex);
+    }
+
     /// <summary>«Отмена» забывает правку, не тронув файла.</summary>
     [Fact]
     public void Cancelling_forgets_the_edit()
