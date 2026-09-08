@@ -5,6 +5,8 @@ using ArxisStudio.Icons;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
+using ArxisStudio.Settings;
+using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
 using ArxisStudio.Shell.Settings;
 using ArxisStudio.ViewModels;
@@ -26,25 +28,30 @@ namespace ArxisStudio.Welcome;
 public partial class WelcomeWindow : AxWindow
 {
     private readonly WelcomeViewModel _model;
-    private bool _loadingSettings;
+    private readonly ISettingsStore _settings;
+    private readonly StudioPlugins _extensions;
 
     /// <summary>Создаёт экран со своими сервисами.</summary>
     /// <param name="settings">Настройки студии.</param>
     /// <param name="recent">Список недавних проектов.</param>
     /// <param name="plugins">Каталог плагинов.</param>
+    /// <param name="extensions">Расширения студии: у них общее хранилище настроек.</param>
     /// <param name="log">Журнал студии; null — молча.</param>
     public WelcomeWindow(
         ISettingsStore settings,
         RecentProjects recent,
         PluginCatalog plugins,
+        StudioPlugins extensions,
         IStudioLog? log = null)
     {
+        ArgumentNullException.ThrowIfNull(extensions);
+
+        _settings = settings;
+        _extensions = extensions;
         _model = new WelcomeViewModel(settings, recent, plugins, log);
         DataContext = _model;
 
         InitializeComponent();
-        LoadSettingsIntoControls();
-
     }
 
     /// <summary>Пользователь просит открыть студию.</summary>
@@ -54,56 +61,26 @@ public partial class WelcomeWindow : AxWindow
 
     private void OnLearnClick(object? sender, RoutedEventArgs e) => Select(WelcomeSection.Learn);
 
-    private void OnSettingsClick(object? sender, RoutedEventArgs e)
-    {
-        // Словари лежат файлами, и файл могли положить только что; языковой
-        // пакет могли поставить менеджером минуту назад. Список языков
-        // собирается при каждом заходе в настройки, а не один раз при
-        // запуске — иначе добавленный язык ждал бы перезапуска студии.
-        _model.ApplyLanguagePacks();
-        ShowLanguages();
-
-        Select(WelcomeSection.Settings);
-    }
-
     /// <summary>
-    /// Заполняет список языков тем, что студия сейчас умеет показать.
+    /// Открывает настройки — то же окно, что и из студии.
     /// </summary>
     /// <remarks>
-    /// Выбранным отмечается язык, на котором интерфейс говорит на самом деле,
-    /// а не записанный в настройках: словарь могли удалить, и тогда студия
-    /// осталась на запасном — показать в списке отсутствующий язык значило бы
-    /// соврать.
+    /// Языковые пакеты перечитываются перед показом: пакет могли поставить
+    /// менеджером минуту назад, и список языков собирается на ходу, а не
+    /// знается наперёд.
     /// </remarks>
-    private void ShowLanguages()
+    private async void OnSettingsClick(object? sender, RoutedEventArgs e)
     {
-        // Признак сохраняется и возвращается, а не гасится: список языков
-        // заполняют и при заходе в настройки, и посреди общей загрузки
-        // контролов — сбросив его здесь, мы приняли бы остаток той загрузки
-        // за правку человека.
-        var loading = _loadingSettings;
+        _model.ApplyLanguagePacks();
+        _model.IsSettingsOpen = true;
 
-        _loadingSettings = true;
         try
         {
-            LanguageBox.Items.Clear();
-
-            foreach (var language in Localizer.Instance.Languages)
-            {
-                LanguageBox.Items.Add(new AxComboBoxItem
-                {
-                    Content = language.Name,
-                    Tag = language.Code,
-                });
-            }
-
-            LanguageBox.SelectedItem = LanguageBox.Items
-                .OfType<AxComboBoxItem>()
-                .FirstOrDefault(item => (string?)item.Tag == Localizer.Instance.Language);
+            await SettingsWindow.ShowAsync(this, _settings, _extensions, _extensions.Declaring());
         }
         finally
         {
-            _loadingSettings = loading;
+            _model.IsSettingsOpen = false;
         }
     }
 
@@ -180,7 +157,8 @@ public partial class WelcomeWindow : AxWindow
 
         if (dependents.Count > 0)
         {
-            var agreed = await ConfirmAsync(
+            var agreed = await StudioAsk.ConfirmAsync(
+                this,
                 Localizer.Instance["plugins.dependents.title"],
                 string.Format(
                     CultureInfo.CurrentCulture,
@@ -213,62 +191,6 @@ public partial class WelcomeWindow : AxWindow
             : $"{Localizer.Instance["common.error"]}: {error}";
 
         _model.RefreshPlugins();
-    }
-
-    /// <summary>
-    /// Спрашивает разрешения на действие, задевающее других.
-    /// </summary>
-    /// <param name="title">Заголовок вопроса.</param>
-    /// <param name="message">Что случится и с кем.</param>
-    /// <param name="confirm">Надпись на кнопке согласия.</param>
-    /// <param name="danger">Действие необратимо — кнопка предупреждает цветом.</param>
-    /// <remarks>
-    /// Первый диалог студии. AxDialog задуман модальным окном: решение о
-    /// чужих плагинах не то, мимо чего можно щёлкнуть, — Esc и «Отмена»
-    /// оставляют всё как было.
-    /// </remarks>
-    private async Task<bool> ConfirmAsync(string title, string message, string confirm, bool danger)
-    {
-        var cancel = new AxButton { Content = Localizer.Instance["common.cancel"], MinWidth = 96 };
-        var agree = new AxButton { Content = confirm, MinWidth = 96 };
-        var alert = new AxIcon { Data = AxIcons.Warning, Width = 20, Height = 20 };
-
-        // Кисть ищется с вариантом темы: без него ресурс не находится, а
-        // выставленный null убил бы наследование цвета — значок стал бы
-        // невидимым.
-        if (this.TryFindResource("AxYelBrush", ActualThemeVariant, out var yellow) &&
-            yellow is Avalonia.Media.IBrush brush)
-        {
-            alert.Foreground = brush;
-        }
-
-        if (danger)
-            agree.Classes.Add("danger");
-        else
-            agree.Classes.Add("accent");
-
-        var dialog = new AxDialog
-        {
-            Title = title,
-            Content = new TextBlock
-            {
-                Text = message,
-                TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                MaxWidth = 420,
-            },
-            AlertIcon = alert,
-            Buttons = new StackPanel
-            {
-                Orientation = Avalonia.Layout.Orientation.Horizontal,
-                Spacing = 8,
-                Children = { cancel, agree },
-            },
-        };
-
-        cancel.Click += (_, _) => dialog.Close(false);
-        agree.Click += (_, _) => dialog.Close(true);
-
-        return await dialog.ShowDialog<bool?>(this) == true;
     }
 
     /// <summary>
@@ -316,7 +238,8 @@ public partial class WelcomeWindow : AxWindow
 
             if (dependents.Count > 0)
             {
-                var agreed = await ConfirmAsync(
+                var agreed = await StudioAsk.ConfirmAsync(
+                    this,
                     Localizer.Instance["plugins.dependents.title"],
                     string.Format(
                         CultureInfo.CurrentCulture,
@@ -347,49 +270,6 @@ public partial class WelcomeWindow : AxWindow
     {
         if (sender is Control { Tag: string url })
             OpenInShell(url);
-    }
-
-    private void OnThemeChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_loadingSettings)
-            return;
-
-        var theme = ThemeSwitch.SelectedIndex == 1 ? StudioTheme.Light : StudioTheme.Dark;
-        _model.SettingsStore.Current.Theme = theme;
-        _model.SettingsStore.Save();
-
-        StudioTheming.Apply(theme);
-    }
-
-    private void OnLanguageChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_loadingSettings || LanguageBox.SelectedItem is not ContentControl { Tag: string language })
-            return;
-
-        Localizer.Instance.SetLanguage(language);
-        _model.SettingsStore.Current.Language = language;
-        _model.SettingsStore.Save();
-
-        // Строки студии обновит привязка, а имена и подписи плагинов лежат в их
-        // собственных словарях и читаются при обходе каталога — значит, обойти
-        // его надо заново, иначе половина экрана осталась бы на прежнем языке.
-        _model.RefreshPlugins();
-    }
-
-    private void LoadSettingsIntoControls()
-    {
-        _loadingSettings = true;
-        try
-        {
-            var settings = _model.SettingsStore.Current;
-
-            ThemeSwitch.SelectedIndex = settings.Theme == StudioTheme.Light ? 1 : 0;
-            ShowLanguages();
-        }
-        finally
-        {
-            _loadingSettings = false;
-        }
     }
 
     private static void OpenInShell(string target)

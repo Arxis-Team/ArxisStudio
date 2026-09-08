@@ -5,6 +5,7 @@ using ArxisStudio.Icons;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using ArxisStudio.Shell.Localization;
+using ArxisStudio.Shell.Settings;
 using ArxisStudio.ViewModels;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -71,6 +72,17 @@ public partial class MainWindow : AxWindow
     /// шаги — её дело, а окну про них знать нечего.
     /// </remarks>
     public StudioPlugins Extensions => _plugins;
+
+    /// <summary>
+    /// Настройки студии — те же, что у экрана Welcome.
+    /// </summary>
+    /// <remarks>
+    /// Свойством с <c>init</c>, а не своим экземпляром: хранилище читает файл
+    /// в память при создании и записывает его целиком, и два экземпляра на
+    /// процесс потеряли бы правку друг друга. Ставит его приложение, у
+    /// которого хранилище одно.
+    /// </remarks>
+    public ISettingsStore Settings { get; init; } = new JsonSettingsStore();
 
     /// <summary>Создаёт окно без проекта — состояние каркаса.</summary>
     public MainWindow()
@@ -219,6 +231,15 @@ public partial class MainWindow : AxWindow
 
         branches.Add(Layouts());
 
+        // Настройки последними: это не про раскладку и не про плагины, а про
+        // студию целиком. Своим ходом, а не вкладом манифеста, — по тому же
+        // правилу, что перезагрузка плагина и наборы раскладки: свои дела
+        // студии в contributions не объявляют.
+        var settings = new AxMenuItem { Header = Localizer.Instance["menu.settings"] };
+
+        settings.Click += async (_, _) => await OpenSettingsAsync();
+        branches.Add(settings);
+
         return branches;
 
         // Ветка «Панели» — единственная дорога назад для скрытой панели: имя
@@ -313,6 +334,33 @@ public partial class MainWindow : AxWindow
     /// Имя спрашивают модальным окном, а не полем в меню: меню закрывается от
     /// первого же щелчка мимо, и набор пропал бы вместе с недопечатанным именем.
     /// </remarks>
+    /// <summary>
+    /// Открывает настройки поверх студии.
+    /// </summary>
+    /// <remarks>
+    /// Тем же вызовом, что и экран Welcome: хранилище настроек расширений у
+    /// студии одно, и оба входа обязаны смотреть в него, а не заводить своё.
+    /// </remarks>
+    /// <remarks>
+    /// Имя окна пишется полностью: свойство <see cref="Settings"/> закрывает
+    /// собой одноимённое пространство имён внутри этого класса.
+    /// </remarks>
+    private async Task OpenSettingsAsync()
+    {
+        try
+        {
+            await ArxisStudio.Settings.SettingsWindow.ShowAsync(this, Settings, _plugins, _plugins.Declaring());
+        }
+        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        {
+            // Окно настроек — код студии, и падать ему незачем; но если оно
+            // всё-таки не открылось, человек нажал пункт меню и обязан узнать
+            // почему, а не смотреть, как ничего не произошло.
+            _log.Write(StudioLogLevel.Error, "Settings", e.ToString());
+            _model.Say($"{Localizer.Instance["common.error"]}: {e.Message}");
+        }
+    }
+
     private async Task SaveLayoutAsync()
     {
         var box = new AxTextBox { PlaceholderText = Localizer.Instance["layout.name.hint"], Width = 260 };

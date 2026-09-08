@@ -112,7 +112,10 @@ public class App : Application
             })
             .Add("splash.stage.language", () => Localizer.Instance.SetLanguage(_settings.Current.Language))
             .Add("splash.stage.theme", () => StudioTheming.Apply(_settings.Current.Theme))
-            .Add("splash.stage.shell", () => _studio = new MainWindow())
+            // Хранилище настроек передаётся, а не заводится окном: оно читает
+            // файл в память и пишет его целиком, и второй экземпляр на процесс
+            // потерял бы правку, сделанную в первом.
+            .Add("splash.stage.shell", () => _studio = new MainWindow { Settings = _settings })
             .Add("splash.stage.modules", () => _studio.Extensions.LoadModules())
             .Add("splash.stage.extensions", () => _studio.Extensions.LoadPlugins())
             .Add("splash.stage.welcome", () => desktop.MainWindow = CreateWelcome());
@@ -144,7 +147,11 @@ public class App : Application
     /// </remarks>
     private WelcomeWindow CreateWelcome()
     {
-        var welcome = new WelcomeWindow(_settings, _recent, _plugins, _log);
+        // Расширения студии передаются сюда затем, чтобы экран настроек,
+        // открытый из Welcome, смотрел в то же хранилище, что и живые плагины.
+        // Окно студии к этому мигу собрано, а модули и плагины подняты —
+        // этапы «shell», «modules» и «extensions» идут раньше «welcome».
+        var welcome = new WelcomeWindow(_settings, _recent, _plugins, _studio.Extensions, _log);
         welcome.StudioRequested += (_, _) =>
         {
             _studio.Show();

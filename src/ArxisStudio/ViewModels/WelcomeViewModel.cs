@@ -20,9 +20,6 @@ public enum WelcomeSection
 
     /// <summary>Менеджер плагинов.</summary>
     Plugins,
-
-    /// <summary>Настройки студии.</summary>
-    Settings,
 }
 
 /// <summary>
@@ -34,6 +31,8 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
 {
     private WelcomeSection _section = WelcomeSection.Projects;
     private readonly IStudioLog? _log;
+
+    private bool _settingsOpen;
 
     private string? _status;
 
@@ -83,22 +82,25 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
     public ObservableCollection<PluginCard> InstalledPlugins { get; } = [];
 
     /// <summary>
-    /// Настройки, объявленные расширениями студии, — и модулями, и плагинами.
+    /// Настройки открыты — строка «Настройки» подсвечена, как выбранный раздел.
     /// </summary>
     /// <remarks>
-    /// Список строится по манифестам: студия читает их, не загружая сборок, и
-    /// настройки видны даже у плагина, который в этом сеансе не поднимался.
-    /// <para>
-    /// Способ доставки на попадание сюда не влияет: секция <c>settings</c> у
-    /// модуля и у плагина одна и та же, значения ложатся в одно хранилище под
-    /// одними ключами, а человек, ищущий, где поправить кегль терминала, о
-    /// разнице между ними не знает и знать не обязан.
-    /// </para>
+    /// Разделом настройки быть перестали: у них своё окно, одно на студию и на
+    /// Welcome. Но строка в полосе осталась там же, где стояла, и человеку
+    /// проще, когда она отмечена, пока окно открыто.
     /// </remarks>
-    public ObservableCollection<PluginSettingRow> PluginSettings { get; } = [];
+    public bool IsSettingsOpen
+    {
+        get => _settingsOpen;
+        set
+        {
+            if (_settingsOpen == value)
+                return;
 
-    /// <summary>Ни одно расширение настроек не объявило.</summary>
-    public bool HasNoPluginSettings => PluginSettings.Count == 0;
+            _settingsOpen = value;
+            Notify();
+        }
+    }
 
     /// <summary>Текущий раздел.</summary>
     public WelcomeSection Section
@@ -114,7 +116,6 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
             Notify(nameof(IsProjects));
             Notify(nameof(IsLearn));
             Notify(nameof(IsPlugins));
-            Notify(nameof(IsSettings));
         }
     }
 
@@ -126,9 +127,6 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
 
     /// <summary>Открыт раздел плагинов.</summary>
     public bool IsPlugins => Section == WelcomeSection.Plugins;
-
-    /// <summary>Открыт раздел настроек.</summary>
-    public bool IsSettings => Section == WelcomeSection.Settings;
 
     /// <summary>Плагинов не установлено.</summary>
     public bool HasNoPlugins => InstalledPlugins.Count == 0;
@@ -180,9 +178,6 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
         ApplyLanguagePacks();
 
         InstalledPlugins.Clear();
-        PluginSettings.Clear();
-
-        var store = new PluginSettingsStore();
 
         var installed = Plugins.Scan();
 
@@ -196,21 +191,9 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
         foreach (var plugin in installed)
             InstalledPlugins.Add(new PluginCard(plugin, PluginGraph.Describe(plugin, all)));
 
-        // А настройки — у всех, кто их объявил, и модуль здесь ничем не
-        // отличается: секция манифеста одна, хранилище одно, ключи одни.
-        // Человеку же и вовсе всё равно, приехал терминал со студией или его
-        // поставили после: он ищет, где поправить кегль.
-        //
-        // Модули впереди — тем же правилом, что у полосы и у графа: сперва то,
-        // что принесла студия, потом принесённое со стороны.
-        foreach (var extension in Modules.Concat(installed))
-        {
-            foreach (var declared in extension.Manifest?.Contributions.Settings ?? [])
-            {
-                PluginSettings.Add(new PluginSettingRow(
-                    extension.Id, extension.DisplayName, declared, store, extension.Strings));
-            }
-        }
+        // Настройки расширений собирает окно настроек: у него своё хранилище,
+        // общее с живыми плагинами, и своя транзакция. Здесь оно было бы
+        // вторым экземпляром того же — и потеряло бы чужую правку.
 
         foreach (var plugin in installed.Where(candidate => candidate.IconPath is not null))
         {
@@ -225,7 +208,6 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
         }
 
         Notify(nameof(HasNoPlugins));
-        Notify(nameof(HasNoPluginSettings));
     }
 
     /// <summary>

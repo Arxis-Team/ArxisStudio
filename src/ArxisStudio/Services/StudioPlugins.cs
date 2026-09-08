@@ -47,6 +47,7 @@ public sealed class StudioPlugins
     private readonly Dictionary<string, List<object>> _built = new(StringComparer.Ordinal);
 
     private PluginHost? _host;
+    private StudioContextFactory? _contexts;
     private IReadOnlyList<InstalledPlugin> _installed = [];
     private IReadOnlyList<InstalledPlugin> _modules = [];
 
@@ -125,6 +126,61 @@ public sealed class StudioPlugins
     public IReadOnlyList<InstalledPlugin> Modules => _modules;
 
     /// <summary>
+    /// Хранилище настроек расширений — одно на студию.
+    /// </summary>
+    /// <remarks>
+    /// Спрашивают его затем, чтобы не завести второе. Хранилище читает файл в
+    /// память при создании и переписывает его целиком, поэтому два экземпляра
+    /// — это не две копии, а гонка: правка, сделанная в одном, пропадает при
+    /// первой же записи из другого. Экран настроек и живые плагины обязаны
+    /// смотреть в один.
+    /// <para>
+    /// Свойством с <c>init</c>, а не полем: так его видно снаружи и можно
+    /// подставить своё в тесте — тем же приёмом, что у <see cref="Catalog"/> и
+    /// <see cref="Assemblies"/>.
+    /// </para>
+    /// </remarks>
+    public PluginSettingsStore Settings { get; init; } = new();
+
+    /// <summary>
+    /// Кто сейчас объявляет настройки: модули и то, что лежит в папке плагинов.
+    /// </summary>
+    /// <remarks>
+    /// Спрашивается заново, а не берётся из <see cref="Installed"/>: экран
+    /// настроек открывают и до первого подъёма — из Welcome, — и после того,
+    /// как плагин поставили менеджером минуту назад.
+    /// <para>
+    /// Модули впереди — тем же правилом, что у полосы и у графа: сперва то,
+    /// что принесла студия, потом принесённое со стороны.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<InstalledPlugin> Declaring() =>
+        [.. StudioModules.Describe(Assemblies).Concat(Catalog())];
+
+    /// <summary>
+    /// Говорит расширению, что его настройку изменил кто-то другой.
+    /// </summary>
+    /// <param name="pluginId">Чью настройку.</param>
+    /// <param name="key">Какую.</param>
+    /// <remarks>
+    /// Плагин слышит о своих настройках через <c>IStudioSettings.Changed</c>, и
+    /// событие это поднимает тот, кто пишет. Экран настроек пишет мимо плагина
+    /// — прямо в хранилище, — поэтому сказать за него должна студия, иначе
+    /// панель осталась бы с прежним значением до перезапуска.
+    /// <para>
+    /// Плагин, который в этом сеансе не поднимался, ничего не слышит и не
+    /// должен: он прочтёт записанное, когда его поднимут.
+    /// </para>
+    /// </remarks>
+    public void Announce(string pluginId, string key)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(pluginId);
+
+        if (_contexts?.Issued.TryGetValue(pluginId, out var settings) == true)
+            _guard.Run(pluginId, "уведомление о настройке", () => settings.Announce(key));
+    }
+
+    /// <summary>
     /// Кто сейчас вправе вкладываться в меню: модули и установленные, кроме
     /// отключённых за сбои.
     /// </summary>
@@ -201,20 +257,26 @@ public sealed class StudioPlugins
         Documents.Opening += (_, path) => Activate(
             waiting => PluginActivation.WaitsForFileType(waiting.Manifest, Path.GetExtension(path)));
 
-        var host = new PluginHost(new StudioContextFactory(
+        // Фабрика остаётся на руках, а не тонет в аргументе. Хранилище
+        // настроек у студии обязано быть одно: оно читает файл в память при
+        // создании и переписывает его целиком, поэтому второй экземпляр рядом
+        // — это молча потерянная правка. Экран настроек берёт его отсюда.
+        _contexts = new StudioContextFactory(
             _log,
             Commands,
             // Проекта у студии пока нет: работа с ними приедет модулем.
             // Место в контракте плагинов остаётся — сам контракт не менялся.
             projectPath: null,
             Services,
-            settings: null,
+            settings: Settings,
             tasks: _tasks,
             guard: _guard,
             plugins: roster,
             exports: _exports,
             toolbar: ToolBar,
-            dock: Dock));
+            dock: Dock);
+
+        var host = new PluginHost(_contexts);
 
         // Уборка реестров, заведённых на владельца, — по одному сигналу от
         // хоста: он один знает про все дороги выгрузки. Раньше её переписывал

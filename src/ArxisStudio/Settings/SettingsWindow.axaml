@@ -1,0 +1,206 @@
+﻿<ax:AxWindow xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
+        xmlns:s="using:ArxisStudio.Settings"
+        xmlns:vm="using:ArxisStudio.ViewModels"
+        xmlns:loc="using:ArxisStudio.Shell.Localization"
+        x:Class="ArxisStudio.Settings.SettingsWindow"
+        x:DataType="s:SettingsViewModel"
+        Title="{ax:Loc settings.title}"
+        Width="900" Height="620"
+        MinWidth="720" MinHeight="460"
+        WindowStartupLocation="CenterScreen">
+
+  <!--
+      Чем рисовать страницу, решает её тип, а не сама страница: так вёрстка
+      остаётся в разметке, а модель страницы не держит контролов. Дойдёт дело
+      до своих страниц у плагинов — добавится ещё один шаблон, который покажет
+      их контрол; окно об этом не узнает.
+  -->
+  <ax:AxWindow.DataTemplates>
+
+    <!-- Оформление: тема и язык. Переехало из экрана настроек в Welcome. -->
+    <DataTemplate DataType="s:AppearancePage">
+      <ax:AxCard Padding="16,2">
+        <StackPanel>
+          <DockPanel Classes="settings-row">
+            <ax:AxSegmentedControl DockPanel.Dock="Right"
+                                   AutomationProperties.Name="{ax:Loc settings.theme}"
+                                   SelectedIndex="{Binding ThemeIndex, Mode=TwoWay}">
+              <ax:AxSegmentItem Content="{ax:Loc settings.theme.dark}"/>
+              <ax:AxSegmentItem Content="{ax:Loc settings.theme.light}"/>
+            </ax:AxSegmentedControl>
+            <TextBlock Text="{ax:Loc settings.theme}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
+          </DockPanel>
+          <ax:AxDivider/>
+          <DockPanel Classes="settings-row">
+            <!-- Список языков студия узнаёт на ходу, а не знает наперёд. -->
+            <ax:AxComboBox DockPanel.Dock="Right" Width="170"
+                           AutomationProperties.Name="{ax:Loc settings.language}"
+                           ItemsSource="{Binding Languages}"
+                           SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}">
+              <ax:AxComboBox.ItemTemplate>
+                <DataTemplate x:DataType="loc:StudioLanguage">
+                  <TextBlock Text="{Binding Name}"/>
+                </DataTemplate>
+              </ax:AxComboBox.ItemTemplate>
+            </ax:AxComboBox>
+            <TextBlock Text="{ax:Loc settings.language}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
+          </DockPanel>
+        </StackPanel>
+      </ax:AxCard>
+    </DataTemplate>
+
+    <!-- Ветка расширений: своих настроек нет, только подсказка. -->
+    <DataTemplate DataType="s:ExtensionsPage">
+      <TextBlock Classes="dimmer" TextWrapping="Wrap"
+                 FontSize="{DynamicResource AxFontSizeSmall}"
+                 Text="{ax:Loc settings.extensions.hint}"/>
+    </DataTemplate>
+
+    <!-- Страница расширения: строки, объявленные его манифестом. -->
+    <DataTemplate DataType="s:ExtensionPage">
+      <ax:AxCard Padding="16,2">
+        <ItemsControl ItemsSource="{Binding Rows}">
+          <ItemsControl.ItemTemplate>
+            <!--
+                Подпись строки — она же имя контрола для средств доступности:
+                глазом её видно рядом, а диктор читает сам контрол и без имени
+                объявляет «поле» — одинаково во всех строках подряд.
+            -->
+            <DataTemplate x:DataType="vm:PluginSettingRow">
+              <DockPanel Classes="settings-row">
+                <ax:AxToggleSwitch DockPanel.Dock="Right" IsChecked="{Binding Flag, Mode=TwoWay}"
+                                   AutomationProperties.Name="{Binding Label}"
+                                   IsEnabled="{Binding IsEditable}" IsVisible="{Binding IsToggle}"/>
+                <ax:AxTextBox DockPanel.Dock="Right" Width="220" Text="{Binding Text, Mode=TwoWay}"
+                              AutomationProperties.Name="{Binding Label}"
+                              IsEnabled="{Binding IsEditable}" IsVisible="{Binding IsText}"/>
+                <StackPanel VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Label}" FontSize="{DynamicResource AxFontSize}"/>
+                  <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,1,0,0"
+                             Text="{Binding Key}"/>
+                  <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,1,0,0"
+                             Text="{Binding Note}"
+                             IsVisible="{Binding Note, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                </StackPanel>
+              </DockPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ax:AxCard>
+    </DataTemplate>
+
+  </ax:AxWindow.DataTemplates>
+
+  <!--
+      В шапке остаётся один крестик — так же, как у настроек Rider.
+
+      Свернуть некуда: окно модальное, и пока оно открыто, хозяин не отвечает;
+      свёрнутый ребёнок оставил бы человека перед неотзывчивой студией без
+      видимой причины. Кнопка к тому же не делала обещанного — после нажатия
+      WindowState оставался Normal.
+
+      Развернуть можно и без кнопки: AxTitleBar разворачивает окно двойным
+      щелчком по полосе и делает это сам, не глядя на кнопки. Дорога осталась,
+      ушла только лишняя мишень в шапке диалога.
+
+      Прячутся две кнопки поимённо, а не ShowWindowControls целиком: тот снял
+      бы и закрытие, а закрытие диалогу нужно.
+  -->
+  <ax:AxWindow.Styles>
+    <Style Selector="ax|AxWindowControls /template/ Button#PART_Minimize">
+      <Setter Property="IsVisible" Value="False"/>
+    </Style>
+    <Style Selector="ax|AxWindowControls /template/ Button#PART_Maximize">
+      <Setter Property="IsVisible" Value="False"/>
+    </Style>
+  </ax:AxWindow.Styles>
+
+  <DockPanel>
+
+    <ax:AxTitleBar DockPanel.Dock="Top">
+      <TextBlock Text="{ax:Loc settings.title}" Margin="12,0" VerticalAlignment="Center"
+                 FontSize="{DynamicResource AxFontSizeSmall}" Classes="dim"/>
+    </ax:AxTitleBar>
+
+    <!--
+        Подвал: слева жалоба, если что-то не записалось, справа две кнопки.
+        Окно после неудачного сохранения не закрывается — сказать «сохранено»
+        о том, что не легло, хуже, чем остаться открытым.
+    -->
+    <Border DockPanel.Dock="Bottom"
+            Background="{DynamicResource AxBg2Brush}"
+            BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,1,0,0">
+      <DockPanel Margin="16,12">
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+          <ax:AxButton x:Name="Cancel" Content="{ax:Loc common.cancel}" MinWidth="96"/>
+          <ax:AxButton x:Name="Save" Classes="accent" Content="{ax:Loc common.save}" MinWidth="96"/>
+        </StackPanel>
+        <TextBlock Text="{Binding Complaint}" IsVisible="{Binding HasComplaint}"
+                   Classes="bad" TextWrapping="Wrap" VerticalAlignment="Center"
+                   FontSize="{DynamicResource AxFontSizeSmall}"/>
+      </DockPanel>
+    </Border>
+
+    <Grid ColumnDefinitions="260,*">
+
+      <!-- Слева: поиск и дерево разделов. Ширина — как у боковой полосы Welcome. -->
+      <Border Grid.Column="0"
+              Background="{DynamicResource AxBg2Brush}"
+              BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,0,1,0">
+        <DockPanel Margin="10,12">
+          <ax:AxSearchField DockPanel.Dock="Top" x:Name="SearchBox" Margin="0,0,0,10"
+                            AutomationProperties.Name="{ax:Loc settings.search}"
+                            PlaceholderText="{ax:Loc settings.search}"
+                            Text="{Binding Search, Mode=TwoWay}"/>
+
+          <TextBlock DockPanel.Dock="Top" Classes="dimmer" Margin="2,6,0,0"
+                     FontSize="{DynamicResource AxFontSizeSmall}"
+                     Text="{ax:Loc settings.empty}" IsVisible="{Binding IsEmpty}"/>
+
+          <ax:AxTreeView x:Name="Tree"
+                         AutomationProperties.Name="{ax:Loc settings.title}"
+                         ItemsSource="{Binding Nodes}"
+                         SelectedItem="{Binding Selected, Mode=TwoWay}">
+            <!--
+                Ветки развёрнуты всегда. Разделов два, прятать нечего, а
+                свёрнутая ветка ломает поиск: он оставляет её ради совпавшего
+                ребёнка — и ребёнка не видно. Узлы пересобираются на каждый
+                запрос, поэтому стиль, а не свойство узла: раскрытие,
+                записанное в модели, всё равно пришлось бы ставить заново.
+            -->
+            <ax:AxTreeView.Styles>
+              <Style Selector="ax|AxTreeViewItem" x:DataType="s:SettingsNode">
+                <Setter Property="IsExpanded" Value="True"/>
+                <!--
+                    Имя строки для средств доступности: подпись живёт в
+                    шаблоне шапки, а диктор читает сам узел и без имени
+                    объявляет «элемент дерева» — одинаково у всех разделов.
+                -->
+                <Setter Property="AutomationProperties.Name" Value="{Binding Title}"/>
+              </Style>
+            </ax:AxTreeView.Styles>
+
+            <ax:AxTreeView.ItemTemplate>
+              <TreeDataTemplate x:DataType="s:SettingsNode" ItemsSource="{Binding Children}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <ax:AxIcon Classes="small" Data="{Binding Icon}" VerticalAlignment="Center"/>
+                  <TextBlock Text="{Binding Title}" VerticalAlignment="Center"/>
+                </StackPanel>
+              </TreeDataTemplate>
+            </ax:AxTreeView.ItemTemplate>
+          </ax:AxTreeView>
+        </DockPanel>
+      </Border>
+
+      <!-- Справа: страница. Что рисовать — решает её тип, шаблоны выше. -->
+      <ScrollViewer Grid.Column="1">
+        <ContentControl Content="{Binding Page}" Margin="28,24"/>
+      </ScrollViewer>
+
+    </Grid>
+
+  </DockPanel>
+
+</ax:AxWindow>
