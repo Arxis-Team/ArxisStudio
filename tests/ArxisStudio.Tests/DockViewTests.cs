@@ -1145,16 +1145,20 @@ public class DockViewTests
     }
 
     /// <summary>
-    /// Выбранную вкладку в шапке панели видно тремя знаками, а не одним.
+    /// Выбранную вкладку в шапке панели видно цветом и полосой.
     /// </summary>
     /// <remarks>
-    /// Карточка «Вкладки» размечает панельную вкладку тремя: цвет `#DFE1E5`
-    /// против `#9DA0A8`, начертание 500 и полоса в три пикселя. Класс
-    /// <c>compact</c> — это и есть она; без него вкладка приходит в шапку одетой
-    /// как вкладка документа, и от выбора остаётся одна черта в два пикселя.
+    /// Класс <c>compact</c> — это и есть панельная вкладка; без него она
+    /// приходит в шапку одетой как вкладка документа, с чужим фоном под
+    /// выбранной.
+    /// <para>
+    /// Веса у выбранной нет ни у той разновидности, ни у другой: жирное
+    /// начертание меняет метрику текста, вкладка становится шире, и весь ряд
+    /// сдвигается на каждое переключение.
+    /// </para>
     /// </remarks>
     [AvaloniaFact]
-    public void A_chosen_tab_in_a_panel_header_is_marked_three_ways()
+    public void A_chosen_tab_in_a_panel_header_is_marked_by_colour_and_bar()
     {
         var (view, _) = Pair();
 
@@ -1163,15 +1167,15 @@ public class DockViewTests
 
         Assert.Contains("compact", chosen.Classes);
 
-        // Цвет и начертание — на самой вкладке, полоса — в её шаблоне.
-        Assert.Equal(FontWeight.Medium, chosen.FontWeight);
+        // Вес у выбранной прежний: ряд не должен ездить от щелчка к щелчку.
+        Assert.Equal(FontWeight.Normal, chosen.FontWeight);
 
         var marker = chosen.GetVisualDescendants()
             .OfType<Border>()
             .First(border => border.Name == "PART_ActiveMarker");
 
         Assert.True(marker.IsVisible, "полосы под выбранной вкладкой нет");
-        Assert.Equal(3d, marker.Bounds.Height);
+        Assert.Equal(2d, marker.Bounds.Height);
 
         // Вкладка заполняет полосу и не вылезает за неё: своя высота увела бы
         // нижний пиксель полосы выбора под разделитель под шапкой.
