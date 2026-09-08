@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "publisher": "",
   "description": "%plugin.description%",
+  "tags": [ "tools" ],
   "sdk": { "min": "3.1" },
   "entry": "bin/Arxis.MyPlugin.dll",
   "contributions": {

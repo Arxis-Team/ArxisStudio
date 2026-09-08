@@ -36,10 +36,10 @@ public sealed class ExtensionsPage(IReadOnlyList<ISettingsPage> children) : ISet
     public bool HasChanges => children.Any(child => child.HasChanges);
 
     /// <inheritdoc/>
-    public void Commit(ICollection<string> problems)
+    public async Task CommitAsync(ICollection<string> problems)
     {
         foreach (var child in children)
-            child.Commit(problems);
+            await child.CommitAsync(problems);
     }
 
     /// <inheritdoc/>
@@ -108,14 +108,22 @@ public sealed class ExtensionPage : ISettingsPage
     public IReadOnlyList<ISettingsPage> Children => [];
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Метки расширения тоже: у встроенного модуля карточки в менеджере нет и
+    /// не будет — его не ставят и не снимают, — и страница настроек остаётся
+    /// единственным местом, где его теги на что-то влияют. «tools» приводит к
+    /// терминалу так же, как «кегль».
+    /// </remarks>
     public IEnumerable<string> Terms =>
-        Rows.SelectMany(row => new[] { row.Label, row.Key }).Prepend(Title);
+        Rows.SelectMany(row => new[] { row.Label, row.Key })
+            .Concat(_extension.Tags)
+            .Prepend(Title);
 
     /// <inheritdoc/>
     public bool HasChanges => Rows.Any(row => row.HasChanges);
 
     /// <inheritdoc/>
-    public void Commit(ICollection<string> problems)
+    public Task CommitAsync(ICollection<string> problems)
     {
         ArgumentNullException.ThrowIfNull(problems);
 
@@ -124,6 +132,9 @@ public sealed class ExtensionPage : ISettingsPage
             if (row.Commit(problems))
                 _announce?.Invoke(row.PluginId, row.Key);
         }
+
+        // Строки пишутся в память хранилища и на диск — ждать здесь нечего.
+        return Task.CompletedTask;
     }
 
     /// <inheritdoc/>

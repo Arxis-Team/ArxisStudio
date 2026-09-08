@@ -127,12 +127,12 @@ public sealed class AppearancePage : ISettingsPage, INotifyPropertyChanged
     }
 
     /// <inheritdoc/>
-    public void Commit(ICollection<string> problems)
+    public Task CommitAsync(ICollection<string> problems)
     {
         ArgumentNullException.ThrowIfNull(problems);
 
         if (!HasChanges)
-            return;
+            return Task.CompletedTask;
 
         _studio.Current.Theme = _theme;
         _studio.Current.Language = _language;
@@ -148,7 +148,7 @@ public sealed class AppearancePage : ISettingsPage, INotifyPropertyChanged
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             problems.Add($"{Localizer.Instance["settings.title"]}: {e.Message}");
-            return;
+            return Task.CompletedTask;
         }
 
         // Записанное становится тем, «что было при открытии». Иначе страница
@@ -161,6 +161,8 @@ public sealed class AppearancePage : ISettingsPage, INotifyPropertyChanged
         // окно обязано остаться при своих правках.
         _themeAtOpen = _theme;
         _languageAtOpen = _language;
+
+        return Task.CompletedTask;
     }
 
     /// <inheritdoc/>

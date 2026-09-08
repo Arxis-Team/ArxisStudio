@@ -140,7 +140,7 @@ def call(name, args=None, port=5171):
 | Проект | Роль | Ссылается на |
 |---|---|---|
 | [ArxisStudio.Sdk](src/ArxisStudio.Sdk) | контракт для плагинов и модель манифеста | Controls, Icons — и ничего из студии |
-| [ArxisStudio.Sdk.Analyzers](src/ArxisStudio.Sdk.Analyzers) | ARX0001–ARX0006, едут вместе с SDK | Roslyn |
+| [ArxisStudio.Sdk.Analyzers](src/ArxisStudio.Sdk.Analyzers) | ARX0001–ARX0007, едут вместе с SDK | Roslyn |
 | [ArxisStudio.Shell](src/ArxisStudio.Shell) | каркас окна, словари, настройки, полоса | Controls, Icons |
 | [ArxisStudio.Docking](src/ArxisStudio.Docking) | движок докинга | Controls, Icons |
 | [ArxisStudio.Extensibility](src/ArxisStudio.Extensibility) | хост плагинов: контексты загрузки, граф, контракты, шов сбоев | Sdk, Shell |
@@ -201,7 +201,7 @@ def call(name, args=None, port=5171):
 `ArxisRelease` и `Version` — то, что версией называют люди; совместимость плагинов мерится
 `sdk.min` в манифесте против `StudioSdk.Version`.
 
-`StudioSdk.Version` (сейчас `4.0`) двигают, когда меняется контракт, и минор — когда добавляется.
+`StudioSdk.Version` (сейчас `4.1`) двигают, когда меняется контракт, и минор — когда добавляется.
 `Satisfies` сравнивает мажор и минор, поэтому снятое обещание — это новый мажор, а не «оно и так
 не использовалось».
 

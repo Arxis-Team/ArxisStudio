@@ -32,7 +32,6 @@ public class SettingsStoreTests : IDisposable
         // языке, на котором написана, — на него же падает непереведённое.
         Assert.Equal("en", settings.Language);
         Assert.Equal(Localizer.FallbackLanguage, settings.Language);
-        Assert.Equal(StudioDensity.Compact, settings.Density);
     }
 
     [Fact]
@@ -55,18 +54,6 @@ public class SettingsStoreTests : IDisposable
         File.WriteAllText(SettingsFile, "}{");
 
         Assert.Equal(StudioTheme.Dark, new JsonSettingsStore(SettingsFile).Current.Theme);
-    }
-
-    [Fact]
-    public void Saving_raises_the_event()
-    {
-        var store = new JsonSettingsStore(SettingsFile);
-        var raised = 0;
-        store.Saved += (_, _) => raised++;
-
-        store.Save();
-
-        Assert.Equal(1, raised);
     }
 }
 

@@ -84,6 +84,17 @@ public partial class MainWindow : AxWindow
     /// </remarks>
     public ISettingsStore Settings { get; init; } = new JsonSettingsStore();
 
+    /// <summary>
+    /// Каталог плагинов на диске — тот же, что у экрана Welcome.
+    /// </summary>
+    /// <remarks>
+    /// Нужен окну настроек: менеджер плагинов ставит и снимает папки, и делать
+    /// это он обязан там же, откуда студия их читает. Приходит извне по той же
+    /// причине, что и хранилище настроек: два каталога на процесс разошлись бы
+    /// в том, кого считать выключенным.
+    /// </remarks>
+    public PluginCatalog Catalog { get; init; } = new();
+
     /// <summary>Создаёт окно без проекта — состояние каркаса.</summary>
     public MainWindow()
     {
@@ -362,7 +373,7 @@ public partial class MainWindow : AxWindow
     {
         try
         {
-            await ArxisStudio.Settings.SettingsWindow.ShowAsync(this, Settings, _plugins, _plugins.Declaring());
+            await ArxisStudio.Settings.SettingsWindow.ShowAsync(this, Settings, _plugins, _plugins.Declaring(), Catalog);
         }
         catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
         {

@@ -462,6 +462,107 @@ public sealed class StudioPlugins
                     $"{Named(dependentId)} зависел от {installed.DisplayName}, но пропал с диска — опущен и не поднят");
         }
 
+        return await CascadeAsync(host, lower, raise);
+    }
+
+    /// <summary>
+    /// Приводит поднятое в студии к тому, что стоит и включено на диске.
+    /// </summary>
+    /// <param name="disabled">Кого выключили или сняли.</param>
+    /// <param name="enabled">Кого включили или поставили.</param>
+    /// <returns>Жалоба человеку, если прежняя копия осталась в памяти; иначе null.</returns>
+    /// <remarks>
+    /// Дорога окна настроек: галочку там копят до «Сохранить», а применяет её
+    /// эта пара списков. Без неё менеджер правил бы только диск — выключенный
+    /// плагин работал бы до перезапуска, а включённый до него же молчал.
+    /// <para>
+    /// Опускается не только названный, но и всё, что на нём стоит:
+    /// зависимый держит контекст соседа живым так же, как забытая подписка.
+    /// Тот из опущенных, кто на диске остался включённым, поднимается обратно
+    /// в этом же каскаде.
+    /// </para>
+    /// <para>
+    /// Порядок подъёма считает граф, а не порядок галочек: включили пару, где
+    /// один стоит на другом, — зависимость обязана подняться первой, иначе
+    /// зависимый не найдёт её служб.
+    /// </para>
+    /// </remarks>
+    public async Task<string?> ApplyAsync(IReadOnlyList<string> disabled, IReadOnlyList<string> enabled)
+    {
+        ArgumentNullException.ThrowIfNull(disabled);
+        ArgumentNullException.ThrowIfNull(enabled);
+
+        if (_host is not { } host)
+            return null;
+
+        // Записи перечитываются с диска: манифест могли заменить установкой
+        // поверх, и поднимать надо свежий.
+        _installed = Catalog();
+
+        var loaded = host.Loaded
+            .Where(plugin => plugin is { IsLoaded: true, Context: not null })
+            .Select(plugin => plugin.Installed)
+            .ToList();
+
+        var lower = new List<string>();
+
+        foreach (var id in disabled.Where(id => loaded.Any(plugin => plugin.Id == id)))
+        {
+            foreach (var dependent in PluginGraph.Dependents(id, loaded, includeOptional: true))
+                Sink(dependent.Id);
+
+            Sink(id);
+        }
+
+        var wanted = enabled
+            .Select(id => _installed.FirstOrDefault(plugin => plugin.Id == id))
+            .Concat(lower.Where(id => !disabled.Contains(id, StringComparer.Ordinal))
+                .Select(id => _installed.FirstOrDefault(plugin => plugin.Id == id)))
+            .OfType<InstalledPlugin>()
+            .Where(plugin => plugin is { IsEnabled: true, IsValid: true })
+            .ToList();
+
+        if (lower.Count == 0 && wanted.Count == 0)
+            return null;
+
+        // Кнопки объявленных: у ушедшего снимаются вместе с ним, у пришедшего
+        // встают до подъёма — как на старте, где полоса собирается по
+        // манифестам раньше первого поднятого.
+        foreach (var id in disabled)
+            Unmount(id);
+
+        var present = loaded.Where(plugin => !lower.Contains(plugin.Id, StringComparer.Ordinal)).ToList();
+        var order = PluginGraph.Resolve(wanted, present.Concat(_modules).ToList());
+
+        foreach (var note in order.Notes)
+            _log.Write(StudioLogLevel.Warning, "Plugins", note);
+
+        var raise = order.Order
+            .Where(plugin => wanted.Any(candidate => candidate.Id == plugin.Id))
+            .ToList();
+
+        MountDeclared(raise);
+
+        return await CascadeAsync(host, lower, raise);
+
+        void Sink(string id)
+        {
+            if (!lower.Contains(id, StringComparer.Ordinal))
+                lower.Add(id);
+        }
+    }
+
+    /// <summary>
+    /// Опускает перечисленных и поднимает названных — одним каскадом.
+    /// </summary>
+    /// <remarks>
+    /// Общая дорога перезагрузки и применения настроек: обе опускают ветку,
+    /// ждут, пока её отпустят, и поднимают заново. Разница между ними — только
+    /// в том, кого класть в списки.
+    /// </remarks>
+    private async Task<string?> CascadeAsync(
+        PluginHost host, IReadOnlyList<string> lower, IReadOnlyList<InstalledPlugin> raise)
+    {
         foreach (var id in lower)
         {
             await _release.LetGoAsync(id);

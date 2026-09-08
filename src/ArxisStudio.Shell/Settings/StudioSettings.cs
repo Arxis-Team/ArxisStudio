@@ -10,30 +10,21 @@ public enum StudioTheme
     Light,
 }
 
-/// <summary>Плотность интерфейса.</summary>
-public enum StudioDensity
-{
-    /// <summary>Компактная — значения по умолчанию из дизайн-спецификации.</summary>
-    Compact,
-
-    /// <summary>Обычная — увеличенные отступы.</summary>
-    Regular,
-}
-
 /// <summary>
-/// Настройки студии: то, что переживает перезапуск и правится на экране Settings.
+/// Настройки студии: то, что переживает перезапуск и правится в окне настроек.
 /// Простая изменяемая модель — её сериализует <see cref="JsonSettingsStore"/>.
 /// </summary>
+/// <remarks>
+/// Здесь только то, за чем стоит читатель. Акцентный цвет и плотность
+/// интерфейса лежали в модели и в файле с первого дня, но не значили ничего:
+/// цвет и отступы приходят из темы, а настройка, которую можно поправить и не
+/// увидеть разницы, — обещание, которого никто не давал. Понадобятся — вернутся
+/// вместе с тем, кто их читает.
+/// </remarks>
 public sealed class StudioSettings
 {
     /// <summary>Оформление.</summary>
     public StudioTheme Theme { get; set; } = StudioTheme.Dark;
-
-    /// <summary>Акцентный цвет в формате <c>#RRGGBB</c>.</summary>
-    public string AccentColor { get; set; } = "#3574F0";
-
-    /// <summary>Плотность интерфейса.</summary>
-    public StudioDensity Density { get; set; } = StudioDensity.Compact;
 
     /// <summary>
     /// Язык интерфейса: код культуры, например <c>en</c> или <c>ru</c>.

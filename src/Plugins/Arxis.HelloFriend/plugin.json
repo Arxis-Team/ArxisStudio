@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "publisher": "Arxis Labs",
   "description": "%plugin.description%",
+  "tags": [ "sample" ],
   "sdk": { "min": "2.2" },
   "entry": "bin/Arxis.HelloFriend.dll",
   "dependencies": [

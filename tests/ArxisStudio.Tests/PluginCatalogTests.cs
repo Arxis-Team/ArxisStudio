@@ -85,6 +85,41 @@ public class PluginCatalogTests : IDisposable
         Assert.True(plugin.IsEnabled);
     }
 
+    /// <summary>
+    /// Метки манифеста приводятся к общему виду при чтении.
+    /// </summary>
+    /// <remarks>
+    /// Тег — идентификатор для поиска и разбора по полкам, и <c>Tools</c>,
+    /// <c>tools</c> и <c> tools </c> обязаны быть одним тегом: иначе поиск и
+    /// список разошлись бы в том, что считать одной полкой. Восемь — потолок
+    /// показа; о лишнем автору говорит ARX0007 при сборке, а студия молча
+    /// берёт столько, сколько показывает.
+    /// </remarks>
+    [Fact]
+    public void The_tags_of_a_manifest_are_brought_to_one_shape()
+    {
+        Install("arxis.tagged", """
+            {
+              "id": "arxis.tagged",
+              "name": "С метками",
+              "tags": [ "Tools", " tools ", "", "terminal", "TERMINAL", "a", "b", "c", "d", "e", "f", "g" ]
+            }
+            """);
+
+        var tags = Assert.Single(new PluginCatalog(_root).Scan()).Tags;
+
+        Assert.Equal(["tools", "terminal", "a", "b", "c", "d", "e", "f"], tags);
+    }
+
+    /// <summary>Манифест без меток отвечает пустым списком, а не отказом.</summary>
+    [Fact]
+    public void A_manifest_without_tags_answers_with_an_empty_list()
+    {
+        Install("arxis.figma-import", Manifest);
+
+        Assert.Empty(Assert.Single(new PluginCatalog(_root).Scan()).Tags);
+    }
+
     [Fact]
     public void Reads_contributions_without_loading_the_assembly()
     {

@@ -115,7 +115,7 @@ public class App : Application
             // Хранилище настроек передаётся, а не заводится окном: оно читает
             // файл в память и пишет его целиком, и второй экземпляр на процесс
             // потерял бы правку, сделанную в первом.
-            .Add("splash.stage.shell", () => _studio = new MainWindow { Settings = _settings })
+            .Add("splash.stage.shell", () => _studio = new MainWindow { Settings = _settings, Catalog = _plugins })
             .Add("splash.stage.modules", () => _studio.Extensions.LoadModules())
             .Add("splash.stage.extensions", () => _studio.Extensions.LoadPlugins())
             .Add("splash.stage.welcome", () => desktop.MainWindow = CreateWelcome());

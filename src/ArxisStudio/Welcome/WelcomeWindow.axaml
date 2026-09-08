@@ -76,7 +76,12 @@
               <TextBlock Text="{ax:Loc welcome.nav.learn}" VerticalAlignment="Center"/>
             </StackPanel>
           </ToggleButton>
-          <ToggleButton Classes="nav" IsChecked="{Binding IsPlugins, Mode=OneWay}"
+          <!--
+              Плагины разделом быть перестали — как и настройки: менеджер живёт
+              страницей того же окна, одного на студию и на Welcome. Строка
+              осталась там же и отмечается, пока окно открыто.
+          -->
+          <ToggleButton Classes="nav" IsChecked="{Binding IsPluginsOpen, Mode=OneWay}"
                         AutomationProperties.Name="{ax:Loc welcome.nav.plugins}" Click="OnPluginsClick">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <ax:AxIcon Data="{x:Static ax:AxIcons.Package}"/>
@@ -90,19 +95,6 @@
 
     <!-- Контент раздела. -->
     <DockPanel Grid.Column="1">
-
-      <!-- Полоса сообщений операций (создание проекта, установка плагина). -->
-      <Border DockPanel.Dock="Bottom" IsVisible="{Binding HasStatus}"
-              Background="{DynamicResource AxBg2Brush}"
-              BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,1,0,0"
-              Padding="24,10">
-        <DockPanel>
-          <ax:AxButton DockPanel.Dock="Right" Classes="ghost" Content="{ax:Loc common.close}"
-                       Click="OnDismissStatus" Height="24" FontSize="{DynamicResource AxFontSizeSmall}"/>
-          <TextBlock Text="{Binding Status}" TextWrapping="Wrap" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center"/>
-        </DockPanel>
-      </Border>
-
       <ScrollViewer>
         <Panel Margin="36,28">
 
@@ -166,116 +158,6 @@
                   </DockPanel>
                 </Border>
               </StackPanel>
-            </ax:AxCard>
-          </StackPanel>
-
-          <!-- ===== Plugins ===== -->
-          <StackPanel IsVisible="{Binding IsPlugins}" Spacing="0" MaxWidth="980" HorizontalAlignment="Left">
-            <DockPanel>
-              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="10">
-                <ax:AxButton Classes="accent" Content="{ax:Loc plugins.install}" Click="OnInstallPluginClick"/>
-                <ax:AxButton Content="{ax:Loc plugins.installarchive}" Click="OnInstallArchiveClick"/>
-                <ax:AxButton Content="{ax:Loc plugins.openfolder}" Click="OnOpenPluginFolderClick"/>
-              </StackPanel>
-              <StackPanel VerticalAlignment="Center">
-                <TextBlock Text="{ax:Loc plugins.title}" FontSize="{DynamicResource AxFontSizeTitle}" FontWeight="SemiBold"/>
-                <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,2,0,0" Text="{ax:Loc plugins.subtitle}"/>
-              </StackPanel>
-            </DockPanel>
-
-            <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,22,0,0"
-                       Text="{ax:Loc plugins.empty}" IsVisible="{Binding HasNoPlugins}"/>
-
-            <ax:AxCard Margin="0,18,0,0" Padding="0" IsVisible="{Binding !HasNoPlugins}">
-              <ItemsControl ItemsSource="{Binding InstalledPlugins}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:PluginCard">
-                    <Border Padding="16,12" BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,0,0,1">
-                      <DockPanel>
-                        <Border DockPanel.Dock="Left" Width="36" Height="36" CornerRadius="{DynamicResource AxCornerRadiusLarge}" Margin="0,0,12,0"
-                                Background="{DynamicResource AxBg3Brush}">
-                          <Panel>
-                            <Image x:Name="PluginIcon" Width="24" Height="24"
-                                   RenderOptions.BitmapInterpolationMode="HighQuality"
-                                   Source="{Binding Plugin.IconPath, Converter={x:Static conv:PluginIconConverter.Instance}}"/>
-                            <!-- Общий значок показывается тогда, когда картинки
-                                 нет: не объявлена, потерялась или не
-                                 прочиталась. Решает сама картинка, а не путь к
-                                 ней, — иначе объявленный и битый файл оставлял
-                                 бы на карточке пустое место. -->
-                            <ax:AxIcon Width="19" Height="19" Data="{x:Static ax:AxIcons.Package}"
-                                       Foreground="{DynamicResource AxPurBrush}"
-                                       IsVisible="{Binding #PluginIcon.Source, Converter={x:Static ObjectConverters.IsNull}}"/>
-                          </Panel>
-                        </Border>
-                        <ax:AxButton DockPanel.Dock="Right" Height="26" FontSize="{DynamicResource AxFontSizeSmall}"
-                                     VerticalAlignment="Center" Margin="8,0,0,0"
-                                     Click="OnRemovePluginClick" Tag="{Binding Plugin}"
-                                     Content="{ax:Loc plugins.remove}"/>
-                        <ax:AxButton DockPanel.Dock="Right" MinWidth="96" Height="26" FontSize="{DynamicResource AxFontSizeSmall}"
-                                     VerticalAlignment="Center" Margin="10,0,0,0"
-                                     Click="OnTogglePluginClick" Tag="{Binding Plugin}"
-                                     Content="{Binding Plugin.IsEnabled, Converter={x:Static conv:PluginToggleConverter.Instance}}"
-                                     IsVisible="{Binding Plugin.IsValid}"/>
-                        <TextBlock DockPanel.Dock="Right" Classes="mono dimmer" FontSize="{DynamicResource AxFontSizeSmall}"
-                                   VerticalAlignment="Center" Text="{Binding Plugin.Manifest.Version}"/>
-                        <StackPanel VerticalAlignment="Center">
-                          <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="{Binding Plugin.DisplayName}" FontWeight="SemiBold" FontSize="{DynamicResource AxFontSize}"/>
-                            <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Bottom"
-                                       Text="{Binding Plugin.Manifest.Publisher}"/>
-                            <ax:AxChip Content="{ax:Loc plugins.broken}" IsVisible="{Binding !Plugin.IsValid}"/>
-                          </StackPanel>
-                          <TextBlock Classes="dim" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,1,0,0"
-                                     TextTrimming="CharacterEllipsis"
-                                     Text="{Binding Plugin.Description}"/>
-                          <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,1,0,0"
-                                     TextTrimming="CharacterEllipsis"
-                                     Text="{Binding Plugin.Error}" IsVisible="{Binding !Plugin.IsValid}"/>
-
-                          <!-- Полнота перевода: у обычного плагина список пуст,
-                               и строка не появляется. -->
-                          <ItemsControl ItemsSource="{Binding Plugin.Coverage}" Margin="0,3,0,0">
-                            <ItemsControl.ItemsPanel>
-                              <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" Spacing="6"/>
-                              </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                              <DataTemplate x:DataType="ext:LanguageCoverage">
-                                <ax:AxChip Content="{Binding Label}"/>
-                              </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                          </ItemsControl>
-
-                          <!-- Зависимости: у большинства плагинов их нет, и
-                               строка не появляется. Обязательная не в порядке
-                               подсвечивается — это ответ на вопрос «почему
-                               плагин не поднялся». -->
-                          <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,3,0,0"
-                                      IsVisible="{Binding HasDependencies}">
-                            <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}"
-                                       VerticalAlignment="Center" Text="{ax:Loc plugins.deps}"/>
-                            <ItemsControl ItemsSource="{Binding Dependencies}">
-                              <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                  <StackPanel Orientation="Horizontal" Spacing="6"/>
-                                </ItemsPanelTemplate>
-                              </ItemsControl.ItemsPanel>
-                              <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="ext:PluginDependencyState">
-                                  <ax:AxChip Content="{Binding Label}"
-                                             Foreground="{Binding IsProblem, Converter={x:Static conv:DependencyProblemBrushConverter.Instance}}"/>
-                                </DataTemplate>
-                              </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                          </StackPanel>
-                        </StackPanel>
-                      </DockPanel>
-                    </Border>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
             </ax:AxCard>
           </StackPanel>
 

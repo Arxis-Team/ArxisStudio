@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "publisher": "Arxis",
   "description": "%module.terminal.description%",
+  "tags": [ "tools", "terminal" ],
   "contributions": {
     "commands": [
       { "id": "terminal.open" },

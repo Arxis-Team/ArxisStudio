@@ -11,9 +11,6 @@ public interface ISettingsStore
     /// <summary>Текущие настройки.</summary>
     StudioSettings Current { get; }
 
-    /// <summary>Происходит после сохранения настроек.</summary>
-    event EventHandler? Saved;
-
     /// <summary>Сохраняет текущие настройки на диск.</summary>
     void Save();
 }
@@ -46,14 +43,10 @@ public sealed class JsonSettingsStore : ISettingsStore
     public StudioSettings Current { get; }
 
     /// <inheritdoc/>
-    public event EventHandler? Saved;
-
-    /// <inheritdoc/>
     public void Save()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
         File.WriteAllText(_path, JsonSerializer.Serialize(Current, Options));
-        Saved?.Invoke(this, EventArgs.Empty);
     }
 
     private static StudioSettings Load(string path)

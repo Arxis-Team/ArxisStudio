@@ -3,6 +3,8 @@
         xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
         xmlns:s="using:ArxisStudio.Settings"
         xmlns:vm="using:ArxisStudio.ViewModels"
+        xmlns:conv="using:ArxisStudio.Converters"
+        xmlns:ext="using:ArxisStudio.Extensibility"
         xmlns:loc="using:ArxisStudio.Shell.Localization"
         x:Class="ArxisStudio.Settings.SettingsWindow"
         x:DataType="s:SettingsViewModel"
@@ -49,6 +51,185 @@
           </DockPanel>
         </StackPanel>
       </ax:AxCard>
+    </DataTemplate>
+
+    <!--
+        Плагины: менеджер расширений, приехавших со стороны. Переехал сюда из
+        экрана Welcome целиком — вместе с карточкой и вопросами о зависимых.
+
+        Вторичные действия под «…», а не под шестерёнкой, как у Rider:
+        шестерёнка в этой студии уже занята — она открывает само это окно, и
+        два разных смысла на один значок читались бы как один.
+    -->
+    <DataTemplate DataType="s:PluginsPage">
+      <DockPanel>
+
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+          <ax:AxButton DockPanel.Dock="Right" Classes="icon"
+                       AutomationProperties.Name="{ax:Loc plugins.actions}"
+                       ToolTip.Tip="{ax:Loc plugins.actions}"
+                       Click="OnPluginActionsClick">
+            <ax:AxIcon Data="{x:Static ax:AxIcons.MoreHorizontal}"/>
+          </ax:AxButton>
+          <TextBlock Classes="dimmer" VerticalAlignment="Center" TextWrapping="Wrap"
+                     FontSize="{DynamicResource AxFontSizeSmall}"
+                     Text="{ax:Loc plugins.subtitle}"/>
+        </DockPanel>
+
+        <!-- Чем кончилось последнее действие: установка, обновление, снятие. -->
+        <ax:AxCard DockPanel.Dock="Top" Margin="0,0,0,12" Padding="12,8"
+                   IsVisible="{Binding HasStatus}">
+          <TextBlock Text="{Binding Status}" TextWrapping="Wrap"
+                     FontSize="{DynamicResource AxFontSizeSmall}"/>
+        </ax:AxCard>
+
+        <TextBlock DockPanel.Dock="Top" Classes="dimmer" TextWrapping="Wrap"
+                   FontSize="{DynamicResource AxFontSizeSmall}"
+                   Text="{ax:Loc plugins.empty}" IsVisible="{Binding IsEmpty}"/>
+
+        <ax:AxCard Padding="0" VerticalAlignment="Top" IsVisible="{Binding !IsEmpty}">
+          <ItemsControl ItemsSource="{Binding Cards}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:PluginCard">
+                <Border Padding="14,10" BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,0,0,1">
+                  <DockPanel>
+                    <Border DockPanel.Dock="Left" Width="32" Height="32" Margin="0,0,12,0"
+                            CornerRadius="{DynamicResource AxCornerRadiusLarge}"
+                            Background="{DynamicResource AxBg3Brush}">
+                      <Panel>
+                        <Image x:Name="PluginIcon" Width="22" Height="22"
+                               RenderOptions.BitmapInterpolationMode="HighQuality"
+                               Source="{Binding Plugin.IconPath, Converter={x:Static conv:PluginIconConverter.Instance}}"/>
+                        <!--
+                            Общий значок показывается тогда, когда картинки нет:
+                            не объявлена, потерялась или не прочиталась. Решает
+                            сама картинка, а не путь к ней, — иначе объявленный
+                            и битый файл оставлял бы на карточке пустое место.
+                        -->
+                        <ax:AxIcon Width="18" Height="18" Data="{x:Static ax:AxIcons.Package}"
+                                   Foreground="{DynamicResource AxPurBrush}"
+                                   IsVisible="{Binding #PluginIcon.Source, Converter={x:Static ObjectConverters.IsNull}}"/>
+                      </Panel>
+                    </Border>
+                    <!--
+                        Одна кнопка на оба действия, как в Rider: слева
+                        «Включить»/«Выключить», под стрелкой — удаление.
+                        Выключают часто, удаляют редко и навсегда, и держать
+                        необратимое на расстоянии одного промаха от частого
+                        незачем.
+                    -->
+                    <ax:AxSplitButton DockPanel.Dock="Right" MinWidth="112" Height="26" Margin="10,0,0,0"
+                                      VerticalAlignment="Center" FontSize="{DynamicResource AxFontSizeSmall}"
+                                      Click="OnPluginToggleClick" Tag="{Binding}"
+                                      Content="{Binding IsOn, Converter={x:Static conv:PluginToggleConverter.Instance}}"
+                                      IsVisible="{Binding Plugin.IsValid}">
+                      <ax:AxSplitButton.Flyout>
+                        <ax:AxMenuFlyout Placement="BottomEdgeAlignedRight">
+                          <ax:AxMenuItem Classes="danger" Header="{ax:Loc plugins.remove}"
+                                         Click="OnPluginRemoveClick" Tag="{Binding}"/>
+                        </ax:AxMenuFlyout>
+                      </ax:AxSplitButton.Flyout>
+                    </ax:AxSplitButton>
+                    <!--
+                        Сломанному включать нечего — ему остаётся только уйти, и
+                        кнопка у него своя: под стрелкой удаление было бы
+                        спрятано за действием, которого у него нет.
+                    -->
+                    <ax:AxButton DockPanel.Dock="Right" Height="26" Margin="10,0,0,0"
+                                 VerticalAlignment="Center" FontSize="{DynamicResource AxFontSizeSmall}"
+                                 Click="OnPluginRemoveClick" Tag="{Binding}"
+                                 Content="{ax:Loc plugins.remove}"
+                                 IsVisible="{Binding !Plugin.IsValid}"/>
+                    <TextBlock DockPanel.Dock="Right" Classes="mono dimmer" VerticalAlignment="Center"
+                               FontSize="{DynamicResource AxFontSizeSmall}"
+                               Text="{Binding Plugin.Manifest.Version}"/>
+                    <StackPanel VerticalAlignment="Center">
+                      <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{Binding Plugin.DisplayName}" FontWeight="SemiBold"
+                                   FontSize="{DynamicResource AxFontSize}"/>
+                        <TextBlock Classes="dimmer" VerticalAlignment="Bottom"
+                                   FontSize="{DynamicResource AxFontSizeSmall}"
+                                   Text="{Binding Plugin.Manifest.Publisher}"/>
+                        <ax:AxChip Content="{ax:Loc plugins.broken}" IsVisible="{Binding !Plugin.IsValid}"/>
+                        <!--
+                            Отметка непринятого: галочку копят до «Сохранить», и
+                            без неё человек не отличит выключенное от того, что
+                            он только что решил выключить.
+                        -->
+                        <ax:AxChip Content="{ax:Loc plugins.pending}" IsVisible="{Binding IsChanged}"/>
+                      </StackPanel>
+                      <TextBlock Classes="dim" Margin="0,1,0,0" TextTrimming="CharacterEllipsis"
+                                 FontSize="{DynamicResource AxFontSizeSmall}"
+                                 Text="{Binding Plugin.Description}"/>
+                      <TextBlock Classes="dimmer" Margin="0,1,0,0" TextTrimming="CharacterEllipsis"
+                                 FontSize="{DynamicResource AxFontSizeSmall}"
+                                 Text="{Binding Plugin.Error}" IsVisible="{Binding !Plugin.IsValid}"/>
+
+                      <!--
+                          Метки: то, чем расширение назвало себя само. Известные
+                          студия переводит, остальные показывает как написаны.
+                      -->
+                      <ItemsControl ItemsSource="{Binding Tags}" Margin="0,3,0,0"
+                                    IsVisible="{Binding HasTags}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="6"/>
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="x:String">
+                            <ax:AxChip Content="{Binding}"/>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+
+                      <!-- Полнота перевода: у обычного плагина список пуст. -->
+                      <ItemsControl ItemsSource="{Binding Plugin.Coverage}" Margin="0,3,0,0">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="6"/>
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="ext:LanguageCoverage">
+                            <ax:AxChip Content="{Binding Label}"/>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+
+                      <!--
+                          Зависимости: у большинства плагинов их нет. Обязательная
+                          не в порядке подсвечивается — это ответ на вопрос
+                          «почему плагин не поднялся».
+                      -->
+                      <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,3,0,0"
+                                  IsVisible="{Binding HasDependencies}">
+                        <TextBlock Classes="dimmer" VerticalAlignment="Center"
+                                   FontSize="{DynamicResource AxFontSizeSmall}"
+                                   Text="{ax:Loc plugins.deps}"/>
+                        <ItemsControl ItemsSource="{Binding Dependencies}">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <StackPanel Orientation="Horizontal" Spacing="6"/>
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="ext:PluginDependencyState">
+                              <ax:AxChip Content="{Binding Label}"
+                                         Foreground="{Binding IsProblem, Converter={x:Static conv:DependencyProblemBrushConverter.Instance}}"/>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </StackPanel>
+                  </DockPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ax:AxCard>
+
+      </DockPanel>
     </DataTemplate>
 
     <!-- Ветка расширений: своих настроек нет, только подсказка. -->

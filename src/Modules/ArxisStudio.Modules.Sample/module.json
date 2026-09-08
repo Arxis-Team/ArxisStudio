@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "publisher": "Arxis",
   "description": "%module.sample.description%",
+  "tags": [ "sample" ],
   "contributions": {
     "commands": [
       { "id": "sample.about" },

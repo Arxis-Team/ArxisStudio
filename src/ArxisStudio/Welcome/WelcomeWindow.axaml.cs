@@ -48,7 +48,7 @@ public partial class WelcomeWindow : AxWindow
 
         _settings = settings;
         _extensions = extensions;
-        _model = new WelcomeViewModel(settings, recent, plugins, log);
+        _model = new WelcomeViewModel(recent, plugins, log);
         DataContext = _model;
 
         InitializeComponent();
@@ -76,7 +76,7 @@ public partial class WelcomeWindow : AxWindow
 
         try
         {
-            await SettingsWindow.ShowAsync(this, _settings, _extensions, _extensions.Declaring());
+            await SettingsWindow.ShowAsync(this, _settings, _extensions, _extensions.Declaring(), _model.Plugins);
         }
         finally
         {
@@ -84,203 +84,38 @@ public partial class WelcomeWindow : AxWindow
         }
     }
 
-    private void OnPluginsClick(object? sender, RoutedEventArgs e)
+    /// <summary>
+    /// Открывает менеджер плагинов — ту же страницу того же окна настроек.
+    /// </summary>
+    /// <remarks>
+    /// Разделом плагины быть перестали: менеджер живёт страницей окна, одного
+    /// на студию и на Welcome, и держать вторую его вёрстку здесь значило бы
+    /// чинить каждую находку дважды.
+    /// </remarks>
+    private async void OnPluginsClick(object? sender, RoutedEventArgs e)
     {
-        _model.RefreshPlugins();
-        Select(WelcomeSection.Plugins);
+        _model.ApplyLanguagePacks();
+        _model.IsPluginsOpen = true;
+
+        try
+        {
+            await SettingsWindow.ShowAsync(
+                this, _settings, _extensions, _extensions.Declaring(), _model.Plugins, "studio.plugins");
+        }
+        finally
+        {
+            _model.IsPluginsOpen = false;
+        }
     }
 
     private void Select(WelcomeSection section) => _model.Section = section;
 
-    private void OnDismissStatus(object? sender, RoutedEventArgs e) => _model.Status = null;
-
     private void OnStudioPressed(object? sender, PointerPressedEventArgs e) =>
         StudioRequested?.Invoke(this, EventArgs.Empty);
-
-    private async void OnInstallPluginClick(object? sender, RoutedEventArgs e)
-    {
-        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = Localizer.Instance["plugins.install"],
-            AllowMultiple = false,
-        });
-
-        if (folders.Count == 0 || folders[0].TryGetLocalPath() is not { } source)
-            return;
-
-        Report(_model.Plugins.InstallFromDirectory(source, replace: true));
-    }
-
-    /// <summary>
-    /// Ставит плагин из архива <c>.axplugin</c>.
-    /// </summary>
-    /// <remarks>
-    /// Архив — то, чем плагин доезжает до чужой машины: та же папка в zip.
-    /// Каталог умел ставить его с самого начала, а положить архив было некуда —
-    /// в менеджере была одна кнопка, и та про папку.
-    /// </remarks>
-    private async void OnInstallArchiveClick(object? sender, RoutedEventArgs e)
-    {
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = Localizer.Instance["plugins.installarchive"],
-            AllowMultiple = false,
-            FileTypeFilter =
-            [
-                new FilePickerFileType("ArxisStudio") { Patterns = ["*.axplugin"] },
-            ],
-        });
-
-        if (files.Count == 0 || files[0].TryGetLocalPath() is not { } archive)
-            return;
-
-        Report(_model.Plugins.InstallFromArchive(archive, replace: true));
-    }
-
-    /// <summary>
-    /// Снимает плагин с машины.
-    /// </summary>
-    /// <remarks>
-    /// Для одинокого плагина подтверждения нет намеренно: плагин — это папка,
-    /// поставить его заново значит выбрать её снова, и спрашивать «точно ли» о
-    /// действии, которое повторяется одним щелчком, — лишний шаг на каждый раз
-    /// ради редкой ошибки. Вопрос появляется только тогда, когда страдают
-    /// другие: этим плагином пользуются соседи, и молча оставить их сломанными
-    /// нельзя.
-    /// </remarks>
-    private async void OnRemovePluginClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Control { Tag: InstalledPlugin plugin })
-            return;
-
-        var dependents = _model.MandatoryDependentsOf(plugin);
-
-        if (dependents.Count > 0)
-        {
-            var agreed = await StudioAsk.ConfirmAsync(
-                this,
-                Localizer.Instance["plugins.dependents.title"],
-                string.Format(
-                    CultureInfo.CurrentCulture,
-                    Localizer.Instance["plugins.dependents.remove.message"],
-                    plugin.DisplayName,
-                    string.Join(", ", dependents.Select(dependent => dependent.DisplayName))),
-                Localizer.Instance["plugins.dependents.remove.confirm"],
-                danger: true);
-
-            if (!agreed)
-                return;
-
-            // Зависимые выключаются, а не удаляются: их папки — чужая
-            // работа, и сносить её за компанию студия не вправе. Выключенный
-            // плагин человек включит обратно, когда вернёт зависимость.
-            foreach (var dependent in dependents)
-                _model.Plugins.SetEnabled(dependent.Id, false);
-        }
-
-        var error = _model.Plugins.Uninstall(plugin);
-
-        _model.Status = error is null
-            ? dependents.Count > 0
-                ? $"{plugin.DisplayName} {Localizer.Instance["plugins.removed.suffix"]}. " +
-                  string.Format(
-                      CultureInfo.CurrentCulture,
-                      Localizer.Instance["plugins.disabled.many"],
-                      string.Join(", ", dependents.Select(dependent => dependent.DisplayName)))
-                : $"{plugin.DisplayName} {Localizer.Instance["plugins.removed.suffix"]}"
-            : $"{Localizer.Instance["common.error"]}: {error}";
-
-        _model.RefreshPlugins();
-    }
-
-    /// <summary>
-    /// Говорит, чем кончилась установка.
-    /// </summary>
-    /// <remarks>
-    /// Установка поверх уже стоящего плагина — обычный способ обновиться, и
-    /// сказать об этом надо иначе, чем о первой установке: иначе человек не
-    /// поймёт, заменил он свою версию или поставил вторую.
-    /// </remarks>
-    private void Report((InstalledPlugin? Plugin, string? Error) result)
-    {
-        var known = _model.InstalledPlugins.Select(card => card.Plugin.Id).ToHashSet(StringComparer.Ordinal);
-
-        _model.Status = result.Plugin is not { } plugin
-            ? $"{Localizer.Instance["common.error"]}: {result.Error}"
-            : $"{plugin.DisplayName} {plugin.Manifest?.Version} " +
-              Localizer.Instance[known.Contains(plugin.Id) ? "plugins.updated.suffix" : "plugins.installed.suffix"];
-
-        _model.RefreshPlugins();
-    }
-
-    private void OnOpenPluginFolderClick(object? sender, RoutedEventArgs e)
-    {
-        Directory.CreateDirectory(_model.Plugins.Root);
-        OpenInShell(_model.Plugins.Root);
-    }
-
-    /// <summary>
-    /// Включает или выключает плагин.
-    /// </summary>
-    /// <remarks>
-    /// Выключение того, кем пользуются другие, спрашивает: зависимые без
-    /// него не поднимутся, и человек должен решить это глазами, а не узнать
-    /// при следующем запуске из журнала.
-    /// </remarks>
-    private async void OnTogglePluginClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Control { Tag: InstalledPlugin plugin })
-            return;
-
-        if (plugin.IsEnabled)
-        {
-            var dependents = _model.MandatoryDependentsOf(plugin);
-
-            if (dependents.Count > 0)
-            {
-                var agreed = await StudioAsk.ConfirmAsync(
-                    this,
-                    Localizer.Instance["plugins.dependents.title"],
-                    string.Format(
-                        CultureInfo.CurrentCulture,
-                        Localizer.Instance["plugins.dependents.disable.message"],
-                        plugin.DisplayName,
-                        string.Join(", ", dependents.Select(dependent => dependent.DisplayName))),
-                    Localizer.Instance["plugins.dependents.disable.confirm"],
-                    danger: false);
-
-                if (!agreed)
-                    return;
-
-                foreach (var dependent in dependents)
-                    _model.Plugins.SetEnabled(dependent.Id, false);
-
-                _model.Status = string.Format(
-                    CultureInfo.CurrentCulture,
-                    Localizer.Instance["plugins.disabled.many"],
-                    string.Join(", ", dependents.Select(dependent => dependent.DisplayName).Append(plugin.DisplayName)));
-            }
-        }
-
-        _model.Plugins.SetEnabled(plugin.Id, !plugin.IsEnabled);
-        _model.RefreshPlugins();
-    }
 
     private void OnLinkPressed(object? sender, PointerPressedEventArgs e)
     {
         if (sender is Control { Tag: string url })
-            OpenInShell(url);
-    }
-
-    private static void OpenInShell(string target)
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
-        }
-        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException)
-        {
-            // Открыть ссылку или папку — не то, ради чего стоит падать.
-        }
+            StudioOpen.InShell(url);
     }
 }

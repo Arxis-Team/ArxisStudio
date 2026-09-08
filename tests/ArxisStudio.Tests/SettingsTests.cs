@@ -105,14 +105,14 @@ public class SettingsTests : IDisposable
 
     /// <summary>«Сохранить» пишет накопленное и говорит об этом расширению.</summary>
     [Fact]
-    public void Saving_writes_the_staged_value_and_announces_it()
+    public async Task Saving_writes_the_staged_value_and_announces_it()
     {
         var told = new List<(string Plugin, string Key)>();
         var model = Model(out var values, [Module()], (plugin, key) => told.Add((plugin, key)));
 
         Rows(model).Single().Text = "20";
 
-        Assert.True(model.Save());
+        Assert.True(await model.SaveAsync());
         Assert.Contains("20", File.ReadAllText(values.UserFile));
         Assert.Equal([("arxis.terminal", "terminal.fontSize")], told);
         Assert.False(model.HasChanges);
@@ -128,14 +128,14 @@ public class SettingsTests : IDisposable
     /// откатывал тему и язык к прежним при переписанном файле.
     /// </remarks>
     [Fact]
-    public void Saving_the_appearance_leaves_nothing_unsaved()
+    public async Task Saving_the_appearance_leaves_nothing_unsaved()
     {
         var model = Model(out _, Module());
         var appearance = Assert.IsType<AppearancePage>(model.Nodes[0].Page);
 
         appearance.ThemeIndex = 1;
 
-        Assert.True(model.Save());
+        Assert.True(await model.SaveAsync());
         Assert.False(model.HasChanges, "записанное несохранённым не считается");
 
         // Так закрывается окно после удавшегося сохранения.

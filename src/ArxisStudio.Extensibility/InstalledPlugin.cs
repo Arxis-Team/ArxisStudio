@@ -51,6 +51,30 @@ public sealed record InstalledPlugin(
     public string Description => Strings.Resolve(Manifest?.Description);
 
     /// <summary>
+    /// Метки расширения, приведённые к общему виду.
+    /// </summary>
+    /// <remarks>
+    /// Чистятся здесь, у самого чтения, а не у каждого, кто их показывает или
+    /// ищет: <c>Tools</c>, <c>tools</c> и <c> tools </c> — один тег, и разойтись
+    /// в этом списку, поиску и будущей группировке нельзя. Регистр нижний,
+    /// пробелы по краям сняты, повторы убраны; пустые не в счёт.
+    /// <para>
+    /// Восемь — потолок, и он же ответ на манифест, в котором тегов сотня:
+    /// строка карточки не резиновая, а список, который не помещается, не
+    /// помогает искать. Лишнее отбрасывается молча — сказать об этом должна
+    /// сборка плагина, и <c>ARX0007</c> это делает.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<string> Tags =>
+        (Manifest?.Tags ?? [])
+            .Select(tag => tag?.Trim().ToLowerInvariant())
+            .Where(tag => tag is { Length: > 0 })
+            .OfType<string>()
+            .Distinct(StringComparer.Ordinal)
+            .Take(8)
+            .ToList();
+
+    /// <summary>
     /// Полнота переводов, которые несёт этот пакет; пусто у обычного плагина.
     /// </summary>
     /// <remarks>

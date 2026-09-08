@@ -50,11 +50,19 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     /// <param name="values">Общее хранилище настроек расширений.</param>
     /// <param name="extensions">Кто объявляет настройки: модули, затем плагины.</param>
     /// <param name="announce">Кому сказать о записанном; null — молча.</param>
+    /// <param name="plugins">Менеджер плагинов; null — окно без него.</param>
+    /// <remarks>
+    /// Менеджер приходит собранным, а не строится здесь: ему нужны диалоги
+    /// выбора папки и вопросы человеку, а это дело окна. Необязателен он не
+    /// ради теста, а ради правды: без живого хоста менеджер соврал бы о
+    /// применённом, и лучше не показать его вовсе.
+    /// </remarks>
     public SettingsViewModel(
         ISettingsStore studio,
         PluginSettingsStore values,
         IReadOnlyList<InstalledPlugin> extensions,
-        Action<string, string>? announce = null)
+        Action<string, string>? announce = null,
+        PluginsPage? plugins = null)
     {
         ArgumentNullException.ThrowIfNull(studio);
         ArgumentNullException.ThrowIfNull(values);
@@ -67,7 +75,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
             .Select(extension => new ExtensionPage(extension, values, announce))
             .ToList();
 
-        Appearance = new AppearancePage(studio)
+        var appearance = new AppearancePage(studio)
         {
             Complain = Say,
             Relabelled = () =>
@@ -79,7 +87,12 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
             },
         };
 
-        _pages.Add(Appearance);
+        _pages.Add(appearance);
+
+        // Плагины между оформлением и настройками расширений: сперва студия
+        // целиком, потом состав, потом подстройка того, что в составе.
+        if (plugins is not null)
+            _pages.Add(plugins);
 
         if (pages.Count > 0)
             _pages.Add(new ExtensionsPage(pages));
@@ -90,8 +103,6 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     /// <inheritdoc/>
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    /// <summary>Страница оформления — окно правит её напрямую.</summary>
-    public AppearancePage Appearance { get; }
 
     /// <summary>Дерево разделов, каким его сейчас видно.</summary>
     public ObservableCollection<SettingsNode> Nodes { get; } = [];
@@ -160,12 +171,12 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     /// правленой, причина попадает в подвал, окно не закрывается. Сказать
     /// «сохранено» о том, что не записалось, хуже, чем не закрыться.
     /// </remarks>
-    public bool Save()
+    public async Task<bool> SaveAsync()
     {
         _problems.Clear();
 
         foreach (var page in _pages)
-            page.Commit(_problems);
+            await page.CommitAsync(_problems);
 
         Complaint = _problems.Count == 0
             ? null
@@ -239,6 +250,18 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private void Say(string complaint) => Complaint = complaint;
 
     /// <summary>Пересобирает дерево и удерживает выбранное, если оно уцелело.</summary>
+    /// <summary>Открывает раздел по имени его страницы.</summary>
+    /// <param name="pageId">Имя страницы; неизвестное — оставляет как есть.</param>
+    /// <remarks>
+    /// Так в менеджер плагинов ведёт строка «Плагины» в полосе Welcome: окно
+    /// одно, а вход в него не один, и каждый вправе назвать свой раздел.
+    /// </remarks>
+    public void Select(string pageId)
+    {
+        if (Flat(Nodes).FirstOrDefault(node => string.Equals(node.Page.Id, pageId, StringComparison.Ordinal)) is { } found)
+            Selected = found;
+    }
+
     private void Refresh()
     {
         var wanted = _selected?.Page.Id;

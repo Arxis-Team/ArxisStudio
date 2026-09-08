@@ -173,12 +173,4 @@
     <Setter Property="Background" Value="{DynamicResource AxBg3Brush}"/>
   </Style>
 
-  <!-- Карточка, реагирующая на курсор: рамка становится акцентной. -->
-  <Style Selector="ax|AxCard.hoverable">
-    <Setter Property="Cursor" Value="Hand"/>
-  </Style>
-  <Style Selector="ax|AxCard.hoverable:pointerover">
-    <Setter Property="BorderBrush" Value="{DynamicResource AxAccBrush}"/>
-  </Style>
-
 </Styles>

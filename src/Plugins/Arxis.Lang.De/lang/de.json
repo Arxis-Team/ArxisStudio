@@ -1,6 +1,5 @@
 {
   "language.name": "Deutsch",
-  "app.tagline": "Umgebung für die Anwendungsentwicklung",
   "welcome.title": "ArxisStudio — Willkommen",
   "welcome.nav.projects": "Projekte",
   "welcome.nav.learn": "Lernen",
@@ -24,8 +23,5 @@
   "common.cancel": "Abbrechen",
   "common.close": "Schließen",
   "common.error": "Fehler",
-  "studio.ready": "Bereit",
-  "inspector.save": "Speichern",
-  "inspector.undo": "Rückgängig",
-  "inspector.redo": "Wiederholen"
+  "studio.ready": "Bereit"
 }
