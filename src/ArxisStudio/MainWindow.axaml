@@ -50,7 +50,27 @@
             <ax:ToolBarStrip x:Name="CenterStrip"/>
           </ax:AxToolBar.CenterContent>
           <ax:AxToolBar.RightContent>
-            <ax:ToolBarStrip x:Name="RightStrip"/>
+            <!--
+                Шестерёнка — своя, а не вклад: в ленте стоит принесённое
+                манифестами, и порядок в ней принадлежит вкладам, а этой кнопке
+                место назначено — крайняя справа, у самых кнопок окна, как в
+                §6 спецификации: «…настройки; разделитель 1×18; окно-кнопки».
+                По той же причине здесь и логотип слева.
+
+                Меню, а не прямое действие: щелчок по шестерёнке у Rider
+                открывает дела студии целиком, и следующий пункт встанет рядом,
+                не переучивая руку. Пока пункт один.
+            -->
+            <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+              <ax:ToolBarStrip x:Name="RightStrip"/>
+              <ax:AxButton x:Name="SettingsButton" Classes="icon"
+                           AutomationProperties.Name="{ax:Loc toolbar.settings}"
+                           ToolTip.Tip="{ax:Loc toolbar.settings}"
+                           Click="OnSettingsClick">
+                <ax:AxIcon Data="{x:Static ax:AxIcons.Gear}"/>
+              </ax:AxButton>
+              <ax:AxDivider Orientation="Vertical" Classes="toolbar"/>
+            </StackPanel>
           </ax:AxToolBar.RightContent>
         </ax:AxToolBar>
       </ax:AxTitleBar>

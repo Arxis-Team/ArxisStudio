@@ -118,6 +118,7 @@
   "layout.name.title": "Save layout",
   "layout.name.hint": "Set name",
   "toolbar.menu": "Command menu",
+  "toolbar.settings": "Settings",
   "toolbar.sample.verbose": "Verbose sample log",
   "canvas.grid": "Grid",
   "canvas.snap": "Snap",

@@ -118,6 +118,7 @@
   "layout.name.title": "Сохранить раскладку",
   "layout.name.hint": "Имя набора",
   "toolbar.menu": "Меню команд",
+  "toolbar.settings": "Настройки",
   "toolbar.sample.verbose": "Подробный журнал примера",
   "canvas.grid": "Сетка",
   "canvas.snap": "Привязка",

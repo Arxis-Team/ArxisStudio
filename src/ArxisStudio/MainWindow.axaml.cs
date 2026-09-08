@@ -231,15 +231,6 @@ public partial class MainWindow : AxWindow
 
         branches.Add(Layouts());
 
-        // Настройки последними: это не про раскладку и не про плагины, а про
-        // студию целиком. Своим ходом, а не вкладом манифеста, — по тому же
-        // правилу, что перезагрузка плагина и наборы раскладки: свои дела
-        // студии в contributions не объявляют.
-        var settings = new AxMenuItem { Header = Localizer.Instance["menu.settings"] };
-
-        settings.Click += async (_, _) => await OpenSettingsAsync();
-        branches.Add(settings);
-
         return branches;
 
         // Ветка «Панели» — единственная дорога назад для скрытой панели: имя
@@ -328,12 +319,34 @@ public partial class MainWindow : AxWindow
     }
 
     /// <summary>
-    /// Спрашивает имя и сохраняет под ним нынешнюю раскладку.
+    /// Меню шестерёнки: пока в нём один пункт — настройки.
     /// </summary>
     /// <remarks>
-    /// Имя спрашивают модальным окном, а не полем в меню: меню закрывается от
-    /// первого же щелчка мимо, и набор пропал бы вместе с недопечатанным именем.
+    /// Меню собирается на каждый щелчок и не живёт в <c>Button.Flyout</c>:
+    /// презентер снимает пункты в миг своего создания, и подпись, переведённая
+    /// после этого, до экрана не доехала бы. Тот же приём, что у меню команд в
+    /// полосе.
+    /// <para>
+    /// Прижато к правому краю кнопки: кнопка стоит у самого края окна, и меню,
+    /// выровненное по левому краю, уехало бы за экран.
+    /// </para>
     /// </remarks>
+    private void OnSettingsClick(object? sender, RoutedEventArgs e)
+    {
+        var settings = new AxMenuItem
+        {
+            Header = Localizer.Instance["menu.settings"],
+            Icon = new AxIcon { Data = AxIcons.Gear },
+        };
+
+        settings.Click += async (_, _) => await OpenSettingsAsync();
+
+        var flyout = new AxMenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight };
+
+        flyout.Items.Add(settings);
+        flyout.ShowAt(SettingsButton);
+    }
+
     /// <summary>
     /// Открывает настройки поверх студии.
     /// </summary>
@@ -361,6 +374,13 @@ public partial class MainWindow : AxWindow
         }
     }
 
+    /// <summary>
+    /// Спрашивает имя и сохраняет под ним нынешнюю раскладку.
+    /// </summary>
+    /// <remarks>
+    /// Имя спрашивают модальным окном, а не полем в меню: меню закрывается от
+    /// первого же щелчка мимо, и набор пропал бы вместе с недопечатанным именем.
+    /// </remarks>
     private async Task SaveLayoutAsync()
     {
         var box = new AxTextBox { PlaceholderText = Localizer.Instance["layout.name.hint"], Width = 260 };
