@@ -39,12 +39,16 @@
               Настройки разделом быть перестали: у них своё окно, одно на
               студию и на Welcome. Строка осталась там же, где стояла, и
               отмечается, пока окно открыто.
+
+              Значок — шестерёнка, а не ползунки: дверь в настройки читается
+              шестерёнкой везде. Ползунки в наборе остаются за Settings — они
+              про подстройку, а не про вход.
           -->
           <ToggleButton Classes="nav" IsChecked="{Binding IsSettingsOpen, Mode=OneWay}"
                         AutomationProperties.Name="{ax:Loc welcome.nav.settings}"
                         Click="OnSettingsClick">
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <ax:AxIcon Data="{x:Static ax:AxIcons.Settings}" Width="15" Height="15"/>
+              <ax:AxIcon Data="{x:Static ax:AxIcons.Gear}"/>
               <TextBlock Text="{ax:Loc welcome.nav.settings}" VerticalAlignment="Center"/>
             </StackPanel>
           </ToggleButton>
@@ -61,21 +65,21 @@
           <ToggleButton Classes="nav" IsChecked="{Binding IsProjects, Mode=OneWay}"
                         AutomationProperties.Name="{ax:Loc welcome.nav.projects}" Click="OnProjectsClick">
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <ax:AxIcon Data="{x:Static ax:AxIcons.Folder}" Width="15" Height="15"/>
+              <ax:AxIcon Data="{x:Static ax:AxIcons.Folder}"/>
               <TextBlock Text="{ax:Loc welcome.nav.projects}" VerticalAlignment="Center"/>
             </StackPanel>
           </ToggleButton>
           <ToggleButton Classes="nav" IsChecked="{Binding IsLearn, Mode=OneWay}"
                         AutomationProperties.Name="{ax:Loc welcome.nav.learn}" Click="OnLearnClick">
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <ax:AxIcon Data="{x:Static ax:AxIcons.Play}" Width="15" Height="15"/>
+              <ax:AxIcon Data="{x:Static ax:AxIcons.Play}"/>
               <TextBlock Text="{ax:Loc welcome.nav.learn}" VerticalAlignment="Center"/>
             </StackPanel>
           </ToggleButton>
           <ToggleButton Classes="nav" IsChecked="{Binding IsPlugins, Mode=OneWay}"
                         AutomationProperties.Name="{ax:Loc welcome.nav.plugins}" Click="OnPluginsClick">
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <ax:AxIcon Data="{x:Static ax:AxIcons.Package}" Width="15" Height="15"/>
+              <ax:AxIcon Data="{x:Static ax:AxIcons.Package}"/>
               <TextBlock Text="{ax:Loc welcome.nav.plugins}" VerticalAlignment="Center"/>
             </StackPanel>
           </ToggleButton>
