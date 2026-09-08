@@ -5,8 +5,8 @@
 <AxUserControl xmlns="https://github.com/Arxis-Team/ArxisStudio"
                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                xmlns:a="https://github.com/avaloniaui"
-               xmlns:terminal="using:ArxisStudio.Modules.Terminal"
-               x:Class="ArxisStudio.Modules.Terminal.TerminalSessionView">
+               xmlns:sessions="using:ArxisStudio.Modules.Terminal.Sessions"
+               x:Class="ArxisStudio.Modules.Terminal.Sessions.TerminalSessionView">
 
   <a:DockPanel>
 
@@ -19,7 +19,7 @@
       <a:TextBlock x:Name="Reason" TextWrapping="Wrap"/>
     </a:Border>
 
-    <terminal:TerminalView x:Name="Screen">
+    <sessions:TerminalView x:Name="Screen">
       <a:Control.ContextFlyout>
         <AxMenuFlyout>
           <AxMenuItem x:Name="Copy" Header="{Text terminal.copy}"/>
@@ -28,7 +28,7 @@
           <AxMenuItem x:Name="Clear" Header="{Text terminal.clear}"/>
         </AxMenuFlyout>
       </a:Control.ContextFlyout>
-    </terminal:TerminalView>
+    </sessions:TerminalView>
 
   </a:DockPanel>
 

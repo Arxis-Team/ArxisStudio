@@ -1,11 +1,13 @@
 using System.Globalization;
 using ArxisStudio.Controls;
+using ArxisStudio.Modules.Terminal.Dialogs;
+using ArxisStudio.Modules.Terminal.Sessions;
 using ArxisStudio.Modules.Terminal.Shells;
 using ArxisStudio.Sdk;
 using Avalonia.Controls;
 using Avalonia.Threading;
 
-namespace ArxisStudio.Modules.Terminal;
+namespace ArxisStudio.Modules.Terminal.Panels;
 
 /// <summary>
 /// Панель терминала: сеансы вкладками, кнопка «ещё один» и меню оболочек.

@@ -83,15 +83,21 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
     public ObservableCollection<PluginCard> InstalledPlugins { get; } = [];
 
     /// <summary>
-    /// Настройки, объявленные установленными плагинами.
+    /// Настройки, объявленные расширениями студии, — и модулями, и плагинами.
     /// </summary>
     /// <remarks>
     /// Список строится по манифестам: студия читает их, не загружая сборок, и
     /// настройки видны даже у плагина, который в этом сеансе не поднимался.
+    /// <para>
+    /// Способ доставки на попадание сюда не влияет: секция <c>settings</c> у
+    /// модуля и у плагина одна и та же, значения ложатся в одно хранилище под
+    /// одними ключами, а человек, ищущий, где поправить кегль терминала, о
+    /// разнице между ними не знает и знать не обязан.
+    /// </para>
     /// </remarks>
     public ObservableCollection<PluginSettingRow> PluginSettings { get; } = [];
 
-    /// <summary>Ни один плагин настроек не объявил.</summary>
+    /// <summary>Ни одно расширение настроек не объявило.</summary>
     public bool HasNoPluginSettings => PluginSettings.Count == 0;
 
     /// <summary>Текущий раздел.</summary>
@@ -126,6 +132,18 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
 
     /// <summary>Плагинов не установлено.</summary>
     public bool HasNoPlugins => InstalledPlugins.Count == 0;
+
+    /// <summary>
+    /// Встроенные модули — записи о них, а не поднятый код.
+    /// </summary>
+    /// <remarks>
+    /// Экрану они нужны дважды: целями зависимостей на карточках соседей и
+    /// хозяевами своих настроек. Свойством, а не вызовом на месте, — состав
+    /// студии в неё зашит, и без этого тест не смог бы собрать экран со своим
+    /// набором модулей. Тот же приём и по той же причине, что у
+    /// <see cref="Services.StudioPlugins.Assemblies"/>.
+    /// </remarks>
+    public IReadOnlyList<InstalledPlugin> Modules { get; init; } = StudioModules.Describe();
 
     /// <summary>Последнее сообщение операции: ошибка установки, результат создания.</summary>
     public string? Status
@@ -170,14 +188,28 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
 
         // Цели зависимостей ищутся среди соседей и встроенных модулей: модуль
         // — годная цель, и карточка обязана считать его присутствующим.
-        var all = installed.Concat(StudioModules.Describe()).ToList();
+        var all = installed.Concat(Modules).ToList();
 
+        // Карточка — про жизнь плагина: включить, выключить, обновить, удалить.
+        // Модулю ни одно из этих слов не подходит — он приезжает со студией и
+        // уезжает с ней же, — поэтому карточек у модулей нет и быть не должно.
         foreach (var plugin in installed)
-        {
             InstalledPlugins.Add(new PluginCard(plugin, PluginGraph.Describe(plugin, all)));
 
-            foreach (var declared in plugin.Manifest?.Contributions.Settings ?? [])
-                PluginSettings.Add(new PluginSettingRow(plugin.Id, plugin.DisplayName, declared, store, plugin.Strings));
+        // А настройки — у всех, кто их объявил, и модуль здесь ничем не
+        // отличается: секция манифеста одна, хранилище одно, ключи одни.
+        // Человеку же и вовсе всё равно, приехал терминал со студией или его
+        // поставили после: он ищет, где поправить кегль.
+        //
+        // Модули впереди — тем же правилом, что у полосы и у графа: сперва то,
+        // что принесла студия, потом принесённое со стороны.
+        foreach (var extension in Modules.Concat(installed))
+        {
+            foreach (var declared in extension.Manifest?.Contributions.Settings ?? [])
+            {
+                PluginSettings.Add(new PluginSettingRow(
+                    extension.Id, extension.DisplayName, declared, store, extension.Strings));
+            }
         }
 
         foreach (var plugin in installed.Where(candidate => candidate.IconPath is not null))

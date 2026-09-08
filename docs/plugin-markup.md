@@ -143,7 +143,7 @@ x:Class control from .axaml            leaked: True
 - Нет `Click="OnHelloClick"`: обработчик без `x:Class` привязать некуда, цеплять кодом.
 - **`{Text ключ}` перестанет находить словарь.** Расширение узнаёт плагин по сборке
   корневого объекта разметки
-  ([`TextExtension.ProvideValue`](../src/ArxisStudio.Sdk/Extensibility/StudioText.cs)), а
+  ([`TextExtension.ProvideValue`](../src/ArxisStudio.Sdk/Extensibility/TextExtension.cs)), а
   корень здесь принадлежит Avalonia — вернётся `!ключ!`. Подписи придётся ставить
   привязкой из кода, `Context.Strings.Text(...)`, как это делает
   [`HelloPanel`](../src/Plugins/Arxis.HelloPlugin/HelloPanel.cs). **Это следствие из кода

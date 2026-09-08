@@ -1,4 +1,5 @@
 using ArxisStudio.Modules.Terminal;
+using ArxisStudio.Modules.Terminal.Dialogs;
 using ArxisStudio.Modules.Terminal.Pty;
 using ArxisStudio.Modules.Terminal.Shells;
 using Xunit;

@@ -309,10 +309,20 @@
               <ItemsControl ItemsSource="{Binding PluginSettings}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:PluginSettingRow">
+                    <!--
+                        Подпись строки — она же имя контрола для средств
+                        доступности: глазом её видно рядом, а диктор читает сам
+                        контрол и без имени объявляет «поле» — одинаково во
+                        всех строках подряд. Тот же порядок, что студия требует
+                        от плагинов в полосе, где title обязателен и без него
+                        элемент не ставится вовсе.
+                    -->
                     <DockPanel Classes="settings-row">
                       <ax:AxToggleSwitch DockPanel.Dock="Right" IsChecked="{Binding Flag, Mode=TwoWay}"
+                                         AutomationProperties.Name="{Binding Label}"
                                          IsEnabled="{Binding IsEditable}" IsVisible="{Binding IsToggle}"/>
                       <ax:AxTextBox DockPanel.Dock="Right" Width="220" Text="{Binding Text, Mode=TwoWay}"
+                                    AutomationProperties.Name="{Binding Label}"
                                     IsEnabled="{Binding IsEditable}" IsVisible="{Binding IsText}"/>
                       <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="{Binding Label}" FontSize="{DynamicResource AxFontSize}"/>

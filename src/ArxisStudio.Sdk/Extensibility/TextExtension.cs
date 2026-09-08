@@ -16,7 +16,17 @@ namespace ArxisStudio.Sdk;
 /// Иначе никак: у каждого расширения словарь свой, ключ <c>panel.main</c>
 /// придуман дважды в двух плагинах — и каждому обязан достаться его
 /// собственный. Сборку даёт корень разметки, а связь «сборка → словарь»
-/// кладёт хозяин, поднявший расширение.
+/// кладёт <see cref="StudioStringsRegistry"/> — его наполняет хозяин,
+/// поднявший расширение.
+/// </para>
+/// <para>
+/// <b>Имя класса — это синтаксис разметки, и переименование его ломает.</b>
+/// Разбор XAML ищет по <c>{Text}</c> тип <c>Text</c> или <c>TextExtension</c>
+/// и суффикс отбрасывает сам; назови класс иначе — и <c>{Text ключ}</c>
+/// перестанет разбираться у каждого уже написанного плагина, а у собранного
+/// не найдётся типа, на который сослалась его скомпилированная разметка.
+/// Это снятое обещание контракта, то есть новый мажор
+/// <see cref="StudioSdk.Version"/>, — цена, которую имя должно окупить.
 /// </para>
 /// </remarks>
 public sealed class TextExtension
@@ -47,7 +57,7 @@ public sealed class TextExtension
     public object ProvideValue(IServiceProvider serviceProvider)
     {
         var root = (serviceProvider?.GetService(typeof(IRootObjectProvider)) as IRootObjectProvider)?.RootObject;
-        var strings = StudioText.Of(root?.GetType().Assembly);
+        var strings = StudioStringsRegistry.Of(root?.GetType().Assembly);
 
         return strings is null ? $"!{Key}!" : strings.Text(Key);
     }
@@ -66,7 +76,7 @@ public sealed class TextExtension
 /// выгрузка ради выгрузки и делалась.
 /// </para>
 /// </remarks>
-internal static class StudioText
+internal static class StudioStringsRegistry
 {
     private static readonly ConditionalWeakTable<Assembly, IStudioStrings> Known = [];
 

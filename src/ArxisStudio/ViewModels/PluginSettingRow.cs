@@ -54,9 +54,21 @@ public sealed class PluginSettingRow(
     public string Note => declared.IsProject ? "проектная — правится при открытом проекте" : string.Empty;
 
     /// <summary>Значение переключателя.</summary>
+    /// <remarks>
+    /// Читается терпимо, потому что спрашивают его и о том, что переключателем
+    /// не является. Привязка тумблера живёт в одном шаблоне с полем ввода и
+    /// вычисляется у каждой строки — у скрытой тоже, — так что строковая
+    /// настройка приходит сюда обычным путём. Без охраны студия писала бы на
+    /// каждой такой строке ошибку привязки про тумблер, которого человек не
+    /// видит.
+    /// <para>
+    /// Правило то же, что у <see cref="PluginSettings.Get{T}"/>: тип в файле
+    /// правят руками, и разойтись с объявленным в манифесте он может всегда.
+    /// </para>
+    /// </remarks>
     public bool Flag
     {
-        get => store.Read(pluginId, declared)?.GetValue<bool>() ?? false;
+        get => Read();
         set => Write(value);
     }
 
@@ -65,6 +77,24 @@ public sealed class PluginSettingRow(
     {
         get => store.Read(pluginId, declared)?.ToString() ?? string.Empty;
         set => Write(declared.IsNumber && double.TryParse(value, out var number) ? number : value);
+    }
+
+    /// <summary>Флажок из хранилища; ложь, если там лежит не флажок.</summary>
+    private bool Read()
+    {
+        var value = store.Read(pluginId, declared);
+
+        if (value is null)
+            return false;
+
+        try
+        {
+            return value.GetValue<bool>();
+        }
+        catch (Exception e) when (e is InvalidOperationException or FormatException)
+        {
+            return false;
+        }
     }
 
     private void Write(object? value)

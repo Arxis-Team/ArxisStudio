@@ -1,6 +1,8 @@
+using System.Text.Json;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Services;
+using ArxisStudio.ViewModels;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -21,6 +23,18 @@ public class PluginSettingsTests : IDisposable
 
     private static readonly PluginSetting Format =
         new("figma.format", "string", "project", "Формат", "svg");
+
+    /// <summary>
+    /// Флажок, пришедший той же дорогой, что и настоящий, — разбором манифеста.
+    /// </summary>
+    /// <remarks>
+    /// Записанный конструктором <c>true</c> здесь не годится: из файла значение
+    /// по умолчанию приезжает <c>JsonElement</c>-ом, и читается оно иначе, чем
+    /// обычный <c>bool</c>. Проверять надо ту дорогу, по которой ходит студия.
+    /// </remarks>
+    private static readonly PluginSetting Blink = JsonSerializer.Deserialize<PluginSetting>(
+        """{ "key": "figma.blink", "type": "bool", "scope": "user", "title": "Мигание", "default": true }""",
+        new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
 
     private readonly string _home = Path.Combine(Path.GetTempPath(), $"arxis-settings-{Guid.NewGuid():N}");
 
@@ -156,6 +170,43 @@ public class PluginSettingsTests : IDisposable
 
         Assert.Equal("svg", store.Read("arxis.figma", Format)!.GetValue<string>());
     }
+
+    /// <summary>
+    /// Строковая настройка не ломает привязку тумблера рядом с собой.
+    /// </summary>
+    /// <remarks>
+    /// Тумблер и поле ввода стоят в одном шаблоне строки, и привязка тумблера
+    /// вычисляется у каждой — в том числе у той, где он скрыт. Пока чтение было
+    /// нетерпимым, каждая строковая настройка стоила журналу ошибки привязки
+    /// про контрол, которого человек не видит.
+    /// </remarks>
+    [Fact]
+    public void A_text_setting_does_not_break_the_toggle_beside_it()
+    {
+        var store = Store();
+
+        store.Write("arxis.figma", Token, "секрет");
+
+        Assert.False(Row(Token, store).Flag, "показывать тумблером строку нечем");
+    }
+
+    /// <summary>
+    /// Объявленный манифестом флажок остаётся поднятым.
+    /// </summary>
+    /// <remarks>
+    /// Терпимость к чужому типу не должна превратиться в «всегда ложь»:
+    /// значение по умолчанию приезжает не из файла, а из манифеста, и читается
+    /// другой дорогой. Отдай она здесь ложь — тумблер, объявленный включённым,
+    /// показывался бы выключенным у каждого, кто его ни разу не трогал.
+    /// </remarks>
+    [Fact]
+    public void A_toggle_still_reads_the_default_declared_in_the_manifest()
+    {
+        Assert.True(Row(Blink, Store()).Flag, "манифест объявил true");
+    }
+
+    private static PluginSettingRow Row(PluginSetting declared, PluginSettingsStore store) =>
+        new("arxis.figma", "Figma", declared, store, PluginStrings.Studio);
 
     private string Project() => Path.Combine(_home, "ВолнаЧат");
 

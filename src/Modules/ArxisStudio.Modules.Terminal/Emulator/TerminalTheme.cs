@@ -3,7 +3,7 @@ using XTerm.Buffer;
 using XTerm.Common;
 using XTerm.Options;
 
-namespace ArxisStudio.Modules.Terminal;
+namespace ArxisStudio.Modules.Terminal.Emulator;
 
 /// <summary>
 /// Цвета терминала: палитра Campbell из Windows Terminal на фоне темы студии.

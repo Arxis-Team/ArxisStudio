@@ -1,6 +1,6 @@
 using ArxisStudio.Controls;
 
-namespace ArxisStudio.Modules.Terminal;
+namespace ArxisStudio.Modules.Terminal.Panels;
 
 /// <summary>
 /// Вид панели терминала: полоса сеансов, кнопки и место под экран.

@@ -6,7 +6,7 @@
 <AxDialog xmlns="https://github.com/Arxis-Team/ArxisStudio"
           xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
           xmlns:a="https://github.com/avaloniaui"
-          x:Class="ArxisStudio.Modules.Terminal.SettingsDialog"
+          x:Class="ArxisStudio.Modules.Terminal.Dialogs.SettingsDialog"
           Title="{Text terminal.settings.title}">
 
   <a:StackPanel x:Name="Form" Spacing="10" Width="320">

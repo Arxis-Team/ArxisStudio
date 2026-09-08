@@ -1,3 +1,4 @@
+using ArxisStudio.Modules.Terminal.Emulator;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -14,7 +15,7 @@ using XMouseButton = XTerm.Input.MouseButton;
 using XMouseEventType = XTerm.Input.MouseEventType;
 using XSelectionMode = XTerm.Selection.SelectionMode;
 
-namespace ArxisStudio.Modules.Terminal;
+namespace ArxisStudio.Modules.Terminal.Sessions;
 
 /// <summary>
 /// Экран терминала: рисует сеанс и принимает клавиатуру с мышью.

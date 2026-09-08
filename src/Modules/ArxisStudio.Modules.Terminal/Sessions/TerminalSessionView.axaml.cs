@@ -1,6 +1,6 @@
 using ArxisStudio.Controls;
 
-namespace ArxisStudio.Modules.Terminal;
+namespace ArxisStudio.Modules.Terminal.Sessions;
 
 /// <summary>
 /// Вид одного сеанса: экран оболочки и строка о её конце.

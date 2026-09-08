@@ -1,5 +1,6 @@
 using System.Text;
 using System.Threading.Channels;
+using ArxisStudio.Modules.Terminal.Emulator;
 using ArxisStudio.Modules.Terminal.Pty;
 using ArxisStudio.Modules.Terminal.Shells;
 using Avalonia.Input;
@@ -10,7 +11,7 @@ using AttributeData = XTerm.Buffer.AttributeData;
 using BufferLine = XTerm.Buffer.BufferLine;
 using XTerminal = XTerm.Terminal;
 
-namespace ArxisStudio.Modules.Terminal;
+namespace ArxisStudio.Modules.Terminal.Sessions;
 
 /// <summary>
 /// Один сеанс: оболочка в псевдотерминале, эмулятор экрана и дорога байтов

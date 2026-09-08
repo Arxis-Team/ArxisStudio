@@ -840,7 +840,7 @@ public sealed class PluginHost : IDisposable
             // здесь, до первой построенной панели, и одинаково для плагина и
             // для встроенного модуля — путь подъёма у них один.
             foreach (var assembly in assemblies)
-                StudioText.Remember(assembly, studio.Strings);
+                StudioStringsRegistry.Remember(assembly, studio.Strings);
 
             foreach (var plugin in entries)
                 plugin.Activate(studio);

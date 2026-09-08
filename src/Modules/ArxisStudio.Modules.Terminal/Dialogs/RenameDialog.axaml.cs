@@ -4,7 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Reactive;
 using Avalonia.Input;
 
-namespace ArxisStudio.Modules.Terminal;
+namespace ArxisStudio.Modules.Terminal.Dialogs;
 
 /// <summary>
 /// Диалог переименования сеанса.

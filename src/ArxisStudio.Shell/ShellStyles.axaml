@@ -73,11 +73,35 @@
   <Style Selector="ToggleButton.nav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource AxBg3Brush}"/>
   </Style>
+  <!--
+      Цвет выбранной строки ставится на презентер, а не на кнопку, и это не
+      прихоть. ToggleButton — единственный контрол оболочки без своей темы: тема
+      студии его не описывает, поэтому его берёт Fluent, а Fluent красит текст
+      не на контроле, а на PART_ContentPresenter — токеном
+      ToggleButtonForegroundChecked. Значение на самой кнопке доезжает до текста
+      только наследованием, а наследование всегда слабее значения, поставленного
+      на том же элементе: наш AxFg проигрывал, и выбранная строка красилась
+      белым Fluent-а.
+
+      В тёмной теме это сходило с рук — белое по AxSel (#2E436E) читается. В
+      светлой AxSel — бледно-голубой #D4E2FF, и белым по нему подпись пропадала
+      совсем: контраст 1,3:1, темнее фона в строке не было ни одного пикселя.
+
+      Состояния перечислены поимённо: у Fluent на каждое свой токен
+      (…Checked, …CheckedPointerOver, …CheckedPressed), и молчание о любом из
+      них вернуло бы белый текст в этом состоянии.
+  -->
   <Style Selector="ToggleButton.nav:checked /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource AxSelBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource AxFgBrush}"/>
+  </Style>
+  <Style Selector="ToggleButton.nav:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{DynamicResource AxFgBrush}"/>
+  </Style>
+  <Style Selector="ToggleButton.nav:checked:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{DynamicResource AxFgBrush}"/>
   </Style>
   <Style Selector="ToggleButton.nav:checked">
-    <Setter Property="Foreground" Value="{DynamicResource AxFgBrush}"/>
     <Setter Property="FontWeight" Value="Medium"/>
   </Style>
 

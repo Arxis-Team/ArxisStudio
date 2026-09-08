@@ -3,7 +3,7 @@ using XKey = XTerm.Input.Key;
 using XTerminal = XTerm.Terminal;
 using XModifiers = XTerm.Input.KeyModifiers;
 
-namespace ArxisStudio.Modules.Terminal;
+namespace ArxisStudio.Modules.Terminal.Emulator;
 
 /// <summary>
 /// Что уходит оболочке, когда человек нажимает клавишу.

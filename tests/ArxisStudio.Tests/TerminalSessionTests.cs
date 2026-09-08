@@ -1,5 +1,7 @@
 using System.Text;
 using ArxisStudio.Modules.Terminal;
+using ArxisStudio.Modules.Terminal.Emulator;
+using ArxisStudio.Modules.Terminal.Sessions;
 using ArxisStudio.Modules.Terminal.Shells;
 using Avalonia.Input;
 using Xunit;

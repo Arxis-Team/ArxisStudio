@@ -29,7 +29,7 @@ public class ProbeView : AxUserControl;
 /// хозяин, поднявший расширение. Проверяется здесь именно этот шов: без него
 /// подпись в панели плагина осталась бы либо на языке автора, либо в коде.
 /// </remarks>
-public class StudioTextTests
+public class TextExtensionTests
 {
     private const string Url = "https://github.com/Arxis-Team/ArxisStudio";
     private const string Avalonia = "https://github.com/avaloniaui";
@@ -44,7 +44,7 @@ public class StudioTextTests
         var words = new Words();
 
         words.Set("panel.hint", "Подсказка");
-        StudioText.Remember(typeof(ProbeView).Assembly, words);
+        StudioStringsRegistry.Remember(typeof(ProbeView).Assembly, words);
 
         var view = AvaloniaRuntimeXamlLoader.Parse<ProbeView>(
             $$"""
@@ -103,7 +103,7 @@ public class StudioTextTests
         var loaded = host.LoadBuiltIn(typeof(SampleModule).Assembly);
 
         Assert.True(loaded.IsLoaded, loaded.Error);
-        Assert.NotNull(StudioText.Of(typeof(SampleModule).Assembly));
+        Assert.NotNull(StudioStringsRegistry.Of(typeof(SampleModule).Assembly));
     }
 
     /// <summary>Словарь, который умеет менять текст под уже поставленной привязкой.</summary>

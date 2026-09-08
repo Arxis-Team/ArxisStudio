@@ -8,8 +8,8 @@
 <AxDialog xmlns="https://github.com/Arxis-Team/ArxisStudio"
           xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
           xmlns:a="https://github.com/avaloniaui"
-          xmlns:terminal="using:ArxisStudio.Modules.Terminal"
-          x:Class="ArxisStudio.Modules.Terminal.RenameDialog"
+          xmlns:dialogs="using:ArxisStudio.Modules.Terminal.Dialogs"
+          x:Class="ArxisStudio.Modules.Terminal.Dialogs.RenameDialog"
           Title="{Text terminal.rename.title}">
 
   <a:StackPanel x:Name="Form" Spacing="4">
@@ -21,7 +21,7 @@
     -->
     <AxTextBox x:Name="Chosen"
                Width="320"
-               MaxLength="{x:Static terminal:RenameDialog.MaxLength}"
+               MaxLength="{x:Static dialogs:RenameDialog.MaxLength}"
                a:AutomationProperties.Name="{Text terminal.rename.name}"/>
   </a:StackPanel>
 
