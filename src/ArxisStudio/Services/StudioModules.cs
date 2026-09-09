@@ -19,6 +19,7 @@ public static class StudioModules
     [
         typeof(Modules.Sample.SampleModule).Assembly,
         typeof(Modules.Terminal.TerminalModule).Assembly,
+        typeof(Modules.Console.ConsoleModule).Assembly,
     ];
 
     /// <summary>

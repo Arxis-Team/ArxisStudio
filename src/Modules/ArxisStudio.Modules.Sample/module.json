@@ -8,10 +8,12 @@
   "contributions": {
     "commands": [
       { "id": "sample.about" },
-      { "id": "sample.verbose" }
+      { "id": "sample.verbose" },
+      { "id": "sample.problems" }
     ],
     "menus": [
-      { "path": "%menu.tools%/%menu.sample%/%menu.sample.about%", "command": "sample.about" }
+      { "path": "%menu.tools%/%menu.sample%/%menu.sample.about%", "command": "sample.about" },
+      { "path": "%menu.tools%/%menu.sample%/%menu.sample.problems%", "command": "sample.problems" }
     ],
     "toolWindows": [
       { "id": "sample.panel", "title": "%panel.sample%", "placement": { "side": "left", "size": 0.22 } }

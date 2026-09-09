@@ -1,5 +1,4 @@
-﻿using System.Collections.ObjectModel;
-using ArxisStudio.Extensibility;
+﻿using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 
 namespace ArxisStudio.Services;
@@ -13,10 +12,14 @@ namespace ArxisStudio.Services;
 /// разным местам значило бы заставить человека гадать, в какое смотреть.
 /// <para>
 /// Записи можно отражать в поток — обычно это стандартный вывод процесса.
-/// Панели, которая показывала бы журнал, в студии сейчас нет, и без такого
-/// отражения он виден только сам себе: студия пишет о сбое плагина, а прочесть
-/// это негде. Поток — не замена панели, а канал для того, кто запускает студию
-/// из терминала: разработчика студии и автора плагина.
+/// Показывает журнал панель «Консоль», и поток ей не замена и не конкурент:
+/// он канал для того, кто запускает студию из терминала — разработчика студии
+/// и автора плагина, — и остаётся единственным, пока панель ещё не построена.
+/// </para>
+/// <para>
+/// Журнал на студию один, и это важнее, чем кажется: пока их было два — свой
+/// у приложения и свой у главного окна, — службой отдавался только второй, и
+/// записи запуска панель не увидела бы никогда, хотя в терминале они есть.
 /// </para>
 /// </remarks>
 /// <param name="echo">
@@ -27,29 +30,62 @@ public sealed class StudioLog(TextWriter? echo = null) : IStudioLog, IStudioLogF
 {
     private const int Limit = 2000;
 
-    // Коллекция наблюдаемая: панель консоли — модуль и получает её службой,
-    // так что подписаться на изменения она может, а перестроить список по
-    // событию — уже нет, там нет ни одного её объекта.
-    private readonly ObservableCollection<StudioLogRecord> _records = [];
+    // Писать в журнал могут из любого потока: фоновая задача плагина
+    // отчитывается о своей отмене из пула, а шов сбоев зовёт запись оттуда же.
+    // Поэтому список закрыт замком, а наружу уходит снимок.
+    private readonly Lock _gate = new();
+    private readonly List<StudioLogRecord> _records = [];
+
+    private IReadOnlyList<StudioLogRecord>? _snapshot;
 
     /// <inheritdoc/>
     public event EventHandler? Changed;
 
-    /// <inheritdoc/>
-    public IReadOnlyList<StudioLogRecord> Records => _records;
+    /// <summary>
+    /// Записи журнала, от старых к новым.
+    /// </summary>
+    /// <remarks>
+    /// Отдаётся снимок, а не живой список, и он же запоминается до следующей
+    /// записи: панель читает его на каждое изменение, и копировать две тысячи
+    /// записей ради каждого чтения незачем.
+    /// <para>
+    /// Наблюдаемой коллекции здесь нет намеренно — она была, и это оказалось
+    /// ошибкой: её <c>CollectionChanged</c> прилетал бы в привязки Avalonia из
+    /// потока пула, а трогать дерево контролов оттуда нельзя. Перенос в поток
+    /// интерфейса — дело того, кто показывает, а не того, кто пишет: журнал
+    /// собирают и там, где никакой Avalonia нет.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<StudioLogRecord> Records
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _snapshot ??= [.. _records];
+            }
+        }
+    }
 
     /// <inheritdoc/>
     public void Write(StudioLogLevel level, string source, string message)
     {
         var record = new StudioLogRecord(DateTimeOffset.Now, level, source, message);
 
-        _records.Add(record);
+        lock (_gate)
+        {
+            _records.Add(record);
+
+            // Журнал долгого сеанса иначе растёт без конца; старое уходит первым.
+            if (_records.Count > Limit)
+                _records.RemoveRange(0, _records.Count - Limit);
+
+            _snapshot = null;
+        }
+
+        // Эхо и событие — вне замка: подписчик исполняется своим кодом, и
+        // держать на нём наш замок значит однажды получить взаимную блокировку.
         Echo(record);
-
-        // Журнал долгого сеанса иначе растёт без конца; старое уходит первым.
-        while (_records.Count > Limit)
-            _records.RemoveAt(0);
-
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -83,7 +119,12 @@ public sealed class StudioLog(TextWriter? echo = null) : IStudioLog, IStudioLogF
     /// <inheritdoc/>
     public void Clear()
     {
-        _records.Clear();
+        lock (_gate)
+        {
+            _records.Clear();
+            _snapshot = null;
+        }
+
         Changed?.Invoke(this, EventArgs.Empty);
     }
 }

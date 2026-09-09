@@ -32,10 +32,10 @@ namespace ArxisStudio;
 /// </remarks>
 public partial class MainWindow : AxWindow
 {
-    // Журнал отражается в стандартный вывод: панели, которая показывала бы его,
-    // в студии нет, и без этого о сбое плагина не узнает никто. Запущенной без
-    // терминала студии писать некуда — и это ровно то, что нужно.
-    private readonly StudioLog _log = new(Console.Out);
+    // Журнал приходит извне и один на процесс: заведя свой, окно оставило бы
+    // записи запуска в чужом экземпляре — а служба чтения отдаётся отсюда, и
+    // панель «Консоль» не увидела бы ни одной из них.
+    private readonly StudioLog _log;
     private readonly StudioProblems _problems = new();
     private readonly PluginGuard _guard = new();
     private readonly StudioTaskRegistry _tasks = new();
@@ -95,9 +95,24 @@ public partial class MainWindow : AxWindow
     /// </remarks>
     public PluginCatalog Catalog { get; init; } = new();
 
-    /// <summary>Создаёт окно без проекта — состояние каркаса.</summary>
-    public MainWindow()
+    /// <summary>
+    /// Создаёт окно без проекта — состояние каркаса.
+    /// </summary>
+    /// <param name="log">
+    /// Журнал студии — тот же, в который писали этапы запуска.
+    /// </param>
+    /// <remarks>
+    /// Параметром, а не свойством с <c>init</c>, как <see cref="Settings"/> и
+    /// <see cref="Catalog"/>: журнал нужен уже в теле конструктора — на него
+    /// подписываются раскладка и полоса, — а свойство с <c>init</c>
+    /// присваивается после того, как конструктор вернул управление.
+    /// </remarks>
+    public MainWindow(StudioLog log)
     {
+        ArgumentNullException.ThrowIfNull(log);
+
+        _log = log;
+
         InitializeComponent();
 
         _model = new MainWindowViewModel(_tasks);

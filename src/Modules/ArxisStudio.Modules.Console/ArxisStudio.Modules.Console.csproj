@@ -1,0 +1,69 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+        Консоль студии: журнал и находки, каждая своей панелью в нижней группе.
+
+        Панелей две, а модуль один, и это не экономия: вкладками их делает сам
+        док — вторая панель просит места «рядом с первой», — а две вкладки,
+        нарисованные внутри одной панели, были бы второй полосой поверх той,
+        что док уже рисует.
+
+        Раскладка по папкам, и она же порядок зависимостей:
+
+          Feed/      общее для обеих панелей: склейка перестроений, коллекция,
+                     кнопка-переключатель
+          Log/       модель строк журнала: фильтр, свёртка, счётчики
+          Problems/  модель строк находок
+          Panels/    сами панели студии
+
+        Ссылки идут только вниз по этому списку: Feed не знает никого, Log и
+        Problems знают Feed, Panels знают свою папку модели и Feed. Обратных
+        стрелок нет ни одной — Feed ничего не знает о панели, Log ничего не
+        знает о Problems.
+
+        В корне — граница модуля: манифест, точка входа, шов между командами и
+        панелями, типизированные ключи настроек.
+    -->
+    <PropertyGroup>
+        <RootNamespace>ArxisStudio.Modules.Console</RootNamespace>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Avalonia"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
+        <ProjectReference Include="../../../external/ArxisStudio.Controls/src/ArxisStudio.Controls.csproj"/>
+    </ItemGroup>
+
+    <!--
+        Анализатор — отдельной строкой, как и у плагина: через цепочку
+        ProjectReference анализаторы не передаются. Правила у модуля и у
+        плагина одни, и проверяться они должны одинаково — иначе код,
+        переносимый между режимами, менял бы смысл при переносе.
+    -->
+    <ItemGroup>
+        <ProjectReference Include="../../ArxisStudio.Sdk.Analyzers/ArxisStudio.Sdk.Analyzers.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false"/>
+    </ItemGroup>
+
+    <!-- Манифест едет внутри сборки — как у всякого встроенного модуля. -->
+    <ItemGroup>
+        <EmbeddedResource Include="module.json"/>
+    </ItemGroup>
+
+    <!--
+        Манифест и словарь — входами сборки, чтобы ARX0002 сверил одно с другим.
+        Словарь у модуля не свой: своей папки у него нет, и текст ему дают
+        словари самой студии. Берётся английский — язык, на котором студия
+        написана: переводам разрешено быть неполными.
+    -->
+    <ItemGroup>
+        <AdditionalFiles Include="module.json"/>
+        <AdditionalFiles Include="../../ArxisStudio.Shell/Localization/Strings/en.json"/>
+    </ItemGroup>
+
+</Project>

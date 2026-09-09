@@ -13,6 +13,11 @@ namespace ArxisStudio.Services;
 /// </remarks>
 public sealed class StudioProblems : IStudioProblems
 {
+    // Замок и снимок — по тем же соображениям, что у журнала: сообщать
+    // находки могут из фоновой задачи, а читает их панель из потока
+    // интерфейса. Правило у обеих служб студии одно: отдают снимок, событие
+    // приходит на потоке того, кто писал.
+    private readonly Lock _gate = new();
     private readonly Dictionary<string, IReadOnlyList<StudioProblem>> _bySource = new(StringComparer.Ordinal);
     private readonly List<string> _order = [];
 
@@ -22,7 +27,16 @@ public sealed class StudioProblems : IStudioProblems
     public event EventHandler? Changed;
 
     /// <inheritdoc/>
-    public IReadOnlyList<StudioProblem> All => _flattened ??= Flatten();
+    public IReadOnlyList<StudioProblem> All
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _flattened ??= Flatten();
+            }
+        }
+    }
 
     /// <inheritdoc/>
     public void Report(string source, IEnumerable<StudioProblem> problems)
@@ -32,22 +46,26 @@ public sealed class StudioProblems : IStudioProblems
 
         var found = problems.ToList();
 
-        if (found.Count == 0)
+        lock (_gate)
         {
-            if (!_bySource.Remove(source))
-                return;
+            if (found.Count == 0)
+            {
+                if (!_bySource.Remove(source))
+                    return;
 
-            _order.Remove(source);
+                _order.Remove(source);
+            }
+            else
+            {
+                if (!_bySource.ContainsKey(source))
+                    _order.Add(source);
+
+                _bySource[source] = found;
+            }
+
+            _flattened = null;
         }
-        else
-        {
-            if (!_bySource.ContainsKey(source))
-                _order.Add(source);
 
-            _bySource[source] = found;
-        }
-
-        _flattened = null;
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -70,18 +88,23 @@ public sealed class StudioProblems : IStudioProblems
         ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
 
         var prefix = Owned(pluginId, string.Empty);
-        var mine = _order.Where(source => source.StartsWith(prefix, StringComparison.Ordinal)).ToList();
 
-        if (mine.Count == 0)
-            return;
-
-        foreach (var source in mine)
+        lock (_gate)
         {
-            _bySource.Remove(source);
-            _order.Remove(source);
+            var mine = _order.Where(source => source.StartsWith(prefix, StringComparison.Ordinal)).ToList();
+
+            if (mine.Count == 0)
+                return;
+
+            foreach (var source in mine)
+            {
+                _bySource.Remove(source);
+                _order.Remove(source);
+            }
+
+            _flattened = null;
         }
 
-        _flattened = null;
         Changed?.Invoke(this, EventArgs.Empty);
     }
 

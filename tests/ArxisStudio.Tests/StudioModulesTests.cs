@@ -34,6 +34,7 @@ public class StudioModulesTests
         Assert.Equal(ids.Count, ids.Distinct(StringComparer.Ordinal).Count());
         Assert.Contains("arxis.sample", ids);
         Assert.Contains("arxis.terminal", ids);
+        Assert.Contains("arxis.console", ids);
     }
 
     /// <summary>На карточке зависимость от модуля выглядит присутствующей.</summary>

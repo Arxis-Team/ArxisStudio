@@ -1,0 +1,209 @@
+<!--
+    Панель журнала: полоса отбора, список записей и подробности выбранной.
+
+    Полоса стоит первой строкой содержимого, а не в шапке панели: в доке студии
+    шапка принадлежит группе вкладок — там живут вкладки соседних панелей и
+    кнопки студии, — и делить её с ними панель не может.
+
+    По умолчанию словарь студии: контрол без префикса — её контрол. Всё родное
+    Avalonia пишется через a:.
+-->
+<AxUserControl xmlns="https://github.com/Arxis-Team/ArxisStudio"
+               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+               xmlns:a="https://github.com/avaloniaui"
+               xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
+               xmlns:feed="using:ArxisStudio.Modules.Console.Feed"
+               xmlns:log="using:ArxisStudio.Modules.Console.Log"
+               x:Class="ArxisStudio.Modules.Console.Panels.LogPanelView">
+
+  <a:DockPanel>
+
+    <a:Border a:DockPanel.Dock="Top"
+              Padding="4,2"
+              BorderThickness="0,0,0,1"
+              BorderBrush="{a:DynamicResource AxBrdBrush}">
+      <a:DockPanel>
+
+        <!--
+            Счётчики слева — они же переключатели уровня, как в консоли Unity.
+            Число всегда о всём журнале, а не о показанном: счётчик, падающий
+            до нуля оттого, что уровень выключили, ничего не сообщает.
+        -->
+        <a:StackPanel a:DockPanel.Dock="Left" Orientation="Horizontal" Spacing="2"
+                      VerticalAlignment="Center">
+
+          <feed:ConsoleToggle x:Name="Errors" Classes="compact ghost error"
+                              a:ToolTip.Tip="{Text console.level.error}"
+                              a:AutomationProperties.Name="{Text console.level.error}">
+            <a:StackPanel Orientation="Horizontal" Spacing="4">
+              <AxIcon x:Name="ErrorIcon" Classes="small" Data="{x:Static ax:AxIcons.Error}"/>
+              <a:TextBlock x:Name="ErrorCount" VerticalAlignment="Center"/>
+            </a:StackPanel>
+          </feed:ConsoleToggle>
+
+          <feed:ConsoleToggle x:Name="Warnings" Classes="compact ghost warn"
+                              a:ToolTip.Tip="{Text console.level.warning}"
+                              a:AutomationProperties.Name="{Text console.level.warning}">
+            <a:StackPanel Orientation="Horizontal" Spacing="4">
+              <AxIcon x:Name="WarningIcon" Classes="small" Data="{x:Static ax:AxIcons.Warning}"/>
+              <a:TextBlock x:Name="WarningCount" VerticalAlignment="Center"/>
+            </a:StackPanel>
+          </feed:ConsoleToggle>
+
+          <feed:ConsoleToggle x:Name="Infos" Classes="compact ghost"
+                              a:ToolTip.Tip="{Text console.level.info}"
+                              a:AutomationProperties.Name="{Text console.level.info}">
+            <a:StackPanel Orientation="Horizontal" Spacing="4">
+              <AxIcon Classes="small" Data="{x:Static ax:AxIcons.Info}"/>
+              <a:TextBlock x:Name="InfoCount" VerticalAlignment="Center"/>
+            </a:StackPanel>
+          </feed:ConsoleToggle>
+
+          <feed:ConsoleToggle x:Name="Debugs" Classes="compact ghost"
+                              a:ToolTip.Tip="{Text console.level.debug}"
+                              a:AutomationProperties.Name="{Text console.level.debug}">
+            <a:StackPanel Orientation="Horizontal" Spacing="4">
+              <AxIcon Classes="small" Data="{x:Static ax:AxIcons.Debug}"/>
+              <a:TextBlock x:Name="DebugCount" VerticalAlignment="Center"/>
+            </a:StackPanel>
+          </feed:ConsoleToggle>
+
+          <AxDivider Orientation="Vertical" Classes="toolbar"/>
+        </a:StackPanel>
+
+        <!--
+            Класс кнопок один: icon делает кнопку квадратной по высоте строки,
+            а добавленный к нему compact вернул бы минимальную ширину кнопки с
+            текстом. Подпись у каждой двойная: подсказка под курсором и имя для
+            средств доступности — значка средствам доступности мало.
+        -->
+        <a:StackPanel a:DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2"
+                      VerticalAlignment="Center">
+
+          <AxButton x:Name="Sources" Classes="icon"
+                    a:ToolTip.Tip="{Text console.source}"
+                    a:AutomationProperties.Name="{Text console.source}">
+            <AxIcon Classes="small" Data="{x:Static ax:AxIcons.Filter}"/>
+          </AxButton>
+
+          <feed:ConsoleToggle x:Name="Collapse" Classes="icon"
+                              a:ToolTip.Tip="{Text console.collapse}"
+                              a:AutomationProperties.Name="{Text console.collapse}">
+            <AxIcon Classes="small" Data="{x:Static ax:AxIcons.CollapseAll}"/>
+          </feed:ConsoleToggle>
+
+          <feed:ConsoleToggle x:Name="Autoscroll" Classes="icon"
+                              a:ToolTip.Tip="{Text console.autoscroll}"
+                              a:AutomationProperties.Name="{Text console.autoscroll}">
+            <AxIcon Classes="small" Data="{x:Static ax:AxIcons.Download}"/>
+          </feed:ConsoleToggle>
+
+          <feed:ConsoleToggle x:Name="Details" Classes="icon"
+                              a:ToolTip.Tip="{Text console.details}"
+                              a:AutomationProperties.Name="{Text console.details}">
+            <AxIcon Classes="small" Data="{x:Static ax:AxIcons.Split}"/>
+          </feed:ConsoleToggle>
+
+          <AxButton x:Name="Copy" Classes="icon"
+                    a:ToolTip.Tip="{Text console.copy}"
+                    a:AutomationProperties.Name="{Text console.copy}">
+            <AxIcon Classes="small" Data="{x:Static ax:AxIcons.Copy}"/>
+          </AxButton>
+
+          <AxButton x:Name="Clear" Classes="icon"
+                    a:ToolTip.Tip="{Text console.clear}"
+                    a:AutomationProperties.Name="{Text console.clear}">
+            <AxIcon Classes="small" Data="{x:Static ax:AxIcons.Trash}"/>
+          </AxButton>
+
+        </a:StackPanel>
+
+        <AxSearchField x:Name="Query" Classes="compact"
+                       PlaceholderText="{Text console.search}"
+                       MaxWidth="360" HorizontalAlignment="Left" Margin="8,0"
+                       VerticalAlignment="Center"
+                       a:AutomationProperties.Name="{Text console.search}"/>
+
+      </a:DockPanel>
+    </a:Border>
+
+
+    <!--
+        Список и подробности делят место долями. Вторая строка сначала нулевая:
+        подробности показывает переключатель, и он же меняет её долю — скрытая
+        строка ненулевой высоты оставляла бы под собой пустую полосу.
+    -->
+    <a:Grid x:Name="Body" RowDefinitions="2*,0">
+
+    <!--
+        Список и объяснение пустоты лежат рядом, а не подменяют друг друга:
+        подмена значила бы, что список собирают заново при каждой очистке.
+    -->
+    <a:Panel a:Grid.Row="0">
+        <AxListBox x:Name="Records" SelectionMode="Single">
+          <AxListBox.ItemTemplate>
+            <a:DataTemplate x:DataType="log:LogRow">
+
+              <!--
+                  Высота задана минимумом, а не числом: строка всегда однострочна
+                  — длинное сообщение обрезается многоточием, — поэтому строки
+                  одинаковы, и виртуализированный список оценивает длину
+                  содержимого точно. Прибитая высота дала бы то же самое, но
+                  обрезала бы текст, когда человек увеличил его вдвое.
+              -->
+              <a:Grid MinHeight="{a:DynamicResource AxRowHeight}"
+                      ColumnDefinitions="Auto,Auto,Auto,*,Auto">
+
+                <a:TextBlock a:Grid.Column="0" Classes="dim mono"
+                             Text="{a:Binding Stamp}" IsVisible="{a:Binding HasStamp}"
+                             VerticalAlignment="Center" Margin="0,0,8,0"/>
+
+                <a:TextBlock a:Grid.Column="1" Text="{a:Binding Level}" MinWidth="52"
+                             FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0"
+                             a:Classes.bad="{a:Binding IsError}"
+                             a:Classes.warn="{a:Binding IsWarning}"
+                             a:Classes.dim="{a:Binding IsDebug}"/>
+
+                <a:TextBlock a:Grid.Column="2" Classes="dim" Text="{a:Binding Source}"
+                             VerticalAlignment="Center" Margin="0,0,8,0"/>
+
+                <a:TextBlock a:Grid.Column="3" Text="{a:Binding Text}"
+                             TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+
+                <AxBadge a:Grid.Column="4" Content="{a:Binding RepeatsText}"
+                         IsVisible="{a:Binding IsRepeated}"
+                         VerticalAlignment="Center" Margin="8,0,0,0"
+                         a:ToolTip.Tip="{a:Binding RepeatsText}"/>
+
+              </a:Grid>
+            </a:DataTemplate>
+          </AxListBox.ItemTemplate>
+        </AxListBox>
+
+        <a:TextBlock x:Name="Empty" Classes="dim" TextAlignment="Center"
+                     HorizontalAlignment="Center" VerticalAlignment="Center"/>
+      </a:Panel>
+
+      <!--
+          Подробности занимают треть панели, а не заданное число пикселей:
+          панель дока бывает невысокой, и полтораста пикселей съедали бы её
+          целиком — список пропадал бы с глаз. Показывает и прячет их
+          переключатель в полосе: тянущегося разделителя нет намеренно —
+          GridSplitter это шаблонный контрол Avalonia, интерфейс расширения
+          строится на контролах студии, а своего разделителя в наборе пока нет.
+      -->
+      <a:Border x:Name="DetailsPane" a:Grid.Row="1" IsVisible="False"
+                BorderThickness="0,1,0,0"
+                BorderBrush="{a:DynamicResource AxBrdBrush}">
+        <AxTextArea x:Name="DetailsText" IsReadOnly="True" AcceptsReturn="True"
+                    TextWrapping="NoWrap" BorderThickness="0"
+                    FontFamily="{a:DynamicResource AxFontFamilyMono}"
+                    FontSize="{a:DynamicResource AxFontSizeSmall}"
+                    a:AutomationProperties.Name="{Text console.details}"/>
+      </a:Border>
+
+    </a:Grid>
+
+  </a:DockPanel>
+
+</AxUserControl>

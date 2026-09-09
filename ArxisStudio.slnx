@@ -17,6 +17,7 @@
     <Project Path="external/ArxisStudio.Themes.Arxis/src/ArxisStudio.Themes.Arxis.csproj" />
   </Folder>
   <Folder Name="/src/Modules/">
+    <Project Path="src/Modules/ArxisStudio.Modules.Console/ArxisStudio.Modules.Console.csproj" />
     <Project Path="src/Modules/ArxisStudio.Modules.Sample/ArxisStudio.Modules.Sample.csproj" />
     <Project Path="src/Modules/ArxisStudio.Modules.Terminal/ArxisStudio.Modules.Terminal.csproj" />
   </Folder>

@@ -20,8 +20,15 @@ public sealed class SampleModule : StudioPlugin
     /// <summary>Команда-переключатель: подробный журнал. Кнопка в полосе зовёт её же.</summary>
     public const string VerboseCommand = "sample.verbose";
 
+    /// <summary>Команда-переключатель: сообщить пример находок и снять их.</summary>
+    public const string ProblemsCommand = "sample.problems";
+
+    /// <summary>Имя источника, под которым модуль сообщает свои находки.</summary>
+    public const string ProblemSource = "sample";
+
     private IStudioContext? _context;
     private bool _verbose;
+    private bool _reported;
 
     /// <inheritdoc/>
     public override void Activate(IStudioContext context)
@@ -32,6 +39,7 @@ public sealed class SampleModule : StudioPlugin
 
         context.Commands.Register(AboutCommand, About);
         context.Commands.Register(VerboseCommand, ToggleVerbose);
+        context.Commands.Register(ProblemsCommand, ToggleProblems);
         context.Log.Write(StudioLogLevel.Info, "Пример", "Модуль поднят");
     }
 
@@ -86,5 +94,59 @@ public sealed class SampleModule : StudioPlugin
         _context.GetService<IStudioToolBar>()?.Update(VerboseCommand, isChecked: _verbose);
         _context.GetService<IStudioStatus>()?.Show(said);
         _context.Log.Write(StudioLogLevel.Info, "Пример", said);
+    }
+
+    /// <summary>
+    /// Сообщает пример находок — и снимает их повторным вызовом.
+    /// </summary>
+    /// <remarks>
+    /// Единственный источник находок в студии, и заведён он именно здесь:
+    /// модуль «Пример» существует затем, чтобы показывать поверхность
+    /// контракта, которую больше некому показать. Без него панель «Проблемы»
+    /// проверялась бы только тестами — а она о том, как выглядит найденное, и
+    /// смотреть на это надо глазами.
+    /// <para>
+    /// Находок три, по одной на уровень, и у одной есть файл со строкой:
+    /// открытие файла — половина смысла панели, и без такой находки эта
+    /// половина осталась бы непроверенной.
+    /// </para>
+    /// <para>
+    /// Снимаются они пустым списком — так и полагается: источник отвечает за
+    /// свой участок целиком, и «убрать всё» для него значит сообщить, что не
+    /// нашлось ничего.
+    /// </para>
+    /// </remarks>
+    private void ToggleProblems()
+    {
+        if (_context?.GetService<IStudioProblems>() is not { } problems)
+            return;
+
+        _reported = !_reported;
+
+        problems.Report(ProblemSource, _reported ? Found() : []);
+    }
+
+    /// <summary>Три находки: по одной на уровень, одна с файлом и строкой.</summary>
+    private IEnumerable<StudioProblem> Found()
+    {
+        var strings = _context!.Strings;
+
+        yield return new StudioProblem(
+            StudioProblemSeverity.Error,
+            "AXS0001",
+            strings["module.sample.problem.error"],
+            typeof(SampleModule).Assembly.Location,
+            Line: 42,
+            Column: 7);
+
+        yield return new StudioProblem(
+            StudioProblemSeverity.Warning,
+            "AXS0002",
+            strings["module.sample.problem.warning"]);
+
+        yield return new StudioProblem(
+            StudioProblemSeverity.Info,
+            "AXS0003",
+            strings["module.sample.problem.info"]);
     }
 }

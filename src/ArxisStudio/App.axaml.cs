@@ -28,7 +28,8 @@ public class App : Application
 {
     // Журнал нужен ещё до окна студии: пакеты языков разбираются при
     // запуске, и сказать о занятом коде или потерянном словаре больше
-    // некуда.
+    // некуда. Он же уходит в окно — журнал на студию один, и панель
+    // «Консоль» показывает в том числе то, что записано до её рождения.
     private readonly StudioLog _log = new(Console.Out);
 
     private ISettingsStore _settings = null!;
@@ -115,7 +116,7 @@ public class App : Application
             // Хранилище настроек передаётся, а не заводится окном: оно читает
             // файл в память и пишет его целиком, и второй экземпляр на процесс
             // потерял бы правку, сделанную в первом.
-            .Add("splash.stage.shell", () => _studio = new MainWindow { Settings = _settings, Catalog = _plugins })
+            .Add("splash.stage.shell", () => _studio = new MainWindow(_log) { Settings = _settings, Catalog = _plugins })
             .Add("splash.stage.modules", () => _studio.Extensions.LoadModules())
             .Add("splash.stage.extensions", () => _studio.Extensions.LoadPlugins())
             .Add("splash.stage.welcome", () => desktop.MainWindow = CreateWelcome());

@@ -1,0 +1,33 @@
+{
+  "id": "arxis.console",
+  "name": "%panel.console%",
+  "version": "1.0.0",
+  "publisher": "Arxis",
+  "description": "%module.console.description%",
+  "tags": [ "tools" ],
+  "contributions": {
+    "commands": [
+      { "id": "console.open" },
+      { "id": "console.showProblems" },
+      { "id": "console.clear" }
+    ],
+    "menus": [
+      { "path": "%menu.tools%/%menu.console%/%menu.console.open%", "command": "console.open" },
+      { "path": "%menu.tools%/%menu.console%/%menu.console.problems%", "command": "console.showProblems" },
+      { "path": "%menu.tools%/%menu.console%/%menu.console.clear%", "command": "console.clear" }
+    ],
+    "toolWindows": [
+      { "id": "console.log", "title": "%panel.console%", "placement": { "side": "bottom", "size": 0.3 } },
+      { "id": "console.problems", "title": "%panel.problems%", "placement": { "side": "bottom", "near": "arxis.console:console.log" } }
+    ],
+    "toolBar": [
+      { "id": "console.open", "kind": "button", "slot": "right", "command": "console.open",
+        "icon": "arxis:List", "title": "%toolbar.console.open%" }
+    ],
+    "settings": [
+      { "key": "console.autoscroll", "type": "bool", "scope": "user", "title": "%settings.console.autoscroll%", "default": true },
+      { "key": "console.timestamps", "type": "bool", "scope": "user", "title": "%settings.console.timestamps%", "default": true }
+    ]
+  },
+  "activation": [ "onStartup" ]
+}

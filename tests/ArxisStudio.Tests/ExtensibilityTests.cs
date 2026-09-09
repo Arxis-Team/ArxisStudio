@@ -186,6 +186,76 @@ public class ExtensibilityTests : IDisposable
         Assert.Single(log.Records);
     }
 
+    /// <summary>
+    /// Запись видна своему потоку сразу же.
+    /// </summary>
+    /// <remarks>
+    /// Страховка от правки, которая однажды покажется очевидной: «журнал
+    /// читает панель, значит запись надо переносить в поток интерфейса». Так
+    /// делать нельзя — журнал собирают и там, где никакой Avalonia нет, а
+    /// перенос сделал бы <c>Write</c> отложенным для всех. Переносит тот, кто
+    /// показывает.
+    /// </remarks>
+    [Fact]
+    public void A_write_is_visible_to_its_own_thread_immediately()
+    {
+        var log = new StudioLog();
+
+        log.Write(StudioLogLevel.Info, "Plugins", "сразу");
+
+        Assert.Single(log.Records);
+        Assert.Equal("сразу", log.Records[0].Message);
+    }
+
+    /// <summary>
+    /// Снимок переживает запись из чужого потока.
+    /// </summary>
+    /// <remarks>
+    /// Тот, кто взял список записей, обходит его в своём темпе, а писать в
+    /// журнал в это время могут из пула — фоновая задача расширения делает это
+    /// сегодня. Пока журнал отдавал живой список, такой обход падал бы на
+    /// изменении коллекции.
+    /// </remarks>
+    [Fact]
+    public void The_log_hands_out_a_snapshot_that_survives_a_concurrent_write()
+    {
+        var log = new StudioLog();
+
+        for (var index = 0; index < 100; index++)
+            log.Write(StudioLogLevel.Info, "Plugins", $"строка {index}");
+
+        var snapshot = log.Records;
+
+        // Поток, а не задача: тесту нужен именно другой поток, а блокирующее
+        // ожидание задачи в тесте — то, за что справедливо ругается анализатор.
+        var writer = new Thread(() =>
+        {
+            for (var index = 0; index < 100; index++)
+                log.Write(StudioLogLevel.Warning, "Tasks", $"ещё {index}");
+        });
+
+        writer.Start();
+        writer.Join();
+
+        Assert.Equal(100, snapshot.Count);
+        Assert.Equal(200, log.Records.Count);
+    }
+
+    /// <summary>Запись из многих потоков ничего не теряет.</summary>
+    [Fact]
+    public void Writing_from_many_threads_loses_nothing()
+    {
+        var log = new StudioLog();
+
+        Parallel.For(0, 8, thread =>
+        {
+            for (var index = 0; index < 50; index++)
+                log.Write(StudioLogLevel.Info, $"Поток {thread}", $"строка {index}");
+        });
+
+        Assert.Equal(400, log.Records.Count);
+    }
+
     private string PackSample(string id, string name)
     {
         Directory.CreateDirectory(_root);
