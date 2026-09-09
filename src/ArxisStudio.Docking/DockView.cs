@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.VisualTree;
 
 namespace ArxisStudio.Docking;
@@ -956,10 +957,13 @@ public class DockView : Decorator
         IReadOnlyList<(int At, int Row)> sized,
         int floor)
     {
-        var splitter = new GridSplitter
+        // Разделитель — контрол набора: линия в пиксель, полоса захвата вокруг
+        // и подсветка под курсором приходят вместе с ним. Свой шаблон движок
+        // держал, пока такого контрола не было; двух одинаковых границ в одном
+        // окне быть не должно.
+        var splitter = new AxSplitter
         {
-            Classes = { down ? "dock-h" : "dock-v" },
-            ResizeDirection = down ? GridResizeDirection.Rows : GridResizeDirection.Columns,
+            Orientation = down ? Orientation.Horizontal : Orientation.Vertical,
         };
 
         splitter.DragCompleted += (_, _) => Resized?.Invoke(this, new DockResize(

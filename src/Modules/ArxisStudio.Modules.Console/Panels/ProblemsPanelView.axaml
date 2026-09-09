@@ -86,7 +86,7 @@
         подробности показывает переключатель, и он же меняет её долю — скрытая
         строка ненулевой высоты оставляла бы под собой пустую полосу.
     -->
-    <a:Grid x:Name="Body" RowDefinitions="2*,0">
+    <a:Grid x:Name="Body" RowDefinitions="2*,Auto,0">
 
       <a:Panel a:Grid.Row="0">
 
@@ -158,18 +158,26 @@
 
       </a:Panel>
 
+      <AxSplitter x:Name="Handle" a:Grid.Row="1" Orientation="Horizontal" IsVisible="False"
+                  a:AutomationProperties.Name="{Text problems.details}"/>
+
       <!--
           Подробности занимают треть панели, а не заданное число пикселей:
           панель дока бывает невысокой, и полтораста пикселей съедали бы её
-          целиком — список пропадал бы с глаз. Показывает и прячет их
-          переключатель в полосе: тянущегося разделителя нет намеренно —
-          GridSplitter это шаблонный контрол Avalonia, интерфейс расширения
-          строится на контролах студии, а своего разделителя в наборе пока нет.
+          целиком — список пропадал бы с глаз. Дальше долю правит человек:
+          выше стоит AxSplitter, и прячется он вместе с подробностями —
+          граница, которой не с чем граничить, ничего не разделяет.
       -->
-      <a:Border x:Name="DetailsPane" a:Grid.Row="1" IsVisible="False"
+      <a:Border x:Name="DetailsPane" a:Grid.Row="2" IsVisible="False"
                 BorderThickness="0,1,0,0"
                 BorderBrush="{a:DynamicResource AxBrdBrush}">
-        <AxTextArea x:Name="DetailsText" IsReadOnly="True" AcceptsReturn="True"
+        <!--
+            Своего минимума высоты у поля здесь нет: многострочному полю его
+            даёт тема — четыре строки, — а высоту подробностей решает граница,
+            которую тянет человек. С минимумом поле переставало помещаться в
+            отведённую долю и вылезало за нижний край панели.
+        -->
+        <AxTextArea x:Name="DetailsText" MinHeight="0" IsReadOnly="True" AcceptsReturn="True"
                     TextWrapping="Wrap" BorderThickness="0"
                     FontSize="{a:DynamicResource AxFontSizeSmall}"
                     a:AutomationProperties.Name="{Text problems.details}"/>

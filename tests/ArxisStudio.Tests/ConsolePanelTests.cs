@@ -219,6 +219,31 @@ public class ConsolePanelTests : IDisposable
     }
 
     /// <summary>
+    /// Подробности приводят с собой границу и уводят её обратно.
+    /// </summary>
+    /// <remarks>
+    /// Долю между списком и подробностями правит человек, а не только
+    /// переключатель, — для этого между ними стоит разделитель. Пока
+    /// подробностей нет, границе не с чем граничить, и стоять ей незачем.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_details_bring_a_grip_and_take_it_away()
+    {
+        var panel = LogPanel(new StudioLog());
+
+        var handle = Part<AxSplitter>(panel, "Handle");
+        var details = Part<ConsoleToggle>(panel, "Details");
+
+        Assert.False(handle.IsVisible, "граница стоит, а граничить ей не с чем");
+
+        details.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.True(handle.IsVisible, "подробности показаны, а границы нет");
+
+        details.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.False(handle.IsVisible, "подробности убрали, а граница осталась");
+    }
+
+    /// <summary>
     /// Отпущенная панель больше не следует за журналом.
     /// </summary>
     /// <remarks>

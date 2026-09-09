@@ -145,14 +145,18 @@ public sealed class ProblemsPanel : ToolWindow
     /// Меняется доля строки, а не только видимость: скрытая строка ненулевой
     /// высоты оставила бы под списком пустую полосу, а показанная в
     /// фиксированные полтораста пикселей съела бы невысокую панель целиком —
-    /// список пропал бы с глаз.
+    /// список пропал бы с глаз. Дальше долю правит человек: между строками
+    /// стоит <c>AxSplitter</c>, и прячется он вместе с подробностями — граница,
+    /// которой не с чем граничить, ничего не разделяет.
     /// </remarks>
     private void OnDetailsClick(object? sender, RoutedEventArgs e)
     {
         _view.Details.IsChecked = !_view.Details.IsChecked;
-        _view.DetailsPane.IsVisible = _view.Details.IsChecked;
 
-        _view.Body.RowDefinitions[1].Height = _view.Details.IsChecked
+        _view.DetailsPane.IsVisible = _view.Details.IsChecked;
+        _view.Handle.IsVisible = _view.Details.IsChecked;
+
+        _view.Body.RowDefinitions[2].Height = _view.Details.IsChecked
             ? new GridLength(1, GridUnitType.Star)
             : new GridLength(0);
     }

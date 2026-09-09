@@ -137,33 +137,10 @@
   </Style>
 
   <!--
-      Граница между областями: линия 1px, хит-зона 7px поверх соседей. Сетка
-      детей не обрезает, поэтому линия остаётся однопиксельной, как в мокапе, а
-      взяться за неё мышью всё-таки можно.
+      Границы между областями движок больше не одевает сам: линию в пиксель,
+      полосу захвата вокруг неё и подсветку под курсором несёт AxSplitter из
+      набора контролов, а одевает его тема. Свой шаблон здесь стоял ровно до
+      тех пор, пока такого контрола не было.
   -->
-  <Style Selector="GridSplitter.dock-v">
-    <Setter Property="Width" Value="7"/>
-    <Setter Property="HorizontalAlignment" Value="Center"/>
-    <Setter Property="Background" Value="Transparent"/>
-    <Setter Property="Template">
-      <ControlTemplate>
-        <Border Background="Transparent">
-          <Border Width="1" Background="{DynamicResource AxBrdBrush}" HorizontalAlignment="Center"/>
-        </Border>
-      </ControlTemplate>
-    </Setter>
-  </Style>
-  <Style Selector="GridSplitter.dock-h">
-    <Setter Property="Height" Value="7"/>
-    <Setter Property="VerticalAlignment" Value="Center"/>
-    <Setter Property="Background" Value="Transparent"/>
-    <Setter Property="Template">
-      <ControlTemplate>
-        <Border Background="Transparent">
-          <Border Height="1" Background="{DynamicResource AxBrdBrush}" VerticalAlignment="Center"/>
-        </Border>
-      </ControlTemplate>
-    </Setter>
-  </Style>
 
 </Styles>
