@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using ArxisStudio.Sdk;
+using Avalonia.Platform;
 
 namespace ArxisStudio.Extensibility;
 
@@ -633,7 +634,7 @@ public sealed class PluginHost : IDisposable
             or FileLoadException or FileNotFoundException or TypeLoadException
             or MissingMethodException or TargetInvocationException or InvalidOperationException)
         {
-            context.Unload();
+            context.Release();
             return LoadedPlugin.Failed(installed, Describe(e));
         }
     }
@@ -866,7 +867,7 @@ public sealed class PluginHost : IDisposable
             // иначе сосед получил бы объект из контекста, который студия
             // только что объявила мёртвым.
             Unloading?.Invoke(this, installed.Id);
-            context?.Unload();
+            context?.Release();
             return LoadedPlugin.Failed(installed, Describe(e));
         }
     }
@@ -953,7 +954,7 @@ public sealed record LoadedPlugin(
         foreach (var plugin in Entries)
             Safely(plugin.Deactivate);
 
-        (Context as PluginLoadContext)?.Unload();
+        (Context as PluginLoadContext)?.Release();
 
         // Плагин, упавший на прощание, уже никому не мешает: студия его
         // отпускает, и держаться за исключение незачем.
@@ -1012,4 +1013,73 @@ internal sealed class PluginLoadContext(string name, string entryPath)
         name.StartsWith("ArxisStudio.Sdk", StringComparison.Ordinal) ||
         name.StartsWith("ArxisStudio.Controls", StringComparison.Ordinal) ||
         name.StartsWith("ArxisStudio.Icons", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Выгружает контекст, отпустив прежде то, что держит его снаружи.
+    /// </summary>
+    /// <remarks>
+    /// Дорог выгрузки три — прощание поднятого плагина, сбой загрузки сборки
+    /// и сбой активации, — и уборка стоит здесь, на общем шве, а не у каждой
+    /// из них. Забытая на одной дороге, она означала бы плагин, который
+    /// выгружается при перезагрузке и остаётся в памяти, упав на подъёме.
+    /// <para>
+    /// Выгрузка идёт в <c>finally</c>: уборка перед ней — дело полезное, но не
+    /// обязательное, и сорвись она непредвиденным образом, контекст не должен
+    /// остаться неотпущенным. Это было бы хуже той беды, ради которой уборку и
+    /// завели.
+    /// </para>
+    /// </remarks>
+    public void Release()
+    {
+        try
+        {
+            Forget();
+        }
+        finally
+        {
+            Unload();
+        }
+    }
+
+    /// <summary>
+    /// Убирает сборки плагина из кэша загрузчика ресурсов Avalonia.
+    /// </summary>
+    /// <remarks>
+    /// Кэш держит сборку сильной ссылкой и по <b>простому</b> имени, а попасть
+    /// в него хватает одного вопроса про <c>avares://</c>-адрес с этим именем:
+    /// в замере даже <c>Exists</c>, ответивший «такого ресурса нет», оставлял
+    /// сборку в кэше — и контекст плагина не собирался никогда.
+    /// <para>
+    /// Беда при этом сама себя поддерживает: живая прежняя копия находится по
+    /// простому имени первой, и следующий подъём того же плагина получал бы
+    /// ресурсы предыдущего. Порядок «сперва забыть, потом выгрузить» её и
+    /// разрывает.
+    /// </para>
+    /// <para>
+    /// Спрашиваются сборки контекста, а не одна entry: приватная зависимость
+    /// плагина, подгруженная по требованию, везёт свои ресурсы и попадает в
+    /// тот же кэш под своим именем.
+    /// </para>
+    /// <para>
+    /// Кэша может не быть вовсе — студию собирают и без платформы Avalonia, и
+    /// так же живёт половина тестов расширений. Спросить об этом заранее
+    /// нечем: <c>AvaloniaLocator</c> из открытой поверхности убран, и
+    /// единственный ответ службы — исключение. Ловится оно здесь: платформы
+    /// нет, значит и кэш пуст, и выгрузке это не помеха.
+    /// </para>
+    /// </remarks>
+    private void Forget()
+    {
+        try
+        {
+            foreach (var assembly in Assemblies)
+            {
+                if (assembly.GetName().Name is { Length: > 0 } simple)
+                    AssetLoader.InvalidateAssemblyCache(simple);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
 }

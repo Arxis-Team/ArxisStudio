@@ -1,6 +1,9 @@
+using System.Runtime.CompilerServices;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
+using Avalonia.Headless.XUnit;
+using Avalonia.Platform;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -150,6 +153,60 @@ public class PluginTeardownTests : IDisposable
         using var studio = new TestHost();
 
         Assert.False(studio.Host.Drop("нет.такого"));
+    }
+
+    /// <summary>
+    /// Плагин, попавший на глаза загрузчику ресурсов, всё равно выгружается.
+    /// </summary>
+    /// <remarks>
+    /// Кэш загрузчика держит сборку сильной ссылкой и по <b>простому</b> имени,
+    /// а попасть в него хватает одного вопроса про <c>avares://</c>-адрес с
+    /// этим именем: своих ресурсов у примера нет вовсе, и <c>Exists</c>
+    /// отвечает «нет», — сборка после этого всё равно в кэше. Пока её оттуда не
+    /// убирали, контекст плагина не собирался никогда.
+    /// <para>
+    /// Вторая половина той же беды не видна отсюда, но лечится тем же:
+    /// живая прежняя копия находится по простому имени первой, и следующий
+    /// подъём того же плагина получал бы ресурсы предыдущего.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_plugin_seen_by_the_asset_loader_still_unloads()
+    {
+        var context = Seen();
+
+        for (var attempt = 0; attempt < 10 && context.IsAlive; attempt++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+
+        Assert.False(context.IsAlive, "кэш загрузчика ресурсов держит сборку плагина: контекст не выгрузился");
+    }
+
+    /// <summary>
+    /// Ставит пример, показывает его загрузчику ресурсов и снимает.
+    /// </summary>
+    /// <remarks>
+    /// Отдельный метод, и не встраиваемый, — по той же причине, что у
+    /// <c>PluginHost.Retire</c>: ссылка на запись плагина, оставшаяся в кадре
+    /// вызывающего, держала бы контекст живым, и проверка выгрузки показывала
+    /// бы только это.
+    /// </remarks>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private WeakReference Seen()
+    {
+        using var studio = Installed();
+
+        var context = new WeakReference(studio.Host.Loaded.Single().Context);
+
+        Assert.False(
+            AssetLoader.Exists(new Uri("avares://Arxis.HelloPlugin/whatever.txt")),
+            "у примера появились свои ресурсы — проверке нужен адрес, которого нет");
+
+        Assert.True(studio.Host.Drop("arxis.hello"));
+
+        return context;
     }
 
     /// <summary>Ставит пример и поднимает его.</summary>
