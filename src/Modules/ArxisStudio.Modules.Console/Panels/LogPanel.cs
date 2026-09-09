@@ -130,14 +130,35 @@ public sealed class LogPanel : ToolWindow
     /// </remarks>
     private void OnFeedChanged(object? sender, EventArgs e) => _refresh.Ask();
 
+    /// <summary>
+    /// Настройку поменяли — снаружи или нашей же кнопкой.
+    /// </summary>
+    /// <remarks>
+    /// Перестраивает только то, что меняет сами строки, — показ времени.
+    /// Следование за хвостом решает, прокручивать ли список, и строк не
+    /// трогает; перестроение ради него было бы не просто лишней работой, а
+    /// потерей: список пересобирается новыми строками, и выделение вместе с
+    /// открытыми подробностями пропадает у человека под руками.
+    /// <para>
+    /// Сравнение здесь обязательно, а не бережливость: настройки пишутся
+    /// парой, поэтому щелчок по прокрутке будит и ключ времени — с прежним
+    /// значением. Спрашивать надо не «какой ключ пришёл», а «изменилось ли
+    /// то, из чего собраны строки».
+    /// </para>
+    /// </remarks>
     private void OnSettingsChanged(object? sender, string key)
     {
         if (!ConsoleSettings.Keys.Contains(key))
             return;
 
-        Apply(ConsoleSettings.Read(Context.Settings));
+        var settings = ConsoleSettings.Read(Context.Settings);
+        var rows = settings.Timestamps != _stamps;
 
-        // Показ времени меняет сами строки, поэтому перестраивать надо целиком.
+        Apply(settings);
+
+        if (!rows)
+            return;
+
         Forget();
         _refresh.Ask();
     }

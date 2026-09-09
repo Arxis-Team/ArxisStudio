@@ -2,6 +2,7 @@ using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Modules.Console;
 using ArxisStudio.Modules.Console.Feed;
+using ArxisStudio.Modules.Console.Log;
 using ArxisStudio.Modules.Console.Panels;
 using ArxisStudio.Modules.Console.Problems;
 using ArxisStudio.Sdk;
@@ -27,6 +28,8 @@ namespace ArxisStudio.Tests;
 public class ConsolePanelTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-console-{Guid.NewGuid():N}");
+
+    private IStudioSettings _settings = null!;
 
     public ConsolePanelTests()
     {
@@ -244,6 +247,65 @@ public class ConsolePanelTests : IDisposable
     }
 
     /// <summary>
+    /// Следование за хвостом переключается, не пересобирая список.
+    /// </summary>
+    /// <remarks>
+    /// Настройки пишутся парой, поэтому щелчок по прокрутке будит и ключ
+    /// времени — с прежним значением. Панель, перестраивавшая список на любой
+    /// из двух, собирала его заново новыми строками: выделение слетало, а
+    /// открытые подробности гасли — на кнопке, которая решает только, куда
+    /// смотреть.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Following_the_tail_is_switched_without_rebuilding_the_list()
+    {
+        var log = new StudioLog();
+        var panel = LogPanel(log);
+
+        log.Write(StudioLogLevel.Error, "Плагин", "не вышло");
+        log.Write(StudioLogLevel.Info, "Плагин", "и это тоже");
+        Dispatcher.UIThread.RunJobs();
+
+        var records = Records(panel);
+
+        records.SelectedIndex = 0;
+
+        var chosen = records.SelectedItem;
+        var before = panel.Rebuilds;
+
+        Part<ConsoleToggle>(panel, "Autoscroll").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(before, panel.Rebuilds);
+        Assert.Same(chosen, records.SelectedItem);
+    }
+
+    /// <summary>
+    /// Показ времени меняет сами строки, и список пересобирается.
+    /// </summary>
+    /// <remarks>
+    /// Обратная половина того же правила: перестраивать на всякую настройку
+    /// нельзя, а на эту — обязательно. Время впечатано в строку при сборке, и
+    /// без пересборки столбец остался бы на месте.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Turning_the_timestamps_off_rebuilds_the_rows()
+    {
+        var log = new StudioLog();
+        var panel = LogPanel(log);
+
+        log.Write(StudioLogLevel.Info, "Плагин", "строка");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(Shown(panel)[0].HasStamp, "время не показано с самого начала");
+
+        _settings.Set(ConsoleSettings.TimestampsKey, false);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(Shown(panel)[0].HasStamp, "столбец времени остался после того, как его выключили");
+    }
+
+    /// <summary>
     /// Отпущенная панель больше не следует за журналом.
     /// </summary>
     /// <remarks>
@@ -406,13 +468,23 @@ public class ConsolePanelTests : IDisposable
         var installed = new InstalledPlugin(AppContext.BaseDirectory, manifest, null, IsEnabled: true, IsBuiltIn: true);
         var store = new PluginSettingsStore(null, Path.Combine(_root, "plugin-settings.json"));
 
-        return new StudioContextFactory(log, new StudioCommands(), null, services, settings: store)
+        var context = new StudioContextFactory(log, new StudioCommands(), null, services, settings: store)
             .Create(installed);
+
+        // Настройки запоминаются: менять их надо той же службой, что и панель.
+        // Запись мимо неё — прямо в хранилище — панель бы не разбудила: о
+        // правке со стороны модулю говорит студия, отдельным уведомлением.
+        _settings = context.Settings;
+
+        return context;
     }
 
     private static AxListBox Records(LogPanel panel) => Part<AxListBox>(panel, "Records");
 
     private static AxDataGrid Findings(ProblemsPanel panel) => Part<AxDataGrid>(panel, "Findings");
+
+    private static List<LogRow> Shown(LogPanel panel) =>
+        [.. (Records(panel).ItemsSource as IEnumerable<LogRow>)!];
 
     private static List<ProblemRow> Rows(ProblemsPanel panel) =>
         [.. (Findings(panel).ItemsSource as IEnumerable<ProblemRow>)!];

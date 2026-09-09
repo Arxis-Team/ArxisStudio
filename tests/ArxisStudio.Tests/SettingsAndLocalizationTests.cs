@@ -109,6 +109,41 @@ public class LocalizerTests
         Assert.All(read, pair => Assert.False(string.IsNullOrWhiteSpace(pair.Value), pair.Key));
     }
 
+    /// <summary>
+    /// Ключ в словаре назван один раз.
+    /// </summary>
+    /// <remarks>
+    /// Повтор — не отказ, а тишина: <c>Deserialize</c> оставляет последнее
+    /// вхождение, и правка первой копии не меняет в студии ничего. Дороже
+    /// всего это переводчику — он поправит строку в шаблоне, увидит прежний
+    /// текст и решит, что пакет не подхватился.
+    /// <para>
+    /// Сверка ключей такого не ловит и поймать не может: она сравнивает
+    /// множества, а множество повтор уже проглотило.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("src/ArxisStudio.Shell/Localization/Strings/ru.json")]
+    [InlineData("src/ArxisStudio.Shell/Localization/Strings/en.json")]
+    [InlineData("templates/Arxis.Language/lang/xx.json")]
+    public void A_shipped_dictionary_names_each_key_once(string relative)
+    {
+        var path = Path.Combine(Repository(), relative.Replace('/', Path.DirectorySeparatorChar));
+
+        Assert.True(File.Exists(path), path);
+
+        using var document = JsonDocument.Parse(File.ReadAllText(path));
+
+        var twice = document.RootElement
+            .EnumerateObject()
+            .GroupBy(property => property.Name, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToList();
+
+        Assert.True(twice.Count == 0, $"ключи названы дважды: {string.Join(", ", twice)}");
+    }
+
     /// <summary>Корень репозитория: тесты бегут из bin, файлы лежат выше.</summary>
     private static string Repository()
     {
