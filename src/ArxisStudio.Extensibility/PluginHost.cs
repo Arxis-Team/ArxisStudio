@@ -1019,7 +1019,11 @@ internal sealed class PluginLoadContext(string name, string entryPath)
         name.StartsWith("Avalonia", StringComparison.Ordinal) ||
         name.StartsWith("ArxisStudio.Sdk", StringComparison.Ordinal) ||
         name.StartsWith("ArxisStudio.Controls", StringComparison.Ordinal) ||
-        name.StartsWith("ArxisStudio.Icons", StringComparison.Ordinal);
+        name.StartsWith("ArxisStudio.Icons", StringComparison.Ordinal) ||
+        // Модель проектов — точным именем, а не префиксом: префикс отдал бы
+        // плагинам и её движки — MSBuild, NuGet, адаптер разметки, — а их держит
+        // служба проектов, и второй экземпляр движка в процессе был бы бедой.
+        name.Equals("ArxisStudio.ProjectSystem", StringComparison.Ordinal);
 
     /// <summary>
     /// Выгружает контекст, отпустив прежде то, что держит его снаружи.

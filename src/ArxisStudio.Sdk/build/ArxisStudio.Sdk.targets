@@ -175,6 +175,9 @@
             ArxisStudio.Extensibility: что резолвер берёт из своего контекста, то
             и не должно ехать в плагине. Правится в двух местах сразу.
 
+            Модель проектов общая точным именем, а не префиксом: её движки —
+            ArxisStudio.ProjectSystem.MSBuild и .NuGet — общими не становятся.
+
             Файлы документации (.xml) нужны автору плагина, а не студии, и в
             пакет не едут.
         -->
@@ -184,7 +187,8 @@
                                        !$([System.String]::Copy('%(Filename)').StartsWith('Avalonia')) And
                                        !$([System.String]::Copy('%(Filename)').StartsWith('ArxisStudio.Sdk')) And
                                        !$([System.String]::Copy('%(Filename)').StartsWith('ArxisStudio.Controls')) And
-                                       !$([System.String]::Copy('%(Filename)').StartsWith('ArxisStudio.Icons'))" />
+                                       !$([System.String]::Copy('%(Filename)').StartsWith('ArxisStudio.Icons')) And
+                                       '%(Filename)' != 'ArxisStudio.ProjectSystem'" />
 
             <_AxPluginBin Include="$(TargetPath)" />
             <_AxPluginBin Include="@(_AxPluginCarry)" />
@@ -226,27 +230,38 @@
                                         ($([System.String]::Copy('%(None.Filename)').StartsWith('Avalonia')) Or
                                          $([System.String]::Copy('%(None.Filename)').StartsWith('ArxisStudio.Sdk')) Or
                                          $([System.String]::Copy('%(None.Filename)').StartsWith('ArxisStudio.Controls')) Or
-                                         $([System.String]::Copy('%(None.Filename)').StartsWith('ArxisStudio.Icons')))" />
+                                         $([System.String]::Copy('%(None.Filename)').StartsWith('ArxisStudio.Icons')) Or
+                                         '%(None.Filename)' == 'ArxisStudio.ProjectSystem')" />
 
             <_AxPluginByHand Include="@(Content)"
                              Condition="'%(Content.CopyToOutputDirectory)' != '' And '%(Content.CopyToOutputDirectory)' != 'Never' And
                                         ($([System.String]::Copy('%(Content.Filename)').StartsWith('Avalonia')) Or
                                          $([System.String]::Copy('%(Content.Filename)').StartsWith('ArxisStudio.Sdk')) Or
                                          $([System.String]::Copy('%(Content.Filename)').StartsWith('ArxisStudio.Controls')) Or
-                                         $([System.String]::Copy('%(Content.Filename)').StartsWith('ArxisStudio.Icons')))" />
+                                         $([System.String]::Copy('%(Content.Filename)').StartsWith('ArxisStudio.Icons')) Or
+                                         '%(Content.Filename)' == 'ArxisStudio.ProjectSystem')" />
 
             <_AxPluginByHand Include="@(Reference)"
                              Condition="'%(Reference.HintPath)' != '' And '%(Reference.NuGetPackageId)' == '' And
                                         ($([System.String]::Copy('%(Reference.Filename)').StartsWith('Avalonia')) Or
                                          $([System.String]::Copy('%(Reference.Filename)').StartsWith('ArxisStudio.Sdk')) Or
                                          $([System.String]::Copy('%(Reference.Filename)').StartsWith('ArxisStudio.Controls')) Or
-                                         $([System.String]::Copy('%(Reference.Filename)').StartsWith('ArxisStudio.Icons')))" />
+                                         $([System.String]::Copy('%(Reference.Filename)').StartsWith('ArxisStudio.Icons')) Or
+                                         '%(Reference.Filename)' == 'ArxisStudio.ProjectSystem')" />
 
             <_AxPluginStray Include="$(_AxPluginBinDir)Avalonia*.dll;$(_AxPluginBinDir)ArxisStudio.Sdk*.dll;$(_AxPluginBinDir)ArxisStudio.Controls*.dll;$(_AxPluginBinDir)ArxisStudio.Icons*.dll" />
+
+            <!--
+                Модель проектов — точным путём, а значит, с условием: путь без маски
+                MSBuild кладёт в список всегда, есть такой файл или нет, и
+                предупреждение звучало бы у каждого плагина.
+            -->
+            <_AxPluginStray Include="$(_AxPluginBinDir)ArxisStudio.ProjectSystem.dll"
+                            Condition="Exists('$(_AxPluginBinDir)ArxisStudio.ProjectSystem.dll')" />
         </ItemGroup>
 
         <Warning Code="AXP0001" Condition="'@(_AxPluginByHand)' != ''"
-                 Text="Общий контракт положен в проект руками: @(_AxPluginByHand->'%(Filename)%(Extension)', ', '). Sdk, контролы и Avalonia студия всегда берёт из своего контекста загрузки — копия рядом с плагином либо не загрузится вовсе, либо станет вторым экземпляром того же типа, и панель плагина в интерфейс не встанет. Уберите файл или снимите с него копирование в выход." />
+                 Text="Общий контракт положен в проект руками: @(_AxPluginByHand->'%(Filename)%(Extension)', ', '). Sdk, контролы, иконки, модель проектов и Avalonia студия всегда берёт из своего контекста загрузки — копия рядом с плагином либо не загрузится вовсе, либо станет вторым экземпляром того же типа, и панель плагина в интерфейс не встанет. Уберите файл или снимите с него копирование в выход." />
 
         <Warning Code="AXP0002" Condition="'@(_AxPluginStray)' != ''"
                  Text="В bin/ плагина лежит общий контракт: @(_AxPluginStray->'%(Filename)%(Extension)', ', '). Таргет упаковки его туда не клал — значит, он добавлен вручную. Уберите его: студия всё равно возьмёт свой." />

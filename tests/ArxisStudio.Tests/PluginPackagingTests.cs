@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Services;
 using Xunit;
@@ -29,12 +29,13 @@ public class PluginPackagingTests
     /// Список руками был дырой: сборку, добавленную к общим, забывали дописать
     /// сюда — и проверка молча переставала её касаться, а плагин увозил её с собой.
     /// Имена вычитываются из <c>IsShared</c>: дописать список и не заметить
-    /// этого больше нельзя.
+    /// этого больше нельзя. Общей сборка бывает по приставке имени или по имени
+    /// целиком — модель проектов общая точно, чтобы её движки общими не стали.
     /// </remarks>
-    private static string[] Shared()
+    private static (string Name, bool Exact)[] Shared()
     {
-        var found = Regex.Matches(Resolver(), @"name\.StartsWith\(([^,]+),")
-            .Select(match => match.Groups[1].Value.Trim('"'))
+        var found = Regex.Matches(Resolver(), @"name\.(StartsWith|Equals)\(([^,]+),")
+            .Select(match => (match.Groups[2].Value.Trim('"'), match.Groups[1].Value == "Equals"))
             .ToArray();
 
         Assert.NotEmpty(found);
@@ -42,14 +43,20 @@ public class PluginPackagingTests
         return found;
     }
 
-    public static TheoryData<string> SharedPrefixes
+    /// <summary>Считает ли резолвер сборку общей — по тем же правилам, что он сам.</summary>
+    private static bool IsShared(string name) =>
+        Shared().Any(shared => shared.Exact
+            ? string.Equals(name, shared.Name, StringComparison.Ordinal)
+            : name.StartsWith(shared.Name, StringComparison.Ordinal));
+
+    public static TheoryData<string> SharedNames
     {
         get
         {
             var data = new TheoryData<string>();
 
-            foreach (var prefix in Shared())
-                data.Add(prefix);
+            foreach (var (name, _) in Shared())
+                data.Add(name);
 
             return data;
         }
@@ -105,7 +112,7 @@ public class PluginPackagingTests
         var strays = Directory
             .GetFiles(Path.Combine(Package(), "bin"), "*.dll")
             .Select(Path.GetFileNameWithoutExtension)
-            .Where(name => Shared().Any(shared => name!.StartsWith(shared, StringComparison.Ordinal)))
+            .Where(name => IsShared(name!))
             .ToList();
 
         Assert.True(strays.Count == 0, $"в пакете общие контракты: {string.Join(", ", strays)}");
@@ -238,13 +245,33 @@ public class PluginPackagingTests
     /// возьмёт свою: тип из другой сборки — другой тип, и панель не встанет.
     /// </remarks>
     [Theory]
-    [MemberData(nameof(SharedPrefixes))]
-    public void The_target_and_the_resolver_mean_the_same_by_shared(string prefix)
+    [MemberData(nameof(SharedNames))]
+    public void The_target_and_the_resolver_mean_the_same_by_shared(string name)
     {
         var targets = File.ReadAllText(
             Path.Combine(Repository(), "src", "ArxisStudio.Sdk", "build", "ArxisStudio.Sdk.targets"));
 
-        Assert.Contains($"'{prefix}'", targets, StringComparison.Ordinal);
+        Assert.Contains($"'{name}'", targets, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Модель проектов общая, а её движки — нет.
+    /// </summary>
+    /// <remarks>
+    /// Ядро ProjectSystem плагин видит напрямую — снимки решения из него, — и
+    /// оно обязано быть одним на всех. Движки же держит служба проектов: MSBuild
+    /// регистрируется на процесс один раз, и второй его экземпляр в контексте
+    /// плагина был бы бедой, а не удобством. Поэтому общим объявлено имя ядра
+    /// целиком, и приставка, которая захватила бы и движки, здесь запрещена.
+    /// </remarks>
+    [Fact]
+    public void The_project_model_is_shared_and_its_engines_are_not()
+    {
+        Assert.True(IsShared("ArxisStudio.ProjectSystem"), "ядро модели проектов не объявлено общим");
+
+        Assert.False(IsShared("ArxisStudio.ProjectSystem.MSBuild"), "провайдер MSBuild объявлен общим — плагин получил бы движок вместо модели");
+        Assert.False(IsShared("ArxisStudio.ProjectSystem.NuGet"), "правка пакетов объявлена общей — это дело службы, а не плагина");
+        Assert.False(IsShared("ArxisStudio.ProjectSystem.Markup.Xaml"), "адаптер разметки объявлен общим — он тащит за собой Markup и Avalonia");
     }
 
     /// <summary>
@@ -263,8 +290,6 @@ public class PluginPackagingTests
     [Fact]
     public void Everything_the_sdk_shows_a_plugin_is_shared()
     {
-        var shared = Shared();
-
         var exposed = File.ReadAllLines(
             Path.Combine(Repository(), "src", "ArxisStudio.Sdk", "ArxisStudio.Sdk.csproj"))
             .Where(line => line.Contains("ProjectReference", StringComparison.Ordinal))
@@ -278,9 +303,7 @@ public class PluginPackagingTests
             .ToList();
 
         Assert.NotEmpty(exposed);
-        Assert.All(
-            exposed,
-            name => Assert.Contains(shared, prefix => name.StartsWith(prefix, StringComparison.Ordinal)));
+        Assert.All(exposed, name => Assert.True(IsShared(name), $"{name} виден плагину через SDK, но общим не объявлен"));
     }
 
     /// <summary>Текст резолвера: список общих сборок объявлен в нём.</summary>

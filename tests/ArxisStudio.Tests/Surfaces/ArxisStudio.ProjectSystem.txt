@@ -1,0 +1,541 @@
+ArxisStudio.ProjectSystem.AnalyzerReferenceInfo : sealed record : System.IEquatable<ArxisStudio.ProjectSystem.AnalyzerReferenceInfo>
+ArxisStudio.ProjectSystem.AnalyzerReferenceInfo :: .ctor()
+ArxisStudio.ProjectSystem.AnalyzerReferenceInfo :: ArxisStudio.ProjectSystem.ProjectMetadata Metadata { get; init; }
+ArxisStudio.ProjectSystem.AnalyzerReferenceInfo :: System.Boolean Equals(ArxisStudio.ProjectSystem.AnalyzerReferenceInfo? other)
+ArxisStudio.ProjectSystem.AnalyzerReferenceInfo :: required ArxisStudio.ProjectSystem.CanonicalPath AssemblyPath { get; init; }
+ArxisStudio.ProjectSystem.AnalyzerReferenceInfo :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.AnalyzerReferenceInfo? left, ArxisStudio.ProjectSystem.AnalyzerReferenceInfo? right)
+ArxisStudio.ProjectSystem.AnalyzerReferenceInfo :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.AnalyzerReferenceInfo? left, ArxisStudio.ProjectSystem.AnalyzerReferenceInfo? right)
+ArxisStudio.ProjectSystem.AnalyzerReferenceInfo :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.ProjectSystem.AnalyzerReferenceInfo :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.AnalyzerReferenceInfo :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.AssemblyReferenceInfo : sealed record : System.IEquatable<ArxisStudio.ProjectSystem.AssemblyReferenceInfo>
+ArxisStudio.ProjectSystem.AssemblyReferenceInfo :: .ctor()
+ArxisStudio.ProjectSystem.AssemblyReferenceInfo :: ArxisStudio.ProjectSystem.CanonicalPath HintPath { get; init; }
+ArxisStudio.ProjectSystem.AssemblyReferenceInfo :: ArxisStudio.ProjectSystem.CanonicalPath ResolvedPath { get; init; }
+ArxisStudio.ProjectSystem.AssemblyReferenceInfo :: ArxisStudio.ProjectSystem.ProjectMetadata Metadata { get; init; }
+ArxisStudio.ProjectSystem.AssemblyReferenceInfo :: System.Boolean Equals(ArxisStudio.ProjectSystem.AssemblyReferenceInfo? other)
+ArxisStudio.ProjectSystem.AssemblyReferenceInfo :: System.Boolean? Private { get; init; }
+ArxisStudio.ProjectSystem.AssemblyReferenceInfo :: System.Collections.Immutable.ImmutableArray<System.String> Aliases { get; init; }
+ArxisStudio.ProjectSystem.AssemblyReferenceInfo :: required System.String Name { get; init; }
+ArxisStudio.ProjectSystem.AssemblyReferenceInfo :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.AssemblyReferenceInfo? left, ArxisStudio.ProjectSystem.AssemblyReferenceInfo? right)
+ArxisStudio.ProjectSystem.AssemblyReferenceInfo :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.AssemblyReferenceInfo? left, ArxisStudio.ProjectSystem.AssemblyReferenceInfo? right)
+ArxisStudio.ProjectSystem.AssemblyReferenceInfo :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.ProjectSystem.AssemblyReferenceInfo :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.AssemblyReferenceInfo :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.CanonicalPath : readonly struct : System.IComparable<ArxisStudio.ProjectSystem.CanonicalPath>, System.IEquatable<ArxisStudio.ProjectSystem.CanonicalPath>
+ArxisStudio.ProjectSystem.CanonicalPath :: ArxisStudio.ProjectSystem.CanonicalPath Combine(System.String relativePath)
+ArxisStudio.ProjectSystem.CanonicalPath :: ArxisStudio.ProjectSystem.CanonicalPath Directory { get; }
+ArxisStudio.ProjectSystem.CanonicalPath :: System.Boolean Equals(ArxisStudio.ProjectSystem.CanonicalPath other)
+ArxisStudio.ProjectSystem.CanonicalPath :: System.Boolean IsEmpty { get; }
+ArxisStudio.ProjectSystem.CanonicalPath :: System.Boolean StartsWith(ArxisStudio.ProjectSystem.CanonicalPath directory)
+ArxisStudio.ProjectSystem.CanonicalPath :: System.Int32 CompareTo(ArxisStudio.ProjectSystem.CanonicalPath other)
+ArxisStudio.ProjectSystem.CanonicalPath :: System.String Extension { get; }
+ArxisStudio.ProjectSystem.CanonicalPath :: System.String FileName { get; }
+ArxisStudio.ProjectSystem.CanonicalPath :: System.String Value { get; }
+ArxisStudio.ProjectSystem.CanonicalPath :: static ArxisStudio.ProjectSystem.CanonicalPath Create(ArxisStudio.ProjectSystem.CanonicalPath baseDirectory, System.String relativePath)
+ArxisStudio.ProjectSystem.CanonicalPath :: static ArxisStudio.ProjectSystem.CanonicalPath Create(System.String absolutePath)
+ArxisStudio.ProjectSystem.CanonicalPath :: static ArxisStudio.ProjectSystem.CanonicalPath None { get; }
+ArxisStudio.ProjectSystem.CanonicalPath :: static System.Boolean TryCreate(System.String? absolutePath, out ArxisStudio.ProjectSystem.CanonicalPath path)
+ArxisStudio.ProjectSystem.CanonicalPath :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.CanonicalPath left, ArxisStudio.ProjectSystem.CanonicalPath right)
+ArxisStudio.ProjectSystem.CanonicalPath :: static System.Boolean op_GreaterThan(ArxisStudio.ProjectSystem.CanonicalPath left, ArxisStudio.ProjectSystem.CanonicalPath right)
+ArxisStudio.ProjectSystem.CanonicalPath :: static System.Boolean op_GreaterThanOrEqual(ArxisStudio.ProjectSystem.CanonicalPath left, ArxisStudio.ProjectSystem.CanonicalPath right)
+ArxisStudio.ProjectSystem.CanonicalPath :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.CanonicalPath left, ArxisStudio.ProjectSystem.CanonicalPath right)
+ArxisStudio.ProjectSystem.CanonicalPath :: static System.Boolean op_LessThan(ArxisStudio.ProjectSystem.CanonicalPath left, ArxisStudio.ProjectSystem.CanonicalPath right)
+ArxisStudio.ProjectSystem.CanonicalPath :: static System.Boolean op_LessThanOrEqual(ArxisStudio.ProjectSystem.CanonicalPath left, ArxisStudio.ProjectSystem.CanonicalPath right)
+ArxisStudio.ProjectSystem.CanonicalPath :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.ProjectSystem.CanonicalPath :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.CanonicalPath :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.FileChangeCoalescer : sealed class : System.IDisposable
+ArxisStudio.ProjectSystem.FileChangeCoalescer :: .ctor(System.Action<System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath>> onBatch, ArxisStudio.ProjectSystem.FileChangeCoalescingOptions? options = null, System.TimeProvider? timeProvider = null)
+ArxisStudio.ProjectSystem.FileChangeCoalescer :: System.Void Add(ArxisStudio.ProjectSystem.CanonicalPath path)
+ArxisStudio.ProjectSystem.FileChangeCoalescer :: System.Void Dispose()
+ArxisStudio.ProjectSystem.FileChangeCoalescer :: System.Void Flush()
+ArxisStudio.ProjectSystem.FileChangeCoalescingOptions : sealed record : System.IEquatable<ArxisStudio.ProjectSystem.FileChangeCoalescingOptions>
+ArxisStudio.ProjectSystem.FileChangeCoalescingOptions :: .ctor()
+ArxisStudio.ProjectSystem.FileChangeCoalescingOptions :: System.Boolean Equals(ArxisStudio.ProjectSystem.FileChangeCoalescingOptions? other)
+ArxisStudio.ProjectSystem.FileChangeCoalescingOptions :: System.TimeSpan MaximumDelay { get; init; }
+ArxisStudio.ProjectSystem.FileChangeCoalescingOptions :: System.TimeSpan QuietPeriod { get; init; }
+ArxisStudio.ProjectSystem.FileChangeCoalescingOptions :: static ArxisStudio.ProjectSystem.FileChangeCoalescingOptions Default { get; }
+ArxisStudio.ProjectSystem.FileChangeCoalescingOptions :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.FileChangeCoalescingOptions? left, ArxisStudio.ProjectSystem.FileChangeCoalescingOptions? right)
+ArxisStudio.ProjectSystem.FileChangeCoalescingOptions :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.FileChangeCoalescingOptions? left, ArxisStudio.ProjectSystem.FileChangeCoalescingOptions? right)
+ArxisStudio.ProjectSystem.FileChangeCoalescingOptions :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.ProjectSystem.FileChangeCoalescingOptions :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.FileChangeCoalescingOptions :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.FileSpan : readonly record struct : System.IEquatable<ArxisStudio.ProjectSystem.FileSpan>
+ArxisStudio.ProjectSystem.FileSpan :: System.Boolean Equals(ArxisStudio.ProjectSystem.FileSpan other)
+ArxisStudio.ProjectSystem.FileSpan :: System.Boolean IsEmpty { get; }
+ArxisStudio.ProjectSystem.FileSpan :: System.Int32 EndColumn { get; init; }
+ArxisStudio.ProjectSystem.FileSpan :: System.Int32 EndLine { get; init; }
+ArxisStudio.ProjectSystem.FileSpan :: System.Int32 StartColumn { get; init; }
+ArxisStudio.ProjectSystem.FileSpan :: System.Int32 StartLine { get; init; }
+ArxisStudio.ProjectSystem.FileSpan :: static ArxisStudio.ProjectSystem.FileSpan At(System.Int32 line, System.Int32 column = 0)
+ArxisStudio.ProjectSystem.FileSpan :: static ArxisStudio.ProjectSystem.FileSpan Create(System.Int32 startLine, System.Int32 startColumn, System.Int32 endLine, System.Int32 endColumn)
+ArxisStudio.ProjectSystem.FileSpan :: static ArxisStudio.ProjectSystem.FileSpan None { get; }
+ArxisStudio.ProjectSystem.FileSpan :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.FileSpan left, ArxisStudio.ProjectSystem.FileSpan right)
+ArxisStudio.ProjectSystem.FileSpan :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.FileSpan left, ArxisStudio.ProjectSystem.FileSpan right)
+ArxisStudio.ProjectSystem.FileSpan :: virtual System.Boolean Equals(System.Object obj)
+ArxisStudio.ProjectSystem.FileSpan :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.FileSpan :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.FrameworkReferenceInfo : sealed record : System.IEquatable<ArxisStudio.ProjectSystem.FrameworkReferenceInfo>
+ArxisStudio.ProjectSystem.FrameworkReferenceInfo :: .ctor()
+ArxisStudio.ProjectSystem.FrameworkReferenceInfo :: ArxisStudio.ProjectSystem.ProjectMetadata Metadata { get; init; }
+ArxisStudio.ProjectSystem.FrameworkReferenceInfo :: System.Boolean Equals(ArxisStudio.ProjectSystem.FrameworkReferenceInfo? other)
+ArxisStudio.ProjectSystem.FrameworkReferenceInfo :: required System.String Name { get; init; }
+ArxisStudio.ProjectSystem.FrameworkReferenceInfo :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.FrameworkReferenceInfo? left, ArxisStudio.ProjectSystem.FrameworkReferenceInfo? right)
+ArxisStudio.ProjectSystem.FrameworkReferenceInfo :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.FrameworkReferenceInfo? left, ArxisStudio.ProjectSystem.FrameworkReferenceInfo? right)
+ArxisStudio.ProjectSystem.FrameworkReferenceInfo :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.ProjectSystem.FrameworkReferenceInfo :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.FrameworkReferenceInfo :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.IProjectOperationProvider : interface
+ArxisStudio.ProjectSystem.IProjectOperationProvider :: System.Boolean CanExecute(ArxisStudio.ProjectSystem.ProjectOperationKind kind)
+ArxisStudio.ProjectSystem.IProjectOperationProvider :: System.Threading.Tasks.ValueTask<ArxisStudio.ProjectSystem.ProjectOperationResult> ExecuteAsync(ArxisStudio.ProjectSystem.ProjectOperationRequest request, System.IProgress<ArxisStudio.ProjectSystem.ProjectOperationProgress>? progress, System.Threading.CancellationToken cancellationToken)
+ArxisStudio.ProjectSystem.IProjectSystemProvider : interface
+ArxisStudio.ProjectSystem.IProjectSystemProvider :: System.Boolean CanLoad(ArxisStudio.ProjectSystem.WorkspaceEntryPoint entryPoint)
+ArxisStudio.ProjectSystem.IProjectSystemProvider :: System.String Name { get; }
+ArxisStudio.ProjectSystem.IProjectSystemProvider :: System.Threading.Tasks.ValueTask<ArxisStudio.ProjectSystem.WorkspaceLoadResult> LoadAsync(ArxisStudio.ProjectSystem.WorkspaceLoadRequest request, System.Threading.CancellationToken cancellationToken)
+ArxisStudio.ProjectSystem.OutputArtifact : sealed record : System.IEquatable<ArxisStudio.ProjectSystem.OutputArtifact>
+ArxisStudio.ProjectSystem.OutputArtifact :: .ctor()
+ArxisStudio.ProjectSystem.OutputArtifact :: ArxisStudio.ProjectSystem.ProjectMetadata Metadata { get; init; }
+ArxisStudio.ProjectSystem.OutputArtifact :: System.Boolean Equals(ArxisStudio.ProjectSystem.OutputArtifact? other)
+ArxisStudio.ProjectSystem.OutputArtifact :: System.String? TargetFramework { get; init; }
+ArxisStudio.ProjectSystem.OutputArtifact :: required ArxisStudio.ProjectSystem.CanonicalPath Path { get; init; }
+ArxisStudio.ProjectSystem.OutputArtifact :: required ArxisStudio.ProjectSystem.OutputArtifactKind Kind { get; init; }
+ArxisStudio.ProjectSystem.OutputArtifact :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.OutputArtifact? left, ArxisStudio.ProjectSystem.OutputArtifact? right)
+ArxisStudio.ProjectSystem.OutputArtifact :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.OutputArtifact? left, ArxisStudio.ProjectSystem.OutputArtifact? right)
+ArxisStudio.ProjectSystem.OutputArtifact :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.ProjectSystem.OutputArtifact :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.OutputArtifact :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.OutputArtifactKind : enum
+ArxisStudio.ProjectSystem.OutputArtifactKind :: Assembly = 1
+ArxisStudio.ProjectSystem.OutputArtifactKind :: DependencyManifest = 3
+ArxisStudio.ProjectSystem.OutputArtifactKind :: DocumentationFile = 5
+ArxisStudio.ProjectSystem.OutputArtifactKind :: GeneratedDirectory = 8
+ArxisStudio.ProjectSystem.OutputArtifactKind :: GeneratedFile = 7
+ArxisStudio.ProjectSystem.OutputArtifactKind :: ReferenceAssembly = 6
+ArxisStudio.ProjectSystem.OutputArtifactKind :: RuntimeConfiguration = 4
+ArxisStudio.ProjectSystem.OutputArtifactKind :: SymbolFile = 2
+ArxisStudio.ProjectSystem.OutputArtifactKind :: Unknown = 0
+ArxisStudio.ProjectSystem.PackageReferenceInfo : sealed record : System.IEquatable<ArxisStudio.ProjectSystem.PackageReferenceInfo>
+ArxisStudio.ProjectSystem.PackageReferenceInfo :: .ctor()
+ArxisStudio.ProjectSystem.PackageReferenceInfo :: ArxisStudio.ProjectSystem.ProjectItemOrigin Origin { get; init; }
+ArxisStudio.ProjectSystem.PackageReferenceInfo :: ArxisStudio.ProjectSystem.ProjectMetadata Metadata { get; init; }
+ArxisStudio.ProjectSystem.PackageReferenceInfo :: System.Boolean Equals(ArxisStudio.ProjectSystem.PackageReferenceInfo? other)
+ArxisStudio.ProjectSystem.PackageReferenceInfo :: System.String? ExcludeAssets { get; init; }
+ArxisStudio.ProjectSystem.PackageReferenceInfo :: System.String? IncludeAssets { get; init; }
+ArxisStudio.ProjectSystem.PackageReferenceInfo :: System.String? PrivateAssets { get; init; }
+ArxisStudio.ProjectSystem.PackageReferenceInfo :: System.String? VersionText { get; init; }
+ArxisStudio.ProjectSystem.PackageReferenceInfo :: required System.String PackageId { get; init; }
+ArxisStudio.ProjectSystem.PackageReferenceInfo :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.PackageReferenceInfo? left, ArxisStudio.ProjectSystem.PackageReferenceInfo? right)
+ArxisStudio.ProjectSystem.PackageReferenceInfo :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.PackageReferenceInfo? left, ArxisStudio.ProjectSystem.PackageReferenceInfo? right)
+ArxisStudio.ProjectSystem.PackageReferenceInfo :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.ProjectSystem.PackageReferenceInfo :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.PackageReferenceInfo :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.ProjectDiagnostic : sealed record : System.IEquatable<ArxisStudio.ProjectSystem.ProjectDiagnostic>
+ArxisStudio.ProjectSystem.ProjectDiagnostic :: .ctor(System.String Code, System.String Message, ArxisStudio.ProjectSystem.ProjectDiagnosticSeverity Severity)
+ArxisStudio.ProjectSystem.ProjectDiagnostic :: ArxisStudio.ProjectSystem.CanonicalPath FilePath { get; init; }
+ArxisStudio.ProjectSystem.ProjectDiagnostic :: ArxisStudio.ProjectSystem.FileSpan Span { get; init; }
+ArxisStudio.ProjectSystem.ProjectDiagnostic :: ArxisStudio.ProjectSystem.ProjectDiagnostic WithProvider(System.String? providerName)
+ArxisStudio.ProjectSystem.ProjectDiagnostic :: ArxisStudio.ProjectSystem.ProjectDiagnosticSeverity Severity { get; init; }
+ArxisStudio.ProjectSystem.ProjectDiagnostic :: ArxisStudio.ProjectSystem.ProjectIdentity Project { get; init; }
+ArxisStudio.ProjectSystem.ProjectDiagnostic :: System.Boolean Equals(ArxisStudio.ProjectSystem.ProjectDiagnostic? other)
+ArxisStudio.ProjectSystem.ProjectDiagnostic :: System.Boolean IsError { get; }
+ArxisStudio.ProjectSystem.ProjectDiagnostic :: System.String Code { get; init; }
+ArxisStudio.ProjectSystem.ProjectDiagnostic :: System.String Message { get; init; }
+ArxisStudio.ProjectSystem.ProjectDiagnostic :: System.String? ProviderName { get; init; }
+ArxisStudio.ProjectSystem.ProjectDiagnostic :: System.Void Deconstruct(out System.String Code, out System.String Message, out ArxisStudio.ProjectSystem.ProjectDiagnosticSeverity Severity)
+ArxisStudio.ProjectSystem.ProjectDiagnostic :: static ArxisStudio.ProjectSystem.ProjectDiagnostic ForFile(System.String code, System.String message, ArxisStudio.ProjectSystem.ProjectDiagnosticSeverity severity, ArxisStudio.ProjectSystem.CanonicalPath filePath, ArxisStudio.ProjectSystem.FileSpan span = null)
+ArxisStudio.ProjectSystem.ProjectDiagnostic :: static ArxisStudio.ProjectSystem.ProjectDiagnostic ForProject(System.String code, System.String message, ArxisStudio.ProjectSystem.ProjectDiagnosticSeverity severity, ArxisStudio.ProjectSystem.ProjectIdentity project)
+ArxisStudio.ProjectSystem.ProjectDiagnostic :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.ProjectDiagnostic? left, ArxisStudio.ProjectSystem.ProjectDiagnostic? right)
+ArxisStudio.ProjectSystem.ProjectDiagnostic :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.ProjectDiagnostic? left, ArxisStudio.ProjectSystem.ProjectDiagnostic? right)
+ArxisStudio.ProjectSystem.ProjectDiagnostic :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.ProjectSystem.ProjectDiagnostic :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.ProjectDiagnostic :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.ProjectDiagnosticCodes : static class
+ArxisStudio.ProjectSystem.ProjectDiagnosticCodes :: const System.String InvalidProviderResult = "APS1003"
+ArxisStudio.ProjectSystem.ProjectDiagnosticCodes :: const System.String ProviderFailed = "APS1002"
+ArxisStudio.ProjectSystem.ProjectDiagnosticCodes :: const System.String UnsupportedEntryPoint = "APS1001"
+ArxisStudio.ProjectSystem.ProjectDiagnosticCodes :: const System.String UnsupportedOperation = "APS1004"
+ArxisStudio.ProjectSystem.ProjectDiagnosticSeverity : enum
+ArxisStudio.ProjectSystem.ProjectDiagnosticSeverity :: Error = 2
+ArxisStudio.ProjectSystem.ProjectDiagnosticSeverity :: Info = 0
+ArxisStudio.ProjectSystem.ProjectDiagnosticSeverity :: Warning = 1
+ArxisStudio.ProjectSystem.ProjectIdentity : readonly struct : System.IComparable<ArxisStudio.ProjectSystem.ProjectIdentity>, System.IEquatable<ArxisStudio.ProjectSystem.ProjectIdentity>
+ArxisStudio.ProjectSystem.ProjectIdentity :: ArxisStudio.ProjectSystem.CanonicalPath ProjectFilePath { get; }
+ArxisStudio.ProjectSystem.ProjectIdentity :: ArxisStudio.ProjectSystem.WorkspaceIdentity Workspace { get; }
+ArxisStudio.ProjectSystem.ProjectIdentity :: System.Boolean Equals(ArxisStudio.ProjectSystem.ProjectIdentity other)
+ArxisStudio.ProjectSystem.ProjectIdentity :: System.Boolean IsEmpty { get; }
+ArxisStudio.ProjectSystem.ProjectIdentity :: System.Int32 CompareTo(ArxisStudio.ProjectSystem.ProjectIdentity other)
+ArxisStudio.ProjectSystem.ProjectIdentity :: static ArxisStudio.ProjectSystem.ProjectIdentity Create(ArxisStudio.ProjectSystem.WorkspaceIdentity workspace, ArxisStudio.ProjectSystem.CanonicalPath projectFilePath)
+ArxisStudio.ProjectSystem.ProjectIdentity :: static ArxisStudio.ProjectSystem.ProjectIdentity None { get; }
+ArxisStudio.ProjectSystem.ProjectIdentity :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.ProjectIdentity left, ArxisStudio.ProjectSystem.ProjectIdentity right)
+ArxisStudio.ProjectSystem.ProjectIdentity :: static System.Boolean op_GreaterThan(ArxisStudio.ProjectSystem.ProjectIdentity left, ArxisStudio.ProjectSystem.ProjectIdentity right)
+ArxisStudio.ProjectSystem.ProjectIdentity :: static System.Boolean op_GreaterThanOrEqual(ArxisStudio.ProjectSystem.ProjectIdentity left, ArxisStudio.ProjectSystem.ProjectIdentity right)
+ArxisStudio.ProjectSystem.ProjectIdentity :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.ProjectIdentity left, ArxisStudio.ProjectSystem.ProjectIdentity right)
+ArxisStudio.ProjectSystem.ProjectIdentity :: static System.Boolean op_LessThan(ArxisStudio.ProjectSystem.ProjectIdentity left, ArxisStudio.ProjectSystem.ProjectIdentity right)
+ArxisStudio.ProjectSystem.ProjectIdentity :: static System.Boolean op_LessThanOrEqual(ArxisStudio.ProjectSystem.ProjectIdentity left, ArxisStudio.ProjectSystem.ProjectIdentity right)
+ArxisStudio.ProjectSystem.ProjectIdentity :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.ProjectSystem.ProjectIdentity :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.ProjectIdentity :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.ProjectItem : sealed record : System.IEquatable<ArxisStudio.ProjectSystem.ProjectItem>
+ArxisStudio.ProjectSystem.ProjectItem :: .ctor()
+ArxisStudio.ProjectSystem.ProjectItem :: ArxisStudio.ProjectSystem.CanonicalPath FullPath { get; init; }
+ArxisStudio.ProjectSystem.ProjectItem :: ArxisStudio.ProjectSystem.ProjectItemOrigin Origin { get; init; }
+ArxisStudio.ProjectSystem.ProjectItem :: ArxisStudio.ProjectSystem.ProjectMetadata Metadata { get; init; }
+ArxisStudio.ProjectSystem.ProjectItem :: System.Boolean Equals(ArxisStudio.ProjectSystem.ProjectItem? other)
+ArxisStudio.ProjectSystem.ProjectItem :: System.String? Link { get; init; }
+ArxisStudio.ProjectSystem.ProjectItem :: required System.String Include { get; init; }
+ArxisStudio.ProjectSystem.ProjectItem :: required System.String ItemType { get; init; }
+ArxisStudio.ProjectSystem.ProjectItem :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.ProjectItem? left, ArxisStudio.ProjectSystem.ProjectItem? right)
+ArxisStudio.ProjectSystem.ProjectItem :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.ProjectItem? left, ArxisStudio.ProjectSystem.ProjectItem? right)
+ArxisStudio.ProjectSystem.ProjectItem :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.ProjectSystem.ProjectItem :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.ProjectItem :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.ProjectItemOrigin : enum
+ArxisStudio.ProjectSystem.ProjectItemOrigin :: Declared = 1
+ArxisStudio.ProjectSystem.ProjectItemOrigin :: Generated = 3
+ArxisStudio.ProjectSystem.ProjectItemOrigin :: Imported = 2
+ArxisStudio.ProjectSystem.ProjectItemOrigin :: Unknown = 0
+ArxisStudio.ProjectSystem.ProjectItemTypes : static class
+ArxisStudio.ProjectSystem.ProjectItemTypes :: const System.String AdditionalFiles = "AdditionalFiles"
+ArxisStudio.ProjectSystem.ProjectItemTypes :: const System.String Analyzer = "Analyzer"
+ArxisStudio.ProjectSystem.ProjectItemTypes :: const System.String Compile = "Compile"
+ArxisStudio.ProjectSystem.ProjectItemTypes :: const System.String Content = "Content"
+ArxisStudio.ProjectSystem.ProjectItemTypes :: const System.String EmbeddedResource = "EmbeddedResource"
+ArxisStudio.ProjectSystem.ProjectItemTypes :: const System.String Folder = "Folder"
+ArxisStudio.ProjectSystem.ProjectItemTypes :: const System.String None = "None"
+ArxisStudio.ProjectSystem.ProjectMetadata : sealed class : System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<System.String, System.String>>, System.Collections.Generic.IReadOnlyCollection<System.Collections.Generic.KeyValuePair<System.String, System.String>>, System.Collections.Generic.IReadOnlyDictionary<System.String, System.String>, System.Collections.IEnumerable, System.IEquatable<ArxisStudio.ProjectSystem.ProjectMetadata>
+ArxisStudio.ProjectSystem.ProjectMetadata :: System.Boolean ContainsKey(System.String key)
+ArxisStudio.ProjectSystem.ProjectMetadata :: System.Boolean Equals(ArxisStudio.ProjectSystem.ProjectMetadata? other)
+ArxisStudio.ProjectSystem.ProjectMetadata :: System.Boolean TryGetValue(System.String key, out System.String? value)
+ArxisStudio.ProjectSystem.ProjectMetadata :: System.Collections.Generic.IEnumerable<System.String> Keys { get; }
+ArxisStudio.ProjectSystem.ProjectMetadata :: System.Collections.Generic.IEnumerable<System.String> Values { get; }
+ArxisStudio.ProjectSystem.ProjectMetadata :: System.Collections.Generic.IEnumerator<System.Collections.Generic.KeyValuePair<System.String, System.String>> GetEnumerator()
+ArxisStudio.ProjectSystem.ProjectMetadata :: System.Int32 Count { get; }
+ArxisStudio.ProjectSystem.ProjectMetadata :: System.String this[System.String key] { get; }
+ArxisStudio.ProjectSystem.ProjectMetadata :: System.String? GetValueOrDefault(System.String key)
+ArxisStudio.ProjectSystem.ProjectMetadata :: static ArxisStudio.ProjectSystem.ProjectMetadata Create(System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<System.String, System.String>> entries)
+ArxisStudio.ProjectSystem.ProjectMetadata :: static ArxisStudio.ProjectSystem.ProjectMetadata Empty { get; }
+ArxisStudio.ProjectSystem.ProjectMetadata :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.ProjectMetadata? left, ArxisStudio.ProjectSystem.ProjectMetadata? right)
+ArxisStudio.ProjectSystem.ProjectMetadata :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.ProjectMetadata? left, ArxisStudio.ProjectSystem.ProjectMetadata? right)
+ArxisStudio.ProjectSystem.ProjectMetadata :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.ProjectSystem.ProjectMetadata :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.ProjectMetadata :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.ProjectOperationKind : enum
+ArxisStudio.ProjectSystem.ProjectOperationKind :: Build = 1
+ArxisStudio.ProjectSystem.ProjectOperationKind :: Clean = 3
+ArxisStudio.ProjectSystem.ProjectOperationKind :: Rebuild = 2
+ArxisStudio.ProjectSystem.ProjectOperationKind :: Restore = 0
+ArxisStudio.ProjectSystem.ProjectOperationProgress : sealed record : System.IEquatable<ArxisStudio.ProjectSystem.ProjectOperationProgress>
+ArxisStudio.ProjectSystem.ProjectOperationProgress :: .ctor()
+ArxisStudio.ProjectSystem.ProjectOperationProgress :: ArxisStudio.ProjectSystem.ProjectIdentity Project { get; init; }
+ArxisStudio.ProjectSystem.ProjectOperationProgress :: System.Boolean Equals(ArxisStudio.ProjectSystem.ProjectOperationProgress? other)
+ArxisStudio.ProjectSystem.ProjectOperationProgress :: required System.String Message { get; init; }
+ArxisStudio.ProjectSystem.ProjectOperationProgress :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.ProjectOperationProgress? left, ArxisStudio.ProjectSystem.ProjectOperationProgress? right)
+ArxisStudio.ProjectSystem.ProjectOperationProgress :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.ProjectOperationProgress? left, ArxisStudio.ProjectSystem.ProjectOperationProgress? right)
+ArxisStudio.ProjectSystem.ProjectOperationProgress :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.ProjectSystem.ProjectOperationProgress :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.ProjectOperationProgress :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.ProjectOperationRequest : sealed record : System.IEquatable<ArxisStudio.ProjectSystem.ProjectOperationRequest>
+ArxisStudio.ProjectSystem.ProjectOperationRequest :: .ctor()
+ArxisStudio.ProjectSystem.ProjectOperationRequest :: ArxisStudio.ProjectSystem.ProjectMetadata GlobalProperties { get; init; }
+ArxisStudio.ProjectSystem.ProjectOperationRequest :: ArxisStudio.ProjectSystem.WorkspaceEntryPoint EntryPoint { get; }
+ArxisStudio.ProjectSystem.ProjectOperationRequest :: System.Boolean Equals(ArxisStudio.ProjectSystem.ProjectOperationRequest? other)
+ArxisStudio.ProjectSystem.ProjectOperationRequest :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectIdentity> Projects { get; init; }
+ArxisStudio.ProjectSystem.ProjectOperationRequest :: System.String? Configuration { get; init; }
+ArxisStudio.ProjectSystem.ProjectOperationRequest :: System.String? Platform { get; init; }
+ArxisStudio.ProjectSystem.ProjectOperationRequest :: System.String? TargetFramework { get; init; }
+ArxisStudio.ProjectSystem.ProjectOperationRequest :: required ArxisStudio.ProjectSystem.CanonicalPath EntryPointPath { get; init; }
+ArxisStudio.ProjectSystem.ProjectOperationRequest :: required ArxisStudio.ProjectSystem.ProjectOperationKind Kind { get; init; }
+ArxisStudio.ProjectSystem.ProjectOperationRequest :: required ArxisStudio.ProjectSystem.WorkspaceIdentity Workspace { get; init; }
+ArxisStudio.ProjectSystem.ProjectOperationRequest :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.ProjectOperationRequest? left, ArxisStudio.ProjectSystem.ProjectOperationRequest? right)
+ArxisStudio.ProjectSystem.ProjectOperationRequest :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.ProjectOperationRequest? left, ArxisStudio.ProjectSystem.ProjectOperationRequest? right)
+ArxisStudio.ProjectSystem.ProjectOperationRequest :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.ProjectSystem.ProjectOperationRequest :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.ProjectOperationRequest :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.ProjectOperationResult : sealed class
+ArxisStudio.ProjectSystem.ProjectOperationResult :: ArxisStudio.ProjectSystem.ProjectOperationStatus Status { get; }
+ArxisStudio.ProjectSystem.ProjectOperationResult :: System.Boolean HasErrors { get; }
+ArxisStudio.ProjectSystem.ProjectOperationResult :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectDiagnostic> Diagnostics { get; }
+ArxisStudio.ProjectSystem.ProjectOperationResult :: static ArxisStudio.ProjectSystem.ProjectOperationResult Failed(ArxisStudio.ProjectSystem.ProjectDiagnostic diagnostic)
+ArxisStudio.ProjectSystem.ProjectOperationResult :: static ArxisStudio.ProjectSystem.ProjectOperationResult Failed(System.Collections.Generic.IEnumerable<ArxisStudio.ProjectSystem.ProjectDiagnostic> diagnostics)
+ArxisStudio.ProjectSystem.ProjectOperationResult :: static ArxisStudio.ProjectSystem.ProjectOperationResult Succeeded(System.Collections.Generic.IEnumerable<ArxisStudio.ProjectSystem.ProjectDiagnostic>? diagnostics = null)
+ArxisStudio.ProjectSystem.ProjectOperationResult :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.ProjectOperationStatus : enum
+ArxisStudio.ProjectSystem.ProjectOperationStatus :: Failed = 1
+ArxisStudio.ProjectSystem.ProjectOperationStatus :: Succeeded = 0
+ArxisStudio.ProjectSystem.ProjectReferenceInfo : sealed record : System.IEquatable<ArxisStudio.ProjectSystem.ProjectReferenceInfo>
+ArxisStudio.ProjectSystem.ProjectReferenceInfo :: .ctor()
+ArxisStudio.ProjectSystem.ProjectReferenceInfo :: ArxisStudio.ProjectSystem.ProjectIdentity Project { get; init; }
+ArxisStudio.ProjectSystem.ProjectReferenceInfo :: ArxisStudio.ProjectSystem.ProjectMetadata Metadata { get; init; }
+ArxisStudio.ProjectSystem.ProjectReferenceInfo :: System.Boolean Equals(ArxisStudio.ProjectSystem.ProjectReferenceInfo? other)
+ArxisStudio.ProjectSystem.ProjectReferenceInfo :: System.Boolean? ReferenceOutputAssembly { get; init; }
+ArxisStudio.ProjectSystem.ProjectReferenceInfo :: System.Collections.Immutable.ImmutableArray<System.String> Aliases { get; init; }
+ArxisStudio.ProjectSystem.ProjectReferenceInfo :: required ArxisStudio.ProjectSystem.CanonicalPath ProjectFilePath { get; init; }
+ArxisStudio.ProjectSystem.ProjectReferenceInfo :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.ProjectReferenceInfo? left, ArxisStudio.ProjectSystem.ProjectReferenceInfo? right)
+ArxisStudio.ProjectSystem.ProjectReferenceInfo :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.ProjectReferenceInfo? left, ArxisStudio.ProjectSystem.ProjectReferenceInfo? right)
+ArxisStudio.ProjectSystem.ProjectReferenceInfo :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.ProjectSystem.ProjectReferenceInfo :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.ProjectReferenceInfo :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.ProjectSnapshot : sealed class
+ArxisStudio.ProjectSystem.ProjectSnapshot :: ArxisStudio.ProjectSystem.CanonicalPath ProjectDirectory { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: ArxisStudio.ProjectSystem.CanonicalPath ProjectFilePath { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: ArxisStudio.ProjectSystem.ProjectIdentity Identity { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: ArxisStudio.ProjectSystem.ProjectMetadata Properties { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Boolean HasErrors { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.AnalyzerReferenceInfo> AnalyzerReferences { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.AssemblyReferenceInfo> AssemblyReferences { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath> EvaluationInputs { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.FrameworkReferenceInfo> FrameworkReferences { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.OutputArtifact> Outputs { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.PackageReferenceInfo> PackageReferences { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectDiagnostic> Diagnostics { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectItem> Items { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectReferenceInfo> ProjectReferences { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ResolvedPackage> ResolvedPackages { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Collections.Immutable.ImmutableArray<System.String> Configurations { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Collections.Immutable.ImmutableArray<System.String> Platforms { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Collections.Immutable.ImmutableArray<System.String> TargetFrameworks { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.String Name { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.String? ActiveConfiguration { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.String? ActivePlatform { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.String? ActiveTargetFramework { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.String? Kind { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.String? Language { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.String? ProviderName { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder : sealed class
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: .ctor()
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: ArxisStudio.ProjectSystem.CanonicalPath ProjectFilePath { get; set; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: ArxisStudio.ProjectSystem.ProjectIdentity Identity { get; set; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: ArxisStudio.ProjectSystem.ProjectSnapshot ToSnapshot()
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IDictionary<System.String, System.String> Properties { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IList<ArxisStudio.ProjectSystem.AnalyzerReferenceInfo> AnalyzerReferences { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IList<ArxisStudio.ProjectSystem.AssemblyReferenceInfo> AssemblyReferences { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IList<ArxisStudio.ProjectSystem.CanonicalPath> EvaluationInputs { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IList<ArxisStudio.ProjectSystem.FrameworkReferenceInfo> FrameworkReferences { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IList<ArxisStudio.ProjectSystem.OutputArtifact> Outputs { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IList<ArxisStudio.ProjectSystem.PackageReferenceInfo> PackageReferences { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IList<ArxisStudio.ProjectSystem.ProjectDiagnostic> Diagnostics { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IList<ArxisStudio.ProjectSystem.ProjectItem> Items { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IList<ArxisStudio.ProjectSystem.ProjectReferenceInfo> ProjectReferences { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IList<ArxisStudio.ProjectSystem.ResolvedPackage> ResolvedPackages { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IList<System.String> Configurations { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IList<System.String> Platforms { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IList<System.String> TargetFrameworks { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.String? ActiveConfiguration { get; set; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.String? ActivePlatform { get; set; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.String? ActiveTargetFramework { get; set; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.String? Kind { get; set; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.String? Language { get; set; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.String? Name { get; set; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.String? ProviderName { get; set; }
+ArxisStudio.ProjectSystem.ProjectWorkspace : sealed class : System.IAsyncDisposable
+ArxisStudio.ProjectSystem.ProjectWorkspace :: .ctor(ArxisStudio.ProjectSystem.IProjectSystemProvider provider)
+ArxisStudio.ProjectSystem.ProjectWorkspace :: .ctor(System.Collections.Generic.IEnumerable<ArxisStudio.ProjectSystem.IProjectSystemProvider> providers)
+ArxisStudio.ProjectSystem.ProjectWorkspace :: ArxisStudio.ProjectSystem.SolutionSnapshot? CurrentSnapshot { get; }
+ArxisStudio.ProjectSystem.ProjectWorkspace :: ArxisStudio.ProjectSystem.WorkspaceIdentity Identity { get; }
+ArxisStudio.ProjectSystem.ProjectWorkspace :: ArxisStudio.ProjectSystem.WorkspaceLoadRequest? CurrentRequest { get; }
+ArxisStudio.ProjectSystem.ProjectWorkspace :: ArxisStudio.ProjectSystem.WorkspaceVersion CurrentVersion { get; }
+ArxisStudio.ProjectSystem.ProjectWorkspace :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.IProjectSystemProvider> Providers { get; }
+ArxisStudio.ProjectSystem.ProjectWorkspace :: System.Threading.Tasks.ValueTask DisposeAsync()
+ArxisStudio.ProjectSystem.ProjectWorkspace :: System.Threading.Tasks.ValueTask<ArxisStudio.ProjectSystem.ProjectOperationResult> ExecuteAsync(ArxisStudio.ProjectSystem.ProjectOperationRequest request, System.IProgress<ArxisStudio.ProjectSystem.ProjectOperationProgress>? progress = null, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.ProjectSystem.ProjectWorkspace :: System.Threading.Tasks.ValueTask<ArxisStudio.ProjectSystem.WorkspaceLoadResult> LoadAsync(ArxisStudio.ProjectSystem.WorkspaceLoadRequest request, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.ProjectSystem.ProjectWorkspace :: System.Threading.Tasks.ValueTask<ArxisStudio.ProjectSystem.WorkspaceLoadResult> RefreshAsync(System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.ProjectSystem.ProjectWorkspace :: event System.EventHandler<ArxisStudio.ProjectSystem.WorkspaceChangedEventArgs> SnapshotChanged
+ArxisStudio.ProjectSystem.ResolvedPackage : sealed record : System.IEquatable<ArxisStudio.ProjectSystem.ResolvedPackage>
+ArxisStudio.ProjectSystem.ResolvedPackage :: .ctor()
+ArxisStudio.ProjectSystem.ResolvedPackage :: System.Boolean Equals(ArxisStudio.ProjectSystem.ResolvedPackage? other)
+ArxisStudio.ProjectSystem.ResolvedPackage :: System.Boolean IsDirect { get; init; }
+ArxisStudio.ProjectSystem.ResolvedPackage :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath> CompileAssemblies { get; init; }
+ArxisStudio.ProjectSystem.ResolvedPackage :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath> RuntimeAssemblies { get; init; }
+ArxisStudio.ProjectSystem.ResolvedPackage :: System.Collections.Immutable.ImmutableArray<System.String> Dependencies { get; init; }
+ArxisStudio.ProjectSystem.ResolvedPackage :: required System.String PackageId { get; init; }
+ArxisStudio.ProjectSystem.ResolvedPackage :: required System.String Version { get; init; }
+ArxisStudio.ProjectSystem.ResolvedPackage :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.ResolvedPackage? left, ArxisStudio.ProjectSystem.ResolvedPackage? right)
+ArxisStudio.ProjectSystem.ResolvedPackage :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.ResolvedPackage? left, ArxisStudio.ProjectSystem.ResolvedPackage? right)
+ArxisStudio.ProjectSystem.ResolvedPackage :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.ProjectSystem.ResolvedPackage :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.ResolvedPackage :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.RuntimeAssemblyOrigin : enum
+ArxisStudio.ProjectSystem.RuntimeAssemblyOrigin :: Package = 2
+ArxisStudio.ProjectSystem.RuntimeAssemblyOrigin :: Project = 0
+ArxisStudio.ProjectSystem.RuntimeAssemblyOrigin :: ProjectReference = 1
+ArxisStudio.ProjectSystem.RuntimeAssemblyReference : sealed record : System.IEquatable<ArxisStudio.ProjectSystem.RuntimeAssemblyReference>
+ArxisStudio.ProjectSystem.RuntimeAssemblyReference :: .ctor()
+ArxisStudio.ProjectSystem.RuntimeAssemblyReference :: ArxisStudio.ProjectSystem.ProjectIdentity Project { get; init; }
+ArxisStudio.ProjectSystem.RuntimeAssemblyReference :: System.Boolean Equals(ArxisStudio.ProjectSystem.RuntimeAssemblyReference? other)
+ArxisStudio.ProjectSystem.RuntimeAssemblyReference :: System.String? PackageId { get; init; }
+ArxisStudio.ProjectSystem.RuntimeAssemblyReference :: required ArxisStudio.ProjectSystem.CanonicalPath Path { get; init; }
+ArxisStudio.ProjectSystem.RuntimeAssemblyReference :: required ArxisStudio.ProjectSystem.RuntimeAssemblyOrigin Origin { get; init; }
+ArxisStudio.ProjectSystem.RuntimeAssemblyReference :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.RuntimeAssemblyReference? left, ArxisStudio.ProjectSystem.RuntimeAssemblyReference? right)
+ArxisStudio.ProjectSystem.RuntimeAssemblyReference :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.RuntimeAssemblyReference? left, ArxisStudio.ProjectSystem.RuntimeAssemblyReference? right)
+ArxisStudio.ProjectSystem.RuntimeAssemblyReference :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.ProjectSystem.RuntimeAssemblyReference :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.RuntimeAssemblyReference :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.SolutionFolder : sealed record : System.IEquatable<ArxisStudio.ProjectSystem.SolutionFolder>
+ArxisStudio.ProjectSystem.SolutionFolder :: .ctor()
+ArxisStudio.ProjectSystem.SolutionFolder :: System.Boolean Equals(ArxisStudio.ProjectSystem.SolutionFolder? other)
+ArxisStudio.ProjectSystem.SolutionFolder :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectIdentity> Projects { get; init; }
+ArxisStudio.ProjectSystem.SolutionFolder :: required System.String Name { get; init; }
+ArxisStudio.ProjectSystem.SolutionFolder :: required System.String Path { get; init; }
+ArxisStudio.ProjectSystem.SolutionFolder :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.SolutionFolder? left, ArxisStudio.ProjectSystem.SolutionFolder? right)
+ArxisStudio.ProjectSystem.SolutionFolder :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.SolutionFolder? left, ArxisStudio.ProjectSystem.SolutionFolder? right)
+ArxisStudio.ProjectSystem.SolutionFolder :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.ProjectSystem.SolutionFolder :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.SolutionFolder :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.SolutionIdentity : readonly struct : System.IComparable<ArxisStudio.ProjectSystem.SolutionIdentity>, System.IEquatable<ArxisStudio.ProjectSystem.SolutionIdentity>
+ArxisStudio.ProjectSystem.SolutionIdentity :: ArxisStudio.ProjectSystem.CanonicalPath SolutionFilePath { get; }
+ArxisStudio.ProjectSystem.SolutionIdentity :: ArxisStudio.ProjectSystem.WorkspaceIdentity Workspace { get; }
+ArxisStudio.ProjectSystem.SolutionIdentity :: System.Boolean Equals(ArxisStudio.ProjectSystem.SolutionIdentity other)
+ArxisStudio.ProjectSystem.SolutionIdentity :: System.Boolean IsEmpty { get; }
+ArxisStudio.ProjectSystem.SolutionIdentity :: System.Int32 CompareTo(ArxisStudio.ProjectSystem.SolutionIdentity other)
+ArxisStudio.ProjectSystem.SolutionIdentity :: static ArxisStudio.ProjectSystem.SolutionIdentity Create(ArxisStudio.ProjectSystem.WorkspaceIdentity workspace, ArxisStudio.ProjectSystem.CanonicalPath solutionFilePath)
+ArxisStudio.ProjectSystem.SolutionIdentity :: static ArxisStudio.ProjectSystem.SolutionIdentity None { get; }
+ArxisStudio.ProjectSystem.SolutionIdentity :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.SolutionIdentity left, ArxisStudio.ProjectSystem.SolutionIdentity right)
+ArxisStudio.ProjectSystem.SolutionIdentity :: static System.Boolean op_GreaterThan(ArxisStudio.ProjectSystem.SolutionIdentity left, ArxisStudio.ProjectSystem.SolutionIdentity right)
+ArxisStudio.ProjectSystem.SolutionIdentity :: static System.Boolean op_GreaterThanOrEqual(ArxisStudio.ProjectSystem.SolutionIdentity left, ArxisStudio.ProjectSystem.SolutionIdentity right)
+ArxisStudio.ProjectSystem.SolutionIdentity :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.SolutionIdentity left, ArxisStudio.ProjectSystem.SolutionIdentity right)
+ArxisStudio.ProjectSystem.SolutionIdentity :: static System.Boolean op_LessThan(ArxisStudio.ProjectSystem.SolutionIdentity left, ArxisStudio.ProjectSystem.SolutionIdentity right)
+ArxisStudio.ProjectSystem.SolutionIdentity :: static System.Boolean op_LessThanOrEqual(ArxisStudio.ProjectSystem.SolutionIdentity left, ArxisStudio.ProjectSystem.SolutionIdentity right)
+ArxisStudio.ProjectSystem.SolutionIdentity :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.ProjectSystem.SolutionIdentity :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.SolutionIdentity :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.SolutionSnapshot : sealed class
+ArxisStudio.ProjectSystem.SolutionSnapshot :: ArxisStudio.ProjectSystem.SolutionIdentity Solution { get; }
+ArxisStudio.ProjectSystem.SolutionSnapshot :: ArxisStudio.ProjectSystem.WorkspaceEntryPoint EntryPoint { get; }
+ArxisStudio.ProjectSystem.SolutionSnapshot :: ArxisStudio.ProjectSystem.WorkspaceIdentity Workspace { get; }
+ArxisStudio.ProjectSystem.SolutionSnapshot :: ArxisStudio.ProjectSystem.WorkspaceInvalidation Invalidate(System.Collections.Generic.IEnumerable<ArxisStudio.ProjectSystem.CanonicalPath> changedPaths)
+ArxisStudio.ProjectSystem.SolutionSnapshot :: ArxisStudio.ProjectSystem.WorkspaceLoadRequest Request { get; }
+ArxisStudio.ProjectSystem.SolutionSnapshot :: ArxisStudio.ProjectSystem.WorkspaceVersion Version { get; }
+ArxisStudio.ProjectSystem.SolutionSnapshot :: System.Boolean HasErrors { get; }
+ArxisStudio.ProjectSystem.SolutionSnapshot :: System.Boolean TryGetFolder(ArxisStudio.ProjectSystem.ProjectIdentity project, out ArxisStudio.ProjectSystem.SolutionFolder? folder)
+ArxisStudio.ProjectSystem.SolutionSnapshot :: System.Boolean TryGetProject(ArxisStudio.ProjectSystem.CanonicalPath projectFilePath, out ArxisStudio.ProjectSystem.ProjectSnapshot? project)
+ArxisStudio.ProjectSystem.SolutionSnapshot :: System.Boolean TryGetProject(ArxisStudio.ProjectSystem.ProjectIdentity identity, out ArxisStudio.ProjectSystem.ProjectSnapshot? project)
+ArxisStudio.ProjectSystem.SolutionSnapshot :: System.Boolean TryGetProjectForFile(ArxisStudio.ProjectSystem.CanonicalPath filePath, out ArxisStudio.ProjectSystem.ProjectSnapshot? project)
+ArxisStudio.ProjectSystem.SolutionSnapshot :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectDiagnostic> Diagnostics { get; }
+ArxisStudio.ProjectSystem.SolutionSnapshot :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectSnapshot> Projects { get; }
+ArxisStudio.ProjectSystem.SolutionSnapshot :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.RuntimeAssemblyReference> GetRuntimeAssemblies(ArxisStudio.ProjectSystem.ProjectIdentity project)
+ArxisStudio.ProjectSystem.SolutionSnapshot :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.SolutionFolder> Folders { get; }
+ArxisStudio.ProjectSystem.SolutionSnapshot :: System.Collections.Immutable.ImmutableArray<System.String> Configurations { get; }
+ArxisStudio.ProjectSystem.SolutionSnapshot :: System.Collections.Immutable.ImmutableArray<System.String> Platforms { get; }
+ArxisStudio.ProjectSystem.SolutionSnapshot :: System.String Name { get; }
+ArxisStudio.ProjectSystem.SolutionSnapshot :: System.String? ProviderName { get; }
+ArxisStudio.ProjectSystem.SolutionSnapshot :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.SolutionSnapshotBuilder : sealed class
+ArxisStudio.ProjectSystem.SolutionSnapshotBuilder :: .ctor()
+ArxisStudio.ProjectSystem.SolutionSnapshotBuilder :: ArxisStudio.ProjectSystem.SolutionIdentity Solution { get; set; }
+ArxisStudio.ProjectSystem.SolutionSnapshotBuilder :: ArxisStudio.ProjectSystem.SolutionSnapshot ToSnapshot()
+ArxisStudio.ProjectSystem.SolutionSnapshotBuilder :: ArxisStudio.ProjectSystem.WorkspaceIdentity Workspace { get; set; }
+ArxisStudio.ProjectSystem.SolutionSnapshotBuilder :: ArxisStudio.ProjectSystem.WorkspaceLoadRequest? Request { get; set; }
+ArxisStudio.ProjectSystem.SolutionSnapshotBuilder :: System.Collections.Generic.IList<ArxisStudio.ProjectSystem.ProjectDiagnostic> Diagnostics { get; }
+ArxisStudio.ProjectSystem.SolutionSnapshotBuilder :: System.Collections.Generic.IList<ArxisStudio.ProjectSystem.ProjectSnapshot> Projects { get; }
+ArxisStudio.ProjectSystem.SolutionSnapshotBuilder :: System.Collections.Generic.IList<ArxisStudio.ProjectSystem.SolutionFolder> Folders { get; }
+ArxisStudio.ProjectSystem.SolutionSnapshotBuilder :: System.Collections.Generic.IList<System.String> Configurations { get; }
+ArxisStudio.ProjectSystem.SolutionSnapshotBuilder :: System.Collections.Generic.IList<System.String> Platforms { get; }
+ArxisStudio.ProjectSystem.SolutionSnapshotBuilder :: System.String? Name { get; set; }
+ArxisStudio.ProjectSystem.SolutionSnapshotBuilder :: System.String? ProviderName { get; set; }
+ArxisStudio.ProjectSystem.WorkspaceChangedEventArgs : sealed class : System.EventArgs
+ArxisStudio.ProjectSystem.WorkspaceChangedEventArgs :: ArxisStudio.ProjectSystem.SolutionSnapshot Snapshot { get; }
+ArxisStudio.ProjectSystem.WorkspaceChangedEventArgs :: ArxisStudio.ProjectSystem.SolutionSnapshot? Previous { get; }
+ArxisStudio.ProjectSystem.WorkspaceChangedEventArgs :: ArxisStudio.ProjectSystem.WorkspaceVersion Version { get; }
+ArxisStudio.ProjectSystem.WorkspaceEntryPoint : readonly struct : System.IEquatable<ArxisStudio.ProjectSystem.WorkspaceEntryPoint>
+ArxisStudio.ProjectSystem.WorkspaceEntryPoint :: ArxisStudio.ProjectSystem.CanonicalPath Path { get; }
+ArxisStudio.ProjectSystem.WorkspaceEntryPoint :: ArxisStudio.ProjectSystem.WorkspaceEntryPointKind Kind { get; }
+ArxisStudio.ProjectSystem.WorkspaceEntryPoint :: System.Boolean Equals(ArxisStudio.ProjectSystem.WorkspaceEntryPoint other)
+ArxisStudio.ProjectSystem.WorkspaceEntryPoint :: System.Boolean IsEmpty { get; }
+ArxisStudio.ProjectSystem.WorkspaceEntryPoint :: System.String Extension { get; }
+ArxisStudio.ProjectSystem.WorkspaceEntryPoint :: static ArxisStudio.ProjectSystem.WorkspaceEntryPoint FromPath(ArxisStudio.ProjectSystem.CanonicalPath path)
+ArxisStudio.ProjectSystem.WorkspaceEntryPoint :: static ArxisStudio.ProjectSystem.WorkspaceEntryPoint None { get; }
+ArxisStudio.ProjectSystem.WorkspaceEntryPoint :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.WorkspaceEntryPoint left, ArxisStudio.ProjectSystem.WorkspaceEntryPoint right)
+ArxisStudio.ProjectSystem.WorkspaceEntryPoint :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.WorkspaceEntryPoint left, ArxisStudio.ProjectSystem.WorkspaceEntryPoint right)
+ArxisStudio.ProjectSystem.WorkspaceEntryPoint :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.ProjectSystem.WorkspaceEntryPoint :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.WorkspaceEntryPoint :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.WorkspaceEntryPointKind : enum
+ArxisStudio.ProjectSystem.WorkspaceEntryPointKind :: Project = 3
+ArxisStudio.ProjectSystem.WorkspaceEntryPointKind :: Solution = 1
+ArxisStudio.ProjectSystem.WorkspaceEntryPointKind :: SolutionXml = 2
+ArxisStudio.ProjectSystem.WorkspaceEntryPointKind :: Unknown = 0
+ArxisStudio.ProjectSystem.WorkspaceIdentity : readonly record struct : System.IEquatable<ArxisStudio.ProjectSystem.WorkspaceIdentity>
+ArxisStudio.ProjectSystem.WorkspaceIdentity :: .ctor(System.Guid Value)
+ArxisStudio.ProjectSystem.WorkspaceIdentity :: System.Boolean Equals(ArxisStudio.ProjectSystem.WorkspaceIdentity other)
+ArxisStudio.ProjectSystem.WorkspaceIdentity :: System.Boolean IsEmpty { get; }
+ArxisStudio.ProjectSystem.WorkspaceIdentity :: System.Guid Value { get; init; }
+ArxisStudio.ProjectSystem.WorkspaceIdentity :: System.Void Deconstruct(out System.Guid Value)
+ArxisStudio.ProjectSystem.WorkspaceIdentity :: static ArxisStudio.ProjectSystem.WorkspaceIdentity New()
+ArxisStudio.ProjectSystem.WorkspaceIdentity :: static ArxisStudio.ProjectSystem.WorkspaceIdentity None { get; }
+ArxisStudio.ProjectSystem.WorkspaceIdentity :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.WorkspaceIdentity left, ArxisStudio.ProjectSystem.WorkspaceIdentity right)
+ArxisStudio.ProjectSystem.WorkspaceIdentity :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.WorkspaceIdentity left, ArxisStudio.ProjectSystem.WorkspaceIdentity right)
+ArxisStudio.ProjectSystem.WorkspaceIdentity :: virtual System.Boolean Equals(System.Object obj)
+ArxisStudio.ProjectSystem.WorkspaceIdentity :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.WorkspaceIdentity :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.WorkspaceInvalidation : sealed class
+ArxisStudio.ProjectSystem.WorkspaceInvalidation :: ArxisStudio.ProjectSystem.WorkspaceInvalidationScope Scope { get; }
+ArxisStudio.ProjectSystem.WorkspaceInvalidation :: System.Boolean IsEmpty { get; }
+ArxisStudio.ProjectSystem.WorkspaceInvalidation :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath> Causes { get; }
+ArxisStudio.ProjectSystem.WorkspaceInvalidation :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectIdentity> Projects { get; }
+ArxisStudio.ProjectSystem.WorkspaceInvalidation :: static ArxisStudio.ProjectSystem.WorkspaceInvalidation None { get; }
+ArxisStudio.ProjectSystem.WorkspaceInvalidation :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.WorkspaceInvalidationScope : enum
+ArxisStudio.ProjectSystem.WorkspaceInvalidationScope :: EntryPoint = 2
+ArxisStudio.ProjectSystem.WorkspaceInvalidationScope :: None = 0
+ArxisStudio.ProjectSystem.WorkspaceInvalidationScope :: Projects = 1
+ArxisStudio.ProjectSystem.WorkspaceLoadOptions : sealed record : System.IEquatable<ArxisStudio.ProjectSystem.WorkspaceLoadOptions>
+ArxisStudio.ProjectSystem.WorkspaceLoadOptions :: .ctor()
+ArxisStudio.ProjectSystem.WorkspaceLoadOptions :: System.Boolean Equals(ArxisStudio.ProjectSystem.WorkspaceLoadOptions? other)
+ArxisStudio.ProjectSystem.WorkspaceLoadOptions :: System.Boolean IncludeItems { get; init; }
+ArxisStudio.ProjectSystem.WorkspaceLoadOptions :: static ArxisStudio.ProjectSystem.WorkspaceLoadOptions Default { get; }
+ArxisStudio.ProjectSystem.WorkspaceLoadOptions :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.WorkspaceLoadOptions? left, ArxisStudio.ProjectSystem.WorkspaceLoadOptions? right)
+ArxisStudio.ProjectSystem.WorkspaceLoadOptions :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.WorkspaceLoadOptions? left, ArxisStudio.ProjectSystem.WorkspaceLoadOptions? right)
+ArxisStudio.ProjectSystem.WorkspaceLoadOptions :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.ProjectSystem.WorkspaceLoadOptions :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.WorkspaceLoadOptions :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.WorkspaceLoadRequest : sealed record : System.IEquatable<ArxisStudio.ProjectSystem.WorkspaceLoadRequest>
+ArxisStudio.ProjectSystem.WorkspaceLoadRequest :: .ctor()
+ArxisStudio.ProjectSystem.WorkspaceLoadRequest :: ArxisStudio.ProjectSystem.ProjectMetadata GlobalProperties { get; init; }
+ArxisStudio.ProjectSystem.WorkspaceLoadRequest :: ArxisStudio.ProjectSystem.WorkspaceEntryPoint EntryPoint { get; }
+ArxisStudio.ProjectSystem.WorkspaceLoadRequest :: ArxisStudio.ProjectSystem.WorkspaceLoadOptions Options { get; init; }
+ArxisStudio.ProjectSystem.WorkspaceLoadRequest :: System.Boolean Equals(ArxisStudio.ProjectSystem.WorkspaceLoadRequest? other)
+ArxisStudio.ProjectSystem.WorkspaceLoadRequest :: System.String? Configuration { get; init; }
+ArxisStudio.ProjectSystem.WorkspaceLoadRequest :: System.String? Platform { get; init; }
+ArxisStudio.ProjectSystem.WorkspaceLoadRequest :: System.String? TargetFramework { get; init; }
+ArxisStudio.ProjectSystem.WorkspaceLoadRequest :: required ArxisStudio.ProjectSystem.CanonicalPath EntryPointPath { get; init; }
+ArxisStudio.ProjectSystem.WorkspaceLoadRequest :: required ArxisStudio.ProjectSystem.WorkspaceIdentity Workspace { get; init; }
+ArxisStudio.ProjectSystem.WorkspaceLoadRequest :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.WorkspaceLoadRequest? left, ArxisStudio.ProjectSystem.WorkspaceLoadRequest? right)
+ArxisStudio.ProjectSystem.WorkspaceLoadRequest :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.WorkspaceLoadRequest? left, ArxisStudio.ProjectSystem.WorkspaceLoadRequest? right)
+ArxisStudio.ProjectSystem.WorkspaceLoadRequest :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.ProjectSystem.WorkspaceLoadRequest :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.WorkspaceLoadRequest :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.WorkspaceLoadResult : sealed class
+ArxisStudio.ProjectSystem.WorkspaceLoadResult :: ArxisStudio.ProjectSystem.SolutionSnapshot? Snapshot { get; }
+ArxisStudio.ProjectSystem.WorkspaceLoadResult :: ArxisStudio.ProjectSystem.WorkspaceLoadStatus Status { get; }
+ArxisStudio.ProjectSystem.WorkspaceLoadResult :: System.Boolean HasErrors { get; }
+ArxisStudio.ProjectSystem.WorkspaceLoadResult :: System.Boolean HasSnapshot { get; }
+ArxisStudio.ProjectSystem.WorkspaceLoadResult :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectDiagnostic> Diagnostics { get; }
+ArxisStudio.ProjectSystem.WorkspaceLoadResult :: static ArxisStudio.ProjectSystem.WorkspaceLoadResult Failure(ArxisStudio.ProjectSystem.ProjectDiagnostic diagnostic)
+ArxisStudio.ProjectSystem.WorkspaceLoadResult :: static ArxisStudio.ProjectSystem.WorkspaceLoadResult Failure(System.Collections.Generic.IEnumerable<ArxisStudio.ProjectSystem.ProjectDiagnostic> diagnostics)
+ArxisStudio.ProjectSystem.WorkspaceLoadResult :: static ArxisStudio.ProjectSystem.WorkspaceLoadResult Success(ArxisStudio.ProjectSystem.SolutionSnapshot snapshot, System.Collections.Generic.IEnumerable<ArxisStudio.ProjectSystem.ProjectDiagnostic>? diagnostics = null)
+ArxisStudio.ProjectSystem.WorkspaceLoadResult :: virtual System.String ToString()
+ArxisStudio.ProjectSystem.WorkspaceLoadStatus : enum
+ArxisStudio.ProjectSystem.WorkspaceLoadStatus :: Failed = 2
+ArxisStudio.ProjectSystem.WorkspaceLoadStatus :: Succeeded = 0
+ArxisStudio.ProjectSystem.WorkspaceLoadStatus :: SucceededWithErrors = 1
+ArxisStudio.ProjectSystem.WorkspaceVersion : readonly record struct : System.IComparable<ArxisStudio.ProjectSystem.WorkspaceVersion>, System.IEquatable<ArxisStudio.ProjectSystem.WorkspaceVersion>
+ArxisStudio.ProjectSystem.WorkspaceVersion :: .ctor(System.Int64 Value)
+ArxisStudio.ProjectSystem.WorkspaceVersion :: ArxisStudio.ProjectSystem.WorkspaceVersion Next()
+ArxisStudio.ProjectSystem.WorkspaceVersion :: System.Boolean Equals(ArxisStudio.ProjectSystem.WorkspaceVersion other)
+ArxisStudio.ProjectSystem.WorkspaceVersion :: System.Boolean IsEmpty { get; }
+ArxisStudio.ProjectSystem.WorkspaceVersion :: System.Int32 CompareTo(ArxisStudio.ProjectSystem.WorkspaceVersion other)
+ArxisStudio.ProjectSystem.WorkspaceVersion :: System.Int64 Value { get; init; }
+ArxisStudio.ProjectSystem.WorkspaceVersion :: System.Void Deconstruct(out System.Int64 Value)
+ArxisStudio.ProjectSystem.WorkspaceVersion :: static ArxisStudio.ProjectSystem.WorkspaceVersion Initial { get; }
+ArxisStudio.ProjectSystem.WorkspaceVersion :: static ArxisStudio.ProjectSystem.WorkspaceVersion None { get; }
+ArxisStudio.ProjectSystem.WorkspaceVersion :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.WorkspaceVersion left, ArxisStudio.ProjectSystem.WorkspaceVersion right)
+ArxisStudio.ProjectSystem.WorkspaceVersion :: static System.Boolean op_GreaterThan(ArxisStudio.ProjectSystem.WorkspaceVersion left, ArxisStudio.ProjectSystem.WorkspaceVersion right)
+ArxisStudio.ProjectSystem.WorkspaceVersion :: static System.Boolean op_GreaterThanOrEqual(ArxisStudio.ProjectSystem.WorkspaceVersion left, ArxisStudio.ProjectSystem.WorkspaceVersion right)
+ArxisStudio.ProjectSystem.WorkspaceVersion :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.WorkspaceVersion left, ArxisStudio.ProjectSystem.WorkspaceVersion right)
+ArxisStudio.ProjectSystem.WorkspaceVersion :: static System.Boolean op_LessThan(ArxisStudio.ProjectSystem.WorkspaceVersion left, ArxisStudio.ProjectSystem.WorkspaceVersion right)
+ArxisStudio.ProjectSystem.WorkspaceVersion :: static System.Boolean op_LessThanOrEqual(ArxisStudio.ProjectSystem.WorkspaceVersion left, ArxisStudio.ProjectSystem.WorkspaceVersion right)
+ArxisStudio.ProjectSystem.WorkspaceVersion :: virtual System.Boolean Equals(System.Object obj)
+ArxisStudio.ProjectSystem.WorkspaceVersion :: virtual System.Int32 GetHashCode()
+ArxisStudio.ProjectSystem.WorkspaceVersion :: virtual System.String ToString()

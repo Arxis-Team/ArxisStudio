@@ -51,6 +51,15 @@
         <ProjectReference Include="../../src/Plugins/Arxis.Hello.Contracts/Arxis.Hello.Contracts.csproj"/>
     </ItemGroup>
 
+    <!--
+        Ядро модели проектов — общая сборка студии: тест сверяет его поверхность с
+        записанной и видит его типы так же, как их видит плагин. Движки ProjectSystem
+        (MSBuild, NuGet) сюда не подключаются — их держит служба проектов.
+    -->
+    <ItemGroup>
+        <ProjectReference Include="../../external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem/ArxisStudio.ProjectSystem.csproj"/>
+    </ItemGroup>
+
     <ItemGroup>
         <ProjectReference Include="../../src/ArxisStudio.Docking/ArxisStudio.Docking.csproj"/>
         <ProjectReference Include="../../src/ArxisStudio/ArxisStudio.csproj"/>
