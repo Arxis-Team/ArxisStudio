@@ -663,9 +663,16 @@ public sealed class PluginHost : IDisposable
             IsEnabled: true,
             IsBuiltIn: true);
 
+        // Контракты занимаются до подъёма — тем же шагом, что у плагина: модуль
+        // отдаёт соседям типы точно так же, и объявленный, но не найденный
+        // контракт значил бы модуль, на чьи типы соседи рассчитывают зря.
+        // Заметки о переменах на диске модулю ни к чему: его контракт лежит у
+        // студии, а не в папке, которую пересобирают при открытой студии.
         var loaded = manifest is null
             ? LoadedPlugin.Failed(installed, error ?? "Манифест модуля не разобрался")
-            : Raise(installed, context: null, [assembly], _contexts.Create(installed));
+            : PluginContracts.EnsureLoaded(installed, []) is { } refusal
+                ? LoadedPlugin.Failed(installed, refusal)
+                : Raise(installed, context: null, [assembly], _contexts.Create(installed));
 
         _loaded.Add(loaded);
         Changed?.Invoke(this, EventArgs.Empty);

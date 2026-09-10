@@ -202,7 +202,7 @@ public static class PluginContracts
 
             try
             {
-                Loaded[name] = Load(name, identity, file, plugin.Id);
+                Loaded[name] = Load(name, identity, file, plugin.Id, plugin.IsBuiltIn);
                 return null;
             }
             catch (Exception e) when (e is BadImageFormatException or FileLoadException
@@ -213,7 +213,7 @@ public static class PluginContracts
         }
     }
 
-    private static Known Load(string name, AssemblyName identity, FileInfo file, string ownerId)
+    private static Known Load(string name, AssemblyName identity, FileInfo file, string ownerId, bool builtIn)
     {
         // Сборка с этой идентичностью может уже жить в общем контексте: её
         // загрузил тот, кто встраивает студию, или тестовый прогон своей
@@ -229,6 +229,28 @@ public static class PluginContracts
             // следующий плагин сверялся бы с версией, которой у него на руках
             // нет, и получал бы отказ или пропуск не по делу.
             return new Known(adopted, adopted.GetName().FullName, file.Length, file.LastWriteTimeUtc, ownerId);
+        }
+
+        // Модуль берёт свой контракт так, как его взял бы сам рантайм, — по
+        // имени из списка сборок приложения. Копия модулю не нужна: он не
+        // перезагружается. Хуже того, она вредна: модуль привязан к контракту
+        // по имени, и копия, загруженная раньше его первого обращения, стала
+        // бы второй сборкой того же имени. Файл, которого в том списке нет —
+        // модуль, собранный тестом, — берётся с диска как есть.
+        if (builtIn)
+        {
+            Assembly assembly;
+
+            try
+            {
+                assembly = AssemblyLoadContext.Default.LoadFromAssemblyName(identity);
+            }
+            catch (FileNotFoundException)
+            {
+                assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(file.FullName);
+            }
+
+            return new Known(assembly, assembly.GetName().FullName, file.Length, file.LastWriteTimeUtc, ownerId);
         }
 
         // Грузится теневая копия, а не сам файл: общий контекст держит файл

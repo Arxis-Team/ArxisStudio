@@ -42,13 +42,21 @@ public sealed class StudioPluginRoster
             loaded.IsLoaded &&
             string.Equals(loaded.Installed.Id, pluginId, StringComparison.OrdinalIgnoreCase)) ?? false;
 
-    /// <summary>Версия установленного из манифеста; null — не установлен.</summary>
+    /// <summary>Версия из манифеста; null — нет ни среди установленных, ни среди поднятых.</summary>
     /// <param name="pluginId">Идентификатор.</param>
+    /// <remarks>
+    /// Каталог знает установленных, но не модули: те приезжают со студией и в
+    /// папке плагинов не лежат. Их версия берётся у поднятого — иначе сосед,
+    /// объявивший нижнюю границу на модуль, видел бы его отсутствующим и не
+    /// получал его экспортов, хотя граф зависимостей ту же зависимость принимает.
+    /// </remarks>
     public string? Version(string pluginId) =>
-        _installed?.Invoke()
-            .FirstOrDefault(plugin =>
-                string.Equals(plugin.Id, pluginId, StringComparison.OrdinalIgnoreCase))
-            ?.Manifest?.Version;
+        (_installed?.Invoke().FirstOrDefault(plugin => Named(plugin, pluginId))
+            ?? _host?.Loaded.Select(loaded => loaded.Installed).FirstOrDefault(plugin => Named(plugin, pluginId)))
+        ?.Manifest?.Version;
+
+    private static bool Named(InstalledPlugin plugin, string pluginId) =>
+        string.Equals(plugin.Id, pluginId, StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>

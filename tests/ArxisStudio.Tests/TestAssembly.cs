@@ -41,6 +41,33 @@ internal static class TestAssembly
     /// </remarks>
     public static Assembly Emit(string name, IEnumerable<string> sources, string? manifest = null)
     {
+        using var image = new MemoryStream();
+
+        Compile(name, sources, manifest, image);
+
+        return Assembly.Load(image.ToArray());
+    }
+
+    /// <summary>
+    /// Компилирует сборку в файл, не загружая её в процесс.
+    /// </summary>
+    /// <param name="path">Куда положить сборку.</param>
+    /// <param name="name">Имя сборки.</param>
+    /// <param name="source">Исходный код.</param>
+    /// <remarks>
+    /// Нужна там, где проверяется сама загрузка: сборку, которую студия обязана
+    /// взять с диска, заранее загруженная копия подменила бы, и проверка прошла
+    /// бы на чужой сборке.
+    /// </remarks>
+    public static void EmitFile(string path, string name, string source)
+    {
+        using var file = File.Create(path);
+
+        Compile(name, [source], manifest: null, file);
+    }
+
+    private static void Compile(string name, IEnumerable<string> sources, string? manifest, Stream output)
+    {
         ArgumentNullException.ThrowIfNull(sources);
 
         var references = AppDomain.CurrentDomain.GetAssemblies()
@@ -56,13 +83,11 @@ internal static class TestAssembly
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-        using var image = new MemoryStream();
-
         var resources = manifest is null
             ? Array.Empty<ResourceDescription>()
             : [new ResourceDescription($"{name}.module.json", () => new MemoryStream(Encoding.UTF8.GetBytes(manifest)), isPublic: true)];
 
-        var result = compilation.Emit(image, manifestResources: resources);
+        var result = compilation.Emit(output, manifestResources: resources);
 
         // Сборка, не собравшаяся сама, проверила бы что угодно, кроме контракта.
         Assert.True(
@@ -70,7 +95,5 @@ internal static class TestAssembly
             string.Join("; ", result.Diagnostics
                 .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
                 .Select(diagnostic => diagnostic.GetMessage())));
-
-        return Assembly.Load(image.ToArray());
     }
 }
