@@ -1,0 +1,67 @@
+ArxisStudio.Projects.IStudioProjects : interface
+ArxisStudio.Projects.IStudioProjects :: ArxisStudio.ProjectSystem.SolutionSnapshot? Current { get; }
+ArxisStudio.Projects.IStudioProjects :: ArxisStudio.Projects.ProjectsStatus Status { get; }
+ArxisStudio.Projects.IStudioProjects :: System.Threading.Tasks.Task CloseAsync()
+ArxisStudio.Projects.IStudioProjects :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.WorkspaceLoadResult> OpenAsync(ArxisStudio.ProjectSystem.CanonicalPath entryPoint, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Projects.IStudioProjects :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.WorkspaceLoadResult> ReloadAsync(System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Projects.IStudioProjects :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.WorkspaceLoadResult> SetConfigurationAsync(System.String? configuration, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Projects.IStudioProjects :: event System.EventHandler<ArxisStudio.Projects.ProjectsChangedEventArgs> Changed
+ArxisStudio.Projects.ProjectsChangedEventArgs : sealed class : System.EventArgs
+ArxisStudio.Projects.ProjectsChangedEventArgs :: .ctor(ArxisStudio.Projects.ProjectsStatus previous, ArxisStudio.Projects.ProjectsStatus current, System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectSnapshot> added, System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectSnapshot> removed, System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectSnapshot> modified, System.Boolean solutionChanged)
+ArxisStudio.Projects.ProjectsChangedEventArgs :: ArxisStudio.Projects.ProjectsChanges Changes { get; }
+ArxisStudio.Projects.ProjectsChangedEventArgs :: ArxisStudio.Projects.ProjectsStatus Current { get; }
+ArxisStudio.Projects.ProjectsChangedEventArgs :: ArxisStudio.Projects.ProjectsStatus Previous { get; }
+ArxisStudio.Projects.ProjectsChangedEventArgs :: System.Boolean SolutionChanged { get; }
+ArxisStudio.Projects.ProjectsChangedEventArgs :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectSnapshot> Added { get; }
+ArxisStudio.Projects.ProjectsChangedEventArgs :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectSnapshot> Modified { get; }
+ArxisStudio.Projects.ProjectsChangedEventArgs :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectSnapshot> Removed { get; }
+ArxisStudio.Projects.ProjectsChanges : [Flags] enum
+ArxisStudio.Projects.ProjectsChanges :: Configuration = 8
+ArxisStudio.Projects.ProjectsChanges :: LastLoad = 16
+ArxisStudio.Projects.ProjectsChanges :: Loading = 32
+ArxisStudio.Projects.ProjectsChanges :: None = 0
+ArxisStudio.Projects.ProjectsChanges :: Session = 1
+ArxisStudio.Projects.ProjectsChanges :: Snapshot = 4
+ArxisStudio.Projects.ProjectsChanges :: State = 2
+ArxisStudio.Projects.ProjectsDiagnosticCodes : static class
+ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String NothingOpen = "PRJ1001"
+ArxisStudio.Projects.ProjectsLoad : sealed record : System.IEquatable<ArxisStudio.Projects.ProjectsLoad>
+ArxisStudio.Projects.ProjectsLoad :: .ctor()
+ArxisStudio.Projects.ProjectsLoad :: System.Boolean Equals(ArxisStudio.Projects.ProjectsLoad? other)
+ArxisStudio.Projects.ProjectsLoad :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath> Causes { get; init; }
+ArxisStudio.Projects.ProjectsLoad :: required ArxisStudio.ProjectSystem.WorkspaceLoadResult Result { get; init; }
+ArxisStudio.Projects.ProjectsLoad :: required ArxisStudio.Projects.ProjectsLoadReason Reason { get; init; }
+ArxisStudio.Projects.ProjectsLoad :: static System.Boolean op_Equality(ArxisStudio.Projects.ProjectsLoad? left, ArxisStudio.Projects.ProjectsLoad? right)
+ArxisStudio.Projects.ProjectsLoad :: static System.Boolean op_Inequality(ArxisStudio.Projects.ProjectsLoad? left, ArxisStudio.Projects.ProjectsLoad? right)
+ArxisStudio.Projects.ProjectsLoad :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.Projects.ProjectsLoad :: virtual System.Int32 GetHashCode()
+ArxisStudio.Projects.ProjectsLoad :: virtual System.String ToString()
+ArxisStudio.Projects.ProjectsLoadReason : enum
+ArxisStudio.Projects.ProjectsLoadReason :: Configuration = 2
+ArxisStudio.Projects.ProjectsLoadReason :: FileSystem = 3
+ArxisStudio.Projects.ProjectsLoadReason :: Open = 0
+ArxisStudio.Projects.ProjectsLoadReason :: Reload = 1
+ArxisStudio.Projects.ProjectsState : enum
+ArxisStudio.Projects.ProjectsState :: Closed = 0
+ArxisStudio.Projects.ProjectsState :: Failed = 3
+ArxisStudio.Projects.ProjectsState :: Opening = 1
+ArxisStudio.Projects.ProjectsState :: Ready = 2
+ArxisStudio.Projects.ProjectsStatus : sealed record : System.IEquatable<ArxisStudio.Projects.ProjectsStatus>
+ArxisStudio.Projects.ProjectsStatus :: .ctor()
+ArxisStudio.Projects.ProjectsStatus :: ArxisStudio.ProjectSystem.CanonicalPath EntryPoint { get; init; }
+ArxisStudio.Projects.ProjectsStatus :: ArxisStudio.ProjectSystem.SolutionSnapshot? Snapshot { get; init; }
+ArxisStudio.Projects.ProjectsStatus :: ArxisStudio.Projects.ProjectsLoad? LastLoad { get; init; }
+ArxisStudio.Projects.ProjectsStatus :: ArxisStudio.Projects.ProjectsState State { get; init; }
+ArxisStudio.Projects.ProjectsStatus :: System.Boolean Equals(ArxisStudio.Projects.ProjectsStatus? other)
+ArxisStudio.Projects.ProjectsStatus :: System.Boolean IsLoading { get; init; }
+ArxisStudio.Projects.ProjectsStatus :: System.Int64 Sequence { get; init; }
+ArxisStudio.Projects.ProjectsStatus :: System.Int64 Session { get; init; }
+ArxisStudio.Projects.ProjectsStatus :: System.String? Configuration { get; init; }
+ArxisStudio.Projects.ProjectsStatus :: static ArxisStudio.Projects.ProjectsStatus Closed { get; }
+ArxisStudio.Projects.ProjectsStatus :: static System.Boolean op_Equality(ArxisStudio.Projects.ProjectsStatus? left, ArxisStudio.Projects.ProjectsStatus? right)
+ArxisStudio.Projects.ProjectsStatus :: static System.Boolean op_Inequality(ArxisStudio.Projects.ProjectsStatus? left, ArxisStudio.Projects.ProjectsStatus? right)
+ArxisStudio.Projects.ProjectsStatus :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.Projects.ProjectsStatus :: virtual System.Int32 GetHashCode()
+ArxisStudio.Projects.ProjectsStatus :: virtual System.String ToString()
+ArxisStudio.Projects.StudioProjectsAccess : static class
+ArxisStudio.Projects.StudioProjectsAccess :: static ArxisStudio.Projects.IStudioProjects? Projects(ArxisStudio.Sdk.IStudioContext context)

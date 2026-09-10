@@ -12,14 +12,21 @@
   <Folder Name="/external/ArxisStudio.Icons/src/">
     <Project Path="external/ArxisStudio.Icons/src/ArxisStudio.Icons.csproj" />
   </Folder>
+  <Folder Name="/external/ArxisStudio.ProjectSystem/" />
+  <Folder Name="/external/ArxisStudio.ProjectSystem/src/">
+    <Project Path="external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem.MSBuild/ArxisStudio.ProjectSystem.MSBuild.csproj" />
+    <Project Path="external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem/ArxisStudio.ProjectSystem.csproj" />
+  </Folder>
   <Folder Name="/external/ArxisStudio.Themes.Arxis/" />
   <Folder Name="/external/ArxisStudio.Themes.Arxis/src/">
     <Project Path="external/ArxisStudio.Themes.Arxis/src/ArxisStudio.Themes.Arxis.csproj" />
   </Folder>
   <Folder Name="/src/Modules/">
     <Project Path="src/Modules/ArxisStudio.Modules.Console/ArxisStudio.Modules.Console.csproj" />
+    <Project Path="src/Modules/ArxisStudio.Modules.Projects/ArxisStudio.Modules.Projects.csproj" />
     <Project Path="src/Modules/ArxisStudio.Modules.Sample/ArxisStudio.Modules.Sample.csproj" />
     <Project Path="src/Modules/ArxisStudio.Modules.Terminal/ArxisStudio.Modules.Terminal.csproj" />
+    <Project Path="src/Modules/ArxisStudio.Projects.Contracts/ArxisStudio.Projects.Contracts.csproj" />
   </Folder>
   <Folder Name="/src/Plugins/">
     <Project Path="src/Plugins/Arxis.Hello.Contracts/Arxis.Hello.Contracts.csproj" />

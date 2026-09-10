@@ -1,0 +1,23 @@
+{
+  "id": "arxis.projects",
+  "name": "%module.projects%",
+  "version": "1.0.0",
+  "publisher": "Arxis",
+  "description": "%module.projects.description%",
+  "tags": [ "tools" ],
+  "provides": { "contracts": [ "ArxisStudio.Projects.Contracts.dll" ] },
+  "contributions": {
+    "commands": [
+      { "id": "projects.reload" },
+      { "id": "projects.close" }
+    ],
+    "menus": [
+      { "path": "%menu.project%/%menu.project.reload%", "command": "projects.reload" },
+      { "path": "%menu.project%/%menu.project.close%", "command": "projects.close" }
+    ],
+    "settings": [
+      { "key": "projects.watchFiles", "type": "bool", "scope": "user", "title": "%settings.projects.watchFiles%", "default": true }
+    ]
+  },
+  "activation": [ "onStartup" ]
+}

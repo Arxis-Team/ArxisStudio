@@ -102,6 +102,42 @@ public class ModuleContractsTests : IDisposable
     }
 
     /// <summary>
+    /// Контракт модуля находится, хотя папка студии кончается разделителем.
+    /// </summary>
+    /// <remarks>
+    /// Папка встроенного модуля — <see cref="AppContext.BaseDirectory"/>, и она всегда
+    /// кончается разделителем. Проверка «контракт внутри папки» приклеивала к ней
+    /// второй и отказывала каждому модулю, объявившему контракт. Тест выше берёт
+    /// папку из каталога, где разделителя на конце нет, и дыры не видел; нашёл её
+    /// первый модуль, которому контракт действительно понадобился, — служба проектов.
+    /// </remarks>
+    [Fact]
+    public void A_module_contract_is_found_although_the_studio_folder_ends_with_a_separator()
+    {
+        var name = $"Probe.SeparatorContracts{Guid.NewGuid():N}";
+        var folder = Directory.CreateDirectory(Path.Combine(_root, "probe.separator")).FullName;
+
+        TestAssembly.EmitFile(Path.Combine(folder, name + ".dll"), name, "namespace Probe; public interface ISeparatorContract { }");
+
+        File.WriteAllText(Path.Combine(folder, "plugin.json"), $$"""
+            {
+              "id": "probe.separator",
+              "name": "probe.separator",
+              "version": "1.0.0",
+              "provides": { "contracts": [ "{{name}}.dll" ] }
+            }
+            """);
+
+        var module = Assert.Single(new PluginCatalog(_root).Scan()) with
+        {
+            IsBuiltIn = true,
+            Directory = folder + Path.DirectorySeparatorChar,
+        };
+
+        Assert.Null(PluginContracts.EnsureLoaded(module, []));
+    }
+
+    /// <summary>
     /// Нижняя граница версии на модуль выдерживается так же, как на плагин.
     /// </summary>
     /// <remarks>

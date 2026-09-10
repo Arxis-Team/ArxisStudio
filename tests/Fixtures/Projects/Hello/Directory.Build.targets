@@ -1,0 +1,5 @@
+<Project>
+
+  <!-- Останавливает подъём MSBuild по папкам; см. Directory.Build.props рядом. -->
+
+</Project>

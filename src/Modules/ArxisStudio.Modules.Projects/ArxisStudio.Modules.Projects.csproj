@@ -1,0 +1,75 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+        Служба проектов: открывает решение, держит его модель и следит за диском. Интерфейса у
+        модуля нет — ни панели, ни кнопки. Его потребители — сама студия и плагины (дерево
+        решения, выбор конфигурации, окно сборки), и берут они службу через контракт
+        ArxisStudio.Projects.Contracts, а не через этот проект.
+
+        MSBuild исполняется в процессе студии. Движок регистрируется на процесс один раз и
+        меняет окружение всего процесса, поэтому держит его служба, а не каждый плагин, — и
+        поэтому движки ProjectSystem общими сборками не стали. Шов под отдельный процесс
+        сохранён тем, что наружу выходят только снимки.
+
+        Раскладка по папкам, и она же порядок зависимостей:
+
+          Delivery/   поток интерфейса и доставка перемен: склейка, разность, чей сбой
+          Watching/   диск: где следить и что считать переменой состава проекта
+          Reporting/  находки загрузки в панель «Проблемы»
+          Engine/     очередь работы над движком, загрузка, сессия, сравнение снимков
+
+        Delivery, Watching и Reporting не знают никого; Engine знает Delivery и Watching.
+        В корне — граница модуля: манифест, точка входа, сама служба, её шов для тестов и
+        ключи настроек.
+    -->
+    <PropertyGroup>
+        <RootNamespace>ArxisStudio.Modules.Projects</RootNamespace>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Avalonia"/>
+    </ItemGroup>
+
+    <!--
+        Провайдер MSBuild тянет за собой пакеты Microsoft.Build с ExcludeAssets="runtime": их
+        сборки обязаны прийти из SDK, который найдёт локатор, а не лечь рядом со студией. Это
+        условие переходит по ссылке само, и ProjectsModuleTests проверяет его на готовом bin —
+        вторая копия MSBuild в процессе падает позже и в чужом месте.
+    -->
+    <ItemGroup>
+        <ProjectReference Include="../../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
+        <ProjectReference Include="../ArxisStudio.Projects.Contracts/ArxisStudio.Projects.Contracts.csproj"/>
+        <ProjectReference Include="../../../external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem.MSBuild/ArxisStudio.ProjectSystem.MSBuild.csproj"/>
+    </ItemGroup>
+
+    <!--
+        Анализатор — отдельной строкой, как у всякого модуля: через цепочку ProjectReference
+        анализаторы не передаются. Интерфейса здесь нет, но манифест есть, и ARX0002 сверяет его
+        ключи со словарём студии.
+    -->
+    <ItemGroup>
+        <ProjectReference Include="../../ArxisStudio.Sdk.Analyzers/ArxisStudio.Sdk.Analyzers.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false"/>
+    </ItemGroup>
+
+    <!-- Манифест едет внутри сборки — как у всякого встроенного модуля. -->
+    <ItemGroup>
+        <EmbeddedResource Include="module.json"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <AdditionalFiles Include="module.json"/>
+        <AdditionalFiles Include="../../ArxisStudio.Shell/Localization/Strings/en.json"/>
+    </ItemGroup>
+
+    <!--
+        Тестам открыты внутренности: очередь, доставка и слежение проверяются по отдельности,
+        с потоком и движком, которыми тест управляет сам.
+    -->
+    <ItemGroup>
+        <InternalsVisibleTo Include="ArxisStudio.Tests"/>
+    </ItemGroup>
+
+</Project>

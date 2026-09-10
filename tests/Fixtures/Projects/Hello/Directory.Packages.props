@@ -1,0 +1,8 @@
+<Project>
+
+  <!-- Версии пакетов у фикстуры свои: централизованное управление студии сюда не доходит. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+</Project>

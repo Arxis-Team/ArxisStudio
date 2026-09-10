@@ -284,7 +284,12 @@ public static class PluginContracts
 
         try
         {
-            root = Path.GetFullPath(directory) + Path.DirectorySeparatorChar;
+            // Разделитель на конце у папки бывает свой: у встроенного модуля это
+            // AppContext.BaseDirectory, и второй, приклеенный сверху, отказывал
+            // каждому модулю, объявившему контракт.
+            var folder = Path.GetFullPath(directory);
+
+            root = Path.EndsInDirectorySeparator(folder) ? folder : folder + Path.DirectorySeparatorChar;
             full = Path.GetFullPath(Path.Combine(directory, declared));
         }
         catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)

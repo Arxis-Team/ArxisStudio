@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 сборки в этапе 17: контракт проверялся на коде, которому он был не нужен. Вернутся плагинами.
 
 Три документа, и они не взаимозаменяемы. [README.md](README.md) — что работает сегодня.
-[docs/plan.md](docs/plan.md) — **журнал сделанного, а не опись текущего состояния**: 120 записей,
+[docs/plan.md](docs/plan.md) — **журнал сделанного, а не опись текущего состояния**: 121 запись,
 принятые решения, формат манифеста (приложение A). [docs/design-spec.md](docs/design-spec.md) —
 входные данные дизайна: токены, метрики, инвентарь экранов; числа берутся оттуда, а не
 придумываются.
@@ -18,7 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Команды
 
 ```bash
-git submodule update --init external/ArxisStudio.Controls external/ArxisStudio.Icons external/ArxisStudio.Themes.Arxis external/ArxisStudio.Fonts.Cascadia
+git submodule update --init external/ArxisStudio.Controls external/ArxisStudio.Icons external/ArxisStudio.Themes.Arxis external/ArxisStudio.Fonts.Cascadia external/ArxisStudio.ProjectSystem
 ```
 
 ```bash
@@ -144,6 +144,7 @@ def call(name, args=None, port=5171):
 | [ArxisStudio.Shell](src/ArxisStudio.Shell) | каркас окна, словари, настройки, полоса | Controls, Icons |
 | [ArxisStudio.Docking](src/ArxisStudio.Docking) | движок докинга | Controls, Icons |
 | [ArxisStudio.Extensibility](src/ArxisStudio.Extensibility) | хост плагинов: контексты загрузки, граф, контракты, шов сбоев | Sdk, Shell |
+| [ArxisStudio.Projects.Contracts](src/Modules/ArxisStudio.Projects.Contracts) | контракт службы проектов: состояние, перемены, дорога из контекста | Sdk, ядро ProjectSystem — и ни одного движка |
 | [ArxisStudio](src/ArxisStudio) | приложение и вся склейка | всё |
 
 Направление держит сборка, а не уговор. Таргет `AxDockingBoundary` в
@@ -163,8 +164,10 @@ def call(name, args=None, port=5171):
 своём выгружаемом `AssemblyLoadContext`, грузится из теневой копии, перезагружается на ходу.
 Встроенный модуль — `module.json` ресурсом внутри сборки, основной контекст, отдельно не
 выгружается. **Код между режимами переносится без правок**, и в репозитории есть образец каждого:
-`src/Plugins/Arxis.HelloPlugin` и `src/Modules/ArxisStudio.Modules.Sample`. Рабочих модуля два, а не образца —
-`src/Modules/ArxisStudio.Modules.Terminal` и `src/Modules/ArxisStudio.Modules.Console`.
+`src/Plugins/Arxis.HelloPlugin` и `src/Modules/ArxisStudio.Modules.Sample`. Рабочих модулей три, а не образцов —
+`src/Modules/ArxisStudio.Modules.Terminal`, `src/Modules/ArxisStudio.Modules.Console` и
+`src/Modules/ArxisStudio.Modules.Projects` — служба без единой панели, отдающая соседям контракт
+`ArxisStudio.Projects.Contracts` (объявлен в `provides.contracts`, берётся `context.Projects()`).
 
 Отличий ровно два: список модулей объявлен в самой студии
 ([`StudioModules.Assemblies`](src/ArxisStudio/Services/StudioModules.cs) — сюда добавляют новый
@@ -183,8 +186,8 @@ def call(name, args=None, port=5171):
 `ArxisStudio.Controls`, `ArxisStudio.Icons` и — точным именем — `ArxisStudio.ProjectSystem`, ядро
 модели проектов: снимки решения видят все плагины, а его движки (`.MSBuild`, `.NuGet`) общими не
 становятся — их держит служба проектов. Копия любой общей сборки рядом с плагином стала бы вторым
-экземпляром того же типа, и приведение упало бы. Поверхность ядра закреплена в
-`tests/ArxisStudio.Tests/Surfaces`: сдвиг указателя, её поменявший, падает там, а не у автора плагина. Контрактные сборки (`provides.contracts`) грузятся
+экземпляром того же типа, и приведение упало бы. Поверхности ядра и контракта службы проектов закреплены в
+`tests/ArxisStudio.Tests/Surfaces`: сдвиг указателя или правка контракта, их поменявшие, падают там, а не у автора плагина. Контрактные сборки (`provides.contracts`) грузятся
 в основной контекст один раз и **не выгружаются**: их обновление честно просит перезапуск, а
 [`PluginContracts`](src/ArxisStudio.Extensibility/PluginContracts.cs) это говорит вместо того,
 чтобы молча держать прежнюю копию.
@@ -256,7 +259,7 @@ csproj — при заведении нового не забудьте.
 
 ## Тесты
 
-802 теста, headless-UI на `Avalonia.Headless.XUnit`, и пакет завязан на **xunit v3**. Тесту,
+864 теста, headless-UI на `Avalonia.Headless.XUnit`, и пакет завязан на **xunit v3**. Тесту,
 которому нужно живое дерево контролов, нужен `[AvaloniaFact]`, а не `[Fact]`: он поднимает
 приложение из `TestApp` и загоняет тело в UI-поток. Рисование настоящее (`UseSkia`,
 `UseHeadlessDrawing = false`) — заглушка не зовёт декодер картинок и на любой файл отвечает
@@ -267,8 +270,9 @@ ShellStyles, DockingStyles. Порядок решает, кто кого пер�
 было нечем.
 
 Тесты, трогающие общее на процесс, идут по одному —
-`[Collection(StudioStateCollection.Name)]`. Общего два: `Localizer` один на процесс, и выгрузка
-контекстов загрузки опирается на сборщик мусора, тоже один. Остальные классы xUnit пускает
+`[Collection(StudioStateCollection.Name)]`. Общего три: `Localizer` один на процесс, выгрузка
+контекстов загрузки опирается на сборщик мусора, тоже один, а регистрация MSBuild, которой служба
+проектов открывает решения, одна на процесс и насовсем. Остальные классы xUnit пускает
 параллельно, и это правильно — очередь заведена ровно для тех, у кого общее состояние.
 
 Имена тестов — английская фраза с подчёркиваниями (`A_pack_made_from_the_template_works`),
@@ -281,15 +285,16 @@ ShellStyles, DockingStyles. Порядок решает, кто кого пер�
 
 ## Подмодули
 
-Собираются четыре из семи: **Controls** (контролы `Ax*`, lookless), **Icons** (контуры 16×16 и
-`AxIcon`), **Themes.Arxis** (палитры, шаблоны, метрики), **Fonts.Cascadia** (шрифт ресурсом).
-Шрифт называет не решение, а тема.
+Собираются пять из семи: **Controls** (контролы `Ax*`, lookless), **Icons** (контуры 16×16 и
+`AxIcon`), **Themes.Arxis** (палитры, шаблоны, метрики), **Fonts.Cascadia** (шрифт ресурсом) и
+**ProjectSystem** — не весь, а ядро модели и провайдер MSBuild: их держит служба проектов, а NuGet
+и адаптер разметки ждут своих шагов. Шрифт называет не решение, а тема.
 
-Зарегистрированы и не собираются: **Markup** (lossless XAML DOM и round-trip), **ProjectSystem**
-(модель решения, MSBuild, NuGet), **DesignEditor** (канва; ещё `net8.0` — при интеграции
-поднимать). Их SHA — запись того API, против которого работал снятый код; они ждут возвращения
-дизайнера. В `ArxisStudio.slnx` их нет, и работать с ними нужно их собственными решениями, они
-лежат в корне каждого подмодуля.
+Зарегистрированы и не собираются: **Markup** (lossless XAML DOM и round-trip) и **DesignEditor**
+(канва; ещё `net8.0` — при интеграции поднимать). Их SHA — запись того API, против которого
+работал снятый код; они ждут возвращения дизайнера. В `ArxisStudio.slnx` их нет, и работать с
+ними нужно их собственными решениями, они лежат в корне каждого подмодуля. Так же проверяется и
+ProjectSystem: студия собирает его исходники, а его тесты гоняет его собственное решение.
 
 **API подмодулей можно менять** — это не замороженные зависимости. Если интеграции нужен новый
 или изменённый публичный API, правьте прямо в подмодуле и коммитьте в его репозиторий, соблюдая
@@ -302,5 +307,5 @@ ShellStyles, DockingStyles. Порядок решает, кто кого пер�
 Заголовок — русская фраза о том, что стало, без префикса и без точки: «Рейки по краям окна вместо
 сворачивания», «Версия сборки закреплена: плагины ссылаются на неё». Тело — проза: что было не
 так, почему решено именно так, на что смотрели у Visual Studio и Rider, что уехало в подмодули.
-Последняя строка — счёт: `802 теста, 0 предупреждений. Запись 120 в плане.` Запись в
+Последняя строка — счёт: `864 теста, 0 предупреждений. Запись 121 в плане.` Запись в
 [docs/plan.md](docs/plan.md) идёт тем же коммитом, что и код.

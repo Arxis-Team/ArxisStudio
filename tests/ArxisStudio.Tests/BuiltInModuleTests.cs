@@ -251,6 +251,11 @@ public class BuiltInModuleTests
     /// <para>
     /// Читается сам проект: другого места, где эта связь записана, нет.
     /// </para>
+    /// <para>
+    /// Модуль — папка с манифестом. Рядом с модулями лежат и их контракты, у
+    /// которых манифеста нет и кормить анализатор нечем; а модуль, забывший
+    /// манифест, не пройдёт мимо — его сборку описывает <c>StudioModulesTests</c>.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Every_module_project_feeds_the_analyzer()
@@ -258,6 +263,7 @@ public class BuiltInModuleTests
         var projects = Directory
             .EnumerateFiles(Modules(), "*.csproj", SearchOption.AllDirectories)
             .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Where(path => File.Exists(Path.Combine(Path.GetDirectoryName(path)!, "module.json")))
             .ToList();
 
         Assert.NotEmpty(projects);
