@@ -657,7 +657,7 @@ public sealed class PluginHost : IDisposable
         var (manifest, error) = ModuleManifest.Load(assembly);
 
         var installed = new InstalledPlugin(
-            AppContext.BaseDirectory,
+            ModuleManifest.FolderOf(assembly),
             manifest,
             error,
             IsEnabled: true,
@@ -666,8 +666,10 @@ public sealed class PluginHost : IDisposable
         // Контракты занимаются до подъёма — тем же шагом, что у плагина: модуль
         // отдаёт соседям типы точно так же, и объявленный, но не найденный
         // контракт значил бы модуль, на чьи типы соседи рассчитывают зря.
-        // Заметки о переменах на диске модулю ни к чему: его контракт лежит у
-        // студии, а не в папке, которую пересобирают при открытой студии.
+        // Ищется контракт рядом со сборкой модуля — в папке Modules у студии и
+        // рядом с тестами. Заметки о переменах на диске модулю ни к чему: его
+        // контракт приехал со студией, а не лежит в папке, которую пересобирают
+        // при открытой студии.
         var loaded = manifest is null
             ? LoadedPlugin.Failed(installed, error ?? "Манифест модуля не разобрался")
             : PluginContracts.EnsureLoaded(installed, []) is { } refusal

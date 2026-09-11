@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Services;
 using Xunit;
@@ -26,28 +25,21 @@ public class PluginPackagingTests
     /// Общие контракты — не списком здесь, а тем, что считает общим резолвер.
     /// </summary>
     /// <remarks>
-    /// Список руками был дырой: сборку, добавленную к общим, забывали дописать
-    /// сюда — и проверка молча переставала её касаться, а плагин увозил её с собой.
-    /// Имена вычитываются из <c>IsShared</c>: дописать список и не заметить
-    /// этого больше нельзя. Общей сборка бывает по приставке имени или по имени
-    /// целиком — модель проектов общая точно, чтобы её движки общими не стали.
+    /// Правила вычитывает <see cref="SharedAssemblies"/> из исходника резолвера —
+    /// те же, по которым раскладка студии держит общие сборки у корня: общей
+    /// сборке место и не в пакете плагина, и не в папке модулей.
     /// </remarks>
-    private static (string Name, bool Exact)[] Shared()
+    private static IReadOnlyList<(string Name, bool Exact)> Shared()
     {
-        var found = Regex.Matches(Resolver(), @"name\.(StartsWith|Equals)\(([^,]+),")
-            .Select(match => (match.Groups[2].Value.Trim('"'), match.Groups[1].Value == "Equals"))
-            .ToArray();
+        var rules = SharedAssemblies.Rules;
 
-        Assert.NotEmpty(found);
+        Assert.NotEmpty(rules);
 
-        return found;
+        return rules;
     }
 
     /// <summary>Считает ли резолвер сборку общей — по тем же правилам, что он сам.</summary>
-    private static bool IsShared(string name) =>
-        Shared().Any(shared => shared.Exact
-            ? string.Equals(name, shared.Name, StringComparison.Ordinal)
-            : name.StartsWith(shared.Name, StringComparison.Ordinal));
+    private static bool IsShared(string name) => SharedAssemblies.IsShared(name);
 
     public static TheoryData<string> SharedNames
     {
@@ -305,10 +297,6 @@ public class PluginPackagingTests
         Assert.NotEmpty(exposed);
         Assert.All(exposed, name => Assert.True(IsShared(name), $"{name} виден плагину через SDK, но общим не объявлен"));
     }
-
-    /// <summary>Текст резолвера: список общих сборок объявлен в нём.</summary>
-    private static string Resolver() => File.ReadAllText(
-        Path.Combine(Repository(), "src", "ArxisStudio.Extensibility", "PluginHost.cs"));
 
     private static string Package() => Path.Combine(Sample(), "package");
 

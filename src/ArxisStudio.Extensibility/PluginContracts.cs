@@ -284,9 +284,9 @@ public static class PluginContracts
 
         try
         {
-            // Разделитель на конце у папки бывает свой: у встроенного модуля это
-            // AppContext.BaseDirectory, и второй, приклеенный сверху, отказывал
-            // каждому модулю, объявившему контракт.
+            // Разделитель на конце у папки бывает свой — он всегда есть у
+            // AppContext.BaseDirectory, папки модуля без файла, — и второй,
+            // приклеенный сверху, отказал бы модулю, объявившему контракт.
             var folder = Path.GetFullPath(directory);
 
             root = Path.EndsInDirectorySeparator(folder) ? folder : folder + Path.DirectorySeparatorChar;

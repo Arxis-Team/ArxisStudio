@@ -1,0 +1,46 @@
+<Project>
+
+    <!--
+        Встроенные модули: что каждый из них везёт с собой.
+
+        Студия раскладывает модули в свою папку Modules (правило — в
+        src/ArxisStudio/build/ArxisStudio.Modules.targets) и спрашивает состав у самого
+        модуля: только он знает, что на самом деле тянет — свои проекты, пакеты и пакеты
+        своих проектов. Цель ниже отвечает путями внутри папки модуля и ничего не собирает
+        сама: студия зовёт её после сборки ссылок, в том же экземпляре проекта.
+
+        Файлы документации не отдаются: они нужны компилятору, а не студии.
+    -->
+    <!-- Файл этого имени выше по дереву этим файлом заслоняется: подключается явно, если появится. -->
+    <PropertyGroup>
+        <_StudioParentBuildTargets>$([MSBuild]::GetPathOfFileAbove('Directory.Build.targets', '$(MSBuildThisFileDirectory)../'))</_StudioParentBuildTargets>
+    </PropertyGroup>
+
+    <Import Project="$(_StudioParentBuildTargets)" Condition="'$(_StudioParentBuildTargets)' != ''"/>
+
+    <Target Name="StudioModuleFiles" DependsOnTargets="ResolveReferences" Returns="@(_StudioModuleFile)">
+        <ItemGroup>
+            <_StudioModuleFile Include="$(TargetPath)" StudioRelativePath="$(TargetFileName)"/>
+            <_StudioModuleFile Include="$(TargetDir)$(TargetName).pdb"
+                               StudioRelativePath="$(TargetName).pdb"
+                               Condition="Exists('$(TargetDir)$(TargetName).pdb')"/>
+
+            <!-- Проекты, на которые модуль ссылается, и то, что при них лежит. -->
+            <_StudioModuleFile Include="@(ReferenceCopyLocalPaths)"
+                               StudioRelativePath="%(ReferenceCopyLocalPaths.DestinationSubDirectory)%(ReferenceCopyLocalPaths.Filename)%(ReferenceCopyLocalPaths.Extension)"
+                               Condition="'%(ReferenceCopyLocalPaths.Extension)' != '.xml'"/>
+
+            <!--
+                Пакеты — и прямые, и пришедшие через проекты модуля. Библиотека модуля в bin
+                их не кладёт, но разрешены они и так: берутся отсюда, а не из папки сборки.
+            -->
+            <_StudioModuleFile Include="@(RuntimeCopyLocalItems)"
+                               StudioRelativePath="%(RuntimeCopyLocalItems.DestinationSubPath)"
+                               Condition="'%(RuntimeCopyLocalItems.CopyLocal)' == 'true'"/>
+            <_StudioModuleFile Include="@(ResourceCopyLocalItems)"
+                               StudioRelativePath="%(ResourceCopyLocalItems.DestinationSubPath)"
+                               Condition="'%(ResourceCopyLocalItems.CopyLocal)' == 'true'"/>
+        </ItemGroup>
+    </Target>
+
+</Project>

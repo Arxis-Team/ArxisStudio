@@ -54,16 +54,18 @@ internal static class TestAssembly
     /// <param name="path">Куда положить сборку.</param>
     /// <param name="name">Имя сборки.</param>
     /// <param name="source">Исходный код.</param>
+    /// <param name="manifest">Содержимое <c>module.json</c>; null — без манифеста.</param>
     /// <remarks>
     /// Нужна там, где проверяется сама загрузка: сборку, которую студия обязана
     /// взять с диска, заранее загруженная копия подменила бы, и проверка прошла
-    /// бы на чужой сборке.
+    /// бы на чужой сборке. С манифестом — там, где важно, в какой папке лежит
+    /// модуль.
     /// </remarks>
-    public static void EmitFile(string path, string name, string source)
+    public static void EmitFile(string path, string name, string source, string? manifest = null)
     {
         using var file = File.Create(path);
 
-        Compile(name, [source], manifest: null, file);
+        Compile(name, [source], manifest, file);
     }
 
     private static void Compile(string name, IEnumerable<string> sources, string? manifest, Stream output)

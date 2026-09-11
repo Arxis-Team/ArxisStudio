@@ -48,7 +48,7 @@ public static class StudioModules
                 var (manifest, error) = ModuleManifest.Load(assembly);
 
                 return new InstalledPlugin(
-                    AppContext.BaseDirectory,
+                    ModuleManifest.FolderOf(assembly),
                     manifest,
                     error,
                     IsEnabled: true,

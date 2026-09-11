@@ -1,0 +1,93 @@
+<Project>
+
+    <!--
+        Раскладка встроенных модулей: модули и то, что везут только они, — в папку
+        Modules; корень остаётся студии и её платформе.
+
+        Как делится. Ссылка на модуль в ArxisStudio.csproj помечена StudioModule="true",
+        Private="false" и ExcludeAssets="runtime": компилироваться против модуля можно, а
+        управляемые сборки его и того, что он тянет, в корень не идут. Нативные библиотеки
+        пакетов этим не отрезаются и остаются в runtimes/ у корня — там их находит сама
+        среда по файлу зависимостей приложения. Транзитивные ссылки на проекты у приложения
+        выключены, иначе SDK приписал бы приложению приватные проекты модулей и положил их в
+        корень; поэтому платформа — все проекты, нужные самой студии, — перечислена в
+        ArxisStudio.csproj явно.
+
+        Что кладётся. Состав спрашивается у каждого модуля целью StudioModuleFiles
+        (src/Modules/Directory.Build.targets) и из него вычитается всё, что уже лежит в
+        корне: сборка, нужная и платформе, и модулю, остаётся в одном экземпляре, у корня.
+        Корень основной контекст загрузки просматривает раньше папки модулей, так что копия
+        общей сборки в Modules подменить её не могла бы и так.
+
+        Вызов модуля повторяет стандартный вызов ссылок на проекты — те же свойства и те же
+        снятые, — чтобы попасть в уже собранный экземпляр, а не собрать модуль второй раз.
+        Та же раскладка идёт в публикацию: студия ищет модули в Modules, и публикация,
+        положившая их в корень, осталась бы без модуля «Проекты» — его контракт ищется
+        рядом с ним.
+
+        Проверяет раскладку StudioLayoutTests — на собранном выходе.
+    -->
+    <PropertyGroup>
+        <StudioModuleFolder>Modules</StudioModuleFolder>
+    </PropertyGroup>
+
+    <Target Name="StudioCollectModuleFiles" DependsOnTargets="ResolveReferences">
+
+        <MSBuild Projects="@(_MSBuildProjectReferenceExistent)"
+                 Targets="StudioModuleFiles"
+                 BuildInParallel="$(BuildInParallel)"
+                 Properties="%(_MSBuildProjectReferenceExistent.SetConfiguration); %(_MSBuildProjectReferenceExistent.SetPlatform); %(_MSBuildProjectReferenceExistent.SetTargetFramework)"
+                 Condition="'%(_MSBuildProjectReferenceExistent.StudioModule)' == 'true'"
+                 RemoveProperties="%(_MSBuildProjectReferenceExistent.GlobalPropertiesToRemove)$(_GlobalPropertiesToRemoveFromProjectReferences)">
+            <Output TaskParameter="TargetOutputs" ItemName="_StudioModuleCandidate"/>
+        </MSBuild>
+
+        <ItemGroup>
+            <_StudioModuleCandidate>
+                <StudioSource>%(FullPath)</StudioSource>
+            </_StudioModuleCandidate>
+
+            <_StudioRootFile Include="@(ReferenceCopyLocalPaths->'%(DestinationSubDirectory)%(Filename)%(Extension)')"/>
+            <_StudioRootFile Include="@(IntermediateAssembly->'%(Filename)%(Extension)')"/>
+
+            <_StudioModuleByPath Include="@(_StudioModuleCandidate->'%(StudioRelativePath)')"/>
+            <_StudioModuleByPath Remove="@(_StudioRootFile)"/>
+        </ItemGroup>
+
+        <RemoveDuplicates Inputs="@(_StudioModuleByPath)">
+            <Output TaskParameter="Filtered" ItemName="StudioModuleFile"/>
+        </RemoveDuplicates>
+
+        <!--
+            Управляемая сборка под конкретную платформу лежала бы в Modules/runtimes/, куда
+            резолвер модулей не смотрит, — и модуль упал бы на той машине, где она нужна.
+            Такого пакета у модулей пока нет; появится — раскладку придётся учить.
+        -->
+        <Error Code="AXL1001"
+               Condition="'@(StudioModuleFile)' != '' and $([System.String]::Copy('%(StudioModuleFile.Identity)').Replace('\', '/').StartsWith('runtimes/'))"
+               Text="Модуль везёт сборку под конкретную платформу: %(StudioModuleFile.Identity). Раскладка папки Modules таких не поддерживает — резолвер модулей ищет только в самой папке и в подпапках культур. Уберите пакет из модуля или научите раскладку и резолвер runtimes/."/>
+    </Target>
+
+    <Target Name="StudioCopyModules" AfterTargets="CopyFilesToOutputDirectory" DependsOnTargets="StudioCollectModuleFiles">
+        <Copy SourceFiles="@(StudioModuleFile->'%(StudioSource)')"
+              DestinationFiles="@(StudioModuleFile->'$(OutDir)$(StudioModuleFolder)\%(Identity)')"
+              SkipUnchangedFiles="$(SkipCopyUnchangedFiles)"
+              OverwriteReadOnlyFiles="$(OverwriteReadOnlyFiles)"
+              Retries="$(CopyRetryCount)"
+              RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)"/>
+
+        <!-- Записанное учитывается: очистка его уберёт, а пропавшее из состава не останется лежать. -->
+        <ItemGroup>
+            <FileWrites Include="@(StudioModuleFile->'$(OutDir)$(StudioModuleFolder)\%(Identity)')"/>
+        </ItemGroup>
+    </Target>
+
+    <Target Name="StudioPublishModules" AfterTargets="ComputeResolvedFilesToPublishList" DependsOnTargets="StudioCollectModuleFiles">
+        <ItemGroup>
+            <ResolvedFileToPublish Include="@(StudioModuleFile->'%(StudioSource)')"
+                                   RelativePath="$(StudioModuleFolder)\%(StudioModuleFile.Identity)"
+                                   CopyToPublishDirectory="PreserveNewest"/>
+        </ItemGroup>
+    </Target>
+
+</Project>

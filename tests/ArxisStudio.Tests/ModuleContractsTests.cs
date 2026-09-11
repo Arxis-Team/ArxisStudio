@@ -102,12 +102,57 @@ public class ModuleContractsTests : IDisposable
     }
 
     /// <summary>
+    /// Контракт модуля ищется рядом с модулем, где бы тот ни лежал.
+    /// </summary>
+    /// <remarks>
+    /// Папкой встроенного модуля считался корень студии, и контракт искался там же.
+    /// Студия теперь кладёт модули в свою папку Modules — вместе с их контрактами, — а
+    /// тесты держат их рядом с собой; где модуль на самом деле, знает только его сборка.
+    /// </remarks>
+    [Fact]
+    public void A_module_contract_is_looked_up_beside_the_module_wherever_it_lies()
+    {
+        var folder = Directory.CreateDirectory(Path.Combine(_root, "Modules")).FullName;
+        var contract = $"Probe.BesideContracts{Guid.NewGuid():N}";
+        var module = $"Probe.BesideModule{Guid.NewGuid():N}";
+
+        TestAssembly.EmitFile(Path.Combine(folder, contract + ".dll"), contract, "namespace Probe; public interface IBesideContract { }");
+        TestAssembly.EmitFile(Path.Combine(folder, module + ".dll"), module, ModuleSource, $$"""
+            {
+              "id": "probe.beside",
+              "name": "probe.beside",
+              "version": "1.0.0",
+              "provides": { "contracts": [ "{{contract}}.dll" ] }
+            }
+            """);
+
+        using var host = new PluginHost(new StudioContextFactory(new StudioLog(), new StudioCommands(), null));
+
+        var loaded = host.LoadBuiltIn(Assembly.LoadFrom(Path.Combine(folder, module + ".dll")));
+
+        Assert.True(loaded.IsLoaded, loaded.Error);
+        Assert.Equal(folder, loaded.Installed.Directory, ignoreCase: true);
+        Assert.Equal(
+            Path.Combine(folder, contract + ".dll"),
+            PluginContracts.Find(new AssemblyName(contract))?.Location,
+            ignoreCase: true);
+    }
+
+    /// <summary>Модулю, собранному в памяти, остаётся папка приложения.</summary>
+    [Fact]
+    public void A_module_without_a_file_takes_the_folder_of_the_application()
+    {
+        Assert.Equal(AppContext.BaseDirectory, ModuleManifest.FolderOf(TestAssembly.Emit("Arxis.InMemoryModule", ModuleSource)));
+    }
+
+    /// <summary>
     /// Контракт модуля находится, хотя папка студии кончается разделителем.
     /// </summary>
     /// <remarks>
-    /// Папка встроенного модуля — <see cref="AppContext.BaseDirectory"/>, и она всегда
-    /// кончается разделителем. Проверка «контракт внутри папки» приклеивала к ней
-    /// второй и отказывала каждому модулю, объявившему контракт. Тест выше берёт
+    /// Папкой встроенного модуля была <see cref="AppContext.BaseDirectory"/> — у модуля,
+    /// собранного в памяти, она ей и осталась, — а эта папка всегда кончается
+    /// разделителем. Проверка «контракт внутри папки» приклеивала к ней второй и
+    /// отказывала каждому модулю, объявившему контракт. Тест на теневую копию берёт
     /// папку из каталога, где разделителя на конце нет, и дыры не видел; нашёл её
     /// первый модуль, которому контракт действительно понадобился, — служба проектов.
     /// </remarks>

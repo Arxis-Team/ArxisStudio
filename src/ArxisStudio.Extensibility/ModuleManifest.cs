@@ -45,4 +45,25 @@ public static class ModuleManifest
             return (null, $"module.json не разобрался: {e.Message}");
         }
     }
+
+    /// <summary>
+    /// Папка встроенного модуля — там, где лежит его сборка.
+    /// </summary>
+    /// <param name="assembly">Сборка модуля.</param>
+    /// <returns>Папка сборки; у сборки без файла — папка приложения.</returns>
+    /// <remarks>
+    /// Не корень студии: сборка студии кладёт модули в свою папку <c>Modules</c>, а
+    /// тесты — рядом с собой, и объявленный модулем контракт лежит там же, где сам
+    /// модуль. Спрашивать папку у сборки значит не знать о раскладке ничего — и не
+    /// разойтись с ней ни в одной из них. Сборка, собранная в памяти, файла не имеет:
+    /// ей остаётся папка приложения, как было до папки модулей.
+    /// </remarks>
+    public static string FolderOf(Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+
+        return assembly.Location is { Length: > 0 } location && Path.GetDirectoryName(location) is { Length: > 0 } folder
+            ? folder
+            : AppContext.BaseDirectory;
+    }
 }

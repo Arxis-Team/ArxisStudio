@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <OutputType>WinExe</OutputType>
@@ -17,6 +17,21 @@
             у каждого корня разметки и каждого шаблона стоит x:DataType.
         -->
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    </PropertyGroup>
+
+    <!--
+        Выход студии — сама студия и её платформа. Модули и то, что везут только они,
+        лежат рядом, в папке Modules: правило раскладки — build/ArxisStudio.Modules.targets,
+        дорога к папке при запуске — StudioModuleFolder.
+
+        Документация ссылок в выход не идёт: XML-файлы нужны компилятору и подсказкам, а
+        студия их не читает. Транзитивные ссылки на проекты выключены: иначе SDK приписал бы
+        приложению приватные проекты модулей — провайдер MSBuild, контракт службы проектов — и
+        положил бы их в корень. Поэтому всё, что нужно самой студии, названо ниже прямо.
+    -->
+    <PropertyGroup>
+        <AllowedReferenceRelatedFileExtensions>.pdb</AllowedReferenceRelatedFileExtensions>
+        <DisableTransitiveProjectReferences>true</DisableTransitiveProjectReferences>
     </PropertyGroup>
 
     <ItemGroup>
@@ -40,16 +55,40 @@
         <InternalsVisibleTo Include="ArxisStudio.Tests"/>
     </ItemGroup>
 
+    <!--
+        Платформа: всё, что нужно самой студии, — у корня. Ядро модели проектов в их числе,
+        хоть студия его типов и не зовёт: это общая сборка, плагины берут её из основного
+        контекста, и лежать ей положено рядом с SDK и контролами, а не в углу одного модуля.
+    -->
     <ItemGroup>
-        <ProjectReference Include="../ArxisStudio.Docking/ArxisStudio.Docking.csproj"/>
-        <ProjectReference Include="../ArxisStudio.Shell/ArxisStudio.Shell.csproj"/>
-        <ProjectReference Include="../Modules/ArxisStudio.Modules.Sample/ArxisStudio.Modules.Sample.csproj"/>
-        <ProjectReference Include="../Modules/ArxisStudio.Modules.Terminal/ArxisStudio.Modules.Terminal.csproj"/>
-        <ProjectReference Include="../Modules/ArxisStudio.Modules.Console/ArxisStudio.Modules.Console.csproj"/>
-        <ProjectReference Include="../Modules/ArxisStudio.Modules.Projects/ArxisStudio.Modules.Projects.csproj"/>
         <ProjectReference Include="../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
+        <ProjectReference Include="../ArxisStudio.Shell/ArxisStudio.Shell.csproj"/>
+        <ProjectReference Include="../ArxisStudio.Docking/ArxisStudio.Docking.csproj"/>
         <ProjectReference Include="../ArxisStudio.Extensibility/ArxisStudio.Extensibility.csproj"/>
+        <ProjectReference Include="../../external/ArxisStudio.Controls/src/ArxisStudio.Controls.csproj"/>
+        <ProjectReference Include="../../external/ArxisStudio.Icons/src/ArxisStudio.Icons.csproj"/>
         <ProjectReference Include="../../external/ArxisStudio.Themes.Arxis/src/ArxisStudio.Themes.Arxis.csproj"/>
+        <ProjectReference Include="../../external/ArxisStudio.Fonts.Cascadia/src/ArxisStudio.Fonts.Cascadia.csproj"/>
+        <ProjectReference Include="../../external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem/ArxisStudio.ProjectSystem.csproj"/>
     </ItemGroup>
+
+    <!--
+        Встроенные модули. Порядок подъёма задаёт StudioModules.Assemblies; здесь — только то,
+        как модуль попадает в выход. Компилироваться против него можно — студия называет его
+        сборку в списке модулей, — а сам он и всё, что он тянет, ложится в Modules. Новый модуль
+        заводится двумя строками: здесь, с теми же пометками, и в списке.
+    -->
+    <ItemGroup>
+        <ProjectReference Include="../Modules/ArxisStudio.Modules.Sample/ArxisStudio.Modules.Sample.csproj"
+                          StudioModule="true" Private="false" ExcludeAssets="runtime"/>
+        <ProjectReference Include="../Modules/ArxisStudio.Modules.Terminal/ArxisStudio.Modules.Terminal.csproj"
+                          StudioModule="true" Private="false" ExcludeAssets="runtime"/>
+        <ProjectReference Include="../Modules/ArxisStudio.Modules.Console/ArxisStudio.Modules.Console.csproj"
+                          StudioModule="true" Private="false" ExcludeAssets="runtime"/>
+        <ProjectReference Include="../Modules/ArxisStudio.Modules.Projects/ArxisStudio.Modules.Projects.csproj"
+                          StudioModule="true" Private="false" ExcludeAssets="runtime"/>
+    </ItemGroup>
+
+    <Import Project="build/ArxisStudio.Modules.targets"/>
 
 </Project>
