@@ -275,7 +275,7 @@ public class ProjectsSessionTests
     }
 
     /// <summary>
-    /// Провалившаяся перезагрузка оставляет прежний снимок, а в «Проблемах» — свой провал.
+    /// Провалившаяся перезагрузка оставляет прежний снимок, а в журнале — свой провал.
     /// </summary>
     [Fact]
     public async Task A_failed_reload_keeps_the_previous_snapshot()
