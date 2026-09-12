@@ -39,6 +39,34 @@ public class ProjectsIntegrationTests : IDisposable
         GC.SuppressFinalize(this);
     }
 
+    /// <summary>
+    /// Настоящее решение восстанавливается и собирается.
+    /// </summary>
+    /// <remarks>
+    /// Единственная проверка, доводящая операцию до настоящего MSBuild: остальное живёт на
+    /// провайдере теста. Сборка идёт по копии фикстуры и уносится вместе с ней.
+    /// </remarks>
+    [Fact]
+    public async Task A_real_solution_restores_and_builds()
+    {
+        using var studio = new ProjectsStudio(workspace: static () => new ProjectWorkspace(new MSBuildProjectProvider()));
+
+        var opened = await studio.Projects.OpenAsync(Solution(), Token).WaitAsync(Patience, Token);
+
+        Assert.True(opened.HasSnapshot, Why(opened.Diagnostics));
+
+        var built = await studio.Build
+            .RunAsync(ProjectOperationKind.Build, cancellationToken: Token)
+            .WaitAsync(Patience, Token);
+
+        await studio.Thread.IdleAsync();
+
+        Assert.True(built.Status == ProjectOperationStatus.Succeeded, Why(built.Diagnostics));
+        Assert.True(
+            File.Exists(Path.Combine(_root, "src", "App", "bin", "Debug", "net10.0", "App.dll")),
+            "сборка прошла, а собранного нет");
+    }
+
     /// <summary>Настоящее решение открывается со своими проектами и папкой.</summary>
     [Fact]
     public async Task A_real_solution_opens_with_its_projects_and_its_folder()
@@ -117,6 +145,11 @@ public class ProjectsIntegrationTests : IDisposable
 
         return Path.Combine(folder!.FullName, "tests", "Fixtures", "Projects", "Hello");
     }
+
+    /// <summary>Диагностики одной строкой — чтобы падение говорило, что случилось.</summary>
+    /// <param name="diagnostics">Диагностики.</param>
+    private static string Why(IEnumerable<ProjectDiagnostic> diagnostics) =>
+        string.Join("; ", diagnostics.Select(diagnostic => $"{diagnostic.Code} {diagnostic.Message}"));
 
     private static void Copy(string from, string to)
     {

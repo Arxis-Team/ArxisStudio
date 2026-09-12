@@ -79,6 +79,9 @@ internal sealed class ProjectsStudio : IDisposable
 
         Projects = Exports.Get(typeof(IStudioProjects)) as IStudioProjects
             ?? throw new InvalidOperationException("модуль поднялся, а службу не опубликовал");
+
+        Build = Exports.Get(typeof(IStudioBuild)) as IStudioBuild
+            ?? throw new InvalidOperationException("модуль поднялся, а службу сборки не опубликовал");
     }
 
     /// <summary>Поток интерфейса.</summary>
@@ -119,6 +122,9 @@ internal sealed class ProjectsStudio : IDisposable
 
     /// <summary>Служба — так, как её видит плагин.</summary>
     public IStudioProjects Projects { get; }
+
+    /// <summary>Служба сборки — тем же путём.</summary>
+    public IStudioBuild Build { get; }
 
     /// <summary>Исключения подписчиков, когда их не бросают заново.</summary>
     public ConcurrentQueue<Exception> Failures { get; } = new();

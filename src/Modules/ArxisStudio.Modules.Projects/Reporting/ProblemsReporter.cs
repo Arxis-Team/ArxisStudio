@@ -5,7 +5,7 @@ using ArxisStudio.Sdk;
 namespace ArxisStudio.Modules.Projects.Reporting;
 
 /// <summary>
-/// Находки загрузки — в панель «Проблемы».
+/// Находки загрузки и операций — в панель «Проблемы».
 /// </summary>
 /// <remarks>
 /// <para>
@@ -22,8 +22,15 @@ namespace ArxisStudio.Modules.Projects.Reporting;
 /// <param name="problems">Находки студии; null — показывать некуда.</param>
 internal sealed class ProblemsReporter(IStudioProblems? problems)
 {
-    /// <summary>Имя источника находок; хозяина впереди ставит студия.</summary>
+    /// <summary>Имя источника находок загрузки; хозяина впереди ставит студия.</summary>
     public const string Source = "load";
+
+    /// <summary>Имя источника находок сборки.</summary>
+    /// <remarks>
+    /// Источник свой, не загрузочный: сборка и модель говорят о разном, и удачная перезагрузка не
+    /// повод убирать со стола ошибки сборки, которые человек ещё не разобрал.
+    /// </remarks>
+    public const string BuildSource = "build";
 
     /// <summary>Показывает итог доставленного состояния.</summary>
     /// <param name="change">Доставленная перемена.</param>
@@ -35,6 +42,24 @@ internal sealed class ProblemsReporter(IStudioProblems? problems)
             return;
 
         problems.Report(Source, change.Current.LastLoad is { } load ? Translate(load.Result.Diagnostics) : []);
+    }
+
+    /// <summary>
+    /// Показывает итог законченной операции.
+    /// </summary>
+    /// <param name="change">Законченная операция.</param>
+    /// <remarks>
+    /// Итог последней операции, и только он: ошибки прошлой сборки после новой — уже не правда.
+    /// Отменённая операция стола не трогает: она ничего не сказала.
+    /// </remarks>
+    public void Build(ProjectOperationEventArgs change)
+    {
+        ArgumentNullException.ThrowIfNull(change);
+
+        if (problems is null || change.Result is not { } result)
+            return;
+
+        problems.Report(BuildSource, Translate(result.Diagnostics));
     }
 
     /// <summary>Диагностики ядра находками студии, без повторов.</summary>

@@ -1,7 +1,7 @@
 {
   "id": "arxis.projects",
   "name": "%module.projects%",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "Arxis",
   "description": "%module.projects.description%",
   "tags": [ "tools" ],
@@ -9,14 +9,23 @@
   "contributions": {
     "commands": [
       { "id": "projects.reload" },
-      { "id": "projects.close" }
+      { "id": "projects.close" },
+      { "id": "projects.restore" },
+      { "id": "projects.build" },
+      { "id": "projects.rebuild" },
+      { "id": "projects.clean" }
     ],
     "menus": [
       { "path": "%menu.project%/%menu.project.reload%", "command": "projects.reload" },
-      { "path": "%menu.project%/%menu.project.close%", "command": "projects.close" }
+      { "path": "%menu.project%/%menu.project.close%", "command": "projects.close" },
+      { "path": "%menu.build%/%menu.build.build%", "command": "projects.build" },
+      { "path": "%menu.build%/%menu.build.rebuild%", "command": "projects.rebuild" },
+      { "path": "%menu.build%/%menu.build.clean%", "command": "projects.clean" },
+      { "path": "%menu.build%/%menu.build.restore%", "command": "projects.restore" }
     ],
     "settings": [
-      { "key": "projects.watchFiles", "type": "bool", "scope": "user", "title": "%settings.projects.watchFiles%", "default": true }
+      { "key": "projects.watchFiles", "type": "bool", "scope": "user", "title": "%settings.projects.watchFiles%", "default": true },
+      { "key": "projects.restoreOnOpen", "type": "bool", "scope": "user", "title": "%settings.projects.restoreOnOpen%", "default": true }
     ]
   },
   "activation": [ "onStartup" ]

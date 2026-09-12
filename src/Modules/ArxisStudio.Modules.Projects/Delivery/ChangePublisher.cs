@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.Runtime.ExceptionServices;
-using System.Runtime.Loader;
 using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
 
@@ -45,9 +44,8 @@ internal readonly record struct SnapshotStep(ImmutableArray<ProjectIdentity> Tou
 /// бросил, а не этому модулю, в чьём цикле оно случилось.
 /// </para>
 /// <para>
-/// <b>Забытая подписка.</b> Выгрузка контекста плагина снимает его обработчики сама: иначе делегат
-/// держал бы выгруженную сборку в памяти навсегда, а доставка звала бы код мертвеца. Это
-/// страховка — отписываться плагин обязан в <c>Deactivate</c>.
+/// <b>Подписчиков держит <see cref="Subscribers{TArgs}"/></b> — там же и страховка от забытой
+/// подписки.
 /// </para>
 /// </remarks>
 internal sealed class ChangePublisher
@@ -57,10 +55,7 @@ internal sealed class ChangePublisher
     private readonly Action<ProjectsChangedEventArgs> _first;
     private readonly Action<Exception> _failed;
 
-    private readonly Lock _subscribersGate = new();
-    private readonly HashSet<AssemblyLoadContext> _contexts = [];
-    private ImmutableArray<EventHandler<ProjectsChangedEventArgs>> _subscribers = [];
-
+    private readonly Subscribers<ProjectsChangedEventArgs> _subscribers = new();
     private readonly Lock _gate = new();
     private ProjectsStatus _pending = ProjectsStatus.Closed;
     private ProjectsStatus _delivered = ProjectsStatus.Closed;
@@ -89,38 +84,11 @@ internal sealed class ChangePublisher
 
     /// <summary>Добавляет подписчика.</summary>
     /// <param name="handler">Обработчик; null ничего не делает, как у обычного события.</param>
-    public void Subscribe(EventHandler<ProjectsChangedEventArgs>? handler)
-    {
-        if (handler is null)
-            return;
-
-        lock (_subscribersGate)
-        {
-            _subscribers = _subscribers.Add(handler);
-
-            foreach (var context in Contexts(handler))
-            {
-                if (_contexts.Add(context))
-                    context.Unloading += OnUnloading;
-            }
-        }
-    }
+    public void Subscribe(EventHandler<ProjectsChangedEventArgs>? handler) => _subscribers.Add(handler);
 
     /// <summary>Снимает подписчика — последнюю из равных ему подписок, как у обычного события.</summary>
     /// <param name="handler">Обработчик.</param>
-    public void Unsubscribe(EventHandler<ProjectsChangedEventArgs>? handler)
-    {
-        if (handler is null)
-            return;
-
-        lock (_subscribersGate)
-        {
-            var index = _subscribers.LastIndexOf(handler);
-
-            if (index >= 0)
-                _subscribers = _subscribers.RemoveAt(index);
-        }
-    }
+    public void Unsubscribe(EventHandler<ProjectsChangedEventArgs>? handler) => _subscribers.Remove(handler);
 
     /// <summary>
     /// Кладёт новое состояние и просит поток интерфейса о доставке.
@@ -224,13 +192,7 @@ internal sealed class ChangePublisher
         {
             Invoke(() => _first(change));
 
-            ImmutableArray<EventHandler<ProjectsChangedEventArgs>> subscribers;
-
-            lock (_subscribersGate)
-                subscribers = _subscribers;
-
-            foreach (var subscriber in subscribers)
-                Invoke(() => subscriber(_sender, change));
+            _subscribers.Invoke(_sender, change, _failed);
         }
         finally
         {
@@ -275,36 +237,5 @@ internal sealed class ChangePublisher
         var captured = ExceptionDispatchInfo.Capture(error);
 
         _thread.Post(captured.Throw);
-    }
-
-    private void OnUnloading(AssemblyLoadContext context)
-    {
-        lock (_subscribersGate)
-        {
-            _contexts.Remove(context);
-            _subscribers = _subscribers.RemoveAll(handler => Contexts(handler).Contains(context));
-        }
-    }
-
-    /// <summary>Выгружаемые контексты, чей код держит обработчик.</summary>
-    private static HashSet<AssemblyLoadContext> Contexts(EventHandler<ProjectsChangedEventArgs> handler)
-    {
-        var found = new HashSet<AssemblyLoadContext>();
-
-        foreach (var single in handler.GetInvocationList())
-        {
-            // И метод, и объект: лямбда живёт в сборке плагина, а метод общего типа может быть
-            // вызван на объекте, созданном плагином, — держит контекст и то и другое.
-            if (AssemblyLoadContext.GetLoadContext(single.Method.Module.Assembly) is { IsCollectible: true } method)
-                found.Add(method);
-
-            if (single.Target is { } target
-                && AssemblyLoadContext.GetLoadContext(target.GetType().Assembly) is { IsCollectible: true } owner)
-            {
-                found.Add(owner);
-            }
-        }
-
-        return found;
     }
 }

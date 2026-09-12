@@ -61,6 +61,15 @@ internal sealed class ProjectsSession
     /// <summary>Последняя законченная загрузка.</summary>
     public ProjectsLoad? LastLoad { get; set; }
 
+    /// <summary>
+    /// Восстановление при открытии этой сессии уже решалось.
+    /// </summary>
+    /// <remarks>
+    /// Один раз за сессию: перезагрузки идут одна за другой, и каждая, увидев непрочитанные пакеты,
+    /// просила бы восстановление заново — а первое ещё и не кончилось.
+    /// </remarks>
+    public bool Restored { get; set; }
+
     /// <summary>Последний снимок сессии.</summary>
     public SolutionSnapshot? Snapshot
     {

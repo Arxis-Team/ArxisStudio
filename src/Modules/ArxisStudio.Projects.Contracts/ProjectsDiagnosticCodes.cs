@@ -10,6 +10,9 @@ namespace ArxisStudio.Projects;
 /// </remarks>
 public static class ProjectsDiagnosticCodes
 {
-    /// <summary>Перечитывать нечего: ничего не открыто.</summary>
+    /// <summary>Перечитывать или собирать нечего: ничего не открыто.</summary>
     public const string NothingOpen = "PRJ1001";
+
+    /// <summary>Названного проекта нет в текущем снимке: он не открыт или открыт в другой сессии.</summary>
+    public const string ProjectNotOpen = "PRJ1002";
 }

@@ -11,9 +11,10 @@ namespace ArxisStudio.Tests;
 /// отмена, сессии — проверяется здесь, где загрузка кончается ровно тогда, когда тест её отпустил,
 /// а не когда движку захотелось.
 /// </remarks>
-internal sealed class ScriptedProvider : IProjectSystemProvider
+internal sealed class ScriptedProvider : IProjectSystemProvider, IProjectOperationProvider
 {
     private readonly ConcurrentQueue<WorkspaceLoadRequest> _requests = new();
+    private readonly ConcurrentQueue<ProjectOperationRequest> _operations = new();
     private int _loads;
 
     /// <inheritdoc/>
@@ -48,6 +49,42 @@ internal sealed class ScriptedProvider : IProjectSystemProvider
             await gate.PassAsync(cancellationToken);
 
         return Answer is { } answer ? answer(request) : Solutions.Of(request, Projects);
+    }
+
+    /// <summary>С чем приходили операции, по порядку.</summary>
+    public IReadOnlyCollection<ProjectOperationRequest> Operations => _operations;
+
+    /// <summary>Что отдать на операцию; null — удача без диагностик.</summary>
+    public Func<ProjectOperationRequest, ProjectOperationResult>? Executed { get; set; }
+
+    /// <summary>Где остановиться внутри операции; null — не останавливаться.</summary>
+    public LoadGate? OperationGate { get; set; }
+
+    /// <summary>Что делать, когда операция вошла в провайдер; null — ничего.</summary>
+    /// <remarks>Тесту нужно увидеть службу в тот миг, когда операция идёт, а не когда кончилась.</remarks>
+    public Action? Inside { get; set; }
+
+    /// <inheritdoc/>
+    public bool CanExecute(ProjectOperationKind kind) => true;
+
+    /// <inheritdoc/>
+    public async ValueTask<ProjectOperationResult> ExecuteAsync(
+        ProjectOperationRequest request,
+        IProgress<ProjectOperationProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        _operations.Enqueue(request);
+
+        progress?.Report(new ProjectOperationProgress { Message = $"{request.Kind} {request.EntryPointPath.FileName}" });
+
+        Inside?.Invoke();
+
+        if (OperationGate is { } gate)
+            await gate.PassAsync(cancellationToken);
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return Executed is { } executed ? executed(request) : ProjectOperationResult.Succeeded();
     }
 }
 

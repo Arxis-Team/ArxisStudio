@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.ExceptionServices;
 using ArxisStudio.Modules.Projects.Delivery;
 using ArxisStudio.Modules.Projects.Engine;
 using ArxisStudio.Modules.Projects.Reporting;
@@ -24,21 +25,23 @@ namespace ArxisStudio.Modules.Projects;
 /// защищает.
 /// </para>
 /// <para>
-/// <b>Одна полоса на движок.</b> Загрузки идут очередью <see cref="Lane"/> по одной. Ждущая, но не
-/// начатая загрузка у сессии одна, и новые просьбы к ней присоединяются. Движок ушедшей сессии
-/// отпускается той же очередью — после того, что он дочитывает.
+/// <b>Одна полоса на движок.</b> Загрузки и операции идут очередью <see cref="Lane"/> по одной.
+/// Ждущая, но не начатая загрузка у сессии одна, и новые просьбы к ней присоединяются; операции не
+/// склеиваются вовсе. Движок ушедшей сессии отпускается той же очередью — после того, что он
+/// дочитывает.
 /// </para>
 /// <para>
 /// <b>Ожидаемое — результат.</b> Провал загрузки — это диагностики в итоге и в <c>LastLoad</c>. До
 /// шва студии доходят только собственные ошибки службы: задача студии приписывает их модулю.
 /// </para>
 /// </remarks>
-internal sealed class ProjectsHost : IStudioProjects
+internal sealed class ProjectsHost : IStudioProjects, IStudioBuild
 {
     private readonly IStudioContext _context;
     private readonly ProjectsHostOptions _options;
     private readonly IProjectsThread _thread;
     private readonly ChangePublisher _publisher;
+    private readonly OperationPublisher _operations;
     private readonly Lane _lane;
     private readonly Lock _gate = new();
 
@@ -49,6 +52,8 @@ internal sealed class ProjectsHost : IStudioProjects
     private bool _stopped;
     private int _watching;
     private int _announced;
+    private long _operationNumber;
+    private ProjectOperation? _running;
 
     /// <summary>Собирает службу.</summary>
     /// <param name="context">Контекст модуля.</param>
@@ -65,6 +70,14 @@ internal sealed class ProjectsHost : IStudioProjects
         var reporter = new ProblemsReporter(context.GetService<IStudioProblems>());
 
         _publisher = new ChangePublisher(this, _thread, reporter.Show, options.SubscriberFailed);
+
+        // Сбой подписчика — туда же, куда у перемен модели: в продукте он уходит студии
+        // необработанным, и она приписывает его тому, чей код бросил.
+        _operations = new OperationPublisher(
+            this,
+            _thread,
+            reporter.Build,
+            options.SubscriberFailed ?? (error => _thread.Post(ExceptionDispatchInfo.Capture(error).Throw)));
         _lane = new Lane(error => context.Log.Write(
             StudioLogLevel.Error, ProjectsModule.LogSource, $"Очередь службы проектов: {error}"));
 
@@ -232,6 +245,58 @@ internal sealed class ProjectsHost : IStudioProjects
         _lane.Complete();
     }
 
+    /// <inheritdoc/>
+    public ProjectOperation? Running => Volatile.Read(ref _running);
+
+    /// <inheritdoc/>
+    public event EventHandler<ProjectOperationEventArgs>? Started
+    {
+        add => _operations.SubscribeStarted(value);
+        remove => _operations.UnsubscribeStarted(value);
+    }
+
+    /// <inheritdoc/>
+    public event EventHandler<ProjectOperationEventArgs>? Completed
+    {
+        add => _operations.SubscribeCompleted(value);
+        remove => _operations.UnsubscribeCompleted(value);
+    }
+
+    /// <inheritdoc/>
+    public Task<ProjectOperationResult> RunAsync(
+        ProjectOperationKind kind,
+        ImmutableArray<ProjectIdentity> projects = default,
+        IProgress<ProjectOperationProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Enum.IsDefined(kind))
+            throw new ArgumentOutOfRangeException(nameof(kind), kind, "Такой операции над проектом нет");
+
+        if (cancellationToken.IsCancellationRequested)
+            return Task.FromCanceled<ProjectOperationResult>(cancellationToken);
+
+        OperationItem item;
+
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_stopped, this);
+
+            if (_session is not { } session)
+                return Task.FromResult(Refused(ProjectsDiagnosticCodes.NothingOpen, _context.Strings["module.projects.nothingOpen"]));
+
+            if (Stranger(session, projects) is { } stranger)
+            {
+                return Task.FromResult(Refused(
+                    ProjectsDiagnosticCodes.ProjectNotOpen,
+                    string.Format(CultureInfo.CurrentCulture, _context.Strings["module.projects.projectNotOpen"], stranger)));
+            }
+
+            item = Begin(session, kind, projects, progress);
+        }
+
+        return item.Wait(cancellationToken);
+    }
+
     /// <summary>Команда «перезагрузить»: итог не ждёт никто, а «нечего» стоит сказать человеку.</summary>
     internal void ReloadFromCommand() => _ = CommandAsync(async () =>
     {
@@ -243,6 +308,16 @@ internal sealed class ProjectsHost : IStudioProjects
 
     /// <summary>Команда «закрыть».</summary>
     internal void CloseFromCommand() => _ = CommandAsync(CloseAsync);
+
+    /// <summary>Команда сборки: итога не ждёт никто, а «нечего» стоит сказать человеку.</summary>
+    /// <param name="kind">Что делать.</param>
+    internal void RunFromCommand(ProjectOperationKind kind) => _ = CommandAsync(async () =>
+    {
+        var result = await RunAsync(kind);
+
+        if (result.Diagnostics.Any(diagnostic => diagnostic.Code == ProjectsDiagnosticCodes.NothingOpen))
+            _context.GetService<IStudioStatus>()?.Show(_context.Strings["module.projects.nothingOpen"]);
+    });
 
     private static async Task CommandAsync(Func<Task> command)
     {
@@ -414,6 +489,7 @@ internal sealed class ProjectsHost : IStudioProjects
             Announce(reason, request, causes, result, clock.Elapsed);
             Watch(session);
             item.Complete(result);
+            RestoreOnOpen(session, result);
         }
         else if (error is not null)
         {
@@ -435,6 +511,245 @@ internal sealed class ProjectsHost : IStudioProjects
 
         return await workspace.LoadAsync(request, both.Token);
     }
+
+    /// <summary>
+    /// Ставит операцию в очередь. Под замком.
+    /// </summary>
+    /// <param name="session">Чья операция.</param>
+    /// <param name="kind">Что делать.</param>
+    /// <param name="projects">Какие проекты; пусто — открытое целиком.</param>
+    /// <param name="progress">Куда говорить о ходе просившему; null — некуда.</param>
+    private OperationItem Begin(
+        ProjectsSession session,
+        ProjectOperationKind kind,
+        ImmutableArray<ProjectIdentity> projects,
+        IProgress<ProjectOperationProgress>? progress)
+    {
+        var operation = new ProjectOperation
+        {
+            Id = ++_operationNumber,
+            Kind = kind,
+            EntryPoint = session.EntryPoint,
+            Projects = projects.IsDefault ? [] : projects,
+            Configuration = session.Configuration,
+        };
+
+        var item = new OperationItem(session, operation, progress);
+
+        _lane.Enqueue(() => RunOperationAsync(item));
+
+        return item;
+    }
+
+    /// <summary>
+    /// Выполняет операцию, когда до неё дошла очередь.
+    /// </summary>
+    /// <remarks>
+    /// Отменённая в очереди сюда доходит, но движка не касается: её итог уже отменён. Операция
+    /// сессии, которую успели сменить, не начинается по той же причине.
+    /// </remarks>
+    /// <param name="item">Операция.</param>
+    private async Task RunOperationAsync(OperationItem item)
+    {
+        var session = item.Session;
+        var operation = item.Operation;
+
+        lock (_gate)
+        {
+            if (item.Result.IsCompleted || _session != session)
+                return;
+
+            Volatile.Write(ref _running, operation);
+        }
+
+        _operations.Start(operation);
+
+        var clock = Stopwatch.StartNew();
+        ProjectOperationResult? result = null;
+        Exception? error = null;
+
+        try
+        {
+            using var stop = CancellationTokenSource.CreateLinkedTokenSource(session.Lifetime, item.Abandoned);
+
+            result = await _thread.InvokeAsync(() => _context.Tasks.RunAsync(
+                Title(operation),
+                (progress, cancel) => ExecuteAsync(item, progress, cancel, stop.Token)));
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            error = e;
+        }
+
+        // Итог, пришедший после отказа, — отменённый: просивший уже узнал об отмене.
+        if (session.Lifetime.IsCancellationRequested || item.Abandoned.IsCancellationRequested)
+            result = null;
+
+        Volatile.Write(ref _running, null);
+
+        Announce(operation, result, error, clock.Elapsed);
+        _operations.Complete(operation, result, isCancelled: result is null && error is null);
+
+        if (result is not null)
+            item.Complete(result);
+        else if (error is not null)
+            item.Fail(error);
+        else
+            item.Cancel();
+    }
+
+    /// <summary>
+    /// Работа операции: восстановление перед сборкой, сама операция, перезагрузка после удачного
+    /// восстановления.
+    /// </summary>
+    /// <param name="item">Операция.</param>
+    /// <param name="task">Куда говорить о ходе задаче студии.</param>
+    /// <param name="cancel">Отмена задачи — крестик на ней.</param>
+    /// <param name="owner">Отмена сессии и просившего.</param>
+    private async Task<ProjectOperationResult> ExecuteAsync(
+        OperationItem item,
+        IStudioProgress task,
+        CancellationToken cancel,
+        CancellationToken owner)
+    {
+        using var both = CancellationTokenSource.CreateLinkedTokenSource(cancel, owner);
+
+        var session = item.Session;
+        var operation = item.Operation;
+        var progress = item.Progress(task, Blame);
+
+        // Цель Build у MSBuild пакетов не восстанавливает — этим она и отличается от dotnet build, —
+        // а сборка по ненайденным пакетам показала бы человеку ошибки компилятора вместо причины.
+        if (operation.Kind is ProjectOperationKind.Build or ProjectOperationKind.Rebuild)
+        {
+            var restored = await session.Workspace.ExecuteAsync(
+                Request(session, operation, ProjectOperationKind.Restore), progress, both.Token);
+
+            if (restored.HasErrors)
+                return restored;
+        }
+
+        var result = await session.Workspace.ExecuteAsync(
+            Request(session, operation, operation.Kind), progress, both.Token);
+
+        // Восстановление переписывает то, из чего собирается модель. Перечитывается она здесь же,
+        // на полосе: поставить перезагрузку в очередь значило бы ждать самого себя.
+        if (operation.Kind == ProjectOperationKind.Restore && !result.HasErrors)
+            await Reread(session);
+
+        return result;
+    }
+
+    /// <summary>Что просить у движка.</summary>
+    /// <param name="session">Чья операция.</param>
+    /// <param name="operation">Операция.</param>
+    /// <param name="kind">Что делать сейчас: у сборки первым шагом идёт восстановление.</param>
+    private static ProjectOperationRequest Request(
+        ProjectsSession session,
+        ProjectOperation operation,
+        ProjectOperationKind kind) => new()
+    {
+        Kind = kind,
+        Workspace = session.Workspace.Identity,
+        EntryPointPath = operation.EntryPoint,
+        Projects = operation.Projects,
+        Configuration = operation.Configuration,
+    };
+
+    /// <summary>
+    /// Перечитывает модель вслед за восстановлением — здесь же, на полосе.
+    /// </summary>
+    /// <remarks>
+    /// Загрузка, уже стоящая за операцией, эту работу сделает сама: поставить вторую значило бы
+    /// перечитать решение дважды подряд.
+    /// </remarks>
+    /// <param name="session">Чью модель перечитать.</param>
+    private async Task Reread(ProjectsSession session)
+    {
+        LoadItem item;
+
+        lock (_gate)
+        {
+            if (_stopped || _session != session || session.Pending is not null)
+                return;
+
+            item = new LoadItem(session, ProjectsLoadReason.Restore);
+            session.Pending = item;
+            item.Pin();
+            Republish(SnapshotStep.None);
+        }
+
+        await RunAsync(item);
+    }
+
+    /// <summary>
+    /// Восстановление при открытии: один раз за сессию и только если пакеты не восстановлены.
+    /// </summary>
+    /// <remarks>
+    /// Человек, открывший только что склонированный репозиторий, ждёт от студии модели, а не
+    /// списка ненайденных пакетов. Настройка — на случай, когда чужой restore запускать не хочется.
+    /// </remarks>
+    /// <param name="session">Чья загрузка кончилась.</param>
+    /// <param name="result">Её итог.</param>
+    private void RestoreOnOpen(ProjectsSession session, WorkspaceLoadResult result)
+    {
+        if (!result.HasSnapshot || !NeedsRestore.From(result))
+            return;
+
+        // Настройка читается до замка: под ним чужого не зовут.
+        var wanted = ProjectsSettings.Read(_context.Settings).RestoreOnOpen;
+
+        lock (_gate)
+        {
+            if (_stopped || _session != session || session.Restored)
+                return;
+
+            session.Restored = true;
+
+            if (!wanted)
+                return;
+
+            _ = Begin(session, ProjectOperationKind.Restore, [], progress: null);
+        }
+
+        _context.Log.Write(
+            StudioLogLevel.Info,
+            ProjectsModule.LogSource,
+            $"{session.EntryPoint.FileName}: пакеты не восстановлены — восстанавливаю");
+    }
+
+    /// <summary>Первый из названных проектов, которого нет в снимке сессии; null — все свои. Под замком.</summary>
+    /// <param name="session">Чей снимок.</param>
+    /// <param name="projects">Названные проекты.</param>
+    private static string? Stranger(ProjectsSession session, ImmutableArray<ProjectIdentity> projects)
+    {
+        if (projects.IsDefaultOrEmpty)
+            return null;
+
+        var known = session.Snapshot?.Projects ?? [];
+
+        foreach (var project in projects)
+        {
+            if (!known.Any(candidate => candidate.Identity == project))
+                return project.ToString();
+        }
+
+        return null;
+    }
+
+    /// <summary>Отказ операции: провал с кодом службы, а не исключение.</summary>
+    /// <param name="code">Код.</param>
+    /// <param name="message">Что сказать человеку.</param>
+    private static ProjectOperationResult Refused(string code, string message) =>
+        ProjectOperationResult.Failed(new ProjectDiagnostic(code, message, ProjectDiagnosticSeverity.Error));
+
+    /// <summary>Сбой чужого приёмника хода — в журнал: операцию он не роняет.</summary>
+    /// <param name="error">Сбой.</param>
+    private void Blame(Exception error) => _context.Log.Write(
+        StudioLogLevel.Warning, ProjectsModule.LogSource, $"Приёмник хода операции упал: {error.Message}");
 
     /// <summary>
     /// Сессия, которой нечего показать и нечего ждать, кончается. Под замком.
@@ -611,6 +926,57 @@ internal sealed class ProjectsHost : IStudioProjects
                 $"{request.EntryPointPath.FileName}: не {(reason == ProjectsLoadReason.Open ? "открылось" : "перезагрузилось")} — {first?.Code} {first?.Message}");
         }
     }
+
+    /// <summary>Имя задачи студии для операции.</summary>
+    /// <param name="operation">Операция.</param>
+    private string Title(ProjectOperation operation) => string.Format(
+        CultureInfo.CurrentCulture,
+        _context.Strings[operation.Kind switch
+        {
+            ProjectOperationKind.Restore => "module.projects.task.restore",
+            ProjectOperationKind.Build => "module.projects.task.build",
+            ProjectOperationKind.Rebuild => "module.projects.task.rebuild",
+            _ => "module.projects.task.clean",
+        }],
+        operation.EntryPoint.FileName);
+
+    /// <summary>Итог операции — в журнал, одной строкой.</summary>
+    /// <param name="operation">Операция.</param>
+    /// <param name="result">Итог; null — отменена или сорвалась.</param>
+    /// <param name="error">Сбой самой службы; null — его не было.</param>
+    /// <param name="elapsed">Сколько заняла.</param>
+    private void Announce(ProjectOperation operation, ProjectOperationResult? result, Exception? error, TimeSpan elapsed)
+    {
+        var what = Name(operation.Kind);
+        var file = operation.EntryPoint.FileName;
+
+        if (result is null)
+        {
+            _context.Log.Write(
+                error is null ? StudioLogLevel.Info : StudioLogLevel.Error,
+                ProjectsModule.LogSource,
+                error is null ? $"{file}: {what} — отменено" : $"{file}: {what} — сорвалось: {error.Message}");
+
+            return;
+        }
+
+        var errors = result.Diagnostics.Count(diagnostic => diagnostic.IsError);
+
+        _context.Log.Write(
+            result.HasErrors ? StudioLogLevel.Error : StudioLogLevel.Info,
+            ProjectsModule.LogSource,
+            $"{file}: {what} — {(result.HasErrors ? "не удалось" : "готово")}, ошибок {errors}, {elapsed.TotalMilliseconds:F0} мс");
+    }
+
+    /// <summary>Как операция называется в журнале.</summary>
+    /// <param name="kind">Что делали.</param>
+    private static string Name(ProjectOperationKind kind) => kind switch
+    {
+        ProjectOperationKind.Restore => "восстановление",
+        ProjectOperationKind.Build => "сборка",
+        ProjectOperationKind.Rebuild => "пересборка",
+        _ => "очистка",
+    };
 
     private static string Causes(ImmutableArray<CanonicalPath> causes) => causes.Length <= 3
         ? string.Join(", ", causes.Select(cause => cause.FileName))

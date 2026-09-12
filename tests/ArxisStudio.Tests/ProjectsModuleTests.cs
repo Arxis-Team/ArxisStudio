@@ -20,7 +20,15 @@ public class ProjectsModuleTests
     [Fact]
     public void The_commands_in_code_are_the_commands_in_the_manifest()
     {
-        string[] code = [ProjectsModule.ReloadCommand, ProjectsModule.CloseCommand];
+        string[] code =
+        [
+            ProjectsModule.ReloadCommand,
+            ProjectsModule.CloseCommand,
+            ProjectsModule.RestoreCommand,
+            ProjectsModule.BuildCommand,
+            ProjectsModule.RebuildCommand,
+            ProjectsModule.CleanCommand,
+        ];
 
         Assert.Equal(Manifest().Contributions.Commands.Select(command => command.Id).Order(), code.Order());
     }

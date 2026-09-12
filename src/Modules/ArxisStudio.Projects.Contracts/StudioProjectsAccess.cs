@@ -2,7 +2,7 @@ using ArxisStudio.Sdk;
 
 namespace ArxisStudio.Projects;
 
-/// <summary>Дорога к службе проектов из контекста плагина.</summary>
+/// <summary>Дорога к службам проектов из контекста плагина.</summary>
 public static class StudioProjectsAccess
 {
     /// <summary>
@@ -24,5 +24,24 @@ public static class StudioProjectsAccess
         ArgumentNullException.ThrowIfNull(context);
 
         return context.GetService<IStudioExports>()?.Get<IStudioProjects>();
+    }
+
+    /// <summary>
+    /// Служба сборки.
+    /// </summary>
+    /// <param name="context">Контекст плагина.</param>
+    /// <returns>
+    /// Служба или null — по тем же причинам, что и у <see cref="Projects"/>. Плагину, которому
+    /// нужна сборка, стоит объявить модулю нижнюю границу <c>1.1</c>: в версии 1.0 её не было.
+    /// </returns>
+    /// <remarks>
+    /// Отдельная служба, а не часть модели: подписчику снимков события сборки не нужны, а тому, кто
+    /// рисует окно сборки, не нужен снимок.
+    /// </remarks>
+    public static IStudioBuild? Build(this IStudioContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        return context.GetService<IStudioExports>()?.Get<IStudioBuild>();
     }
 }
