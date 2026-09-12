@@ -6,19 +6,21 @@ using Xunit;
 namespace ArxisStudio.Tests;
 
 /// <summary>
-/// Дорога основного контекста загрузки к папке модулей.
+/// Дорога основного контекста загрузки к папкам сборок студии.
 /// </summary>
 /// <remarks>
-/// Резолвер проверяется на своём, выгружаемом контексте, а не на основном: подключить его к
-/// основному в процессе тестов значило бы поменять поиск сборок всем тестам сразу. Правило то же —
-/// событие приходит, когда обычный поиск не нашёл, — а корня у такого контекста нет вовсе. В общей
-/// очереди: сборки здесь компилируются из загруженных в процесс и грузятся в него.
+/// Папок две — платформа и модули, — и правило поиска у них одно, поэтому проверяется оно, а не
+/// каждая папка по отдельности. Резолвер идёт на своём, выгружаемом контексте, а не на основном:
+/// подключить его к основному в процессе тестов значило бы поменять поиск сборок всем тестам
+/// сразу. Правило то же — событие приходит, когда обычный поиск не нашёл, — а корня у такого
+/// контекста нет вовсе. В общей очереди: сборки здесь компилируются из загруженных в процесс и
+/// грузятся в него.
 /// </remarks>
 [Collection(StudioStateCollection.Name)]
-public class StudioModuleFolderTests : IDisposable
+public class StudioAssemblyFolderTests : IDisposable
 {
     private readonly string _root = Directory.CreateDirectory(
-        Path.Combine(Path.GetTempPath(), $"arxis-module-folder-{Guid.NewGuid():N}")).FullName;
+        Path.Combine(Path.GetTempPath(), $"arxis-assembly-folder-{Guid.NewGuid():N}")).FullName;
 
     public void Dispose()
     {
@@ -42,7 +44,7 @@ public class StudioModuleFolderTests : IDisposable
 
         File.WriteAllBytes(path, []);
 
-        Assert.Equal(path, StudioModuleFolder.Locate(_root, new AssemblyName("Probe.Found")));
+        Assert.Equal(path, StudioAssemblyFolder.Locate(_root, new AssemblyName("Probe.Found")));
     }
 
     /// <summary>Сборка ресурсов ищется в подпапке своей культуры, а не рядом с основной.</summary>
@@ -54,15 +56,15 @@ public class StudioModuleFolderTests : IDisposable
 
         File.WriteAllBytes(path, []);
 
-        Assert.Equal(path, StudioModuleFolder.Locate(_root, new AssemblyName("Probe.Found.resources, Culture=de")));
-        Assert.Null(StudioModuleFolder.Locate(_root, new AssemblyName("Probe.Found.resources")));
+        Assert.Equal(path, StudioAssemblyFolder.Locate(_root, new AssemblyName("Probe.Found.resources, Culture=de")));
+        Assert.Null(StudioAssemblyFolder.Locate(_root, new AssemblyName("Probe.Found.resources")));
     }
 
     /// <summary>Чего в папке нет, того резолвер не находит.</summary>
     [Fact]
     public void What_is_not_in_the_folder_is_not_found()
     {
-        Assert.Null(StudioModuleFolder.Locate(_root, new AssemblyName("Probe.Missing")));
+        Assert.Null(StudioAssemblyFolder.Locate(_root, new AssemblyName("Probe.Missing")));
     }
 
     /// <summary>Имя, похожее на путь, из папки модулей не уводит.</summary>
@@ -73,7 +75,7 @@ public class StudioModuleFolderTests : IDisposable
 
         File.WriteAllBytes(Path.Combine(_root, "Escape.dll"), []);
 
-        Assert.Null(StudioModuleFolder.Locate(folder, new AssemblyName { Name = "../Escape" }));
+        Assert.Null(StudioAssemblyFolder.Locate(folder, new AssemblyName { Name = "../Escape" }));
     }
 
     /// <summary>Контекст, спросивший сборку модуля, получает файл из папки модулей.</summary>
@@ -85,10 +87,10 @@ public class StudioModuleFolderTests : IDisposable
 
         TestAssembly.EmitFile(path, name, "namespace Probe; public static class Marker { }");
 
-        var context = new AssemblyLoadContext("arxis-module-folder-probe", isCollectible: true);
+        var context = new AssemblyLoadContext("arxis-assembly-folder-probe", isCollectible: true);
 
         context.Resolving += (asking, wanted) =>
-            StudioModuleFolder.Locate(_root, wanted) is { } found ? asking.LoadFromAssemblyPath(found) : null;
+            StudioAssemblyFolder.Locate(_root, wanted) is { } found ? asking.LoadFromAssemblyPath(found) : null;
 
         try
         {

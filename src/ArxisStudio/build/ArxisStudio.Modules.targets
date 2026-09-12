@@ -2,7 +2,7 @@
 
     <!--
         Раскладка встроенных модулей: модули и то, что везут только они, — в папку
-        Modules; корень остаётся студии и её платформе.
+        Modules; платформа лежит в Lib, у корня — сама студия.
 
         Как делится. Ссылка на модуль в ArxisStudio.csproj помечена StudioModule="true",
         Private="false" и ExcludeAssets="runtime": компилироваться против модуля можно, а
@@ -47,7 +47,12 @@
                 <StudioSource>%(FullPath)</StudioSource>
             </_StudioModuleCandidate>
 
+            <!--
+                Именем файла и путём сразу: платформа уехала в Lib, и её путь у студии теперь с
+                папкой, а модуль тот же файл называет просто по имени.
+            -->
             <_StudioRootFile Include="@(ReferenceCopyLocalPaths->'%(DestinationSubDirectory)%(Filename)%(Extension)')"/>
+            <_StudioRootFile Include="@(ReferenceCopyLocalPaths->'%(Filename)%(Extension)')"/>
             <_StudioRootFile Include="@(IntermediateAssembly->'%(Filename)%(Extension)')"/>
 
             <_StudioModuleByPath Include="@(_StudioModuleCandidate->'%(StudioRelativePath)')"/>

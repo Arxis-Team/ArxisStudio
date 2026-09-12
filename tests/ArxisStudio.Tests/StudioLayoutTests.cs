@@ -7,7 +7,7 @@ using Xunit;
 namespace ArxisStudio.Tests;
 
 /// <summary>
-/// Раскладка собранной студии: модули и то, что везут только они, — в папке Modules.
+/// Раскладка собранной студии: у корня она сама, платформа в Lib, модули в Modules.
 /// </summary>
 /// <remarks>
 /// Проверяется готовый выход студии, а не правило сборки: правило может выглядеть верным, а выход
@@ -21,7 +21,7 @@ namespace ArxisStudio.Tests;
 public class StudioLayoutTests
 {
     /// <summary>
-    /// Сборки, которых рядом со студией нет намеренно.
+    /// Сборки, которых в выходе нет намеренно.
     /// </summary>
     /// <remarks>
     /// Движок MSBuild приходит из SDK, который найдёт локатор; копия рядом со студией была бы
@@ -34,130 +34,153 @@ public class StudioLayoutTests
         "Microsoft.Build.Framework",
     };
 
-    /// <summary>Каждый модуль лежит в папке модулей, а не в корне студии.</summary>
+    /// <summary>
+    /// У корня студии — только она сама.
+    /// </summary>
+    /// <remarks>
+    /// Платформа лежит в <c>Lib</c>, модули в <c>Modules</c>, нативные библиотеки в
+    /// <c>runtimes/</c>, словари в <c>lang/</c>. Сборка, оказавшаяся у корня, — это либо забытая
+    /// раскладкой, либо вторая копия той, что лежит в папке: корень основной контекст
+    /// просматривает первым, и работать станет она.
+    /// </remarks>
     [Fact]
-    public void Every_module_lies_in_the_module_folder_and_not_beside_the_studio()
+    public void Beside_the_studio_there_is_only_the_studio()
+    {
+        var strangers = Root().Keys
+            .Where(name => !string.Equals(name, "ArxisStudio", StringComparison.Ordinal))
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(strangers.Count == 0, $"у корня лежат сборки, кроме самой студии: {string.Join(", ", strangers)}");
+    }
+
+    /// <summary>Каждый модуль лежит в папке модулей, а не у корня и не в платформе.</summary>
+    [Fact]
+    public void Every_module_lies_in_the_module_folder_and_nowhere_else()
     {
         var output = Output();
+        var library = Library();
+        var root = Root();
 
         foreach (var name in StudioModules.Assemblies.Select(assembly => assembly.GetName().Name!))
         {
             Assert.True(
-                File.Exists(Path.Combine(output, StudioModuleFolder.Name, name + ".dll")),
-                $"модуля {name} нет в папке {StudioModuleFolder.Name}");
+                File.Exists(Path.Combine(output, StudioAssemblyFolder.Modules.Name, name + ".dll")),
+                $"модуля {name} нет в папке {StudioAssemblyFolder.Modules.Name}");
 
-            Assert.False(File.Exists(Path.Combine(output, name + ".dll")), $"модуль {name} лежит в корне студии");
+            Assert.False(root.ContainsKey(name), $"модуль {name} лежит у корня студии");
+            Assert.False(library.ContainsKey(name), $"модуль {name} лежит в платформе");
         }
     }
 
     /// <summary>
-    /// Ни одна сборка не лежит дважды — и у корня, и в папке модулей.
+    /// Ни одна сборка не лежит в двух местах сразу.
     /// </summary>
     /// <remarks>
-    /// Корень основной контекст просматривает первым, так что копия в папке модулей не
-    /// загрузилась бы никогда — она только путала бы того, кто ищет, какой файл в работе.
+    /// Загрузится всё равно одна — корень первым, платформа раньше модулей, — а вторая копия только
+    /// путала бы того, кто ищет, какой файл в работе.
     /// </remarks>
     [Fact]
-    public void Nothing_lies_both_beside_the_studio_and_in_the_module_folder()
+    public void Nothing_lies_in_two_places_at_once()
     {
-        var output = Output();
+        var places = new (string Where, Dictionary<string, string> Assemblies)[]
+        {
+            ("корень", Root()),
+            (StudioAssemblyFolder.Library.Name, Library()),
+            (StudioAssemblyFolder.Modules.Name, Modules()),
+        };
 
-        var twice = Assemblies(Path.Combine(output, StudioModuleFolder.Name)).Keys
-            .Intersect(Assemblies(output).Keys, StringComparer.OrdinalIgnoreCase)
+        var twice = places
+            .SelectMany((first, index) => places.Skip(index + 1).SelectMany(second => first.Assemblies.Keys
+                .Intersect(second.Assemblies.Keys, StringComparer.OrdinalIgnoreCase)
+                .Select(name => $"{name}: {first.Where} и {second.Where}")))
             .Order(StringComparer.Ordinal)
             .ToList();
 
-        Assert.True(twice.Count == 0, $"лежит и у корня, и в папке модулей: {string.Join(", ", twice)}");
+        Assert.True(twice.Count == 0, $"лежит в двух местах сразу: {string.Join(", ", twice)}");
     }
 
     /// <summary>
-    /// Общие сборки остаются у корня.
+    /// Общие сборки лежат в платформе.
     /// </summary>
     /// <remarks>
-    /// Плагины берут их из основного контекста, и место им рядом с самой студией, а не в углу
-    /// модуля, который оказался первым, кто их потянул. Ядро модели проектов — общее, хотя сама
-    /// студия его типов и не зовёт.
+    /// Плагины берут их из основного контекста, и место им там, где лежит всё, на чём стоит сама
+    /// студия, а не в углу модуля, который оказался первым, кто их потянул. Ядро модели проектов —
+    /// общее, хотя сама студия его типов и не зовёт.
     /// </remarks>
     [Fact]
-    public void Shared_assemblies_stay_beside_the_studio()
+    public void Shared_assemblies_live_in_the_library()
     {
-        var output = Output();
+        var library = Library();
 
-        var inModules = Assemblies(Path.Combine(output, StudioModuleFolder.Name)).Keys
+        var elsewhere = Root().Keys
+            .Concat(Modules().Keys)
             .Where(SharedAssemblies.IsShared)
             .Order(StringComparer.Ordinal)
             .ToList();
 
-        Assert.True(inModules.Count == 0, $"в папке модулей лежат общие сборки: {string.Join(", ", inModules)}");
-        Assert.True(File.Exists(Path.Combine(output, "ArxisStudio.ProjectSystem.dll")), "ядро модели проектов ушло из корня студии");
+        Assert.True(elsewhere.Count == 0, $"общие сборки лежат не в платформе: {string.Join(", ", elsewhere)}");
+        Assert.True(library.ContainsKey("ArxisStudio.ProjectSystem"), "ядро модели проектов ушло из платформы");
     }
 
     /// <summary>
-    /// У корня нет ничего, что нужно только модулям.
+    /// В платформе нет ничего, что нужно только модулям.
     /// </summary>
     /// <remarks>
     /// Нужное самой студии — всё, до чего доходят ссылки от неё и от общих сборок, не заходя в
-    /// модули. Нужное модулям — всё, до чего доходят ссылки от модулей. Сборка у корня, нужная
-    /// модулям и не нужная студии, — забытая раскладкой. Сборки, которые студия грузит без
-    /// ссылки, этим правилом не задеты: модулям они не нужны, и под подозрение не попадают.
+    /// модули. Нужное модулям — всё, до чего доходят ссылки от модулей. Сборка в платформе, нужная
+    /// модулям и не нужная студии, — забытая раскладкой. Сборки, которые студия грузит без ссылки,
+    /// этим правилом не задеты: модулям они не нужны, и под подозрение не попадают.
     /// </remarks>
     [Fact]
-    public void Nothing_beside_the_studio_is_needed_only_by_modules()
+    public void Nothing_in_the_library_is_needed_only_by_modules()
     {
-        var output = Output();
-        var root = Assemblies(output);
-        var modules = Assemblies(Path.Combine(output, StudioModuleFolder.Name));
+        var library = Library();
+        var studio = Together(Root(), library);
+        var modules = Modules();
 
-        var platform = Reach(root, root.Keys.Where(name => name == "ArxisStudio" || SharedAssemblies.IsShared(name)));
+        var platform = Reach(studio, studio.Keys.Where(name => name == "ArxisStudio" || SharedAssemblies.IsShared(name)));
+        var needed = Reach(Together(studio, modules), modules.Keys);
 
-        var everything = new Dictionary<string, string>(root, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var (name, path) in modules)
-            everything.TryAdd(name, path);
-
-        var needed = Reach(everything, modules.Keys);
-
-        var misplaced = root.Keys
+        var misplaced = library.Keys
             .Where(name => needed.Contains(name) && !platform.Contains(name))
             .Order(StringComparer.Ordinal)
             .ToList();
 
         Assert.True(
             misplaced.Count == 0,
-            $"у корня лежит нужное только модулям: {string.Join(", ", misplaced)} — ему место в {StudioModuleFolder.Name}");
+            $"в платформе лежит нужное только модулям: {string.Join(", ", misplaced)} — ему место в {StudioAssemblyFolder.Modules.Name}");
     }
 
     /// <summary>
-    /// Каждая ссылка модуля находится: в папке модулей, у корня или в самой среде.
+    /// Каждая ссылка находится: у корня, в платформе, в папке модулей или в самой среде.
     /// </summary>
     /// <remarks>
-    /// Раскладка, забывшая зависимость, не падает при сборке — модуль упал бы у человека, на
-    /// первом обращении к её типу.
+    /// Раскладка, забывшая сборку, не падает при сборке — студия упала бы у человека, на первом
+    /// обращении к её типу. Проверяются все три места сразу: студия ссылается и на платформу, и на
+    /// модули, а модуль — на платформу и на своё.
     /// </remarks>
     [Fact]
-    public void Every_reference_of_a_module_can_be_found()
+    public void Every_reference_can_be_found()
     {
-        var output = Output();
-        var root = Assemblies(output);
-        var modules = Assemblies(Path.Combine(output, StudioModuleFolder.Name));
+        var everything = Together(Together(Root(), Library()), Modules());
         var runtime = Assemblies(RuntimeEnvironment.GetRuntimeDirectory());
 
-        var missing = modules
-            .SelectMany(module => References(module.Value).Select(reference => (Module: module.Key, Reference: reference)))
-            .Where(pair => !modules.ContainsKey(pair.Reference)
-                && !root.ContainsKey(pair.Reference)
+        var missing = everything
+            .SelectMany(assembly => References(assembly.Value).Select(reference => (Assembly: assembly.Key, Reference: reference)))
+            .Where(pair => !everything.ContainsKey(pair.Reference)
                 && !runtime.ContainsKey(pair.Reference)
                 && !FromTheSdk.Contains(pair.Reference))
-            .Select(pair => $"{pair.Module} → {pair.Reference}")
+            .Select(pair => $"{pair.Assembly} → {pair.Reference}")
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
             .ToList();
 
-        Assert.True(missing.Count == 0, $"модулю не найти: {string.Join(", ", missing)}");
+        Assert.True(missing.Count == 0, $"не найти: {string.Join(", ", missing)}");
     }
 
     /// <summary>
-    /// Нативные библиотеки пакетов модулей остаются у корня, в runtimes/.
+    /// Нативные библиотеки остаются у корня, в runtimes/.
     /// </summary>
     /// <remarks>
     /// Их находит сама среда по файлу зависимостей приложения, откуда бы ни пришла управляемая
@@ -165,7 +188,7 @@ public class StudioLayoutTests
     /// на Windows этого не видно вовсе — там она ему не нужна.
     /// </remarks>
     [Fact]
-    public void Native_libraries_of_module_packages_stay_beside_the_studio()
+    public void Native_libraries_stay_beside_the_studio()
     {
         var output = Output();
 
@@ -173,9 +196,12 @@ public class StudioLayoutTests
             File.Exists(Path.Combine(output, "runtimes", "linux-x64", "native", "libporta_pty.so")),
             "нативная библиотека терминала пропала из runtimes/ у корня студии");
 
-        Assert.False(
-            Directory.Exists(Path.Combine(output, StudioModuleFolder.Name, "runtimes")),
-            "в папку модулей уехало runtimes/ — там его не ищут ни среда, ни резолвер модулей");
+        foreach (var folder in new[] { StudioAssemblyFolder.Library.Name, StudioAssemblyFolder.Modules.Name })
+        {
+            Assert.False(
+                Directory.Exists(Path.Combine(output, folder, "runtimes")),
+                $"в папку {folder} уехало runtimes/ — там его не ищут ни среда, ни резолвер");
+        }
     }
 
     /// <summary>Документации ссылок в выходе студии нет: её читает компилятор, а не студия.</summary>
@@ -193,6 +219,57 @@ public class StudioLayoutTests
         Assert.True(documentation.Count == 0, $"в выходе студии лежит документация: {string.Join(", ", documentation)}");
     }
 
+    /// <summary>
+    /// Точка входа не делает ничего, кроме дороги к папкам и начала работы.
+    /// </summary>
+    /// <remarks>
+    /// Платформа лежит в <c>Lib</c>, а JIT компилирует метод целиком до первой его строки: назови
+    /// <c>Main</c> хоть один тип оттуда — и студия упадёт раньше, чем резолверы встанут, с
+    /// сообщением о ненайденной сборке. Проверяется исходник, а не готовая сборка: правило о том,
+    /// что в методе написано, и читается там же, где его нарушат.
+    /// </remarks>
+    [Fact]
+    public void The_entry_point_only_shows_the_way_and_starts()
+    {
+        var source = File.ReadAllText(Path.Combine(SharedAssemblies.Repository(), "src", "ArxisStudio", "Program.cs"));
+        var start = source.IndexOf("public static void Main(", StringComparison.Ordinal);
+
+        Assert.True(start >= 0, "точки входа в Program.cs не нашлось");
+
+        var body = Body(source, start)
+            .Split('\n')
+            .Select(line => line.Trim())
+            .Where(line => line.Length > 0 && !line.StartsWith("//", StringComparison.Ordinal))
+            .ToList();
+
+        Assert.Equal(
+            ["StudioAssemblyFolder.Library.Attach();", "StudioAssemblyFolder.Modules.Attach();", "Start(args);"],
+            body);
+    }
+
+    /// <summary>Тело метода: от первой фигурной скобки после него до парной ей.</summary>
+    /// <param name="source">Исходник.</param>
+    /// <param name="method">Где метод объявлен.</param>
+    private static string Body(string source, int method)
+    {
+        var open = source.IndexOf('{', method);
+        var depth = 0;
+
+        for (var index = open; index < source.Length; index++)
+        {
+            if (source[index] == '{')
+            {
+                depth++;
+            }
+            else if (source[index] == '}' && --depth == 0)
+            {
+                return source[(open + 1)..index];
+            }
+        }
+
+        throw new InvalidOperationException("тело метода не закрылось");
+    }
+
     /// <summary>Выход студии той же конфигурации, что у тестов.</summary>
     private static string Output()
     {
@@ -204,11 +281,37 @@ public class StudioLayoutTests
         return output;
     }
 
+    /// <summary>Сборки у корня студии.</summary>
+    private static Dictionary<string, string> Root() => Assemblies(Output());
+
+    /// <summary>Сборки платформы.</summary>
+    private static Dictionary<string, string> Library() =>
+        Assemblies(Path.Combine(Output(), StudioAssemblyFolder.Library.Name));
+
+    /// <summary>Сборки модулей.</summary>
+    private static Dictionary<string, string> Modules() =>
+        Assemblies(Path.Combine(Output(), StudioAssemblyFolder.Modules.Name));
+
     /// <summary>Сборки папки: простое имя — путь.</summary>
     private static Dictionary<string, string> Assemblies(string folder) =>
         Directory.Exists(folder)
             ? Directory.EnumerateFiles(folder, "*.dll").ToDictionary(path => Path.GetFileNameWithoutExtension(path), StringComparer.OrdinalIgnoreCase)
             : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Две папки одним набором; повтор остаётся за первой.</summary>
+    /// <param name="first">Первая.</param>
+    /// <param name="second">Вторая.</param>
+    private static Dictionary<string, string> Together(
+        Dictionary<string, string> first,
+        Dictionary<string, string> second)
+    {
+        var together = new Dictionary<string, string>(first, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (name, path) in second)
+            together.TryAdd(name, path);
+
+        return together;
+    }
 
     /// <summary>Имена сборок, на которые ссылается файл; у нативной библиотеки — ни одного.</summary>
     private static IReadOnlyList<string> References(string path)

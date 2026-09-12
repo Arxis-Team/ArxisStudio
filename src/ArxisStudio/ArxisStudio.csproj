@@ -20,9 +20,10 @@
     </PropertyGroup>
 
     <!--
-        Выход студии — сама студия и её платформа. Модули и то, что везут только они,
-        лежат рядом, в папке Modules: правило раскладки — build/ArxisStudio.Modules.targets,
-        дорога к папке при запуске — StudioModuleFolder.
+        У корня выхода — сама студия: exe, её сборка и два файла среды. Платформа лежит в
+        папке Lib, модули и то, что везут только они, — в Modules; правила раскладки в
+        build/ArxisStudio.Library.targets и build/ArxisStudio.Modules.targets, а дорога к обеим
+        папкам при запуске — StudioAssemblyFolder.
 
         Документация ссылок в выход не идёт: XML-файлы нужны компилятору и подсказкам, а
         студия их не читает. Транзитивные ссылки на проекты выключены: иначе SDK приписал бы
@@ -89,6 +90,7 @@
                           StudioModule="true" Private="false" ExcludeAssets="runtime"/>
     </ItemGroup>
 
+    <Import Project="build/ArxisStudio.Library.targets"/>
     <Import Project="build/ArxisStudio.Modules.targets"/>
 
 </Project>

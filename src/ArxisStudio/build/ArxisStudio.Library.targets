@@ -1,0 +1,51 @@
+﻿<Project>
+
+    <!--
+        Раскладка платформы: всё, на чём студия стоит, — в папку Lib; у корня остаётся сама студия.
+
+        Как это делается. Копирует рядом SDK, а место файла берёт из метаданных
+        DestinationSubDirectory — тех самых, которыми он раскладывает runtimes/ и папки культур.
+        Поэтому здесь ничего не копируется: проставляется место. Нативные библиотеки своё место
+        знают и так, и их это не трогает — они остаются у корня, где их ищет сама среда.
+
+        Чего это стоит. Файл зависимостей по-прежнему называет сборки у корня: платформа приходит
+        пакетами, и вычеркнуть её оттуда значило бы потерять и список того, что надо положить в Lib.
+        Существования он не обещает — список доверенных сборок это пути, и хост их при старте не
+        проверяет, — поэтому студия поднимается, а сборку находит StudioAssemblyFolder по обычному
+        событию Resolving. Измерено на игрушечном приложении, а не предположено.
+
+        Цена одна, и она в Program.Main: JIT компилирует метод целиком до первой его строки, и точка
+        входа не должна называть ни одного типа из Lib. Правило закреплено тестом.
+
+        Проверяет раскладку StudioLayoutTests — на собранном выходе.
+    -->
+    <PropertyGroup>
+        <StudioLibraryFolder>Lib</StudioLibraryFolder>
+    </PropertyGroup>
+
+    <Target Name="StudioLibraryLayout" AfterTargets="ResolveAssemblyReferences">
+        <ItemGroup>
+            <ReferenceCopyLocalPaths Condition="'%(ReferenceCopyLocalPaths.DestinationSubDirectory)' == ''">
+                <DestinationSubDirectory>$(StudioLibraryFolder)\</DestinationSubDirectory>
+            </ReferenceCopyLocalPaths>
+        </ItemGroup>
+    </Target>
+
+    <!--
+        Публикация место берёт из RelativePath. Проектные сборки приносят его из раскладки выше, а
+        пакетные — нет: у них там одно имя файла, и его-то и поправляем. Всё, что уже знает своё
+        место — runtimes/, папка модулей, словари, — названо с папкой и сюда не попадает; сборка
+        самой студии остаётся у корня, потому что её ищет хост.
+    -->
+    <Target Name="StudioPublishLibrary" AfterTargets="ComputeResolvedFilesToPublishList">
+        <ItemGroup>
+            <ResolvedFileToPublish
+                Condition="'%(ResolvedFileToPublish.RelativePath)' == '%(ResolvedFileToPublish.Filename)%(ResolvedFileToPublish.Extension)'
+                           and ('%(ResolvedFileToPublish.Extension)' == '.dll' or '%(ResolvedFileToPublish.Extension)' == '.pdb')
+                           and '%(ResolvedFileToPublish.Filename)' != '$(AssemblyName)'">
+                <RelativePath>$(StudioLibraryFolder)\%(ResolvedFileToPublish.Filename)%(ResolvedFileToPublish.Extension)</RelativePath>
+            </ResolvedFileToPublish>
+        </ItemGroup>
+    </Target>
+
+</Project>
