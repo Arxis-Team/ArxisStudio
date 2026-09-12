@@ -3,6 +3,9 @@ ArxisStudio.Projects.IStudioBuild :: ArxisStudio.Projects.ProjectOperation? Runn
 ArxisStudio.Projects.IStudioBuild :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> RunAsync(ArxisStudio.ProjectSystem.ProjectOperationKind kind, System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectIdentity> projects = null, System.IProgress<ArxisStudio.ProjectSystem.ProjectOperationProgress>? progress = null, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Projects.IStudioBuild :: event System.EventHandler<ArxisStudio.Projects.ProjectOperationEventArgs> Completed
 ArxisStudio.Projects.IStudioBuild :: event System.EventHandler<ArxisStudio.Projects.ProjectOperationEventArgs> Started
+ArxisStudio.Projects.IStudioPackages : interface
+ArxisStudio.Projects.IStudioPackages :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> InstallAsync(ArxisStudio.ProjectSystem.ProjectIdentity project, System.String packageId, System.String version, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Projects.IStudioPackages :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> UninstallAsync(ArxisStudio.ProjectSystem.ProjectIdentity project, System.String packageId, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Projects.IStudioProjects : interface
 ArxisStudio.Projects.IStudioProjects :: ArxisStudio.ProjectSystem.SolutionSnapshot? Current { get; }
 ArxisStudio.Projects.IStudioProjects :: ArxisStudio.Projects.ProjectsStatus Status { get; }
@@ -49,6 +52,7 @@ ArxisStudio.Projects.ProjectsChanges :: State = 2
 ArxisStudio.Projects.ProjectsDiagnosticCodes : static class
 ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String NothingOpen = "PRJ1001"
 ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String ProjectNotOpen = "PRJ1002"
+ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String ReferenceNotInProjectFile = "PRJ1003"
 ArxisStudio.Projects.ProjectsLoad : sealed record : System.IEquatable<ArxisStudio.Projects.ProjectsLoad>
 ArxisStudio.Projects.ProjectsLoad :: .ctor()
 ArxisStudio.Projects.ProjectsLoad :: System.Boolean Equals(ArxisStudio.Projects.ProjectsLoad? other)
@@ -64,6 +68,7 @@ ArxisStudio.Projects.ProjectsLoadReason : enum
 ArxisStudio.Projects.ProjectsLoadReason :: Configuration = 2
 ArxisStudio.Projects.ProjectsLoadReason :: FileSystem = 3
 ArxisStudio.Projects.ProjectsLoadReason :: Open = 0
+ArxisStudio.Projects.ProjectsLoadReason :: Packages = 5
 ArxisStudio.Projects.ProjectsLoadReason :: Reload = 1
 ArxisStudio.Projects.ProjectsLoadReason :: Restore = 4
 ArxisStudio.Projects.ProjectsState : enum
@@ -90,4 +95,5 @@ ArxisStudio.Projects.ProjectsStatus :: virtual System.Int32 GetHashCode()
 ArxisStudio.Projects.ProjectsStatus :: virtual System.String ToString()
 ArxisStudio.Projects.StudioProjectsAccess : static class
 ArxisStudio.Projects.StudioProjectsAccess :: static ArxisStudio.Projects.IStudioBuild? Build(ArxisStudio.Sdk.IStudioContext context)
+ArxisStudio.Projects.StudioProjectsAccess :: static ArxisStudio.Projects.IStudioPackages? Packages(ArxisStudio.Sdk.IStudioContext context)
 ArxisStudio.Projects.StudioProjectsAccess :: static ArxisStudio.Projects.IStudioProjects? Projects(ArxisStudio.Sdk.IStudioContext context)

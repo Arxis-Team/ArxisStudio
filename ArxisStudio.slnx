@@ -15,6 +15,7 @@
   <Folder Name="/external/ArxisStudio.ProjectSystem/" />
   <Folder Name="/external/ArxisStudio.ProjectSystem/src/">
     <Project Path="external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem.MSBuild/ArxisStudio.ProjectSystem.MSBuild.csproj" />
+    <Project Path="external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem.NuGet/ArxisStudio.ProjectSystem.NuGet.csproj" />
     <Project Path="external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem/ArxisStudio.ProjectSystem.csproj" />
   </Folder>
   <Folder Name="/external/ArxisStudio.Themes.Arxis/" />

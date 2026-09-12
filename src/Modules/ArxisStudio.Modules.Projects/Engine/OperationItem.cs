@@ -1,5 +1,6 @@
 using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
+using ArxisStudio.ProjectSystem.NuGet;
 using ArxisStudio.Sdk;
 
 namespace ArxisStudio.Modules.Projects.Engine;
@@ -52,6 +53,19 @@ internal sealed class OperationItem
 
     /// <summary>Что делают.</summary>
     public ProjectOperation Operation { get; }
+
+    /// <summary>
+    /// Правка пакетов, если операция — она; null — обычная работа над проектом.
+    /// </summary>
+    /// <remarks>
+    /// Правка кончается восстановлением, поэтому и для соседей она — восстановление: так её и
+    /// называет <see cref="ProjectOperation.Kind"/>. Чем она была на самом деле, знают задача,
+    /// журнал и причина перезагрузки.
+    /// </remarks>
+    public PackageEditRequest? Edit { get; init; }
+
+    /// <summary>Где живут версии пакетов; null — рядом со ссылкой.</summary>
+    public PackageVersionLayout? Layout { get; init; }
 
     /// <summary>Итог.</summary>
     public Task<ProjectOperationResult> Result => _result.Task;

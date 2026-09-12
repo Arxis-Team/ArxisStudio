@@ -44,4 +44,23 @@ public static class StudioProjectsAccess
 
         return context.GetService<IStudioExports>()?.Get<IStudioBuild>();
     }
+
+    /// <summary>
+    /// Служба пакетов.
+    /// </summary>
+    /// <param name="context">Контекст плагина.</param>
+    /// <returns>
+    /// Служба или null — по тем же причинам, что и у <see cref="Projects"/>. Плагину, которому
+    /// нужны пакеты, стоит объявить модулю нижнюю границу <c>1.2</c>: раньше её не было.
+    /// </returns>
+    /// <remarks>
+    /// Третья служба одного модуля, и разведены они по тому, чем занят берущий: снимки — читающему,
+    /// сборка — собирающему, ссылки на пакеты — правящему проект.
+    /// </remarks>
+    public static IStudioPackages? Packages(this IStudioContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        return context.GetService<IStudioExports>()?.Get<IStudioPackages>();
+    }
 }

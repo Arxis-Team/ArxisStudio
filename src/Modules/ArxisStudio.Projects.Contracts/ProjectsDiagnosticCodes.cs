@@ -15,4 +15,7 @@ public static class ProjectsDiagnosticCodes
 
     /// <summary>Названного проекта нет в текущем снимке: он не открыт или открыт в другой сессии.</summary>
     public const string ProjectNotOpen = "PRJ1002";
+
+    /// <summary>Ссылка на пакет пришла импортом, и в файле проекта её нет: править нечего.</summary>
+    public const string ReferenceNotInProjectFile = "PRJ1003";
 }

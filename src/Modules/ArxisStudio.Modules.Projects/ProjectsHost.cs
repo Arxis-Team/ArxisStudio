@@ -8,6 +8,7 @@ using ArxisStudio.Modules.Projects.Reporting;
 using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
 using ArxisStudio.ProjectSystem.MSBuild;
+using ArxisStudio.ProjectSystem.NuGet;
 using ArxisStudio.Sdk;
 
 namespace ArxisStudio.Modules.Projects;
@@ -35,7 +36,7 @@ namespace ArxisStudio.Modules.Projects;
 /// шва студии доходят только собственные ошибки службы: задача студии приписывает их модулю.
 /// </para>
 /// </remarks>
-internal sealed class ProjectsHost : IStudioProjects, IStudioBuild
+internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPackages
 {
     private readonly IStudioContext _context;
     private readonly ProjectsHostOptions _options;
@@ -297,6 +298,30 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild
         return item.Wait(cancellationToken);
     }
 
+    /// <inheritdoc/>
+    public Task<ProjectOperationResult> InstallAsync(
+        ProjectIdentity project,
+        string packageId,
+        string version,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(packageId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(version);
+
+        return EditAsync(project, packageId, version, remove: false, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task<ProjectOperationResult> UninstallAsync(
+        ProjectIdentity project,
+        string packageId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(packageId);
+
+        return EditAsync(project, packageId, version: null, remove: true, cancellationToken);
+    }
+
     /// <summary>Команда «перезагрузить»: итог не ждёт никто, а «нечего» стоит сказать человеку.</summary>
     internal void ReloadFromCommand() => _ = CommandAsync(async () =>
     {
@@ -519,11 +544,15 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild
     /// <param name="kind">Что делать.</param>
     /// <param name="projects">Какие проекты; пусто — открытое целиком.</param>
     /// <param name="progress">Куда говорить о ходе просившему; null — некуда.</param>
+    /// <param name="edit">Правка пакетов, если операция — она.</param>
+    /// <param name="layout">Где живут версии пакетов правки.</param>
     private OperationItem Begin(
         ProjectsSession session,
         ProjectOperationKind kind,
         ImmutableArray<ProjectIdentity> projects,
-        IProgress<ProjectOperationProgress>? progress)
+        IProgress<ProjectOperationProgress>? progress,
+        PackageEditRequest? edit = null,
+        PackageVersionLayout? layout = null)
     {
         var operation = new ProjectOperation
         {
@@ -534,7 +563,7 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild
             Configuration = session.Configuration,
         };
 
-        var item = new OperationItem(session, operation, progress);
+        var item = new OperationItem(session, operation, progress) { Edit = edit, Layout = layout };
 
         _lane.Enqueue(() => RunOperationAsync(item));
 
@@ -573,7 +602,7 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild
             using var stop = CancellationTokenSource.CreateLinkedTokenSource(session.Lifetime, item.Abandoned);
 
             result = await _thread.InvokeAsync(() => _context.Tasks.RunAsync(
-                Title(operation),
+                Title(item),
                 (progress, cancel) => ExecuteAsync(item, progress, cancel, stop.Token)));
         }
         catch (OperationCanceledException)
@@ -590,7 +619,7 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild
 
         Volatile.Write(ref _running, null);
 
-        Announce(operation, result, error, clock.Elapsed);
+        Announce(item, result, error, clock.Elapsed);
         _operations.Complete(operation, result, isCancelled: result is null && error is null);
 
         if (result is not null)
@@ -621,6 +650,20 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild
         var operation = item.Operation;
         var progress = item.Progress(task, Blame);
 
+        // Правка пакетов — своя работа с тем же концом: файл, потом восстановление. Отменяет
+        // провалившееся восстановление сама библиотека, возвращая файлы байт в байт; здесь —
+        // очередь, задача человека и перечитывание модели после удачи.
+        if (item.Edit is { } edit)
+        {
+            var edited = await PackageInstaller.ApplyAndRestoreAsync(
+                edit, session.Workspace, item.Layout, progress, both.Token);
+
+            if (!edited.HasErrors)
+                await Reread(session, ProjectsLoadReason.Packages);
+
+            return edited;
+        }
+
         // Цель Build у MSBuild пакетов не восстанавливает — этим она и отличается от dotnet build, —
         // а сборка по ненайденным пакетам показала бы человеку ошибки компилятора вместо причины.
         if (operation.Kind is ProjectOperationKind.Build or ProjectOperationKind.Rebuild)
@@ -638,7 +681,7 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild
         // Восстановление переписывает то, из чего собирается модель. Перечитывается она здесь же,
         // на полосе: поставить перезагрузку в очередь значило бы ждать самого себя.
         if (operation.Kind == ProjectOperationKind.Restore && !result.HasErrors)
-            await Reread(session);
+            await Reread(session, ProjectsLoadReason.Restore);
 
         return result;
     }
@@ -667,7 +710,8 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild
     /// перечитать решение дважды подряд.
     /// </remarks>
     /// <param name="session">Чью модель перечитать.</param>
-    private async Task Reread(ProjectsSession session)
+    /// <param name="reason">Почему её перечитывают.</param>
+    private async Task Reread(ProjectsSession session, ProjectsLoadReason reason)
     {
         LoadItem item;
 
@@ -676,7 +720,7 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild
             if (_stopped || _session != session || session.Pending is not null)
                 return;
 
-            item = new LoadItem(session, ProjectsLoadReason.Restore);
+            item = new LoadItem(session, reason);
             session.Pending = item;
             item.Pin();
             Republish(SnapshotStep.None);
@@ -721,6 +765,85 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild
             $"{session.EntryPoint.FileName}: пакеты не восстановлены — восстанавливаю");
     }
 
+    /// <summary>
+    /// Ставит правку пакетов в очередь.
+    /// </summary>
+    /// <remarks>
+    /// Чем правка станет — установкой, обновлением или удалением, — решает то, что проект объявил в
+    /// своём файле: поставить поверх объявленного значит поменять версию, а не завести вторую
+    /// ссылку. Имена пакетов сравниваются без учёта регистра, как их сравнивает NuGet.
+    /// </remarks>
+    /// <param name="project">Какой проект.</param>
+    /// <param name="packageId">Какой пакет.</param>
+    /// <param name="version">Какую версию писать; null — у удаления.</param>
+    /// <param name="remove">Убрать ссылку, а не поставить.</param>
+    /// <param name="cancellationToken">Отмена.</param>
+    private Task<ProjectOperationResult> EditAsync(
+        ProjectIdentity project,
+        string packageId,
+        string? version,
+        bool remove,
+        CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested)
+            return Task.FromCanceled<ProjectOperationResult>(cancellationToken);
+
+        OperationItem item;
+
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_stopped, this);
+
+            if (_session is not { } session)
+                return Task.FromResult(Refused(ProjectsDiagnosticCodes.NothingOpen, _context.Strings["module.projects.nothingOpen"]));
+
+            if (Where(session, project) is not { } snapshot)
+            {
+                return Task.FromResult(Refused(
+                    ProjectsDiagnosticCodes.ProjectNotOpen,
+                    string.Format(CultureInfo.CurrentCulture, _context.Strings["module.projects.projectNotOpen"], project)));
+            }
+
+            var declared = snapshot.PackageReferences.FirstOrDefault(
+                reference => string.Equals(reference.PackageId, packageId, StringComparison.OrdinalIgnoreCase));
+
+            // Ссылку, пришедшую импортом, редактор в файле проекта не найдёт, а править чужой файл
+            // за человека — не его дело.
+            if (declared is { Origin: ProjectItemOrigin.Imported })
+            {
+                return Task.FromResult(Refused(
+                    ProjectsDiagnosticCodes.ReferenceNotInProjectFile,
+                    string.Format(CultureInfo.CurrentCulture, _context.Strings["module.projects.packageNotInProject"], packageId)));
+            }
+
+            var edit = new PackageEditRequest
+            {
+                Kind = remove ? PackageEditKind.Uninstall
+                    : declared is null ? PackageEditKind.Install
+                    : PackageEditKind.Update,
+                ProjectFilePath = snapshot.ProjectFilePath,
+                PackageId = packageId,
+                Version = version,
+            };
+
+            item = Begin(
+                session,
+                ProjectOperationKind.Restore,
+                [project],
+                progress: null,
+                edit,
+                PackageVersionLayout.From(snapshot));
+        }
+
+        return item.Wait(cancellationToken);
+    }
+
+    /// <summary>Снимок названного проекта; null — его в сессии нет. Под замком.</summary>
+    /// <param name="session">Чей снимок.</param>
+    /// <param name="project">Какой проект.</param>
+    private static ProjectSnapshot? Where(ProjectsSession session, ProjectIdentity project) =>
+        session.Snapshot?.Projects.FirstOrDefault(candidate => candidate.Identity == project);
+
     /// <summary>Первый из названных проектов, которого нет в снимке сессии; null — все свои. Под замком.</summary>
     /// <param name="session">Чей снимок.</param>
     /// <param name="projects">Названные проекты.</param>
@@ -729,11 +852,9 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild
         if (projects.IsDefaultOrEmpty)
             return null;
 
-        var known = session.Snapshot?.Projects ?? [];
-
         foreach (var project in projects)
         {
-            if (!known.Any(candidate => candidate.Identity == project))
+            if (Where(session, project) is null)
                 return project.ToString();
         }
 
@@ -927,27 +1048,35 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild
         }
     }
 
-    /// <summary>Имя задачи студии для операции.</summary>
-    /// <param name="operation">Операция.</param>
-    private string Title(ProjectOperation operation) => string.Format(
-        CultureInfo.CurrentCulture,
-        _context.Strings[operation.Kind switch
-        {
-            ProjectOperationKind.Restore => "module.projects.task.restore",
-            ProjectOperationKind.Build => "module.projects.task.build",
-            ProjectOperationKind.Rebuild => "module.projects.task.rebuild",
-            _ => "module.projects.task.clean",
-        }],
-        operation.EntryPoint.FileName);
+    /// <summary>Имя задачи студии: у правки пакетов оно называет пакет, а не решение.</summary>
+    /// <param name="item">Операция.</param>
+    private string Title(OperationItem item) => item.Edit is { } edit
+        ? string.Format(
+            CultureInfo.CurrentCulture,
+            _context.Strings[edit.Kind == PackageEditKind.Uninstall
+                ? "module.projects.task.uninstall"
+                : "module.projects.task.install"],
+            edit.PackageId)
+        : string.Format(
+            CultureInfo.CurrentCulture,
+            _context.Strings[item.Operation.Kind switch
+            {
+                ProjectOperationKind.Restore => "module.projects.task.restore",
+                ProjectOperationKind.Build => "module.projects.task.build",
+                ProjectOperationKind.Rebuild => "module.projects.task.rebuild",
+                _ => "module.projects.task.clean",
+            }],
+            item.Operation.EntryPoint.FileName);
 
     /// <summary>Итог операции — в журнал, одной строкой.</summary>
-    /// <param name="operation">Операция.</param>
+    /// <param name="item">Операция.</param>
     /// <param name="result">Итог; null — отменена или сорвалась.</param>
     /// <param name="error">Сбой самой службы; null — его не было.</param>
     /// <param name="elapsed">Сколько заняла.</param>
-    private void Announce(ProjectOperation operation, ProjectOperationResult? result, Exception? error, TimeSpan elapsed)
+    private void Announce(OperationItem item, ProjectOperationResult? result, Exception? error, TimeSpan elapsed)
     {
-        var what = Name(operation.Kind);
+        var operation = item.Operation;
+        var what = item.Edit is { } edit ? $"{Name(edit.Kind)} {edit.PackageId}" : Name(operation.Kind);
         var file = operation.EntryPoint.FileName;
 
         if (result is null)
@@ -976,6 +1105,15 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild
         ProjectOperationKind.Build => "сборка",
         ProjectOperationKind.Rebuild => "пересборка",
         _ => "очистка",
+    };
+
+    /// <summary>Как правка пакетов называется в журнале.</summary>
+    /// <param name="kind">Что делали.</param>
+    private static string Name(PackageEditKind kind) => kind switch
+    {
+        PackageEditKind.Install => "установка",
+        PackageEditKind.Update => "обновление",
+        _ => "удаление",
     };
 
     private static string Causes(ImmutableArray<CanonicalPath> causes) => causes.Length <= 3

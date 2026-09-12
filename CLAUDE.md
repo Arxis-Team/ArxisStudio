@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 сборки в этапе 17: контракт проверялся на коде, которому он был не нужен. Вернутся плагинами.
 
 Три документа, и они не взаимозаменяемы. [README.md](README.md) — что работает сегодня.
-[docs/plan.md](docs/plan.md) — **журнал сделанного, а не опись текущего состояния**: 124 записи,
+[docs/plan.md](docs/plan.md) — **журнал сделанного, а не опись текущего состояния**: 125 записей,
 принятые решения, формат манифеста (приложение A). [docs/design-spec.md](docs/design-spec.md) —
 входные данные дизайна: токены, метрики, инвентарь экранов; числа берутся оттуда, а не
 придумываются.
@@ -167,7 +167,9 @@ def call(name, args=None, port=5171):
 `src/Plugins/Arxis.HelloPlugin` и `src/Modules/ArxisStudio.Modules.Sample`. Рабочих модулей три, а не образцов —
 `src/Modules/ArxisStudio.Modules.Terminal`, `src/Modules/ArxisStudio.Modules.Console` и
 `src/Modules/ArxisStudio.Modules.Projects` — служба без единой панели, отдающая соседям контракт
-`ArxisStudio.Projects.Contracts` (объявлен в `provides.contracts`, берётся `context.Projects()`).
+`ArxisStudio.Projects.Contracts` (объявлен в `provides.contracts`). Служб в нём три, и разведены они
+по тому, чем занят берущий: модель — `context.Projects()`, сборка — `context.Build()`, пакеты —
+`context.Packages()`.
 
 Отличий ровно два: список модулей объявлен в самой студии
 ([`StudioModules.Assemblies`](src/ArxisStudio/Services/StudioModules.cs) — сюда добавляют новый
@@ -270,7 +272,7 @@ csproj — при заведении нового не забудьте.
 
 ## Тесты
 
-896 тестов, headless-UI на `Avalonia.Headless.XUnit`, и пакет завязан на **xunit v3**. Тесту,
+908 тестов, headless-UI на `Avalonia.Headless.XUnit`, и пакет завязан на **xunit v3**. Тесту,
 которому нужно живое дерево контролов, нужен `[AvaloniaFact]`, а не `[Fact]`: он поднимает
 приложение из `TestApp` и загоняет тело в UI-поток. Рисование настоящее (`UseSkia`,
 `UseHeadlessDrawing = false`) — заглушка не зовёт декодер картинок и на любой файл отвечает
@@ -298,8 +300,8 @@ ShellStyles, DockingStyles. Порядок решает, кто кого пер�
 
 Собираются пять из семи: **Controls** (контролы `Ax*`, lookless), **Icons** (контуры 16×16 и
 `AxIcon`), **Themes.Arxis** (палитры, шаблоны, метрики), **Fonts.Cascadia** (шрифт ресурсом) и
-**ProjectSystem** — не весь, а ядро модели и провайдер MSBuild: их держит служба проектов, а NuGet
-и адаптер разметки ждут своих шагов. Шрифт называет не решение, а тема.
+**ProjectSystem** — не весь, а ядро модели, провайдер MSBuild и правку пакетов: их держит служба
+проектов, а адаптер разметки ждёт своего шага. Шрифт называет не решение, а тема.
 
 Зарегистрированы и не собираются: **Markup** (lossless XAML DOM и round-trip) и **DesignEditor**
 (канва; ещё `net8.0` — при интеграции поднимать). Их SHA — запись того API, против которого
@@ -318,5 +320,5 @@ ProjectSystem: студия собирает его исходники, а ег�
 Заголовок — русская фраза о том, что стало, без префикса и без точки: «Рейки по краям окна вместо
 сворачивания», «Версия сборки закреплена: плагины ссылаются на неё». Тело — проза: что было не
 так, почему решено именно так, на что смотрели у Visual Studio и Rider, что уехало в подмодули.
-Последняя строка — счёт: `896 тестов, 0 предупреждений. Запись 124 в плане.` Запись в
+Последняя строка — счёт: `908 тестов, 0 предупреждений. Запись 125 в плане.` Запись в
 [docs/plan.md](docs/plan.md) идёт тем же коммитом, что и код.

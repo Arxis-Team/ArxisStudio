@@ -1,7 +1,7 @@
 {
   "id": "arxis.projects",
   "name": "%module.projects%",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "publisher": "Arxis",
   "description": "%module.projects.description%",
   "tags": [ "tools" ],

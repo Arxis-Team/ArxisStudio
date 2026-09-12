@@ -36,11 +36,16 @@
         сборки обязаны прийти из SDK, который найдёт локатор, а не лечь рядом со студией. Это
         условие переходит по ссылке само, и ProjectsModuleTests проверяет его на готовом bin —
         вторая копия MSBuild в процессе падает позже и в чужом месте.
+
+        Пакеты правит ArxisStudio.ProjectSystem.NuGet — правка XML и ничего больше: движка у него
+        нет, восстановление он просит у того же провайдера. Он приводит с собой NuGet.Versioning, и
+        тот едет в папку модулей вместе с остальным, что везёт только этот модуль.
     -->
     <ItemGroup>
         <ProjectReference Include="../../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
         <ProjectReference Include="../ArxisStudio.Projects.Contracts/ArxisStudio.Projects.Contracts.csproj"/>
         <ProjectReference Include="../../../external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem.MSBuild/ArxisStudio.ProjectSystem.MSBuild.csproj"/>
+        <ProjectReference Include="../../../external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem.NuGet/ArxisStudio.ProjectSystem.NuGet.csproj"/>
     </ItemGroup>
 
     <!--
