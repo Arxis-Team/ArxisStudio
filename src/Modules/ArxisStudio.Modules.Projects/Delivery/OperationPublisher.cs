@@ -20,12 +20,10 @@ namespace ArxisStudio.Modules.Projects.Delivery;
 /// </remarks>
 /// <param name="sender">Кто отправитель событий — сама служба.</param>
 /// <param name="thread">Поток интерфейса.</param>
-/// <param name="first">Своя реакция модуля на конец операции: зовётся раньше подписчиков.</param>
 /// <param name="failed">Куда девать исключение подписчика.</param>
 internal sealed class OperationPublisher(
     object sender,
     IProjectsThread thread,
-    Action<ProjectOperationEventArgs> first,
     Action<Exception> failed)
 {
     private readonly Subscribers<ProjectOperationEventArgs> _started = new();
@@ -64,18 +62,6 @@ internal sealed class OperationPublisher(
     {
         var change = new ProjectOperationEventArgs(operation, result, isCancelled);
 
-        thread.Post(() =>
-        {
-            try
-            {
-                first(change);
-            }
-            catch (Exception e) when (e is not OutOfMemoryException)
-            {
-                failed(e);
-            }
-
-            _completed.Invoke(sender, change, failed);
-        });
+        thread.Post(() => _completed.Invoke(sender, change, failed));
     }
 }

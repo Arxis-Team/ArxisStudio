@@ -92,7 +92,7 @@ public sealed class LogPanel : ToolWindow
         // уже есть, — иначе человек увидит пустоту и заполнение через кадр.
         _refresh.Now();
 
-        ConsoleHub.AttachLog(Reveal);
+        ConsoleHub.Attach(Reveal);
 
         return _view;
     }
@@ -110,7 +110,7 @@ public sealed class LogPanel : ToolWindow
         _view.Query.PropertyChanged -= OnQueryChanged;
 
         _refresh.Stop();
-        ConsoleHub.DetachLog();
+        ConsoleHub.Detach();
     }
 
     /// <summary>Панель попросили показаться: выделять нечего, но хвост показать стоит.</summary>

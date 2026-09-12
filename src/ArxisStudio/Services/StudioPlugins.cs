@@ -109,15 +109,6 @@ public sealed class StudioPlugins
     /// <summary>Документы: их закрывают перед выгрузкой хозяина.</summary>
     public required StudioDocuments Documents { get; init; }
 
-    /// <summary>
-    /// Находки: их снимают вместе с хозяином; null — студия без панели проблем.
-    /// </summary>
-    /// <remarks>
-    /// Не обязательное: студию собирают и без панели проблем — в тестах и у
-    /// встраивающих, — а расширения при этом поднимаются те же.
-    /// </remarks>
-    public StudioProblems? Problems { get; init; }
-
     /// <summary>Что студия даёт расширениям сверх обязательного.</summary>
     public required IReadOnlyDictionary<Type, object> Services { get; init; }
 
@@ -338,18 +329,13 @@ public sealed class StudioPlugins
         host.Unloading += (_, id) =>
         {
             // Прощание первым: панель ещё жива и вправе позвать студию —
-            // отписаться, снять свои находки, отпустить задачу. После уборки
-            // реестров ей отвечали бы уже пустотой.
+            // отписаться, отпустить задачу. После уборки реестров ей отвечали
+            // бы уже пустотой.
             ReleaseBuilt(id);
 
             Commands.RemoveOwnedBy(id);
             _exports.RemoveOwnedBy(id);
             _contributions.Remove(id);
-
-            // Находки ушедшего снимает студия: сам он этого уже не сделает, а
-            // висели бы они в панели до конца сеанса — без источника, без
-            // исправления и без способа убрать.
-            Problems?.RemoveOwnedBy(id);
         };
 
         // Служба проектов приходит экспортом, как всякая другая, и студия узнаёт о ней тем же

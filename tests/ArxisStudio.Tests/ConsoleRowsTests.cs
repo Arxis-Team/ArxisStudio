@@ -1,5 +1,4 @@
 using ArxisStudio.Modules.Console.Log;
-using ArxisStudio.Modules.Console.Problems;
 using ArxisStudio.Sdk;
 using Xunit;
 
@@ -204,39 +203,6 @@ public class ConsoleRowsTests
         Assert.True(LogRows.Build(records, LogFilter.Everything, collapse: false, stamps: true).Rows[0].HasStamp);
     }
 
-    /// <summary>Находки отбираются по уровню, коду, объяснению и месту.</summary>
-    [Fact]
-    public void A_finding_is_filtered_by_level_and_by_every_word_it_shows()
-    {
-        var error = new StudioProblem(StudioProblemSeverity.Error, "AXM3041", "разметка не разобралась", "Окно.axaml", 12);
-        var note = new StudioProblem(StudioProblemSeverity.Info, "AXM0001", "к сведению");
-
-        Assert.True(ProblemFilter.Everything.Matches(error));
-        Assert.False((ProblemFilter.Everything with { Error = false }).Matches(error));
-
-        Assert.True((ProblemFilter.Everything with { Query = "axm3041" }).Matches(error));
-        Assert.True((ProblemFilter.Everything with { Query = "разобралась" }).Matches(error));
-        Assert.True((ProblemFilter.Everything with { Query = "Окно.axaml:12" }).Matches(error));
-        Assert.False((ProblemFilter.Everything with { Query = "Окно" }).Matches(note));
-    }
-
-    /// <summary>Находки считаются по уровням — так же, как записи.</summary>
-    [Fact]
-    public void The_findings_are_counted_by_level()
-    {
-        var counts = ProblemCounts.Of(
-        [
-            new StudioProblem(StudioProblemSeverity.Error, "E1", "раз"),
-            new StudioProblem(StudioProblemSeverity.Error, "E2", "два"),
-            new StudioProblem(StudioProblemSeverity.Warning, "W1", "три"),
-            new StudioProblem(StudioProblemSeverity.Info, "I1", "четыре"),
-        ]);
-
-        Assert.Equal(2, counts.Error);
-        Assert.Equal(1, counts.Warning);
-        Assert.Equal(1, counts.Info);
-    }
-
     /// <summary>
     /// Строка называет себя тем, что в ней написано.
     /// </summary>
@@ -255,14 +221,6 @@ public class ConsoleRowsTests
         Assert.Contains("Plugins", said, StringComparison.Ordinal);
         Assert.Contains("упало", said, StringComparison.Ordinal);
         Assert.DoesNotContain(nameof(LogRow), said, StringComparison.Ordinal);
-
-        var finding = new StudioProblem(StudioProblemSeverity.Error, "AXM1", "разметка", "Окно.axaml", 7);
-        var about = new ProblemRow(finding).ToString();
-
-        Assert.Contains("AXM1", about, StringComparison.Ordinal);
-        Assert.Contains("разметка", about, StringComparison.Ordinal);
-        Assert.Contains("Окно.axaml:7", about, StringComparison.Ordinal);
-        Assert.DoesNotContain(nameof(ProblemRow), about, StringComparison.Ordinal);
     }
 
     private static List<StudioLogRecord> Records(params (StudioLogLevel Level, string Source, string Message)[] written) =>

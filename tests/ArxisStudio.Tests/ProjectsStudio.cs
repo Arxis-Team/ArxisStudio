@@ -47,7 +47,6 @@ internal sealed class ProjectsStudio : IDisposable
         var services = new Dictionary<Type, object>
         {
             [typeof(ProjectsHostOptions)] = options,
-            [typeof(IStudioProblems)] = Problems,
             [typeof(IStudioStatus)] = Status,
         };
 
@@ -67,7 +66,6 @@ internal sealed class ProjectsStudio : IDisposable
         {
             Commands.RemoveOwnedBy(id);
             Exports.RemoveOwnedBy(id);
-            Problems.RemoveOwnedBy(id);
         };
 
         Roster.Attach(Host, () => []);
@@ -96,14 +94,15 @@ internal sealed class ProjectsStudio : IDisposable
     /// <summary>Журнал.</summary>
     public StudioLog Log { get; } = new();
 
+    /// <summary>Что служба проектов написала в журнал: им она и отчитывается о найденном.</summary>
+    public IEnumerable<StudioLogRecord> Written =>
+        Log.Records.Where(record => record.Source == ProjectsModule.LogSource);
+
     /// <summary>Команды.</summary>
     public StudioCommands Commands { get; } = new();
 
     /// <summary>Экспорты.</summary>
     public StudioExportRegistry Exports { get; } = new();
-
-    /// <summary>Находки.</summary>
-    public StudioProblems Problems { get; } = new();
 
     /// <summary>Строка состояния.</summary>
     public StatusProbe Status { get; } = new();

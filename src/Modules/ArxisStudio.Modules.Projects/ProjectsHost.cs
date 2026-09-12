@@ -68,16 +68,13 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
         _options = options;
         _thread = options.Thread ?? AvaloniaProjectsThread.Instance;
 
-        var reporter = new ProblemsReporter(context.GetService<IStudioProblems>());
-
-        _publisher = new ChangePublisher(this, _thread, reporter.Show, options.SubscriberFailed);
+        _publisher = new ChangePublisher(this, _thread, options.SubscriberFailed);
 
         // Сбой подписчика — туда же, куда у перемен модели: в продукте он уходит студии
         // необработанным, и она приписывает его тому, чей код бросил.
         _operations = new OperationPublisher(
             this,
             _thread,
-            reporter.Build,
             options.SubscriberFailed ?? (error => _thread.Post(ExceptionDispatchInfo.Capture(error).Throw)));
         _lane = new Lane(error => context.Log.Write(
             StudioLogLevel.Error, ProjectsModule.LogSource, $"Очередь службы проектов: {error}"));
@@ -1028,6 +1025,8 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
             _ => $"перезагружено, изменилось: {Causes(causes)}",
         };
 
+        ProjectDiagnostic? failure = null;
+
         if (result.Snapshot is { } snapshot)
         {
             var errors = result.Diagnostics.Count(diagnostic => diagnostic.IsError);
@@ -1039,13 +1038,19 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
         }
         else
         {
-            var first = result.Diagnostics.FirstOrDefault(diagnostic => diagnostic.IsError);
+            failure = result.Diagnostics.FirstOrDefault(diagnostic => diagnostic.IsError);
 
             _context.Log.Write(
                 StudioLogLevel.Error,
                 ProjectsModule.LogSource,
-                $"{request.EntryPointPath.FileName}: не {(reason == ProjectsLoadReason.Open ? "открылось" : "перезагрузилось")} — {first?.Code} {first?.Message}");
+                $"{request.EntryPointPath.FileName}: не {(reason == ProjectsLoadReason.Open ? "открылось" : "перезагрузилось")} — {failure?.Code} {failure?.Message}");
         }
+
+        // Сами находки — следом за итогом: он говорит, что вышло, они — что сказано. Ту, которой
+        // провал уже назвался, повторять сразу под собой незачем.
+        FindingsLog.Write(
+            _context.Log,
+            failure is null ? result.Diagnostics : result.Diagnostics.Where(diagnostic => diagnostic != failure));
     }
 
     /// <summary>Имя задачи студии: у правки пакетов оно называет пакет, а не решение.</summary>
@@ -1095,6 +1100,8 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
             result.HasErrors ? StudioLogLevel.Error : StudioLogLevel.Info,
             ProjectsModule.LogSource,
             $"{file}: {what} — {(result.HasErrors ? "не удалось" : "готово")}, ошибок {errors}, {elapsed.TotalMilliseconds:F0} мс");
+
+        FindingsLog.Write(_context.Log, result.Diagnostics);
     }
 
     /// <summary>Как операция называется в журнале.</summary>

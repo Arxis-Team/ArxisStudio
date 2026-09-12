@@ -1,19 +1,17 @@
 {
   "id": "arxis.sample",
   "name": "%panel.sample%",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "publisher": "Arxis",
   "description": "%module.sample.description%",
   "tags": [ "sample" ],
   "contributions": {
     "commands": [
       { "id": "sample.about" },
-      { "id": "sample.verbose" },
-      { "id": "sample.problems" }
+      { "id": "sample.verbose" }
     ],
     "menus": [
-      { "path": "%menu.tools%/%menu.sample%/%menu.sample.about%", "command": "sample.about" },
-      { "path": "%menu.tools%/%menu.sample%/%menu.sample.problems%", "command": "sample.problems" }
+      { "path": "%menu.tools%/%menu.sample%/%menu.sample.about%", "command": "sample.about" }
     ],
     "toolWindows": [
       { "id": "sample.panel", "title": "%panel.sample%", "placement": { "side": "left", "size": 0.22 } }

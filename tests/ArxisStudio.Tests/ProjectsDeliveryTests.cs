@@ -28,7 +28,7 @@ public class ProjectsDeliveryTests
         using var busy = new ManualResetEventSlim();
 
         var seen = new List<ProjectsChangedEventArgs>();
-        var publisher = new ChangePublisher(this, thread, _ => { }, failed: null);
+        var publisher = new ChangePublisher(this, thread, failed: null);
 
         publisher.Subscribe((_, change) => seen.Add(change));
 
@@ -71,7 +71,7 @@ public class ProjectsDeliveryTests
 
         var onThread = new List<bool>();
         var numbers = new List<long>();
-        var publisher = new ChangePublisher(this, thread, _ => { }, failed: null);
+        var publisher = new ChangePublisher(this, thread, failed: null);
 
         publisher.Subscribe((_, change) =>
         {
@@ -102,7 +102,7 @@ public class ProjectsDeliveryTests
 
         var failures = new ConcurrentQueue<Exception>();
         var reached = 0;
-        var publisher = new ChangePublisher(this, thread, _ => { }, failures.Enqueue);
+        var publisher = new ChangePublisher(this, thread, failures.Enqueue);
 
         publisher.Subscribe((_, _) => throw new InvalidOperationException("сосед сломан"));
         publisher.Subscribe((_, _) => reached++);
@@ -123,7 +123,7 @@ public class ProjectsDeliveryTests
     {
         using var thread = new ProjectsTestThread();
 
-        var publisher = new ChangePublisher(this, thread, _ => { }, failed: null);
+        var publisher = new ChangePublisher(this, thread, failed: null);
 
         publisher.Subscribe(Broken);
         publisher.Publish(new ProjectsStatus { Sequence = 1 }, SnapshotStep.None);
@@ -141,7 +141,7 @@ public class ProjectsDeliveryTests
     {
         using var thread = new ProjectsTestThread();
 
-        var publisher = new ChangePublisher(this, thread, _ => { }, failed: null);
+        var publisher = new ChangePublisher(this, thread, failed: null);
         var numbers = new List<long>();
         var inside = false;
         var nested = false;
@@ -168,23 +168,6 @@ public class ProjectsDeliveryTests
         Assert.Equal(new long[] { 1, 2 }, numbers);
     }
 
-    /// <summary>Своя реакция модуля идёт раньше подписчиков.</summary>
-    [Fact]
-    public async Task The_module_reaction_comes_before_the_subscribers()
-    {
-        using var thread = new ProjectsTestThread();
-
-        var order = new List<string>();
-        var publisher = new ChangePublisher(this, thread, _ => order.Add("модуль"), failed: null);
-
-        publisher.Subscribe((_, _) => order.Add("подписчик"));
-        publisher.Publish(new ProjectsStatus { Sequence = 1 }, SnapshotStep.None);
-
-        await thread.IdleAsync();
-
-        Assert.Equal(new[] { "модуль", "подписчик" }, order);
-    }
-
     /// <summary>Отписанный обработчик не зовётся.</summary>
     [Fact]
     public async Task An_unsubscribed_handler_is_not_called()
@@ -193,7 +176,7 @@ public class ProjectsDeliveryTests
 
         var calls = 0;
         EventHandler<ProjectsChangedEventArgs> handler = (_, _) => calls++;
-        var publisher = new ChangePublisher(this, thread, _ => { }, failed: null);
+        var publisher = new ChangePublisher(this, thread, failed: null);
 
         publisher.Subscribe(handler);
         publisher.Unsubscribe(handler);

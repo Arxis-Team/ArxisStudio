@@ -36,7 +36,6 @@ public partial class MainWindow : AxWindow
     // записи запуска в чужом экземпляре — а служба чтения отдаётся отсюда, и
     // панель «Консоль» не увидела бы ни одной из них.
     private readonly StudioLog _log;
-    private readonly StudioProblems _problems = new();
     private readonly PluginGuard _guard = new();
     private readonly StudioTaskRegistry _tasks = new();
     private readonly PluginContributionRegistry _contributions = new();
@@ -146,14 +145,12 @@ public partial class MainWindow : AxWindow
             Dock = _dock,
             ToolBar = _toolbar,
             Documents = _documents,
-            Problems = _problems,
 
             // Чем студия делится с расширениями — решение оболочки, а не
             // порядка подъёма: список стоит здесь и виден целиком.
             Services = new Dictionary<Type, object>
             {
                 [typeof(IStudioLogFeed)] = _log,
-                [typeof(IStudioProblems)] = _problems,
                 [typeof(IStudioDocuments)] = new DocumentSink(_documents),
                 [typeof(IStudioStatus)] = _status,
                 [typeof(PluginContributionRegistry)] = _contributions,

@@ -41,7 +41,6 @@ public class ConsoleModuleTests
         string[] code =
         [
             ConsoleModule.OpenCommand,
-            ConsoleModule.ShowProblemsCommand,
             ConsoleModule.ClearCommand,
         ];
 
@@ -99,26 +98,15 @@ public class ConsoleModuleTests
         }
     }
 
-    /// <summary>
-    /// Обе панели просятся вниз, и вторая — рядом с первой.
-    /// </summary>
-    /// <remarks>
-    /// Имя соседа пишется полным, с идентификатором модуля впереди: так панели
-    /// зовутся в дереве раскладки. Голое <c>console.log</c> провалилось бы к
-    /// стороне, панели стали бы разными вкладками — и отказ был бы невидим.
-    /// </remarks>
+    /// <summary>Панель у модуля одна, и просится она вниз.</summary>
     [Fact]
-    public void The_two_panels_ask_to_stand_together()
+    public void The_only_panel_asks_to_stand_at_the_bottom()
     {
-        var panels = Manifest().Contributions.ToolWindows;
+        var log = Assert.Single(Manifest().Contributions.ToolWindows);
 
-        var log = panels.Single(panel => panel.Id == ConsoleModule.LogPanelId);
-        var problems = panels.Single(panel => panel.Id == ConsoleModule.ProblemsPanelId);
-
+        Assert.Equal(ConsoleModule.LogPanelId, log.Id);
         Assert.Equal("bottom", log.Wanted.Side);
         Assert.InRange(log.Wanted.Size, 0.2, 0.5);
-
-        Assert.Equal($"arxis.console:{ConsoleModule.LogPanelId}", problems.Wanted.Near);
     }
 
     /// <summary>Модуль поднимается той же дорогой, что и плагин, и заявляет команды.</summary>
@@ -163,7 +151,7 @@ public class ConsoleModuleTests
             Assert.True(commands.Invoke(ConsoleModule.OpenCommand));
 
             var shown = 0;
-            ConsoleHub.AttachLog(() => shown++);
+            ConsoleHub.Attach(() => shown++);
 
             Assert.Equal(1, shown);
 

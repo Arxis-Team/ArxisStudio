@@ -88,7 +88,7 @@ public class ProjectsSessionTests
         Assert.Equal(ProjectsState.Failed, studio.Projects.Status.State);
         Assert.Null(studio.Projects.Current);
         Assert.Equal(code, Assert.Single(studio.Projects.Status.LastLoad!.Result.Diagnostics).Code);
-        Assert.Equal(code, Assert.Single(studio.Problems.All).Code);
+        Assert.Contains(studio.Written, record => record.Message.Contains(code, StringComparison.Ordinal));
         Assert.Empty(studio.Strikes);
     }
 
@@ -294,12 +294,18 @@ public class ProjectsSessionTests
         Assert.Equal(ProjectsState.Ready, studio.Projects.Status.State);
         Assert.Same(opened.Snapshot, studio.Projects.Current);
         Assert.Same(reloaded, studio.Projects.Status.LastLoad?.Result);
-        Assert.Equal("APS2004", Assert.Single(studio.Problems.All).Code);
+        Assert.Contains(studio.Written, record => record.Message.Contains("APS2004", StringComparison.Ordinal));
     }
 
-    /// <summary>Закрытие убирает из «Проблем» всё, что сказала загрузка.</summary>
+    /// <summary>
+    /// Находка уходит в журнал следом за итогом: код, объяснение и место, на своём уровне.
+    /// </summary>
+    /// <remarks>
+    /// Журнал — летопись, а не состояние: запись остаётся и после закрытия проекта. Снимать её
+    /// нечем и незачем — время рядом с ней говорит, когда это было правдой.
+    /// </remarks>
     [Fact]
-    public async Task Closing_clears_what_the_load_reported()
+    public async Task A_finding_goes_to_the_log_beside_the_line_that_found_it()
     {
         using var studio = new ProjectsStudio();
 
@@ -311,15 +317,22 @@ public class ProjectsSessionTests
         await studio.Projects.OpenAsync(ProjectsStudio.Solution(), Token);
         await studio.Thread.IdleAsync();
 
-        var problem = Assert.Single(studio.Problems.All);
+        var found = Assert.Single(studio.Written, record => record.Message.StartsWith("APS2005", StringComparison.Ordinal));
 
-        Assert.Equal("APS2005", problem.Code);
-        Assert.Equal(StudioProblemSeverity.Warning, problem.Severity);
+        Assert.Equal(StudioLogLevel.Warning, found.Level);
+        Assert.Contains("не восстановлено", found.Message, StringComparison.Ordinal);
+        Assert.Contains(ProjectsStudio.Solution().FileName, found.Message, StringComparison.Ordinal);
+
+        // Итог загрузки написан раньше находки: сначала что вышло, потом что сказано.
+        Assert.True(
+            studio.Written.ToList().FindIndex(record => record.Message.Contains("открыто", StringComparison.Ordinal))
+            < studio.Written.ToList().FindIndex(record => record.Message.StartsWith("APS2005", StringComparison.Ordinal)),
+            "находка написана раньше итога");
 
         await studio.Projects.CloseAsync();
         await studio.Thread.IdleAsync();
 
-        Assert.Empty(studio.Problems.All);
+        Assert.Contains(studio.Written, record => record.Message.StartsWith("APS2005", StringComparison.Ordinal));
         Assert.Equal(ProjectsState.Closed, studio.Projects.Status.State);
         Assert.Null(studio.Projects.Current);
     }

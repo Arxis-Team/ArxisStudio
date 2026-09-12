@@ -1,5 +1,6 @@
 using ArxisStudio.Modules.Projects;
 using ArxisStudio.Projects;
+using ArxisStudio.Sdk;
 using ArxisStudio.ProjectSystem;
 using ArxisStudio.ProjectSystem.MSBuild;
 using Xunit;
@@ -214,9 +215,9 @@ public class ProjectsBuildTests
         Assert.Empty(studio.Provider.Operations);
     }
 
-    /// <summary>Ошибки сборки уходят в «Проблемы», а удачная сборка их убирает.</summary>
+    /// <summary>Ошибки сборки уходят в журнал — каждая своей строкой и на своём уровне.</summary>
     [Fact]
-    public async Task The_errors_of_a_build_go_to_the_problems_and_a_good_build_clears_them()
+    public async Task The_errors_of_a_build_go_to_the_log()
     {
         using var studio = new ProjectsStudio();
 
@@ -229,14 +230,18 @@ public class ProjectsBuildTests
         await studio.Build.RunAsync(ProjectOperationKind.Build, cancellationToken: Token);
         await studio.Thread.IdleAsync();
 
-        Assert.Contains(studio.Problems.All, problem => problem.Code == "CS0103");
+        var found = Assert.Single(studio.Written, record => record.Message.StartsWith("CS0103", StringComparison.Ordinal));
+
+        Assert.Equal(StudioLogLevel.Error, found.Level);
+        Assert.Contains("имя не найдено", found.Message, StringComparison.Ordinal);
 
         studio.Provider.Executed = null;
 
         await studio.Build.RunAsync(ProjectOperationKind.Build, cancellationToken: Token);
         await studio.Thread.IdleAsync();
 
-        Assert.DoesNotContain(studio.Problems.All, problem => problem.Code == "CS0103");
+        // Удачная сборка своих ошибок не пишет, а прежние остаются написанными: журнал не стирают.
+        Assert.Single(studio.Written, record => record.Message.StartsWith("CS0103", StringComparison.Ordinal));
     }
 
     /// <summary>Пакеты восстанавливаются при открытии — один раз за сессию.</summary>

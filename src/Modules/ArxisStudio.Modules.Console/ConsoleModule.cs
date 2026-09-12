@@ -6,27 +6,20 @@ namespace ArxisStudio.Modules.Console;
 /// Точка входа консоли: заявляет команды, объявленные в манифесте.
 /// </summary>
 /// <remarks>
-/// Панели у модуля две, и обе просятся вниз — вторая «рядом с первой».
-/// Вкладками их делает сам док: шапка группы принадлежит ему, и рисовать свою
-/// полосу вкладок внутри панели значило бы поставить вторую поверх той, что
-/// студия уже нарисовала.
+/// Панель у модуля одна и просится вниз. Вкладкой её делает сам док: шапка
+/// группы принадлежит ему, и рисовать свою полосу вкладок внутри панели
+/// значило бы поставить вторую поверх той, что студия уже нарисовала.
 /// </remarks>
 public sealed class ConsoleModule : StudioPlugin
 {
     /// <summary>Показать журнал.</summary>
     public const string OpenCommand = "console.open";
 
-    /// <summary>Показать находки.</summary>
-    public const string ShowProblemsCommand = "console.showProblems";
-
     /// <summary>Очистить журнал.</summary>
     public const string ClearCommand = "console.clear";
 
     /// <summary>Идентификатор панели журнала: он же объявлен в манифесте.</summary>
     public const string LogPanelId = "console.log";
-
-    /// <summary>Идентификатор панели находок: он же объявлен в манифесте.</summary>
-    public const string ProblemsPanelId = "console.problems";
 
     /// <summary>Имя источника в журнале.</summary>
     public const string LogSource = "Console";
@@ -41,7 +34,6 @@ public sealed class ConsoleModule : StudioPlugin
         _context = context;
 
         context.Commands.Register(OpenCommand, Open);
-        context.Commands.Register(ShowProblemsCommand, ShowProblems);
         context.Commands.Register(ClearCommand, Clear);
 
         context.Log.Write(StudioLogLevel.Info, LogSource, "Модуль поднят");
@@ -51,7 +43,7 @@ public sealed class ConsoleModule : StudioPlugin
     /// Модуль выключают.
     /// </summary>
     /// <remarks>
-    /// Панели отписываются от служб сами — у них для этого есть
+    /// Панель отписывается от служб сама — у неё для этого есть
     /// <see cref="ToolWindow.Release"/>, и студия зовёт его. Точке входа
     /// тянуться к панели незачем и нечем: её экземпляр создаёт студия.
     /// </remarks>
@@ -64,13 +56,7 @@ public sealed class ConsoleModule : StudioPlugin
     private void Open()
     {
         Reveal(LogPanelId);
-        ConsoleHub.Show(ConsolePanelKind.Log);
-    }
-
-    private void ShowProblems()
-    {
-        Reveal(ProblemsPanelId);
-        ConsoleHub.Show(ConsolePanelKind.Problems);
+        ConsoleHub.Show();
     }
 
     /// <summary>

@@ -139,8 +139,7 @@ public sealed class StudioContextFactory(
         // знать хозяина.
         var granted = services;
 
-        if (plugins is not null || exports is not null || toolbar is not null || dock is not null
-            || services?.ContainsKey(typeof(IStudioProblems)) == true)
+        if (plugins is not null || exports is not null || toolbar is not null || dock is not null)
         {
             var extended = services is null
                 ? new Dictionary<Type, object>()
@@ -166,13 +165,6 @@ public sealed class StudioContextFactory(
             // плагина, и подставить его может только выдавший контекст.
             if (dock is not null)
                 extended[typeof(IStudioToolWindows)] = new PluginToolWindows(dock, plugin.Id);
-
-            // Находки — по той же причине: имя источника сочиняет сам
-            // источник, и без хозяина впереди расширение могло бы назваться
-            // чужим именем и пустым списком снять чужие находки. По этой же
-            // приставке студия снимает находки ушедшего.
-            if (extended.TryGetValue(typeof(IStudioProblems), out var problems) && problems is IStudioProblems found)
-                extended[typeof(IStudioProblems)] = new PluginProblems(found, plugin.Id);
 
             granted = extended;
         }

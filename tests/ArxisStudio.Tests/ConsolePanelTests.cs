@@ -4,7 +4,6 @@ using ArxisStudio.Modules.Console;
 using ArxisStudio.Modules.Console.Feed;
 using ArxisStudio.Modules.Console.Log;
 using ArxisStudio.Modules.Console.Panels;
-using ArxisStudio.Modules.Console.Problems;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using Avalonia.Controls;
@@ -329,99 +328,6 @@ public class ConsolePanelTests : IDisposable
         Assert.Equal(after, panel.Rebuilds);
     }
 
-    /// <summary>Панель находок показывает сообщённое, ошибки первыми.</summary>
-    [AvaloniaFact]
-    public void The_problems_panel_lists_what_was_reported_with_errors_first()
-    {
-        var problems = new StudioProblems();
-        var panel = ProblemsPanel(problems);
-
-        problems.Report("проверка",
-        [
-            new StudioProblem(StudioProblemSeverity.Info, "I1", "к сведению"),
-            new StudioProblem(StudioProblemSeverity.Error, "E1", "сломалось"),
-            new StudioProblem(StudioProblemSeverity.Warning, "W1", "подозрительно"),
-        ]);
-
-        Dispatcher.UIThread.RunJobs();
-
-        var rows = Rows(panel);
-
-        Assert.Equal(3, rows.Count);
-        Assert.Equal("E1", rows[0].Code);
-        Assert.Equal("W1", rows[1].Code);
-        Assert.Equal("I1", rows[2].Code);
-    }
-
-    /// <summary>
-    /// Пустой список находок объясняет себя, а не выглядит поломкой.
-    /// </summary>
-    /// <remarks>
-    /// Пусто здесь — обычное состояние студии: сообщать находки некому, пока не
-    /// встанет расширение, которое умеет. Панель, молчащая об этом, читается
-    /// как сломанная.
-    /// </remarks>
-    [AvaloniaFact]
-    public void An_empty_problems_list_says_so_rather_than_looking_broken()
-    {
-        var panel = ProblemsPanel(new StudioProblems());
-
-        Assert.True(Part<StackPanel>(panel, "Empty").IsVisible);
-        Assert.True(Part<TextBlock>(panel, "EmptyHint").IsVisible);
-        Assert.False(string.IsNullOrWhiteSpace(Part<TextBlock>(panel, "EmptyText").Text));
-    }
-
-    /// <summary>
-    /// Находка с файлом открывает его.
-    /// </summary>
-    /// <remarks>
-    /// Панель просит «открой это», а не «покажи мне вот такой редактор»: кто
-    /// возьмётся за файл, решает оболочка по объявленному типу.
-    /// </remarks>
-    [AvaloniaFact]
-    public void A_finding_with_a_file_opens_it()
-    {
-        var problems = new StudioProblems();
-        var documents = new Documents();
-
-        var panel = ProblemsPanel(problems, documents);
-
-        problems.Report("проверка",
-        [
-            new StudioProblem(StudioProblemSeverity.Error, "E1", "сломалось", "Окно.axaml", 12),
-        ]);
-
-        Dispatcher.UIThread.RunJobs();
-
-        var open = Part<AxButton>(panel, "Open");
-
-        Assert.False(open.IsEnabled, "кнопка открыта, пока ничего не выбрано");
-
-        Findings(panel).SelectedIndex = 0;
-
-        Assert.True(open.IsEnabled);
-
-        open.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-
-        Assert.Equal("Окно.axaml", Assert.Single(documents.Opened));
-    }
-
-    /// <summary>Находка без файла открывать нечего — и кнопка это говорит.</summary>
-    [AvaloniaFact]
-    public void A_finding_without_a_file_has_nothing_to_open()
-    {
-        var problems = new StudioProblems();
-        var panel = ProblemsPanel(problems, new Documents());
-
-        problems.Report("проверка", [new StudioProblem(StudioProblemSeverity.Warning, "W1", "везде")]);
-
-        Dispatcher.UIThread.RunJobs();
-
-        Findings(panel).SelectedIndex = 0;
-
-        Assert.False(Part<AxButton>(panel, "Open").IsEnabled);
-    }
-
     private LogPanel LogPanel(StudioLog log)
     {
         var panel = new LogPanel();
@@ -429,22 +335,6 @@ public class ConsolePanelTests : IDisposable
         panel.Attach(Context(log, new Dictionary<Type, object> { [typeof(IStudioLogFeed)] = log }));
 
         // Обращение к содержимому и строит панель — так же, как это делает студия.
-        _ = panel.Content;
-
-        return panel;
-    }
-
-    private ProblemsPanel ProblemsPanel(StudioProblems problems, IStudioDocuments? documents = null)
-    {
-        var services = new Dictionary<Type, object> { [typeof(IStudioProblems)] = problems };
-
-        if (documents is not null)
-            services[typeof(IStudioDocuments)] = documents;
-
-        var panel = new ProblemsPanel();
-
-        panel.Attach(Context(new StudioLog(), services));
-
         _ = panel.Content;
 
         return panel;
@@ -481,26 +371,9 @@ public class ConsolePanelTests : IDisposable
 
     private static AxListBox Records(LogPanel panel) => Part<AxListBox>(panel, "Records");
 
-    private static AxDataGrid Findings(ProblemsPanel panel) => Part<AxDataGrid>(panel, "Findings");
-
     private static List<LogRow> Shown(LogPanel panel) =>
         [.. (Records(panel).ItemsSource as IEnumerable<LogRow>)!];
 
-    private static List<ProblemRow> Rows(ProblemsPanel panel) =>
-        [.. (Findings(panel).ItemsSource as IEnumerable<ProblemRow>)!];
-
     private static T Part<T>(ToolWindow panel, string name) where T : Control =>
         panel.Content.GetLogicalDescendants().OfType<T>().Single(part => part.Name == name);
-
-    /// <summary>Служба документов, которая только запоминает, о чём просили.</summary>
-    private sealed class Documents : IStudioDocuments
-    {
-        public List<string> Opened { get; } = [];
-
-        public Task OpenAsync(string filePath)
-        {
-            Opened.Add(filePath);
-            return Task.CompletedTask;
-        }
-    }
 }

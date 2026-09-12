@@ -52,7 +52,6 @@ internal sealed class ChangePublisher
 {
     private readonly object _sender;
     private readonly IProjectsThread _thread;
-    private readonly Action<ProjectsChangedEventArgs> _first;
     private readonly Action<Exception> _failed;
 
     private readonly Subscribers<ProjectsChangedEventArgs> _subscribers = new();
@@ -68,17 +67,14 @@ internal sealed class ChangePublisher
     /// <summary>Собирает доставку.</summary>
     /// <param name="sender">Кто отправитель событий — сама служба.</param>
     /// <param name="thread">Поток интерфейса.</param>
-    /// <param name="first">Своя реакция модуля: зовётся раньше подписчиков.</param>
     /// <param name="failed">Куда девать исключение подписчика; null — бросить заново в потоке.</param>
     public ChangePublisher(
         object sender,
         IProjectsThread thread,
-        Action<ProjectsChangedEventArgs> first,
         Action<Exception>? failed)
     {
         _sender = sender;
         _thread = thread;
-        _first = first;
         _failed = failed ?? Rethrow;
     }
 
@@ -190,8 +186,6 @@ internal sealed class ChangePublisher
 
         try
         {
-            Invoke(() => _first(change));
-
             _subscribers.Invoke(_sender, change, _failed);
         }
         finally
@@ -210,18 +204,6 @@ internal sealed class ChangePublisher
 
             if (again)
                 _thread.Post(Deliver);
-        }
-    }
-
-    private void Invoke(Action call)
-    {
-        try
-        {
-            call();
-        }
-        catch (Exception e) when (e is not OutOfMemoryException)
-        {
-            _failed(e);
         }
     }
 
