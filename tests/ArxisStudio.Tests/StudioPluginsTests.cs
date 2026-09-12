@@ -4,6 +4,8 @@ using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Modules.Sample;
 using ArxisStudio.Modules.Terminal;
+using ArxisStudio.Projects;
+using ArxisStudio.ProjectSystem;
 using ArxisStudio.Sdk;
 using ArxisStudio.Shell;
 using ArxisStudio.Services;
@@ -566,6 +568,51 @@ public class StudioPluginsTests : IDisposable
     /// </summary>
     /// <param name="sleeping">Отложить подъём плагинов до вызова их команды.</param>
     /// <param name="modules">Встроенные модули; без них студия — пустой каркас.</param>
+    /// <summary>
+    /// Студия берёт службу проектов из экспортов — той же дорогой, что и плагин.
+    /// </summary>
+    /// <remarks>
+    /// Модуль публикует её при подъёме, и другого пути к ней у студии нет: путь проекта в контексте
+    /// плагина, проектные настройки и недавние висят на этой подписке.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_studio_takes_the_projects_service_from_the_exports()
+    {
+        var plugins = Start(modules: TestAssembly.Emit("Probe.Projects", ProjectsSource, ProjectsManifest));
+
+        Assert.Equal(ProbeSolution.Value, plugins.Project.Path);
+    }
+
+    /// <summary>
+    /// Проектные настройки идут за открытым проектом.
+    /// </summary>
+    /// <remarks>
+    /// Область настроек лежит в самом проекте, и открытие другого меняет значения, которых плагин
+    /// не трогал: хранилище обязано переехать вместе с проектом, а не остаться у прежнего.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Project_settings_follow_the_open_project()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), $"arxis-follow-{Guid.NewGuid():N}");
+        var plugins = Start();
+
+        Assert.Null(plugins.Settings.ProjectFile);
+
+        plugins.Project.Apply(new ProjectsStatus
+        {
+            Sequence = 1,
+            Session = 1,
+            State = ProjectsState.Ready,
+            EntryPoint = CanonicalPath.Create(Path.Combine(folder, "Волна.slnx")),
+        });
+
+        Assert.Equal(Path.Combine(folder, ".arxis", "settings.json"), plugins.Settings.ProjectFile);
+
+        plugins.Project.Apply(ProjectsStatus.Closed);
+
+        Assert.Null(plugins.Settings.ProjectFile);
+    }
+
     private StudioPlugins Start(bool sleeping = false, params Assembly[] modules)
     {
         var plugins = Build(sleeping, modules);
@@ -601,6 +648,63 @@ public class StudioPluginsTests : IDisposable
 
         return plugins;
     }
+
+    /// <summary>Модуль, публикующий подставную службу проектов с уже открытым решением.</summary>
+    private const string ProjectsSource = """
+        using System;
+        using System.Threading;
+        using System.Threading.Tasks;
+        using ArxisStudio.Projects;
+        using ArxisStudio.ProjectSystem;
+        using ArxisStudio.Sdk;
+
+        namespace Probe;
+
+        public sealed class ProbeProjects : IStudioProjects
+        {
+            public ProjectsStatus Status { get; } = new()
+            {
+                Sequence = 1,
+                Session = 1,
+                State = ProjectsState.Ready,
+                EntryPoint = CanonicalPath.Create(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "Проба", "Проба.slnx")),
+            };
+
+            public SolutionSnapshot? Current => Status.Snapshot;
+
+            public event EventHandler<ProjectsChangedEventArgs>? Changed;
+
+            public Task<WorkspaceLoadResult> OpenAsync(CanonicalPath entryPoint, CancellationToken cancellationToken = default) =>
+                throw new NotSupportedException();
+
+            public Task<WorkspaceLoadResult> ReloadAsync(CancellationToken cancellationToken = default) =>
+                throw new NotSupportedException();
+
+            public Task<WorkspaceLoadResult> SetConfigurationAsync(string? configuration, CancellationToken cancellationToken = default) =>
+                throw new NotSupportedException();
+
+            public Task CloseAsync() => throw new NotSupportedException();
+        }
+
+        public sealed class ProbeModule : StudioPlugin
+        {
+            public override void Activate(IStudioContext context) =>
+                context.GetService<IStudioExports>()?.Publish<IStudioProjects>(new ProbeProjects());
+        }
+        """;
+
+    /// <summary>Манифест подставного модуля.</summary>
+    private const string ProjectsManifest = """
+        {
+          "id": "probe.projects",
+          "name": "Проба проектов",
+          "version": "1.0.0"
+        }
+        """;
+
+    /// <summary>Проект, который отдаёт подставная служба.</summary>
+    private static readonly CanonicalPath ProbeSolution =
+        CanonicalPath.Create(Path.Combine(Path.GetTempPath(), "Проба", "Проба.slnx"));
 
     /// <summary>Строка состояния, которой здесь никто не смотрит.</summary>
     private sealed class Silence : IStudioStatus

@@ -117,7 +117,14 @@ public class App : Application
             // файл в память и пишет его целиком, и второй экземпляр на процесс
             // потерял бы правку, сделанную в первом.
             .Add("splash.stage.shell", () => _studio = new MainWindow(_log) { Settings = _settings, Catalog = _plugins })
-            .Add("splash.stage.modules", () => _studio.Extensions.LoadModules())
+            .Add("splash.stage.modules", () =>
+            {
+                // Недавние отмечает студия, а не модуль: список принадлежит человеку и живёт
+                // рядом с его настройками, а модуль знает только про открытое сейчас.
+                _studio.Extensions.Project.Opened += (_, path) => _recent.Touch(path);
+
+                _studio.Extensions.LoadModules();
+            })
             .Add("splash.stage.extensions", () => _studio.Extensions.LoadPlugins())
             .Add("splash.stage.welcome", () => desktop.MainWindow = CreateWelcome());
 

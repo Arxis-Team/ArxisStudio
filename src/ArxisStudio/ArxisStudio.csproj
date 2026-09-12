@@ -79,6 +79,16 @@
         сборку в списке модулей, — а сам он и всё, что он тянет, ложится в Modules. Новый модуль
         заводится двумя строками: здесь, с теми же пометками, и в списке.
     -->
+    <!--
+        Контракт службы проектов — ради живого пути в контексте плагина: студия берёт службу тем же
+        экспортом, каким её берёт плагин, и потому обязана назвать её тип. Сборка приезжает с
+        модулем и лежит в Modules; сюда она не копируется, и уйдёт модуль — уйдёт и эта строка.
+    -->
+    <ItemGroup>
+        <ProjectReference Include="../Modules/ArxisStudio.Projects.Contracts/ArxisStudio.Projects.Contracts.csproj"
+                          Private="false" ExcludeAssets="runtime"/>
+    </ItemGroup>
+
     <ItemGroup>
         <ProjectReference Include="../Modules/ArxisStudio.Modules.Sample/ArxisStudio.Modules.Sample.csproj"
                           StudioModule="true" Private="false" ExcludeAssets="runtime"/>

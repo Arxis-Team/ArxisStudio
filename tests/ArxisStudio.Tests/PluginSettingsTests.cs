@@ -205,6 +205,72 @@ public class PluginSettingsTests : IDisposable
         Assert.True(Row(Blink, Store()).Flag, "манифест объявил true");
     }
 
+    /// <summary>
+    /// Смена проекта приносит его значения и называет ключи, которые переменились.
+    /// </summary>
+    /// <remarks>
+    /// Плагин своих настроек не перечитывает: он узнал их при подъёме. О том, что проектное
+    /// значение стало другим, ему должна сказать студия — а сказать она может лишь о том, что
+    /// хранилище ей назовёт.
+    /// </remarks>
+    [Fact]
+    public void Following_another_project_names_the_keys_that_changed()
+    {
+        var store = Store();
+
+        Assert.Null(store.Write("arxis.figma", Format, "png"));
+
+        var another = Path.Combine(_home, "Другая");
+
+        Directory.CreateDirectory(Path.Combine(another, ".arxis"));
+        File.WriteAllText(
+            Path.Combine(another, ".arxis", "settings.json"),
+            """
+            { "arxis.figma": { "figma.format": "pdf" } }
+            """);
+
+        var changed = store.Follow(Path.Combine(another, "Другая.sln"));
+
+        Assert.Equal([("arxis.figma", "figma.format")], changed);
+        Assert.Equal("pdf", Reader(store).Get<string>("figma.format"));
+    }
+
+    /// <summary>Тот же проект — ни перечитывания, ни слов.</summary>
+    [Fact]
+    public void Following_the_same_project_says_nothing()
+    {
+        var store = Store();
+
+        Assert.Null(store.Write("arxis.figma", Format, "png"));
+        Assert.Empty(store.Follow(Path.Combine(Project(), "ВолнаЧат.sln")));
+    }
+
+    /// <summary>
+    /// Закрытие проекта называет ключи, которые он приносил.
+    /// </summary>
+    /// <remarks>
+    /// Значение у них теперь другое — пользовательское или объявленное манифестом, — и молчание
+    /// оставило бы панель плагина с тем, что уехало вместе с проектом.
+    /// </remarks>
+    [Fact]
+    public void Closing_the_project_names_the_keys_it_carried()
+    {
+        var store = Store();
+
+        Assert.Null(store.Write("arxis.figma", Format, "png"));
+
+        var changed = store.Follow(null);
+
+        Assert.Equal([("arxis.figma", "figma.format")], changed);
+        Assert.Null(store.ProjectFile);
+        Assert.Equal("svg", Reader(store).Get<string>("figma.format"));
+    }
+
+    /// <summary>Настройки плагина поверх названного хранилища.</summary>
+    /// <param name="store">Хранилище.</param>
+    private static PluginSettings Reader(PluginSettingsStore store) =>
+        new("arxis.figma", [Token, Format], store, new StudioLog());
+
     private static PluginSettingRow Row(PluginSetting declared, PluginSettingsStore store) =>
         new("arxis.figma", "Figma", declared, store, PluginStrings.Studio);
 

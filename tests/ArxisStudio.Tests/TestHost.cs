@@ -25,8 +25,10 @@ internal sealed class TestHost : IDisposable
     /// </param>
     public TestHost(string? projectPath = null, IStudioCommands? commands = null)
     {
+        ProjectPath = projectPath;
+
         Host = new PluginHost(new StudioContextFactory(
-            Log, commands ?? Commands, projectPath, exports: Exports));
+            Log, commands ?? Commands, () => ProjectPath, exports: Exports));
 
         Host.Unloading += (_, id) =>
         {
@@ -34,6 +36,15 @@ internal sealed class TestHost : IDisposable
             Exports.RemoveOwnedBy(id);
         };
     }
+
+    /// <summary>
+    /// Открытый проект; меняется на ходу.
+    /// </summary>
+    /// <remarks>
+    /// Путь в контексте плагина живой, и тест обязан уметь его менять: контекст выдают один раз, а
+    /// проект открывают и закрывают потом.
+    /// </remarks>
+    public string? ProjectPath { get; set; }
 
     /// <summary>Сам хост.</summary>
     public PluginHost Host { get; }

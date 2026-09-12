@@ -42,7 +42,7 @@ public sealed class PluginSettingsStore
     };
 
     private readonly string _userFile;
-    private readonly string? _projectFile;
+    private string? _projectFile;
 
     private JsonObject _user;
     private JsonObject _project;
@@ -129,6 +129,33 @@ public sealed class PluginSettingsStore
         return null;
     }
 
+    /// <summary>
+    /// Переводит проектную область на другой проект.
+    /// </summary>
+    /// <param name="projectPath">Путь к открытому решению или проекту; null — проекта больше нет.</param>
+    /// <returns>Плагины и ключи, чьё записанное значение переменилось; пусто — проект тот же.</returns>
+    /// <remarks>
+    /// Проектная область едет вместе с проектом, и смена проекта меняет значения, которых плагин не
+    /// трогал. Сказать ему об этом — дело студии: сам он узнал бы о перемене, только перечитав
+    /// настройки без повода. Возвращаются ключи обеих сторон — и появившиеся в новом проекте, и
+    /// пропавшие вместе со старым: у вторых значение тоже другое, пусть и вернувшееся к
+    /// пользовательскому или объявленному.
+    /// </remarks>
+    public IReadOnlyList<(string PluginId, string Key)> Follow(string? projectPath)
+    {
+        var file = ProjectFileFor(projectPath);
+
+        if (string.Equals(file, _projectFile, StringComparison.OrdinalIgnoreCase))
+            return [];
+
+        var was = _project;
+
+        _projectFile = file;
+        _project = Read(file);
+
+        return Different(was, _project);
+    }
+
     /// <summary>Перечитывает оба файла: их правят и мимо студии.</summary>
     public void Refresh()
     {
@@ -159,6 +186,32 @@ public sealed class PluginSettingsStore
         decimal number => JsonValue.Create(number),
         _ => JsonValue.Create(value.ToString()),
     };
+
+    /// <summary>Чем два состояния области отличаются: плагин и ключ на каждое расхождение.</summary>
+    /// <param name="was">Что было.</param>
+    /// <param name="now">Что стало.</param>
+    private static List<(string PluginId, string Key)> Different(JsonObject was, JsonObject now)
+    {
+        var changed = new List<(string PluginId, string Key)>();
+
+        foreach (var pluginId in was.Select(pair => pair.Key).Concat(now.Select(pair => pair.Key)).Distinct(StringComparer.Ordinal))
+        {
+            var before = was[pluginId] as JsonObject;
+            var after = now[pluginId] as JsonObject;
+
+            var keys = (before?.Select(pair => pair.Key) ?? [])
+                .Concat(after?.Select(pair => pair.Key) ?? [])
+                .Distinct(StringComparer.Ordinal);
+
+            foreach (var key in keys)
+            {
+                if (!JsonNode.DeepEquals(Value(was, pluginId, key), Value(now, pluginId, key)))
+                    changed.Add((pluginId, key));
+            }
+        }
+
+        return changed;
+    }
 
     private static JsonNode? Value(JsonObject storage, string pluginId, string key) =>
         storage[pluginId] is JsonObject branch && branch.TryGetPropertyValue(key, out var found) ? found : null;

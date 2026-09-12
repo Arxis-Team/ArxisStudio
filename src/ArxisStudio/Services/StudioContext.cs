@@ -10,34 +10,63 @@ namespace ArxisStudio.Services;
 /// Журнал и команды общие, а путь проекта и папка — свои у каждого плагина:
 /// плагин должен знать, где лежат его ресурсы, и не должен знать, где лежат
 /// чужие. Службы — то, чем список услуг растёт без слома контракта.
+/// <para>
+/// Путь проекта спрашивается при каждом обращении, а не запоминается при подъёме: человек
+/// открывает и закрывает проекты, пока плагин живёт, а контекст ему выдают один раз. Спрашивает
+/// его студия у себя же — плагину видно только значение.
+/// </para>
 /// </remarks>
-/// <param name="Log">Журнал студии.</param>
-/// <param name="Commands">Команды студии.</param>
-/// <param name="Settings">Настройки этого плагина.</param>
-/// <param name="Tasks">Фоновые задачи этого плагина.</param>
-/// <param name="Strings">Словари этого плагина.</param>
-/// <param name="ProjectPath">Путь к открытому проекту или null.</param>
-/// <param name="PluginDirectory">Папка плагина.</param>
-/// <param name="Services">Службы студии по типу; null — служб нет.</param>
-public sealed record StudioContext(
-    IStudioLog Log,
-    IStudioCommands Commands,
-    IStudioSettings Settings,
-    IStudioTasks Tasks,
-    IStudioStrings Strings,
-    string? ProjectPath,
-    string PluginDirectory,
-    IReadOnlyDictionary<Type, object>? Services = null) : IStudioContext
+/// <param name="log">Журнал студии.</param>
+/// <param name="commands">Команды студии.</param>
+/// <param name="settings">Настройки этого плагина.</param>
+/// <param name="tasks">Фоновые задачи этого плагина.</param>
+/// <param name="strings">Словари этого плагина.</param>
+/// <param name="projectPath">Откуда брать путь к открытому проекту; null — проекта не бывает.</param>
+/// <param name="pluginDirectory">Папка плагина.</param>
+/// <param name="services">Службы студии по типу; null — служб нет.</param>
+public sealed class StudioContext(
+    IStudioLog log,
+    IStudioCommands commands,
+    IStudioSettings settings,
+    IStudioTasks tasks,
+    IStudioStrings strings,
+    Func<string?>? projectPath,
+    string pluginDirectory,
+    IReadOnlyDictionary<Type, object>? services = null) : IStudioContext
 {
     /// <inheritdoc/>
+    public IStudioLog Log => log;
+
+    /// <inheritdoc/>
+    public IStudioCommands Commands => commands;
+
+    /// <inheritdoc/>
+    public IStudioSettings Settings => settings;
+
+    /// <inheritdoc/>
+    public IStudioTasks Tasks => tasks;
+
+    /// <inheritdoc/>
+    public IStudioStrings Strings => strings;
+
+    /// <inheritdoc/>
+    public string? ProjectPath => projectPath?.Invoke();
+
+    /// <inheritdoc/>
+    public string PluginDirectory => pluginDirectory;
+
+    /// <summary>Службы студии по типу; null — служб нет.</summary>
+    public IReadOnlyDictionary<Type, object>? Services => services;
+
+    /// <inheritdoc/>
     public T? GetService<T>() where T : class =>
-        Services is not null && Services.TryGetValue(typeof(T), out var service) ? service as T : null;
+        services is not null && services.TryGetValue(typeof(T), out var service) ? service as T : null;
 }
 
 /// <summary>Выдаёт контекст каждому поднимаемому плагину.</summary>
 /// <param name="log">Журнал студии.</param>
 /// <param name="commands">Команды студии.</param>
-/// <param name="projectPath">Путь к открытому проекту или null.</param>
+/// <param name="projectPath">Откуда брать путь к открытому проекту; null — проекта не бывает.</param>
 /// <param name="services">Службы студии по типу.</param>
 /// <param name="settings">
 /// Хранилище настроек плагинов; null — завести своё, по стандартным путям.
@@ -51,7 +80,7 @@ public sealed record StudioContext(
 public sealed class StudioContextFactory(
     IStudioLog log,
     IStudioCommands commands,
-    string? projectPath,
+    Func<string?>? projectPath,
     IReadOnlyDictionary<Type, object>? services = null,
     PluginSettingsStore? settings = null,
     StudioTaskRegistry? tasks = null,
@@ -68,7 +97,7 @@ public sealed class StudioContextFactory(
     /// <summary>Задачи, о которых знает студия.</summary>
     public StudioTaskRegistry Tasks => _tasks;
 
-    private readonly PluginSettingsStore _settings = settings ?? new PluginSettingsStore(projectPath);
+    private readonly PluginSettingsStore _settings = settings ?? new PluginSettingsStore(projectPath?.Invoke());
 
     /// <summary>Настройки, которые фабрика раздаёт плагинам.</summary>
     public PluginSettingsStore Settings => _settings;

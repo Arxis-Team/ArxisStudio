@@ -1,5 +1,6 @@
 using System.Reflection;
 using ArxisStudio.Extensibility;
+using ArxisStudio.Projects;
 using ArxisStudio.Sdk;
 using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
@@ -32,6 +33,7 @@ public sealed class StudioPlugins
     private readonly StudioTaskRegistry _tasks;
     private readonly PluginContributionRegistry _contributions;
     private readonly StudioExportRegistry _exports = new();
+    private bool _watching;
     private readonly PluginRelease _release;
 
     /// <summary>
@@ -79,6 +81,15 @@ public sealed class StudioPlugins
 
     /// <summary>Реестр команд: через него идут щелчки по кнопкам расширений.</summary>
     public required StudioCommands Commands { get; init; }
+
+    /// <summary>
+    /// Открытый проект: путь для контекстов, проектных настроек и недавних.
+    /// </summary>
+    /// <remarks>
+    /// Пустой, пока модуль «Проекты» не поднялся и ничего не открыл: студия узнаёт о проекте от
+    /// него, экспортом, а не помимо него.
+    /// </remarks>
+    public CurrentProject Project { get; } = new();
 
     /// <summary>Раскладка, в которую встают панели.</summary>
     public required StudioDock Dock { get; init; }
@@ -181,6 +192,37 @@ public sealed class StudioPlugins
     }
 
     /// <summary>
+    /// Начинает следить за службой проектов, как только её опубликовали.
+    /// </summary>
+    /// <remarks>
+    /// Опубликовать её может только модуль, и только один раз за сеанс: тип экспорта занимается
+    /// навсегда. Поэтому и подписка одна — вторая раздала бы плагинам по два события на перемену.
+    /// </remarks>
+    private void WatchProjects()
+    {
+        if (_watching || _exports.Get(typeof(IStudioProjects)) is not IStudioProjects projects)
+            return;
+
+        _watching = true;
+        Project.Follow(projects);
+    }
+
+    /// <summary>
+    /// Проект сменился: проектные настройки идут за ним.
+    /// </summary>
+    /// <param name="path">Путь к новому проекту; null — проект закрыли.</param>
+    /// <remarks>
+    /// Плагин своих проектных настроек не перечитывает: он узнал их при подъёме и ждёт, что о
+    /// перемене скажут. Скажет студия — тем же словом, каким говорит о правке из окна настроек, и
+    /// только о тех ключах, чьё записанное значение и вправду переменилось.
+    /// </remarks>
+    private void FollowProject(string? path)
+    {
+        foreach (var (pluginId, key) in Settings.Follow(path))
+            Announce(pluginId, key);
+    }
+
+    /// <summary>
     /// Кто сейчас вправе вкладываться в меню: модули и установленные, кроме
     /// отключённых за сбои.
     /// </summary>
@@ -261,12 +303,14 @@ public sealed class StudioPlugins
         // настроек у студии обязано быть одно: оно читает файл в память при
         // создании и переписывает его целиком, поэтому второй экземпляр рядом
         // — это молча потерянная правка. Экран настроек берёт его отсюда.
+        // Путь проекта живой: контекст спрашивает его при каждом обращении, а сюда он приходит от
+        // модуля «Проекты» — той же дорогой, какой его получает плагин.
+        Project.Changed += (_, path) => FollowProject(path);
+
         _contexts = new StudioContextFactory(
             _log,
             Commands,
-            // Проекта у студии пока нет: работа с ними приедет модулем.
-            // Место в контракте плагинов остаётся — сам контракт не менялся.
-            projectPath: null,
+            () => Project.Path,
             Services,
             settings: Settings,
             tasks: _tasks,
@@ -298,6 +342,10 @@ public sealed class StudioPlugins
             // исправления и без способа убрать.
             Problems?.RemoveOwnedBy(id);
         };
+
+        // Служба проектов приходит экспортом, как всякая другая, и студия узнаёт о ней тем же
+        // событием, каким узнаёт обо всех переменах состава расширений.
+        host.Changed += (_, _) => WatchProjects();
 
         _host = host;
         _installed = Catalog();
