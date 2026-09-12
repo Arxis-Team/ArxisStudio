@@ -149,7 +149,10 @@ public sealed class TerminalSession : IDisposable
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(settings);
 
-        var pty = await PortaPseudoTerminal.StartAsync(profile, workingDirectory, columns, rows, cancellationToken);
+        // Окружение — снимок, взятый при подъёме модуля: с тех пор студия могла
+        // поставить себе переменные MSBuild, а оболочке они не принадлежат.
+        var pty = await PortaPseudoTerminal.StartAsync(
+            profile, workingDirectory, ShellEnvironment.Studio, columns, rows, cancellationToken);
 
         return new TerminalSession(profile, pty, Options(settings, columns, rows));
     }

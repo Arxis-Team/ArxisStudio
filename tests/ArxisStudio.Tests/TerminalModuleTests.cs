@@ -1,6 +1,7 @@
 using System.Reflection;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Modules.Terminal;
+using ArxisStudio.Modules.Terminal.Pty;
 using ArxisStudio.Modules.Terminal.Shells;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
@@ -217,6 +218,46 @@ public class TerminalModuleTests
             Directory.Delete(folder, recursive: true);
         }
     }
+
+    /// <summary>
+    /// Окружение для оболочек снимает подъём модуля, и повторный подъём снимка не обновляет.
+    /// </summary>
+    /// <remarks>
+    /// Первое открытие решения ставит процессу переменные MSBuild, а модули поднимаются
+    /// раньше любого открытия. Снимок, взятый позже — первым сеансом или повторным
+    /// подъёмом выключенного модуля, — унёс бы эти переменные в оболочку.
+    /// </remarks>
+    [Fact]
+    public void The_terminal_takes_the_environment_when_it_rises_and_keeps_it()
+    {
+        ShellEnvironment.Reset();
+
+        try
+        {
+            using var host = new PluginHost(new StudioContextFactory(new StudioLog(), new StudioCommands(), null));
+
+            Assert.True(host.LoadBuiltIn(typeof(TerminalModule).Assembly).IsLoaded);
+
+            // Так регистрация MSBuild меняет окружение студии — после подъёма модулей.
+            Environment.SetEnvironmentVariable(AfterRise, "studio-only");
+
+            using var again = new PluginHost(new StudioContextFactory(new StudioLog(), new StudioCommands(), null));
+
+            Assert.True(again.LoadBuiltIn(typeof(TerminalModule).Assembly).IsLoaded);
+
+            Assert.True(
+                ShellEnvironment.Studio.Overlay().TryGetValue(AfterRise, out var value) && value.Length == 0,
+                "переменная, поставленная студией после подъёма терминала, дошла бы до оболочки");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(AfterRise, null);
+            ShellEnvironment.Reset();
+        }
+    }
+
+    /// <summary>Переменная, которую студия ставит себе после подъёма терминала.</summary>
+    private const string AfterRise = "ARXIS_TERMINAL_AFTER_RISE";
 
     private static Sdk.Plugins.PluginManifest Manifest()
     {

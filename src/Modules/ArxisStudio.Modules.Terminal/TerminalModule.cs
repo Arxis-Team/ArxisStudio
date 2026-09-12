@@ -1,10 +1,11 @@
+using ArxisStudio.Modules.Terminal.Pty;
 using ArxisStudio.Modules.Terminal.Shells;
 using ArxisStudio.Sdk;
 
 namespace ArxisStudio.Modules.Terminal;
 
 /// <summary>
-/// Точка входа терминала: заявляет команды, объявленные в манифесте.
+/// Точка входа терминала: снимает окружение для оболочек и заявляет команды, объявленные в манифесте.
 /// </summary>
 /// <remarks>
 /// Команды сами ничего не открывают: у них нет ни окна, ни экрана. Они
@@ -38,6 +39,11 @@ public sealed class TerminalModule : StudioPlugin
     public override void Activate(IStudioContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
+
+        // Окружение для оболочек снимается первым делом: модули поднимаются раньше,
+        // чем студия что-то откроет, а первое открытие решения поставит процессу
+        // переменные MSBuild. Повторный подъём снимка не обновит.
+        ShellEnvironment.Remember();
 
         _context = context;
 

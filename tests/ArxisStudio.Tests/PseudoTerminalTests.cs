@@ -11,9 +11,9 @@ namespace ArxisStudio.Tests;
 /// <remarks>
 /// Единственный тест модуля, который запускает процесс: всё остальное живёт
 /// на трубе в памяти. Он нужен, потому что библиотека псевдотерминала —
-/// чужая, и её договор проверяется опытом: окружение наследуется, аргументы
-/// доходят нетронутыми, выход замечен, чтение отпущено. Идёт только там, где
-/// есть <c>cmd.exe</c>; на POSIX его вариант появится вместе с машиной, на
+/// чужая, и её договор проверяется опытом: окружение доходит снимком,
+/// аргументы — нетронутыми, выход замечен, чтение отпущено. Идёт только там,
+/// где есть <c>cmd.exe</c>; на POSIX его вариант появится вместе с машиной, на
 /// которой его можно прогнать.
 /// </remarks>
 public class PseudoTerminalTests
@@ -21,29 +21,49 @@ public class PseudoTerminalTests
     /// <summary>Переменная, которую тест ставит себе и ищет в выводе оболочки.</summary>
     private const string Marker = "ARXIS_TERMINAL_PROBE";
 
+    /// <summary>Переменная, которую студия ставит себе после снимка, — как регистрация MSBuild.</summary>
+    private const string Late = "ARXIS_TERMINAL_LATE";
+
+    /// <summary>Переменная, которую студия меняет после снимка.</summary>
+    private const string Changed = "ARXIS_TERMINAL_CHANGED";
+
     /// <summary>Есть ли на этой машине cmd — то есть Windows.</summary>
     public static bool IsWindows => OperatingSystem.IsWindows();
 
     /// <summary>
-    /// Оболочка отвечает, видит окружение студии и наши переменные, и кончается с кодом.
+    /// Оболочка отвечает, получает снимок окружения студии и наши переменные, и кончается с кодом.
     /// </summary>
     /// <remarks>
-    /// Окружение проверяется с двух сторон, и обе важны. Переменные студии
-    /// оболочка наследует — это делает библиотека, и от этого зависит всё, от
-    /// <c>PATH</c> до домашней папки; библиотека молодая, и договор с ней стоит
-    /// держать пришитым. <c>COLORTERM</c> добавляем мы: по нему программы
-    /// решают, слать ли цвет.
+    /// Окружение проверяется с трёх сторон, и все три важны. Снятое окружение
+    /// студии оболочка получает — от этого зависит всё, от <c>PATH</c> до
+    /// домашней папки. Поставленного студией после снимка не получает, а
+    /// изменённое получает прежним: так она уберегается от регистрации MSBuild.
+    /// Держится это на поведении библиотеки — окружение она собирает из процесса
+    /// сама, а переменную, отданную ей пустой, убирает, — и библиотека молодая:
+    /// договор с ней стоит держать пришитым. <c>COLORTERM</c> добавляем мы: по
+    /// нему программы решают, слать ли цвет.
     /// </remarks>
     [Fact(Skip = "Нужен cmd.exe: тест идёт только в Windows", SkipUnless = nameof(IsWindows), SkipType = typeof(PseudoTerminalTests))]
     public async Task A_real_shell_answers_through_the_pseudo_terminal()
     {
         Environment.SetEnvironmentVariable(Marker, "terminal-probe");
+        Environment.SetEnvironmentVariable(Changed, "before");
+
+        var snapshot = ShellEnvironment.Capture();
+
+        // После снимка студия меняет своё окружение — так его меняет регистрация MSBuild.
+        Environment.SetEnvironmentVariable(Late, "studio-only");
+        Environment.SetEnvironmentVariable(Changed, "after");
 
         var profile = new ShellProfile(
-            "probe", "Проба", "cmd.exe", ["/c", "echo", $"%{Marker}%-%COLORTERM%", "&", "exit", "7"]);
+            "probe", "Проба", "cmd.exe", ["/c", "echo", $"%{Marker}%-%COLORTERM%-[%{Late}%]-[%{Changed}%]", "&", "exit", "7"]);
 
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        using var pty = await PortaPseudoTerminal.StartAsync(profile, Path.GetTempPath(), 80, 24, cancellation.Token);
+        using var pty = await PortaPseudoTerminal.StartAsync(profile, Path.GetTempPath(), snapshot, 80, 24, cancellation.Token);
+
+        // Оболочка уже со своим окружением, и студии пробные переменные больше не нужны.
+        Environment.SetEnvironmentVariable(Late, null);
+        Environment.SetEnvironmentVariable(Changed, null);
 
         // За псевдотерминалом Windows стоит консоль со своим буфером, и от
         // этого зависит поправка окна при изменении размера: без признака
@@ -99,9 +119,11 @@ public class PseudoTerminalTests
         lock (output)
             text = output.ToString();
 
-        // Оболочка подставила обе переменные: нашу — унаследовав окружение
-        // студии, COLORTERM — из того, что терминал добавляет от себя.
-        Assert.Contains("terminal-probe-truecolor", text, StringComparison.Ordinal);
+        // Оболочка подставила пробу из снятого окружения студии и COLORTERM из
+        // того, что терминал добавляет от себя. Поставленной после снимка
+        // переменной у неё нет вовсе — cmd оставил её имя как есть, — а
+        // изменённая пришла такой, какой была при снимке.
+        Assert.Contains($"terminal-probe-truecolor-[%{Late}%]-[before]", text, StringComparison.Ordinal);
         Assert.DoesNotContain($"%{Marker}%", text, StringComparison.Ordinal);
     }
 }

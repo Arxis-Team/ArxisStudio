@@ -58,13 +58,20 @@ public sealed class PortaPseudoTerminal : IPseudoTerminal
     /// </summary>
     /// <param name="profile">Какую оболочку.</param>
     /// <param name="workingDirectory">Где: папка проекта или домашняя.</param>
+    /// <param name="environment">С каким окружением: снимок студии, а не нынешнее окружение процесса.</param>
     /// <param name="columns">Ширина окна в знаках.</param>
     /// <param name="rows">Высота в строках.</param>
     /// <param name="cancellationToken">Отмена запуска.</param>
     public static async Task<PortaPseudoTerminal> StartAsync(
-        ShellProfile profile, string workingDirectory, int columns, int rows, CancellationToken cancellationToken)
+        ShellProfile profile,
+        string workingDirectory,
+        ShellEnvironment environment,
+        int columns,
+        int rows,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(environment);
 
         var windows = OperatingSystem.IsWindows();
 
@@ -79,7 +86,7 @@ public sealed class PortaPseudoTerminal : IPseudoTerminal
             Cwd = workingDirectory,
             Cols = Math.Max(1, columns),
             Rows = Math.Max(1, rows),
-            Environment = TerminalEnvironment(windows),
+            Environment = Variables(environment),
         };
 
         var connection = await PtyProvider.SpawnAsync(options, cancellationToken).ConfigureAwait(false);
@@ -88,13 +95,15 @@ public sealed class PortaPseudoTerminal : IPseudoTerminal
     }
 
     /// <summary>
-    /// Что терминал добавляет к окружению оболочки.
+    /// Что терминал кладёт поверх окружения оболочки.
     /// </summary>
     /// <remarks>
-    /// Только добавляет: окружение студии библиотека копирует сама и кладёт
-    /// этот словарь поверх — на всех трёх платформах. Переписывать её работу
-    /// значило бы держать вторую копию правил о том, что оболочка должна
-    /// унаследовать.
+    /// Окружение библиотека собирает сама — копирует процесс студии в миг запуска,
+    /// на всех трёх платформах — и кладёт этот словарь поверх; пустое значение в
+    /// нём убирает переменную. Переписывать её работу значило бы держать вторую
+    /// копию правил о том, что оболочка должна унаследовать, поэтому словарь только
+    /// поправляет: возвращает снимок окружения (<see cref="ShellEnvironment"/>) и
+    /// добавляет своё.
     /// <para>
     /// <c>TERM</c> и <c>COLORTERM</c> — по ним программы решают, слать ли цвета
     /// и какие: без них <c>ls</c> на удалённой машине был бы серым, а <c>vim</c>
@@ -102,13 +111,16 @@ public sealed class PortaPseudoTerminal : IPseudoTerminal
     /// вежливость: по нему оболочка узнаёт, в чьём окне идёт.
     /// </para>
     /// </remarks>
-    private static Dictionary<string, string> TerminalEnvironment(bool windows) =>
-        new(windows ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)
-        {
-            ["TERM"] = TerminalName,
-            ["COLORTERM"] = "truecolor",
-            ["TERM_PROGRAM"] = "ArxisStudio",
-        };
+    private static Dictionary<string, string> Variables(ShellEnvironment environment)
+    {
+        var variables = environment.Overlay();
+
+        variables["TERM"] = TerminalName;
+        variables["COLORTERM"] = "truecolor";
+        variables["TERM_PROGRAM"] = "ArxisStudio";
+
+        return variables;
+    }
 
     /// <inheritdoc/>
     public void Write(ReadOnlySpan<byte> bytes)
