@@ -1,4 +1,5 @@
 ﻿using ArxisStudio.Extensibility;
+using ArxisStudio.ProjectSystem;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using ArxisStudio.Shell;
@@ -40,6 +41,9 @@ public class App : Application
     // студии одна и показывается при старте — значит и грузиться под ней должно
     // всё, включая модули и плагины. Показ окна после этого мгновенный.
     private MainWindow _studio = null!;
+
+    // Проект, названный в командной строке: открывается он после того, как окно показано.
+    private string? _asked;
 
     /// <inheritdoc/>
     public override void Initialize()
@@ -126,7 +130,7 @@ public class App : Application
                 _studio.Extensions.LoadModules();
             })
             .Add("splash.stage.extensions", () => _studio.Extensions.LoadPlugins())
-            .Add("splash.stage.welcome", () => desktop.MainWindow = CreateWelcome());
+            .Add("splash.stage.welcome", () => desktop.MainWindow = FirstWindow(desktop.Args));
 
         await startup.RunAsync();
         await splash.LingerAsync();
@@ -143,6 +147,65 @@ public class App : Application
         // «почему студия стартует секунду», отвечать будет журнал, а не
         // расставленные заново отметки.
         _log.Write(StudioLogLevel.Debug, "Startup", StudioLaunch.Report());
+
+        // Проект открывается после показа окна, а не вместо него: чтение решения занимает секунды,
+        // и смотреть их человеку лучше на студию с задачей в статус-баре, чем на заставку.
+        if (_asked is { } asked)
+            await OpenAsync(asked);
+    }
+
+    /// <summary>
+    /// Окно, которым студия открывается: со сказанным проектом — своё, иначе — Welcome.
+    /// </summary>
+    /// <param name="arguments">Аргументы командной строки.</param>
+    /// <remarks>
+    /// Названный проект — это просьба открыть его, а не выбрать из недавних: Welcome в этом случае
+    /// только стоял бы на дороге. Сказанное, но негодное — запись в журнале и обычный Welcome:
+    /// студия не должна ни падать, ни делать вид, что открыла.
+    /// </remarks>
+    private Window FirstWindow(string[]? arguments)
+    {
+        var asked = StudioArguments.Project(arguments);
+
+        if (asked.Complaint is { } complaint)
+            _log.Write(StudioLogLevel.Error, "Startup", $"Открывать нечего — {complaint}");
+
+        if (asked.Path is not { } path)
+            return CreateWelcome();
+
+        if (_studio.Extensions.Projects is null)
+        {
+            _log.Write(StudioLogLevel.Warning, "Startup", $"{path} открывать некому: службы проектов нет");
+
+            return CreateWelcome();
+        }
+
+        _asked = path;
+
+        return _studio;
+    }
+
+    /// <summary>
+    /// Открывает названный проект.
+    /// </summary>
+    /// <param name="path">Путь к решению или проекту.</param>
+    /// <remarks>
+    /// Провал открытия — не провал запуска: о нём скажут журнал службы и панель «Проблемы», а
+    /// студия остаётся открытой. Ловится здесь только своё: отмена и остановленная служба.
+    /// </remarks>
+    private async Task OpenAsync(string path)
+    {
+        if (_studio.Extensions.Projects is not { } projects)
+            return;
+
+        try
+        {
+            await projects.OpenAsync(CanonicalPath.Create(path));
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            _log.Write(StudioLogLevel.Error, "Startup", $"{path} не открылся: {e.Message}");
+        }
     }
 
     /// <summary>

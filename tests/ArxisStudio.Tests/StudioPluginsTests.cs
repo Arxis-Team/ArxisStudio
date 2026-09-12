@@ -581,6 +581,23 @@ public class StudioPluginsTests : IDisposable
         var plugins = Start(modules: TestAssembly.Emit("Probe.Projects", ProjectsSource, ProjectsManifest));
 
         Assert.Equal(ProbeSolution.Value, plugins.Project.Path);
+        Assert.NotNull(plugins.Projects);
+    }
+
+    /// <summary>
+    /// Без модуля открывать нечем, и студия это знает.
+    /// </summary>
+    /// <remarks>
+    /// Проект, названный в командной строке, открывать некому: студия скажет об этом в журнал и
+    /// покажет Welcome, а не сделает вид, что открыла.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Without_the_module_there_is_nothing_to_open_with()
+    {
+        var plugins = Start();
+
+        Assert.Null(plugins.Projects);
+        Assert.Null(plugins.Project.Path);
     }
 
     /// <summary>

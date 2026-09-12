@@ -83,6 +83,15 @@ public sealed class StudioPlugins
     public required StudioCommands Commands { get; init; }
 
     /// <summary>
+    /// Служба проектов, если её опубликовали; null — открывать нечем.
+    /// </summary>
+    /// <remarks>
+    /// Спрашивается из экспортов при каждом обращении, той же дорогой, какой её берёт плагин:
+    /// публикует её модуль при подъёме, а студии она нужна, только когда есть что открыть.
+    /// </remarks>
+    public IStudioProjects? Projects => _exports.Get(typeof(IStudioProjects)) as IStudioProjects;
+
+    /// <summary>
     /// Открытый проект: путь для контекстов, проектных настроек и недавних.
     /// </summary>
     /// <remarks>
