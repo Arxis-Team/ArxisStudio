@@ -1898,6 +1898,89 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
+    /// Delete на вкладке закрывает её так же, как крестик.
+    /// </summary>
+    /// <remarks>
+    /// Крестик ловит только мышь: это <c>Border</c> с обработчиками указателя,
+    /// и своим местом в обходе он не стал нарочно — в полосе из десяти вкладок
+    /// это двадцать остановок, половина из них ведёт к необратимому действию.
+    /// Значит клавиатуре нужен свой путь, иначе закрыть вкладку без мыши нельзя
+    /// было вовсе — ни панель, ни документ.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Delete_on_a_tab_closes_it_just_like_the_cross()
+    {
+        var (dock, view, window) = Two();
+
+        dock.Open("hello", "doc:a.axaml", "a.axaml", new Border());
+        Dispatcher.UIThread.RunJobs();
+
+        var asked = new List<string>();
+        dock.Closing += (_, id) => asked.Add(id);
+
+        var panel = Assert.IsType<AxTabItem>(DockMouse.Tabs(view.View("left")!).Items[0]);
+
+        Assert.True(panel.Focus(), "вкладка обязана брать фокус");
+
+        window.KeyPress(Key.Delete, RawInputModifiers.None, PhysicalKey.Delete, string.Empty);
+        Settle();
+
+        // Панель раскладка закрывает сама: за ней не стоит ничего, и спрашивать
+        // о ней было бы некого.
+        Assert.Null(view.View("left"));
+        Assert.DoesNotContain("hello:tree", asked);
+
+        var paper = Assert.IsType<AxTabItem>(DockMouse.Tabs(view.View(StudioDock.Documents)!).Items[0]);
+
+        Assert.True(paper.Focus());
+
+        window.KeyPress(Key.Delete, RawInputModifiers.None, PhysicalKey.Delete, string.Empty);
+        Settle();
+
+        // А о документе спрашивает хозяина — тем же событием, что и крестик.
+        Assert.Equal(["doc:a.axaml"], asked);
+    }
+
+    /// <summary>
+    /// Вкладка без крестика на Delete не отзывается.
+    /// </summary>
+    /// <remarks>
+    /// Клавиша повторяет крестик, а не заменяет его: где закрывать нечем мышью,
+    /// нечем и клавиатурой. Иначе Delete закрывал бы то, чего человек закрыть не
+    /// просил и даже не мог попросить.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_tab_without_a_cross_does_not_answer_delete()
+    {
+        var tab = new AxTabItem { Content = "Проект", IsClosable = false };
+        var asked = 0;
+
+        tab.CloseRequested += (_, _) => asked++;
+
+        var window = new Window { Content = tab, Width = 300, Height = 100 };
+
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(tab.Focus());
+
+        window.KeyPress(Key.Delete, RawInputModifiers.None, PhysicalKey.Delete, string.Empty);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(0, asked);
+
+        tab.IsClosable = true;
+        Dispatcher.UIThread.RunJobs();
+
+        window.KeyPress(Key.Delete, RawInputModifiers.None, PhysicalKey.Delete, string.Empty);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(1, asked);
+
+        window.Close();
+    }
+
+    /// <summary>
     /// Крестик у документа спрашивает хозяина, у панели закрывает сам.
     /// </summary>
     /// <remarks>
