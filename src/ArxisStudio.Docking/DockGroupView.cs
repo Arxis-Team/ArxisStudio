@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 
 namespace ArxisStudio.Docking;
@@ -290,6 +291,9 @@ public class DockGroupView : TemplatedControl
         if (_tabs is not null)
             _tabs.SelectionChanged -= OnChosen;
 
+        if (_content is not null)
+            _content.RemoveHandler(GotFocusEvent, OnContentGotFocus);
+
         if (_hide is not null)
             _hide.Click -= OnHide;
 
@@ -299,6 +303,13 @@ public class DockGroupView : TemplatedControl
 
         if (_tabs is not null)
             _tabs.SelectionChanged += OnChosen;
+
+        // Хранителя фокуса записывают по ходу, а не в миг переключения. К
+        // мигу переключения спрашивать поздно и незачем: щелчок по вкладке
+        // фокуса из панели не уводит — вкладка его не берёт, — а когда
+        // содержимое подменят, держать его будет уже отцепленный контрол.
+        if (_content is not null)
+            _content.AddHandler(GotFocusEvent, OnContentGotFocus, RoutingStrategies.Bubble);
 
         if (_hide is not null)
             _hide.Click += OnHide;
@@ -458,11 +469,34 @@ public class DockGroupView : TemplatedControl
         if (at < 0 || at >= _shown.Count)
             return;
 
+        // Фокус спрашивают до подмены и про всю группу, а не про уходящую
+        // панель. Щелчок по вкладке фокуса из панели не уводит, а если бы
+        // уводил — то на саму вкладку, и та тоже здесь: в обоих случаях ответ
+        // «да». Фокус в другой панели или в другом окне даёт «нет», и красть
+        // его показ вкладки не станет.
+        var ours = DockFocus.Holds(this);
+
         // Содержимое меняем сразу, не дожидаясь круга через владельца дерева:
         // щелчок по вкладке обязан показать панель, даже если хозяин раскладки
         // ответит на это событие позже или не ответит вовсе.
         _content.Content = _items?.Find(_shown[at])?.Content;
 
+        if (ours && _content.Content is Control shown)
+        {
+            // Presenter цепляет ребёнка на следующем проходе раскладки, а
+            // фокус нельзя отдать тому, кого в дереве ещё нет.
+            _content.Presenter?.UpdateChild();
+
+            DockFocus.Restore(shown);
+        }
+
         Chosen?.Invoke(this, _shown[at]);
+    }
+
+    /// <summary>Фокус встал внутри показанной панели — запомнить, на ком.</summary>
+    private void OnContentGotFocus(object? sender, FocusChangedEventArgs e)
+    {
+        if (_content?.Content is Control panel && e.Source is Control focused)
+            DockFocus.SetKeeper(panel, focused);
     }
 }
