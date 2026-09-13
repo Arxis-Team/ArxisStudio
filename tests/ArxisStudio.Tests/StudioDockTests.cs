@@ -42,6 +42,91 @@ public class StudioDockTests : IDisposable
         GC.SuppressFinalize(this);
     }
 
+    /// <summary>
+    /// Фокус на панель отдаёт ей клавиатуру.
+    /// </summary>
+    /// <remarks>
+    /// Раскладка не трогала фокус ни на одном из своих путей, и это значило,
+    /// что у человека с клавиатурой не было способа попасть в панель иначе как
+    /// обходом по Tab от начала окна.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Focusing_a_panel_gives_it_the_keyboard()
+    {
+        var (dock, _) = Dock();
+        var tree = Focusable();
+        var outline = Focusable();
+
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, tree);
+        dock.Add("hello", "hello:outline", At("left"), "Структура", Strings, outline);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(dock.Focus("hello:tree"), "внутри панели не нашлось, кому отдать каретку");
+        Assert.True(DockFocus.Holds(tree));
+        Assert.False(DockFocus.Holds(outline));
+    }
+
+    /// <summary>
+    /// Показ панели оставляет клавиатуру там, где она была.
+    /// </summary>
+    /// <remarks>
+    /// Показать просит не только человек: службой <c>IStudioToolWindows</c> об
+    /// этом просит и плагин, в том числе из <c>Activate</c> на запуске.
+    /// Каретка, выдернутая из панели чужим пробуждением, — это потерянное
+    /// нажатие, и отличать показ от фокуса пришлось именно поэтому.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Showing_a_panel_leaves_the_keyboard_where_it_was()
+    {
+        var (dock, _) = Dock();
+        var tree = Focusable();
+        var one = Focusable();
+        var two = Focusable();
+
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, tree);
+        dock.Add("hello", "hello:one", At("right"), "Один", Strings, one);
+        dock.Add("hello", "hello:two", At("right"), "Два", Strings, two);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(dock.Focus("hello:tree"));
+
+        dock.Show("hello:one");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(DockFocus.Holds(tree), "показ забрал каретку у панели, в которой работали");
+        Assert.False(DockFocus.Holds(one));
+    }
+
+    /// <summary>
+    /// Панель, возвращённая из меню, получает клавиатуру.
+    /// </summary>
+    /// <remarks>
+    /// Человек вернул панель, чтобы ею работать. Искать её потом клавишей Tab
+    /// от начала окна — не то, о чём он просил, и этим путь из меню отличается
+    /// от показа по просьбе плагина.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_panel_reopened_from_the_menu_gets_the_keyboard()
+    {
+        var (dock, _) = Dock();
+        var tree = Focusable();
+        var outline = Focusable();
+
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, tree);
+        dock.Add("hello", "hello:outline", At("right"), "Структура", Strings, outline);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(dock.Focus("hello:tree"));
+
+        dock.Hide("hello:outline");
+        Dispatcher.UIThread.RunJobs();
+
+        dock.Reopen("hello:outline");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(DockFocus.Holds(outline), "возвращённая панель осталась без каретки");
+    }
+
     /// <summary>Панель встаёт в объявленную сторону, вторая — вкладкой рядом.</summary>
     [AvaloniaFact]
     public void A_panel_takes_the_side_it_asked_for()
@@ -2632,6 +2717,10 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>Пожелание «встань с этой стороны» — как его пишет манифест.</summary>
+    /// <summary>Панель, внутри которой есть куда встать каретке.</summary>
+    private static Control Focusable() =>
+        new StackPanel { Children = { new Border { Focusable = true, Height = 20 } } };
+
     private static PluginPlacement At(string side) => new() { Side = side };
 
     private static PluginStrings Strings => PluginStrings.Studio;

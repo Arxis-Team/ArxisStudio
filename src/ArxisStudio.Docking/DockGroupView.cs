@@ -385,6 +385,17 @@ public class DockGroupView : TemplatedControl
         }
     }
 
+    /// <summary>
+    /// Панель этой группы, внутри которой сейчас каретка; <c>null</c> — не здесь.
+    /// </summary>
+    /// <remarks>
+    /// Спрашивает вид: перестройка отцепляет все группы разом, и узнать, где
+    /// была каретка, можно только до неё. Знает об этом группа, а помнит — вид:
+    /// группу к тому мигу уже отпустят.
+    /// </remarks>
+    internal Control? FocusedPanel =>
+        DockFocus.Holds(this) && _content?.Content is Control panel ? panel : null;
+
     /// <summary>Снимает вкладки и отпускает показанную панель.</summary>
     private void Clear()
     {
