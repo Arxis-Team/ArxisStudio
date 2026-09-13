@@ -758,6 +758,18 @@ public sealed class StudioDock
         Rehang();
     }
 
+    /// <summary>
+    /// Имя того, внутри чего сейчас каретка; <c>null</c> — она не в раскладке.
+    /// </summary>
+    /// <remarks>
+    /// Спрашивают об этом жесты: закрыть надо то, на чём человек стоит, а не
+    /// то, что показано. Это разные вещи, когда каретка в боковой панели, а
+    /// документ открыт в середине.
+    /// </remarks>
+    public string? Focused =>
+        Items.Known().FirstOrDefault(
+            id => Items.Find(id)?.Content is Control content && DockFocus.Holds(content));
+
     /// <summary>Каретка сейчас внутри этой панели или этого документа.</summary>
     /// <param name="id">Имя того, о ком спрашивают.</param>
     public bool IsFocused(string id) =>
@@ -1223,7 +1235,7 @@ public sealed class StudioDock
     }
 
     /// <summary>
-    /// Человек нажал крестик: документ отдаём зовущему, панель убираем сами.
+    /// Закрывает названное: документ отдаём зовущему, панель убираем сами.
     /// </summary>
     /// <param name="id">Имя закрываемого.</param>
     /// <remarks>
@@ -1232,7 +1244,7 @@ public sealed class StudioDock
     /// Панель возвращает меню «Панели», и оно здесь же, в раскладке: спросить
     /// об этом было бы некого.
     /// </remarks>
-    private void Shut(string id)
+    public void Shut(string id)
     {
         if (_documents.Contains(id))
         {

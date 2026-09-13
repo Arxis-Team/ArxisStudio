@@ -128,6 +128,32 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
+    /// Раскладка знает, на чём стоит каретка.
+    /// </summary>
+    /// <remarks>
+    /// Об этом спрашивают жесты: закрыть надо то, на чём человек стоит, а не
+    /// то, что показано. Это разные вещи, когда каретка в боковой панели, а
+    /// документ открыт в середине.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_layout_knows_what_the_caret_is_in()
+    {
+        var (dock, _) = Dock();
+        var tree = Focusable();
+        var other = Focusable();
+
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, tree);
+        dock.Add("hello", "hello:other", At("right"), "Прочее", Strings, other);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(dock.Focused);
+
+        Assert.True(dock.Focus("hello:other"));
+
+        Assert.Equal("hello:other", dock.Focused);
+    }
+
+    /// <summary>
     /// Закрытая панель отдаёт каретку соседу по группе.
     /// </summary>
     /// <remarks>

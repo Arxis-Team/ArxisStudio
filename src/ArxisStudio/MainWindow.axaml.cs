@@ -43,6 +43,7 @@ public partial class MainWindow : AxWindow
     // Что окно рассказывает о себе — строка состояния и полоса задачи.
     private readonly MainWindowViewModel _model;
     private readonly StudioCommands _commands;
+    private readonly StudioShortcuts _shortcuts;
 
     // Раскладка: дерево доков, живые панели в нём и уборка по хозяину.
     private readonly StudioDock _dock;
@@ -128,6 +129,7 @@ public partial class MainWindow : AxWindow
         _dock.Restore();
 
         _commands = new StudioCommands(_guard);
+        _shortcuts = new StudioShortcuts(_commands.Invoke);
 
         // Щелчок по кнопке идёт через реестр команд, а не напрямую: только он
         // умеет разбудить спящего хозяина и приписать падение виновнику.
@@ -162,6 +164,8 @@ public partial class MainWindow : AxWindow
         // открытии: список вкладывающихся меняется от подъёма к подъёму. Ставится
         // после службы — до неё спрашивать было бы не у кого.
         _toolbar.Menu = () => StudioMenu.Build(_plugins.Contributing);
+
+        Keys();
 
         // Меню — элемент самой студии, а не каждого плагина: дерево команд
         // общее на всех, ветки в нём сходятся по названию, и плагин, объявивший
@@ -472,6 +476,38 @@ public partial class MainWindow : AxWindow
     }
 
     /// <summary>Отменяет задачу, которую человек видит.</summary>
+    /// <summary>
+    /// Заводит команды студии и раздаёт им сочетания.
+    /// </summary>
+    /// <remarks>
+    /// Своих команд у студии до этого не было ни одной: реестр служил
+    /// расширениям. Но сочетание обязано звать команду, а не делать работу
+    /// само — иначе пункт меню и клавиша разойдутся в поведении, и однажды
+    /// разойдутся молча.
+    /// <para>
+    /// Отказ в сочетании не молчит: реестр помнит проигравших вместе с именем
+    /// победителя, и список этот покажет страница настроек, когда сочетания
+    /// начнут просить и расширения.
+    /// </para>
+    /// </remarks>
+    private void Keys()
+    {
+        // Закрывает то, на чём стоит каретка, а не то, что показано: это
+        // разные вещи, когда каретка в боковой панели, а документ открыт в
+        // середине. Не стоит нигде — закрывается показанный документ, как
+        // делает всякая среда.
+        _commands.Register("studio.close", () =>
+        {
+            if ((_dock.Focused ?? _dock.Showing) is { } id)
+                _dock.Shut(id);
+        });
+
+        if (!_shortcuts.Bind("Ctrl+W", "studio.close"))
+            _log.Write(StudioLogLevel.Warning, "Keys", "Ctrl+W занято — «Закрыть» осталось без сочетания");
+
+        _shortcuts.Attach(this);
+    }
+
     /// <summary>Говорит строкой состояния — тем же местом, что и всё прочее.</summary>
     /// <param name="message">Что сказать.</param>
     internal void Say(string message) => _model.Say(message);
