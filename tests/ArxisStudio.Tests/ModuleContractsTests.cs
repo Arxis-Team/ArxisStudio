@@ -106,13 +106,13 @@ public class ModuleContractsTests : IDisposable
     /// </summary>
     /// <remarks>
     /// Папкой встроенного модуля считался корень студии, и контракт искался там же.
-    /// Студия теперь кладёт модули в свою папку Modules — вместе с их контрактами, — а
+    /// Студия теперь кладёт модули в свою папку modules — вместе с их контрактами, — а
     /// тесты держат их рядом с собой; где модуль на самом деле, знает только его сборка.
     /// </remarks>
     [Fact]
     public void A_module_contract_is_looked_up_beside_the_module_wherever_it_lies()
     {
-        var folder = Directory.CreateDirectory(Path.Combine(_root, "Modules")).FullName;
+        var folder = Directory.CreateDirectory(Path.Combine(_root, "modules")).FullName;
         var contract = $"Probe.BesideContracts{Guid.NewGuid():N}";
         var module = $"Probe.BesideModule{Guid.NewGuid():N}";
 

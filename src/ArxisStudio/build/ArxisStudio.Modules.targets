@@ -2,7 +2,7 @@
 
     <!--
         Раскладка встроенных модулей: модули и то, что везут только они, — в папку
-        Modules; платформа лежит в Lib, у корня — сама студия.
+        modules; платформа лежит в lib, у корня — сама студия.
 
         Как делится. Ссылка на модуль в ArxisStudio.csproj помечена StudioModule="true",
         Private="false" и ExcludeAssets="runtime": компилироваться против модуля можно, а
@@ -17,18 +17,18 @@
         (src/Modules/Directory.Build.targets) и из него вычитается всё, что уже лежит в
         корне: сборка, нужная и платформе, и модулю, остаётся в одном экземпляре, у корня.
         Корень основной контекст загрузки просматривает раньше папки модулей, так что копия
-        общей сборки в Modules подменить её не могла бы и так.
+        общей сборки в modules подменить её не могла бы и так.
 
         Вызов модуля повторяет стандартный вызов ссылок на проекты — те же свойства и те же
         снятые, — чтобы попасть в уже собранный экземпляр, а не собрать модуль второй раз.
-        Та же раскладка идёт в публикацию: студия ищет модули в Modules, и публикация,
+        Та же раскладка идёт в публикацию: студия ищет модули в modules, и публикация,
         положившая их в корень, осталась бы без модуля «Проекты» — его контракт ищется
         рядом с ним.
 
         Проверяет раскладку StudioLayoutTests — на собранном выходе.
     -->
     <PropertyGroup>
-        <StudioModuleFolder>Modules</StudioModuleFolder>
+        <StudioModuleFolder>modules</StudioModuleFolder>
     </PropertyGroup>
 
     <Target Name="StudioCollectModuleFiles" DependsOnTargets="ResolveReferences">
@@ -48,7 +48,7 @@
             </_StudioModuleCandidate>
 
             <!--
-                Именем файла и путём сразу: платформа уехала в Lib, и её путь у студии теперь с
+                Именем файла и путём сразу: платформа уехала в lib, и её путь у студии теперь с
                 папкой, а модуль тот же файл называет просто по имени.
             -->
             <_StudioRootFile Include="@(ReferenceCopyLocalPaths->'%(DestinationSubDirectory)%(Filename)%(Extension)')"/>
@@ -64,13 +64,13 @@
         </RemoveDuplicates>
 
         <!--
-            Управляемая сборка под конкретную платформу лежала бы в Modules/runtimes/, куда
+            Управляемая сборка под конкретную платформу лежала бы в modules/runtimes/, куда
             резолвер модулей не смотрит, — и модуль упал бы на той машине, где она нужна.
             Такого пакета у модулей пока нет; появится — раскладку придётся учить.
         -->
         <Error Code="AXL1001"
                Condition="'@(StudioModuleFile)' != '' and $([System.String]::Copy('%(StudioModuleFile.Identity)').Replace('\', '/').StartsWith('runtimes/'))"
-               Text="Модуль везёт сборку под конкретную платформу: %(StudioModuleFile.Identity). Раскладка папки Modules таких не поддерживает — резолвер модулей ищет только в самой папке и в подпапках культур. Уберите пакет из модуля или научите раскладку и резолвер runtimes/."/>
+               Text="Модуль везёт сборку под конкретную платформу: %(StudioModuleFile.Identity). Раскладка папки modules таких не поддерживает — резолвер модулей ищет только в самой папке и в подпапках культур. Уберите пакет из модуля или научите раскладку и резолвер runtimes/."/>
     </Target>
 
     <Target Name="StudioCopyModules" AfterTargets="CopyFilesToOutputDirectory" DependsOnTargets="StudioCollectModuleFiles">

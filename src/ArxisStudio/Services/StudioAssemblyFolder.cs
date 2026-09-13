@@ -35,10 +35,10 @@ namespace ArxisStudio.Services;
 internal sealed class StudioAssemblyFolder
 {
     /// <summary>Платформа студии: Avalonia, оболочка, контролы, SDK, ядро модели проектов.</summary>
-    public static StudioAssemblyFolder Library { get; } = new("Lib");
+    public static StudioAssemblyFolder Library { get; } = new("lib");
 
     /// <summary>Встроенные модули и то, что везут только они.</summary>
-    public static StudioAssemblyFolder Modules { get; } = new("Modules");
+    public static StudioAssemblyFolder Modules { get; } = new("modules");
 
     private int _attached;
 

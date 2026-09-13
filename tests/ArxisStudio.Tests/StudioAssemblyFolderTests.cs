@@ -71,7 +71,7 @@ public class StudioAssemblyFolderTests : IDisposable
     [Fact]
     public void A_name_that_looks_like_a_path_does_not_lead_out_of_the_folder()
     {
-        var folder = Directory.CreateDirectory(Path.Combine(_root, "Modules")).FullName;
+        var folder = Directory.CreateDirectory(Path.Combine(_root, "modules")).FullName;
 
         File.WriteAllBytes(Path.Combine(_root, "Escape.dll"), []);
 
