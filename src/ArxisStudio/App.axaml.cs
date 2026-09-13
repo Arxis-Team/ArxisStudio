@@ -242,6 +242,23 @@ public class App : Application
         // Окно есть — студию снова можно закрывать последним окном.
         desktop.ShutdownMode = ShutdownMode.OnLastWindowClose;
 
+        // Неполный запуск говорит о себе тем местом, которое у окна уже есть.
+        // Своего для этого не заводится: сообщение появляется на запуске,
+        // который прошёл, и место под него стояло бы пустым всегда.
+        if (report.Complaint is { } complaint)
+        {
+            switch (first)
+            {
+                case MainWindow studio:
+                    studio.Say(complaint);
+                    break;
+
+                case WelcomeWindow welcome:
+                    welcome.Say(complaint);
+                    break;
+            }
+        }
+
         StudioLaunch.Mark("окно");
 
         // Отчёт пишется один раз и одной строкой: следующему, кто спросит

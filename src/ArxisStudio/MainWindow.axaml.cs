@@ -472,6 +472,10 @@ public partial class MainWindow : AxWindow
     }
 
     /// <summary>Отменяет задачу, которую человек видит.</summary>
+    /// <summary>Говорит строкой состояния — тем же местом, что и всё прочее.</summary>
+    /// <param name="message">Что сказать.</param>
+    internal void Say(string message) => _model.Say(message);
+
     private void OnCancelTaskClick(object? sender, RoutedEventArgs e) => _model.CancelTask();
 
     /// <summary>Строка состояния как служба для модулей и плагинов.</summary>

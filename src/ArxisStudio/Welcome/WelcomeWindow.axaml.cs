@@ -77,6 +77,10 @@ public partial class WelcomeWindow : AxWindow
     /// <summary>Пользователь просит открыть проект; в аргументе — путь к нему.</summary>
     public event EventHandler<string>? ProjectRequested;
 
+    /// <summary>Говорит полосой состояния — той же, что отвечает на отказы.</summary>
+    /// <param name="message">Что сказать.</param>
+    internal void Say(string message) => _model.Status = message;
+
     private void OnProjectsClick(object? sender, RoutedEventArgs e) => Select(WelcomeSection.Projects);
 
     private void OnLearnClick(object? sender, RoutedEventArgs e) => Select(WelcomeSection.Learn);

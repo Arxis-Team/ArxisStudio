@@ -369,6 +369,43 @@ public class SplashTests : IDisposable
     }
 
     /// <summary>
+    /// Удавшемуся запуску сказать человеку нечего.
+    /// </summary>
+    /// <remarks>
+    /// Сообщение о неполном запуске должно что-то значить. Появившись у каждого
+    /// запуска, оно значило бы «студия открылась» и перестало бы читаться
+    /// первым же вечером.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_startup_that_succeeded_has_nothing_to_say()
+    {
+        var report = await new StudioStartup(new SplashViewModel(), _log)
+            .Add("splash.stage.paths", () => { })
+            .RunAsync();
+
+        Assert.Null(report.Complaint);
+    }
+
+    /// <summary>
+    /// Неполный запуск говорит о себе и отправляет в журнал.
+    /// </summary>
+    /// <remarks>
+    /// Студия без языкового пакета — открытая студия, и это верно. Но человек
+    /// видит следствие, а причина остаётся в журнале, о котором он не знает.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_startup_that_fell_short_says_so()
+    {
+        var report = await new StudioStartup(new SplashViewModel(), _log)
+            .Add("splash.stage.language", () => throw new InvalidOperationException("пакет испорчен"))
+            .Add("splash.stage.theme", () => { })
+            .RunAsync();
+
+        Assert.False(report.Broken, "ослабленный отказ студии не отменяет");
+        Assert.Equal(Localizer.Instance["startup.degraded"], report.Complaint);
+    }
+
+    /// <summary>
     /// Роковой этап останавливает список, а не портит следующие.
     /// </summary>
     /// <remarks>

@@ -215,6 +215,7 @@
   "splash.stage.modules": "Загрузка модулей…",
   "splash.stage.extensions": "Загрузка плагинов…",
   "splash.stage.welcome": "Экран приветствия…",
+  "startup.degraded": "Запуск прошёл не полностью — подробности в журнале",
   "splash.failed": "Студия не поднялась",
   "splash.failed.nowindow": "Запуск не дал ни одного окна — подробности в журнале"
 }

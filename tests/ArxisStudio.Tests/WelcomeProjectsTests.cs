@@ -431,6 +431,32 @@ public class WelcomeProjectsTests : IDisposable
     /// <param name="model">Модель показанного окна — её и проверяют.</param>
     /// <param name="_">Решения, положенные до сборки окна.</param>
     /// <param name="canOpen">Есть ли кому открывать.</param>
+    /// <summary>
+    /// Экран Welcome говорит то, чего не сделал запуск.
+    /// </summary>
+    /// <remarks>
+    /// Своего места под это сообщение не заводится: оно появляется на запуске,
+    /// который прошёл, и место под него стояло бы пустым всегда. Берётся та же
+    /// полоса, которой экран отвечает на отказы открыть проект.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_welcome_screen_says_what_the_startup_could_not_do()
+    {
+        var window = Window(out var model);
+
+        Assert.False(model.HasStatus, "до слова полосе состояния показываться нечем");
+
+        window.Say(Localizer.Instance["startup.degraded"]);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(model.HasStatus);
+        Assert.Contains(
+            window.GetVisualDescendants().OfType<TextBlock>().Select(text => text.Text),
+            text => text == Localizer.Instance["startup.degraded"]);
+
+        window.Close();
+    }
+
     private WelcomeWindow Window(out WelcomeViewModel model, string? _ = null, bool canOpen = true)
     {
         var window = new WelcomeWindow(
