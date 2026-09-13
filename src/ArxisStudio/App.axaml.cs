@@ -63,7 +63,14 @@ public class App : Application
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.ShutdownMode = ShutdownMode.OnLastWindowClose;
+            // На время запуска студия не закрывается по последнему окну.
+            // Пока главного окна нет, единственное окно — заставка, и всякая
+            // ошибка порядка уносила бы студию тем же движением, каким
+            // заставка уходит с экрана: упавшая сборка оболочки оставляла
+            // MainWindow пустым, Show ничего не делал, а Close закрывал
+            // последнее окно — процесс кончался без окна и без слова. Обычный
+            // режим возвращается, когда окно показано.
+            desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             Raise(desktop);
         }
 
@@ -86,9 +93,59 @@ public class App : Application
         splash.Show();
         StudioLaunch.Mark("заставка");
 
+        // Задача, а не async-лямбда: лямбда, поданная сюда как Action, — это
+        // async void, и исключение из неё минует всякий catch и уносит процесс.
+        // RunGuardedAsync не бросает по построению, поэтому брошенная задача
+        // здесь честная, а не забытая.
         Dispatcher.UIThread.Post(
-            async () => await RunAsync(desktop, splash),
+            () => _ = RunGuardedAsync(desktop, splash),
             DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// Проходит запуск и отвечает за то, что из него ничего не вылетит.
+    /// </summary>
+    /// <remarks>
+    /// Верхний <c>catch</c> здесь не перестраховка, а условие задачи: выше —
+    /// только диспетчер, и брошенное туда исключение уносит студию. Что бы ни
+    /// случилось, человек обязан увидеть окно и причину.
+    /// </remarks>
+    private async Task RunGuardedAsync(IClassicDesktopStyleApplicationLifetime desktop, SplashWindow splash)
+    {
+        try
+        {
+            await RunAsync(desktop, splash);
+        }
+        catch (Exception e)
+        {
+            Fail(desktop, splash, $"{e.GetType().Name}: {e.Message}", e.ToString());
+        }
+    }
+
+    /// <summary>
+    /// Студии не будет: сказать человеку и дождаться, пока он закроет.
+    /// </summary>
+    /// <param name="desktop">Жизненный цикл — им же студия и завершается.</param>
+    /// <param name="splash">Заставка, которая остаётся на экране отчётом.</param>
+    /// <param name="shown">Что читает человек.</param>
+    /// <param name="logged">Что уходит в журнал — со стеком.</param>
+    /// <remarks>
+    /// Завершает студию закрытие заставки, а не этот метод: окно с причиной,
+    /// закрытое через миг после появления, ничем не лучше отсутствия окна.
+    /// Код возврата не нулевой — запуск не удался, и тот, кто звал студию
+    /// скриптом, обязан это узнать.
+    /// </remarks>
+    private void Fail(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        SplashWindow splash,
+        string shown,
+        string logged)
+    {
+        _log.Write(StudioLogLevel.Error, "Startup", logged);
+
+        ((SplashViewModel)splash.DataContext!).Fail(shown);
+
+        splash.Closed += (_, _) => desktop.Shutdown(1);
     }
 
     /// <summary>
@@ -135,11 +192,26 @@ public class App : Application
         await startup.RunAsync();
         await splash.LingerAsync();
 
-        // Настоящее окно открывается до того, как уходит заставка: студия
-        // закрывается по последнему окну, и промежуток без единого окна был бы
-        // промежутком без студии.
-        desktop.MainWindow?.Show();
+        // Окна может не быть вовсе: этап сборки оболочки падает, следующие за
+        // ним падают об него же, и до присвоения дело не доходит. Показывать
+        // нечего — значит надо сказать, а не уйти.
+        if (desktop.MainWindow is not { } first)
+        {
+            Fail(
+                desktop, splash,
+                Localizer.Instance["splash.failed.nowindow"],
+                "Запуск не дал ни одного окна: причина — в записях этапов выше");
+
+            return;
+        }
+
+        // Настоящее окно открывается до того, как уходит заставка: промежуток
+        // без единого окна был бы промежутком без студии.
+        first.Show();
         splash.Close();
+
+        // Окно есть — студию снова можно закрывать последним окном.
+        desktop.ShutdownMode = ShutdownMode.OnLastWindowClose;
 
         StudioLaunch.Mark("окно");
 

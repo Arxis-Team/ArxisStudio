@@ -6,7 +6,9 @@ using ArxisStudio.Splash;
 using ArxisStudio.ViewModels;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
@@ -365,6 +367,140 @@ public class SplashTests : IDisposable
 
         splash.Close();
     }
+
+    /// <summary>
+    /// Упавший этап оставляет в журнале стек, а не одну строку.
+    /// </summary>
+    /// <remarks>
+    /// Сообщение без стека не называет ни места, ни причины. Тихий выход без
+    /// окна прожил ровно столько, сколько журнал писал один <c>Message</c>:
+    /// причина была видна в коде и невидима в отчёте.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_fallen_stage_leaves_its_stack_in_the_log()
+    {
+        await new StudioStartup(new SplashViewModel(), _log)
+            .Add("splash.stage.settings", () => throw new InvalidOperationException("файл занят"))
+            .RunAsync();
+
+        var record = Assert.Single(_log.Records, record => record.Level == StudioLogLevel.Error);
+
+        // Имя типа есть у ToString и нет у Message — по нему и видно, что записано.
+        Assert.Contains(nameof(InvalidOperationException), record.Message, StringComparison.Ordinal);
+        // И сам стек: в нём стоит тип, через который прошёл вызов. Проверять
+        // «at» нельзя — в стеке .NET это слово переводится вместе со средой.
+        Assert.Contains(nameof(StudioStartup), record.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Отказавший запуск говорит об этом, а не называет этап.
+    /// </summary>
+    /// <remarks>
+    /// Имя этапа, на котором всё встало, читалось бы как «идёт», хотя не идёт
+    /// уже ничего. Причина при этом не переводится: её несут в отчёт о сбое.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Failing_says_so_instead_of_naming_a_stage()
+    {
+        var model = new SplashViewModel();
+        var heard = new List<string>();
+
+        model.Begin("Сборка оболочки…");
+        model.PropertyChanged += (_, e) => heard.Add(e.PropertyName ?? string.Empty);
+
+        model.Fail("InvalidOperationException: файл занят");
+
+        Assert.True(model.HasFailed);
+        Assert.Equal("InvalidOperationException: файл занят", model.Failure);
+        Assert.Equal(Localizer.Instance["splash.failed"], model.Stage);
+
+        Assert.Contains(nameof(model.HasFailed), heard);
+        Assert.Contains(nameof(model.Stage), heard);
+    }
+
+    /// <summary>
+    /// Отказавшая заставка называет причину и даёт выход.
+    /// </summary>
+    /// <remarks>
+    /// Рамы у окна нет вовсе, и без кнопки человек остался бы с незакрываемой
+    /// заставкой — хуже, чем с тихим выходом. Полоса хода при этом уходит:
+    /// бегущая, она обещала бы, что студия ещё поднимается.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_failed_splash_names_the_cause_and_gives_a_way_out()
+    {
+        var model = new SplashViewModel();
+        var splash = new SplashWindow(model);
+
+        splash.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        model.Expect(3);
+        model.Begin("Сборка оболочки…");
+
+        Dispatcher.UIThread.RunJobs();
+
+        // Видно ли человеку, а не заведён ли контрол: скрытый родитель детей
+        // из дерева не убирает, и наличие кнопки о ней ничего не говорит.
+        Assert.True(Bar(splash).IsEffectivelyVisible, "на идущем запуске полоса хода обязана быть видна");
+        Assert.False(Way(splash).IsEffectivelyVisible, "до отказа выходу на заставке делать нечего");
+
+        model.Fail("InvalidOperationException: файл занят");
+
+        Dispatcher.UIThread.RunJobs();
+
+        var shown = Texts(splash);
+
+        Assert.Contains(Localizer.Instance["splash.failed"], shown);
+        Assert.Contains("InvalidOperationException: файл занят", shown);
+
+        Assert.False(Bar(splash).IsEffectivelyVisible, "после отказа полоса хода обещала бы ход, которого нет");
+        Assert.True(Way(splash).IsEffectivelyVisible, "рамы у окна нет — без кнопки заставку нечем закрыть");
+
+        splash.Close();
+    }
+
+    /// <summary>
+    /// Esc закрывает заставку, но только отказавшую.
+    /// </summary>
+    /// <remarks>
+    /// На идущем запуске отменять нечем: этапы про отмену пока не знают, и
+    /// закрытое окно оставило бы студию поднимающейся втайне.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Escape_closes_the_splash_only_after_it_failed()
+    {
+        var model = new SplashViewModel();
+        var splash = new SplashWindow(model);
+        var closed = false;
+
+        splash.Closed += (_, _) => closed = true;
+
+        splash.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        splash.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, string.Empty);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(closed, "идущий запуск отменять нечем — заставка обязана остаться");
+
+        model.Fail("InvalidOperationException: файл занят");
+
+        Dispatcher.UIThread.RunJobs();
+
+        splash.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, string.Empty);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(closed, "отказавшую заставку обязан закрывать Esc");
+    }
+
+    /// <summary>Полоса хода заставки — она на ней одна.</summary>
+    private static AxProgressBar Bar(Visual root) =>
+        root.GetVisualDescendants().OfType<AxProgressBar>().Single();
+
+    /// <summary>Выход с отказавшей заставки — кнопка на ней тоже одна.</summary>
+    private static AxButton Way(Visual root) =>
+        root.GetVisualDescendants().OfType<AxButton>().Single();
 
     /// <summary>Всё, что заставка написала на экране.</summary>
     private static IReadOnlyList<string> Texts(Visual root) =>

@@ -131,8 +131,11 @@ public sealed class StudioStartup
         }
         catch (Exception e)
         {
+            // Целиком, а не одним Message: сообщение без стека не называет ни
+            // места, ни причины, и запуск, упавший у человека, остаётся
+            // недиагностируемым. Ровно так и вышло с тихим выходом без окна.
             _log.Write(StudioLogLevel.Error, "Startup",
-                $"{Localizer.Instance[stage.Key]}: {e.Message}");
+                $"{Localizer.Instance[stage.Key]}: {e}");
         }
     }
 

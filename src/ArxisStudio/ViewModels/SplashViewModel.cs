@@ -24,6 +24,7 @@ namespace ArxisStudio.ViewModels;
 public sealed class SplashViewModel : INotifyPropertyChanged
 {
     private string _stage = string.Empty;
+    private string? _failure;
     private int _done;
     private int _total;
 
@@ -64,6 +65,40 @@ public sealed class SplashViewModel : INotifyPropertyChanged
 
     /// <summary>Среда, на которой всё это работает: <c>.NET 10 · x64</c>.</summary>
     public string Runtime => StudioRelease.Runtime;
+
+    /// <summary>
+    /// Чем кончился запуск, если не студией; <c>null</c> — идёт как надо.
+    /// </summary>
+    /// <remarks>
+    /// Здесь тип и сообщение исключения, а не перевод: строку эту человек несёт
+    /// в отчёт о сбое, и переведённая она там бесполезна. Переводится заголовок
+    /// над ней, а не она сама.
+    /// </remarks>
+    public string? Failure => _failure;
+
+    /// <summary>Запуск кончился без студии.</summary>
+    public bool HasFailed => _failure is not null;
+
+    /// <summary>
+    /// Студии не будет — и заставке больше нечего ждать.
+    /// </summary>
+    /// <param name="reason">Тип и сообщение исключения либо своё объяснение.</param>
+    /// <remarks>
+    /// Подпись этапа подменяется нарочно: имя этапа, на котором всё встало,
+    /// читалось бы на экране как «идёт», хотя не идёт уже ничего. В журнале оно
+    /// остаётся.
+    /// </remarks>
+    public void Fail(string reason)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+
+        _failure = reason;
+        _stage = Localizer.Instance["splash.failed"];
+
+        Notify(nameof(Failure));
+        Notify(nameof(HasFailed));
+        Notify(nameof(Stage));
+    }
 
     /// <summary>
     /// Объявляет, сколько этапов впереди.

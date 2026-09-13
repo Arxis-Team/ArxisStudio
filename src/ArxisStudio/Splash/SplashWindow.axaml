@@ -39,9 +39,32 @@
                    TextTrimming="CharacterEllipsis"/>
 
         <ax:AxProgressBar Margin="0,9,0,0"
+                          IsVisible="{Binding !HasFailed}"
                           Minimum="0" Maximum="100"
                           Value="{Binding Progress}"
                           IsIndeterminate="{Binding IsIndeterminate}"/>
+
+        <!--
+            Отказ встаёт на место полосы хода. Второго окна ради него не
+            заводят: заставка уже на экране, уже единственная и уже имеет
+            строку под текст, а собирать окно пришлось бы тем самым кодом,
+            который только что не собрался.
+
+            Причина пишется моноширинным и не переводится — её несут в отчёт о
+            сбое. Кнопка нужна не для красоты: рамы у окна нет, и без неё
+            человек остался бы с незакрываемой заставкой.
+        -->
+        <StackPanel Margin="0,9,0,0" IsVisible="{Binding HasFailed}">
+          <TextBlock Text="{Binding Failure}"
+                     FontFamily="{DynamicResource AxFontFamilyMono}"
+                     FontSize="{DynamicResource AxFontSizeCaption}"
+                     Foreground="{DynamicResource AxRedTextBrush}"
+                     TextWrapping="Wrap" MaxLines="3"
+                     TextTrimming="CharacterEllipsis"/>
+
+          <ax:AxButton Content="{ax:Loc common.close}" Margin="0,12,0,0"
+                       HorizontalAlignment="Left" Click="OnCloseClick"/>
+        </StackPanel>
 
         <!--
             Подвал: слева права и набор инструментов, справа среда. Обе строки

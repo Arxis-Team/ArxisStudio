@@ -214,5 +214,7 @@
   "splash.stage.shell": "Building the shell…",
   "splash.stage.modules": "Loading modules…",
   "splash.stage.extensions": "Loading plugins…",
-  "splash.stage.welcome": "Welcome screen…"
+  "splash.stage.welcome": "Welcome screen…",
+  "splash.failed": "The studio did not start",
+  "splash.failed.nowindow": "Startup produced no window — see the log for details"
 }

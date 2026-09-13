@@ -1,5 +1,7 @@
 ﻿using ArxisStudio.ViewModels;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 
 namespace ArxisStudio.Splash;
@@ -57,4 +59,32 @@ public partial class SplashWindow : Window
 
     /// <summary>Дожидается, пока заставку успеют прочитать.</summary>
     public Task LingerAsync() => Task.Delay(Rest(DateTime.UtcNow - _shown));
+
+    /// <summary>
+    /// Esc закрывает заставку, но только отказавшую.
+    /// </summary>
+    /// <remarks>
+    /// На идущем запуске отменять нечем: этапы про отмену пока не знают, и
+    /// закрытое окно оставило бы студию поднимающейся втайне.
+    /// </remarks>
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && DataContext is SplashViewModel { HasFailed: true })
+        {
+            Close();
+            e.Handled = true;
+        }
+
+        base.OnKeyDown(e);
+    }
+
+    /// <summary>
+    /// Кнопка на отказе: окно уходит, студия — за ним.
+    /// </summary>
+    /// <remarks>
+    /// Само окно только закрывается. Завершает студию тот, кто её поднимал: на
+    /// запуске она живёт при <c>OnExplicitShutdown</c>, и закрытое окно её не
+    /// остановит — процесс остался бы в памяти без единого окна.
+    /// </remarks>
+    private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
 }
