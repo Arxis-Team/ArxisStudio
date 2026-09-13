@@ -88,7 +88,12 @@ public class App : Application
     /// </remarks>
     private void Raise(IClassicDesktopStyleApplicationLifetime desktop)
     {
-        var splash = new SplashWindow(new SplashViewModel());
+        var model = new SplashViewModel();
+        var splash = new SplashWindow(model);
+
+        // Модель слушает язык студии, а Localizer один на процесс: без этой
+        // строки заставка пережила бы себя подпиской на синглтон.
+        splash.Closed += (_, _) => model.Dispose();
 
         splash.Show();
         StudioLaunch.Mark("заставка");
@@ -221,6 +226,17 @@ public class App : Application
         // Настоящее окно открывается до того, как уходит заставка: промежуток
         // без единого окна был бы промежутком без студии.
         first.Show();
+
+        // Поднять его надо вслух. Заставка стоит поверх всех, студия — нет, и
+        // показанное под Topmost-окном на передний план не выходит: студия
+        // вставала под заставкой и оставалась там, а если человек успел уйти в
+        // чужое окно — то и после её ухода.
+        first.Activate();
+
+        // Topmost снимается до закрытия, а не после: после закрытия снимать уже
+        // не с чего, а оставленный до конца он держит заставку над студией весь
+        // промежуток, пока открыты оба окна.
+        splash.Topmost = false;
         splash.Close();
 
         // Окно есть — студию снова можно закрывать последним окном.

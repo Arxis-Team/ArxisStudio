@@ -8,7 +8,6 @@
         Title="ArxisStudio"
         Width="640" Height="360"
         CanResize="False"
-        ShowInTaskbar="False"
         Topmost="True"
         WindowStartupLocation="CenterScreen"
         WindowDecorations="None"

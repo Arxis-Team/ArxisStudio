@@ -639,6 +639,103 @@ public class SplashTests : IDisposable
         Assert.True(closed, "отказавшую заставку обязан закрывать Esc");
     }
 
+    /// <summary>
+    /// Часы заставки идут с её появления, а не с её создания.
+    /// </summary>
+    /// <remarks>
+    /// Отсчёт стоял в инициализаторе поля — то есть до разбора разметки и
+    /// задолго до показа. Заставка «бывала на экране» то время, пока её
+    /// собирали, и срок, ради которого правило заведено, выходил раньше, чем
+    /// человек что-либо видел.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_clock_of_the_splash_starts_when_it_opens()
+    {
+        var splash = new SplashWindow(new SplashViewModel());
+
+        Assert.Equal(TimeSpan.Zero, splash.Visible);
+
+        splash.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        splash.Close();
+    }
+
+    /// <summary>
+    /// Последний кадр отдают всегда, даже когда ждать уже нечего.
+    /// </summary>
+    /// <remarks>
+    /// Когда этапы заняли больше срока, <c>Task.Delay(Zero)</c> завершается
+    /// синхронно: продолжение идёт тем же заходом, прохода отрисовки не
+    /// случается, и кадр со стопроцентной полосой не рисуется никогда —
+    /// заставка замирает на предпоследнем этапе и так и уходит.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task The_last_frame_is_given_its_pass_even_when_there_is_nothing_to_wait_for()
+    {
+        var splash = new SplashWindow(new SplashViewModel());
+        var painted = false;
+
+        splash.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        Dispatcher.UIThread.Post(() => painted = true, DispatcherPriority.Background);
+
+        // Срок вышел: ждать нечего, и без безусловной уступки потока очередь
+        // отрисовки не сдвинулась бы ни на шаг.
+        await splash.LingerAsync(SplashWindow.Patience + TimeSpan.FromSeconds(1));
+
+        Assert.True(painted, "кадр со стопроцентной полосой не был бы нарисован никогда");
+
+        splash.Close();
+    }
+
+    /// <summary>
+    /// Заставка стоит в панели задач.
+    /// </summary>
+    /// <remarks>
+    /// Почти секунду это единственное окно студии. Без кнопки человек, ушедший
+    /// на Alt+Tab в ту самую секунду, которую он и ждёт, вернуться к ней не
+    /// может. «Заставка — не окно» здесь проигрывает.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_splash_stands_in_the_taskbar()
+    {
+        var splash = new SplashWindow(new SplashViewModel());
+
+        Assert.True(splash.ShowInTaskbar);
+    }
+
+    /// <summary>
+    /// Отпущенная модель перестаёт слушать язык студии.
+    /// </summary>
+    /// <remarks>
+    /// <c>Localizer</c> один на процесс и живёт дольше заставки. Подписка,
+    /// сделанная лямбдой в конструкторе, не снималась никогда: модель
+    /// оставалась жива подпиской на синглтон, и в прогоне их копилось по одной
+    /// на каждый тест.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_model_that_was_let_go_stops_listening_to_the_language()
+    {
+        var model = new SplashViewModel();
+        var heard = 0;
+
+        model.PropertyChanged += (_, _) => heard++;
+
+        Localizer.Instance.SetLanguage("ru");
+
+        Assert.True(heard > 0, "живая модель обязана слышать смену языка");
+
+        model.Dispose();
+
+        var quiet = heard;
+
+        Localizer.Instance.SetLanguage("en");
+
+        Assert.Equal(quiet, heard);
+    }
+
     /// <summary>Полоса хода заставки — она на ней одна.</summary>
     private static AxProgressBar Bar(Visual root) =>
         root.GetVisualDescendants().OfType<AxProgressBar>().Single();

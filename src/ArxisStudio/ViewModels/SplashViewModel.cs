@@ -21,7 +21,7 @@ namespace ArxisStudio.ViewModels;
 /// разметке.
 /// </para>
 /// </remarks>
-public sealed class SplashViewModel : INotifyPropertyChanged
+public sealed class SplashViewModel : INotifyPropertyChanged, IDisposable
 {
     private string _stage = string.Empty;
     private string? _failure;
@@ -34,8 +34,17 @@ public sealed class SplashViewModel : INotifyPropertyChanged
     /// показанной заставке. Строка версии на ней написана словом «сборка», и
     /// без этой подписки она осталась бы на языке, с которого студия начала.
     /// </remarks>
-    public SplashViewModel() =>
-        Localizer.Instance.PropertyChanged += (_, _) => Notify(nameof(Edition));
+    public SplashViewModel() => Localizer.Instance.PropertyChanged += OnLanguageChanged;
+
+    /// <summary>
+    /// Отписывается от языка студии.
+    /// </summary>
+    /// <remarks>
+    /// <c>Localizer</c> один на процесс и живёт дольше заставки. Лямбда,
+    /// подписанная в конструкторе, не снималась никогда: модель оставалась жива
+    /// подпиской на синглтон, и в прогоне тестов их копилось по одной на каждый.
+    /// </remarks>
+    public void Dispose() => Localizer.Instance.PropertyChanged -= OnLanguageChanged;
 
     /// <inheritdoc/>
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -138,6 +147,8 @@ public sealed class SplashViewModel : INotifyPropertyChanged
 
         Notify(nameof(Progress));
     }
+
+    private void OnLanguageChanged(object? sender, PropertyChangedEventArgs e) => Notify(nameof(Edition));
 
     private void Notify([CallerMemberName] string? property = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
