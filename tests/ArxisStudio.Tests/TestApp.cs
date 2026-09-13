@@ -5,8 +5,10 @@ using ArxisStudio.Themes.Arxis;
 using Avalonia;
 using Avalonia.Headless;
 using Avalonia.Themes.Fluent;
+using Xunit;
 
 [assembly: AvaloniaTestApplication(typeof(TestApp))]
+[assembly: CollectionBehavior(DisableTestParallelization = true)]
 
 namespace ArxisStudio.Tests;
 
