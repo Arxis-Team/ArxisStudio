@@ -177,7 +177,13 @@ public class App : Application
             // Хранилище настроек передаётся, а не заводится окном: оно читает
             // файл в память и пишет его целиком, и второй экземпляр на процесс
             // потерял бы правку, сделанную в первом.
-            .Add("splash.stage.shell", () => _studio = new MainWindow(_log) { Settings = _settings, Catalog = _plugins })
+            // Роковой: без окна студии нет ни модулей, ни плагинов, ни
+            // экрана приветствия — следующие три этапа брались бы за пустое
+            // место по очереди.
+            .Add(
+                "splash.stage.shell",
+                () => _studio = new MainWindow(_log) { Settings = _settings, Catalog = _plugins },
+                fatal: true)
             .Add("splash.stage.modules", () =>
             {
                 // Недавние отмечает студия, а не модуль: список принадлежит человеку и живёт
@@ -187,9 +193,12 @@ public class App : Application
                 _studio.Extensions.LoadModules();
             })
             .Add("splash.stage.extensions", () => _studio.Extensions.LoadPlugins())
-            .Add("splash.stage.welcome", () => desktop.MainWindow = FirstWindow(desktop.Args));
+            // Роковой по той же причине: запуск без окна — это запуск без
+            // студии, чем бы он ни кончился до того.
+            .Add("splash.stage.welcome", () => desktop.MainWindow = FirstWindow(desktop.Args), fatal: true);
 
-        await startup.RunAsync();
+        var report = await startup.RunAsync();
+
         await splash.LingerAsync();
 
         // Окна может не быть вовсе: этап сборки оболочки падает, следующие за
@@ -197,10 +206,14 @@ public class App : Application
         // нечего — значит надо сказать, а не уйти.
         if (desktop.MainWindow is not { } first)
         {
-            Fail(
-                desktop, splash,
-                Localizer.Instance["splash.failed.nowindow"],
-                "Запуск не дал ни одного окна: причина — в записях этапов выше");
+            // Причина берётся у рокового этапа, а не выдумывается заново:
+            // «окна нет» — это следствие, а человеку нужна причина. Запасной
+            // текст остаётся на случай, когда окна нет, а роковой не падал:
+            // так бывает, если этап отдал null вместо окна.
+            var reason = report.Failed.FirstOrDefault(failure => failure.Fatal)?.Reason
+                ?? Localizer.Instance["splash.failed.nowindow"];
+
+            Fail(desktop, splash, reason, $"Запуск не дал ни одного окна: {reason}");
 
             return;
         }

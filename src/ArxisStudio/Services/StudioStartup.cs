@@ -22,6 +22,12 @@ namespace ArxisStudio.Services;
 /// поток интерфейса, иначе заставка не перерисуется ни разу и покажет первый
 /// этап вместо всех.
 /// </para>
+/// <para>
+/// Первое правило знает исключение, и оно названо словом: этап роковой, если
+/// студии без него не бывает. Таких два — сборка оболочки и первое окно.
+/// Упавший роковой останавливает список: этапы за ним не делают своей работы,
+/// а падают об пустое окно, и в журнал шло три исключения вместо одной причины.
+/// </para>
 /// </remarks>
 public sealed class StudioStartup
 {
@@ -54,13 +60,46 @@ public sealed class StudioStartup
     /// </summary>
     /// <param name="key">Ключ словаря: подпись этапа на языке студии.</param>
     /// <param name="work">Что делается на этом этапе.</param>
+    /// <param name="fatal">Есть ли студия без этого этапа.</param>
     /// <returns>Тот же запуск — чтобы список читался одним выражением.</returns>
-    public StudioStartup Add(string key, Action work)
+    /// <remarks>
+    /// Не всякая работа асинхронна, и заворачивать чтение поля в задачу ради
+    /// единообразия значило бы врать о её природе.
+    /// </remarks>
+    public StudioStartup Add(string key, Action work, bool fatal = false)
+    {
+        ArgumentNullException.ThrowIfNull(work);
+
+        return Add(
+            key,
+            _ =>
+            {
+                work();
+
+                return Task.CompletedTask;
+            },
+            fatal);
+    }
+
+    /// <summary>
+    /// Добавляет этап, которому нужно время.
+    /// </summary>
+    /// <param name="key">Ключ словаря: подпись этапа на языке студии.</param>
+    /// <param name="work">Что делается на этом этапе.</param>
+    /// <param name="fatal">Есть ли студия без этого этапа.</param>
+    /// <returns>Тот же запуск.</returns>
+    /// <remarks>
+    /// Обход каталога плагинов и чтение настроек — это диск, а диск бывает
+    /// сетевым. Синхронный этап держит поток отрисовки, и заставка, ради
+    /// которой всё затевалось, замирает ровно там, где должна была
+    /// рассказывать.
+    /// </remarks>
+    public StudioStartup Add(string key, Func<CancellationToken, Task> work, bool fatal = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         ArgumentNullException.ThrowIfNull(work);
 
-        _stages.Add(new Stage(key, work));
+        _stages.Add(new Stage(key, work, fatal));
 
         return this;
     }
@@ -72,11 +111,10 @@ public sealed class StudioStartup
     /// Подпись объявляется до работы, доля растёт после: человек читает, чем
     /// студия занята сейчас.
     /// </remarks>
-    public async Task RunAsync()
+    public async Task<StartupReport> RunAsync(CancellationToken token = default)
     {
         var clock = Stopwatch.StartNew();
-
-        _splash.Expect(_stages.Count);
+        var failed = new List<StageFailure>();
 
         // Первый кадр — отдельная фаза, и ждать его надо здесь. Окно заставки
         // показано, но ещё не нарисовано: рисует его тот же поток, который
@@ -85,6 +123,11 @@ public sealed class StudioStartup
         // и в отчёте «paths» стоил двести миллисекунд вместо двух.
         await Idle();
         StudioLaunch.Mark("кадр");
+
+        // Число этапов объявляется после первого кадра, а не до него. До кадра
+        // «полоса бежит» существовало только в модели: заставка появлялась уже
+        // с долей, и бегущей полосы не видел никто.
+        _splash.Expect(_stages.Count);
 
         foreach (var stage in _stages)
         {
@@ -95,7 +138,17 @@ public sealed class StudioStartup
             // то есть никогда не будет прочитано.
             await Idle();
 
-            Run(stage);
+            if (await RunAsync(stage, token) is { } failure)
+            {
+                failed.Add(failure);
+
+                // Этап после рокового не выполняется — и не падает об него.
+                // Три подряд NullReferenceException, которыми кончалась
+                // упавшая сборка оболочки, были ровно этим: modules,
+                // extensions и welcome брались за пустое окно по очереди.
+                if (failure.Fatal)
+                    break;
+            }
 
             _splash.Done();
 
@@ -103,6 +156,8 @@ public sealed class StudioStartup
         }
 
         Elapsed = clock.Elapsed;
+
+        return new StartupReport(Elapsed, failed);
     }
 
     /// <summary>
@@ -123,11 +178,13 @@ public sealed class StudioStartup
     /// открылась: человеку нужна студия, пусть и без языкового пакета, а
     /// причина остаётся в журнале.
     /// </remarks>
-    private void Run(Stage stage)
+    private async Task<StageFailure?> RunAsync(Stage stage, CancellationToken token)
     {
         try
         {
-            stage.Work();
+            await stage.Work(token);
+
+            return null;
         }
         catch (Exception e)
         {
@@ -136,6 +193,10 @@ public sealed class StudioStartup
             // недиагностируемым. Ровно так и вышло с тихим выходом без окна.
             _log.Write(StudioLogLevel.Error, "Startup",
                 $"{Localizer.Instance[stage.Key]}: {e}");
+
+            // На экран уходит тип с сообщением, а не стек: человеку нужно
+            // название беды, а стек нужен журналу.
+            return new StageFailure(stage.Key, $"{e.GetType().Name}: {e.Message}", stage.Fatal);
         }
     }
 
@@ -143,8 +204,33 @@ public sealed class StudioStartup
     private static Task Idle() =>
         Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background).GetTask();
 
-    /// <summary>Этап запуска: подпись и работа.</summary>
+    /// <summary>Этап запуска: подпись, работа и цена его отсутствия.</summary>
     /// <param name="Key">Ключ словаря для подписи.</param>
     /// <param name="Work">Что делается.</param>
-    private sealed record Stage(string Key, Action Work);
+    /// <param name="Fatal">Есть ли студия без этого этапа.</param>
+    private sealed record Stage(string Key, Func<CancellationToken, Task> Work, bool Fatal);
+}
+
+/// <summary>Чего этап не сделал.</summary>
+/// <param name="Key">Ключ словаря: какой это был этап.</param>
+/// <param name="Reason">Тип и сообщение — то, что показывают человеку.</param>
+/// <param name="Fatal">Студии без этого этапа нет.</param>
+/// <remarks>
+/// Ключ, а не подпись: подпись переводится, а отчёт читают и грепом тоже.
+/// </remarks>
+public sealed record StageFailure(string Key, string Reason, bool Fatal);
+
+/// <summary>Чем кончился запуск.</summary>
+/// <param name="Elapsed">Сколько он занял.</param>
+/// <param name="Failed">Этапы, которые не сделали своего, по порядку.</param>
+/// <remarks>
+/// Пустой список отказов — не единственный хороший исход. Запуск с парой
+/// ослабленных отказов — это открытая студия без языкового пакета, и она нужнее
+/// закрытой; отличать её от совсем удавшейся надо не для того, чтобы отказать, а
+/// для того, чтобы сказать человеку, чего у него сегодня нет.
+/// </remarks>
+public sealed record StartupReport(TimeSpan Elapsed, IReadOnlyList<StageFailure> Failed)
+{
+    /// <summary>Упал этап, без которого студии не бывает.</summary>
+    public bool Broken => Failed.Any(failure => failure.Fatal);
 }

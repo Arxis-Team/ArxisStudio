@@ -369,6 +369,151 @@ public class SplashTests : IDisposable
     }
 
     /// <summary>
+    /// Роковой этап останавливает список, а не портит следующие.
+    /// </summary>
+    /// <remarks>
+    /// Без этого правила сборка оболочки, не давшая окна, роняла три следующих
+    /// этапа об пустое место: в журнал шло четыре исключения, из которых три —
+    /// о последствии, и ни одно не называло причину первым.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_fatal_stage_stops_the_list_instead_of_spoiling_the_rest()
+    {
+        var after = false;
+
+        var report = await new StudioStartup(new SplashViewModel(), _log)
+            .Add("splash.stage.shell", () => throw new InvalidOperationException("оболочка не собралась"), fatal: true)
+            .Add("splash.stage.modules", () => after = true)
+            .RunAsync();
+
+        Assert.False(after, "этап после рокового брался бы за то, чего нет");
+
+        Assert.True(report.Broken);
+
+        var failure = Assert.Single(report.Failed);
+
+        Assert.Equal("splash.stage.shell", failure.Key);
+        Assert.True(failure.Fatal);
+        Assert.Contains("оболочка не собралась", failure.Reason, StringComparison.Ordinal);
+        Assert.Contains(nameof(InvalidOperationException), failure.Reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ослабленный отказ попадает в отчёт и не ломает запуск.
+    /// </summary>
+    /// <remarks>
+    /// Испорченный языковой пакет — это студия без пакета, а не отсутствие
+    /// студии. Но и молчать о нём нельзя: человеку надо сказать, чего у него
+    /// сегодня нет.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_stage_that_is_not_fatal_is_reported_and_forgiven()
+    {
+        var after = false;
+
+        var report = await new StudioStartup(new SplashViewModel(), _log)
+            .Add("splash.stage.language", () => throw new InvalidOperationException("пакет испорчен"))
+            .Add("splash.stage.theme", () => after = true)
+            .RunAsync();
+
+        Assert.True(after, "ослабленный отказ не повод не открыть студию");
+
+        Assert.False(report.Broken);
+        Assert.Equal("splash.stage.language", Assert.Single(report.Failed).Key);
+    }
+
+    /// <summary>
+    /// Этапу, которому нужно время, его дают.
+    /// </summary>
+    /// <remarks>
+    /// Обход каталога плагинов — это диск, а диск бывает сетевым. Синхронный
+    /// этап держит поток отрисовки, и заставка замирает ровно там, где должна
+    /// была рассказывать.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task An_asynchronous_stage_is_awaited_to_its_end()
+    {
+        var order = new List<string>();
+        var gate = new TaskCompletionSource();
+
+        var running = new StudioStartup(new SplashViewModel(), _log)
+            .Add("splash.stage.plugins", async _ =>
+            {
+                order.Add("начали");
+
+                await gate.Task;
+
+                order.Add("кончили");
+            })
+            .Add("splash.stage.theme", () => order.Add("следующий"))
+            .RunAsync();
+
+        Dispatcher.UIThread.RunJobs();
+
+        // Держать этап заслонкой, а не временем: Task.Yield успевает
+        // завершиться на той же уступке потока, что стоит между этапами, и
+        // порядок совпадал бы даже у незаконченного этапа. Проверено поломкой:
+        // с Yield проверка проходила и без ожидания.
+        Assert.Equal(["начали"], order);
+
+        gate.SetResult();
+
+        await running;
+
+        Assert.Equal(["начали", "кончили", "следующий"], order);
+    }
+
+    /// <summary>Отмена доезжает до этапа.</summary>
+    /// <remarks>
+    /// Сторож запуска придёт отдельной работой, но дорога для него должна быть
+    /// проложена раньше: этап, не видящий токена, нельзя ни прервать, ни
+    /// ограничить по времени.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task The_token_reaches_the_stage()
+    {
+        using var source = new CancellationTokenSource();
+        var seen = false;
+
+        await source.CancelAsync();
+
+        await new StudioStartup(new SplashViewModel(), _log)
+            .Add("splash.stage.paths", token =>
+            {
+                seen = token.IsCancellationRequested;
+
+                return Task.CompletedTask;
+            })
+            .RunAsync(source.Token);
+
+        Assert.True(seen, "этап получил чужой токен вместо переданного");
+    }
+
+    /// <summary>
+    /// До первого кадра доля не объявляется.
+    /// </summary>
+    /// <remarks>
+    /// Объявленная раньше кадра, она делала бегущую полосу невидимой: заставка
+    /// появлялась уже с долей, и состояние «считать пока не по чему» не видел
+    /// никто, хотя проверялось оно исправно.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task The_share_is_not_announced_before_the_first_frame()
+    {
+        var model = new SplashViewModel();
+
+        var running = new StudioStartup(model, _log)
+            .Add("splash.stage.paths", () => { })
+            .RunAsync();
+
+        Assert.True(model.IsIndeterminate, "доля объявлена до первого кадра — полоса не побежит ни разу");
+
+        await running;
+
+        Assert.False(model.IsIndeterminate);
+    }
+
+    /// <summary>
     /// Упавший этап оставляет в журнале стек, а не одну строку.
     /// </summary>
     /// <remarks>
