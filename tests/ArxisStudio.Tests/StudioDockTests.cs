@@ -128,6 +128,92 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
+    /// Обход по панелям идёт по кругу и в обе стороны.
+    /// </summary>
+    /// <remarks>
+    /// Вторая дорога по студии, и заведена она потому, что первой — обходом по
+    /// Tab — пользоваться нельзя: остановок в окне тридцать пять, и панели
+    /// лежат в конце. Здесь один шаг на панель.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Cycling_goes_round_the_panels_both_ways()
+    {
+        var (dock, _) = Dock();
+
+        dock.Add("hello", "hello:one", At("left"), "Один", Strings, Focusable());
+        dock.Add("hello", "hello:two", At("right"), "Два", Strings, Focusable());
+        dock.Add("hello", "hello:three", At("bottom"), "Три", Strings, Focusable());
+        Dispatcher.UIThread.RunJobs();
+
+        var stage = dock.Onstage;
+
+        Assert.Equal(3, stage.Count);
+
+        Assert.True(dock.Focus(stage[0]));
+
+        Assert.True(dock.Cycle());
+        Assert.Equal(stage[1], dock.Focused);
+
+        Assert.True(dock.Cycle());
+        Assert.Equal(stage[2], dock.Focused);
+
+        // По кругу: с последней — на первую.
+        Assert.True(dock.Cycle());
+        Assert.Equal(stage[0], dock.Focused);
+
+        Assert.True(dock.Cycle(back: true));
+        Assert.Equal(stage[2], dock.Focused);
+    }
+
+    /// <summary>
+    /// Из «нигде» обход возвращает каретку одной клавишей.
+    /// </summary>
+    /// <remarks>
+    /// «Нигде» случается всякий раз, когда закрыли последнюю панель группы и
+    /// наследника ей не нашлось: каретка остаётся ни на чём, и обход по Tab
+    /// начинается от кнопки «Свернуть» — дальше любой панели. Лечится это не
+    /// удлинением цепочки наследования, а одной клавишей отсюда.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Cycling_brings_the_caret_back_from_nowhere()
+    {
+        var (dock, _) = Dock();
+
+        dock.Add("hello", "hello:one", At("left"), "Один", Strings, Focusable());
+        dock.Add("hello", "hello:two", At("right"), "Два", Strings, Focusable());
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(dock.Focused);
+
+        Assert.True(dock.Cycle());
+        Assert.Equal(dock.Onstage[0], dock.Focused);
+    }
+
+    /// <summary>
+    /// Убранная с глаз панель в обход не попадает.
+    /// </summary>
+    /// <remarks>
+    /// Её нет на экране, и переходить в неё нечем и незачем: каретка встала бы
+    /// в контрол, которого человек не видит.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_panel_taken_off_the_screen_is_not_on_the_round()
+    {
+        var (dock, _) = Dock();
+
+        dock.Add("hello", "hello:one", At("left"), "Один", Strings, Focusable());
+        dock.Add("hello", "hello:two", At("right"), "Два", Strings, Focusable());
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(2, dock.Onstage.Count);
+
+        dock.Hide("hello:two");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(["hello:one"], dock.Onstage);
+    }
+
+    /// <summary>
     /// Раскладка знает, на чём стоит каретка.
     /// </summary>
     /// <remarks>

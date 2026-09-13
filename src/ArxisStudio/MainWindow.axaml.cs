@@ -502,10 +502,23 @@ public partial class MainWindow : AxWindow
                 _dock.Shut(id);
         });
 
-        if (!_shortcuts.Bind("Ctrl+W", "studio.close"))
-            _log.Write(StudioLogLevel.Warning, "Keys", "Ctrl+W занято — «Закрыть» осталось без сочетания");
+        // Обход по панелям: один шаг на панель вместо двадцати двух остановок
+        // Tab. Это вторая дорога по студии, и без неё первой пользоваться
+        // нельзя — в окне тридцать пять остановок, и панели лежат в конце.
+        _commands.Register("studio.panel.next", () => _dock.Cycle());
+        _commands.Register("studio.panel.previous", () => _dock.Cycle(back: true));
+
+        Bind("Ctrl+W", "studio.close");
+        Bind("F6", "studio.panel.next");
+        Bind("Shift+F6", "studio.panel.previous");
 
         _shortcuts.Attach(this);
+
+        void Bind(string gesture, string command)
+        {
+            if (!_shortcuts.Bind(gesture, command))
+                _log.Write(StudioLogLevel.Warning, "Keys", $"{gesture} занято — команда {command} осталась без сочетания");
+        }
     }
 
     /// <summary>Говорит строкой состояния — тем же местом, что и всё прочее.</summary>

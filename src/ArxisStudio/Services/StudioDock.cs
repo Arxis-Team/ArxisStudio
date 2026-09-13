@@ -759,6 +759,58 @@ public sealed class StudioDock
     }
 
     /// <summary>
+    /// Показанные панели и документы по порядку — как их видит человек.
+    /// </summary>
+    /// <remarks>
+    /// По одному имени на группу: в группе видно то, что в ней выбрано, а
+    /// остальное лежит вкладками за ним. Порядок — обход дерева: слева направо
+    /// и сверху вниз, потому что так его и строит вид. Оторванные окна идут
+    /// следом, в порядке появления.
+    /// <para>
+    /// Убранные с глаз сюда не попадают: их нет на экране, и переходить в них
+    /// нечем и незачем.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<string> Onstage =>
+        [.. Trees().SelectMany(root => root.Groups())
+            .Select(group => group.Selected)
+            .Where(selected => selected is not null && Onscreen(selected))
+            .Select(selected => selected!)];
+
+    /// <summary>
+    /// Передаёт каретку следующей показанной панели.
+    /// </summary>
+    /// <param name="back">Идти в обратную сторону.</param>
+    /// <returns>Нашлось ли куда.</returns>
+    /// <remarks>
+    /// Это вторая дорога по студии, и заведена она потому, что первой —
+    /// обходом по Tab — пользоваться нельзя: остановок в окне тридцать пять, и
+    /// чтобы дойти от полосы инструментов до третьей панели, человек проходит
+    /// двадцать две. Здесь один шаг на панель.
+    /// <para>
+    /// Каретка не в раскладке — берётся первая панель: так из «нигде»
+    /// возвращаются одной клавишей, а «нигде» случается всякий раз, когда
+    /// закрыли последнюю панель и наследника ей не нашлось.
+    /// </para>
+    /// </remarks>
+    public bool Cycle(bool back = false)
+    {
+        var stage = Onstage.ToList();
+
+        if (stage.Count == 0)
+            return false;
+
+        var at = Focused is { } here ? stage.IndexOf(here) : -1;
+
+        // Не нашли себя — начинаем сначала: каретка была не в раскладке.
+        var next = at < 0
+            ? (back ? stage.Count - 1 : 0)
+            : (at + (back ? stage.Count - 1 : 1)) % stage.Count;
+
+        return Focus(stage[next]);
+    }
+
+    /// <summary>
     /// Имя того, внутри чего сейчас каретка; <c>null</c> — она не в раскладке.
     /// </summary>
     /// <remarks>
@@ -769,6 +821,19 @@ public sealed class StudioDock
     public string? Focused =>
         Items.Known().FirstOrDefault(
             id => Items.Find(id)?.Content is Control content && DockFocus.Holds(content));
+
+    /// <summary>Все деревья студии: главное, потом оторванные окна.</summary>
+    private IEnumerable<DockNode> Trees()
+    {
+        if (_view.Root is { } root)
+            yield return root;
+
+        foreach (var window in _floats.Where(window => window.IsVisible))
+        {
+            if (window.View.Root is { } torn)
+                yield return torn;
+        }
+    }
 
     /// <summary>Каретка сейчас внутри этой панели или этого документа.</summary>
     /// <param name="id">Имя того, о ком спрашивают.</param>
