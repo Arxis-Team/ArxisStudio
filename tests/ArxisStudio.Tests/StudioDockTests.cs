@@ -127,6 +127,90 @@ public class StudioDockTests : IDisposable
         Assert.True(DockFocus.Holds(outline), "возвращённая панель осталась без каретки");
     }
 
+    /// <summary>
+    /// Закрытая панель отдаёт каретку соседу по группе.
+    /// </summary>
+    /// <remarks>
+    /// Здесь клавиатурный пользователь и оставался ни с чем: панель, в которой
+    /// он работал, уходила с экрана вместе с кареткой, и обход по Tab начинался
+    /// заново от начала окна. Сосед по группе — тот, кого человек и так видел
+    /// рядом.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_panel_that_leaves_hands_its_caret_to_the_neighbour()
+    {
+        var (dock, _) = Dock();
+        var tree = Focusable();
+        var outline = Focusable();
+
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, tree);
+        dock.Add("hello", "hello:outline", At("left"), "Структура", Strings, outline);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(dock.Focus("hello:outline"));
+
+        dock.Hide("hello:outline");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(DockFocus.Holds(tree), "каретка ушла вместе с панелью, и вернуть её нечем");
+    }
+
+    /// <summary>
+    /// Убранная панель не трогает каретку, стоящую в другом месте.
+    /// </summary>
+    /// <remarks>
+    /// Панель убирают и не глядя на неё: из меню, при выключении плагина, при
+    /// смене набора раскладки. Каретка, прыгнувшая при этом из редактора, —
+    /// та же кража, что и при показе.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Hiding_a_panel_leaves_a_caret_that_stood_elsewhere_alone()
+    {
+        var (dock, _) = Dock();
+        var tree = Focusable();
+        var outline = Focusable();
+        var other = Focusable();
+
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, tree);
+        dock.Add("hello", "hello:outline", At("left"), "Структура", Strings, outline);
+        dock.Add("hello", "hello:other", At("right"), "Прочее", Strings, other);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(dock.Focus("hello:other"));
+
+        dock.Hide("hello:outline");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(DockFocus.Holds(other), "закрытие чужой панели увело каретку");
+    }
+
+    /// <summary>
+    /// Убранная панель отдаёт каретку показанному документу, если соседа нет.
+    /// </summary>
+    /// <remarks>
+    /// Одинокая панель соседа по группе не имеет, и без этого правила каретка
+    /// оставалась бы у контрола, которого на экране нет. Документ — то место,
+    /// откуда человек и так работает по умолчанию.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_lonely_panel_that_leaves_hands_its_caret_to_the_document()
+    {
+        var (dock, _) = Dock();
+        var paper = Focusable();
+        var alone = Focusable();
+
+        dock.Open("hello", "hello:paper", "Файл", paper);
+        dock.Add("hello", "hello:alone", At("left"), "Одна", Strings, alone);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(dock.Focus("hello:alone"));
+
+        dock.Hide("hello:alone");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(DockFocus.Holds(paper), "каретке некуда было деться, и её оставили в пустоте");
+    }
+
     /// <summary>Панель встаёт в объявленную сторону, вторая — вкладкой рядом.</summary>
     [AvaloniaFact]
     public void A_panel_takes_the_side_it_asked_for()

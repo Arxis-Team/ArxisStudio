@@ -648,7 +648,13 @@ public sealed class StudioDock
     /// </remarks>
     public void Hide(string id)
     {
-        if (_documents.Contains(id) || !Declared(id) || !_hidden.Add(id))
+        if (_documents.Contains(id) || !Declared(id))
+            return;
+
+        // Спрашивают до правки: после неё каретки нет ни у кого.
+        var heir = Heir(id);
+
+        if (!_hidden.Add(id))
             return;
 
         // Имя из дерева не снимается: там его место в полосе и доля его группы,
@@ -661,6 +667,12 @@ public sealed class StudioDock
         Note();
 
         Rehang();
+
+        // Человек закрыл панель, в которой работал. Без этой строки каретка
+        // оставалась бы у контрола, которого больше нет на экране, и обход по
+        // Tab начинался бы заново от начала окна.
+        if (heir is { } next)
+            Focus(next);
     }
 
     /// <summary>
@@ -699,6 +711,8 @@ public sealed class StudioDock
     /// <param name="id">Имя того, что убираем.</param>
     public void Remove(string id)
     {
+        var heir = Heir(id);
+
         Items.Remove(id);
         _documents.Remove(id);
         _hidden.Remove(id);
@@ -717,6 +731,9 @@ public sealed class StudioDock
         // она не пуста — а человек видел бы пустую рамку с именем документа,
         // который только что закрыл.
         Rehang();
+
+        if (heir is { } next)
+            Focus(next);
     }
 
     /// <summary>
@@ -739,6 +756,42 @@ public sealed class StudioDock
             window.View.Refresh();
 
         Rehang();
+    }
+
+    /// <summary>
+    /// Кому достанется каретка, когда это имя уйдёт с экрана.
+    /// </summary>
+    /// <param name="id">Имя уходящего.</param>
+    /// <returns>Имя наследника; <c>null</c> — уводить не из чего или некуда.</returns>
+    /// <remarks>
+    /// Спрашивать надо до правки: после неё каретки нет ни у кого, и отличить
+    /// «человек работал в этой панели» от «он работал в другой» будет нечем.
+    /// Ответ <c>null</c> в первом случае и значит «он работал в другой» —
+    /// трогать чужую каретку, закрывая вкладку, не за чем.
+    /// <para>
+    /// Порядок поиска — от ближнего к дальнему: сосед по группе, потом
+    /// показанный документ. Дальше не ищем: уведённая через всё окно каретка
+    /// теряет место работы так же верно, как не уведённая вовсе.
+    /// </para>
+    /// </remarks>
+    private string? Heir(string id)
+    {
+        if (Items.Find(id)?.Content is not Control content || !DockFocus.Holds(content))
+            return null;
+
+        if (Tree(id)?.Root is { } root
+            && DockTree.Holder(root, id) is { } holder
+            && holder.Items.FirstOrDefault(Fit) is { } neighbour)
+        {
+            return neighbour;
+        }
+
+        return Showing is { } shown && Onscreen(shown) ? shown : null;
+
+        bool Fit(string other) =>
+            !string.Equals(other, id, StringComparison.Ordinal)
+            && !_hidden.Contains(other)
+            && Items.Find(other) is not null;
     }
 
     /// <summary>Достаёт панель или документ на видное место.</summary>
