@@ -15,10 +15,21 @@ public sealed class HelloPanel : ToolWindow
 {
     private readonly TextBlock _result = new() { TextWrapping = TextWrapping.Wrap };
 
+    private Control? _greet;
+
     // Панель ушла, а её задача — нет: обход папки идёт своим чередом и по
     // окончании пишет в контрол, которого на экране больше нет. Отменяется он
     // прощанием — тем самым, ради которого у панели и есть Release.
     private CancellationTokenSource? _walking;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Панель открывают, чтобы поздороваться, — туда каретка и встаёт. Не
+    /// назови панель цели, студия отдала бы фокус первому контролу, который
+    /// умеет его взять: сегодня это та же кнопка, а завтра — что угодно, что
+    /// автор поставит выше неё.
+    /// </remarks>
+    public override Control? FocusTarget => _greet;
 
     /// <inheritdoc/>
     /// <remarks>
@@ -32,6 +43,8 @@ public sealed class HelloPanel : ToolWindow
 
         greet.Bind(ContentControl.ContentProperty, Context.Strings.Text("command.greet"));
         greet.Click += (_, _) => Context.Commands.Invoke("hello.greet");
+
+        _greet = greet;
 
         var count = new AxButton();
 

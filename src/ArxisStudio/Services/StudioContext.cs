@@ -164,7 +164,15 @@ public sealed class StudioContextFactory(
             // Док — тем более именной: имя панели в нём начинается с имени
             // плагина, и подставить его может только выдавший контекст.
             if (dock is not null)
+            {
                 extended[typeof(IStudioToolWindows)] = new PluginToolWindows(dock, plugin.Id);
+
+                // Каретка — отдельной службой, а не методом у панелей: показать
+                // просит и проснувшийся плагин, а фокусировать — только тот, кто
+                // знает, что человек этого хотел. Разные обещания живут в разных
+                // интерфейсах, иначе первое незаметно получает силу второго.
+                extended[typeof(IStudioFocus)] = new PluginFocus(dock, plugin.Id);
+            }
 
             granted = extended;
         }

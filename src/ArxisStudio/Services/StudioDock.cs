@@ -758,6 +758,11 @@ public sealed class StudioDock
         Rehang();
     }
 
+    /// <summary>Каретка сейчас внутри этой панели или этого документа.</summary>
+    /// <param name="id">Имя того, о ком спрашивают.</param>
+    public bool IsFocused(string id) =>
+        Items.Find(id)?.Content is Control content && DockFocus.Holds(content);
+
     /// <summary>
     /// Кому достанется каретка, когда это имя уйдёт с экрана.
     /// </summary>

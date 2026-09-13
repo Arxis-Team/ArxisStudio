@@ -1,4 +1,5 @@
 using System.Reflection;
+using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Projects;
 using ArxisStudio.Sdk;
@@ -6,6 +7,7 @@ using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
 using Avalonia.Controls;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace ArxisStudio.Services;
 
@@ -781,7 +783,7 @@ public sealed class StudioPlugins
                 continue;
             }
 
-            if (Build(loaded, declared, type, studio) is not { } content)
+            if (Build(loaded, declared, type, studio) is not { } built)
                 continue;
 
             // Панель живёт не прямо в дереве окна, а в своей поверхности: сбой
@@ -790,9 +792,14 @@ public sealed class StudioPlugins
             PluginSurface? surface = null;
 
             surface = new PluginSurface(
-                content,
+                built.Content,
                 error => _guard.Report(loaded.Installed.Id, $"раскладка панели {declared.Id}", error),
                 () => Reload(loaded, declared, type, studio, surface!));
+
+            // Названная панелью цель ложится хранителем каретки на ту самую
+            // поверхность, которую держит раскладка: спрашивать панель док не
+            // умеет и не должен — он знает контролы, а не плагины.
+            Keep(surface, built.Focus);
 
             Mount(loaded.Installed, declared, surface);
         }
@@ -805,7 +812,7 @@ public sealed class StudioPlugins
     /// Три чужих вызова подряд, и упасть плагин может на любом. Идут они одним
     /// куском: панель, построенная наполовину, студии не нужна.
     /// </remarks>
-    private Control? Build(
+    private Built? Build(
         LoadedPlugin loaded,
         Sdk.Plugins.PluginToolWindow declared,
         Type type,
@@ -819,13 +826,23 @@ public sealed class StudioPlugins
 
             var content = panel.Content;
 
+            // Цель фокуса спрашивается здесь же и один раз: панель, отвечающая
+            // разное в разное время, получила бы разное поведение на ровном
+            // месте. Вызов чужой, и идёт он тем же швом, что и остальные.
+            var focus = panel.FocusTarget;
+
             // Запоминаем после того, как панель построилась: недостроенной
             // прощаться нечем, а звать Release у той, что упала на Build,
             // значит звать её во второй раз подряд по тому же поводу.
             Remember(loaded.Installed.Id, panel);
 
-            return content;
+            return new Built(content, focus);
         });
+
+    /// <summary>Построенная панель: что показывать и кому отдать каретку.</summary>
+    /// <param name="Content">Содержимое панели.</param>
+    /// <param name="Focus">Кому внутри неё достаётся каретка; null — первому, кто возьмёт.</param>
+    private sealed record Built(Control Content, Control? Focus);
 
     /// <summary>
     /// Строит упавшую панель заново по кнопке в заглушке.
@@ -844,8 +861,30 @@ public sealed class StudioPlugins
     {
         _guard.Forget(loaded.Installed.Id);
 
-        if (Build(loaded, declared, type, studio) is { } content)
-            surface.Reset(content);
+        if (Build(loaded, declared, type, studio) is not { } built)
+            return;
+
+        surface.Reset(built.Content);
+
+        Keep(surface, built.Focus);
+    }
+
+    /// <summary>
+    /// Кладёт названную панелью цель хранителем каретки её поверхности.
+    /// </summary>
+    /// <param name="surface">Поверхность, которую держит раскладка.</param>
+    /// <param name="target">Что назвала панель; null — она не называла ничего.</param>
+    /// <remarks>
+    /// Чужой контрол здесь не отсеивается, и это не упущение: панель могла
+    /// назвать что угодно, но проверяет названное <see cref="DockFocus.Restore"/>
+    /// — он и отдаёт каретку, и он один знает, лежит ли хранитель внутри. Вторая
+    /// такая же проверка здесь была бы мёртвой: снять её можно, ничего не
+    /// сломав, а комментарий над ней утверждал бы обратное.
+    /// </remarks>
+    private static void Keep(Control surface, Control? target)
+    {
+        if (target is not null)
+            DockFocus.SetKeeper(surface, target);
     }
 
     /// <summary>Ставит содержимое панели в раскладку студии.</summary>
