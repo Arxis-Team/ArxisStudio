@@ -389,7 +389,23 @@ public sealed class StudioPlugins
         if (_host is not { } host)
             return;
 
-        var modules = Assemblies.Select(host.LoadBuiltIn).ToList();
+        var modules = new List<LoadedPlugin>();
+
+        // По одному, а не Select(...).ToList(): бросок на середине списка
+        // уносил и следующие модули, и уже поднятые — Accept им не звали, и
+        // они оставались в памяти, не зарегистрированные нигде. Модуль едет со
+        // студией, и его беда — это её беда, но не повод потерять соседей.
+        foreach (var assembly in Assemblies)
+        {
+            try
+            {
+                modules.Add(host.LoadBuiltIn(assembly));
+            }
+            catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+            {
+                _log.Write(StudioLogLevel.Error, "Modules", $"{assembly.GetName().Name}: {e}");
+            }
+        }
 
         _modules = modules.Select(loaded => loaded.Installed).ToList();
 

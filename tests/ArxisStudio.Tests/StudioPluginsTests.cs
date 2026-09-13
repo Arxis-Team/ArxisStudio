@@ -495,6 +495,62 @@ public class StudioPluginsTests : IDisposable
     }
 
     /// <summary>
+    /// Упавший модуль не стоит соседям ничего.
+    /// </summary>
+    /// <remarks>
+    /// <c>Activate</c> — чужой код, и зовётся он на загрузке напрямую, мимо
+    /// <c>PluginGuard</c>: считать падения ещё не поднятого плагина некому.
+    /// Швом работает фильтр <c>catch</c> в хосте, и пока он перечислял беды по
+    /// именам, неназванная уносила всё: <c>NullReferenceException</c> из
+    /// первого же модуля роняла <c>LoadModules</c> целиком, и остальные модули
+    /// не поднимались вовсе — а те, что успели, не получали <c>Accept</c> и
+    /// оставались в памяти, не зарегистрированные нигде.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_module_that_falls_costs_the_others_nothing()
+    {
+        var plugins = Build(modules: [Falling(), typeof(SampleModule).Assembly]);
+
+        plugins.LoadModules();
+        Dispatcher.UIThread.RunJobs();
+
+        // Оба в списке: упавший записью, целый — работой. Пустой список здесь
+        // означал бы, что LoadModules бросил и не дошёл до конца.
+        Assert.Equal(
+            ["arxis.falling", "arxis.sample"],
+            plugins.Modules.Select(module => module.Id).Order());
+
+        Assert.Contains(_log.Records, record =>
+            record.Level == StudioLogLevel.Error && record.Message.Contains("модуль уронил студию"));
+
+        Assert.DoesNotContain(_log.Records, record =>
+            record.Level == StudioLogLevel.Error && record.Message.Contains("arxis.sample"));
+    }
+
+    /// <summary>Модуль, который падает ровно там, где студия зовёт чужой код.</summary>
+    private static Assembly Falling() => TestAssembly.Emit(
+        "Probe.Falling",
+        """
+            using ArxisStudio.Sdk;
+
+            namespace Probe;
+
+            public sealed class FallingModule : StudioPlugin
+            {
+                public override void Activate(IStudioContext context) =>
+                    throw new System.NullReferenceException("модуль уронил студию");
+            }
+            """,
+        """
+            {
+              "id": "arxis.falling",
+              "name": "Падающий",
+              "version": "1.0.0",
+              "activation": [ "onStartup" ]
+            }
+            """);
+
+    /// <summary>
     /// Подготовка зовётся сама и повторов не боится.
     /// </summary>
     /// <remarks>

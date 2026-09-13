@@ -197,10 +197,24 @@ public sealed class PluginHost : IDisposable
             if (plugin.Manifest?.Entry is not { Length: > 0 })
                 continue;
 
-            if (eager.Contains(plugin.Id))
-                raised.Add(Add(plugin));
-            else
+            if (!eager.Contains(plugin.Id))
+            {
                 _deferred.Add(plugin);
+                continue;
+            }
+
+            // Подъём одного не стоит остальным ничего. Список собирается
+            // целиком и только потом уходит зовущему: бросок на середине
+            // терял бы и следующих, и уже поднятых — их никто бы не принял,
+            // хотя в памяти они уже есть.
+            try
+            {
+                raised.Add(Add(plugin));
+            }
+            catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+            {
+                raised.Add(Fail(plugin, Describe(e)));
+            }
         }
 
         return raised;
@@ -625,14 +639,20 @@ public sealed class PluginHost : IDisposable
 
             return Raise(installed, context, [assembly], _contexts.Create(installed));
         }
-        // FileNotFoundException и TypeLoadException — это «сборки или типа, на
-        // который ты сослался, здесь нет»: ровно то, чем встречает плагин,
-        // собранный под другую версию SDK или под соседа, чей контракт не
-        // приехал. Без них такой плагин уносил студию вместо того, чтобы
-        // стать записью с ошибкой.
-        catch (Exception e) when (e is ReflectionTypeLoadException or BadImageFormatException
-            or FileLoadException or FileNotFoundException or TypeLoadException
-            or MissingMethodException or TargetInvocationException or InvalidOperationException)
+        // Фильтр широкий нарочно, и это не небрежность. Подъём — это чужой
+        // код: загрузка чужой сборки, чужой Activate, чужой Start. Зовётся он
+        // здесь напрямую, а PluginGuard, через который идут остальные вызовы
+        // плагина, на загрузке ни при чём: считать падения ещё не поднятого
+        // плагина некому и незачем. Значит этот catch и есть шов загрузки.
+        //
+        // Список типов был перечислением известных бед: сборки нет, типа нет,
+        // версия SDK чужая. Всё это правда, но беды нельзя перечислить —
+        // NullReferenceException из чужого Activate уносил студию целиком
+        // просто потому, что его забыли назвать.
+        //
+        // Не ловятся две. Нехватку памяти нельзя пережить осмысленно,
+        // переполнение стека нельзя поймать вовсе.
+        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
         {
             context.Release();
             return LoadedPlugin.Failed(installed, Describe(e));
@@ -862,14 +882,20 @@ public sealed class PluginHost : IDisposable
 
             return new LoadedPlugin(installed, context, assemblies, studio, entries, services, null);
         }
-        // FileNotFoundException и TypeLoadException — это «сборки или типа, на
-        // который ты сослался, здесь нет»: ровно то, чем встречает плагин,
-        // собранный под другую версию SDK или под соседа, чей контракт не
-        // приехал. Без них такой плагин уносил студию вместо того, чтобы
-        // стать записью с ошибкой.
-        catch (Exception e) when (e is ReflectionTypeLoadException or BadImageFormatException
-            or FileLoadException or FileNotFoundException or TypeLoadException
-            or MissingMethodException or TargetInvocationException or InvalidOperationException)
+        // Фильтр широкий нарочно, и это не небрежность. Подъём — это чужой
+        // код: загрузка чужой сборки, чужой Activate, чужой Start. Зовётся он
+        // здесь напрямую, а PluginGuard, через который идут остальные вызовы
+        // плагина, на загрузке ни при чём: считать падения ещё не поднятого
+        // плагина некому и незачем. Значит этот catch и есть шов загрузки.
+        //
+        // Список типов был перечислением известных бед: сборки нет, типа нет,
+        // версия SDK чужая. Всё это правда, но беды нельзя перечислить —
+        // NullReferenceException из чужого Activate уносил студию целиком
+        // просто потому, что его забыли назвать.
+        //
+        // Не ловятся две. Нехватку памяти нельзя пережить осмысленно,
+        // переполнение стека нельзя поймать вовсе.
+        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
         {
             // Плагин мог успеть опубликоваться в Activate и упасть уже на
             // запуске службы. Его записи снимаются так же, как у ушедшего:

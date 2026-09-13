@@ -42,6 +42,30 @@ public class BuiltInModuleTests
         }
         """;
 
+    /// <summary>
+    /// Модуль, упавший на подъёме, становится записью, а не падением студии.
+    /// </summary>
+    /// <remarks>
+    /// <c>Activate</c> и <c>Start</c> — чужой код, и зовутся они напрямую:
+    /// <c>PluginGuard</c>, через который идут остальные вызовы плагина, на
+    /// загрузке ни при чём. Швом загрузки работает фильтр <c>catch</c> в хосте,
+    /// и пока он перечислял беды по именам, любая неназванная уносила студию.
+    /// <see cref="NullReferenceException"/> названа не была — самая обычная
+    /// беда в чужом коде и самая незаметная в этом списке.
+    /// </remarks>
+    [Fact]
+    public void A_module_that_falls_while_rising_becomes_a_record()
+    {
+        using var host = new PluginHost(
+            new StudioContextFactory(new StudioLog(), new StudioCommands(), null));
+
+        var loaded = host.LoadBuiltIn(Falling());
+
+        Assert.False(loaded.IsLoaded, "упавший модуль не может считаться поднятым");
+        Assert.NotNull(loaded.Error);
+        Assert.Equal("arxis.probe", loaded.Installed.Id);
+    }
+
     /// <summary>Манифест модуля читается из его сборки.</summary>
     [Fact]
     public void The_manifest_of_a_built_in_module_is_read_from_the_assembly()
@@ -296,6 +320,22 @@ public class BuiltInModuleTests
     }
 
     /// <summary>Сборка модуля со встроенным манифестом.</summary>
+    /// <summary>Модуль, который падает ровно там, где студия зовёт чужой код.</summary>
+    private static Assembly Falling() => TestAssembly.Emit(
+        "Arxis.FallingModule",
+        """
+            using ArxisStudio.Sdk;
+
+            namespace Falling;
+
+            public sealed class FallingModule : StudioPlugin
+            {
+                public override void Activate(IStudioContext context) =>
+                    throw new System.NullReferenceException("модуль уронил студию");
+            }
+            """,
+        Manifest);
+
     private static Assembly Module() => TestAssembly.Emit(
         "Arxis.ProbeModule",
         """
