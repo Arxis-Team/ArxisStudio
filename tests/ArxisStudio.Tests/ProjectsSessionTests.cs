@@ -303,6 +303,13 @@ public class ProjectsSessionTests
     /// <remarks>
     /// Журнал — летопись, а не состояние: запись остаётся и после закрытия проекта. Снимать её
     /// нечем и незачем — время рядом с ней говорит, когда это было правдой.
+    /// <para>
+    /// Код нарочно не <c>APS2005</c>. Он значит «пакеты не восстановлены», служба на него отвечает
+    /// восстановлением и перечитыванием, провайдер теста отдаёт свою находку на каждой загрузке — и
+    /// в журнале их оказывается две. Проверка же ждёт одну, и оттого мигала: успеет восстановление
+    /// до неё или нет, решал порядок. Проверяется здесь дорога находки в журнал, а не
+    /// восстановление, — код взят тот, у которого последствий нет.
+    /// </para>
     /// </remarks>
     [Fact]
     public async Task A_finding_goes_to_the_log_beside_the_line_that_found_it()
@@ -312,27 +319,27 @@ public class ProjectsSessionTests
         studio.Provider.Answer = request => Solutions.Of(
             request,
             studio.Provider.Projects,
-            ProjectDiagnostic.ForFile("APS2005", "не восстановлено", ProjectDiagnosticSeverity.Warning, request.EntryPointPath));
+            ProjectDiagnostic.ForFile("APS2002", "проект не разобрался", ProjectDiagnosticSeverity.Warning, request.EntryPointPath));
 
         await studio.Projects.OpenAsync(ProjectsStudio.Solution(), Token);
         await studio.Thread.IdleAsync();
 
-        var found = Assert.Single(studio.Written, record => record.Message.StartsWith("APS2005", StringComparison.Ordinal));
+        var found = Assert.Single(studio.Written, record => record.Message.StartsWith("APS2002", StringComparison.Ordinal));
 
         Assert.Equal(StudioLogLevel.Warning, found.Level);
-        Assert.Contains("не восстановлено", found.Message, StringComparison.Ordinal);
+        Assert.Contains("проект не разобрался", found.Message, StringComparison.Ordinal);
         Assert.Contains(ProjectsStudio.Solution().FileName, found.Message, StringComparison.Ordinal);
 
         // Итог загрузки написан раньше находки: сначала что вышло, потом что сказано.
         Assert.True(
             studio.Written.ToList().FindIndex(record => record.Message.Contains("открыто", StringComparison.Ordinal))
-            < studio.Written.ToList().FindIndex(record => record.Message.StartsWith("APS2005", StringComparison.Ordinal)),
+            < studio.Written.ToList().FindIndex(record => record.Message.StartsWith("APS2002", StringComparison.Ordinal)),
             "находка написана раньше итога");
 
         await studio.Projects.CloseAsync();
         await studio.Thread.IdleAsync();
 
-        Assert.Contains(studio.Written, record => record.Message.StartsWith("APS2005", StringComparison.Ordinal));
+        Assert.Contains(studio.Written, record => record.Message.StartsWith("APS2002", StringComparison.Ordinal));
         Assert.Equal(ProjectsState.Closed, studio.Projects.Status.State);
         Assert.Null(studio.Projects.Current);
     }
