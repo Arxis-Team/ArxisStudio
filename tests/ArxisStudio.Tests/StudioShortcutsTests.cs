@@ -156,6 +156,38 @@ public class StudioShortcutsTests
         Assert.Empty(keys.Refused);
     }
 
+    /// <summary>
+    /// Сочетания выключенного расширения уходят вместе с ним.
+    /// </summary>
+    /// <remarks>
+    /// Сочетание живёт ровно столько, сколько живёт команда за ним. Оставшееся
+    /// отнимало бы клавишу у всех и не делало бы ничего, а перезагруженный
+    /// плагин просил бы своё же сочетание второй раз и получал отказ с
+    /// сообщением, что оно занято им самим.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_gestures_of_a_plugin_that_left_go_with_it()
+    {
+        var keys = new StudioShortcuts(_ => true);
+
+        Assert.True(keys.Bind("Ctrl+W", "studio.close"));
+        Assert.True(keys.Bind("Ctrl+Alt+G", "hello.greet", "arxis.hello"));
+        Assert.False(keys.Bind("Ctrl+W", "hello.close", "arxis.hello"));
+
+        Assert.Equal(2, keys.All.Count);
+        Assert.Single(keys.Refused);
+
+        keys.RemoveOwnedBy("arxis.hello");
+
+        // Своё осталось, принесённое ушло — вместе с отказом, который был
+        // ответом на вопрос, которого больше нет.
+        Assert.Equal("studio.close", Assert.Single(keys.All).CommandId);
+        Assert.Empty(keys.Refused);
+
+        // И сочетание снова свободно: тот же плагин, поднявшись заново, его получит.
+        Assert.True(keys.Bind("Ctrl+Alt+G", "hello.greet", "arxis.hello"));
+    }
+
     /// <summary>Сочетание команды пишут рядом с её названием — в меню и в палитре.</summary>
     [AvaloniaFact]
     public void The_gesture_of_a_command_can_be_told()

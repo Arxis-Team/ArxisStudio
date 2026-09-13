@@ -30,25 +30,34 @@ public static class CommandPalette
     /// </summary>
     /// <param name="menu">Дерево меню: команды расширений с переведёнными названиями.</param>
     /// <param name="own">Команды самой студии — названия у неё свои.</param>
+    /// <param name="declared">Команды, назвавшие себя в манифесте.</param>
     /// <param name="gesture">Чем зовут команду, кроме палитры; <c>null</c> — ничем.</param>
     /// <returns>Строки без повторов, свои первыми.</returns>
     /// <remarks>
     /// Повтор здесь не выдумка: одну команду можно объявить и пунктом меню, и
     /// кнопкой полосы, и дважды в разных ветках. В списке она должна быть одна.
+    /// <para>
+    /// Порядок источников решает спор о названии, и решает в пользу меню:
+    /// назвавшись и там и там, команда покажется текстом пункта. Название в
+    /// манифесте нужно тем, у кого пункта нет, — иначе оно стало бы вторым
+    /// местом для одной строки, и рано или поздно они разошлись бы.
+    /// </para>
     /// </remarks>
     public static IReadOnlyList<PaletteEntry> Gather(
         IReadOnlyList<StudioMenuItem> menu,
         IReadOnlyList<PaletteEntry> own,
+        IReadOnlyList<PaletteEntry> declared,
         Func<string, string?> gesture)
     {
         ArgumentNullException.ThrowIfNull(menu);
         ArgumentNullException.ThrowIfNull(own);
+        ArgumentNullException.ThrowIfNull(declared);
         ArgumentNullException.ThrowIfNull(gesture);
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var gathered = new List<PaletteEntry>();
 
-        foreach (var entry in own.Concat(Flatten(menu)))
+        foreach (var entry in own.Concat(Flatten(menu)).Concat(declared))
         {
             if (seen.Add(entry.CommandId))
                 gathered.Add(entry with { Gesture = gesture(entry.CommandId) });

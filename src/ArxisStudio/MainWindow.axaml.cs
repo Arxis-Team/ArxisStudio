@@ -150,6 +150,7 @@ public partial class MainWindow : AxWindow
             Dock = _dock,
             ToolBar = _toolbar,
             Documents = _documents,
+            Shortcuts = _shortcuts,
 
             // Чем студия делится с расширениями — решение оболочки, а не
             // порядка подъёма: список стоит здесь и виден целиком.
@@ -554,8 +555,31 @@ public partial class MainWindow : AxWindow
             new(Localizer.Instance["command.panel.previous"], "studio.panel.previous"),
         };
 
-        _palette.Show(this, CommandPalette.Gather(StudioMenu.Build(_plugins.Contributing), own, _shortcuts.Gesture));
+        _palette.Show(
+            this,
+            CommandPalette.Gather(
+                StudioMenu.Build(_plugins.Contributing),
+                own,
+                Declared(),
+                _shortcuts.Gesture));
     }
+
+    /// <summary>
+    /// Команды расширений, назвавшие себя в манифесте.
+    /// </summary>
+    /// <remarks>
+    /// Нужны те, у кого нет пункта меню: без названия они не показывались
+    /// нигде и были доступны только тому, кто знал идентификатор. У назвавших
+    /// себя дважды побеждает пункт меню — он идёт в списке раньше.
+    /// </remarks>
+    private IReadOnlyList<PaletteEntry> Declared() =>
+    [
+        .. _plugins.Contributing
+            .Where(plugin => plugin is { IsEnabled: true, IsValid: true })
+            .SelectMany(plugin => plugin.Manifest!.Contributions.Commands
+                .Where(command => command.Title is { Length: > 0 })
+                .Select(command => new PaletteEntry(plugin.Strings.Resolve(command.Title!), command.Id))),
+    ];
 
     /// <summary>Говорит строкой состояния — тем же местом, что и всё прочее.</summary>
     /// <param name="message">Что сказать.</param>

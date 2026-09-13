@@ -3,6 +3,7 @@
   "menu.tools": "Команды плагинов",
   "menu.hello": "Пример плагина",
   "command.greet": "Поздороваться",
+  "command.focus": "Перейти в панель примера",
   "toolbar.menu": "Пример: команды",
   "panel.hello": "Пример",
   "panel.intro": "Пример внешнего плагина",

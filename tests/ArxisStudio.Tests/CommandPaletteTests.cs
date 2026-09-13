@@ -26,6 +26,7 @@ public class CommandPaletteTests
         var gathered = CommandPalette.Gather(
             [Branch("Инструменты", Leaf("Поздороваться", "hello.greet"))],
             [new PaletteEntry("Закрыть вкладку", "studio.close")],
+            [],
             _ => null);
 
         Assert.Equal(["studio.close", "hello.greet"], gathered.Select(entry => entry.CommandId));
@@ -47,6 +48,7 @@ public class CommandPaletteTests
                 Branch("Правка", Leaf("Поздороваться ещё раз", "hello.greet")),
             ],
             [],
+            [],
             _ => null);
 
         Assert.Equal("Поздороваться", Assert.Single(gathered).Title);
@@ -56,9 +58,33 @@ public class CommandPaletteTests
     [Fact]
     public void Branches_do_not_get_into_the_palette()
     {
-        var gathered = CommandPalette.Gather([Branch("Инструменты")], [], _ => null);
+        var gathered = CommandPalette.Gather([Branch("Инструменты")], [], [], _ => null);
 
         Assert.Empty(gathered);
+    }
+
+    /// <summary>
+    /// Команда без пункта меню показывается тем именем, которым назвалась.
+    /// </summary>
+    /// <remarks>
+    /// Ради неё название в манифесте и заведено: без него такая команда не
+    /// показывалась нигде и была доступна только тому, кто знал идентификатор.
+    /// А назвавшейся дважды побеждает пункт меню — иначе название стало бы
+    /// вторым местом для одной строки, и рано или поздно они разошлись бы.
+    /// </remarks>
+    [Fact]
+    public void A_command_without_a_menu_item_shows_the_name_it_declared()
+    {
+        var gathered = CommandPalette.Gather(
+            [Branch("Инструменты", Leaf("Поздороваться", "hello.greet"))],
+            [],
+            [
+                new PaletteEntry("Поздороваться иначе", "hello.greet"),
+                new PaletteEntry("Тихая команда", "hello.quiet"),
+            ],
+            _ => null);
+
+        Assert.Equal(["Поздороваться", "Тихая команда"], gathered.Select(entry => entry.Title));
     }
 
     /// <summary>Сочетание команды пишется рядом с названием.</summary>
@@ -72,6 +98,7 @@ public class CommandPaletteTests
         var gathered = CommandPalette.Gather(
             [],
             [new PaletteEntry("Закрыть вкладку", "studio.close")],
+            [],
             id => id == "studio.close" ? "Ctrl+W" : null);
 
         Assert.Equal("Ctrl+W", Assert.Single(gathered).Gesture);

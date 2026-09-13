@@ -124,6 +124,16 @@ public sealed class StudioPlugins
     public IReadOnlyList<Assembly> Assemblies { get; init; } = StudioModules.Assemblies;
 
     /// <summary>
+    /// Реестр сочетаний; <c>null</c> — сочетания манифестов не раздаются.
+    /// </summary>
+    /// <remarks>
+    /// Необязателен нарочно: у окна студии он есть, а у тестов раскладки и у
+    /// того, кто поднимает расширения без окна, — нет, и требовать его значило
+    /// бы требовать окно.
+    /// </remarks>
+    public StudioShortcuts? Shortcuts { get; init; }
+
+    /// <summary>
     /// Где студия берёт список установленных плагинов.
     /// </summary>
     /// <remarks>
@@ -336,6 +346,7 @@ public sealed class StudioPlugins
             ReleaseBuilt(id);
 
             Commands.RemoveOwnedBy(id);
+            Shortcuts?.RemoveOwnedBy(id);
             _exports.RemoveOwnedBy(id);
             _contributions.Remove(id);
         };
@@ -688,7 +699,40 @@ public sealed class StudioPlugins
         {
             foreach (var declared in plugin.Manifest!.Contributions.ToolBar)
                 ToolBar.Add(plugin, declared);
+
+            // Сочетания раздаются здесь же и по той же причине: манифест читают
+            // без загрузки сборки, и нажатие будит спящего хозяина тем же
+            // путём, что и щелчок по кнопке полосы.
+            foreach (var declared in plugin.Manifest.Contributions.Commands)
+                Claim(plugin, declared);
         }
+    }
+
+    /// <summary>
+    /// Отдаёт команде сочетание, объявленное манифестом.
+    /// </summary>
+    /// <param name="plugin">Чья это команда.</param>
+    /// <param name="declared">Объявление команды.</param>
+    /// <remarks>
+    /// Отказ не молчит: занятое сочетание второму не достаётся, и проигравший
+    /// обязан узнать имя победителя — иначе «моё сочетание не работает» не
+    /// имеет ответа. Сама команда при этом остаётся доступна из палитры.
+    /// </remarks>
+    private void Claim(InstalledPlugin plugin, Sdk.Plugins.PluginCommand declared)
+    {
+        if (Shortcuts is not { } keys || declared.Key is not { Length: > 0 } gesture)
+            return;
+
+        if (keys.Bind(gesture, declared.Id, plugin.Id))
+            return;
+
+        var winner = keys.Refused
+            .LastOrDefault(refusal => string.Equals(refusal.CommandId, declared.Id, StringComparison.Ordinal))
+            ?.Winner;
+
+        _log.Write(StudioLogLevel.Warning, "Keys", winner is null
+            ? $"{plugin.DisplayName}: сочетание «{gesture}» не разобралось — команда {declared.Id} осталась без него"
+            : $"{plugin.DisplayName}: сочетание «{gesture}» занято командой {winner} — {declared.Id} осталась без него");
     }
 
     /// <summary>Принимает поднятый модуль или плагин: вклады и панели.</summary>

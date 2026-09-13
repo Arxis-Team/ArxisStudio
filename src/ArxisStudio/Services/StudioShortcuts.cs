@@ -7,13 +7,15 @@ namespace ArxisStudio.Services;
 /// <summary>Сочетание, отданное команде.</summary>
 /// <param name="Gesture">Что нажимают.</param>
 /// <param name="CommandId">Кого зовут.</param>
-public sealed record ShortcutBinding(KeyGesture Gesture, string CommandId);
+/// <param name="Owner">Чьё это; <c>null</c> — самой студии.</param>
+public sealed record ShortcutBinding(KeyGesture Gesture, string CommandId, string? Owner = null);
 
 /// <summary>Отказ: сочетание уже занято.</summary>
 /// <param name="Gesture">Что просили.</param>
 /// <param name="CommandId">Кто просил.</param>
 /// <param name="Winner">Кому оно досталось раньше.</param>
-public sealed record ShortcutConflict(KeyGesture Gesture, string CommandId, string Winner);
+/// <param name="Owner">Чья это была просьба; <c>null</c> — самой студии.</param>
+public sealed record ShortcutConflict(KeyGesture Gesture, string CommandId, string Winner, string? Owner = null);
 
 /// <summary>
 /// Сочетания клавиш студии: что нажали — кого позвать.
@@ -52,12 +54,13 @@ public sealed class StudioShortcuts(Func<string, bool> invoke)
     /// </summary>
     /// <param name="gesture">Как в манифесте: <c>Ctrl+W</c>, <c>Shift+F6</c>.</param>
     /// <param name="commandId">Кого звать.</param>
+    /// <param name="owner">Чьё это сочетание; <c>null</c> — самой студии.</param>
     /// <returns>Досталось ли.</returns>
     /// <remarks>
     /// Неразобранная строка — отказ без записи в конфликтах: там помнят тех, у
     /// кого сочетание отняли, а разобрать «Ctrl+Шифт» не смог бы никто.
     /// </remarks>
-    public bool Bind(string gesture, string commandId)
+    public bool Bind(string gesture, string commandId, string? owner = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gesture);
         ArgumentException.ThrowIfNullOrWhiteSpace(commandId);
@@ -67,14 +70,37 @@ public sealed class StudioShortcuts(Func<string, bool> invoke)
 
         if (_bindings.FirstOrDefault(bound => bound.Gesture.Equals(parsed)) is { } taken)
         {
-            _refused.Add(new ShortcutConflict(parsed, commandId, taken.CommandId));
+            _refused.Add(new ShortcutConflict(parsed, commandId, taken.CommandId, owner));
 
             return false;
         }
 
-        _bindings.Add(new ShortcutBinding(parsed, commandId));
+        _bindings.Add(new ShortcutBinding(parsed, commandId, owner));
 
         return true;
+    }
+
+    /// <summary>
+    /// Отпускает сочетания одного расширения.
+    /// </summary>
+    /// <param name="owner">Чьи сочетания снять.</param>
+    /// <remarks>
+    /// Сочетание живёт ровно столько, сколько живёт команда за ним. Выключенный
+    /// плагин, чьё сочетание осталось, отнимал бы клавишу у всех и не делал бы
+    /// ничего; перезагруженный просил бы своё же сочетание второй раз и получал
+    /// отказ с сообщением, что оно занято им самим.
+    /// <para>
+    /// Отказы того же хозяина уходят вместе с привязками: список проигравших —
+    /// ответ на вопрос «почему моё сочетание не работает», а у снятого плагина
+    /// этого вопроса больше нет.
+    /// </para>
+    /// </remarks>
+    public void RemoveOwnedBy(string owner)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(owner);
+
+        _bindings.RemoveAll(bound => string.Equals(bound.Owner, owner, StringComparison.Ordinal));
+        _refused.RemoveAll(refusal => string.Equals(refusal.Owner, owner, StringComparison.Ordinal));
     }
 
     /// <summary>Каким сочетанием зовут эту команду; <c>null</c> — никаким.</summary>
