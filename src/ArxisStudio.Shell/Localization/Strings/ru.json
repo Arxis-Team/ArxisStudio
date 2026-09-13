@@ -205,6 +205,11 @@
   "settings.projects.watchFiles": "Перезагружать проект, когда его файлы меняются на диске",
   "settings.projects.restoreOnOpen": "Восстанавливать пакеты при открытии проекта",
 
+  "palette.hint": "Команда…",
+  "palette.keys": "↑↓ выбор · ↵ выполнить · Esc закрыть",
+  "command.close": "Закрыть вкладку",
+  "command.panel.next": "Следующая панель",
+  "command.panel.previous": "Предыдущая панель",
   "splash.build": "сборка",
   "splash.stage.paths": "Подготовка рабочих файлов…",
   "splash.stage.settings": "Чтение настроек…",

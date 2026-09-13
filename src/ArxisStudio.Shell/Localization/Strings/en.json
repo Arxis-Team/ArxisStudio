@@ -205,6 +205,11 @@
   "settings.projects.watchFiles": "Reload the project when its files change on disk",
   "settings.projects.restoreOnOpen": "Restore packages when a project opens",
 
+  "palette.hint": "Command…",
+  "palette.keys": "↑↓ choose · ↵ run · Esc close",
+  "command.close": "Close tab",
+  "command.panel.next": "Next panel",
+  "command.panel.previous": "Previous panel",
   "splash.build": "build",
   "splash.stage.paths": "Preparing working files…",
   "splash.stage.settings": "Reading settings…",

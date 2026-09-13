@@ -2,6 +2,7 @@
 using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Icons;
+using ArxisStudio.Palette;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using ArxisStudio.Shell.Localization;
@@ -44,6 +45,7 @@ public partial class MainWindow : AxWindow
     private readonly MainWindowViewModel _model;
     private readonly StudioCommands _commands;
     private readonly StudioShortcuts _shortcuts;
+    private readonly PaletteOverlay _palette;
 
     // Раскладка: дерево доков, живые панели в нём и уборка по хозяину.
     private readonly StudioDock _dock;
@@ -130,6 +132,7 @@ public partial class MainWindow : AxWindow
 
         _commands = new StudioCommands(_guard);
         _shortcuts = new StudioShortcuts(_commands.Invoke);
+        _palette = new PaletteOverlay(_commands.Invoke);
 
         // Щелчок по кнопке идёт через реестр команд, а не напрямую: только он
         // умеет разбудить спящего хозяина и приписать падение виновнику.
@@ -508,9 +511,16 @@ public partial class MainWindow : AxWindow
         _commands.Register("studio.panel.next", () => _dock.Cycle());
         _commands.Register("studio.panel.previous", () => _dock.Cycle(back: true));
 
+        // Палитра не команда студии, а дорога ко всем командам сразу, и
+        // поэтому зовут её не через реестр: реестр она открывает, а не
+        // выполняет. Своим пунктом в самой палитре она тоже не стоит — открыть
+        // открытое нечем.
+        _commands.Register("studio.palette", Palette);
+
         Bind("Ctrl+W", "studio.close");
         Bind("F6", "studio.panel.next");
         Bind("Shift+F6", "studio.panel.previous");
+        Bind("Ctrl+Shift+P", "studio.palette");
 
         _shortcuts.Attach(this);
 
@@ -519,6 +529,32 @@ public partial class MainWindow : AxWindow
             if (!_shortcuts.Bind(gesture, command))
                 _log.Write(StudioLogLevel.Warning, "Keys", $"{gesture} занято — команда {command} осталась без сочетания");
         }
+    }
+
+    /// <summary>
+    /// Открывает палитру команд.
+    /// </summary>
+    /// <remarks>
+    /// Список собирается при каждом открытии, а не хранится: плагины
+    /// поднимаются и выключаются по ходу сеанса, и палитра со вчерашним
+    /// списком предлагала бы то, чего уже нет.
+    /// <para>
+    /// Названия команд расширений берутся у меню — того самого дерева, что
+    /// строится по манифестам без загрузки сборок. Своей описи у палитры нет
+    /// нарочно: вторая разошлась бы с меню на первой же правке и разошлась бы
+    /// молча.
+    /// </para>
+    /// </remarks>
+    private void Palette()
+    {
+        var own = new PaletteEntry[]
+        {
+            new(Localizer.Instance["command.close"], "studio.close"),
+            new(Localizer.Instance["command.panel.next"], "studio.panel.next"),
+            new(Localizer.Instance["command.panel.previous"], "studio.panel.previous"),
+        };
+
+        _palette.Show(this, CommandPalette.Gather(StudioMenu.Build(_plugins.Contributing), own, _shortcuts.Gesture));
     }
 
     /// <summary>Говорит строкой состояния — тем же местом, что и всё прочее.</summary>
