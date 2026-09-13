@@ -77,9 +77,16 @@ public sealed class RecentProjects
 
     /// <summary>Убирает проект из списка, не трогая его на диске.</summary>
     /// <param name="projectPath">Путь к файлу проекта или решения.</param>
+    /// <remarks>
+    /// Путь приводится к полному, как в <see cref="Touch"/>: в списке лежат полные, и сравнение с
+    /// пришедшим как есть не нашло бы запись, названную относительным путём. Пока убирать было
+    /// некому, разойтись этим двум было негде.
+    /// </remarks>
     public void Remove(string projectPath)
     {
-        if (_items.RemoveAll(p => string.Equals(p.Path, projectPath, StringComparison.OrdinalIgnoreCase)) > 0)
+        var full = Path.GetFullPath(projectPath);
+
+        if (_items.RemoveAll(p => string.Equals(p.Path, full, StringComparison.OrdinalIgnoreCase)) > 0)
             Save();
     }
 

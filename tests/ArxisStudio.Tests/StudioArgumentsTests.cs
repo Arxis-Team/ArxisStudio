@@ -118,7 +118,9 @@ public class StudioArgumentsTests : IDisposable
         foreach (var name in new[] { "Волна.sln", "Волна.slnx", "App.csproj", "Lib.fsproj", "Старьё.vbproj" })
             Assert.True(StudioArguments.IsProject(name), name);
 
-        foreach (var name in new[] { "Program.cs", "settings.json", "Волна" })
+        // .slnf — фильтр решения, и модель проектов его не открывает. Выбрать его в диалоге
+        // «Открыть» человек теперь может, поэтому правило обязано сказать «нет» вслух.
+        foreach (var name in new[] { "Program.cs", "settings.json", "Волна", "Волна.slnf" })
             Assert.False(StudioArguments.IsProject(name), name);
     }
 

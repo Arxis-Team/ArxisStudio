@@ -190,8 +190,9 @@ public class App : Application
     /// </summary>
     /// <param name="path">Путь к решению или проекту.</param>
     /// <remarks>
-    /// Провал открытия — не провал запуска: о нём скажет журнал службы, а студия остаётся
-    /// открытой. Ловится здесь только своё: отмена и остановленная служба.
+    /// Провал открытия — не провал запуска: студия остаётся открытой, а о причине говорит журнал.
+    /// Говорить приходится здесь: провалившаяся загрузка возвращается итогом, а не исключением, и
+    /// пока итог выбрасывали, о ней знала одна служба.
     /// </remarks>
     private async Task OpenAsync(string path)
     {
@@ -200,7 +201,14 @@ public class App : Application
 
         try
         {
-            await projects.OpenAsync(CanonicalPath.Create(path));
+            var result = await projects.OpenAsync(CanonicalPath.Create(path));
+
+            if (!result.HasSnapshot)
+            {
+                var why = string.Join("; ", result.Diagnostics.Select(d => $"{d.Code} {d.Message}"));
+
+                _log.Write(StudioLogLevel.Error, "Startup", $"{path} не открылся: {why}");
+            }
         }
         catch (Exception e) when (e is not OutOfMemoryException)
         {
@@ -227,6 +235,18 @@ public class App : Application
         {
             _studio.Show();
             welcome.Close();
+        };
+
+        // Порядок здесь несущий дважды. Окно студии показывается раньше, чем закрывается Welcome:
+        // студия закрывается по последнему окну, и промежуток без единого окна был бы промежутком
+        // без студии. А загрузка идёт после закрытия: чтение решения занимает секунды, и смотреть
+        // их человеку лучше на студию с задачей в статус-баре, чем на окно, которому пора уйти.
+        welcome.ProjectRequested += async (_, path) =>
+        {
+            _studio.Show();
+            welcome.Close();
+
+            await OpenAsync(path);
         };
 
         return welcome;

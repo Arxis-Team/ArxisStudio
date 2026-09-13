@@ -4,12 +4,29 @@
         xmlns:vm="using:ArxisStudio.ViewModels"
         xmlns:conv="using:ArxisStudio.Converters"
         xmlns:ext="using:ArxisStudio.Extensibility"
+        xmlns:svc="using:ArxisStudio.Services"
         x:Class="ArxisStudio.Welcome.WelcomeWindow"
         x:DataType="vm:WelcomeViewModel"
         Title="{ax:Loc welcome.title}"
         Width="1100" Height="720"
         MinWidth="900" MinHeight="600"
         WindowStartupLocation="CenterScreen">
+
+  <!--
+      Кнопка меню строки живёт только здесь, поэтому и стиль её здесь, а не в ShellStyles:
+      класс `row` общий для нескольких экранов, а `more` — этого.
+  -->
+  <ax:AxWindow.Styles>
+    <Style Selector="Border.row ax|AxButton.more">
+      <Setter Property="IsVisible" Value="False"/>
+    </Style>
+    <Style Selector="Border.row:pointerover ax|AxButton.more">
+      <Setter Property="IsVisible" Value="True"/>
+    </Style>
+    <Style Selector="Border.row:focus-within ax|AxButton.more">
+      <Setter Property="IsVisible" Value="True"/>
+    </Style>
+  </ax:AxWindow.Styles>
 
   <DockPanel>
 
@@ -95,35 +112,152 @@
 
     <!-- Контент раздела. -->
     <DockPanel Grid.Column="1">
+
+      <!--
+          Полоса состояния: единственное место, где экран отвечает на отказ. Окно закрывается,
+          как только проект открыт, и сказанное после этого человеку уже некуда показать.
+      -->
+      <Border DockPanel.Dock="Bottom" IsVisible="{Binding HasStatus}"
+              Background="{DynamicResource AxBg2Brush}"
+              BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,1,0,0"
+              Padding="24,10">
+        <DockPanel>
+          <ax:AxButton DockPanel.Dock="Right" Classes="ghost" Content="{ax:Loc common.close}"
+                       Click="OnDismissStatus" Height="24" FontSize="{DynamicResource AxFontSizeSmall}"/>
+          <TextBlock Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center"
+                     FontSize="{DynamicResource AxFontSizeSmall}"/>
+        </DockPanel>
+      </Border>
+
       <ScrollViewer>
         <Panel Margin="36,28">
 
           <!-- ===== Projects ===== -->
-          <StackPanel IsVisible="{Binding IsProjects}" Spacing="0" MaxWidth="980" HorizontalAlignment="Left">
-            <TextBlock Classes="section" Text="{ax:Loc projects.recent}" Margin="0,0,0,8"/>
+          <!--
+              Ширина не ограничена, и это отличает раздел от остальных. Поиск стоит слева,
+              кнопки — у правого края окна, дата недавнего — там же: между ними растёт пустое
+              место, а не поле. Закрытый шириной в 980 раздел прижимался бы влево, и в развёрнутом
+              окне кнопки оказывались бы посреди экрана с пустотой справа.
+          -->
+          <StackPanel IsVisible="{Binding IsProjects}" Spacing="0">
 
             <!--
-                Заглушка вместо списка. Работа с проектами приедет отдельным
-                модулем, а войти в студию нужно уже сейчас: строка одна и ведёт
-                в пустой каркас. Ни пути, ни времени открытия у неё нет —
-                открывать пока нечего.
-
-                Список недавних при этом никуда не делся: RecentProjects и
-                recent-projects.json остаются моделью, к которой модуль
-                вернётся, — исчезло только то, что её показывало.
+                Поиск слева, действия справа. «Каркас студии» стоит кнопкой, а не строкой списка:
+                это действие, а не проект — ни пути, ни даты у него нет, а плитка с инициалами
+                среди настоящих проектов притворялась бы одним из них. Кнопкой оно переживает и
+                пустой список, а строкой внутри списка исчезло бы вместе с единственным входом
+                в студию.
             -->
-            <Border Classes="row" Height="58" CornerRadius="{DynamicResource AxCornerRadiusLarge}" Padding="12,0"
-                    PointerPressed="OnStudioPressed">
-              <DockPanel>
-                <ax:AxAvatar DockPanel.Dock="Left" Initials="AX" Margin="0,0,12,0"/>
-                <StackPanel VerticalAlignment="Center">
-                  <TextBlock Text="{ax:Loc projects.stub}" FontWeight="Medium"
-                             FontSize="{DynamicResource AxFontSize}"/>
-                  <TextBlock Classes="dimmer" Text="{ax:Loc projects.stub.hint}"
-                             FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,1,0,0"/>
-                </StackPanel>
-              </DockPanel>
-            </Border>
+            <!--
+                Три колонки: поиск, пустота, кнопки. Предел в 340 стоит на колонке, а не на поле, и
+                это здесь главное. Поле, растянутое в слоте шире себя, Avalonia ставит по середине
+                слота — прижать его влево можно, только сделав слот его шириной. Отсюда и вес 99
+                против 1: пока места много, первая колонка упирается в свои 340 и весь остаток
+                достаётся пустоте, а когда места мало — почти всё забирает поиск, и кнопки он не
+                задевает. Жёсткая ширина не годилась: потребовав свои 340 из меньшего остатка, поле
+                вылезало за отведённое и наезжало на первую кнопку.
+            -->
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="99*" MaxWidth="340"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+
+              <ax:AxSearchField Grid.Column="0"
+                                PlaceholderText="{ax:Loc projects.search}"
+                                Text="{Binding ProjectFilter, Mode=TwoWay}"/>
+
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10">
+                <ax:AxButton Classes="accent" Content="{ax:Loc projects.new}" Click="OnNewProjectClick"/>
+                <ax:AxButton Content="{ax:Loc projects.open}" Click="OnOpenProjectClick"/>
+                <ax:AxButton Content="{ax:Loc projects.clone}" Click="OnCloneClick"/>
+                <ax:AxButton Classes="ghost" Content="{ax:Loc projects.stub}"
+                             AutomationProperties.Name="{ax:Loc projects.stub.hint}"
+                             ToolTip.Tip="{ax:Loc projects.stub.hint}"
+                             Click="OnStudioClick"/>
+              </StackPanel>
+            </Grid>
+
+            <!-- Черта отделяет действия от списка: выше делают, ниже выбирают. -->
+            <ax:AxDivider Margin="0,18,0,0"/>
+
+            <TextBlock Classes="section" Text="{ax:Loc projects.recent}" Margin="0,16,0,8"/>
+
+            <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,8"
+                       Text="{ax:Loc projects.empty}"
+                       IsVisible="{Binding HasNoRecent}"/>
+
+            <!--
+                Строка знает свой проект дважды: Tag="{Binding Path}" для щелчка и Tag="{Binding}"
+                у пунктов меню, которым нужна вся запись. Focusable — ради Delete: у клавиши должна
+                быть цель, и видно её делает стиль Border.row:focus.
+            -->
+            <ItemsControl ItemsSource="{Binding RecentProjects}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="svc:RecentProject">
+                  <Border Classes="row" Height="58" CornerRadius="{DynamicResource AxCornerRadiusLarge}" Padding="12,0"
+                          Tag="{Binding Path}" Focusable="True"
+                          PointerPressed="OnRecentPressed" KeyDown="OnRecentKeyDown">
+                    <Border.ContextFlyout>
+                      <ax:AxMenuFlyout>
+                        <ax:AxMenuItem Header="{ax:Loc projects.open}" Tag="{Binding}" Click="OnRecentOpenClick">
+                          <ax:AxMenuItem.Icon>
+                            <ax:AxIcon Data="{x:Static ax:AxIcons.FolderOpen}"/>
+                          </ax:AxMenuItem.Icon>
+                        </ax:AxMenuItem>
+                        <ax:AxMenuItem Header="{ax:Loc projects.reveal}" Tag="{Binding}" Click="OnRecentRevealClick">
+                          <ax:AxMenuItem.Icon>
+                            <ax:AxIcon Data="{x:Static ax:AxIcons.Folder}"/>
+                          </ax:AxMenuItem.Icon>
+                        </ax:AxMenuItem>
+                        <ax:AxMenuItem Header="{ax:Loc projects.copypath}" Tag="{Binding}" Click="OnRecentCopyPathClick">
+                          <ax:AxMenuItem.Icon>
+                            <ax:AxIcon Data="{x:Static ax:AxIcons.Copy}"/>
+                          </ax:AxMenuItem.Icon>
+                        </ax:AxMenuItem>
+                        <ax:AxMenuItem Header="{ax:Loc projects.remove}" Tag="{Binding}" Click="OnRecentRemoveClick">
+                          <ax:AxMenuItem.Icon>
+                            <ax:AxIcon Data="{x:Static ax:AxIcons.Trash}"/>
+                          </ax:AxMenuItem.Icon>
+                        </ax:AxMenuItem>
+                      </ax:AxMenuFlyout>
+                    </Border.ContextFlyout>
+                    <DockPanel>
+                      <ax:AxAvatar DockPanel.Dock="Left" Initials="{Binding Initials}" Margin="0,0,12,0"/>
+
+                      <!--
+                          Кнопка меню у правого края, как в Rider. Место под неё занято всегда —
+                          иначе дата прыгала бы под курсором, — а сама она показывается, когда
+                          строка под курсором или в фокусе. Место держит панель, а не прозрачность:
+                          прозрачная кнопка ловила бы щелчки, которых человек ей не адресовал.
+                      -->
+                      <Panel DockPanel.Dock="Right" Width="28" VerticalAlignment="Center">
+                        <ax:AxButton Classes="icon more" Width="24" Height="24"
+                                     Tag="{Binding}" Click="OnRecentMoreClick"
+                                     AutomationProperties.Name="{ax:Loc projects.actions}"
+                                     ToolTip.Tip="{ax:Loc projects.actions}">
+                          <ax:AxIcon Data="{x:Static ax:AxIcons.MoreVertical}"/>
+                        </ax:AxButton>
+                      </Panel>
+
+                      <TextBlock DockPanel.Dock="Right" Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}"
+                                 Width="120" TextAlignment="Right" VerticalAlignment="Center"
+                                 Text="{Binding OpenedAt, StringFormat='{}{0:dd.MM.yyyy HH:mm}'}"/>
+                      <ax:AxChip DockPanel.Dock="Right" VerticalAlignment="Center" Margin="8,0"
+                                 Content="{ax:Loc projects.missing}"
+                                 IsVisible="{Binding !Exists}"/>
+                      <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" FontWeight="Medium" FontSize="{DynamicResource AxFontSize}"/>
+                        <TextBlock Classes="mono dimmer" Text="{Binding Path}" Margin="0,1,0,0"
+                                   FontSize="{DynamicResource AxFontSizeSmall}"
+                                   TextTrimming="CharacterEllipsis"/>
+                      </StackPanel>
+                    </DockPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
           </StackPanel>
 
           <!-- ===== Learn ===== -->

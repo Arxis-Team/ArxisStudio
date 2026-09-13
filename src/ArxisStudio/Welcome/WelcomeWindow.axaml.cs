@@ -12,18 +12,25 @@ using ArxisStudio.Shell.Settings;
 using ArxisStudio.ViewModels;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.VisualTree;
 
 namespace ArxisStudio.Welcome;
 
 /// <summary>
-/// Экран Welcome: вход в студию, обучение, плагины и настройки.
+/// Экран Welcome: недавние проекты, обучение, плагины и настройки.
 /// </summary>
 /// <remarks>
-/// Проектов экран не открывает: этой работы у студии пока нет вовсе, она
-/// приедет отдельным модулем. Вход в каркас закрывает это окно и сообщает о
-/// себе через <see cref="StudioRequested"/> — что делать дальше, окно не знает.
+/// Сам экран проекты не открывает. Он отвечает на один вопрос — есть ли кому открывать и годится
+/// ли путь, — и просит об открытии через <see cref="ProjectRequested"/>; загрузку ведёт студия, где
+/// её видно задачей в статус-баре. Ждать её здесь значило бы держать на экране окно, которому пора
+/// закрыться.
+/// <para>
+/// Отказ, наоборот, остаётся здесь: окно закрывается, как только проект открыт, и сказанное после
+/// этого человеку показать уже негде.
+/// </para>
 /// </remarks>
 public partial class WelcomeWindow : AxWindow
 {
@@ -49,13 +56,26 @@ public partial class WelcomeWindow : AxWindow
         _settings = settings;
         _extensions = extensions;
         _model = new WelcomeViewModel(recent, plugins, log);
+        CanOpenProjects = () => extensions.Projects is not null;
         DataContext = _model;
 
         InitializeComponent();
     }
 
-    /// <summary>Пользователь просит открыть студию.</summary>
+    /// <summary>
+    /// Есть ли кому открывать; в продукте — поднялась ли служба проектов.
+    /// </summary>
+    /// <remarks>
+    /// Шов ради тестов, и узкий нарочно: вопрос здесь один и булев, а собрать в тесте живую службу
+    /// значило бы поднять модуль вместе с движком — ради ответа «да».
+    /// </remarks>
+    internal Func<bool> CanOpenProjects { get; init; }
+
+    /// <summary>Пользователь просит открыть студию без проекта.</summary>
     public event EventHandler? StudioRequested;
+
+    /// <summary>Пользователь просит открыть проект; в аргументе — путь к нему.</summary>
+    public event EventHandler<string>? ProjectRequested;
 
     private void OnProjectsClick(object? sender, RoutedEventArgs e) => Select(WelcomeSection.Projects);
 
@@ -110,12 +130,148 @@ public partial class WelcomeWindow : AxWindow
 
     private void Select(WelcomeSection section) => _model.Section = section;
 
-    private void OnStudioPressed(object? sender, PointerPressedEventArgs e) =>
+    private void OnStudioClick(object? sender, RoutedEventArgs e) =>
         StudioRequested?.Invoke(this, EventArgs.Empty);
 
     private void OnLinkPressed(object? sender, PointerPressedEventArgs e)
     {
         if (sender is Control { Tag: string url })
             StudioOpen.InShell(url);
+    }
+
+    /// <summary>
+    /// Щелчок по строке недавнего проекта.
+    /// </summary>
+    /// <remarks>
+    /// Кнопка проверяется, и это не придирка: на строке висит контекстное меню, и без проверки
+    /// правый щелчок открывал бы проект вместе с меню. Фокус ставится обеими кнопками — по нему
+    /// работает Delete, и меню должно раскрываться на той строке, которую видно выбранной.
+    /// </remarks>
+    private void OnRecentPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not Control { Tag: string path } row)
+            return;
+
+        row.Focus();
+
+        if (e.GetCurrentPoint(row).Properties.IsLeftButtonPressed)
+            OpenProject(path);
+    }
+
+    /// <summary>Delete убирает строку, на которой стоит фокус.</summary>
+    private void OnRecentKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Delete || sender is not Control { Tag: string path })
+            return;
+
+        if (_model.RecentProjects.FirstOrDefault(project =>
+                string.Equals(project.Path, path, StringComparison.OrdinalIgnoreCase)) is { } found)
+        {
+            _model.Remove(found);
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>
+    /// Кнопка меню на строке раскрывает то же меню, что и правый щелчок.
+    /// </summary>
+    /// <remarks>
+    /// Меню объявлено на строке один раз и показывается у кнопки: второй его список в разметке
+    /// значило бы чинить всякую правку дважды и однажды забыть.
+    /// </remarks>
+    private void OnRecentMoreClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control button && button.FindAncestorOfType<Border>() is { ContextFlyout: { } menu })
+            menu.ShowAt(button);
+    }
+
+    private void OnRecentOpenClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { Tag: RecentProject project })
+            OpenProject(project.Path);
+    }
+
+    private void OnRecentRevealClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { Tag: RecentProject project })
+            StudioOpen.InShell(project.Folder);
+    }
+
+    private void OnRecentCopyPathClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { Tag: RecentProject project })
+            _ = TopLevel.GetTopLevel(this)?.Clipboard?.SetTextAsync(project.Path);
+    }
+
+    private void OnRecentRemoveClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { Tag: RecentProject project })
+            _model.Remove(project);
+    }
+
+    /// <summary>
+    /// Выбор проекта файловым диалогом.
+    /// </summary>
+    /// <remarks>
+    /// Второй фильтр — «все файлы» — стоит нарочно: правило решает
+    /// <see cref="WelcomeViewModel.Complaint"/>, а фильтр диалога только помогает не искать
+    /// глазами. Выбранное мимо правила отвергается со словом, а не молча не открывается.
+    /// </remarks>
+    private async void OnOpenProjectClick(object? sender, RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = Localizer.Instance["projects.open"],
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("Решение / проект")
+                {
+                    Patterns = ["*.sln", "*.slnx", "*.csproj", "*.fsproj", "*.vbproj"],
+                },
+                new FilePickerFileType(Localizer.Instance["common.all"]) { Patterns = ["*"] },
+            ],
+        });
+
+        if (files.Count > 0 && files[0].TryGetLocalPath() is { } path)
+            OpenProject(path);
+    }
+
+    private void OnNewProjectClick(object? sender, RoutedEventArgs e) =>
+        _model.Status = Localizer.Instance["projects.new.later"];
+
+    private void OnCloneClick(object? sender, RoutedEventArgs e) =>
+        _model.Status = Localizer.Instance["vcs.clone.later"];
+
+    private void OnDismissStatus(object? sender, RoutedEventArgs e) => _model.Status = null;
+
+    /// <summary>
+    /// Просит студию открыть проект — или объясняет, почему не просит.
+    /// </summary>
+    /// <param name="path">Путь к решению или проекту.</param>
+    /// <remarks>
+    /// <c>Touch</c> здесь не зовётся намеренно: недавние отмечает студия, и только на готовности —
+    /// путь, который не прочёлся, в списке не нужен. Позвать его отсюда значило бы вернуть то, от
+    /// чего <see cref="CurrentProject"/> отказался, и писать файл дважды на каждое открытие.
+    /// </remarks>
+    private void OpenProject(string path)
+    {
+        if (!CanOpenProjects())
+        {
+            _model.Status = Localizer.Instance["projects.noservice"];
+            return;
+        }
+
+        if (_model.Complaint(path) is { } complaint)
+        {
+            _model.Status = complaint;
+
+            // Файла не стало, пока список лежал на экране: чип «папка не найдена» должен
+            // появиться на строке тем же щелчком, которым человек об этом узнал.
+            _model.RefreshRecent();
+            return;
+        }
+
+        ProjectRequested?.Invoke(this, path);
     }
 }

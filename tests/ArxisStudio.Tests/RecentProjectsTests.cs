@@ -90,6 +90,22 @@ public class RecentProjectsTests : IDisposable
         Assert.Empty(new RecentProjects(StateFile).Items);
     }
 
+    /// <summary>Убирают по тем же правилам пути, по каким добавляют.</summary>
+    /// <remarks>
+    /// В списке лежат полные пути, и сравнение с пришедшим как есть не нашло бы записи, названной
+    /// относительным путём. Пока убирать было некому, разойтись этим двум было негде.
+    /// </remarks>
+    [Fact]
+    public void Removing_follows_the_same_path_rules_as_adding()
+    {
+        var recent = new RecentProjects(StateFile);
+
+        recent.Touch(Project("WaveChat.sln"));
+        recent.Remove(Path.Combine(_directory, ".", "WaveChat.sln"));
+
+        Assert.Empty(recent.Items);
+    }
+
     [Theory]
     [InlineData("WaveChat.sln", "WA")]
     [InlineData("Wave.Chat.Desktop.sln", "WC")]
