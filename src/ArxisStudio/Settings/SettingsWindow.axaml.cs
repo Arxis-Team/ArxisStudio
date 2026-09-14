@@ -8,6 +8,7 @@ using ArxisStudio.Shell.Localization;
 using ArxisStudio.Shell.Settings;
 using ArxisStudio.ViewModels;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
@@ -51,6 +52,10 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
         Cancel.Click += OnCancelClick;
         Save.Click += OnSaveClick;
         Closing += OnClosing;
+
+        // Каретка — в поиске, как в настройках Rider: окно открывают, чтобы найти настройку,
+        // а без этого фокуса не было ни у кого, и первое нажатие уходило в пустоту.
+        Opened += (_, _) => SearchBox.Focus();
     }
 
     /// <summary>
@@ -160,6 +165,32 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
         }
 
         Discard();
+    }
+
+    /// <summary>
+    /// Esc закрывает настройки — дорогой крестика, а не «Отмены».
+    /// </summary>
+    /// <remarks>
+    /// Окно построено на <c>AxWindow</c>, а не на <c>AxDialog</c>, и Esc, которому
+    /// запись 148 научила диалог, до настроек не доходил. Путь у клавиши крестика:
+    /// намерение у неё не названо — Esc жмут и затем, чтобы закрыть подсказку или
+    /// список, — поэтому несохранённое она не выбрасывает молча, а спрашивает о нём.
+    /// <para>
+    /// Нажатие, которое уже взял контрол внутри, — открытый список, например, — сюда
+    /// не доходит. Пока идёт запись, клавиша не делает ничего: закрыть окно посреди
+    /// сохранения значило бы спросить о правках, которые как раз ложатся на диск.
+    /// </para>
+    /// </remarks>
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+
+        if (e.Handled || e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None || !Cancel.IsEnabled)
+            return;
+
+        e.Handled = true;
+
+        Close();
     }
 
     private void Discard()

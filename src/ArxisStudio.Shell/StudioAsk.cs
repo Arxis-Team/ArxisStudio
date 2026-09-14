@@ -3,6 +3,7 @@ using ArxisStudio.Icons;
 using ArxisStudio.Shell.Localization;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 
@@ -80,6 +81,12 @@ public static class StudioAsk
 
         cancel.Click += (_, _) => dialog.Close(false);
         agree.Click += (_, _) => dialog.Close(true);
+
+        // Вопрос открывается с клавиатурой на ответе, а не в пустоте: без этого фокуса не
+        // было ни у кого, и Enter с пробелом не отвечали ничего. На необратимом клавиатура
+        // стоит на «Отмене» — случайный Enter не должен соглашаться на то, чего не вернуть, —
+        // на обратимом на согласии. Кольцо видно сразу: человек должен знать, что сделает Enter.
+        dialog.Opened += (_, _) => (danger ? cancel : agree).Focus(NavigationMethod.Tab);
 
         return await dialog.ShowDialog<bool?>(owner) == true;
     }

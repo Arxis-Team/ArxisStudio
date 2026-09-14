@@ -2,11 +2,14 @@ using ArxisStudio.Controls;
 using ArxisStudio.Modules.Terminal;
 using ArxisStudio.Modules.Terminal.Dialogs;
 using ArxisStudio.Modules.Terminal.Shells;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -101,6 +104,37 @@ public class TerminalDialogTests
         Assert.Equal(
             ShellCatalog.DefaultSshPort.ToString(System.Globalization.CultureInfo.InvariantCulture),
             Part<AxTextBox>(new SshDialog(), "PortBox").Text);
+
+    /// <summary>Диалог открывается с клавиатурой в своём первом поле.</summary>
+    /// <remarks>
+    /// У переименования и SSH так было с первого дня, у настроек терминала — нет: фокуса в
+    /// открытом диалоге не было ни у кого, и первое нажатие уходило в пустоту.
+    /// </remarks>
+    [AvaloniaTheory]
+    [InlineData("rename", "Chosen")]
+    [InlineData("ssh", "HostBox")]
+    [InlineData("settings", "ShellBox")]
+    public void A_dialog_opens_with_the_keyboard_in_its_first_field(string kind, string field)
+    {
+        AxDialog dialog = kind switch
+        {
+            "rename" => new RenameDialog(),
+            "ssh" => new SshDialog(),
+            _ => new SettingsDialog(),
+        };
+
+        dialog.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        var focused = dialog.FocusManager?.GetFocusedElement() as Visual;
+        var part = Parts(dialog).Single(control => control.Name == field);
+
+        Assert.True(
+            focused is not null && (focused == part || part.IsVisualAncestorOf(focused)),
+            $"фокус у {focused?.GetType().Name ?? "никого"}, а не в {field}");
+
+        dialog.Close();
+    }
 
     /// <summary>Нажимает Enter в форме диалога.</summary>
     private static void Enter(AxDialog dialog) =>

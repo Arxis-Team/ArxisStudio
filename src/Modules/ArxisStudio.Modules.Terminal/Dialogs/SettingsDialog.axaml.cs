@@ -41,6 +41,10 @@ public partial class SettingsDialog : AxDialog
             if (key.Key == Key.Enter)
                 Submit();
         };
+
+        // Клавиатура — в первом поле, как у переименования и SSH: без этого фокуса в
+        // открытом диалоге не было ни у кого, и первое нажатие уходило в пустоту.
+        Opened += (_, _) => ShellBox.Focus();
     }
 
     /// <summary>Показывает диалог; true — настройки записаны.</summary>
