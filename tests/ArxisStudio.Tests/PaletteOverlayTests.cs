@@ -1,9 +1,12 @@
 using ArxisStudio.Controls;
 using ArxisStudio.Palette;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Layout;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
@@ -168,9 +171,42 @@ public class PaletteOverlayTests
         Assert.Empty(window.GetVisualDescendants().OfType<AxQuickSearch>());
     }
 
+    /// <summary>Сочетания у правого края строк не заходят под ползунок прокрутки.</summary>
+    /// <remarks>
+    /// Полоса прокрутки лежит поверх строк, и живая палитра показала сочетания, чей последний знак
+    /// стоял под ползунком: строка отступала от края на 8, а полоса шириной 12. Команд здесь столько,
+    /// что список прокручивается, как у студии с модулями и плагинами.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_gestures_stay_out_of_the_scroll_lane()
+    {
+        IReadOnlyList<PaletteEntry> entries = [.. Enumerable.Range(1, 40).Select(index => new PaletteEntry($"Команда {index}", $"test.{index}", "Ctrl+Alt+W"))];
+
+        var (palette, window, _) = Shown(entries: entries);
+        var card = Assert.Single(window.GetVisualDescendants().OfType<AxQuickSearch>());
+        var list = Assert.Single(card.GetVisualDescendants().OfType<AxListBox>());
+        var bar = list.GetVisualDescendants().OfType<ScrollBar>().Single(candidate => candidate.Orientation == Orientation.Vertical);
+        var gestures = list.GetVisualDescendants().OfType<TextBlock>().Where(text => text.Text == "Ctrl+Alt+W").ToList();
+
+        Assert.True(bar.IsVisible, "список палитры не прокручивается, и полосы, в которую заходить, нет");
+        Assert.NotEmpty(gestures);
+
+        var lane = bar.TranslatePoint(default, card)!.Value.X;
+
+        foreach (var gesture in gestures)
+        {
+            var right = gesture.TranslatePoint(new Point(gesture.Bounds.Width, 0), card)!.Value.X;
+
+            Assert.True(right <= lane + 0.01, $"сочетание кончается на {right:0.##}, а полоса прокрутки начинается на {lane:0.##}");
+        }
+
+        palette.Close();
+    }
+
     /// <summary>Открытая палитра над показанным окном.</summary>
     private static (PaletteOverlay Palette, Window Window, IReadOnlyList<PaletteEntry> Entries) Shown(
-        List<string>? called = null)
+        List<string>? called = null,
+        IReadOnlyList<PaletteEntry>? entries = null)
     {
         var window = new Window { Width = 900, Height = 600, Content = new Border() };
 
@@ -184,7 +220,7 @@ public class PaletteOverlayTests
             return true;
         });
 
-        IReadOnlyList<PaletteEntry> entries =
+        entries ??=
         [
             new("Закрыть вкладку", "studio.close", "Ctrl+W"),
             new("Следующая панель", "studio.panel.next", "F6"),
