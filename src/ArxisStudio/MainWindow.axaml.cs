@@ -48,6 +48,11 @@ public partial class MainWindow : AxWindow
     private readonly StudioShortcuts _shortcuts;
     private readonly PaletteOverlay _palette;
 
+    // Правка keymap.json при открытой студии: слежение за файлом и страница «Клавиши», если окно
+    // настроек сейчас открыто, — ей перечитать реестр вслед за раздачей.
+    private readonly KeymapWatch _keymapWatch;
+    private ArxisStudio.Settings.KeysPage? _keysShown;
+
     // Раскладка: дерево доков, живые панели в нём и уборка по хозяину.
     private readonly StudioDock _dock;
 
@@ -145,6 +150,13 @@ public partial class MainWindow : AxWindow
 
         _shortcuts.Personalize(keymap);
 
+        // Сохранённый файл раздаётся заново, пока студия открыта. Слежение говорит в
+        // потоке пула, а реестр живёт в потоке интерфейса.
+        _keymapWatch = new KeymapWatch(StudioPaths.KeymapFile, () => Dispatcher.UIThread.Post(Rekey));
+
+        if (!_keymapWatch.Watching)
+            _log.Write(StudioLogLevel.Warning, "Keys", "за keymap.json не проследить — правка вступит в силу после перезапуска");
+
         // Щелчок по кнопке идёт через реестр команд, а не напрямую: только он
         // умеет разбудить спящего хозяина и приписать падение виновнику.
         _toolbar = new StudioToolBar(LeftStrip, CenterStrip, RightStrip)
@@ -222,6 +234,8 @@ public partial class MainWindow : AxWindow
         {
             Dispatcher.UIThread.UnhandledException -= OnUnhandled;
             TaskScheduler.UnobservedTaskException -= OnUnobserved;
+
+            _keymapWatch.Dispose();
 
             _plugins.Stop();
             await _documents.CloseAllAsync();
@@ -417,7 +431,16 @@ public partial class MainWindow : AxWindow
                 StudioPaths.KeymapFile,
                 StudioOpen.InShell);
 
-            await ArxisStudio.Settings.SettingsWindow.ShowAsync(this, Settings, _plugins, _plugins.Declaring(), Catalog, keys: keys);
+            _keysShown = keys;
+
+            try
+            {
+                await ArxisStudio.Settings.SettingsWindow.ShowAsync(this, Settings, _plugins, _plugins.Declaring(), Catalog, keys: keys);
+            }
+            finally
+            {
+                _keysShown = null;
+            }
         }
         catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
         {
@@ -559,6 +582,36 @@ public partial class MainWindow : AxWindow
             if (!_shortcuts.Bind(gesture, command))
                 _log.Write(StudioLogLevel.Warning, "Keys", $"{gesture} занято — команда {command} осталась без сочетания");
         }
+    }
+
+    /// <summary>
+    /// Раздаёт сочетания заново: <c>keymap.json</c> сохранили при открытой студии.
+    /// </summary>
+    /// <remarks>
+    /// Ответ — в строке состояния: человек сохранил файл в стороннем редакторе и вернулся в студию,
+    /// и узнать, что правка легла, ему больше негде. Журнал получает подробности: что в файле не
+    /// разобралось и у кого новая раздача отняла сочетание. Сломанный файл не меняет ничего — сочетания
+    /// остаются прежними, и строка состояния говорит об этом, а не о применённом.
+    /// </remarks>
+    private void Rekey()
+    {
+        var keymap = StudioKeymap.Load(StudioPaths.KeymapFile);
+
+        foreach (var complaint in keymap.Complaints)
+            _log.Write(StudioLogLevel.Warning, "Keys", complaint);
+
+        if (keymap.Broken)
+        {
+            _model.Say(Localizer.Instance["keys.kept"]);
+            return;
+        }
+
+        foreach (var refusal in _shortcuts.Personalize(keymap))
+            _log.Write(StudioLogLevel.Warning, "Keys", $"{refusal.Gesture} занято командой {refusal.Winner} — {refusal.CommandId} осталась без сочетания");
+
+        _log.Write(StudioLogLevel.Info, "Keys", "keymap.json применён");
+        _model.Say(Localizer.Instance[keymap.Complaints.Count > 0 ? "keys.applied.partly" : "keys.applied"]);
+        _keysShown?.Refresh();
     }
 
     /// <summary>

@@ -44,6 +44,11 @@ public sealed record ShortcutConflict(KeyGesture Gesture, string CommandId, stri
 /// получают отказ с его командой в победителях. Команда, которой человек назначил
 /// сочетание сам, своего по умолчанию не получает вовсе.
 /// </para>
+/// <para>
+/// Реестр помнит, кто и в каком порядке просил сочетания, и новый файл человека
+/// раздаётся не поверх прежнего, а заново: сперва человеку, потом всем просившим
+/// в том же порядке, в каком они просили.
+/// </para>
 /// </remarks>
 /// <param name="invoke">Кому передать имя команды; <c>false</c> — такой команды нет.</param>
 public sealed class StudioShortcuts(Func<string, bool> invoke)
@@ -51,6 +56,7 @@ public sealed class StudioShortcuts(Func<string, bool> invoke)
     private readonly List<ShortcutBinding> _bindings = [];
     private readonly List<ShortcutConflict> _refused = [];
     private readonly HashSet<string> _personal = new(StringComparer.Ordinal);
+    private readonly List<Request> _asked = [];
 
     /// <summary>Все отданные сочетания, в порядке выдачи.</summary>
     public IReadOnlyList<ShortcutBinding> All => _bindings;
@@ -78,33 +84,44 @@ public sealed class StudioShortcuts(Func<string, bool> invoke)
         ArgumentException.ThrowIfNullOrWhiteSpace(gesture);
         ArgumentException.ThrowIfNullOrWhiteSpace(commandId);
 
-        if (_personal.Contains(commandId))
-            return true;
+        // Просьба запоминается до ответа на неё: команда, за которую решил человек,
+        // получит своё по умолчанию, когда человек уберёт её из файла.
+        _asked.Add(new Request(gesture, commandId, owner));
 
-        if (!TryParse(gesture, out var parsed))
-            return false;
-
-        return Give(parsed, commandId, owner, personal: false);
+        return Deal(gesture, commandId, owner);
     }
 
     /// <summary>
-    /// Раздаёт сочетания, назначенные человеком.
+    /// Раздаёт сочетания, назначенные человеком, — раньше всех остальных.
     /// </summary>
     /// <param name="keymap">Прочитанный <c>keymap.json</c>.</param>
-    /// <exception cref="InvalidOperationException">Сочетания уже раздавались.</exception>
+    /// <returns>Отказы, которых до этой раздачи не было.</returns>
     /// <remarks>
-    /// Раньше всех и один раз. Отдай студия или плагин сочетание первыми, человек
-    /// получил бы отказ в своём же файле, а пересчёт задним числом отнимал бы
-    /// клавишу у того, кто уже её держит, — и зависел бы от порядка подъёма.
-    /// Порядок внутри файла — порядок записей: два одинаковых сочетания у двух
-    /// команд достаются первой, а второй — отказ, как у всех.
+    /// Файл раздаётся не поверх прежнего, а заново: прежние сочетания человека
+    /// снимаются, его новые отдаются первыми, а за ними — просьбы студии и плагинов
+    /// в том порядке, в каком они приходили. Раздай его вслед за остальными, человек
+    /// получил бы отказ в своём же файле, а кому достаётся занятое, решал бы порядок
+    /// подъёма. Порядок внутри файла — порядок записей: два одинаковых сочетания у
+    /// двух команд достаются первой, а второй — отказ, как у всех.
+    /// <para>
+    /// Файл, который не прочитался или не разобрался целиком, не меняет ничего:
+    /// остаются сочетания, которые были, — при запуске это сочетания по умолчанию.
+    /// Полупустой файл, сохранённый посреди правки, не должен снимать всё, что
+    /// человек назначил раньше.
+    /// </para>
     /// </remarks>
-    public void Personalize(StudioKeymap keymap)
+    public IReadOnlyList<ShortcutConflict> Personalize(StudioKeymap keymap)
     {
         ArgumentNullException.ThrowIfNull(keymap);
 
-        if (_bindings.Count > 0 || _refused.Count > 0 || _personal.Count > 0)
-            throw new InvalidOperationException("Сочетания человека раздаются раньше всех и один раз.");
+        if (keymap.Broken)
+            return [];
+
+        var before = _refused.ToList();
+
+        _bindings.Clear();
+        _refused.Clear();
+        _personal.Clear();
 
         foreach (var entry in keymap.Entries)
         {
@@ -116,6 +133,22 @@ public sealed class StudioShortcuts(Func<string, bool> invoke)
                     Give(parsed, entry.CommandId, owner: null, personal: true);
             }
         }
+
+        foreach (var asked in _asked)
+            Deal(asked.Gesture, asked.CommandId, asked.Owner);
+
+        return [.. _refused.Where(refusal => !before.Contains(refusal))];
+    }
+
+    private bool Deal(string gesture, string commandId, string? owner)
+    {
+        if (_personal.Contains(commandId))
+            return true;
+
+        if (!TryParse(gesture, out var parsed))
+            return false;
+
+        return Give(parsed, commandId, owner, personal: false);
     }
 
     private bool Give(KeyGesture gesture, string commandId, string? owner, bool personal)
@@ -144,7 +177,8 @@ public sealed class StudioShortcuts(Func<string, bool> invoke)
     /// <para>
     /// Отказы того же хозяина уходят вместе с привязками: список проигравших —
     /// ответ на вопрос «почему моё сочетание не работает», а у снятого плагина
-    /// этого вопроса больше нет.
+    /// этого вопроса больше нет. Уходят и его просьбы: следующий файл человека
+    /// раздаётся тем, кто есть, а вернувшийся плагин попросит своё заново.
     /// </para>
     /// </remarks>
     public void RemoveOwnedBy(string owner)
@@ -153,6 +187,7 @@ public sealed class StudioShortcuts(Func<string, bool> invoke)
 
         _bindings.RemoveAll(bound => string.Equals(bound.Owner, owner, StringComparison.Ordinal));
         _refused.RemoveAll(refusal => string.Equals(refusal.Owner, owner, StringComparison.Ordinal));
+        _asked.RemoveAll(request => string.Equals(request.Owner, owner, StringComparison.Ordinal));
     }
 
     /// <summary>Каким сочетанием зовут эту команду; <c>null</c> — никаким.</summary>
@@ -217,4 +252,7 @@ public sealed class StudioShortcuts(Func<string, bool> invoke)
             return;
         }
     }
+
+    /// <summary>Просьба о сочетании, как её передали.</summary>
+    private readonly record struct Request(string Gesture, string CommandId, string? Owner);
 }

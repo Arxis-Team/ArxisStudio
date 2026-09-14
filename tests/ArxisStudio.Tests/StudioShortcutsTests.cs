@@ -311,25 +311,129 @@ public class StudioShortcutsTests
         Assert.Equal("Ctrl+Alt+H", keys.Gesture("hello.greet"));
     }
 
-    /// <summary>Файл человека раздаётся раньше всех и один раз.</summary>
+    /// <summary>
+    /// Файл, сохранённый при открытой студии, раздаётся заново — и человек снова первый.
+    /// </summary>
     /// <remarks>
-    /// Раздай его после студии, и пересчёт задним числом отнимал бы клавишу у того, кто уже её
-    /// держит, — порядок подъёма решал бы то, что решил человек.
+    /// Раздай его вслед за студией и плагинами, человек получил бы отказ в своём же файле. Раздача
+    /// заново отнимает сочетание у того, кто его держал, и отказ говорит об этом тем же языком, что
+    /// всегда, — а реестр отдаёт его как новый: о нём студия пишет в журнал.
     /// </remarks>
     [AvaloniaFact]
-    public void The_person_is_heard_first_and_once()
+    public void A_saved_file_is_dealt_again_with_the_person_first()
     {
-        var late = new StudioShortcuts(_ => true);
+        var called = new List<string>();
+        var keys = new StudioShortcuts(Calls(called));
+        var window = Shown(keys);
 
-        late.Bind("Ctrl+W", "studio.close");
+        keys.Personalize(StudioKeymap.Empty);
+        keys.Bind("Ctrl+W", "studio.close");
+        keys.Bind("Ctrl+Shift+P", "studio.palette");
+        keys.Bind("Ctrl+Alt+G", "hello.greet", "arxis.hello");
 
-        Assert.Throws<InvalidOperationException>(() => late.Personalize(Keymap(("studio.close", ["Ctrl+F4"]))));
+        var fresh = keys.Personalize(Keymap(("studio.palette", ["Ctrl+W"])));
 
-        var twice = new StudioShortcuts(_ => true);
+        Assert.Equal("Ctrl+W", keys.Gesture("studio.palette"));
+        Assert.Null(keys.Gesture("studio.close"));
+        Assert.Equal("Ctrl+Alt+G", keys.Gesture("hello.greet"));
 
-        twice.Personalize(Keymap(("studio.close", ["Ctrl+F4"])));
+        var refused = Assert.Single(keys.Refused);
 
-        Assert.Throws<InvalidOperationException>(() => twice.Personalize(Keymap(("studio.close", ["Ctrl+F5"]))));
+        Assert.Equal("studio.close", refused.CommandId);
+        Assert.Equal("studio.palette", refused.Winner);
+        Assert.Equal([refused], fresh);
+
+        window.KeyPress(Key.W, RawInputModifiers.Control, PhysicalKey.W, string.Empty);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(["studio.palette"], called);
+
+        window.Close();
+    }
+
+    /// <summary>Команда, которую человек убрал из файла, получает своё сочетание по умолчанию обратно.</summary>
+    /// <remarks>
+    /// Реестр помнит просьбу студии и тогда, когда за команду решал человек: иначе, убрав строку из
+    /// файла, человек оставил бы команду без сочетания до перезапуска.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_command_the_person_let_go_gets_its_default_back()
+    {
+        var keys = new StudioShortcuts(_ => true);
+
+        keys.Personalize(Keymap(("studio.close", ["Ctrl+F4"])));
+        keys.Bind("Ctrl+W", "studio.close");
+
+        Assert.Empty(keys.Personalize(StudioKeymap.Empty));
+        Assert.Equal("Ctrl+W", keys.Gesture("studio.close"));
+        Assert.DoesNotContain(keys.All, bound => bound.Gesture.ToString() == "Ctrl+F4");
+    }
+
+    /// <summary>Остальные при новой раздаче идут в том порядке, в каком просили, и отказ не двоится.</summary>
+    [AvaloniaFact]
+    public void The_rest_are_dealt_in_the_order_they_asked()
+    {
+        var keys = new StudioShortcuts(_ => true);
+
+        keys.Bind("Ctrl+K", "one.run", "arxis.one");
+        keys.Bind("Ctrl+K", "two.run", "arxis.two");
+
+        Assert.Empty(keys.Personalize(Keymap(("studio.palette", ["Ctrl+Alt+P"]))));
+        Assert.Equal("Ctrl+K", keys.Gesture("one.run"));
+
+        var refused = Assert.Single(keys.Refused);
+
+        Assert.Equal("two.run", refused.CommandId);
+        Assert.Equal("one.run", refused.Winner);
+    }
+
+    /// <summary>Новая раздача идёт тем, кто сочетаний просит сейчас, — ушедший плагин в ней не участвует.</summary>
+    /// <remarks>
+    /// Уход плагина сам сочетаний не перераздаёт: его клавиша не уходит соседу за спиной у человека.
+    /// Но раздачу заново человек начал сам, сохранив файл, — и раздаётся она тем, кто есть.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_new_deal_goes_to_those_still_asking()
+    {
+        var keys = new StudioShortcuts(_ => true);
+
+        keys.Bind("Ctrl+K", "one.run", "arxis.one");
+        keys.Bind("Ctrl+K", "two.run", "arxis.two");
+        keys.RemoveOwnedBy("arxis.one");
+
+        Assert.Null(keys.Gesture("two.run"));
+
+        keys.Personalize(StudioKeymap.Empty);
+
+        Assert.Null(keys.Gesture("one.run"));
+        Assert.Equal("Ctrl+K", keys.Gesture("two.run"));
+        Assert.Empty(keys.Refused);
+    }
+
+    /// <summary>Сломанный файл не меняет ничего — ни при запуске, ни при открытой студии.</summary>
+    /// <remarks>
+    /// Файл, сохранённый посреди правки, не должен снимать всё, что человек назначил раньше: остаются
+    /// те сочетания, что были. При запуске «были» — это сочетания по умолчанию.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_broken_file_changes_nothing()
+    {
+        var broken = StudioKeymap.Parse("""{ "studio.palette": """);
+
+        var running = new StudioShortcuts(_ => true);
+
+        running.Personalize(Keymap(("studio.palette", ["Ctrl+Alt+P"])));
+        running.Bind("Ctrl+Shift+P", "studio.palette");
+
+        Assert.Empty(running.Personalize(broken));
+        Assert.Equal("Ctrl+Alt+P", running.Gesture("studio.palette"));
+
+        var starting = new StudioShortcuts(_ => true);
+
+        starting.Personalize(broken);
+        starting.Bind("Ctrl+Shift+P", "studio.palette");
+
+        Assert.Equal("Ctrl+Shift+P", starting.Gesture("studio.palette"));
     }
 
     /// <summary>Файл человека из пар «команда — сочетания».</summary>

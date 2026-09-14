@@ -25,8 +25,8 @@ namespace ArxisStudio.Services;
 /// <para>
 /// Опечатка не повод терять остальное. Сочетание, которое не разобралось, называется в жалобе и
 /// пропускается, а команда, у которой не разобралось ни одно, остаётся при своём по умолчанию:
-/// человек хотел другое сочетание, а не никакого. Файл, который не разобрался целиком, не меняет
-/// ничего.
+/// человек хотел другое сочетание, а не никакого. Файл, который не прочитался или не разобрался
+/// целиком, не меняет ничего и помечен <see cref="Broken"/>.
 /// </para>
 /// </remarks>
 public sealed record StudioKeymap(IReadOnlyList<KeymapEntry> Entries, IReadOnlyList<string> Complaints)
@@ -40,6 +40,16 @@ public sealed record StudioKeymap(IReadOnlyList<KeymapEntry> Entries, IReadOnlyL
     /// <summary>Файла нет — сочетания те, что по умолчанию.</summary>
     public static StudioKeymap Empty { get; } = new([], []);
 
+    /// <summary>
+    /// Файл есть, но не прочитался или не разобрался целиком — применять нечего.
+    /// </summary>
+    /// <remarks>
+    /// Не то же, что пустой файл: пустой говорит «сочетания по умолчанию», а сломанный не говорит
+    /// ничего. Разница видна, когда файл правят при запущенной студии: сохранённый посреди правки, он
+    /// оставляет сочетания, которые были, а не снимает все назначенные человеком.
+    /// </remarks>
+    public bool Broken { get; init; }
+
     /// <summary>Читает файл; нет его — пустая раскладка без жалоб.</summary>
     /// <param name="path">Путь к <c>keymap.json</c>.</param>
     public static StudioKeymap Load(string path)
@@ -52,7 +62,7 @@ public sealed record StudioKeymap(IReadOnlyList<KeymapEntry> Entries, IReadOnlyL
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            return Empty with { Complaints = [$"keymap.json не прочитан: {e.Message}"] };
+            return Empty with { Complaints = [$"keymap.json не прочитан: {e.Message}"], Broken = true };
         }
     }
 
@@ -70,13 +80,13 @@ public sealed record StudioKeymap(IReadOnlyList<KeymapEntry> Entries, IReadOnlyL
         }
         catch (JsonException e)
         {
-            return Empty with { Complaints = [$"keymap.json не разобран и не применён: {e.Message}"] };
+            return Empty with { Complaints = [$"keymap.json не разобран и не применён: {e.Message}"], Broken = true };
         }
 
         using (document)
         {
             if (document.RootElement.ValueKind != JsonValueKind.Object)
-                return Empty with { Complaints = ["keymap.json не применён: ждали объект «команда — сочетание»"] };
+                return Empty with { Complaints = ["keymap.json не применён: ждали объект «команда — сочетание»"], Broken = true };
 
             var entries = new List<KeymapEntry>();
             var complaints = new List<string>();

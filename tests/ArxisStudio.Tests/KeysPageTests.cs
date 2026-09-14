@@ -177,9 +177,44 @@ public class KeysPageTests : IDisposable
     }
 
     /// <summary>
+    /// Открытая страница показывает новую раздачу: человек сохранил файл, не закрывая настроек.
+    /// </summary>
+    /// <remarks>
+    /// Кнопка страницы и ведёт к правке файла, и вернувшийся из редактора должен увидеть, что стало: новое
+    /// сочетание плашкой и пропавший отказ — без раздела «Не досталось».
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task An_open_page_shows_the_new_deal()
+    {
+        var (page, keys) = Keyed(Path.Combine(_root, "keymap.json"), _ => { });
+        var (owner, settings, shown) = _harness.Open(page, "studio.keys");
+
+        Dispatcher.UIThread.RunJobs();
+
+        keys.Personalize(new StudioKeymap([new KeymapEntry("hello.greet", ["Ctrl+Alt+J"]), new KeymapEntry("hello.close", [])], []));
+        page.Refresh();
+        Dispatcher.UIThread.RunJobs();
+
+        var chips = settings.GetVisualDescendants().OfType<AxChip>().Where(chip => chip.IsEffectivelyVisible).Select(chip => chip.Content as string).ToList();
+        var texts = settings.GetVisualDescendants().OfType<TextBlock>().Where(text => text.IsEffectivelyVisible).Select(text => text.Text).ToList();
+
+        Assert.Equal(["Ctrl+Alt+J", "Ctrl+W", "Ctrl+Alt+G"], chips);
+        Assert.DoesNotContain(Localizer.Instance["keys.refused"], texts);
+
+        settings.Cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        Assert.Same(shown, await Task.WhenAny(shown, Task.Delay(Patience)));
+
+        owner.Close();
+    }
+
+    /// <summary>
     /// Страница по реестру, где есть всё сразу: сочетание человека, студии и плагина и один отказ.
     /// </summary>
-    private static KeysPage Page(string file, Action<string> open)
+    private static KeysPage Page(string file, Action<string> open) => Keyed(file, open).Page;
+
+    /// <summary>Та же страница — вместе с реестром, по которому она собрана.</summary>
+    private static (KeysPage Page, StudioShortcuts Keys) Keyed(string file, Action<string> open)
     {
         var keys = new StudioShortcuts(_ => true);
 
@@ -194,6 +229,6 @@ public class KeysPageTests : IDisposable
             new("Поздороваться", "hello.greet"),
         ];
 
-        return KeysPage.From(keys, commands, id => id == "arxis.hello" ? "Пример" : null, file, open);
+        return (KeysPage.From(keys, commands, id => id == "arxis.hello" ? "Пример" : null, file, open), keys);
     }
 }

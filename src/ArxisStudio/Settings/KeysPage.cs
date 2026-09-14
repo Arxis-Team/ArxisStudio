@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Globalization;
 using ArxisStudio.Icons;
 using ArxisStudio.Palette;
@@ -32,28 +33,35 @@ public sealed record KeyRefusal(string Gesture, string Command, string Winner, s
 /// Строки идут в порядке раздачи: сперва человек, потом студия, потом плагины в порядке подъёма. Этот
 /// порядок и решает, кому достаётся занятое, — показать его значит объяснить отказы.
 /// </para>
+/// <para>
+/// Страница открыта, а файл сохранили — она перечитывает реестр по <see cref="Refresh"/>. Кнопка
+/// страницы и ведёт к правке файла, и человек, вернувшийся из редактора, должен увидеть, что стало, а
+/// не список на миг открытия окна.
+/// </para>
 /// </remarks>
-public sealed class KeysPage : ISettingsPage
+public sealed class KeysPage : ISettingsPage, INotifyPropertyChanged
 {
+    private readonly Func<(IReadOnlyList<KeyRow> Rows, IReadOnlyList<KeyRefusal> Refusals)> _read;
     private readonly Action<string> _open;
 
-    /// <summary>Собирает страницу из готовых строк.</summary>
-    /// <param name="rows">Отданные сочетания, в порядке раздачи.</param>
-    /// <param name="refusals">Кому не досталось.</param>
+    /// <summary>Собирает страницу и читает строки первый раз.</summary>
+    /// <param name="read">Отданные сочетания в порядке раздачи и отказы — такими, какие они сейчас.</param>
     /// <param name="file">Путь к <c>keymap.json</c>.</param>
     /// <param name="open">Чем открыть файл — средствами системы.</param>
-    public KeysPage(IReadOnlyList<KeyRow> rows, IReadOnlyList<KeyRefusal> refusals, string file, Action<string> open)
+    public KeysPage(Func<(IReadOnlyList<KeyRow> Rows, IReadOnlyList<KeyRefusal> Refusals)> read, string file, Action<string> open)
     {
-        ArgumentNullException.ThrowIfNull(rows);
-        ArgumentNullException.ThrowIfNull(refusals);
+        ArgumentNullException.ThrowIfNull(read);
         ArgumentException.ThrowIfNullOrWhiteSpace(file);
         ArgumentNullException.ThrowIfNull(open);
 
-        Rows = rows;
-        Refusals = refusals;
+        _read = read;
+        (Rows, Refusals) = read();
         File = file;
         _open = open;
     }
+
+    /// <inheritdoc/>
+    public event PropertyChangedEventHandler? PropertyChanged;
 
     /// <inheritdoc/>
     public string Id => "studio.keys";
@@ -81,16 +89,26 @@ public sealed class KeysPage : ISettingsPage
     public bool HasChanges => false;
 
     /// <summary>Отданные сочетания, в порядке раздачи.</summary>
-    public IReadOnlyList<KeyRow> Rows { get; }
+    public IReadOnlyList<KeyRow> Rows { get; private set; }
 
     /// <summary>Кому сочетание не досталось.</summary>
-    public IReadOnlyList<KeyRefusal> Refusals { get; }
+    public IReadOnlyList<KeyRefusal> Refusals { get; private set; }
 
     /// <summary>Есть кому не досталось.</summary>
     public bool HasRefusals => Refusals.Count > 0;
 
     /// <summary>Путь к <c>keymap.json</c>.</summary>
     public string File { get; }
+
+    /// <summary>Перечитывает сочетания и отказы — файл человека раздали заново.</summary>
+    public void Refresh()
+    {
+        (Rows, Refusals) = _read();
+
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Rows)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Refusals)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasRefusals)));
+    }
 
     /// <summary>
     /// Собирает страницу по реестру сочетаний.
@@ -122,14 +140,17 @@ public sealed class KeysPage : ISettingsPage
             personal ? "keymap.json" : owner is null ? Localizer.Instance["keys.studio"] : plugin(owner) ?? owner;
 
         return new KeysPage(
-            [.. shortcuts.All.Select(bound => new KeyRow(bound.Gesture.ToString(), Title(bound.CommandId), Source(bound.Owner, bound.Personal)))],
-            [
-                .. shortcuts.Refused.Select(refusal => new KeyRefusal(
-                    refusal.Gesture.ToString(),
-                    Title(refusal.CommandId),
-                    string.Format(CultureInfo.CurrentCulture, Localizer.Instance["keys.refused.winner"], Title(refusal.Winner)),
-                    Source(refusal.Owner, refusal.Personal))),
-            ],
+            () =>
+            (
+                [.. shortcuts.All.Select(bound => new KeyRow(bound.Gesture.ToString(), Title(bound.CommandId), Source(bound.Owner, bound.Personal)))],
+                [
+                    .. shortcuts.Refused.Select(refusal => new KeyRefusal(
+                        refusal.Gesture.ToString(),
+                        Title(refusal.CommandId),
+                        string.Format(CultureInfo.CurrentCulture, Localizer.Instance["keys.refused.winner"], Title(refusal.Winner)),
+                        Source(refusal.Owner, refusal.Personal))),
+                ]
+            ),
             file,
             open);
     }

@@ -21,6 +21,7 @@ public class StudioKeymapTests
 
         Assert.Empty(keymap.Entries);
         Assert.Empty(keymap.Complaints);
+        Assert.False(keymap.Broken, "файла нет, а он назван сломанным: убранный файл не вернул бы сочетаний по умолчанию");
     }
 
     /// <summary>Строка — одно сочетание, массив — несколько, null и пустая строка — ни одного.</summary>
@@ -60,16 +61,56 @@ public class StudioKeymapTests
     }
 
     /// <summary>Файл, который не разобрался целиком, не меняет ничего и говорит об этом.</summary>
+    /// <remarks>
+    /// Пустой файл тоже сломанный: редактор, сохраняя, сперва обнуляет файл, и слежение может застать
+    /// его пустым.
+    /// </remarks>
     [Fact]
     public void A_broken_file_is_told_and_changes_nothing()
     {
-        foreach (var broken in new[] { "{ \"studio.palette\": ", "[\"Ctrl+W\"]" })
+        foreach (var broken in new[] { "{ \"studio.palette\": ", "[\"Ctrl+W\"]", string.Empty })
         {
             var keymap = StudioKeymap.Parse(broken);
 
             Assert.Empty(keymap.Entries);
             Assert.Contains("keymap.json", Assert.Single(keymap.Complaints));
+            Assert.True(keymap.Broken, $"«{broken}» не назван сломанным и снял бы все сочетания человека");
         }
+    }
+
+    /// <summary>Файл, который не прочитался, сломанный: редактор ещё держит его на записи.</summary>
+    [Fact(Skip = "Запрет чтения чужого открытого файла держит только Windows", SkipUnless = nameof(IsWindows), SkipType = typeof(StudioKeymapTests))]
+    public void A_file_that_cannot_be_read_is_broken()
+    {
+        var file = Path.Combine(Path.GetTempPath(), $"arxis-keymap-{Guid.NewGuid():N}.json");
+
+        try
+        {
+            using (var held = new FileStream(file, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                var keymap = StudioKeymap.Load(file);
+
+                Assert.True(keymap.Broken, "файл, занятый записью, не назван сломанным и снял бы все сочетания человека");
+                Assert.Contains("не прочитан", Assert.Single(keymap.Complaints));
+            }
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
+    /// <summary>Запрет чтения занятого файла — свойство Windows.</summary>
+    public static bool IsWindows => OperatingSystem.IsWindows();
+
+    /// <summary>Файл с опечаткой не сломанный: разобранное в нём применяется.</summary>
+    [Fact]
+    public void A_file_with_a_typo_is_not_broken()
+    {
+        var keymap = StudioKeymap.Parse("""{ "studio.close": "Ctrl+Шифт", "studio.palette": "Ctrl+Alt+P" }""");
+
+        Assert.False(keymap.Broken, "опечатка в одной строке остановила весь файл");
+        Assert.Equal("studio.palette", Assert.Single(keymap.Entries).CommandId);
     }
 
     /// <summary>
