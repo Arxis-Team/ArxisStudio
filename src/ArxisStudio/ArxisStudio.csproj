@@ -17,6 +17,11 @@
             у каждого корня разметки и каждого шаблона стоит x:DataType.
         -->
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+        <!--
+            Значок exe — для Проводника и закреплённой панели задач, где окна ещё
+            нет. У открытого окна значок свой, из общего стиля окна; файл один.
+        -->
+        <ApplicationIcon>../ArxisStudio.Shell/Assets/arxis.ico</ApplicationIcon>
     </PropertyGroup>
 
     <!--

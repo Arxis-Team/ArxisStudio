@@ -25,6 +25,10 @@
 
         Толщина здесь своя, не как у знака: Viewbox растягивает и штрих, и
         0.15 канвы дают на этом размере ровно два пикселя на экране.
+
+        Фигуры берутся у знака, а не переписываются сюда. Прежде здесь лежала
+        копия его чисел, и совпадали они только потому, что знак никто не
+        трогал; первая же правка буквы разошлась бы с водяным знаком молча.
     -->
     <Viewbox Width="640" Height="640" Margin="64,-25,0,0"
              HorizontalAlignment="Left" VerticalAlignment="Top"
@@ -38,18 +42,16 @@
           </Style>
         </Canvas.Styles>
 
-        <Path Data="M21.84 6H26.16L38.76 31.95H33.51L24 10.2L14.49 31.95H9.24Z"/>
-        <Path Data="M24 18.6L28.82 31H19.18Z"/>
-
-        <Ellipse Canvas.Left="23.05" Canvas.Top="9.25" Width="1.9" Height="1.9"
-                 Stroke="{DynamicResource AxFgBrush}" StrokeThickness="0.15"/>
+        <Path Data="{x:Static brand:ArxisMark.Letter}"/>
+        <Path Data="{x:Static brand:ArxisMark.Island}"/>
+        <Path Data="{x:Static brand:ArxisMark.Apex}"/>
       </Canvas>
     </Viewbox>
 
     <!-- Лок-ап: знак, вордмарк и строка версии под ним. -->
     <StackPanel Orientation="Horizontal" Margin="40,96,0,0"
                 HorizontalAlignment="Left" VerticalAlignment="Top">
-      <brand:ArxisMark/>
+      <brand:ArxisMark Size="48"/>
 
       <!--
           Вордмарк центрируется по букве и рельсу, а не по всей высоте знака:
@@ -57,7 +59,7 @@
           осевшим. Поднят на 6 % высоты — три пикселя из сорока восьми.
       -->
       <StackPanel Margin="11,3,0,0" VerticalAlignment="Top">
-        <TextBlock FontSize="26" LetterSpacing="-0.52">
+        <TextBlock FontSize="{DynamicResource AxFontSizeDisplay}" LetterSpacing="-0.52">
           <Run Text="Arxis" FontWeight="Bold" Foreground="{DynamicResource AxFgBrush}"/><Run Text="Studio" Foreground="{DynamicResource AxFg2Brush}"/>
         </TextBlock>
 

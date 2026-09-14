@@ -20,24 +20,26 @@
       версии именно его.
 
       Своей рамки у окна нет вовсе: скруглить системную нельзя, а заставка со
-      скруглением 12 — часть узнаваемости студии. Поэтому прозрачное окно и
-      скруглённая подложка внутри.
+      скруглением карточки — часть узнаваемости студии. Поэтому прозрачное окно и
+      скруглённая подложка внутри. Размеры и отступы заставки записаны в
+      docs/design-spec.md: у экрана без записи нет критериев приёмки, и заставка
+      разошлась со всем остальным ровно потому, что записи у неё не было.
   -->
   <Border Background="{DynamicResource AxBg1Brush}"
           BorderBrush="{DynamicResource AxBrdBrush}"
           BorderThickness="1"
-          CornerRadius="12"
+          CornerRadius="{DynamicResource AxCornerRadiusCard}"
           ClipToBounds="True">
     <Grid>
       <art:Splash2026/>
 
-      <StackPanel VerticalAlignment="Bottom" Margin="40,0,40,24">
+      <StackPanel VerticalAlignment="Bottom" Margin="{DynamicResource AxSplashPadding}">
         <TextBlock Text="{Binding Stage}"
                    FontSize="{DynamicResource AxFontSizeSmall}"
                    Foreground="{DynamicResource AxFg2Brush}"
                    TextTrimming="CharacterEllipsis"/>
 
-        <ax:AxProgressBar Margin="0,9,0,0"
+        <ax:AxProgressBar Margin="{DynamicResource AxSpaceAboveThickness}"
                           IsVisible="{Binding !HasFailed}"
                           Minimum="0" Maximum="100"
                           Value="{Binding Progress}"
@@ -53,7 +55,7 @@
             сбое. Кнопка нужна не для красоты: рамы у окна нет, и без неё
             человек остался бы с незакрываемой заставкой.
         -->
-        <StackPanel Margin="0,9,0,0" IsVisible="{Binding HasFailed}">
+        <StackPanel Margin="{DynamicResource AxSpaceAboveThickness}" IsVisible="{Binding HasFailed}">
           <TextBlock Text="{Binding Failure}"
                      FontFamily="{DynamicResource AxFontFamilyMono}"
                      FontSize="{DynamicResource AxFontSizeCaption}"
@@ -61,7 +63,7 @@
                      TextWrapping="Wrap" MaxLines="3"
                      TextTrimming="CharacterEllipsis"/>
 
-          <ax:AxButton Content="{ax:Loc common.close}" Margin="0,12,0,0"
+          <ax:AxButton Content="{ax:Loc common.close}" Margin="{DynamicResource AxSpaceWideAboveThickness}"
                        HorizontalAlignment="Left" Click="OnCloseClick"/>
         </StackPanel>
 
@@ -70,7 +72,7 @@
             нужны в отчёте о сбое — человек снимает заставку, и на снимке уже
             есть всё, о чём его иначе пришлось бы расспрашивать.
         -->
-        <Grid Margin="0,16,0,0">
+        <Grid Margin="{DynamicResource AxSpaceLooseAboveThickness}">
           <TextBlock Text="{Binding Credit}" HorizontalAlignment="Left"
                      FontFamily="{DynamicResource AxFontFamilyMono}"
                      FontSize="{DynamicResource AxFontSizeCaption}"

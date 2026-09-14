@@ -45,6 +45,17 @@
   </Styles.Resources>
 
   <!-- Строка навигации: 30px, выбранная — заливка выделения и полужирный текст. -->
+  <!--
+      Значок у каждого окна студии — стилем, а не атрибутом в разметке окна.
+      Окон много: заставка, приветствие, главное, настройки, оторванные панели,
+      диалоги плагинов. Забытое окно показало бы в панели задач родовой значок
+      .NET, а стиль не забывает никого — и окно плагина, о котором студия ничего
+      не знает, тоже.
+  -->
+  <Style Selector=":is(Window)">
+    <Setter Property="Icon" Value="avares://ArxisStudio.Shell/Assets/arxis.ico"/>
+  </Style>
+
   <Style Selector="ToggleButton.nav">
     <Setter Property="Height" Value="30"/>
     <Setter Property="Padding" Value="{DynamicResource AxSpaceWideSidesThickness}"/>

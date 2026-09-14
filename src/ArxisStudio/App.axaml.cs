@@ -34,6 +34,9 @@ public class App : Application
     private readonly StudioLog _log = new(Console.Out);
 
     private ISettingsStore _settings = null!;
+
+    /// <summary>Настройки, прочитанные до заставки; <c>null</c> — прочесть не удалось.</summary>
+    private JsonSettingsStore? _early;
     private RecentProjects _recent = null!;
     private PluginCatalog _plugins = null!;
 
@@ -88,6 +91,8 @@ public class App : Application
     /// </remarks>
     private void Raise(IClassicDesktopStyleApplicationLifetime desktop)
     {
+        Dress();
+
         var model = new SplashViewModel();
         var splash = new SplashWindow(model);
 
@@ -105,6 +110,45 @@ public class App : Application
         Dispatcher.UIThread.Post(
             () => _ = RunGuardedAsync(desktop, splash),
             DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// Одевает студию в выбранные тему и плотность до того, как появится заставка.
+    /// </summary>
+    /// <remarks>
+    /// Заставка показывается раньше, чем этапы запуска читают настройки, и
+    /// потому поднималась в теме по умолчанию: у выбравшего светлую тему тёмная
+    /// заставка светлела на полпути, а с плотностью у неё к тому же съезжал бы
+    /// нижний блок. Это то самое мигание, от которого передача окна была
+    /// избавлена, только внутри одного окна.
+    /// <para>
+    /// Файл настроек маленький и читается без сети, поэтому это можно сделать
+    /// до первого кадра. Прочитанное хранилище не бросают, а отдают этапу
+    /// настроек: экземпляр на процесс должен быть один, иначе второй потерял
+    /// бы правку первого.
+    /// </para>
+    /// <para>
+    /// Отказ здесь не роковой: заставка покажется в теме по умолчанию, а этап
+    /// настроек прочтёт файл заново, уже под охраной запуска, — и то, что
+    /// бросило здесь, бросит там с именем этапа в журнале. Испорченный файл
+    /// хранилище и так переживает само, откатываясь к умолчаниям; сюда доходит
+    /// только неожиданное. Ловится всё, кроме нехватки памяти и переполнения
+    /// стека: здесь ещё нет ни окна, ни охраны запуска, и брошенное исключение
+    /// унесло бы процесс без слова.
+    /// </para>
+    /// </remarks>
+    private void Dress()
+    {
+        try
+        {
+            _early = new JsonSettingsStore();
+            StudioTheming.Apply(_early.Current.Theme);
+            StudioTheming.Apply(_early.Current.Density);
+        }
+        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        {
+            _early = null;
+        }
     }
 
     /// <summary>
@@ -169,7 +213,7 @@ public class App : Application
             .Add("splash.stage.paths", StudioPaths.EnsureUserData)
             .Add("splash.stage.settings", () =>
             {
-                _settings = new JsonSettingsStore();
+                _settings = _early ?? new JsonSettingsStore();
                 _recent = new RecentProjects();
             })
             .Add("splash.stage.plugins", () =>
