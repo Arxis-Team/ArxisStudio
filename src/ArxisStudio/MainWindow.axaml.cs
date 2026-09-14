@@ -404,7 +404,20 @@ public partial class MainWindow : AxWindow
     {
         try
         {
-            await ArxisStudio.Settings.SettingsWindow.ShowAsync(this, Settings, _plugins, _plugins.Declaring(), Catalog);
+            // Страница клавиш собирается на каждое открытие: плагины поднимаются и
+            // уходят по ходу сеанса, и вчерашний список сочетаний соврал бы.
+            var keys = ArxisStudio.Settings.KeysPage.From(
+                _shortcuts,
+                CommandPalette.Gather(
+                    StudioMenu.Build(_plugins.Contributing),
+                    [.. Own(), new(Localizer.Instance["command.palette"], "studio.palette")],
+                    Declared(),
+                    _shortcuts.Gesture),
+                id => _plugins.Installed.Concat(_plugins.Modules).FirstOrDefault(plugin => plugin.Id == id)?.DisplayName,
+                StudioPaths.KeymapFile,
+                StudioOpen.InShell);
+
+            await ArxisStudio.Settings.SettingsWindow.ShowAsync(this, Settings, _plugins, _plugins.Declaring(), Catalog, keys: keys);
         }
         catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
         {
@@ -562,23 +575,29 @@ public partial class MainWindow : AxWindow
     /// молча.
     /// </para>
     /// </remarks>
-    private void Palette()
-    {
-        var own = new PaletteEntry[]
-        {
-            new(Localizer.Instance["command.close"], "studio.close"),
-            new(Localizer.Instance["command.panel.next"], "studio.panel.next"),
-            new(Localizer.Instance["command.panel.previous"], "studio.panel.previous"),
-        };
-
+    private void Palette() =>
         _palette.Show(
             this,
             CommandPalette.Gather(
                 StudioMenu.Build(_plugins.Contributing),
-                own,
+                Own(),
                 Declared(),
                 _shortcuts.Gesture));
-    }
+
+    /// <summary>
+    /// Собственные команды студии с названиями.
+    /// </summary>
+    /// <remarks>
+    /// Одна опись на палитру и на страницу клавиш: разойдись они, страница называла бы команду
+    /// иначе, чем палитра. Самой палитры здесь нет — открыть открытое нечем; страница клавиш
+    /// добавляет её к описи сама.
+    /// </remarks>
+    private static PaletteEntry[] Own() =>
+    [
+        new(Localizer.Instance["command.close"], "studio.close"),
+        new(Localizer.Instance["command.panel.next"], "studio.panel.next"),
+        new(Localizer.Instance["command.panel.previous"], "studio.panel.previous"),
+    ];
 
     /// <summary>
     /// Команды расширений, назвавшие себя в манифесте.

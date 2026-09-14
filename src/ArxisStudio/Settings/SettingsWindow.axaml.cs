@@ -67,6 +67,7 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
     /// <param name="declaring">Кто объявляет настройки: модули, затем плагины.</param>
     /// <param name="catalog">Каталог плагинов на диске.</param>
     /// <param name="page">На каком разделе открыть; null — на первом.</param>
+    /// <param name="keys">Страница сочетаний клавиш; null — у окна, открытого не из студии, её нет.</param>
     /// <remarks>
     /// Хранилище берётся у студии, а не заводится своё: оно читает файл в
     /// память при создании и переписывает его целиком, поэтому второй
@@ -84,7 +85,8 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
         StudioPlugins extensions,
         IReadOnlyList<InstalledPlugin> declaring,
         PluginCatalog catalog,
-        string? page = null)
+        string? page = null,
+        KeysPage? keys = null)
     {
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(extensions);
@@ -96,7 +98,8 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
             extensions.Settings,
             declaring,
             extensions.Announce,
-            new PluginsPage(catalog, extensions, window));
+            new PluginsPage(catalog, extensions, window),
+            keys);
 
         window.Attach(model, page);
 
@@ -281,6 +284,13 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
     {
         if (Plugins is { } page)
             await page.InstallFromArchiveAsync();
+    }
+
+    /// <summary>«Открыть keymap.json»: файл сочетаний — средствами системы.</summary>
+    private void OnKeymapOpenClick(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is KeysPage keys)
+            keys.OpenFile();
     }
 
     /// <summary>

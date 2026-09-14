@@ -68,6 +68,66 @@
     </DataTemplate>
 
     <!--
+        Клавиши: все сочетания студии, чьи они и кому не досталось. Правок у
+        страницы нет — сочетания меняют в keymap.json, и страница ведёт к нему.
+        Сочетание — плашкой клавиши, как в карточке «Шорткаты и код»; откуда оно
+        — вторичным текстом справа. Отказы стоят над списком: это ответ на
+        вопрос, с которым сюда и приходят, — «куда делось моё сочетание».
+    -->
+    <DataTemplate DataType="s:KeysPage">
+      <StackPanel Spacing="{DynamicResource AxGapGroup}">
+        <ax:WrapRow Spacing="{DynamicResource AxGapFormRow}">
+          <TextBlock Classes="dimmer" VerticalAlignment="Center" TextWrapping="Wrap"
+                     FontSize="{DynamicResource AxFontSizeSmall}"
+                     Text="{ax:Loc keys.subtitle}"/>
+          <!-- Под подписью кнопка встаёт своей ширины, а не полосой во всю страницу. -->
+          <ax:AxButton Content="{ax:Loc keys.open}" ToolTip.Tip="{Binding File}"
+                       HorizontalAlignment="Left"
+                       Click="OnKeymapOpenClick"/>
+        </ax:WrapRow>
+
+        <StackPanel Spacing="{DynamicResource AxGapControls}" IsVisible="{Binding HasRefusals}">
+          <TextBlock Classes="section" Text="{ax:Loc keys.refused}"/>
+          <ax:AxCard Padding="0">
+            <ItemsControl ItemsSource="{Binding Refusals}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="s:KeyRefusal">
+                  <Border Padding="{DynamicResource AxSettingsRowPadding}" BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,0,0,1">
+                    <DockPanel>
+                      <ax:AxChip DockPanel.Dock="Left" Classes="kbd" Content="{Binding Gesture}"
+                                 Margin="{DynamicResource AxSpaceWideTrailingThickness}" VerticalAlignment="Center"/>
+                      <TextBlock DockPanel.Dock="Right" Classes="dimmer" Text="{Binding Winner}"
+                                 Margin="{DynamicResource AxSpaceWideLeadingThickness}" VerticalAlignment="Center"/>
+                      <TextBlock Text="{Binding Command}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                    </DockPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ax:AxCard>
+        </StackPanel>
+
+        <ax:AxCard Padding="0">
+          <ItemsControl ItemsSource="{Binding Rows}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="s:KeyRow">
+                <Border Padding="{DynamicResource AxSettingsRowPadding}" BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,0,0,1">
+                  <DockPanel>
+                    <ax:AxChip DockPanel.Dock="Left" Classes="kbd" Content="{Binding Gesture}"
+                               Margin="{DynamicResource AxSpaceWideTrailingThickness}" VerticalAlignment="Center"/>
+                    <TextBlock DockPanel.Dock="Right" Classes="dimmer" Text="{Binding Source}"
+                               Margin="{DynamicResource AxSpaceWideLeadingThickness}" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding Command}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                  </DockPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ax:AxCard>
+      </StackPanel>
+    </DataTemplate>
+
+    <!--
         Плагины: менеджер расширений, приехавших со стороны. Переехал сюда из
         экрана Welcome целиком — вместе с карточкой и вопросами о зависимых.
 

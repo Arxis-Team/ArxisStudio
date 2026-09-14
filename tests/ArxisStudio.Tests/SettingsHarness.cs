@@ -35,8 +35,10 @@ internal sealed class SettingsHarness : IDisposable
     }
 
     /// <summary>Открывает настройки модальным окном поверх своего хозяина.</summary>
+    /// <param name="keys">Страница клавиш — так окно открывает студия; null — как из Welcome.</param>
+    /// <param name="page">На каком разделе открыть; null — на первом.</param>
     /// <returns>Хозяина, само окно и задачу, которая завершится с его закрытием.</returns>
-    public (Window Owner, SettingsWindow Settings, Task Shown) Open()
+    public (Window Owner, SettingsWindow Settings, Task Shown) Open(KeysPage? keys = null, string? page = null)
     {
         var owner = new Window { Width = 400, Height = 300 };
 
@@ -49,7 +51,9 @@ internal sealed class SettingsHarness : IDisposable
             new JsonSettingsStore(Path.Combine(_home, "settings.json")),
             Extensions(catalog),
             [Module()],
-            catalog);
+            catalog,
+            page,
+            keys);
 
         Dispatcher.UIThread.RunJobs();
 

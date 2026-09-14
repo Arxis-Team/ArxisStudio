@@ -51,18 +51,24 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     /// <param name="extensions">Кто объявляет настройки: модули, затем плагины.</param>
     /// <param name="announce">Кому сказать о записанном; null — молча.</param>
     /// <param name="plugins">Менеджер плагинов; null — окно без него.</param>
+    /// <param name="keys">Страница сочетаний клавиш; null — окно без неё.</param>
     /// <remarks>
     /// Менеджер приходит собранным, а не строится здесь: ему нужны диалоги
     /// выбора папки и вопросы человеку, а это дело окна. Необязателен он не
     /// ради теста, а ради правды: без живого хоста менеджер соврал бы о
     /// применённом, и лучше не показать его вовсе.
+    /// <para>
+    /// Страница клавиш необязательна по той же причине: сочетания раздаёт окно
+    /// студии, и из Welcome, где его ещё нет, показать было бы нечего.
+    /// </para>
     /// </remarks>
     public SettingsViewModel(
         ISettingsStore studio,
         PluginSettingsStore values,
         IReadOnlyList<InstalledPlugin> extensions,
         Action<string, string>? announce = null,
-        PluginsPage? plugins = null)
+        PluginsPage? plugins = null,
+        KeysPage? keys = null)
     {
         ArgumentNullException.ThrowIfNull(studio);
         ArgumentNullException.ThrowIfNull(values);
@@ -88,6 +94,11 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         };
 
         _pages.Add(appearance);
+
+        // Клавиши — рядом с оформлением: это тоже настройка всей студии, а не
+        // расширения, и стоит она до состава плагинов.
+        if (keys is not null)
+            _pages.Add(keys);
 
         // Плагины между оформлением и настройками расширений: сперва студия
         // целиком, потом состав, потом подстройка того, что в составе.
