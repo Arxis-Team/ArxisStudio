@@ -61,6 +61,20 @@
         <ProjectReference Include="../../external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem/ArxisStudio.ProjectSystem.csproj"/>
     </ItemGroup>
 
+    <!--
+        Разметка студии едет в сборке тестов текстом: храповик
+        LiteralSpacingTests считает отступы, написанные числом, а
+        скомпилированная разметка чисел уже не показывает. Шаблон берётся
+        звёздочкой, чтобы новый экран попадал под счёт сам, а не тогда, когда о
+        нём вспомнят. Шаблоны проектов считаются наравне с экранами: автор
+        плагина списывает отступы оттуда.
+    -->
+    <ItemGroup>
+        <EmbeddedResource Include="../../src/**/*.axaml;../../templates/**/*.axaml"
+                          Exclude="../../**/bin/**;../../**/obj/**"
+                          LogicalName="axaml/%(RecursiveDir)%(Filename)%(Extension)"/>
+    </ItemGroup>
+
     <ItemGroup>
         <ProjectReference Include="../../src/ArxisStudio.Docking/ArxisStudio.Docking.csproj"/>
         <ProjectReference Include="../../src/ArxisStudio/ArxisStudio.csproj"/>
