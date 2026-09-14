@@ -1,4 +1,6 @@
-﻿namespace ArxisStudio.Shell.Settings;
+﻿using System.Text.Json.Serialization;
+
+namespace ArxisStudio.Shell.Settings;
 
 /// <summary>Вариант оформления студии.</summary>
 public enum StudioTheme
@@ -51,6 +53,16 @@ public sealed class StudioSettings
     public StudioTheme Theme { get; set; } = StudioTheme.Dark;
 
     /// <summary>Плотность интерфейса.</summary>
+    /// <remarks>
+    /// В файле поле называется <c>interfaceDensity</c>, а не <c>density</c>, и это
+    /// не вкус. <c>density</c> в файле уже есть — у всех, кто запускал студию до
+    /// того, как поле сняли с модели: оно записывалось с первого дня и не значило
+    /// ничего. Прочитай студия его сейчас, выбор, сделанный, когда он ничего не
+    /// менял, ожил бы после обновления и молча сжал бы интерфейс. Так и случилось
+    /// на первой же живой проверке. Прежний ключ читатель пропускает, а первая
+    /// запись его уже не повторит.
+    /// </remarks>
+    [JsonPropertyName("interfaceDensity")]
     public StudioDensity Density { get; set; } = StudioDensity.Normal;
 
     /// <summary>

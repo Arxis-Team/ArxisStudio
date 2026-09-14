@@ -57,6 +57,43 @@ public class DensitySettingTests : IDisposable
         Assert.Equal(StudioDensity.Normal, new JsonSettingsStore(path).Current.Density);
     }
 
+    /// <summary>
+    /// Мёртвое поле прежних версий не оживает.
+    /// </summary>
+    /// <remarks>
+    /// Плотность лежала в файле с первого дня и была снята с модели, потому что
+    /// не значила ничего. У тех, кто запускал студию тогда, в файле так и лежит
+    /// <c>"density"</c> — и вернувшаяся настройка, прочитав его, оживила бы выбор,
+    /// сделанный, когда он ничего не менял. Найдено живьём: студия на машине
+    /// разработчика поднялась плотной из файла от 8 сентября. Тест на файл без
+    /// поля этого не видел — поле там было, только мёртвое.
+    /// </remarks>
+    [Fact]
+    public void The_dead_density_field_of_earlier_versions_stays_dead()
+    {
+        var path = Path.Combine(_home, "settings.json");
+
+        File.WriteAllText(path, """
+            {
+              "theme": "dark",
+              "accentColor": "#3574F0",
+              "density": "compact",
+              "language": "ru"
+            }
+            """);
+
+        var store = new JsonSettingsStore(path);
+
+        Assert.Equal(StudioDensity.Normal, store.Current.Density);
+
+        store.Save();
+
+        var written = File.ReadAllText(path);
+
+        Assert.DoesNotContain("\"density\"", written);
+        Assert.Contains("\"interfaceDensity\": \"normal\"", written);
+    }
+
     /// <summary>Ступень переживает запись и лежит в файле словом.</summary>
     [Fact]
     public void The_density_survives_the_file_as_a_word()
@@ -67,7 +104,7 @@ public class DensitySettingTests : IDisposable
         store.Current.Density = StudioDensity.Compact;
         store.Save();
 
-        Assert.Contains("\"compact\"", File.ReadAllText(path));
+        Assert.Contains("\"interfaceDensity\": \"compact\"", File.ReadAllText(path));
         Assert.Equal(StudioDensity.Compact, new JsonSettingsStore(path).Current.Density);
     }
 
