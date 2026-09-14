@@ -42,7 +42,50 @@ internal static class Program
 
         UseUtf8();
 
+        if (HandedOver(args))
+            return;
+
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    }
+
+    /// <summary>
+    /// Отдаёт аргументы уже запущенной студии, если такая есть над той же папкой данных.
+    /// </summary>
+    /// <param name="args">Аргументы этой студии.</param>
+    /// <returns>Отдала — этой студии подниматься не надо.</returns>
+    /// <remarks>
+    /// Проверка стоит до Avalonia: вторая студия, собравшая приложение ради того, чтобы
+    /// уйти, мелькнула бы заставкой. Первая, взявшая папку, запоминается в
+    /// <see cref="StudioInstance.Current"/> и слушает вторых, когда у неё появится окно.
+    /// <para>
+    /// Не ответившая первая не держит вторую: человек, щёлкнувший по значку, обязан
+    /// получить окно. Вторая тогда поднимается сама и говорит об этом журналом — две
+    /// студии над одной папкой хуже одной, но лучше ни одной.
+    /// </para>
+    /// <para>
+    /// <c>ARXIS_SINGLE_INSTANCE=0</c> снимает проверку: так поднимают вторую студию рядом
+    /// с первой, проверяя одну через инструменты разработчика другой.
+    /// </para>
+    /// </remarks>
+    private static bool HandedOver(string[] args)
+    {
+        if (Environment.GetEnvironmentVariable("ARXIS_SINGLE_INSTANCE") == "0")
+            return false;
+
+        var instance = StudioInstance.Claim(StudioInstance.NameFor(ArxisStudio.Shell.StudioPaths.UserData));
+
+        if (instance.IsFirst)
+        {
+            StudioInstance.Current = instance;
+            return false;
+        }
+
+        if (instance.Send(args))
+            return true;
+
+        StudioInstance.Unanswered = true;
+
+        return false;
     }
 
     /// <summary>

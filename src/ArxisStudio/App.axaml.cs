@@ -314,10 +314,81 @@ public class App : Application
         // расставленные заново отметки.
         _log.Write(StudioLogLevel.Debug, "Startup", StudioLaunch.Report());
 
+        if (StudioInstance.Unanswered)
+        {
+            _log.Write(
+                StudioLogLevel.Warning,
+                "Startup",
+                "Папку данных держит другая студия, но на просьбу не ответила: поднялись вторыми. " +
+                "Раскладку и недавние проекты запишет та, что закроется последней.");
+        }
+
+        // Вторые студии слушаются, когда есть что им показать: просьба, пришедшая под
+        // заставкой, дождалась окна в очереди.
+        StudioInstance.Current?.Listen(arguments =>
+            Dispatcher.UIThread.Post(() => _ = TakeOverAsync(desktop, arguments)));
+
         // Проект открывается после показа окна, а не вместо него: чтение решения занимает секунды,
         // и смотреть их человеку лучше на студию с задачей в статус-баре, чем на заставку.
         if (_asked is { } asked)
             await OpenAsync(asked);
+    }
+
+    /// <summary>
+    /// Принимает просьбу второй студии: открыть названный проект или просто показаться.
+    /// </summary>
+    /// <param name="desktop">Жизненный цикл приложения.</param>
+    /// <param name="arguments">Аргументы второй студии; пути уже полные.</param>
+    /// <remarks>
+    /// Двойной щелчок по решению при открытой студии обязан открыть решение в ней, а
+    /// щелчок по значку — вывести её вперёд: вторая студия уже ушла, и больше ответить
+    /// человеку некому. Вперёд выводится видимое окно — Welcome, если он ещё открыт, иначе
+    /// студия; свёрнутое сначала разворачивается, иначе Activate его не покажет.
+    /// <para>
+    /// Задача, а не async-лямбда, и ловится здесь всё, кроме нехватки памяти и
+    /// переполнения стека: выше — только диспетчер, а просьбу принёс чужой процесс.
+    /// </para>
+    /// </remarks>
+    private async Task TakeOverAsync(IClassicDesktopStyleApplicationLifetime desktop, string[] arguments)
+    {
+        try
+        {
+            var asked = StudioArguments.Project(arguments);
+
+            if (asked.Complaint is { } complaint)
+                _log.Write(StudioLogLevel.Error, "Startup", $"Вторая студия просила открыть негодное — {complaint}");
+
+            var welcome = desktop.Windows.OfType<WelcomeWindow>().FirstOrDefault(window => window.IsVisible);
+
+            if (asked.Path is { } path && _studio.Extensions.Projects is not null)
+            {
+                _studio.Show();
+                welcome?.Close();
+                welcome = null;
+
+                Forward(_studio);
+                await OpenAsync(path);
+
+                return;
+            }
+
+            Forward((Window?)welcome ?? _studio);
+        }
+        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        {
+            _log.Write(StudioLogLevel.Error, "Startup", $"Просьба второй студии не выполнилась: {e}");
+        }
+    }
+
+    private static void Forward(Window window)
+    {
+        if (!window.IsVisible)
+            window.Show();
+
+        if (window.WindowState == WindowState.Minimized)
+            window.WindowState = WindowState.Normal;
+
+        window.Activate();
     }
 
     /// <summary>
