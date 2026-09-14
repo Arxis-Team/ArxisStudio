@@ -5,6 +5,7 @@ using ArxisStudio.Icons;
 using ArxisStudio.Palette;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
+using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
 using ArxisStudio.Shell.Settings;
 using ArxisStudio.ViewModels;
@@ -133,6 +134,16 @@ public partial class MainWindow : AxWindow
         _commands = new StudioCommands(_guard);
         _shortcuts = new StudioShortcuts(_commands.Invoke);
         _palette = new PaletteOverlay(_commands.Invoke);
+
+        // Сочетания человека — раньше студийных и манифестных: занятое им
+        // достаётся ему. Опечатка в файле не останавливает подъём, а говорит в
+        // журнал, что именно не разобралось.
+        var keymap = StudioKeymap.Load(StudioPaths.KeymapFile);
+
+        foreach (var complaint in keymap.Complaints)
+            _log.Write(StudioLogLevel.Warning, "Keys", complaint);
+
+        _shortcuts.Personalize(keymap);
 
         // Щелчок по кнопке идёт через реестр команд, а не напрямую: только он
         // умеет разбудить спящего хозяина и приписать падение виновнику.

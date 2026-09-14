@@ -8,14 +8,16 @@ namespace ArxisStudio.Services;
 /// <param name="Gesture">Что нажимают.</param>
 /// <param name="CommandId">Кого зовут.</param>
 /// <param name="Owner">Чьё это; <c>null</c> — самой студии.</param>
-public sealed record ShortcutBinding(KeyGesture Gesture, string CommandId, string? Owner = null);
+/// <param name="Personal">Назначил человек в <c>keymap.json</c>, а не студия и не манифест.</param>
+public sealed record ShortcutBinding(KeyGesture Gesture, string CommandId, string? Owner = null, bool Personal = false);
 
 /// <summary>Отказ: сочетание уже занято.</summary>
 /// <param name="Gesture">Что просили.</param>
 /// <param name="CommandId">Кто просил.</param>
 /// <param name="Winner">Кому оно досталось раньше.</param>
 /// <param name="Owner">Чья это была просьба; <c>null</c> — самой студии.</param>
-public sealed record ShortcutConflict(KeyGesture Gesture, string CommandId, string Winner, string? Owner = null);
+/// <param name="Personal">Просил человек в <c>keymap.json</c>.</param>
+public sealed record ShortcutConflict(KeyGesture Gesture, string CommandId, string Winner, string? Owner = null, bool Personal = false);
 
 /// <summary>
 /// Сочетания клавиш студии: что нажали — кого позвать.
@@ -36,12 +38,19 @@ public sealed record ShortcutConflict(KeyGesture Gesture, string CommandId, stri
 /// помнит всех, кому не досталось, вместе с именем победителя. Команда при этом
 /// остаётся доступна из меню — потерять сочетание не значит потерять команду.
 /// </para>
+/// <para>
+/// Человек старше всех. Его сочетания из <c>keymap.json</c> раздаются раньше
+/// студийных и манифестных, поэтому занятое им достаётся ему, а студия и плагины
+/// получают отказ с его командой в победителях. Команда, которой человек назначил
+/// сочетание сам, своего по умолчанию не получает вовсе.
+/// </para>
 /// </remarks>
 /// <param name="invoke">Кому передать имя команды; <c>false</c> — такой команды нет.</param>
 public sealed class StudioShortcuts(Func<string, bool> invoke)
 {
     private readonly List<ShortcutBinding> _bindings = [];
     private readonly List<ShortcutConflict> _refused = [];
+    private readonly HashSet<string> _personal = new(StringComparer.Ordinal);
 
     /// <summary>Все отданные сочетания, в порядке выдачи.</summary>
     public IReadOnlyList<ShortcutBinding> All => _bindings;
@@ -59,23 +68,66 @@ public sealed class StudioShortcuts(Func<string, bool> invoke)
     /// <remarks>
     /// Неразобранная строка — отказ без записи в конфликтах: там помнят тех, у
     /// кого сочетание отняли, а разобрать «Ctrl+Шифт» не смог бы никто.
+    /// <para>
+    /// Команда, за которую решил человек, получает <c>true</c> и ничего сверх
+    /// его решения: отказа не было — вопрос о её сочетании закрыт раньше.
+    /// </para>
     /// </remarks>
     public bool Bind(string gesture, string commandId, string? owner = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gesture);
         ArgumentException.ThrowIfNullOrWhiteSpace(commandId);
 
+        if (_personal.Contains(commandId))
+            return true;
+
         if (!TryParse(gesture, out var parsed))
             return false;
 
-        if (_bindings.FirstOrDefault(bound => bound.Gesture.Equals(parsed)) is { } taken)
+        return Give(parsed, commandId, owner, personal: false);
+    }
+
+    /// <summary>
+    /// Раздаёт сочетания, назначенные человеком.
+    /// </summary>
+    /// <param name="keymap">Прочитанный <c>keymap.json</c>.</param>
+    /// <exception cref="InvalidOperationException">Сочетания уже раздавались.</exception>
+    /// <remarks>
+    /// Раньше всех и один раз. Отдай студия или плагин сочетание первыми, человек
+    /// получил бы отказ в своём же файле, а пересчёт задним числом отнимал бы
+    /// клавишу у того, кто уже её держит, — и зависел бы от порядка подъёма.
+    /// Порядок внутри файла — порядок записей: два одинаковых сочетания у двух
+    /// команд достаются первой, а второй — отказ, как у всех.
+    /// </remarks>
+    public void Personalize(StudioKeymap keymap)
+    {
+        ArgumentNullException.ThrowIfNull(keymap);
+
+        if (_bindings.Count > 0 || _refused.Count > 0 || _personal.Count > 0)
+            throw new InvalidOperationException("Сочетания человека раздаются раньше всех и один раз.");
+
+        foreach (var entry in keymap.Entries)
         {
-            _refused.Add(new ShortcutConflict(parsed, commandId, taken.CommandId, owner));
+            _personal.Add(entry.CommandId);
+
+            foreach (var gesture in entry.Gestures)
+            {
+                if (TryParse(gesture, out var parsed))
+                    Give(parsed, entry.CommandId, owner: null, personal: true);
+            }
+        }
+    }
+
+    private bool Give(KeyGesture gesture, string commandId, string? owner, bool personal)
+    {
+        if (_bindings.FirstOrDefault(bound => bound.Gesture.Equals(gesture)) is { } taken)
+        {
+            _refused.Add(new ShortcutConflict(gesture, commandId, taken.CommandId, owner, personal));
 
             return false;
         }
 
-        _bindings.Add(new ShortcutBinding(parsed, commandId, owner));
+        _bindings.Add(new ShortcutBinding(gesture, commandId, owner, personal));
 
         return true;
     }

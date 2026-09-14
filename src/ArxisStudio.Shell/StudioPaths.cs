@@ -31,6 +31,16 @@ public static class StudioPaths
     /// </remarks>
     public static string LayoutFile => Path.Combine(UserData, "layout.json");
 
+    /// <summary>
+    /// Файл сочетаний клавиш, назначенных человеком.
+    /// </summary>
+    /// <remarks>
+    /// Отдельный от настроек: его пишет человек руками, а настройки пишет окно
+    /// настроек, и запись окна не должна задевать чужую правку. Студия этот файл
+    /// только читает — нет его, и сочетания остаются теми, что по умолчанию.
+    /// </remarks>
+    public static string KeymapFile => Path.Combine(UserData, "keymap.json");
+
     /// <summary>Каталог установленных плагинов: одна папка на плагин.</summary>
     public static string Plugins => Path.Combine(UserData, "plugins");
 

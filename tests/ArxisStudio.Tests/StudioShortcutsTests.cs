@@ -200,6 +200,142 @@ public class StudioShortcutsTests
         Assert.Null(keys.Gesture("нет.такой"));
     }
 
+    /// <summary>
+    /// Сочетание, отданное человеком, достаётся ему, а студия получает отказ.
+    /// </summary>
+    /// <remarks>
+    /// Человек старше всех: его файл раздаётся раньше студийных сочетаний и манифестов. Отказ
+    /// при этом тот же, что у всех, — с именем победителя, — чтобы на вопрос «куда делось моё
+    /// Ctrl+W» был ответ.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_gesture_the_person_gave_wins_over_the_default()
+    {
+        var called = new List<string>();
+        var keys = new StudioShortcuts(Calls(called));
+        var window = Shown(keys);
+
+        keys.Personalize(Keymap(("hello.greet", ["Ctrl+W"])));
+
+        Assert.False(keys.Bind("Ctrl+W", "studio.close"), "студия отняла сочетание у человека");
+
+        var refused = Assert.Single(keys.Refused);
+
+        Assert.Equal("studio.close", refused.CommandId);
+        Assert.Equal("hello.greet", refused.Winner);
+        Assert.True(Assert.Single(keys.All).Personal, "сочетание человека не помечено его");
+
+        window.KeyPress(Key.W, RawInputModifiers.Control, PhysicalKey.W, string.Empty);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(["hello.greet"], called);
+
+        window.Close();
+    }
+
+    /// <summary>Команда, которой человек дал другое сочетание, прежнего не держит.</summary>
+    [AvaloniaFact]
+    public void A_command_the_person_remapped_keeps_only_the_new_gesture()
+    {
+        var called = new List<string>();
+        var keys = new StudioShortcuts(Calls(called));
+        var window = Shown(keys);
+
+        keys.Personalize(Keymap(("studio.close", ["Ctrl+F4"])));
+
+        Assert.True(keys.Bind("Ctrl+W", "studio.close"), "команда, за которую решил человек, получила отказ");
+        Assert.Empty(keys.Refused);
+        Assert.Equal("Ctrl+F4", keys.Gesture("studio.close"));
+
+        window.KeyPress(Key.W, RawInputModifiers.Control, PhysicalKey.W, string.Empty);
+        window.KeyPress(Key.F4, RawInputModifiers.Control, PhysicalKey.F4, string.Empty);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(["studio.close"], called);
+
+        window.Close();
+    }
+
+    /// <summary>Команда, у которой человек сочетание снял, не зовётся ничем.</summary>
+    [AvaloniaFact]
+    public void A_command_the_person_left_without_a_gesture_has_none()
+    {
+        var called = new List<string>();
+        var keys = new StudioShortcuts(Calls(called));
+        var window = Shown(keys);
+
+        keys.Personalize(Keymap(("studio.close", [])));
+
+        Assert.True(keys.Bind("Ctrl+W", "studio.close"));
+        Assert.Null(keys.Gesture("studio.close"));
+
+        window.KeyPress(Key.W, RawInputModifiers.Control, PhysicalKey.W, string.Empty);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Empty(called);
+
+        window.Close();
+    }
+
+    /// <summary>Одно сочетание у двух команд в файле достаётся первой, а вторая узнаёт почему.</summary>
+    [AvaloniaFact]
+    public void One_gesture_given_to_two_commands_goes_to_the_first()
+    {
+        var keys = new StudioShortcuts(_ => true);
+
+        keys.Personalize(Keymap(("studio.palette", ["Ctrl+K"]), ("hello.greet", ["Ctrl+K"])));
+
+        Assert.Equal("studio.palette", Assert.Single(keys.All).CommandId);
+
+        var refused = Assert.Single(keys.Refused);
+
+        Assert.Equal("hello.greet", refused.CommandId);
+        Assert.Equal("studio.palette", refused.Winner);
+        Assert.True(refused.Personal, "отказ в файле человека не помечен его");
+    }
+
+    /// <summary>Сочетание, которое человек дал команде плагина, уходом плагина не снимается.</summary>
+    /// <remarks>
+    /// Сочетание принадлежит человеку, а не плагину: плагин вернётся — клавиша снова позовёт его
+    /// команду, а пока его нет, она никого не зовёт и клавишу не съедает.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_gesture_the_person_gave_a_plugin_command_stays_when_the_plugin_leaves()
+    {
+        var keys = new StudioShortcuts(_ => true);
+
+        keys.Personalize(Keymap(("hello.greet", ["Ctrl+Alt+H"])));
+        keys.Bind("Ctrl+Alt+G", "hello.greet", "arxis.hello");
+        keys.RemoveOwnedBy("arxis.hello");
+
+        Assert.Equal("Ctrl+Alt+H", keys.Gesture("hello.greet"));
+    }
+
+    /// <summary>Файл человека раздаётся раньше всех и один раз.</summary>
+    /// <remarks>
+    /// Раздай его после студии, и пересчёт задним числом отнимал бы клавишу у того, кто уже её
+    /// держит, — порядок подъёма решал бы то, что решил человек.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_person_is_heard_first_and_once()
+    {
+        var late = new StudioShortcuts(_ => true);
+
+        late.Bind("Ctrl+W", "studio.close");
+
+        Assert.Throws<InvalidOperationException>(() => late.Personalize(Keymap(("studio.close", ["Ctrl+F4"]))));
+
+        var twice = new StudioShortcuts(_ => true);
+
+        twice.Personalize(Keymap(("studio.close", ["Ctrl+F4"])));
+
+        Assert.Throws<InvalidOperationException>(() => twice.Personalize(Keymap(("studio.close", ["Ctrl+F5"]))));
+    }
+
+    /// <summary>Файл человека из пар «команда — сочетания».</summary>
+    private static StudioKeymap Keymap(params (string Command, string[] Gestures)[] entries) =>
+        new([.. entries.Select(entry => new KeymapEntry(entry.Command, entry.Gestures))], []);
+
     /// <summary>Запоминает, кого позвали.</summary>
     private static Func<string, bool> Calls(List<string> called) => id =>
     {
