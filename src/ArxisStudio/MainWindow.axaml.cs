@@ -415,24 +415,29 @@ public partial class MainWindow : AxWindow
     private async Task SaveLayoutAsync()
     {
         var box = new AxTextBox { PlaceholderText = Localizer.Instance["layout.name.hint"], Width = 260 };
-        var cancel = new AxButton { Content = Localizer.Instance["common.cancel"], MinWidth = 96 };
+        var cancel = new AxButton { Content = Localizer.Instance["common.cancel"] };
         var save = new AxButton
         {
             Content = Localizer.Instance["common.save"],
-            MinWidth = 96,
             Classes = { "accent" },
         };
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Children = { cancel, save },
+        };
+
+        // Кнопки подвала и зазор между ними — ключами темы, как в остальных
+        // диалогах студии, а не числом: число не сжалось бы вместе с плотностью.
+        cancel.Bind(Layoutable.MinWidthProperty, cancel.GetResourceObservable("AxDialogButtonMinWidth"));
+        save.Bind(Layoutable.MinWidthProperty, save.GetResourceObservable("AxDialogButtonMinWidth"));
+        buttons.Bind(StackPanel.SpacingProperty, buttons.GetResourceObservable("AxGapControls"));
 
         var dialog = new AxDialog
         {
             Title = Localizer.Instance["layout.name.title"],
             Content = box,
-            Buttons = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 8,
-                Children = { cancel, save },
-            },
+            Buttons = buttons,
         };
 
         // Курсор сразу в поле: другого дела у этого окна нет.

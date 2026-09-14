@@ -25,7 +25,10 @@ public sealed class ToolBarStrip : StackPanel
     {
         Orientation = Orientation.Horizontal;
         VerticalAlignment = VerticalAlignment.Center;
-        Spacing = 4;
+
+        // Зазор — ступенью шкалы темы, а не числом: полоса сжимается вместе с
+        // плотностью, как и всё вокруг неё.
+        this.Bind(SpacingProperty, this.GetResourceObservable("AxSpaceTight"));
     }
 
     /// <summary>

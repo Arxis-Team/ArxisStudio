@@ -73,6 +73,14 @@
         <EmbeddedResource Include="../../src/**/*.axaml;../../templates/**/*.axaml"
                           Exclude="../../**/bin/**;../../**/obj/**"
                           LogicalName="axaml/%(RecursiveDir)%(Filename)%(Extension)"/>
+        <!--
+            Код самой студии — для того же счёта отступов, что и разметка. Модулей,
+            плагинов и анализаторов здесь нет: у первых двух число в коде при сборке
+            ловит ARX0010, а в третьих оно — примеры в описаниях правил.
+        -->
+        <EmbeddedResource Include="../../src/**/*.cs"
+                          Exclude="../../**/bin/**;../../**/obj/**;../../src/Modules/**;../../src/Plugins/**;../../src/ArxisStudio.Sdk.Analyzers/**"
+                          LogicalName="code/%(RecursiveDir)%(Filename)%(Extension)"/>
     </ItemGroup>
 
     <ItemGroup>

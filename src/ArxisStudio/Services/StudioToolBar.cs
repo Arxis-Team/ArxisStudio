@@ -478,16 +478,18 @@ public sealed class StudioToolBar
 
                 Text(label, TextBlock.TextProperty, title, strings);
 
-                button.Content = new StackPanel
+                var content = new StackPanel
                 {
                     Orientation = Avalonia.Layout.Orientation.Horizontal,
-                    Spacing = 4,
                     Children =
                     {
                         label,
                         new AxIcon { Classes = { "small" }, Data = AxIcons.ChevronDown },
                     },
                 };
+
+                content.Bind(StackPanel.SpacingProperty, content.GetResourceObservable("AxSpaceTight"));
+                button.Content = content;
             }
             else
             {

@@ -52,6 +52,25 @@ public class LiteralSpacingTests
         """(?:\b(?:Margin|Padding|Spacing)=")|(?:\bProperty="(?:Margin|Padding|Spacing)")""",
         RegexOptions.Compiled);
 
+    /// <summary>
+    /// Сколько отступов в коде студии написано числом.
+    /// </summary>
+    /// <remarks>
+    /// Одно, и оно не зазор: палитра команд встаёт в восьмидесяти точках от верхнего края окна.
+    /// Это координата карточки, как координаты рисунка заставки в разметке, а не расстояние между
+    /// вещами. Правило то же, что у разметки: опускается коммитом, который число убрал, и не
+    /// поднимается ничем.
+    /// </remarks>
+    private const int CodeCeiling = 1;
+
+    /// <summary>Отступ в коде: число в зазоре стопки и толщина из чисел.</summary>
+    private static readonly Regex CodeSpacings = new(
+        """\b(?:Spacing|ItemSpacing|LineSpacing|HorizontalSpacing|VerticalSpacing)\s*=\s*(-?[\d.]+)|\bnew\s+Thickness\(([^()]*)\)""",
+        RegexOptions.Compiled);
+
+    /// <summary>Толщина, собранная из одних чисел.</summary>
+    private static readonly Regex Numbers = new("""^[\s\d.,\-]*$""", RegexOptions.Compiled);
+
     /// <summary>Литералов ровно столько, сколько стояло на прошлом коммите.</summary>
     [Fact]
     public void Literal_spacings_are_exactly_as_many_as_the_ceiling_says()
@@ -73,6 +92,38 @@ public class LiteralSpacingTests
                   $"Больше всего в {worst}"
                 : $"литералов отступа осталось {total} при потолке {Ceiling}: опустите Ceiling до {total} " +
                   "тем же коммитом, которым их убрали");
+    }
+
+    /// <summary>В коде студии литералов отступа ровно столько, сколько стояло на прошлом коммите.</summary>
+    /// <remarks>
+    /// Отступ в коде берут привязкой к ключу темы — так же, как советует автору плагина ARX0010:
+    /// <c>Bind(StackPanel.SpacingProperty, control.GetResourceObservable("AxGapControls"))</c>.
+    /// Число не сжалось бы вместе с плотностью, и заглушка упавшей панели или кнопки диалога
+    /// выдали бы себя рядом с соседями, которые сжались.
+    /// </remarks>
+    [Fact]
+    public void Literal_spacings_in_studio_code_are_exactly_as_many_as_the_ceiling_says()
+    {
+        var sources = CodeSources.All().ToList();
+
+        Assert.Contains(sources, source => source.Name.EndsWith("StudioAsk.cs", StringComparison.Ordinal));
+
+        var counted = sources
+            .Select(source => (source.Name, Count: CodeLiterals(source.Text)))
+            .Where(row => row.Count > 0)
+            .OrderByDescending(row => row.Count)
+            .ToList();
+
+        var total = counted.Sum(row => row.Count);
+        var where = string.Join(", ", counted.Select(row => $"{row.Name} — {row.Count}"));
+
+        Assert.True(
+            total == CodeCeiling,
+            total > CodeCeiling
+                ? $"литералов отступа в коде студии стало {total} при потолке {CodeCeiling}: отступ берут " +
+                  $"привязкой к ключу темы, а не числом. Числа — в {where}"
+                : $"литералов отступа в коде студии осталось {total} при потолке {CodeCeiling}: опустите " +
+                  "CodeCeiling тем же коммитом, которым их убрали");
     }
 
     /// <summary>
@@ -113,4 +164,17 @@ public class LiteralSpacingTests
         Spacings.Matches(text)
             .Select(match => match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value)
             .Count(value => !value.Contains('{') && value.Any(symbol => symbol is >= '1' and <= '9'));
+
+    /// <summary>
+    /// Считает отступы в коде, написанные числом.
+    /// </summary>
+    /// <remarks>
+    /// Ноль, как и в разметке, не считается. Толщина считается, только когда собрана из одних
+    /// чисел: <c>new Thickness(padding.Left, 0, 0, 0)</c> — это вычисление, а не выбранное руками
+    /// расстояние.
+    /// </remarks>
+    private static int CodeLiterals(string text) =>
+        CodeSpacings.Matches(text)
+            .Select(match => match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value)
+            .Count(value => Numbers.IsMatch(value) && value.Any(symbol => symbol is >= '1' and <= '9'));
 }

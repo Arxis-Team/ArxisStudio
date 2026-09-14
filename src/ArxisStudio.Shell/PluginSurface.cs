@@ -110,12 +110,12 @@ public sealed class PluginSurface : Decorator
 
     private Control Stub(Exception error)
     {
-        var box = new StackPanel
-        {
-            Spacing = 8,
-            Margin = new Thickness(16),
-            VerticalAlignment = VerticalAlignment.Top,
-        };
+        var box = new StackPanel { VerticalAlignment = VerticalAlignment.Top };
+
+        // Отступы — ключами темы: заглушка стоит на месте панели, и рядом с
+        // панелями, сжавшимися вместе с плотностью, числовые отступы выдали бы её.
+        box.Bind(StackPanel.SpacingProperty, box.GetResourceObservable("AxGapControls"));
+        box.Bind(Layoutable.MarginProperty, box.GetResourceObservable("AxSpaceLooseThickness"));
 
         box.Children.Add(new TextBlock
         {

@@ -231,13 +231,16 @@ public class DockFloat : AxWindow
 
         Describe();
 
-        return new StackPanel
+        var buttons = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 2,
             VerticalAlignment = VerticalAlignment.Center,
             Children = { _dock, _hide },
         };
+
+        buttons.Bind(StackPanel.SpacingProperty, buttons.GetResourceObservable("AxSpaceHair"));
+
+        return buttons;
     }
 
     /// <summary>Одна кнопка шапки: значок и то, что она делает.</summary>

@@ -55,8 +55,15 @@ public static class StudioAsk
         // снятая кисть не переключилась бы вместе с темой, а число ширины
         // разошлось бы с плотностью. Кнопки подвала ровняет ключ темы, как и в
         // остальных диалогах студии.
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Children = { cancel, agree },
+        };
+
         cancel.Bind(Layoutable.MinWidthProperty, cancel.GetResourceObservable("AxDialogButtonMinWidth"));
         agree.Bind(Layoutable.MinWidthProperty, agree.GetResourceObservable("AxDialogButtonMinWidth"));
+        buttons.Bind(StackPanel.SpacingProperty, buttons.GetResourceObservable("AxGapControls"));
         alert.Bind(TemplatedControl.ForegroundProperty, alert.GetResourceObservable("AxYelBrush"));
 
         agree.Classes.Add(danger ? "danger" : "accent");
@@ -71,12 +78,7 @@ public static class StudioAsk
                 MaxWidth = 420,
             },
             AlertIcon = alert,
-            Buttons = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 8,
-                Children = { cancel, agree },
-            },
+            Buttons = buttons,
         };
 
         cancel.Click += (_, _) => dialog.Close(false);
