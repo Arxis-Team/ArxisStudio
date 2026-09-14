@@ -12,7 +12,7 @@
                xmlns:a="https://github.com/avaloniaui"
                x:Class="Arxis.MyPlugin.PluginPanelView">
 
-  <a:StackPanel Spacing="10" Margin="12" VerticalAlignment="Top">
+  <a:StackPanel Spacing="{a:DynamicResource AxGapFormRow}" Margin="{a:DynamicResource AxSpaceWideThickness}" VerticalAlignment="Top">
     <a:TextBlock Text="{Text panel.hint}" TextWrapping="Wrap"/>
     <AxButton Content="{Text command.hello}" HorizontalAlignment="Left" Click="OnHelloClick"/>
   </a:StackPanel>

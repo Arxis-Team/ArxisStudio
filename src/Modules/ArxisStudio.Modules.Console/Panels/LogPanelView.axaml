@@ -19,7 +19,7 @@
   <a:DockPanel>
 
     <a:Border a:DockPanel.Dock="Top"
-              Padding="4,2"
+              Padding="{a:DynamicResource AxToolBarPadding}"
               BorderThickness="0,0,0,1"
               BorderBrush="{a:DynamicResource AxBrdBrush}">
       <a:DockPanel>
@@ -29,13 +29,13 @@
             Число всегда о всём журнале, а не о показанном: счётчик, падающий
             до нуля оттого, что уровень выключили, ничего не сообщает.
         -->
-        <a:StackPanel a:DockPanel.Dock="Left" Orientation="Horizontal" Spacing="2"
+        <a:StackPanel a:DockPanel.Dock="Left" Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceHair}"
                       VerticalAlignment="Center">
 
           <feed:ConsoleToggle x:Name="Errors" Classes="compact ghost error"
                               a:ToolTip.Tip="{Text console.level.error}"
                               a:AutomationProperties.Name="{Text console.level.error}">
-            <a:StackPanel Orientation="Horizontal" Spacing="4">
+            <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceTight}">
               <AxIcon x:Name="ErrorIcon" Classes="small" Data="{x:Static ax:AxIcons.Error}"/>
               <a:TextBlock x:Name="ErrorCount" VerticalAlignment="Center"/>
             </a:StackPanel>
@@ -44,7 +44,7 @@
           <feed:ConsoleToggle x:Name="Warnings" Classes="compact ghost warn"
                               a:ToolTip.Tip="{Text console.level.warning}"
                               a:AutomationProperties.Name="{Text console.level.warning}">
-            <a:StackPanel Orientation="Horizontal" Spacing="4">
+            <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceTight}">
               <AxIcon x:Name="WarningIcon" Classes="small" Data="{x:Static ax:AxIcons.Warning}"/>
               <a:TextBlock x:Name="WarningCount" VerticalAlignment="Center"/>
             </a:StackPanel>
@@ -53,7 +53,7 @@
           <feed:ConsoleToggle x:Name="Infos" Classes="compact ghost"
                               a:ToolTip.Tip="{Text console.level.info}"
                               a:AutomationProperties.Name="{Text console.level.info}">
-            <a:StackPanel Orientation="Horizontal" Spacing="4">
+            <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceTight}">
               <AxIcon Classes="small" Data="{x:Static ax:AxIcons.Info}"/>
               <a:TextBlock x:Name="InfoCount" VerticalAlignment="Center"/>
             </a:StackPanel>
@@ -62,7 +62,7 @@
           <feed:ConsoleToggle x:Name="Debugs" Classes="compact ghost"
                               a:ToolTip.Tip="{Text console.level.debug}"
                               a:AutomationProperties.Name="{Text console.level.debug}">
-            <a:StackPanel Orientation="Horizontal" Spacing="4">
+            <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceTight}">
               <AxIcon Classes="small" Data="{x:Static ax:AxIcons.Debug}"/>
               <a:TextBlock x:Name="DebugCount" VerticalAlignment="Center"/>
             </a:StackPanel>
@@ -77,7 +77,7 @@
             текстом. Подпись у каждой двойная: подсказка под курсором и имя для
             средств доступности — значка средствам доступности мало.
         -->
-        <a:StackPanel a:DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2"
+        <a:StackPanel a:DockPanel.Dock="Right" Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceHair}"
                       VerticalAlignment="Center">
 
           <AxButton x:Name="Sources" Classes="icon"
@@ -120,7 +120,7 @@
 
         <AxSearchField x:Name="Query" Classes="compact"
                        PlaceholderText="{Text console.search}"
-                       MaxWidth="360" HorizontalAlignment="Left" Margin="8,0"
+                       MaxWidth="360" HorizontalAlignment="Left" Margin="{a:DynamicResource AxSpaceSidesThickness}"
                        VerticalAlignment="Center"
                        a:AutomationProperties.Name="{Text console.search}"/>
 
@@ -156,23 +156,23 @@
 
                 <a:TextBlock a:Grid.Column="0" Classes="dim mono"
                              Text="{a:Binding Stamp}" IsVisible="{a:Binding HasStamp}"
-                             VerticalAlignment="Center" Margin="0,0,8,0"/>
+                             VerticalAlignment="Center" Margin="{a:DynamicResource AxSpaceTrailingThickness}"/>
 
                 <a:TextBlock a:Grid.Column="1" Text="{a:Binding Level}" MinWidth="52"
-                             FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0"
+                             FontWeight="SemiBold" VerticalAlignment="Center" Margin="{a:DynamicResource AxSpaceTrailingThickness}"
                              a:Classes.bad="{a:Binding IsError}"
                              a:Classes.warn="{a:Binding IsWarning}"
                              a:Classes.dim="{a:Binding IsDebug}"/>
 
                 <a:TextBlock a:Grid.Column="2" Classes="dim" Text="{a:Binding Source}"
-                             VerticalAlignment="Center" Margin="0,0,8,0"/>
+                             VerticalAlignment="Center" Margin="{a:DynamicResource AxSpaceTrailingThickness}"/>
 
                 <a:TextBlock a:Grid.Column="3" Text="{a:Binding Text}"
                              TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
 
                 <AxBadge a:Grid.Column="4" Content="{a:Binding RepeatsText}"
                          IsVisible="{a:Binding IsRepeated}"
-                         VerticalAlignment="Center" Margin="8,0,0,0"
+                         VerticalAlignment="Center" Margin="{a:DynamicResource AxSpaceLeadingThickness}"
                          a:ToolTip.Tip="{a:Binding RepeatsText}"/>
 
               </a:Grid>

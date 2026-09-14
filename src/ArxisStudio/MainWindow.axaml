@@ -34,9 +34,9 @@
     -->
     <ax:StudioShell.TopBar>
       <ax:AxTitleBar BorderThickness="0">
-        <ax:AxToolBar Margin="12,0">
+        <ax:AxToolBar Margin="{DynamicResource AxSpaceWideSidesThickness}">
           <ax:AxToolBar.LeftContent>
-            <StackPanel Orientation="Horizontal" Spacing="12">
+            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxSpaceWide}">
               <Border Width="24" Height="24" CornerRadius="{DynamicResource AxCornerRadius}"
                       Background="{DynamicResource AxAccStrongBrush}">
                 <TextBlock Text="Ax" FontSize="{DynamicResource AxFontSizeCaption}" FontWeight="Bold"
@@ -61,7 +61,7 @@
                 открывает дела студии целиком, и следующий пункт встанет рядом,
                 не переучивая руку. Пока пункт один.
             -->
-            <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxSpaceTight}" VerticalAlignment="Center">
               <ax:ToolBarStrip x:Name="RightStrip"/>
               <ax:AxButton x:Name="SettingsButton" Classes="icon"
                            AutomationProperties.Name="{ax:Loc toolbar.settings}"
@@ -90,7 +90,7 @@
                  DockTitle="{ax:Loc action.dock}"
                  HideTitle="{ax:Loc action.hide}">
       <ax:DockView.Empty>
-        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="{DynamicResource AxSpace}">
           <TextBlock Classes="dim" Text="ArxisStudio" FontSize="{DynamicResource AxFontSizeTitle}" FontWeight="SemiBold" HorizontalAlignment="Center"/>
           <TextBlock Classes="dimmer" Text="{ax:Loc studio.canvas.hint}"
                      FontSize="{DynamicResource AxFontSizeSmall}" HorizontalAlignment="Center"/>
@@ -100,15 +100,15 @@
 
     <!-- Статус-бар: 24, как в макете экрана Editor. -->
     <ax:StudioShell.StatusBar>
-      <DockPanel Height="{DynamicResource AxControlHeightCompact}" Margin="12,0">
+      <DockPanel Height="{DynamicResource AxControlHeightCompact}" Margin="{DynamicResource AxSpaceWideSidesThickness}">
         <TextBlock Classes="dim" Text="{Binding Status}" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
         <!--
             Идущая задача: имя, чем занята, полоса и отмена. Место одно на всех
             плагинов — иначе каждый заведёт свою мельницу, и человек будет
             искать, где у кого что крутится.
         -->
-        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8"
-                    VerticalAlignment="Center" Margin="16,0" IsVisible="{Binding HasTask}">
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="{DynamicResource AxSpace}"
+                    VerticalAlignment="Center" Margin="{DynamicResource AxSpaceLooseSidesThickness}" IsVisible="{Binding HasTask}">
           <TextBlock Text="{Binding TaskTitle}" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center"/>
           <TextBlock Text="{Binding TaskMessage}" Classes="dim" FontSize="{DynamicResource AxFontSizeSmall}"
                      VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="220"/>

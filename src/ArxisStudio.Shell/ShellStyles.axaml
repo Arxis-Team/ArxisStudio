@@ -47,7 +47,7 @@
   <!-- Строка навигации: 30px, выбранная — заливка выделения и полужирный текст. -->
   <Style Selector="ToggleButton.nav">
     <Setter Property="Height" Value="30"/>
-    <Setter Property="Padding" Value="10,0"/>
+    <Setter Property="Padding" Value="{DynamicResource AxSpaceWideSidesThickness}"/>
     <Setter Property="CornerRadius" Value="6"/>
     <Setter Property="Background" Value="Transparent"/>
     <Setter Property="BorderThickness" Value="0"/>
@@ -124,7 +124,7 @@
   -->
   <Style Selector="ax|AxDivider.toolbar">
     <Setter Property="Height" Value="20"/>
-    <Setter Property="Margin" Value="2,0"/>
+    <Setter Property="Margin" Value="{DynamicResource AxSpaceHairSidesThickness}"/>
     <Setter Property="Background" Value="{DynamicResource AxBg4Brush}"/>
   </Style>
 
@@ -172,7 +172,7 @@
   </Style>
   <Style Selector="Border.link-row">
     <Setter Property="Height" Value="40"/>
-    <Setter Property="Padding" Value="12,0"/>
+    <Setter Property="Padding" Value="{DynamicResource AxSpaceWideSidesThickness}"/>
     <Setter Property="CornerRadius" Value="6"/>
     <Setter Property="Background" Value="Transparent"/>
     <Setter Property="Cursor" Value="Hand"/>

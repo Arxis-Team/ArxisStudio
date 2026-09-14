@@ -87,7 +87,7 @@
     <Setter Property="CornerRadius" Value="{DynamicResource AxCornerRadius}"/>
   </Style>
   <Style Selector="Border.dock-hint > TextBlock">
-    <Setter Property="Margin" Value="10,8"/>
+    <Setter Property="Margin" Value="{DynamicResource AxDockHintPadding}"/>
     <Setter Property="HorizontalAlignment" Value="Left"/>
     <Setter Property="VerticalAlignment" Value="Top"/>
     <Setter Property="Foreground" Value="{DynamicResource AxFgBrush}"/>
@@ -119,7 +119,7 @@
     <Setter Property="CornerRadius" Value="{DynamicResource AxCornerRadius}"/>
   </Style>
   <Style Selector="Border.dock-ghost > TextBlock">
-    <Setter Property="Margin" Value="12,10"/>
+    <Setter Property="Margin" Value="{DynamicResource AxDockHintPadding}"/>
     <Setter Property="HorizontalAlignment" Value="Left"/>
     <Setter Property="VerticalAlignment" Value="Top"/>
     <Setter Property="Foreground" Value="{DynamicResource AxFgBrush}"/>

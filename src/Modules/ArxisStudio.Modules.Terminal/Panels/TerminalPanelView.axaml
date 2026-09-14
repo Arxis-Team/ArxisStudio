@@ -15,7 +15,7 @@
   <a:DockPanel>
 
     <a:Border a:DockPanel.Dock="Top"
-              Padding="4,2"
+              Padding="{a:DynamicResource AxToolBarPadding}"
               BorderThickness="0,0,0,1"
               BorderBrush="{a:DynamicResource AxBrdBrush}">
       <a:DockPanel>
@@ -28,7 +28,7 @@
             Подпись у каждой двойная: подсказка под курсором и имя для средств
             доступности. Значка средствам доступности мало.
         -->
-        <a:StackPanel a:DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2"
+        <a:StackPanel a:DockPanel.Dock="Right" Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceHair}"
                       VerticalAlignment="Center">
 
           <AxButton x:Name="Add" Classes="icon"
@@ -72,7 +72,7 @@
     <a:Panel>
       <a:Border x:Name="Body"/>
 
-      <a:StackPanel x:Name="Empty" Spacing="10"
+      <a:StackPanel x:Name="Empty" Spacing="{a:DynamicResource AxGapFormRow}"
                     HorizontalAlignment="Center" VerticalAlignment="Center">
         <a:TextBlock Text="{Text terminal.empty}" TextAlignment="Center"/>
         <AxButton x:Name="Start" Content="{Text terminal.new}" HorizontalAlignment="Center"/>

@@ -33,7 +33,7 @@ public class LiteralSpacingTests
     /// и записью в плане. Не поднимается ничем: отступу, которому не нашлось
     /// ступени, место либо в теме ключом, либо в разговоре о самой шкале.
     /// </remarks>
-    private const int Ceiling = 111;
+    private const int Ceiling = 67;
 
     /// <summary>Объявления отступа: атрибутом и сеттером.</summary>
     private static readonly Regex Spacings = new(

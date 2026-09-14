@@ -13,7 +13,7 @@
                x:Class="ArxisStudio.Modules.Sample.SamplePanelView"
                x:DataType="vm:SamplePanelModel">
 
-  <a:StackPanel Spacing="10" Margin="12" VerticalAlignment="Top">
+  <a:StackPanel Spacing="{a:DynamicResource AxGapFormRow}" Margin="{a:DynamicResource AxSpaceWideThickness}" VerticalAlignment="Top">
     <a:TextBlock Text="Пример встроенного модуля" TextWrapping="Wrap"/>
     <a:TextBlock Text="Манифест: ресурс module.json в сборке" TextWrapping="Wrap"/>
     <a:TextBlock Text="Контекст загрузки: основной, выгрузке не подлежит" TextWrapping="Wrap"/>

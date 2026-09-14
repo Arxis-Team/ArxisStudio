@@ -13,7 +13,7 @@
     <a:Border x:Name="Note"
               a:DockPanel.Dock="Bottom"
               IsVisible="False"
-              Padding="8,4"
+              Padding="{a:DynamicResource AxNotePadding}"
               BorderThickness="0,1,0,0"
               BorderBrush="{a:DynamicResource AxBrdBrush}">
       <a:TextBlock x:Name="Reason" TextWrapping="Wrap"/>
