@@ -3,10 +3,12 @@ using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Modules.Sample;
 using ArxisStudio.Sdk;
+using ArxisStudio.ProjectSystem;
 using ArxisStudio.Services;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -246,21 +248,109 @@ public class BuiltInModuleTests
 
         var view = Assert.IsType<SamplePanelView>(panel.Content);
         var lines = Assert.IsType<StackPanel>(view.Content);
+        var strings = loaded.Studio!.Strings;
 
-        // Привязка нашла модель: строку про проект даёт она, а не разметка.
-        // Сверяется со словарём, а не с написанным здесь текстом: он зависит от
-        // языка студии, и тест, знающий его наизусть, проверял бы язык прогона.
-        var expected = loaded.Studio!.Strings["module.sample.noproject"];
+        // Каждая подпись — из словаря студии, а не строкой в разметке: образец со
+        // вшитой строкой учил бы, что так и надо. Сверяется со словарём, а не с
+        // написанным здесь текстом: он зависит от языка студии, и тест, знающий
+        // его наизусть, проверял бы язык прогона.
+        string[] keys =
+        [
+            "module.sample.heading", "module.sample.manifest", "module.sample.loadcontext",
+            "module.sample.project.label", "module.sample.project.none",
+        ];
 
-        Assert.False(expected.StartsWith('!'), "строки нет в словаре студии");
-        Assert.Equal(expected, Assert.IsType<TextBlock>(lines.Children[3]).Text);
+        Assert.All(keys, key => Assert.False(strings[key].StartsWith('!'), $"строки {key} нет в словаре студии"));
+        Assert.Equal(
+            keys.Select(key => strings[key]),
+            view.GetLogicalDescendants().OfType<TextBlock>().Where(text => text.IsVisible).Select(text => text.Text));
+
+        // Проекта нет, и службы проектов у этой студии нет: строка говорит «не
+        // открыт», а место под имя пусто и скрыто.
+        var (name, none) = ProjectLine(lines);
+
+        Assert.False(name.IsVisible, "имени проекта нет, а место под него показано");
+        Assert.True(none.IsVisible);
+        Assert.Equal(strings["module.sample.project.none"], none.Text);
 
         var button = Assert.IsType<AxButton>(lines.Children[^1]);
+
+        Assert.Equal(strings["module.sample.log"], button.Content);
+
         var before = log.Records.Count;
 
         button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
         Assert.True(log.Records.Count > before, "кнопка панели не позвала команду модуля");
+    }
+
+    /// <summary>
+    /// Строка проекта в панели примера идёт за открытием и закрытием, пока панель жива.
+    /// </summary>
+    /// <remarks>
+    /// Модель читала путь один раз, и панель до конца сеанса писала «проект не открыт», что бы ни
+    /// открыл человек. Контракт говорит прямо: путь в контексте живой, но о перемене не сообщает, и
+    /// тому, кому нужно событие, нужна служба проектов. Образец обязан показывать эту дорогу — и
+    /// отпускать подписку, прощаясь: после прощания служба панели не держит.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_project_line_of_the_sample_follows_the_project_while_the_panel_lives()
+    {
+        var projects = new ProjectsProbe();
+        var exports = new StudioExportRegistry();
+
+        exports.Publish(typeof(ArxisStudio.Projects.IStudioProjects), projects, "arxis.projects", "Проекты");
+
+        using var host = new PluginHost(new StudioContextFactory(new StudioLog(), new StudioCommands(), null, exports: exports));
+
+        var loaded = host.LoadBuiltIn(typeof(SampleModule).Assembly);
+
+        Assert.True(loaded.IsLoaded, loaded.Error);
+
+        var panel = new SamplePanel();
+
+        panel.Attach(loaded.Studio!);
+
+        var lines = Assert.IsType<StackPanel>(Assert.IsType<SamplePanelView>(panel.Content).Content);
+        var (name, none) = ProjectLine(lines);
+        var solution = CanonicalPath.Create(Path.Combine(Path.GetTempPath(), "Волна", "Волна.slnx"));
+
+        projects.Publish(new ArxisStudio.Projects.ProjectsStatus
+        {
+            Sequence = 1,
+            Session = 1,
+            State = ArxisStudio.Projects.ProjectsState.Ready,
+            EntryPoint = solution,
+        });
+
+        Assert.True(name.IsVisible, "проект открыли, а имени в панели нет");
+        Assert.Equal("Волна.slnx", name.Text);
+        Assert.False(none.IsVisible, "проект открыт, а панель пишет «не открыт»");
+
+        projects.Publish(ArxisStudio.Projects.ProjectsStatus.Closed);
+
+        Assert.False(name.IsVisible, "проект закрыли, а имя осталось");
+        Assert.True(none.IsVisible);
+
+        panel.Release();
+
+        projects.Publish(new ArxisStudio.Projects.ProjectsStatus
+        {
+            Sequence = 2,
+            Session = 2,
+            State = ArxisStudio.Projects.ProjectsState.Ready,
+            EntryPoint = solution,
+        });
+
+        Assert.False(name.IsVisible, "попрощавшаяся панель всё ещё слушает службу проектов");
+    }
+
+    /// <summary>Место под имя проекта и строка «не открыт» в панели примера.</summary>
+    private static (TextBlock Name, TextBlock None) ProjectLine(StackPanel lines)
+    {
+        var line = Assert.IsType<DockPanel>(lines.Children[3]);
+
+        return (Assert.IsType<TextBlock>(line.Children[1]), Assert.IsType<TextBlock>(line.Children[2]));
     }
 
     /// <summary>

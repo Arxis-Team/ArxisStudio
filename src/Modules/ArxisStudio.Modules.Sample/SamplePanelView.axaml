@@ -5,6 +5,11 @@
     По умолчанию словарь студии: контрол без префикса — контрол студии. Всё
     родное Avalonia пишется через a: — и раскладка, и привязка, — так видно,
     чего в наборе Ax* ещё нет.
+
+    Подписи — из словаря через {Text}, а не строками на месте: образец со
+    вшитой строкой учил бы, что так и надо, а в английской студии панель
+    говорила бы по-русски. Текст из словаря переводится вместе со студией, без
+    перезагрузки панели.
 -->
 <AxUserControl xmlns="https://github.com/Arxis-Team/ArxisStudio"
                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -14,11 +19,23 @@
                x:DataType="vm:SamplePanelModel">
 
   <a:StackPanel Spacing="{a:DynamicResource AxGapFormRow}" Margin="{a:DynamicResource AxSpaceWideThickness}" VerticalAlignment="Top">
-    <a:TextBlock Text="Пример встроенного модуля" TextWrapping="Wrap"/>
-    <a:TextBlock Text="Манифест: ресурс module.json в сборке" TextWrapping="Wrap"/>
-    <a:TextBlock Text="Контекст загрузки: основной, выгрузке не подлежит" TextWrapping="Wrap"/>
-    <a:TextBlock Text="{a:Binding Project}" TextWrapping="Wrap"/>
-    <AxButton Content="Записать в журнал" HorizontalAlignment="Left" Click="OnLogClick"/>
+    <a:TextBlock Text="{Text module.sample.heading}" TextWrapping="Wrap"/>
+    <a:TextBlock Text="{Text module.sample.manifest}" TextWrapping="Wrap"/>
+    <a:TextBlock Text="{Text module.sample.loadcontext}" TextWrapping="Wrap"/>
+
+    <!--
+        Проект: подпись из словаря, имя — из модели. Модель говорит, когда
+        проект открыли или закрыли, и строка идёт за ним.
+    -->
+    <a:DockPanel>
+      <a:TextBlock a:DockPanel.Dock="Left" Text="{Text module.sample.project.label}"
+                   Margin="{a:DynamicResource AxSpaceSnugTrailingThickness}"/>
+      <a:TextBlock Text="{a:Binding ProjectName}" TextWrapping="Wrap" IsVisible="{a:Binding HasProject}"/>
+      <a:TextBlock Classes="dim" Text="{Text module.sample.project.none}" TextWrapping="Wrap"
+                   IsVisible="{a:Binding !HasProject}"/>
+    </a:DockPanel>
+
+    <AxButton Content="{Text module.sample.log}" HorizontalAlignment="Left" Click="OnLogClick"/>
   </a:StackPanel>
 
 </AxUserControl>

@@ -3,7 +3,8 @@
     <!--
         Пример встроенного модуля: панель, команда и служба — тем же контрактом,
         каким живёт внешний плагин. Ссылок ему хватает тех же, что и плагину:
-        SDK и библиотека контролов. На саму студию модуль не ссылается —
+        SDK, библиотека контролов и контракт соседа, у которого он берёт
+        службу, — здесь службы проектов. На саму студию модуль не ссылается —
         всё, что ему нужно, приходит службами контекста.
     -->
     <PropertyGroup>
@@ -18,6 +19,7 @@
     <ItemGroup>
         <ProjectReference Include="../../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
         <ProjectReference Include="../../../external/ArxisStudio.Controls/src/ArxisStudio.Controls.csproj"/>
+        <ProjectReference Include="../ArxisStudio.Projects.Contracts/ArxisStudio.Projects.Contracts.csproj"/>
     </ItemGroup>
 
     <!--

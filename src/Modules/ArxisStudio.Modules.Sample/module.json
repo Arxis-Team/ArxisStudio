@@ -5,6 +5,9 @@
   "publisher": "Arxis",
   "description": "%module.sample.description%",
   "tags": [ "sample" ],
+  "dependencies": [
+    { "id": "arxis.projects", "min": "1.0", "optional": true }
+  ],
   "contributions": {
     "commands": [
       { "id": "sample.about" },

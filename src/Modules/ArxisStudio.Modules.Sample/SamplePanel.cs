@@ -21,9 +21,24 @@ namespace ArxisStudio.Modules.Sample;
 [ToolWindow("sample.panel")]
 public sealed class SamplePanel : ToolWindow
 {
+    private SamplePanelModel? _model;
+
     /// <inheritdoc/>
-    protected override Control Build() => new SamplePanelView
+    protected override Control Build()
     {
-        DataContext = new SamplePanelModel(Context),
-    };
+        _model = new SamplePanelModel(Context);
+
+        return new SamplePanelView { DataContext = _model };
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Модель подписана на службу проектов, и отпустить подписку может только панель: студия о
+    /// ней не знает. Прощание — ровно то место, которое контракт для этого и отводит.
+    /// </remarks>
+    public override void Release()
+    {
+        _model?.Dispose();
+        _model = null;
+    }
 }
