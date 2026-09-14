@@ -8,14 +8,14 @@ using Avalonia.Media;
 namespace ArxisStudio.Settings;
 
 /// <summary>
-/// Страница «Оформление»: тема студии и язык интерфейса.
+/// Страница «Оформление»: тема студии, плотность и язык интерфейса.
 /// </summary>
 /// <remarks>
 /// Единственная страница, чьи правки видны до сохранения, и это не небрежность,
-/// а условие задачи: тему и язык выбирают глазами. Поэтому обе применяются
-/// сразу — предпросмотром, — а записываются только по «Сохранить»; «Отмена»
-/// возвращает то, что было при открытии окна или с последней записи: удавшееся
-/// «Сохранить» и есть новое «как было».
+/// а условие задачи: тему, плотность и язык выбирают глазами. Поэтому все три
+/// применяются сразу — предпросмотром, — а записываются только по «Сохранить»;
+/// «Отмена» возвращает то, что было при открытии окна или с последней записи:
+/// удавшееся «Сохранить» и есть новое «как было».
 /// <para>
 /// Язык при открытии снимается <b>действующий</b>, а не записанный в
 /// настройках: словарь могли удалить, и студия осталась на запасном. Вернув по
@@ -27,8 +27,10 @@ public sealed class AppearancePage : ISettingsPage, INotifyPropertyChanged
     private readonly ISettingsStore _studio;
 
     private StudioTheme _themeAtOpen;
+    private StudioDensity _densityAtOpen;
     private string _languageAtOpen;
     private StudioTheme _theme;
+    private StudioDensity _density;
     private string _language;
 
     /// <summary>Заводит страницу поверх настроек студии.</summary>
@@ -39,6 +41,7 @@ public sealed class AppearancePage : ISettingsPage, INotifyPropertyChanged
 
         _studio = studio;
         _theme = _themeAtOpen = studio.Current.Theme;
+        _density = _densityAtOpen = studio.Current.Density;
         _language = _languageAtOpen = Localizer.Instance.Language;
     }
 
@@ -68,11 +71,15 @@ public sealed class AppearancePage : ISettingsPage, INotifyPropertyChanged
     [
         Title,
         Localizer.Instance["settings.theme"],
+        Localizer.Instance["settings.density"],
         Localizer.Instance["settings.language"],
     ];
 
     /// <inheritdoc/>
-    public bool HasChanges => _theme != _themeAtOpen || !string.Equals(_language, _languageAtOpen, StringComparison.Ordinal);
+    public bool HasChanges =>
+        _theme != _themeAtOpen ||
+        _density != _densityAtOpen ||
+        !string.Equals(_language, _languageAtOpen, StringComparison.Ordinal);
 
     /// <summary>Языки, которые студия сейчас умеет показать.</summary>
     public IReadOnlyList<StudioLanguage> Languages => Localizer.Instance.Languages;
@@ -96,6 +103,34 @@ public sealed class AppearancePage : ISettingsPage, INotifyPropertyChanged
                 return;
 
             _theme = wanted;
+            StudioTheming.Apply(wanted);
+            Notify();
+        }
+    }
+
+    /// <summary>
+    /// Плотность номером сегмента: 0 — плотная, 1 — обычная, 2 — просторная.
+    /// </summary>
+    /// <remarks>
+    /// Номер совпадает с порядком объявления ступеней, и это не совпадение:
+    /// порядок там выбран порядком на экране. Число вне ряда сегментный
+    /// переключатель не отдаёт, но свойство открыто привязке, и отказ здесь
+    /// дешевле, чем ступень, которой нет в теме.
+    /// </remarks>
+    public int DensityIndex
+    {
+        get => (int)_density;
+        set
+        {
+            if (!Enum.IsDefined((StudioDensity)value))
+                return;
+
+            var wanted = (StudioDensity)value;
+
+            if (_density == wanted)
+                return;
+
+            _density = wanted;
             StudioTheming.Apply(wanted);
             Notify();
         }
@@ -135,10 +170,11 @@ public sealed class AppearancePage : ISettingsPage, INotifyPropertyChanged
             return Task.CompletedTask;
 
         _studio.Current.Theme = _theme;
+        _studio.Current.Density = _density;
         _studio.Current.Language = _language;
 
-        // Запись одна на обе настройки: хранилище сериализует весь объект, и
-        // два вызова записали бы один и тот же файл дважды. Своей охраны у
+        // Запись одна на все три настройки: хранилище сериализует весь объект,
+        // и три вызова записали бы один и тот же файл трижды. Своей охраны у
         // него нет — исключение из WriteAllText вышло бы наружу и уронило бы
         // сохранение целиком, поэтому ловим здесь.
         try
@@ -154,12 +190,13 @@ public sealed class AppearancePage : ISettingsPage, INotifyPropertyChanged
         // Записанное становится тем, «что было при открытии». Иначе страница
         // остаётся изменённой после «Сохранить», и закрытие — а «Сохранить»
         // закрывает окно — спрашивает о потере правок, которые уже в файле;
-        // ответив «закрыть», человек получал бы откат темы и языка к прежним
+        // ответив «закрыть», человек получал бы откат оформления к прежнему
         // при уже переписанном файле.
         //
         // Только после удавшейся записи: не легло — значит не сохранено, и
         // окно обязано остаться при своих правках.
         _themeAtOpen = _theme;
+        _densityAtOpen = _density;
         _languageAtOpen = _language;
 
         return Task.CompletedTask;
@@ -172,6 +209,12 @@ public sealed class AppearancePage : ISettingsPage, INotifyPropertyChanged
         {
             _theme = _themeAtOpen;
             StudioTheming.Apply(_themeAtOpen);
+        }
+
+        if (_density != _densityAtOpen)
+        {
+            _density = _densityAtOpen;
+            StudioTheming.Apply(_densityAtOpen);
         }
 
         if (!string.Equals(_language, _languageAtOpen, StringComparison.Ordinal))

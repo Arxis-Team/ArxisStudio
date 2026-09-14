@@ -21,7 +21,7 @@
   -->
   <ax:AxWindow.DataTemplates>
 
-    <!-- Оформление: тема и язык. Переехало из экрана настроек в Welcome. -->
+    <!-- Оформление: тема, плотность и язык. Переехало из экрана настроек в Welcome. -->
     <DataTemplate DataType="s:AppearancePage">
       <ax:AxCard Padding="{DynamicResource AxSettingsCardPadding}">
         <StackPanel>
@@ -33,6 +33,17 @@
               <ax:AxSegmentItem Content="{ax:Loc settings.theme.light}"/>
             </ax:AxSegmentedControl>
             <TextBlock Text="{ax:Loc settings.theme}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
+          </DockPanel>
+          <ax:AxDivider/>
+          <DockPanel Classes="settings-row">
+            <ax:AxSegmentedControl DockPanel.Dock="Right"
+                                   AutomationProperties.Name="{ax:Loc settings.density}"
+                                   SelectedIndex="{Binding DensityIndex, Mode=TwoWay}">
+              <ax:AxSegmentItem Content="{ax:Loc settings.density.compact}"/>
+              <ax:AxSegmentItem Content="{ax:Loc settings.density.normal}"/>
+              <ax:AxSegmentItem Content="{ax:Loc settings.density.comfortable}"/>
+            </ax:AxSegmentedControl>
+            <TextBlock Text="{ax:Loc settings.density}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
           </DockPanel>
           <ax:AxDivider/>
           <DockPanel Classes="settings-row">

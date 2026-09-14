@@ -178,7 +178,11 @@ public class App : Application
                 LanguagePacks.Apply(_plugins, _log);
             })
             .Add("splash.stage.language", () => Localizer.Instance.SetLanguage(_settings.Current.Language))
-            .Add("splash.stage.theme", () => StudioTheming.Apply(_settings.Current.Theme))
+            .Add("splash.stage.theme", () =>
+            {
+                StudioTheming.Apply(_settings.Current.Theme);
+                StudioTheming.Apply(_settings.Current.Density);
+            })
             // Хранилище настроек передаётся, а не заводится окном: оно читает
             // файл в память и пишет его целиком, и второй экземпляр на процесс
             // потерял бы правку, сделанную в первом.
