@@ -161,6 +161,101 @@ public class SplashTests : IDisposable
         Assert.Contains(Localizer.Instance["splash.build"], model.Edition, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Студия одевается в выбранный язык до заставки, а не посреди неё.
+    /// </summary>
+    /// <remarks>
+    /// Тема и плотность ставились до первого кадра, язык — этапом запуска, уже при показанной
+    /// заставке: у выбравшего русский строка версии и первый этап начинались по-английски и
+    /// переключались на полпути. Тема здесь подаётся той, что уже стоит, а ступень плотности —
+    /// обычной, и обе возвращаются как были: соседние по прогону классы на них смотрят.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_studio_is_dressed_in_the_chosen_language_before_the_splash()
+    {
+        var app = Application.Current!;
+        var variant = app.RequestedThemeVariant;
+        var tiers = DensityTiers();
+
+        try
+        {
+            Localizer.Instance.SetLanguage("en");
+
+            string english;
+
+            using (var before = new SplashViewModel())
+                english = before.Edition;
+
+            App.Dress(new Shell.Settings.StudioSettings
+            {
+                Theme = app.ActualThemeVariant == ThemeVariant.Light
+                    ? Shell.Settings.StudioTheme.Light
+                    : Shell.Settings.StudioTheme.Dark,
+                Language = "ru",
+            });
+
+            using var model = new SplashViewModel();
+
+            Assert.Equal("ru", Localizer.Instance.Language);
+            Assert.NotEqual(english, model.Edition);
+        }
+        finally
+        {
+            app.RequestedThemeVariant = variant;
+
+            foreach (var tier in DensityTiers())
+                app.Resources.MergedDictionaries.Remove(tier);
+
+            foreach (var tier in tiers)
+                app.Resources.MergedDictionaries.Add(tier);
+        }
+    }
+
+    /// <summary>
+    /// Язык, который принесёт только пакет плагина, до заставки не ставится — и не ломает её.
+    /// </summary>
+    /// <remarks>
+    /// Пакеты разбираются этапом запуска, раньше их нет. Отказ словаря ничего не меняет: студия
+    /// остаётся на запасном языке, а этап языка переключит её, когда пакет будет поставлен.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_language_only_a_plugin_brings_waits_for_its_stage()
+    {
+        var app = Application.Current!;
+        var variant = app.RequestedThemeVariant;
+        var tiers = DensityTiers();
+
+        try
+        {
+            Localizer.Instance.SetLanguage("en");
+
+            App.Dress(new Shell.Settings.StudioSettings
+            {
+                Theme = app.ActualThemeVariant == ThemeVariant.Light
+                    ? Shell.Settings.StudioTheme.Light
+                    : Shell.Settings.StudioTheme.Dark,
+                Language = "tlh",
+            });
+
+            Assert.Equal("en", Localizer.Instance.Language);
+        }
+        finally
+        {
+            app.RequestedThemeVariant = variant;
+
+            foreach (var tier in DensityTiers())
+                app.Resources.MergedDictionaries.Remove(tier);
+
+            foreach (var tier in tiers)
+                app.Resources.MergedDictionaries.Add(tier);
+        }
+    }
+
+    private static List<Avalonia.Markup.Xaml.Styling.ResourceInclude> DensityTiers() =>
+        [.. Application.Current!.Resources.MergedDictionaries
+            .OfType<Avalonia.Markup.Xaml.Styling.ResourceInclude>()
+            .Where(include => include.Source?.OriginalString.Contains("/Density/", StringComparison.Ordinal) == true)];
+
     /// <summary>Этапы идут в том порядке, в каком их назвали.</summary>
     [AvaloniaFact]
     public async Task Stages_run_in_the_order_they_were_added()

@@ -113,14 +113,15 @@ public class App : Application
     }
 
     /// <summary>
-    /// Одевает студию в выбранные тему и плотность до того, как появится заставка.
+    /// Одевает студию в выбранные тему, плотность и язык до того, как появится заставка.
     /// </summary>
     /// <remarks>
     /// Заставка показывается раньше, чем этапы запуска читают настройки, и
     /// потому поднималась в теме по умолчанию: у выбравшего светлую тему тёмная
     /// заставка светлела на полпути, а с плотностью у неё к тому же съезжал бы
     /// нижний блок. Это то самое мигание, от которого передача окна была
-    /// избавлена, только внутри одного окна.
+    /// избавлена, только внутри одного окна. С языком было то же: строка этапа
+    /// начиналась на запасном языке и переключалась посреди заставки.
     /// <para>
     /// Файл настроек маленький и читается без сети, поэтому это можно сделать
     /// до первого кадра. Прочитанное хранилище не бросают, а отдают этапу
@@ -142,13 +143,32 @@ public class App : Application
         try
         {
             _early = new JsonSettingsStore();
-            StudioTheming.Apply(_early.Current.Theme);
-            StudioTheming.Apply(_early.Current.Density);
+            Dress(_early.Current);
         }
         catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
         {
             _early = null;
         }
+    }
+
+    /// <summary>
+    /// Ставит студии тему, плотность и язык из прочитанных настроек.
+    /// </summary>
+    /// <param name="settings">Настройки человека.</param>
+    /// <remarks>
+    /// Язык ставится здесь, если его словарь есть у самой студии — встроенный или
+    /// положенный в папку языков. Язык, который приносит только пакет плагина, здесь не
+    /// найдётся: пакеты разбираются этапом запуска. Тогда заставка начнёт на запасном
+    /// языке, а этап языка переключит её, как и прежде, — отказ <c>SetLanguage</c> ничего не
+    /// меняет, и второй попытке мешать нечему.
+    /// </remarks>
+    internal static void Dress(StudioSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        StudioTheming.Apply(settings.Theme);
+        StudioTheming.Apply(settings.Density);
+        Localizer.Instance.SetLanguage(settings.Language);
     }
 
     /// <summary>
