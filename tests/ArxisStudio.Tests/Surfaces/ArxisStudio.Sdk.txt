@@ -1,0 +1,248 @@
+# StudioSdk 5.4
+ArxisStudio.Sdk.CommandAttribute : sealed class : System.Attribute
+ArxisStudio.Sdk.CommandAttribute :: .ctor(System.String id)
+ArxisStudio.Sdk.CommandAttribute :: System.String Id { get; }
+ArxisStudio.Sdk.DocumentEditor : abstract class
+ArxisStudio.Sdk.DocumentEditor :: .ctor()
+ArxisStudio.Sdk.DocumentEditor :: ArxisStudio.Sdk.IStudioContext Context { get; }
+ArxisStudio.Sdk.DocumentEditor :: System.Void Attach(ArxisStudio.Sdk.IStudioContext context)
+ArxisStudio.Sdk.DocumentEditor :: abstract System.Boolean CanOpen(System.String filePath)
+ArxisStudio.Sdk.DocumentEditor :: abstract System.Threading.Tasks.Task<System.ValueTuple<ArxisStudio.Sdk.DocumentView, System.String>> OpenAsync(System.String filePath)
+ArxisStudio.Sdk.DocumentView : abstract class : System.IAsyncDisposable
+ArxisStudio.Sdk.DocumentView :: .ctor()
+ArxisStudio.Sdk.DocumentView :: Avalonia.Controls.Control Content { get; }
+ArxisStudio.Sdk.DocumentView :: System.String Title { get; }
+ArxisStudio.Sdk.DocumentView :: virtual System.Threading.Tasks.ValueTask DisposeAsync()
+ArxisStudio.Sdk.DocumentView :: virtual System.Void OnActivated()
+ArxisStudio.Sdk.DocumentView :: virtual System.Void OnDeactivated()
+ArxisStudio.Sdk.IStudioCommands : interface
+ArxisStudio.Sdk.IStudioCommands :: System.Boolean Invoke(System.String id)
+ArxisStudio.Sdk.IStudioCommands :: System.Void Register(System.String id, System.Action handler)
+ArxisStudio.Sdk.IStudioContext : interface
+ArxisStudio.Sdk.IStudioContext :: ArxisStudio.Sdk.IStudioCommands Commands { get; }
+ArxisStudio.Sdk.IStudioContext :: ArxisStudio.Sdk.IStudioLog Log { get; }
+ArxisStudio.Sdk.IStudioContext :: ArxisStudio.Sdk.IStudioSettings Settings { get; }
+ArxisStudio.Sdk.IStudioContext :: ArxisStudio.Sdk.IStudioStrings Strings { get; }
+ArxisStudio.Sdk.IStudioContext :: ArxisStudio.Sdk.IStudioTasks Tasks { get; }
+ArxisStudio.Sdk.IStudioContext :: System.String PluginDirectory { get; }
+ArxisStudio.Sdk.IStudioContext :: System.String? ProjectPath { get; }
+ArxisStudio.Sdk.IStudioContext :: T? GetService<T>()
+ArxisStudio.Sdk.IStudioDocuments : interface
+ArxisStudio.Sdk.IStudioDocuments :: System.Threading.Tasks.Task OpenAsync(System.String filePath)
+ArxisStudio.Sdk.IStudioExports : interface
+ArxisStudio.Sdk.IStudioExports :: System.Boolean Publish<T>(T implementation)
+ArxisStudio.Sdk.IStudioExports :: T? Get<T>()
+ArxisStudio.Sdk.IStudioFocus : interface
+ArxisStudio.Sdk.IStudioFocus :: System.Boolean Focus(System.String toolWindowId)
+ArxisStudio.Sdk.IStudioFocus :: System.Boolean IsFocused(System.String toolWindowId)
+ArxisStudio.Sdk.IStudioLog : interface
+ArxisStudio.Sdk.IStudioLog :: System.Void Write(ArxisStudio.Sdk.StudioLogLevel level, System.String source, System.String message)
+ArxisStudio.Sdk.IStudioLogFeed : interface
+ArxisStudio.Sdk.IStudioLogFeed :: System.Collections.Generic.IReadOnlyList<ArxisStudio.Sdk.StudioLogRecord> Records { get; }
+ArxisStudio.Sdk.IStudioLogFeed :: System.Void Clear()
+ArxisStudio.Sdk.IStudioLogFeed :: event System.EventHandler Changed
+ArxisStudio.Sdk.IStudioPlugins : interface
+ArxisStudio.Sdk.IStudioPlugins :: System.Boolean IsActive(System.String pluginId)
+ArxisStudio.Sdk.IStudioPlugins :: System.String? Version(System.String pluginId)
+ArxisStudio.Sdk.IStudioPlugins :: event System.EventHandler Changed
+ArxisStudio.Sdk.IStudioProgress : interface
+ArxisStudio.Sdk.IStudioProgress :: System.Void Report(System.Double fraction, System.String? message = null)
+ArxisStudio.Sdk.IStudioProgress :: System.Void Report(System.String message)
+ArxisStudio.Sdk.IStudioSettings : interface
+ArxisStudio.Sdk.IStudioSettings :: System.Void Set(System.String key, System.Object? value)
+ArxisStudio.Sdk.IStudioSettings :: T? Get<T>(System.String key)
+ArxisStudio.Sdk.IStudioSettings :: event System.EventHandler<System.String> Changed
+ArxisStudio.Sdk.IStudioStatus : interface
+ArxisStudio.Sdk.IStudioStatus :: System.Void Show(System.String message)
+ArxisStudio.Sdk.IStudioStrings : interface
+ArxisStudio.Sdk.IStudioStrings :: Avalonia.Data.BindingBase Text(System.String key)
+ArxisStudio.Sdk.IStudioStrings :: System.String Language { get; }
+ArxisStudio.Sdk.IStudioStrings :: System.String this[System.String key] { get; }
+ArxisStudio.Sdk.IStudioTasks : interface
+ArxisStudio.Sdk.IStudioTasks :: System.Threading.Tasks.Task RunAsync(System.String title, System.Func<ArxisStudio.Sdk.IStudioProgress, System.Threading.CancellationToken, System.Threading.Tasks.Task> work)
+ArxisStudio.Sdk.IStudioTasks :: System.Threading.Tasks.Task<T> RunAsync<T>(System.String title, System.Func<ArxisStudio.Sdk.IStudioProgress, System.Threading.CancellationToken, System.Threading.Tasks.Task<T>> work)
+ArxisStudio.Sdk.IStudioToolBar : interface
+ArxisStudio.Sdk.IStudioToolBar :: System.Void Update(System.String itemId, System.Boolean? isEnabled = null, System.Boolean? isVisible = null, System.Boolean? isChecked = null)
+ArxisStudio.Sdk.IStudioToolWindows : interface
+ArxisStudio.Sdk.IStudioToolWindows :: System.Void Show(System.String toolWindowId)
+ArxisStudio.Sdk.Plugins.PluginCommand : sealed record : System.IEquatable<ArxisStudio.Sdk.Plugins.PluginCommand>
+ArxisStudio.Sdk.Plugins.PluginCommand :: .ctor(System.String Id)
+ArxisStudio.Sdk.Plugins.PluginCommand :: System.Boolean Equals(ArxisStudio.Sdk.Plugins.PluginCommand? other)
+ArxisStudio.Sdk.Plugins.PluginCommand :: System.String Id { get; init; }
+ArxisStudio.Sdk.Plugins.PluginCommand :: System.String? Key { get; init; }
+ArxisStudio.Sdk.Plugins.PluginCommand :: System.String? Title { get; init; }
+ArxisStudio.Sdk.Plugins.PluginCommand :: System.Void Deconstruct(out System.String Id)
+ArxisStudio.Sdk.Plugins.PluginCommand :: static System.Boolean op_Equality(ArxisStudio.Sdk.Plugins.PluginCommand? left, ArxisStudio.Sdk.Plugins.PluginCommand? right)
+ArxisStudio.Sdk.Plugins.PluginCommand :: static System.Boolean op_Inequality(ArxisStudio.Sdk.Plugins.PluginCommand? left, ArxisStudio.Sdk.Plugins.PluginCommand? right)
+ArxisStudio.Sdk.Plugins.PluginCommand :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.Sdk.Plugins.PluginCommand :: virtual System.Int32 GetHashCode()
+ArxisStudio.Sdk.Plugins.PluginCommand :: virtual System.String ToString()
+ArxisStudio.Sdk.Plugins.PluginContributions : sealed class
+ArxisStudio.Sdk.Plugins.PluginContributions :: .ctor()
+ArxisStudio.Sdk.Plugins.PluginContributions :: System.Collections.Generic.IList<ArxisStudio.Sdk.Plugins.PluginCommand> Commands { get; set; }
+ArxisStudio.Sdk.Plugins.PluginContributions :: System.Collections.Generic.IList<ArxisStudio.Sdk.Plugins.PluginLanguage> Languages { get; set; }
+ArxisStudio.Sdk.Plugins.PluginContributions :: System.Collections.Generic.IList<ArxisStudio.Sdk.Plugins.PluginMenuItem> Menus { get; set; }
+ArxisStudio.Sdk.Plugins.PluginContributions :: System.Collections.Generic.IList<ArxisStudio.Sdk.Plugins.PluginSetting> Settings { get; set; }
+ArxisStudio.Sdk.Plugins.PluginContributions :: System.Collections.Generic.IList<ArxisStudio.Sdk.Plugins.PluginToolBarItem> ToolBar { get; set; }
+ArxisStudio.Sdk.Plugins.PluginContributions :: System.Collections.Generic.IList<ArxisStudio.Sdk.Plugins.PluginToolWindow> ToolWindows { get; set; }
+ArxisStudio.Sdk.Plugins.PluginDependency : sealed class
+ArxisStudio.Sdk.Plugins.PluginDependency :: .ctor()
+ArxisStudio.Sdk.Plugins.PluginDependency :: System.Boolean Optional { get; set; }
+ArxisStudio.Sdk.Plugins.PluginDependency :: System.String Id { get; set; }
+ArxisStudio.Sdk.Plugins.PluginDependency :: System.String? Min { get; set; }
+ArxisStudio.Sdk.Plugins.PluginLanguage : sealed record : System.IEquatable<ArxisStudio.Sdk.Plugins.PluginLanguage>
+ArxisStudio.Sdk.Plugins.PluginLanguage :: .ctor(System.String Code, System.String Name, System.String File, System.Collections.Generic.IList<ArxisStudio.Sdk.Plugins.PluginTranslation>? Translations = null)
+ArxisStudio.Sdk.Plugins.PluginLanguage :: System.Boolean Equals(ArxisStudio.Sdk.Plugins.PluginLanguage? other)
+ArxisStudio.Sdk.Plugins.PluginLanguage :: System.Collections.Generic.IList<ArxisStudio.Sdk.Plugins.PluginTranslation>? Translations { get; init; }
+ArxisStudio.Sdk.Plugins.PluginLanguage :: System.String Code { get; init; }
+ArxisStudio.Sdk.Plugins.PluginLanguage :: System.String File { get; init; }
+ArxisStudio.Sdk.Plugins.PluginLanguage :: System.String Name { get; init; }
+ArxisStudio.Sdk.Plugins.PluginLanguage :: System.Void Deconstruct(out System.String Code, out System.String Name, out System.String File, out System.Collections.Generic.IList<ArxisStudio.Sdk.Plugins.PluginTranslation>? Translations)
+ArxisStudio.Sdk.Plugins.PluginLanguage :: static System.Boolean op_Equality(ArxisStudio.Sdk.Plugins.PluginLanguage? left, ArxisStudio.Sdk.Plugins.PluginLanguage? right)
+ArxisStudio.Sdk.Plugins.PluginLanguage :: static System.Boolean op_Inequality(ArxisStudio.Sdk.Plugins.PluginLanguage? left, ArxisStudio.Sdk.Plugins.PluginLanguage? right)
+ArxisStudio.Sdk.Plugins.PluginLanguage :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.Sdk.Plugins.PluginLanguage :: virtual System.Int32 GetHashCode()
+ArxisStudio.Sdk.Plugins.PluginLanguage :: virtual System.String ToString()
+ArxisStudio.Sdk.Plugins.PluginManifest : sealed class
+ArxisStudio.Sdk.Plugins.PluginManifest :: .ctor()
+ArxisStudio.Sdk.Plugins.PluginManifest :: ArxisStudio.Sdk.Plugins.PluginContributions Contributions { get; set; }
+ArxisStudio.Sdk.Plugins.PluginManifest :: ArxisStudio.Sdk.Plugins.PluginProvides? Provides { get; set; }
+ArxisStudio.Sdk.Plugins.PluginManifest :: ArxisStudio.Sdk.Plugins.PluginSdkRequirement? Sdk { get; set; }
+ArxisStudio.Sdk.Plugins.PluginManifest :: System.Collections.Generic.IList<ArxisStudio.Sdk.Plugins.PluginDependency> Dependencies { get; set; }
+ArxisStudio.Sdk.Plugins.PluginManifest :: System.Collections.Generic.IList<System.String> Activation { get; set; }
+ArxisStudio.Sdk.Plugins.PluginManifest :: System.Collections.Generic.IList<System.String> Tags { get; set; }
+ArxisStudio.Sdk.Plugins.PluginManifest :: System.String Id { get; set; }
+ArxisStudio.Sdk.Plugins.PluginManifest :: System.String Name { get; set; }
+ArxisStudio.Sdk.Plugins.PluginManifest :: System.String Version { get; set; }
+ArxisStudio.Sdk.Plugins.PluginManifest :: System.String? Description { get; set; }
+ArxisStudio.Sdk.Plugins.PluginManifest :: System.String? Entry { get; set; }
+ArxisStudio.Sdk.Plugins.PluginManifest :: System.String? Icon { get; set; }
+ArxisStudio.Sdk.Plugins.PluginManifest :: System.String? Publisher { get; set; }
+ArxisStudio.Sdk.Plugins.PluginMenuItem : sealed record : System.IEquatable<ArxisStudio.Sdk.Plugins.PluginMenuItem>
+ArxisStudio.Sdk.Plugins.PluginMenuItem :: .ctor(System.String Path, System.String Command)
+ArxisStudio.Sdk.Plugins.PluginMenuItem :: System.Boolean Equals(ArxisStudio.Sdk.Plugins.PluginMenuItem? other)
+ArxisStudio.Sdk.Plugins.PluginMenuItem :: System.String Command { get; init; }
+ArxisStudio.Sdk.Plugins.PluginMenuItem :: System.String Path { get; init; }
+ArxisStudio.Sdk.Plugins.PluginMenuItem :: System.Void Deconstruct(out System.String Path, out System.String Command)
+ArxisStudio.Sdk.Plugins.PluginMenuItem :: static System.Boolean op_Equality(ArxisStudio.Sdk.Plugins.PluginMenuItem? left, ArxisStudio.Sdk.Plugins.PluginMenuItem? right)
+ArxisStudio.Sdk.Plugins.PluginMenuItem :: static System.Boolean op_Inequality(ArxisStudio.Sdk.Plugins.PluginMenuItem? left, ArxisStudio.Sdk.Plugins.PluginMenuItem? right)
+ArxisStudio.Sdk.Plugins.PluginMenuItem :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.Sdk.Plugins.PluginMenuItem :: virtual System.Int32 GetHashCode()
+ArxisStudio.Sdk.Plugins.PluginMenuItem :: virtual System.String ToString()
+ArxisStudio.Sdk.Plugins.PluginPlacement : sealed class
+ArxisStudio.Sdk.Plugins.PluginPlacement :: .ctor()
+ArxisStudio.Sdk.Plugins.PluginPlacement :: System.Double Size { get; set; }
+ArxisStudio.Sdk.Plugins.PluginPlacement :: System.String Side { get; set; }
+ArxisStudio.Sdk.Plugins.PluginPlacement :: System.String? Near { get; set; }
+ArxisStudio.Sdk.Plugins.PluginProvides : sealed class
+ArxisStudio.Sdk.Plugins.PluginProvides :: .ctor()
+ArxisStudio.Sdk.Plugins.PluginProvides :: System.Collections.Generic.IList<System.String> Contracts { get; set; }
+ArxisStudio.Sdk.Plugins.PluginSdkRequirement : sealed class
+ArxisStudio.Sdk.Plugins.PluginSdkRequirement :: .ctor()
+ArxisStudio.Sdk.Plugins.PluginSdkRequirement :: System.String Min { get; set; }
+ArxisStudio.Sdk.Plugins.PluginSetting : sealed record : System.IEquatable<ArxisStudio.Sdk.Plugins.PluginSetting>
+ArxisStudio.Sdk.Plugins.PluginSetting :: .ctor(System.String Key, System.String Type, System.String Scope, System.String? Title = null, System.Object? Default = null)
+ArxisStudio.Sdk.Plugins.PluginSetting :: System.Boolean Equals(ArxisStudio.Sdk.Plugins.PluginSetting? other)
+ArxisStudio.Sdk.Plugins.PluginSetting :: System.Boolean IsBool { get; }
+ArxisStudio.Sdk.Plugins.PluginSetting :: System.Boolean IsNumber { get; }
+ArxisStudio.Sdk.Plugins.PluginSetting :: System.Boolean IsProject { get; }
+ArxisStudio.Sdk.Plugins.PluginSetting :: System.Object? Default { get; init; }
+ArxisStudio.Sdk.Plugins.PluginSetting :: System.String Key { get; init; }
+ArxisStudio.Sdk.Plugins.PluginSetting :: System.String Label { get; }
+ArxisStudio.Sdk.Plugins.PluginSetting :: System.String Scope { get; init; }
+ArxisStudio.Sdk.Plugins.PluginSetting :: System.String Type { get; init; }
+ArxisStudio.Sdk.Plugins.PluginSetting :: System.String? Title { get; init; }
+ArxisStudio.Sdk.Plugins.PluginSetting :: System.Void Deconstruct(out System.String Key, out System.String Type, out System.String Scope, out System.String? Title, out System.Object? Default)
+ArxisStudio.Sdk.Plugins.PluginSetting :: static System.Boolean op_Equality(ArxisStudio.Sdk.Plugins.PluginSetting? left, ArxisStudio.Sdk.Plugins.PluginSetting? right)
+ArxisStudio.Sdk.Plugins.PluginSetting :: static System.Boolean op_Inequality(ArxisStudio.Sdk.Plugins.PluginSetting? left, ArxisStudio.Sdk.Plugins.PluginSetting? right)
+ArxisStudio.Sdk.Plugins.PluginSetting :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.Sdk.Plugins.PluginSetting :: virtual System.Int32 GetHashCode()
+ArxisStudio.Sdk.Plugins.PluginSetting :: virtual System.String ToString()
+ArxisStudio.Sdk.Plugins.PluginToolBarItem : sealed class
+ArxisStudio.Sdk.Plugins.PluginToolBarItem :: .ctor()
+ArxisStudio.Sdk.Plugins.PluginToolBarItem :: System.Boolean IsButton { get; }
+ArxisStudio.Sdk.Plugins.PluginToolBarItem :: System.Boolean IsCustom { get; }
+ArxisStudio.Sdk.Plugins.PluginToolBarItem :: System.Boolean IsMenu { get; }
+ArxisStudio.Sdk.Plugins.PluginToolBarItem :: System.String Id { get; set; }
+ArxisStudio.Sdk.Plugins.PluginToolBarItem :: System.String Kind { get; set; }
+ArxisStudio.Sdk.Plugins.PluginToolBarItem :: System.String Slot { get; set; }
+ArxisStudio.Sdk.Plugins.PluginToolBarItem :: System.String? Command { get; set; }
+ArxisStudio.Sdk.Plugins.PluginToolBarItem :: System.String? Icon { get; set; }
+ArxisStudio.Sdk.Plugins.PluginToolBarItem :: System.String? Menu { get; set; }
+ArxisStudio.Sdk.Plugins.PluginToolBarItem :: System.String? Title { get; set; }
+ArxisStudio.Sdk.Plugins.PluginToolWindow : sealed class
+ArxisStudio.Sdk.Plugins.PluginToolWindow :: .ctor()
+ArxisStudio.Sdk.Plugins.PluginToolWindow :: ArxisStudio.Sdk.Plugins.PluginPlacement Wanted { get; }
+ArxisStudio.Sdk.Plugins.PluginToolWindow :: ArxisStudio.Sdk.Plugins.PluginPlacement? Placement { get; set; }
+ArxisStudio.Sdk.Plugins.PluginToolWindow :: System.String Id { get; set; }
+ArxisStudio.Sdk.Plugins.PluginToolWindow :: System.String Title { get; set; }
+ArxisStudio.Sdk.Plugins.PluginTranslation : sealed record : System.IEquatable<ArxisStudio.Sdk.Plugins.PluginTranslation>
+ArxisStudio.Sdk.Plugins.PluginTranslation :: .ctor(System.String Id, System.String File)
+ArxisStudio.Sdk.Plugins.PluginTranslation :: System.Boolean Equals(ArxisStudio.Sdk.Plugins.PluginTranslation? other)
+ArxisStudio.Sdk.Plugins.PluginTranslation :: System.String File { get; init; }
+ArxisStudio.Sdk.Plugins.PluginTranslation :: System.String Id { get; init; }
+ArxisStudio.Sdk.Plugins.PluginTranslation :: System.Void Deconstruct(out System.String Id, out System.String File)
+ArxisStudio.Sdk.Plugins.PluginTranslation :: static System.Boolean op_Equality(ArxisStudio.Sdk.Plugins.PluginTranslation? left, ArxisStudio.Sdk.Plugins.PluginTranslation? right)
+ArxisStudio.Sdk.Plugins.PluginTranslation :: static System.Boolean op_Inequality(ArxisStudio.Sdk.Plugins.PluginTranslation? left, ArxisStudio.Sdk.Plugins.PluginTranslation? right)
+ArxisStudio.Sdk.Plugins.PluginTranslation :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.Sdk.Plugins.PluginTranslation :: virtual System.Int32 GetHashCode()
+ArxisStudio.Sdk.Plugins.PluginTranslation :: virtual System.String ToString()
+ArxisStudio.Sdk.StudioLogLevel : enum
+ArxisStudio.Sdk.StudioLogLevel :: Debug = 0
+ArxisStudio.Sdk.StudioLogLevel :: Error = 3
+ArxisStudio.Sdk.StudioLogLevel :: Info = 1
+ArxisStudio.Sdk.StudioLogLevel :: Warning = 2
+ArxisStudio.Sdk.StudioLogRecord : sealed record : System.IEquatable<ArxisStudio.Sdk.StudioLogRecord>
+ArxisStudio.Sdk.StudioLogRecord :: .ctor(System.DateTimeOffset Time, ArxisStudio.Sdk.StudioLogLevel Level, System.String Source, System.String Message)
+ArxisStudio.Sdk.StudioLogRecord :: ArxisStudio.Sdk.StudioLogLevel Level { get; init; }
+ArxisStudio.Sdk.StudioLogRecord :: System.Boolean Equals(ArxisStudio.Sdk.StudioLogRecord? other)
+ArxisStudio.Sdk.StudioLogRecord :: System.Boolean IsError { get; }
+ArxisStudio.Sdk.StudioLogRecord :: System.Boolean IsInfo { get; }
+ArxisStudio.Sdk.StudioLogRecord :: System.Boolean IsWarning { get; }
+ArxisStudio.Sdk.StudioLogRecord :: System.DateTimeOffset Time { get; init; }
+ArxisStudio.Sdk.StudioLogRecord :: System.String LevelName { get; }
+ArxisStudio.Sdk.StudioLogRecord :: System.String Message { get; init; }
+ArxisStudio.Sdk.StudioLogRecord :: System.String Source { get; init; }
+ArxisStudio.Sdk.StudioLogRecord :: System.String Stamp { get; }
+ArxisStudio.Sdk.StudioLogRecord :: System.Void Deconstruct(out System.DateTimeOffset Time, out ArxisStudio.Sdk.StudioLogLevel Level, out System.String Source, out System.String Message)
+ArxisStudio.Sdk.StudioLogRecord :: static System.Boolean op_Equality(ArxisStudio.Sdk.StudioLogRecord? left, ArxisStudio.Sdk.StudioLogRecord? right)
+ArxisStudio.Sdk.StudioLogRecord :: static System.Boolean op_Inequality(ArxisStudio.Sdk.StudioLogRecord? left, ArxisStudio.Sdk.StudioLogRecord? right)
+ArxisStudio.Sdk.StudioLogRecord :: virtual System.Boolean Equals(System.Object? obj)
+ArxisStudio.Sdk.StudioLogRecord :: virtual System.Int32 GetHashCode()
+ArxisStudio.Sdk.StudioLogRecord :: virtual System.String ToString()
+ArxisStudio.Sdk.StudioPlugin : abstract class
+ArxisStudio.Sdk.StudioPlugin :: .ctor()
+ArxisStudio.Sdk.StudioPlugin :: virtual System.Void Activate(ArxisStudio.Sdk.IStudioContext context)
+ArxisStudio.Sdk.StudioPlugin :: virtual System.Void Deactivate()
+ArxisStudio.Sdk.StudioSdk : static class
+ArxisStudio.Sdk.StudioSdk :: static System.Boolean Satisfies(System.String? required)
+ArxisStudio.Sdk.StudioService : abstract class
+ArxisStudio.Sdk.StudioService :: .ctor()
+ArxisStudio.Sdk.StudioService :: abstract System.Void Start(ArxisStudio.Sdk.IStudioContext context)
+ArxisStudio.Sdk.StudioService :: virtual System.Void Stop()
+ArxisStudio.Sdk.TextExtension : sealed class
+ArxisStudio.Sdk.TextExtension :: .ctor()
+ArxisStudio.Sdk.TextExtension :: .ctor(System.String key)
+ArxisStudio.Sdk.TextExtension :: System.Object ProvideValue(System.IServiceProvider serviceProvider)
+ArxisStudio.Sdk.TextExtension :: System.String Key { get; set; }
+ArxisStudio.Sdk.ToolBarItem : abstract class
+ArxisStudio.Sdk.ToolBarItem :: .ctor()
+ArxisStudio.Sdk.ToolBarItem :: ArxisStudio.Sdk.IStudioContext Context { get; }
+ArxisStudio.Sdk.ToolBarItem :: Avalonia.Controls.Control Content { get; }
+ArxisStudio.Sdk.ToolBarItem :: System.Void Attach(ArxisStudio.Sdk.IStudioContext context)
+ArxisStudio.Sdk.ToolBarItem :: abstract Avalonia.Controls.Control Build()
+ArxisStudio.Sdk.ToolBarItem :: virtual System.Void Release()
+ArxisStudio.Sdk.ToolBarItemAttribute : sealed class : System.Attribute
+ArxisStudio.Sdk.ToolBarItemAttribute :: .ctor(System.String id)
+ArxisStudio.Sdk.ToolBarItemAttribute :: System.String Id { get; }
+ArxisStudio.Sdk.ToolWindow : abstract class
+ArxisStudio.Sdk.ToolWindow :: .ctor()
+ArxisStudio.Sdk.ToolWindow :: ArxisStudio.Sdk.IStudioContext Context { get; }
+ArxisStudio.Sdk.ToolWindow :: Avalonia.Controls.Control Content { get; }
+ArxisStudio.Sdk.ToolWindow :: Avalonia.Controls.Control? FocusTarget { get; }
+ArxisStudio.Sdk.ToolWindow :: System.Void Attach(ArxisStudio.Sdk.IStudioContext context)
+ArxisStudio.Sdk.ToolWindow :: abstract Avalonia.Controls.Control Build()
+ArxisStudio.Sdk.ToolWindow :: virtual System.Void Release()
+ArxisStudio.Sdk.ToolWindowAttribute : sealed class : System.Attribute
+ArxisStudio.Sdk.ToolWindowAttribute :: .ctor(System.String id)
+ArxisStudio.Sdk.ToolWindowAttribute :: System.String Id { get; }

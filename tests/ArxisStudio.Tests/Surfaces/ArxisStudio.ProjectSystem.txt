@@ -1,3 +1,4 @@
+# StudioSdk 5.4
 ArxisStudio.ProjectSystem.AnalyzerReferenceInfo : sealed record : System.IEquatable<ArxisStudio.ProjectSystem.AnalyzerReferenceInfo>
 ArxisStudio.ProjectSystem.AnalyzerReferenceInfo :: .ctor()
 ArxisStudio.ProjectSystem.AnalyzerReferenceInfo :: ArxisStudio.ProjectSystem.ProjectMetadata Metadata { get; init; }

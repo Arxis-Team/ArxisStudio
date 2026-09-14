@@ -1,0 +1,259 @@
+# StudioSdk 5.4
+ArxisStudio.Controls.AxAvatar : class : Avalonia.Controls.Primitives.TemplatedControl
+ArxisStudio.Controls.AxAvatar :: .ctor()
+ArxisStudio.Controls.AxAvatar :: Avalonia.Media.IBrush? TileBrush { get; set; }
+ArxisStudio.Controls.AxAvatar :: System.String? Initials { get; set; }
+ArxisStudio.Controls.AxAvatar :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> TileBrushProperty
+ArxisStudio.Controls.AxAvatar :: static readonly Avalonia.StyledProperty<System.String> InitialsProperty
+ArxisStudio.Controls.AxBadge : class : Avalonia.Controls.ContentControl
+ArxisStudio.Controls.AxBadge :: .ctor()
+ArxisStudio.Controls.AxBanner : class : Avalonia.Controls.ContentControl
+ArxisStudio.Controls.AxBanner :: .ctor()
+ArxisStudio.Controls.AxBanner :: ArxisStudio.Controls.AxBannerSeverity Severity { get; set; }
+ArxisStudio.Controls.AxBanner :: System.Object? Actions { get; set; }
+ArxisStudio.Controls.AxBanner :: event System.EventHandler<Avalonia.Interactivity.RoutedEventArgs> Closed
+ArxisStudio.Controls.AxBanner :: static readonly Avalonia.Interactivity.RoutedEvent<Avalonia.Interactivity.RoutedEventArgs> ClosedEvent
+ArxisStudio.Controls.AxBanner :: static readonly Avalonia.StyledProperty<ArxisStudio.Controls.AxBannerSeverity> SeverityProperty
+ArxisStudio.Controls.AxBanner :: static readonly Avalonia.StyledProperty<System.Object> ActionsProperty
+ArxisStudio.Controls.AxBannerSeverity : enum
+ArxisStudio.Controls.AxBannerSeverity :: Error = 3
+ArxisStudio.Controls.AxBannerSeverity :: Information = 0
+ArxisStudio.Controls.AxBannerSeverity :: Success = 1
+ArxisStudio.Controls.AxBannerSeverity :: Warning = 2
+ArxisStudio.Controls.AxBreadcrumbBar : class : Avalonia.Controls.ItemsControl
+ArxisStudio.Controls.AxBreadcrumbBar :: .ctor()
+ArxisStudio.Controls.AxBreadcrumbBar :: virtual Avalonia.Controls.Control CreateContainerForItemOverride(System.Object? item, System.Int32 index, System.Object? recycleKey)
+ArxisStudio.Controls.AxBreadcrumbBar :: virtual System.Boolean NeedsContainerOverride(System.Object? item, System.Int32 index, out System.Object? recycleKey)
+ArxisStudio.Controls.AxBreadcrumbItem : class : Avalonia.Controls.ContentControl
+ArxisStudio.Controls.AxBreadcrumbItem :: .ctor()
+ArxisStudio.Controls.AxBreadcrumbItem :: System.Object? Icon { get; set; }
+ArxisStudio.Controls.AxBreadcrumbItem :: static readonly Avalonia.StyledProperty<System.Object> IconProperty
+ArxisStudio.Controls.AxButton : class : Avalonia.Controls.Button
+ArxisStudio.Controls.AxButton :: .ctor()
+ArxisStudio.Controls.AxCard : class : Avalonia.Controls.ContentControl
+ArxisStudio.Controls.AxCard :: .ctor()
+ArxisStudio.Controls.AxCheckBox : class : Avalonia.Controls.CheckBox
+ArxisStudio.Controls.AxCheckBox :: .ctor()
+ArxisStudio.Controls.AxChip : class : Avalonia.Controls.ContentControl
+ArxisStudio.Controls.AxChip :: .ctor()
+ArxisStudio.Controls.AxCodeBlock : class : Avalonia.Controls.Primitives.TemplatedControl
+ArxisStudio.Controls.AxCodeBlock :: .ctor()
+ArxisStudio.Controls.AxCodeBlock :: Avalonia.Media.IBrush? AttributeBrush { get; set; }
+ArxisStudio.Controls.AxCodeBlock :: Avalonia.Media.IBrush? CommentBrush { get; set; }
+ArxisStudio.Controls.AxCodeBlock :: Avalonia.Media.IBrush? StringBrush { get; set; }
+ArxisStudio.Controls.AxCodeBlock :: Avalonia.Media.IBrush? TagBrush { get; set; }
+ArxisStudio.Controls.AxCodeBlock :: System.Double LineHeightRatio { get; set; }
+ArxisStudio.Controls.AxCodeBlock :: System.String? Text { get; set; }
+ArxisStudio.Controls.AxCodeBlock :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> AttributeBrushProperty
+ArxisStudio.Controls.AxCodeBlock :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> CommentBrushProperty
+ArxisStudio.Controls.AxCodeBlock :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> StringBrushProperty
+ArxisStudio.Controls.AxCodeBlock :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> TagBrushProperty
+ArxisStudio.Controls.AxCodeBlock :: static readonly Avalonia.StyledProperty<System.Double> LineHeightRatioProperty
+ArxisStudio.Controls.AxCodeBlock :: static readonly Avalonia.StyledProperty<System.String> TextProperty
+ArxisStudio.Controls.AxCodeBlock :: virtual System.Void OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs e)
+ArxisStudio.Controls.AxComboBox : class : Avalonia.Controls.ComboBox
+ArxisStudio.Controls.AxComboBox :: .ctor()
+ArxisStudio.Controls.AxComboBox :: virtual Avalonia.Controls.Control CreateContainerForItemOverride(System.Object? item, System.Int32 index, System.Object? recycleKey)
+ArxisStudio.Controls.AxComboBox :: virtual System.Boolean NeedsContainerOverride(System.Object? item, System.Int32 index, out System.Object? recycleKey)
+ArxisStudio.Controls.AxComboBoxItem : class : Avalonia.Controls.ComboBoxItem
+ArxisStudio.Controls.AxComboBoxItem :: .ctor()
+ArxisStudio.Controls.AxDataGrid : class : ArxisStudio.Controls.AxListBox
+ArxisStudio.Controls.AxDataGrid :: .ctor()
+ArxisStudio.Controls.AxDataGrid :: System.Object? Header { get; set; }
+ArxisStudio.Controls.AxDataGrid :: static readonly Avalonia.StyledProperty<System.Object> HeaderProperty
+ArxisStudio.Controls.AxDialog : class : Avalonia.Controls.Window
+ArxisStudio.Controls.AxDialog :: .ctor()
+ArxisStudio.Controls.AxDialog :: System.Boolean IsCloseVisible { get; set; }
+ArxisStudio.Controls.AxDialog :: System.Object? AlertIcon { get; set; }
+ArxisStudio.Controls.AxDialog :: System.Object? Buttons { get; set; }
+ArxisStudio.Controls.AxDialog :: System.Object? FooterContent { get; set; }
+ArxisStudio.Controls.AxDialog :: System.Type StyleKeyOverride { get; }
+ArxisStudio.Controls.AxDialog :: static readonly Avalonia.StyledProperty<System.Boolean> IsCloseVisibleProperty
+ArxisStudio.Controls.AxDialog :: static readonly Avalonia.StyledProperty<System.Object> AlertIconProperty
+ArxisStudio.Controls.AxDialog :: static readonly Avalonia.StyledProperty<System.Object> ButtonsProperty
+ArxisStudio.Controls.AxDialog :: static readonly Avalonia.StyledProperty<System.Object> FooterContentProperty
+ArxisStudio.Controls.AxDialog :: virtual System.Void OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs e)
+ArxisStudio.Controls.AxDialog :: virtual System.Void OnKeyDown(Avalonia.Input.KeyEventArgs e)
+ArxisStudio.Controls.AxDialog :: virtual System.Void OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs change)
+ArxisStudio.Controls.AxDivider : class : Avalonia.Controls.Primitives.TemplatedControl
+ArxisStudio.Controls.AxDivider :: .ctor()
+ArxisStudio.Controls.AxDivider :: Avalonia.Layout.Orientation Orientation { get; set; }
+ArxisStudio.Controls.AxDivider :: static readonly Avalonia.StyledProperty<Avalonia.Layout.Orientation> OrientationProperty
+ArxisStudio.Controls.AxDropDownButton : class : Avalonia.Controls.DropDownButton
+ArxisStudio.Controls.AxDropDownButton :: .ctor()
+ArxisStudio.Controls.AxGroupHeader : class : Avalonia.Controls.ContentControl
+ArxisStudio.Controls.AxGroupHeader :: .ctor()
+ArxisStudio.Controls.AxGroupHeader :: System.Boolean IsCollapsible { get; set; }
+ArxisStudio.Controls.AxGroupHeader :: System.Boolean IsExpanded { get; set; }
+ArxisStudio.Controls.AxGroupHeader :: System.Object? Counter { get; set; }
+ArxisStudio.Controls.AxGroupHeader :: static readonly Avalonia.StyledProperty<System.Boolean> IsCollapsibleProperty
+ArxisStudio.Controls.AxGroupHeader :: static readonly Avalonia.StyledProperty<System.Boolean> IsExpandedProperty
+ArxisStudio.Controls.AxGroupHeader :: static readonly Avalonia.StyledProperty<System.Object> CounterProperty
+ArxisStudio.Controls.AxInsetConverter : sealed class : Avalonia.Data.Converters.IValueConverter
+ArxisStudio.Controls.AxInsetConverter :: .ctor()
+ArxisStudio.Controls.AxInsetConverter :: System.Object Convert(System.Object? value, System.Type targetType, System.Object? parameter, System.Globalization.CultureInfo culture)
+ArxisStudio.Controls.AxInsetConverter :: System.Object ConvertBack(System.Object? value, System.Type targetType, System.Object? parameter, System.Globalization.CultureInfo culture)
+ArxisStudio.Controls.AxInsetConverter :: static ArxisStudio.Controls.AxInsetConverter Instance { get; }
+ArxisStudio.Controls.AxLink : class : Avalonia.Controls.Button
+ArxisStudio.Controls.AxLink :: .ctor()
+ArxisStudio.Controls.AxLink :: System.Boolean IsVisited { get; set; }
+ArxisStudio.Controls.AxLink :: static readonly Avalonia.StyledProperty<System.Boolean> IsVisitedProperty
+ArxisStudio.Controls.AxListBox : class : Avalonia.Controls.ListBox
+ArxisStudio.Controls.AxListBox :: .ctor()
+ArxisStudio.Controls.AxListBox :: virtual Avalonia.Controls.Control CreateContainerForItemOverride(System.Object? item, System.Int32 index, System.Object? recycleKey)
+ArxisStudio.Controls.AxListBox :: virtual System.Boolean NeedsContainerOverride(System.Object? item, System.Int32 index, out System.Object? recycleKey)
+ArxisStudio.Controls.AxListBoxItem : class : Avalonia.Controls.ListBoxItem
+ArxisStudio.Controls.AxListBoxItem :: .ctor()
+ArxisStudio.Controls.AxMenuFlyout : class : Avalonia.Controls.MenuFlyout
+ArxisStudio.Controls.AxMenuFlyout :: .ctor()
+ArxisStudio.Controls.AxMenuFlyout :: const System.String ShadowRoomKey = "AxPopupShadowRoom"
+ArxisStudio.Controls.AxMenuFlyout :: static System.ValueTuple<System.Double, System.Double> Compensation(Avalonia.Controls.PlacementMode placement, Avalonia.Thickness room)
+ArxisStudio.Controls.AxMenuFlyout :: virtual System.Boolean ShowAtCore(Avalonia.Controls.Control placementTarget, System.Boolean showAtPointer = false)
+ArxisStudio.Controls.AxMenuItem : class : Avalonia.Controls.MenuItem
+ArxisStudio.Controls.AxMenuItem :: .ctor()
+ArxisStudio.Controls.AxMenuItem :: virtual Avalonia.Controls.Control CreateContainerForItemOverride(System.Object? item, System.Int32 index, System.Object? recycleKey)
+ArxisStudio.Controls.AxMenuItem :: virtual System.Boolean NeedsContainerOverride(System.Object? item, System.Int32 index, out System.Object? recycleKey)
+ArxisStudio.Controls.AxNotificationCard : class : Avalonia.Controls.ContentControl
+ArxisStudio.Controls.AxNotificationCard :: .ctor()
+ArxisStudio.Controls.AxNotificationCard :: ArxisStudio.Controls.AxBannerSeverity Severity { get; set; }
+ArxisStudio.Controls.AxNotificationCard :: System.Object? Actions { get; set; }
+ArxisStudio.Controls.AxNotificationCard :: System.String? Title { get; set; }
+ArxisStudio.Controls.AxNotificationCard :: System.Void RequestClose()
+ArxisStudio.Controls.AxNotificationCard :: event System.EventHandler<Avalonia.Interactivity.RoutedEventArgs> CloseRequested
+ArxisStudio.Controls.AxNotificationCard :: static readonly Avalonia.Interactivity.RoutedEvent<Avalonia.Interactivity.RoutedEventArgs> CloseRequestedEvent
+ArxisStudio.Controls.AxNotificationCard :: static readonly Avalonia.StyledProperty<ArxisStudio.Controls.AxBannerSeverity> SeverityProperty
+ArxisStudio.Controls.AxNotificationCard :: static readonly Avalonia.StyledProperty<System.Object> ActionsProperty
+ArxisStudio.Controls.AxNotificationCard :: static readonly Avalonia.StyledProperty<System.String> TitleProperty
+ArxisStudio.Controls.AxNotificationCard :: virtual System.Void OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs e)
+ArxisStudio.Controls.AxProgressBar : class : Avalonia.Controls.ProgressBar
+ArxisStudio.Controls.AxProgressBar :: .ctor()
+ArxisStudio.Controls.AxQuickSearch : class : Avalonia.Controls.Primitives.TemplatedControl
+ArxisStudio.Controls.AxQuickSearch :: .ctor()
+ArxisStudio.Controls.AxQuickSearch :: Avalonia.Controls.Templates.IDataTemplate? ItemTemplate { get; set; }
+ArxisStudio.Controls.AxQuickSearch :: System.Collections.IEnumerable? ItemsSource { get; set; }
+ArxisStudio.Controls.AxQuickSearch :: System.Object? SelectedItem { get; set; }
+ArxisStudio.Controls.AxQuickSearch :: System.String? Hints { get; set; }
+ArxisStudio.Controls.AxQuickSearch :: System.String? PlaceholderText { get; set; }
+ArxisStudio.Controls.AxQuickSearch :: System.String? Text { get; set; }
+ArxisStudio.Controls.AxQuickSearch :: static readonly Avalonia.StyledProperty<Avalonia.Controls.Templates.IDataTemplate> ItemTemplateProperty
+ArxisStudio.Controls.AxQuickSearch :: static readonly Avalonia.StyledProperty<System.Collections.IEnumerable> ItemsSourceProperty
+ArxisStudio.Controls.AxQuickSearch :: static readonly Avalonia.StyledProperty<System.Object> SelectedItemProperty
+ArxisStudio.Controls.AxQuickSearch :: static readonly Avalonia.StyledProperty<System.String> HintsProperty
+ArxisStudio.Controls.AxQuickSearch :: static readonly Avalonia.StyledProperty<System.String> PlaceholderTextProperty
+ArxisStudio.Controls.AxQuickSearch :: static readonly Avalonia.StyledProperty<System.String> TextProperty
+ArxisStudio.Controls.AxRadioButton : class : Avalonia.Controls.RadioButton
+ArxisStudio.Controls.AxRadioButton :: .ctor()
+ArxisStudio.Controls.AxSearchField : class : ArxisStudio.Controls.AxTextBox
+ArxisStudio.Controls.AxSearchField :: .ctor()
+ArxisStudio.Controls.AxSegmentItem : class : Avalonia.Controls.ListBoxItem
+ArxisStudio.Controls.AxSegmentItem :: .ctor()
+ArxisStudio.Controls.AxSegmentedControl : class : Avalonia.Controls.ListBox
+ArxisStudio.Controls.AxSegmentedControl :: .ctor()
+ArxisStudio.Controls.AxSegmentedControl :: virtual Avalonia.Controls.Control CreateContainerForItemOverride(System.Object? item, System.Int32 index, System.Object? recycleKey)
+ArxisStudio.Controls.AxSegmentedControl :: virtual System.Boolean NeedsContainerOverride(System.Object? item, System.Int32 index, out System.Object? recycleKey)
+ArxisStudio.Controls.AxSlider : class : Avalonia.Controls.Slider
+ArxisStudio.Controls.AxSlider :: .ctor()
+ArxisStudio.Controls.AxSpinner : class : Avalonia.Controls.Primitives.TemplatedControl
+ArxisStudio.Controls.AxSpinner :: .ctor()
+ArxisStudio.Controls.AxSplitButton : class : Avalonia.Controls.SplitButton
+ArxisStudio.Controls.AxSplitButton :: .ctor()
+ArxisStudio.Controls.AxSplitter : class : Avalonia.Controls.GridSplitter
+ArxisStudio.Controls.AxSplitter :: .ctor()
+ArxisStudio.Controls.AxSplitter :: Avalonia.Layout.Orientation Orientation { get; set; }
+ArxisStudio.Controls.AxSplitter :: static readonly Avalonia.StyledProperty<Avalonia.Layout.Orientation> OrientationProperty
+ArxisStudio.Controls.AxSplitter :: virtual System.Void OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs change)
+ArxisStudio.Controls.AxTabItem : class : Avalonia.Controls.ListBoxItem
+ArxisStudio.Controls.AxTabItem :: .ctor()
+ArxisStudio.Controls.AxTabItem :: Avalonia.Media.Geometry? Icon { get; set; }
+ArxisStudio.Controls.AxTabItem :: Avalonia.Media.IBrush? IconBrush { get; set; }
+ArxisStudio.Controls.AxTabItem :: System.Boolean IsClosable { get; set; }
+ArxisStudio.Controls.AxTabItem :: System.Boolean IsModified { get; set; }
+ArxisStudio.Controls.AxTabItem :: event System.EventHandler<Avalonia.Interactivity.RoutedEventArgs> CloseRequested
+ArxisStudio.Controls.AxTabItem :: static readonly Avalonia.Interactivity.RoutedEvent<Avalonia.Interactivity.RoutedEventArgs> CloseRequestedEvent
+ArxisStudio.Controls.AxTabItem :: static readonly Avalonia.StyledProperty<Avalonia.Media.Geometry> IconProperty
+ArxisStudio.Controls.AxTabItem :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> IconBrushProperty
+ArxisStudio.Controls.AxTabItem :: static readonly Avalonia.StyledProperty<System.Boolean> IsClosableProperty
+ArxisStudio.Controls.AxTabItem :: static readonly Avalonia.StyledProperty<System.Boolean> IsModifiedProperty
+ArxisStudio.Controls.AxTabItem :: virtual Avalonia.Size MeasureOverride(Avalonia.Size availableSize)
+ArxisStudio.Controls.AxTabItem :: virtual System.Void OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs e)
+ArxisStudio.Controls.AxTabItem :: virtual System.Void OnKeyDown(Avalonia.Input.KeyEventArgs e)
+ArxisStudio.Controls.AxTabStrip : class : Avalonia.Controls.ListBox
+ArxisStudio.Controls.AxTabStrip :: .ctor()
+ArxisStudio.Controls.AxTabStrip :: virtual Avalonia.Controls.Control CreateContainerForItemOverride(System.Object? item, System.Int32 index, System.Object? recycleKey)
+ArxisStudio.Controls.AxTabStrip :: virtual Avalonia.Size MeasureOverride(Avalonia.Size availableSize)
+ArxisStudio.Controls.AxTabStrip :: virtual System.Boolean NeedsContainerOverride(System.Object? item, System.Int32 index, out System.Object? recycleKey)
+ArxisStudio.Controls.AxTeachingTip : class : Avalonia.Controls.ContentControl
+ArxisStudio.Controls.AxTeachingTip :: .ctor()
+ArxisStudio.Controls.AxTeachingTip :: System.Object? Actions { get; set; }
+ArxisStudio.Controls.AxTeachingTip :: System.String? StepText { get; set; }
+ArxisStudio.Controls.AxTeachingTip :: System.String? Title { get; set; }
+ArxisStudio.Controls.AxTeachingTip :: static readonly Avalonia.StyledProperty<System.Object> ActionsProperty
+ArxisStudio.Controls.AxTeachingTip :: static readonly Avalonia.StyledProperty<System.String> StepTextProperty
+ArxisStudio.Controls.AxTeachingTip :: static readonly Avalonia.StyledProperty<System.String> TitleProperty
+ArxisStudio.Controls.AxTextArea : class : ArxisStudio.Controls.AxTextBox
+ArxisStudio.Controls.AxTextArea :: .ctor()
+ArxisStudio.Controls.AxTextBox : class : Avalonia.Controls.TextBox
+ArxisStudio.Controls.AxTextBox :: .ctor()
+ArxisStudio.Controls.AxTitleBar : class : Avalonia.Controls.ContentControl
+ArxisStudio.Controls.AxTitleBar :: .ctor()
+ArxisStudio.Controls.AxTitleBar :: System.Boolean ShowWindowControls { get; set; }
+ArxisStudio.Controls.AxTitleBar :: System.Double SystemControlsInset { get; set; }
+ArxisStudio.Controls.AxTitleBar :: static readonly Avalonia.StyledProperty<System.Boolean> ShowWindowControlsProperty
+ArxisStudio.Controls.AxTitleBar :: static readonly Avalonia.StyledProperty<System.Double> SystemControlsInsetProperty
+ArxisStudio.Controls.AxTitleBar :: virtual System.Void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+ArxisStudio.Controls.AxTitleBar :: virtual System.Void OnPointerPressed(Avalonia.Input.PointerPressedEventArgs e)
+ArxisStudio.Controls.AxToggleSwitch : class : Avalonia.Controls.Primitives.ToggleButton
+ArxisStudio.Controls.AxToggleSwitch :: .ctor()
+ArxisStudio.Controls.AxToolBar : class : Avalonia.Controls.Primitives.TemplatedControl
+ArxisStudio.Controls.AxToolBar :: .ctor()
+ArxisStudio.Controls.AxToolBar :: System.Object? CenterContent { get; set; }
+ArxisStudio.Controls.AxToolBar :: System.Object? LeftContent { get; set; }
+ArxisStudio.Controls.AxToolBar :: System.Object? RightContent { get; set; }
+ArxisStudio.Controls.AxToolBar :: static readonly Avalonia.StyledProperty<System.Object> CenterContentProperty
+ArxisStudio.Controls.AxToolBar :: static readonly Avalonia.StyledProperty<System.Object> LeftContentProperty
+ArxisStudio.Controls.AxToolBar :: static readonly Avalonia.StyledProperty<System.Object> RightContentProperty
+ArxisStudio.Controls.AxToolWindow : class : Avalonia.Controls.ContentControl
+ArxisStudio.Controls.AxToolWindow :: .ctor()
+ArxisStudio.Controls.AxToolWindow :: System.Boolean ShowHeader { get; set; }
+ArxisStudio.Controls.AxToolWindow :: System.Boolean ShowHeaderSeparator { get; set; }
+ArxisStudio.Controls.AxToolWindow :: System.Object? Actions { get; set; }
+ArxisStudio.Controls.AxToolWindow :: System.Object? Tabs { get; set; }
+ArxisStudio.Controls.AxToolWindow :: System.String? Title { get; set; }
+ArxisStudio.Controls.AxToolWindow :: static readonly Avalonia.StyledProperty<System.Boolean> ShowHeaderProperty
+ArxisStudio.Controls.AxToolWindow :: static readonly Avalonia.StyledProperty<System.Boolean> ShowHeaderSeparatorProperty
+ArxisStudio.Controls.AxToolWindow :: static readonly Avalonia.StyledProperty<System.Object> ActionsProperty
+ArxisStudio.Controls.AxToolWindow :: static readonly Avalonia.StyledProperty<System.Object> TabsProperty
+ArxisStudio.Controls.AxToolWindow :: static readonly Avalonia.StyledProperty<System.String> TitleProperty
+ArxisStudio.Controls.AxTreeIndentConverter : sealed class : Avalonia.Data.Converters.IValueConverter
+ArxisStudio.Controls.AxTreeIndentConverter :: .ctor()
+ArxisStudio.Controls.AxTreeIndentConverter :: System.Object Convert(System.Object? value, System.Type targetType, System.Object? parameter, System.Globalization.CultureInfo culture)
+ArxisStudio.Controls.AxTreeIndentConverter :: System.Object ConvertBack(System.Object? value, System.Type targetType, System.Object? parameter, System.Globalization.CultureInfo culture)
+ArxisStudio.Controls.AxTreeIndentConverter :: const System.Double BaseIndent = 8
+ArxisStudio.Controls.AxTreeIndentConverter :: const System.Double LevelWidth = 18
+ArxisStudio.Controls.AxTreeIndentConverter :: static ArxisStudio.Controls.AxTreeIndentConverter Instance { get; }
+ArxisStudio.Controls.AxTreeView : class : Avalonia.Controls.TreeView
+ArxisStudio.Controls.AxTreeView :: .ctor()
+ArxisStudio.Controls.AxTreeView :: virtual Avalonia.Controls.Control CreateContainerForItemOverride(System.Object? item, System.Int32 index, System.Object? recycleKey)
+ArxisStudio.Controls.AxTreeView :: virtual System.Boolean NeedsContainerOverride(System.Object? item, System.Int32 index, out System.Object? recycleKey)
+ArxisStudio.Controls.AxTreeViewItem : class : Avalonia.Controls.TreeViewItem
+ArxisStudio.Controls.AxTreeViewItem :: .ctor()
+ArxisStudio.Controls.AxTreeViewItem :: System.Object? Icon { get; set; }
+ArxisStudio.Controls.AxTreeViewItem :: static readonly Avalonia.StyledProperty<System.Object> IconProperty
+ArxisStudio.Controls.AxTreeViewItem :: virtual Avalonia.Controls.Control CreateContainerForItemOverride(System.Object? item, System.Int32 index, System.Object? recycleKey)
+ArxisStudio.Controls.AxTreeViewItem :: virtual System.Boolean NeedsContainerOverride(System.Object? item, System.Int32 index, out System.Object? recycleKey)
+ArxisStudio.Controls.AxTrimmedTip : static class
+ArxisStudio.Controls.AxTrimmedTip :: static System.Boolean GetIsEnabled(Avalonia.Controls.Control control)
+ArxisStudio.Controls.AxTrimmedTip :: static System.Void SetIsEnabled(Avalonia.Controls.Control control, System.Boolean value)
+ArxisStudio.Controls.AxTrimmedTip :: static readonly Avalonia.AttachedProperty<System.Boolean> IsEnabledProperty
+ArxisStudio.Controls.AxUserControl : class : Avalonia.Controls.UserControl
+ArxisStudio.Controls.AxUserControl :: .ctor()
+ArxisStudio.Controls.AxWindow : class : Avalonia.Controls.Window
+ArxisStudio.Controls.AxWindow :: .ctor()
+ArxisStudio.Controls.AxWindowControls : class : Avalonia.Controls.Primitives.TemplatedControl
+ArxisStudio.Controls.AxWindowControls :: .ctor()
+ArxisStudio.Controls.AxWindowControls :: System.Boolean IsMaximized { get; }
+ArxisStudio.Controls.AxWindowControls :: static System.Boolean IsSupported { get; }
+ArxisStudio.Controls.AxWindowControls :: static readonly Avalonia.StyledProperty<System.Boolean> IsMaximizedProperty
+ArxisStudio.Controls.AxWindowControls :: virtual System.Void OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs e)
+ArxisStudio.Controls.AxWindowControls :: virtual System.Void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+ArxisStudio.Controls.AxWindowControls :: virtual System.Void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)

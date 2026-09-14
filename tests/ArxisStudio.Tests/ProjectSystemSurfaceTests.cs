@@ -43,13 +43,19 @@ public class ProjectSystemSurfaceTests : IDisposable
     /// публикуется, и список её публичных типов нигде не хранится. Для студии
     /// это обещание плагинам, поэтому список ведётся здесь — и сдвиг указателя,
     /// снявший или изменивший член, падает на этой строке, а не у автора плагина.
+    /// <para>
+    /// Ядро общее для плагинов так же, как SDK и набор контролов, и сдвиг его
+    /// поверхности держит тот же номер: без сдвига <c>StudioSdk.Version</c> новой
+    /// записи не будет.
+    /// </para>
     /// </remarks>
     [Fact]
     public void The_public_surface_of_the_project_model_is_the_recorded_one()
     {
-        PublicSurface.AssertRecorded(
+        PublicSurface.AssertVersioned(
             Path.Combine(Repository(), "tests", "ArxisStudio.Tests", "Surfaces", "ArxisStudio.ProjectSystem.txt"),
-            PublicSurface.Describe(typeof(SolutionSnapshot).Assembly));
+            PublicSurface.Describe(typeof(SolutionSnapshot).Assembly),
+            ArxisStudio.Sdk.StudioSdk.Version);
     }
 
     /// <summary>

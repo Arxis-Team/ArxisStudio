@@ -102,6 +102,104 @@ internal static class PublicSurface
             $"Решив, перенесите новую поверхность из {fresh}.");
     }
 
+    /// <summary>
+    /// Сверяет поверхность общей сборки с записанной и не пускает её сдвиг мимо номера SDK.
+    /// </summary>
+    /// <param name="baseline">
+    /// Файл записанной поверхности; первая строка — <c># StudioSdk X.Y</c>, номер, при котором её
+    /// записали.
+    /// </param>
+    /// <param name="actual">Поверхность, какая она сейчас.</param>
+    /// <param name="version">Нынешний <c>StudioSdk.Version</c>.</param>
+    /// <remarks>
+    /// Правило «добавили — минор, сняли — мажор» до сих пор держалось на памяти и трижды подряд её
+    /// не пережило: добавки в набор контролов уезжали к плагинам при прежнем номере, и плагин не мог
+    /// потребовать студию, в которой они есть. Теперь дорога к новой записи проходит через номер:
+    /// пока он не сдвинут как надо, новая поверхность во временную папку не кладётся и переносить
+    /// нечего. Сдвинут — тест отдаёт её с новым номером в первой строке.
+    /// <para>
+    /// Запись помнит номер своего последнего сдвига, а не нынешний: номер растёт и ради других
+    /// сборок, и перезаписывать нетронутую поверхность на каждом росте незачем.
+    /// </para>
+    /// </remarks>
+    public static void AssertVersioned(string baseline, IReadOnlyList<string> actual, string version)
+    {
+        ArgumentNullException.ThrowIfNull(actual);
+
+        const string prefix = "# StudioSdk ";
+
+        var name = Path.GetFileName(baseline);
+        var current = Version(version);
+        var lines = File.Exists(baseline) ? File.ReadAllLines(baseline) : [];
+
+        if (lines.Length == 0 || !lines[0].StartsWith(prefix, StringComparison.Ordinal))
+        {
+            var first = Fresh(baseline, prefix + version, actual);
+
+            Assert.Fail($"у поверхности {name} нет записи с номером SDK в первой строке. Перенесите её из {first}.");
+        }
+
+        var recordedAt = Version(lines[0][prefix.Length..]);
+        var recorded = lines.Skip(1).ToArray();
+        var added = actual.Except(recorded, StringComparer.Ordinal).ToList();
+        var removed = recorded.Except(actual, StringComparer.Ordinal).ToList();
+
+        if (added.Count == 0 && removed.Count == 0)
+        {
+            Assert.True(
+                current.CompareTo(recordedAt) >= 0,
+                $"поверхность {name} записана при StudioSdk {lines[0][prefix.Length..]}, а студия старее — {version}");
+
+            return;
+        }
+
+        var difference = string.Join(
+            "\n",
+            new[]
+            {
+                removed.Count == 0 ? null
+                    : $"Снято или изменено — {removed.Count.ToString(CultureInfo.InvariantCulture)}:\n  - " + string.Join("\n  - ", removed.Take(40)),
+                added.Count == 0 ? null
+                    : $"Добавлено — {added.Count.ToString(CultureInfo.InvariantCulture)}:\n  + " + string.Join("\n  + ", added.Take(40)),
+            }.OfType<string>());
+
+        var moved = removed.Count > 0 ? current.Major > recordedAt.Major : current.CompareTo(recordedAt) > 0;
+
+        if (!moved)
+        {
+            var needed = removed.Count > 0
+                ? $"{recordedAt.Major + 1}.0 — снятое ломает уже собранные плагины"
+                : $"{recordedAt.Major}.{recordedAt.Minor + 1} — добавленное стало обещанием";
+
+            Assert.Fail(
+                $"поверхность {name} разошлась с записанной при StudioSdk {lines[0][prefix.Length..]}, а номер не сдвинут: {version}.\n" +
+                $"{difference}\n" +
+                $"Поднимите StudioSdk.Version до {needed}, запишите причину в его описании — и тест отдаст новую поверхность.");
+        }
+
+        var fresh = Fresh(baseline, prefix + version, actual);
+
+        Assert.Fail(
+            $"поверхность {name} разошлась с записанной, номер сдвинут до {version}.\n{difference}\n" +
+            $"Перенесите новую поверхность из {fresh}.");
+    }
+
+    private static string Fresh(string baseline, string header, IReadOnlyList<string> actual)
+    {
+        var fresh = Path.Combine(Path.GetTempPath(), $"arxis-surface-{Path.GetFileName(baseline)}");
+
+        File.WriteAllLines(fresh, [header, .. actual]);
+
+        return fresh;
+    }
+
+    private static (int Major, int Minor) Version(string text)
+    {
+        var parts = text.Trim().Split('.');
+
+        return (int.Parse(parts[0], CultureInfo.InvariantCulture), parts.Length > 1 ? int.Parse(parts[1], CultureInfo.InvariantCulture) : 0);
+    }
+
     private static string Header(Type type)
     {
         if (type.IsInterface)
