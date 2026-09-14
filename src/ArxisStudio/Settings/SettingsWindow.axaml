@@ -23,7 +23,7 @@
 
     <!-- Оформление: тема и язык. Переехало из экрана настроек в Welcome. -->
     <DataTemplate DataType="s:AppearancePage">
-      <ax:AxCard Padding="16,2">
+      <ax:AxCard Padding="{DynamicResource AxSettingsCardPadding}">
         <StackPanel>
           <DockPanel Classes="settings-row">
             <ax:AxSegmentedControl DockPanel.Dock="Right"
@@ -64,7 +64,7 @@
     <DataTemplate DataType="s:PluginsPage">
       <DockPanel>
 
-        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+        <DockPanel DockPanel.Dock="Top" Margin="{DynamicResource AxSpaceWideBelowThickness}">
           <ax:AxButton DockPanel.Dock="Right" Classes="icon"
                        AutomationProperties.Name="{ax:Loc plugins.actions}"
                        ToolTip.Tip="{ax:Loc plugins.actions}"
@@ -77,7 +77,7 @@
         </DockPanel>
 
         <!-- Чем кончилось последнее действие: установка, обновление, снятие. -->
-        <ax:AxCard DockPanel.Dock="Top" Margin="0,0,0,12" Padding="12,8"
+        <ax:AxCard DockPanel.Dock="Top" Margin="{DynamicResource AxSpaceWideBelowThickness}" Padding="{DynamicResource AxBannerPadding}"
                    IsVisible="{Binding HasStatus}">
           <TextBlock Text="{Binding Status}" TextWrapping="Wrap"
                      FontSize="{DynamicResource AxFontSizeSmall}"/>
@@ -91,9 +91,9 @@
           <ItemsControl ItemsSource="{Binding Cards}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:PluginCard">
-                <Border Padding="14,10" BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,0,0,1">
+                <Border Padding="{DynamicResource AxSettingsRowPadding}" BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,0,0,1">
                   <DockPanel>
-                    <Border DockPanel.Dock="Left" Width="32" Height="32" Margin="0,0,12,0"
+                    <Border DockPanel.Dock="Left" Width="32" Height="32" Margin="{DynamicResource AxSpaceWideTrailingThickness}"
                             CornerRadius="{DynamicResource AxCornerRadiusLarge}"
                             Background="{DynamicResource AxBg3Brush}">
                       <Panel>
@@ -118,7 +118,7 @@
                         необратимое на расстоянии одного промаха от частого
                         незачем.
                     -->
-                    <ax:AxSplitButton DockPanel.Dock="Right" MinWidth="112" Height="26" Margin="10,0,0,0"
+                    <ax:AxSplitButton DockPanel.Dock="Right" MinWidth="112" Height="{DynamicResource AxControlHeightSmall}" Margin="{DynamicResource AxSpaceLeadingThickness}"
                                       VerticalAlignment="Center" FontSize="{DynamicResource AxFontSizeSmall}"
                                       Click="OnPluginToggleClick" Tag="{Binding}"
                                       Content="{Binding IsOn, Converter={x:Static conv:PluginToggleConverter.Instance}}"
@@ -135,7 +135,7 @@
                         кнопка у него своя: под стрелкой удаление было бы
                         спрятано за действием, которого у него нет.
                     -->
-                    <ax:AxButton DockPanel.Dock="Right" Height="26" Margin="10,0,0,0"
+                    <ax:AxButton DockPanel.Dock="Right" Height="{DynamicResource AxControlHeightSmall}" Margin="{DynamicResource AxSpaceLeadingThickness}"
                                  VerticalAlignment="Center" FontSize="{DynamicResource AxFontSizeSmall}"
                                  Click="OnPluginRemoveClick" Tag="{Binding}"
                                  Content="{ax:Loc plugins.remove}"
@@ -144,7 +144,7 @@
                                FontSize="{DynamicResource AxFontSizeSmall}"
                                Text="{Binding Plugin.Manifest.Version}"/>
                     <StackPanel VerticalAlignment="Center">
-                      <StackPanel Orientation="Horizontal" Spacing="8">
+                      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapControls}">
                         <TextBlock Text="{Binding Plugin.DisplayName}" FontWeight="SemiBold"
                                    FontSize="{DynamicResource AxFontSize}"/>
                         <TextBlock Classes="dimmer" VerticalAlignment="Bottom"
@@ -169,11 +169,11 @@
                           Метки: то, чем расширение назвало себя само. Известные
                           студия переводит, остальные показывает как написаны.
                       -->
-                      <ItemsControl ItemsSource="{Binding Tags}" Margin="0,3,0,0"
+                      <ItemsControl ItemsSource="{Binding Tags}" Margin="{DynamicResource AxSpaceTightAboveThickness}"
                                     IsVisible="{Binding HasTags}">
                         <ItemsControl.ItemsPanel>
                           <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal" Spacing="6"/>
+                            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapIconText}"/>
                           </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
@@ -184,10 +184,10 @@
                       </ItemsControl>
 
                       <!-- Полнота перевода: у обычного плагина список пуст. -->
-                      <ItemsControl ItemsSource="{Binding Plugin.Coverage}" Margin="0,3,0,0">
+                      <ItemsControl ItemsSource="{Binding Plugin.Coverage}" Margin="{DynamicResource AxSpaceTightAboveThickness}">
                         <ItemsControl.ItemsPanel>
                           <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal" Spacing="6"/>
+                            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapIconText}"/>
                           </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
@@ -202,7 +202,7 @@
                           не в порядке подсвечивается — это ответ на вопрос
                           «почему плагин не поднялся».
                       -->
-                      <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,3,0,0"
+                      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapIconText}" Margin="{DynamicResource AxSpaceTightAboveThickness}"
                                   IsVisible="{Binding HasDependencies}">
                         <TextBlock Classes="dimmer" VerticalAlignment="Center"
                                    FontSize="{DynamicResource AxFontSizeSmall}"
@@ -210,7 +210,7 @@
                         <ItemsControl ItemsSource="{Binding Dependencies}">
                           <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                              <StackPanel Orientation="Horizontal" Spacing="6"/>
+                              <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapIconText}"/>
                             </ItemsPanelTemplate>
                           </ItemsControl.ItemsPanel>
                           <ItemsControl.ItemTemplate>
@@ -241,7 +241,7 @@
 
     <!-- Страница расширения: строки, объявленные его манифестом. -->
     <DataTemplate DataType="s:ExtensionPage">
-      <ax:AxCard Padding="16,2">
+      <ax:AxCard Padding="{DynamicResource AxSettingsCardPadding}">
         <ItemsControl ItemsSource="{Binding Rows}">
           <ItemsControl.ItemTemplate>
             <!--
@@ -301,7 +301,7 @@
   <DockPanel>
 
     <ax:AxTitleBar DockPanel.Dock="Top">
-      <TextBlock Text="{ax:Loc settings.title}" Margin="12,0" VerticalAlignment="Center"
+      <TextBlock Text="{ax:Loc settings.title}" Margin="{DynamicResource AxSpaceWideSidesThickness}" VerticalAlignment="Center"
                  FontSize="{DynamicResource AxFontSizeSmall}" Classes="dim"/>
     </ax:AxTitleBar>
 
@@ -313,10 +313,10 @@
     <Border DockPanel.Dock="Bottom"
             Background="{DynamicResource AxBg2Brush}"
             BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,1,0,0">
-      <DockPanel Margin="16,12">
-        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
-          <ax:AxButton x:Name="Cancel" Content="{ax:Loc common.cancel}" MinWidth="96"/>
-          <ax:AxButton x:Name="Save" Classes="accent" Content="{ax:Loc common.save}" MinWidth="96"/>
+      <DockPanel Margin="{DynamicResource AxDialogBandPadding}">
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="{DynamicResource AxGapControls}">
+          <ax:AxButton x:Name="Cancel" Content="{ax:Loc common.cancel}" MinWidth="{DynamicResource AxDialogButtonMinWidth}"/>
+          <ax:AxButton x:Name="Save" Classes="accent" Content="{ax:Loc common.save}" MinWidth="{DynamicResource AxDialogButtonMinWidth}"/>
         </StackPanel>
         <TextBlock Text="{Binding Complaint}" IsVisible="{Binding HasComplaint}"
                    Classes="bad" TextWrapping="Wrap" VerticalAlignment="Center"
@@ -330,8 +330,8 @@
       <Border Grid.Column="0"
               Background="{DynamicResource AxBg2Brush}"
               BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,0,1,0">
-        <DockPanel Margin="10,12">
-          <ax:AxSearchField DockPanel.Dock="Top" x:Name="SearchBox" Margin="0,0,0,10"
+        <DockPanel Margin="{DynamicResource AxSpaceWideThickness}">
+          <ax:AxSearchField DockPanel.Dock="Top" x:Name="SearchBox" Margin="{DynamicResource AxSpaceWideBelowThickness}"
                             AutomationProperties.Name="{ax:Loc settings.search}"
                             PlaceholderText="{ax:Loc settings.search}"
                             Text="{Binding Search, Mode=TwoWay}"/>
@@ -365,7 +365,7 @@
 
             <ax:AxTreeView.ItemTemplate>
               <TreeDataTemplate x:DataType="s:SettingsNode" ItemsSource="{Binding Children}">
-                <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapIconText}">
                   <ax:AxIcon Classes="small" Data="{Binding Icon}" VerticalAlignment="Center"/>
                   <TextBlock Text="{Binding Title}" VerticalAlignment="Center"/>
                 </StackPanel>
@@ -377,7 +377,7 @@
 
       <!-- Справа: страница. Что рисовать — решает её тип, шаблоны выше. -->
       <ScrollViewer Grid.Column="1">
-        <ContentControl Content="{Binding Page}" Margin="28,24"/>
+        <ContentControl Content="{Binding Page}" Margin="{DynamicResource AxSettingsPagePadding}"/>
       </ScrollViewer>
 
     </Grid>

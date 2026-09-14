@@ -27,8 +27,8 @@
 
   <AxDialog.Buttons>
     <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxGapControls}">
-      <AxButton x:Name="Cancel" Content="{Text common.cancel}" MinWidth="96"/>
-      <AxButton x:Name="Save" Classes="accent" Content="{Text common.save}" MinWidth="96"/>
+      <AxButton x:Name="Cancel" Content="{Text common.cancel}" MinWidth="{a:DynamicResource AxDialogButtonMinWidth}"/>
+      <AxButton x:Name="Save" Classes="accent" Content="{Text common.save}" MinWidth="{a:DynamicResource AxDialogButtonMinWidth}"/>
     </a:StackPanel>
   </AxDialog.Buttons>
 

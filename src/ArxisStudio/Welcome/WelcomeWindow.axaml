@@ -33,7 +33,7 @@
     <!-- Полоса заголовка: подпись слева, кнопки окна справа. -->
     <ax:AxTitleBar DockPanel.Dock="Top" Height="38">
       <TextBlock Classes="dimmer" Text="{ax:Loc welcome.title}" FontSize="{DynamicResource AxFontSizeSmall}"
-                 VerticalAlignment="Center" Margin="14,0"/>
+                 VerticalAlignment="Center" Margin="{DynamicResource AxSpaceWideSidesThickness}"/>
     </ax:AxTitleBar>
 
     <Grid ColumnDefinitions="230,*">
@@ -43,7 +43,7 @@
             BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,0,1,0">
       <DockPanel Margin="10,16,10,12">
 
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="8,0,8,16">
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="{DynamicResource AxGapFormRow}" Margin="8,0,8,16">
           <ax:AxAvatar Width="34" Height="34" Initials="Ax" FontSize="{DynamicResource AxFontSizeTitle}"/>
           <StackPanel VerticalAlignment="Center">
             <TextBlock Text="{ax:Loc app.name}" FontWeight="SemiBold" FontSize="{DynamicResource AxFontSize}"/>
@@ -51,7 +51,7 @@
           </StackPanel>
         </StackPanel>
 
-        <StackPanel DockPanel.Dock="Bottom" Spacing="8">
+        <StackPanel DockPanel.Dock="Bottom" Spacing="{DynamicResource AxGapControls}">
           <!--
               Настройки разделом быть перестали: у них своё окно, одно на
               студию и на Welcome. Строка осталась там же, где стояла, и
@@ -64,13 +64,13 @@
           <ToggleButton Classes="nav" IsChecked="{Binding IsSettingsOpen, Mode=OneWay}"
                         AutomationProperties.Name="{ax:Loc welcome.nav.settings}"
                         Click="OnSettingsClick">
-            <StackPanel Orientation="Horizontal" Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapControls}">
               <ax:AxIcon Data="{x:Static ax:AxIcons.Gear}"/>
               <TextBlock Text="{ax:Loc welcome.nav.settings}" VerticalAlignment="Center"/>
             </StackPanel>
           </ToggleButton>
           <Border BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,1,0,0" Padding="10,8,0,0">
-            <StackPanel Orientation="Horizontal" Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapControls}">
               <ax:AxAvatar Classes="round" Width="22" Height="22" Initials="FF" FontSize="{DynamicResource AxFontSizeCaption}"
                            TileBrush="{DynamicResource AxPurBrush}"/>
               <TextBlock Classes="dim" Text="FibonacciFox" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center"/>
@@ -78,17 +78,17 @@
           </Border>
         </StackPanel>
 
-        <StackPanel Spacing="2">
+        <StackPanel Spacing="{DynamicResource AxSpaceHair}">
           <ToggleButton Classes="nav" IsChecked="{Binding IsProjects, Mode=OneWay}"
                         AutomationProperties.Name="{ax:Loc welcome.nav.projects}" Click="OnProjectsClick">
-            <StackPanel Orientation="Horizontal" Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapControls}">
               <ax:AxIcon Data="{x:Static ax:AxIcons.Folder}"/>
               <TextBlock Text="{ax:Loc welcome.nav.projects}" VerticalAlignment="Center"/>
             </StackPanel>
           </ToggleButton>
           <ToggleButton Classes="nav" IsChecked="{Binding IsLearn, Mode=OneWay}"
                         AutomationProperties.Name="{ax:Loc welcome.nav.learn}" Click="OnLearnClick">
-            <StackPanel Orientation="Horizontal" Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapControls}">
               <ax:AxIcon Data="{x:Static ax:AxIcons.Play}"/>
               <TextBlock Text="{ax:Loc welcome.nav.learn}" VerticalAlignment="Center"/>
             </StackPanel>
@@ -100,7 +100,7 @@
           -->
           <ToggleButton Classes="nav" IsChecked="{Binding IsPluginsOpen, Mode=OneWay}"
                         AutomationProperties.Name="{ax:Loc welcome.nav.plugins}" Click="OnPluginsClick">
-            <StackPanel Orientation="Horizontal" Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapControls}">
               <ax:AxIcon Data="{x:Static ax:AxIcons.Package}"/>
               <TextBlock Text="{ax:Loc welcome.nav.plugins}" VerticalAlignment="Center"/>
             </StackPanel>
@@ -130,7 +130,7 @@
       </Border>
 
       <ScrollViewer>
-        <Panel Margin="36,28">
+        <Panel Margin="{DynamicResource AxWelcomePadding}">
 
           <!-- ===== Projects ===== -->
           <!--
@@ -168,7 +168,7 @@
                                 PlaceholderText="{ax:Loc projects.search}"
                                 Text="{Binding ProjectFilter, Mode=TwoWay}"/>
 
-              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10">
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="{DynamicResource AxGapFormRow}">
                 <ax:AxButton Classes="accent" Content="{ax:Loc projects.new}" Click="OnNewProjectClick"/>
                 <ax:AxButton Content="{ax:Loc projects.open}" Click="OnOpenProjectClick"/>
                 <ax:AxButton Content="{ax:Loc projects.clone}" Click="OnCloneClick"/>
@@ -180,11 +180,11 @@
             </Grid>
 
             <!-- Черта отделяет действия от списка: выше делают, ниже выбирают. -->
-            <ax:AxDivider Margin="0,18,0,0"/>
+            <ax:AxDivider Margin="{DynamicResource AxSpaceLooseAboveThickness}"/>
 
             <TextBlock Classes="section" Text="{ax:Loc projects.recent}" Margin="0,16,0,8"/>
 
-            <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,8"
+            <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="{DynamicResource AxSpaceEndsThickness}"
                        Text="{ax:Loc projects.empty}"
                        IsVisible="{Binding HasNoRecent}"/>
 
@@ -196,7 +196,7 @@
             <ItemsControl ItemsSource="{Binding RecentProjects}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="svc:RecentProject">
-                  <Border Classes="row" Height="58" CornerRadius="{DynamicResource AxCornerRadiusLarge}" Padding="12,0"
+                  <Border Classes="row" Height="58" CornerRadius="{DynamicResource AxCornerRadiusLarge}" Padding="{DynamicResource AxSpaceWideSidesThickness}"
                           Tag="{Binding Path}" Focusable="True"
                           PointerPressed="OnRecentPressed" KeyDown="OnRecentKeyDown">
                     <Border.ContextFlyout>
@@ -224,7 +224,7 @@
                       </ax:AxMenuFlyout>
                     </Border.ContextFlyout>
                     <DockPanel>
-                      <ax:AxAvatar DockPanel.Dock="Left" Initials="{Binding Initials}" Margin="0,0,12,0"/>
+                      <ax:AxAvatar DockPanel.Dock="Left" Initials="{Binding Initials}" Margin="{DynamicResource AxSpaceWideTrailingThickness}"/>
 
                       <!--
                           Кнопка меню у правого края, как в Rider. Место под неё занято всегда —
@@ -244,7 +244,7 @@
                       <TextBlock DockPanel.Dock="Right" Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}"
                                  Width="120" TextAlignment="Right" VerticalAlignment="Center"
                                  Text="{Binding OpenedAt, StringFormat='{}{0:dd.MM.yyyy HH:mm}'}"/>
-                      <ax:AxChip DockPanel.Dock="Right" VerticalAlignment="Center" Margin="8,0"
+                      <ax:AxChip DockPanel.Dock="Right" VerticalAlignment="Center" Margin="{DynamicResource AxSpaceSidesThickness}"
                                  Content="{ax:Loc projects.missing}"
                                  IsVisible="{Binding !Exists}"/>
                       <StackPanel VerticalAlignment="Center">
@@ -263,31 +263,31 @@
           <!-- ===== Learn ===== -->
           <StackPanel IsVisible="{Binding IsLearn}" Spacing="0" MaxWidth="760" HorizontalAlignment="Left">
             <TextBlock Text="{ax:Loc learn.title}" FontSize="{DynamicResource AxFontSizeTitle}" FontWeight="SemiBold"/>
-            <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,2,0,0" Text="{ax:Loc learn.subtitle}"/>
+            <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="{DynamicResource AxSpaceHairAboveThickness}" Text="{ax:Loc learn.subtitle}"/>
 
-            <ax:AxCard Margin="0,22,0,0" Padding="4,2">
+            <ax:AxCard Margin="{DynamicResource AxSpaceSectionAboveThickness}" Padding="{DynamicResource AxSpaceTightThickness}">
               <StackPanel>
                 <Border Classes="link-row" Tag="https://github.com/Arxis-Team" PointerPressed="OnLinkPressed">
                   <DockPanel>
-                    <ax:AxIcon DockPanel.Dock="Left" Data="{x:Static ax:AxIcons.Document}" Margin="0,0,10,0"/>
+                    <ax:AxIcon DockPanel.Dock="Left" Data="{x:Static ax:AxIcons.Document}" Margin="{DynamicResource AxGapIconTextThickness}"/>
                     <TextBlock Classes="link" Text="{ax:Loc learn.docs}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
                   </DockPanel>
                 </Border>
                 <Border Classes="link-row" Tag="https://github.com/Arxis-Team" PointerPressed="OnLinkPressed">
                   <DockPanel>
-                    <ax:AxIcon DockPanel.Dock="Left" Data="{x:Static ax:AxIcons.List}" Margin="0,0,10,0"/>
+                    <ax:AxIcon DockPanel.Dock="Left" Data="{x:Static ax:AxIcons.List}" Margin="{DynamicResource AxGapIconTextThickness}"/>
                     <TextBlock Classes="link" Text="{ax:Loc learn.api}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
                   </DockPanel>
                 </Border>
                 <Border Classes="link-row" Tag="https://github.com/Arxis-Team" PointerPressed="OnLinkPressed">
                   <DockPanel>
-                    <ax:AxIcon DockPanel.Dock="Left" Data="{x:Static ax:AxIcons.Package}" Margin="0,0,10,0"/>
+                    <ax:AxIcon DockPanel.Dock="Left" Data="{x:Static ax:AxIcons.Package}" Margin="{DynamicResource AxGapIconTextThickness}"/>
                     <TextBlock Classes="link" Text="{ax:Loc learn.samples}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
                   </DockPanel>
                 </Border>
                 <Border Classes="link-row" Tag="https://github.com/Arxis-Team" PointerPressed="OnLinkPressed">
                   <DockPanel>
-                    <ax:AxIcon DockPanel.Dock="Left" Data="{x:Static ax:AxIcons.Bubble}" Margin="0,0,10,0"/>
+                    <ax:AxIcon DockPanel.Dock="Left" Data="{x:Static ax:AxIcons.Bubble}" Margin="{DynamicResource AxGapIconTextThickness}"/>
                     <TextBlock Classes="link" Text="{ax:Loc learn.community}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
                   </DockPanel>
                 </Border>
