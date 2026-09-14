@@ -168,6 +168,44 @@ public class DensitySettingTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// Интерфейс, собранный кодом, идёт за плотностью так же, как разметка.
+    /// </summary>
+    /// <remarks>
+    /// Так пишет пример плагина и так советует docs/plugin-markup.md: значение
+    /// темы в коде берут привязкой к ресурсу, а не числом. Обещание «идёт за
+    /// темой и плотностью» дано словами, и здесь оно проверено — иначе совет
+    /// оставался бы советом, а ARX0010 требовал бы переписать число на то, что
+    /// не работает.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_panel_built_in_code_follows_the_density_through_a_resource_binding()
+    {
+        var panel = new StackPanel { Children = { new Border(), new Border() } };
+        var window = new Window { Content = panel };
+
+        panel.Bind(StackPanel.SpacingProperty, panel.GetResourceObservable("AxGapFormRow"));
+        window.Show();
+
+        try
+        {
+            Assert.Equal(12d, panel.Spacing);
+
+            StudioTheming.Apply(StudioDensity.Compact);
+            Assert.Equal(8d, panel.Spacing);
+
+            StudioTheming.Apply(StudioDensity.Comfortable);
+            Assert.Equal(16d, panel.Spacing);
+        }
+        finally
+        {
+            foreach (var tier in Tiers())
+                Application.Current!.Resources.MergedDictionaries.Remove(tier);
+
+            window.Close();
+        }
+    }
+
     private static List<ResourceInclude> Tiers() =>
         [.. Application.Current!.Resources.MergedDictionaries
             .OfType<ResourceInclude>()

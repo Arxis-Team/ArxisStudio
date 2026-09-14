@@ -17,6 +17,22 @@
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all"/>
     </ItemGroup>
 
+    <!--
+        Словари темы вшиты в анализатор: правила ARX0008–ARX0010 называют ключи
+        по их значениям, и список ключей берётся из самой темы, а не из копии,
+        переписанной сюда руками, — копия разошлась бы с темой на первой правке
+        шкалы. Словари едут вместе с SDK, поэтому плагин проверяется против той
+        темы, против которой собирается.
+    -->
+    <ItemGroup>
+        <EmbeddedResource Include="../../external/ArxisStudio.Themes.Arxis/src/Palette.axaml"
+                          LogicalName="theme/Palette.axaml"/>
+        <EmbeddedResource Include="../../external/ArxisStudio.Themes.Arxis/src/Typography.axaml"
+                          LogicalName="theme/Typography.axaml"/>
+        <EmbeddedResource Include="../../external/ArxisStudio.Themes.Arxis/src/Spacing.axaml"
+                          LogicalName="theme/Spacing.axaml"/>
+    </ItemGroup>
+
     <!-- Roslyn ведёт учёт правил по выпускам и требует эти два файла. -->
     <ItemGroup>
         <AdditionalFiles Include="AnalyzerReleases.Shipped.md"/>

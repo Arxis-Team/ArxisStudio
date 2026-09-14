@@ -34,19 +34,23 @@ public sealed class HelloStrip : ToolBarItem
 
         label.Bind(TextBlock.TextProperty, Context.Strings.Text("command.greet"));
 
+        var content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Children =
+            {
+                new AxIcon { Classes = { "small" }, Data = AxIcons.Star },
+                label,
+            },
+        };
+
+        // Зазор от значка до подписи — смысловым именем темы, как и в разметке.
+        content.Bind(StackPanel.SpacingProperty, content.GetResourceObservable("AxGapIconText"));
+
         var button = new AxButton
         {
             Classes = { "ghost", "compact" },
-            Content = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 6,
-                Children =
-                {
-                    new AxIcon { Classes = { "small" }, Data = AxIcons.Star },
-                    label,
-                },
-            },
+            Content = content,
         };
 
         button.Bind(AutomationProperties.NameProperty, Context.Strings.Text("command.greet"));

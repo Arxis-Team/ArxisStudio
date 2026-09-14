@@ -141,7 +141,7 @@ def call(name, args=None, port=5171):
 | Проект | Роль | Ссылается на |
 |---|---|---|
 | [ArxisStudio.Sdk](src/ArxisStudio.Sdk) | контракт для плагинов и модель манифеста | Controls, Icons — и ничего из студии |
-| [ArxisStudio.Sdk.Analyzers](src/ArxisStudio.Sdk.Analyzers) | ARX0001–ARX0007, едут вместе с SDK | Roslyn |
+| [ArxisStudio.Sdk.Analyzers](src/ArxisStudio.Sdk.Analyzers) | ARX0001–ARX0010, едут вместе с SDK | Roslyn |
 | [ArxisStudio.Shell](src/ArxisStudio.Shell) | каркас окна, словари, настройки, полоса | Controls, Icons |
 | [ArxisStudio.Docking](src/ArxisStudio.Docking) | движок докинга | Controls, Icons |
 | [ArxisStudio.Extensibility](src/ArxisStudio.Extensibility) | хост плагинов: контексты загрузки, граф, контракты, шов сбоев | Sdk, Shell |
@@ -229,7 +229,7 @@ JIT компилирует метод целиком до первой его с
 `ArxisRelease` и `Version` — то, что версией называют люди; совместимость плагинов мерится
 `sdk.min` в манифесте против `StudioSdk.Version`.
 
-`StudioSdk.Version` (сейчас `5.2`) двигают, когда меняется контракт, и минор — когда добавляется.
+`StudioSdk.Version` (сейчас `5.3`) двигают, когда меняется контракт, и минор — когда добавляется.
 `Satisfies` сравнивает мажор и минор, поэтому снятое обещание — это новый мажор, а не «оно и так
 не использовалось».
 
@@ -254,7 +254,10 @@ csproj — при заведении нового не забудьте.
 То же у `ToolBarItem`.
 
 **Значение цвета или размера объявляется в теме и больше нигде** — ни в шаблонах, ни в разметке,
-ни в коде панелей. Это правило подмодуля `Themes.Arxis`, но нарушается оно здесь.
+ни в коде панелей. Это правило подмодуля `Themes.Arxis`, но нарушается оно здесь. У расширений его
+держит сборка — `ARX0008`–`ARX0010` называют ключ вместо числа, договор описан в
+[docs/plugin-markup.md](docs/plugin-markup.md), — а у самой студии храповики `LiteralSpacingTests`
+в обоих репозиториях: число литеральных отступов сверяется точно и только опускается.
 
 **Один адрес разметки на все библиотеки студии** —
 `https://github.com/Arxis-Team/ArxisStudio`, объявлен `XmlnsDefinition` в каждой из них. Действует
@@ -288,7 +291,7 @@ csproj — при заведении нового не забудьте.
 
 ## Тесты
 
-1017 тестов, headless-UI на `Avalonia.Headless.XUnit`, и пакет завязан на **xunit v3**. Тесту,
+1040 тестов, headless-UI на `Avalonia.Headless.XUnit`, и пакет завязан на **xunit v3**. Тесту,
 которому нужно живое дерево контролов, нужен `[AvaloniaFact]`, а не `[Fact]`: он поднимает
 приложение из `TestApp` и загоняет тело в UI-поток. Рисование настоящее (`UseSkia`,
 `UseHeadlessDrawing = false`) — заглушка не зовёт декодер картинок и на любой файл отвечает

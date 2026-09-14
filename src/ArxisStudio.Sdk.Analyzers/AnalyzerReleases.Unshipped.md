@@ -12,3 +12,6 @@ ARX0004 | ArxisStudio | Warning | Свой контрол полосы объя�
 ARX0005 | ArxisStudio | Warning | Класс помечен [ToolBarItem], а в манифесте его нет
 ARX0006 | ArxisStudio | Warning | Виджет Avalonia в разметке плагина: строить нужно на контролах ArxisStudio.Controls
 ARX0007 | ArxisStudio | Warning | Тег манифеста написан не так, как студия его прочтёт
+ARX0008 | ArxisStudio | Warning | Число вместо значения темы в разметке расширения: отступ, кегль или цвет темы называют ресурсом
+ARX0009 | ArxisStudio | Warning | Ресурс темы не того семейства: ступень шкалы палитры или цвет там, где нужна кисть
+ARX0010 | ArxisStudio | Warning | Число вместо значения темы в коде расширения: new Thickness, Spacing, FontSize, Color.Parse

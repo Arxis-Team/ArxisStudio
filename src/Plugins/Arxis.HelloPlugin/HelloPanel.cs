@@ -51,14 +51,12 @@ public sealed class HelloPanel : ToolWindow
         count.Bind(ContentControl.ContentProperty, Context.Strings.Text("panel.count"));
         count.Click += async (_, _) => await CountAsync();
 
-        var intro = new TextBlock { FontSize = 12.5 };
+        var intro = new TextBlock();
 
         intro.Bind(TextBlock.TextProperty, Context.Strings.Text("panel.intro"));
 
-        return new StackPanel
+        var body = new StackPanel
         {
-            Spacing = 10,
-            Margin = new Avalonia.Thickness(12),
             VerticalAlignment = VerticalAlignment.Top,
             Children =
             {
@@ -68,6 +66,16 @@ public sealed class HelloPanel : ToolWindow
                 _result,
             },
         };
+
+        // Размеры — привязкой к теме, а не числом. Это то же, что
+        // {DynamicResource ...} в разметке: число не переключилось бы вместе с
+        // темой и не сжалось бы вместе с плотностью, а привязка следит за
+        // обоими. ARX0010 при сборке называет ключ, если здесь окажется число.
+        intro.Bind(TextBlock.FontSizeProperty, intro.GetResourceObservable("AxFontSizeSmall"));
+        body.Bind(StackPanel.SpacingProperty, body.GetResourceObservable("AxGapFormRow"));
+        body.Bind(Layoutable.MarginProperty, body.GetResourceObservable("AxSpaceWideThickness"));
+
+        return body;
     }
 
     /// <summary>

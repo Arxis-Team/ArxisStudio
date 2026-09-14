@@ -7,7 +7,7 @@
   "icon": "assets/icon.png",
   "tags": [ "sample" ],
   "sdk": {
-    "min": "5.2"
+    "min": "5.3"
   },
   "entry": "bin/Arxis.HelloPlugin.dll",
   "provides": {
