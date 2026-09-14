@@ -256,6 +256,44 @@ public class SplashTests : IDisposable
             .OfType<Avalonia.Markup.Xaml.Styling.ResourceInclude>()
             .Where(include => include.Source?.OriginalString.Contains("/Density/", StringComparison.Ordinal) == true)];
 
+    /// <summary>
+    /// Этап, сделанный не целиком, делает запуск ослабленным — и журналу говорит без стека.
+    /// </summary>
+    /// <remarks>
+    /// Так этап расширений сообщает о плагине, который не поднялся: всё, что могло подняться,
+    /// поднялось, а отказ одного — повод сказать человеку, что запуск прошёл не полностью. Стек
+    /// такого броска не называет ничего, кроме самого этапа: подробности каждого отказа уже в
+    /// журнале, и повторять их незачем.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_stage_done_only_in_part_makes_the_startup_degraded()
+    {
+        var after = false;
+
+        var report = await new StudioStartup(new SplashViewModel(), _log)
+            .Add("splash.stage.extensions", () => StageIncompleteException.ThrowIfAny(["Падающий"]))
+            .Add("splash.stage.welcome", () => after = true)
+            .RunAsync();
+
+        var failure = Assert.Single(report.Failed);
+
+        Assert.Equal("splash.stage.extensions", failure.Key);
+        Assert.Contains("Падающий", failure.Reason, StringComparison.Ordinal);
+        Assert.False(report.Broken, "неполный этап расширений студию не роняет");
+        Assert.NotNull(report.Complaint);
+        Assert.True(after, "этап после неполного не выполнился");
+
+        var record = Assert.Single(_log.Records, record => record.Source == "Startup");
+
+        Assert.Equal(StudioLogLevel.Warning, record.Level);
+        Assert.DoesNotContain(" at ", record.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>Когда поднялись все, этапу сказать нечего.</summary>
+    [Fact]
+    public void When_everyone_rose_the_stage_has_nothing_to_say() =>
+        StageIncompleteException.ThrowIfAny([]);
+
     /// <summary>Этапы идут в том порядке, в каком их назвали.</summary>
     [AvaloniaFact]
     public async Task Stages_run_in_the_order_they_were_added()

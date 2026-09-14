@@ -527,6 +527,28 @@ public class StudioPluginsTests : IDisposable
             record.Level == StudioLogLevel.Error && record.Message.Contains("arxis.sample"));
     }
 
+    /// <summary>
+    /// Загрузка называет тех, кто не поднялся, — отчёту запуска.
+    /// </summary>
+    /// <remarks>
+    /// Отказ каждого расширения ловится порознь и соседям ничего не стоит, и этап запуска сам не
+    /// падал никогда: модуль или плагин, падающий на каждом запуске, падал молча, а человек видел
+    /// только, что его кнопки нет. Имена несостоявшихся уходят в отчёт, и студия говорит, что
+    /// запуск прошёл не полностью.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Loading_names_the_extensions_that_did_not_rise()
+    {
+        Install();
+
+        var plugins = Build(modules: [Falling(), typeof(SampleModule).Assembly]);
+
+        Assert.Equal(["Падающий"], plugins.LoadModules());
+        Assert.Empty(plugins.LoadPlugins());
+
+        Dispatcher.UIThread.RunJobs();
+    }
+
     /// <summary>Модуль, который падает ровно там, где студия зовёт чужой код.</summary>
     private static Assembly Falling() => TestAssembly.Emit(
         "Probe.Falling",

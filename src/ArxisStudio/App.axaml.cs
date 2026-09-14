@@ -263,9 +263,12 @@ public class App : Application
                 // рядом с его настройками, а модуль знает только про открытое сейчас.
                 _studio.Extensions.Project.Opened += (_, path) => _recent.Touch(path);
 
-                _studio.Extensions.LoadModules();
+                StageIncompleteException.ThrowIfAny(_studio.Extensions.LoadModules());
             })
-            .Add("splash.stage.extensions", () => _studio.Extensions.LoadPlugins())
+            // Отказ каждого расширения ловится порознь, и этап сам не падал: плагин, падающий на
+            // каждом запуске, падал молча. Итог этапа уходит в отчёт — и человек видит, что
+            // запуск прошёл не полностью.
+            .Add("splash.stage.extensions", () => StageIncompleteException.ThrowIfAny(_studio.Extensions.LoadPlugins()))
             // Роковой по той же причине: запуск без окна — это запуск без
             // студии, чем бы он ни кончился до того.
             .Add("splash.stage.welcome", () => desktop.MainWindow = FirstWindow(desktop.Args), fatal: true);

@@ -395,14 +395,16 @@ public sealed class StudioPlugins
     /// Первыми, до внешних плагинов: панели студии должны стоять на своих
     /// местах раньше, чем к ним встанут чужие.
     /// </remarks>
-    public void LoadModules()
+    /// <returns>Модули, которые не поднялись, — их имена, для отчёта запуска.</returns>
+    public IReadOnlyList<string> LoadModules()
     {
         Prepare();
 
         if (_host is not { } host)
-            return;
+            return [];
 
         var modules = new List<LoadedPlugin>();
+        var unrisen = new List<string>();
 
         // По одному, а не Select(...).ToList(): бросок на середине списка
         // уносил и следующие модули, и уже поднятые — Accept им не звали, и
@@ -417,25 +419,43 @@ public sealed class StudioPlugins
             catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
             {
                 _log.Write(StudioLogLevel.Error, "Modules", $"{assembly.GetName().Name}: {e}");
+                unrisen.Add(assembly.GetName().Name ?? assembly.FullName ?? string.Empty);
             }
         }
 
         _modules = modules.Select(loaded => loaded.Installed).ToList();
 
         foreach (var loaded in modules)
-            Accept(loaded);
+        {
+            if (!Accept(loaded))
+                unrisen.Add(loaded.Installed.DisplayName);
+        }
+
+        return unrisen;
     }
 
     /// <summary>Поднимает включённые плагины — тех из них, кто не ждёт события.</summary>
-    public void LoadPlugins()
+    /// <returns>Плагины, которые не поднялись, — их имена, для отчёта запуска.</returns>
+    /// <remarks>
+    /// Отказ каждого ловится порознь и соседям ничего не стоит — но и молчать о нём нельзя:
+    /// плагин, падающий на каждом запуске, иначе падал бы вечно, а человек видел бы только, что
+    /// кнопки у него нет. Имена уходят в отчёт запуска, и студия говорит, что запуск прошёл не
+    /// полностью.
+    /// </remarks>
+    public IReadOnlyList<string> LoadPlugins()
     {
         Prepare();
 
         if (_host is not { } host)
-            return;
+            return [];
+
+        var unrisen = new List<string>();
 
         foreach (var loaded in host.LoadStartup(_installed))
-            Accept(loaded);
+        {
+            if (!Accept(loaded))
+                unrisen.Add(loaded.Installed.DisplayName);
+        }
 
         // Заметки графа — не отказы, но молчать о них нельзя: устаревший
         // необязательный сосед считается отсутствующим, и человек должен
@@ -445,6 +465,8 @@ public sealed class StudioPlugins
 
         foreach (var waiting in host.Deferred)
             _log.Write(StudioLogLevel.Debug, "Plugins", $"{waiting.DisplayName} ждёт своего события");
+
+        return unrisen;
     }
 
     /// <summary>
@@ -464,7 +486,7 @@ public sealed class StudioPlugins
                 $"{Localizer.Instance["menu.activating"]}: {waiting.DisplayName}");
 
             foreach (var loaded in host.Activate(waiting.Id))
-                Accept(loaded);
+                _ = Accept(loaded);
         }
     }
 
@@ -736,7 +758,8 @@ public sealed class StudioPlugins
     }
 
     /// <summary>Принимает поднятый модуль или плагин: вклады и панели.</summary>
-    private void Accept(LoadedPlugin loaded)
+    /// <returns><c>false</c>, если расширение не поднялось.</returns>
+    private bool Accept(LoadedPlugin loaded)
     {
         if (loaded.Error is { } error)
         {
@@ -745,7 +768,7 @@ public sealed class StudioPlugins
             // Кнопки несостоявшегося плагина стоять не должны: команда за ними
             // не найдётся никогда.
             ToolBar.RemoveOwnedBy(loaded.Installed.Id);
-            return;
+            return false;
         }
 
         _log.Write(StudioLogLevel.Info, "Plugins", $"{loaded.Installed.DisplayName} поднят");
@@ -753,6 +776,8 @@ public sealed class StudioPlugins
         _contributions.Add(loaded);
         MountPanels(loaded);
         MountToolBar(loaded);
+
+        return true;
     }
 
     /// <summary>

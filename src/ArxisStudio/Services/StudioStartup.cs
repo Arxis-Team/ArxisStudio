@@ -186,6 +186,14 @@ public sealed class StudioStartup
 
             return null;
         }
+        catch (StageIncompleteException e)
+        {
+            // Не беда кода запуска, а итог этапа: подробности каждого отказа уже в журнале,
+            // а стек этого броска не называет ничего, кроме самого этапа.
+            _log.Write(StudioLogLevel.Warning, "Startup", $"{Localizer.Instance[stage.Key]}: {e.Message}");
+
+            return new StageFailure(stage.Key, e.Message, stage.Fatal);
+        }
         catch (Exception e)
         {
             // Целиком, а не одним Message: сообщение без стека не называет ни
@@ -209,6 +217,29 @@ public sealed class StudioStartup
     /// <param name="Work">Что делается.</param>
     /// <param name="Fatal">Есть ли студия без этого этапа.</param>
     private sealed record Stage(string Key, Func<CancellationToken, Task> Work, bool Fatal);
+}
+
+/// <summary>
+/// Этап сделал своё не целиком: работа прошла, но не всё в ней удалось.
+/// </summary>
+/// <remarks>
+/// Этап загрузки расширений ловит отказ каждого плагина порознь — соседям он ничего не стоит, — и
+/// потому сам не падал никогда: отчёт запуска о несостоявшемся плагине не знал, и студия
+/// открывалась, не сказав ни слова. Этот бросок делается в конце этапа, когда всё, что могло
+/// подняться, поднялось, — и превращает частичный итог в ослабленный отказ.
+/// </remarks>
+/// <param name="message">Что не удалось — для журнала.</param>
+public sealed class StageIncompleteException(string message) : Exception(message)
+{
+    /// <summary>Бросает, если кто-то из расширений не поднялся.</summary>
+    /// <param name="unrisen">Имена тех, кто не поднялся.</param>
+    public static void ThrowIfAny(IReadOnlyList<string> unrisen)
+    {
+        ArgumentNullException.ThrowIfNull(unrisen);
+
+        if (unrisen.Count > 0)
+            throw new StageIncompleteException($"не поднялись: {string.Join(", ", unrisen)}");
+    }
 }
 
 /// <summary>Чего этап не сделал.</summary>
