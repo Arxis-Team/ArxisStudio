@@ -26,14 +26,20 @@
     <!--
         Проект: подпись из словаря, имя — из модели. Модель говорит, когда
         проект открыли или закрыли, и строка идёт за ним.
+
+        Подпись и значение переносятся целиком, а не делят строку. В доке
+        значению доставался остаток рядом с подписью, и в узкой панели «не
+        открыт» рвалось по буквам в полоске шириной в две буквы, хотя под
+        подписью помещалось целым. Значение длиннее всей ширины переносится по
+        словам уже в ней.
     -->
-    <a:DockPanel>
-      <a:TextBlock a:DockPanel.Dock="Left" Text="{Text module.sample.project.label}"
+    <a:WrapPanel>
+      <a:TextBlock Text="{Text module.sample.project.label}"
                    Margin="{a:DynamicResource AxSpaceSnugTrailingThickness}"/>
       <a:TextBlock Text="{a:Binding ProjectName}" TextWrapping="Wrap" IsVisible="{a:Binding HasProject}"/>
       <a:TextBlock Classes="dim" Text="{Text module.sample.project.none}" TextWrapping="Wrap"
                    IsVisible="{a:Binding !HasProject}"/>
-    </a:DockPanel>
+    </a:WrapPanel>
 
     <AxButton Content="{Text module.sample.log}" HorizontalAlignment="Left" Click="OnLogClick"/>
   </a:StackPanel>

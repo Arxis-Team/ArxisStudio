@@ -1,6 +1,7 @@
 using ArxisStudio.Controls;
 using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
+using ArxisStudio.Modules.Sample;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using Avalonia;
@@ -132,6 +133,67 @@ public class NarrowLabelTests : IDisposable
 
         window.Close();
         panel.Release();
+    }
+
+    /// <summary>Строка проекта в узкой панели образца модуля не рвёт слово по буквам.</summary>
+    /// <remarks>
+    /// В доке значение получало остаток рядом с подписью: там, где «не открыт» помещается целым, но
+    /// не рядом с подписью, оно рвалось на «не / от / кр / ыт». Ширина панели берётся от самих строк,
+    /// а не числом, — шрифт настоящий, и число разошлось бы с ним.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_project_line_of_the_sample_module_breaks_no_word_in_a_narrow_panel()
+    {
+        using var host = new PluginHost(new StudioContextFactory(new StudioLog(), new StudioCommands(), null));
+
+        var loaded = host.LoadBuiltIn(typeof(SampleModule).Assembly);
+
+        Assert.True(loaded.IsLoaded, loaded.Error);
+
+        var panel = new SamplePanel();
+
+        panel.Attach(loaded.Studio!);
+
+        var strings = loaded.Studio!.Strings;
+        var window = new Window { Content = panel.Content, Width = 600, Height = 400 };
+
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        var label = Label(panel.Content, strings["module.sample.project.label"]);
+        var none = Label(panel.Content, strings["module.sample.project.none"]);
+        var body = Assert.IsType<StackPanel>(Assert.IsType<SamplePanelView>(panel.Content).Content);
+        var value = none.DesiredSize.Width;
+        var row = label.DesiredSize.Width + value;
+
+        window.Width = window.Bounds.Width - body.Bounds.Width + Math.Ceiling(value) + 1;
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+
+        Assert.True(body.Bounds.Width >= value, $"панель уже самого значения: {body.Bounds.Width:0.#} против {value:0.#}");
+        Assert.True(body.Bounds.Width < row, $"подпись и значение помещаются рядом: {body.Bounds.Width:0.#} против {row:0.#}");
+
+        var broken = BrokenWords(none).ToList();
+
+        Assert.True(broken.Count == 0, $"«{none.Text}» рвётся посреди слова: {string.Join(" / ", broken)}");
+        Assert.True(none.TextLayout.TextLines.Count == 1, $"«{none.Text}» помещается в ширину панели, а строк набрано: {none.TextLayout.TextLines.Count}");
+
+        window.Close();
+        panel.Release();
+    }
+
+    /// <summary>Строки набранного текста, которые кончаются посреди слова.</summary>
+    private static IEnumerable<string> BrokenWords(TextBlock label)
+    {
+        var text = label.Text ?? string.Empty;
+
+        foreach (var line in label.TextLayout.TextLines)
+        {
+            var end = line.FirstTextSourceIndex + line.Length;
+
+            if (end < text.Length && !char.IsWhiteSpace(text[end - 1]))
+                yield return text[line.FirstTextSourceIndex..end];
+        }
     }
 
     private static TextBlock Label(Control control, string? text) =>

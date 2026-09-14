@@ -348,7 +348,7 @@ public class BuiltInModuleTests
     /// <summary>Место под имя проекта и строка «не открыт» в панели примера.</summary>
     private static (TextBlock Name, TextBlock None) ProjectLine(StackPanel lines)
     {
-        var line = Assert.IsType<DockPanel>(lines.Children[3]);
+        var line = Assert.IsType<WrapPanel>(lines.Children[3]);
 
         return (Assert.IsType<TextBlock>(line.Children[1]), Assert.IsType<TextBlock>(line.Children[2]));
     }
