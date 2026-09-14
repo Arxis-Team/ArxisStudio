@@ -31,7 +31,7 @@
   <DockPanel>
 
     <!-- Полоса заголовка: подпись слева, кнопки окна справа. -->
-    <ax:AxTitleBar DockPanel.Dock="Top" Height="38">
+    <ax:AxTitleBar DockPanel.Dock="Top" MinHeight="38">
       <TextBlock Classes="dimmer" Text="{ax:Loc welcome.title}" FontSize="{DynamicResource AxFontSizeSmall}"
                  VerticalAlignment="Center" Margin="{DynamicResource AxSpaceWideSidesThickness}"/>
     </ax:AxTitleBar>
@@ -43,13 +43,21 @@
             BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,0,1,0">
       <DockPanel Margin="10,16,10,12">
 
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="{DynamicResource AxGapFormRow}" Margin="8,0,8,16">
-          <ax:AxAvatar Width="34" Height="34" Initials="Ax" FontSize="{DynamicResource AxFontSizeTitle}"/>
+        <!--
+            Док, а не горизонтальная стопка: стопка отдаёт тексту сколько угодно ширины, и при
+            крупном кегле подпись вылезала из колонки в 230 под соседний раздел. В доке текст
+            знает свою ширину и сокращается многоточием.
+        -->
+        <DockPanel DockPanel.Dock="Top" Margin="8,0,8,16">
+          <ax:AxAvatar DockPanel.Dock="Left" Width="34" Height="34" Initials="Ax" FontSize="{DynamicResource AxFontSizeTitle}"
+                       Margin="{DynamicResource AxSpaceWideTrailingThickness}"/>
           <StackPanel VerticalAlignment="Center">
-            <TextBlock Text="{ax:Loc app.name}" FontWeight="SemiBold" FontSize="{DynamicResource AxFontSize}"/>
-            <TextBlock Classes="dimmer" Text="Avalonia 12.1 · net10.0" FontSize="{DynamicResource AxFontSizeSmall}"/>
+            <TextBlock Text="{ax:Loc app.name}" FontWeight="SemiBold" FontSize="{DynamicResource AxFontSize}"
+                       TextTrimming="CharacterEllipsis"/>
+            <TextBlock Classes="dimmer" Text="Avalonia 12.1 · net10.0" FontSize="{DynamicResource AxFontSizeSmall}"
+                       TextTrimming="CharacterEllipsis"/>
           </StackPanel>
-        </StackPanel>
+        </DockPanel>
 
         <StackPanel DockPanel.Dock="Bottom" Spacing="{DynamicResource AxGapControls}">
           <!--
@@ -70,15 +78,18 @@
             </StackPanel>
           </ToggleButton>
           <Border BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,1,0,0" Padding="10,8,0,0">
-            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapControls}">
+            <!-- Док, а не стопка, — по той же причине, что у знака наверху. -->
+            <DockPanel>
               <!--
                   Монограмма — классом темы, а не своей кистью. Тема прямо
                   запрещает ставить инициалы на AxPur: белый даёт на нём 3,4:1, а
                   класс purple берёт ступень шкалы, где белый держит порог.
               -->
-              <ax:AxAvatar Classes="round purple" Width="22" Height="22" Initials="FF" FontSize="{DynamicResource AxFontSizeCaption}"/>
-              <TextBlock Classes="dim" Text="FibonacciFox" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center"/>
-            </StackPanel>
+              <ax:AxAvatar DockPanel.Dock="Left" Classes="round purple" Width="22" Height="22" Initials="FF" FontSize="{DynamicResource AxFontSizeCaption}"
+                           Margin="{DynamicResource AxSpaceTrailingThickness}"/>
+              <TextBlock Classes="dim" Text="FibonacciFox" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center"
+                         TextTrimming="CharacterEllipsis"/>
+            </DockPanel>
           </Border>
         </StackPanel>
 
@@ -127,7 +138,7 @@
               Padding="24,10">
         <DockPanel>
           <ax:AxButton DockPanel.Dock="Right" Classes="ghost" Content="{ax:Loc common.close}"
-                       Click="OnDismissStatus" Height="24" FontSize="{DynamicResource AxFontSizeSmall}"/>
+                       Click="OnDismissStatus" MinHeight="{DynamicResource AxControlHeightCompact}" FontSize="{DynamicResource AxFontSizeSmall}"/>
           <TextBlock Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center"
                      FontSize="{DynamicResource AxFontSizeSmall}"/>
         </DockPanel>
@@ -153,26 +164,21 @@
                 в студию.
             -->
             <!--
-                Три колонки: поиск, пустота, кнопки. Предел в 340 стоит на колонке, а не на поле, и
-                это здесь главное. Поле, растянутое в слоте шире себя, Avalonia ставит по середине
-                слота — прижать его влево можно, только сделав слот его шириной. Отсюда и вес 99
-                против 1: пока места много, первая колонка упирается в свои 340 и весь остаток
-                достаётся пустоте, а когда места мало — почти всё забирает поиск, и кнопки он не
-                задевает. Жёсткая ширина не годилась: потребовав свои 340 из меньшего остатка, поле
-                вылезало за отведённое и наезжало на первую кнопку.
-            -->
-            <Grid>
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="99*" MaxWidth="340"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-              </Grid.ColumnDefinitions>
+                Поиск слева, кнопки у правого края, между ними — пустота, а не поле: поле
+                растягивается до 340 и дальше не идёт. Когда рядом с полем кнопкам тесно — в узком
+                окне или при крупном кегле, — кнопки уходят строкой ниже, а не срезаются краем окна.
+                Прежняя сетка с колонкой под кнопки их ширины сжимала поиск в ноль при двойном
+                кегле и выталкивала «Каркас студии» за край.
 
-              <ax:AxSearchField Grid.Column="0"
+                Кнопки в WrapPanel, а не в стопке: перенесённым под поиск им самим может не хватить
+                ширины, и тогда переносятся уже они.
+            -->
+            <ax:WrapRow Spacing="{DynamicResource AxGapFormRow}">
+              <ax:AxSearchField MaxWidth="340"
                                 PlaceholderText="{ax:Loc projects.search}"
                                 Text="{Binding ProjectFilter, Mode=TwoWay}"/>
 
-              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="{DynamicResource AxGapFormRow}">
+              <WrapPanel ItemSpacing="{DynamicResource AxGapFormRow}" LineSpacing="{DynamicResource AxGapControls}">
                 <ax:AxButton Classes="accent" Content="{ax:Loc projects.new}" Click="OnNewProjectClick"/>
                 <ax:AxButton Content="{ax:Loc projects.open}" Click="OnOpenProjectClick"/>
                 <ax:AxButton Content="{ax:Loc projects.clone}" Click="OnCloneClick"/>
@@ -180,8 +186,8 @@
                              AutomationProperties.Name="{ax:Loc projects.stub.hint}"
                              ToolTip.Tip="{ax:Loc projects.stub.hint}"
                              Click="OnStudioClick"/>
-              </StackPanel>
-            </Grid>
+              </WrapPanel>
+            </ax:WrapRow>
 
             <!-- Черта отделяет действия от списка: выше делают, ниже выбирают. -->
             <ax:AxDivider Margin="{DynamicResource AxSpaceLooseAboveThickness}"/>
@@ -200,7 +206,7 @@
             <ItemsControl ItemsSource="{Binding RecentProjects}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="svc:RecentProject">
-                  <Border Classes="row" Height="58" CornerRadius="{DynamicResource AxCornerRadiusLarge}" Padding="{DynamicResource AxSpaceWideSidesThickness}"
+                  <Border Classes="row" MinHeight="58" CornerRadius="{DynamicResource AxCornerRadiusLarge}" Padding="{DynamicResource AxSpaceWideSidesThickness}"
                           Tag="{Binding Path}" Focusable="True"
                           PointerPressed="OnRecentPressed" KeyDown="OnRecentKeyDown">
                     <Border.ContextFlyout>
@@ -245,17 +251,22 @@
                         </ax:AxButton>
                       </Panel>
 
+                      <!--
+                          Колонка даты — наименьшая, а не прибитая: сто двадцать держат даты строк
+                          одной колонкой, но при крупном кегле дата в них не помещалась и теряла время.
+                      -->
                       <TextBlock DockPanel.Dock="Right" Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}"
-                                 Width="120" TextAlignment="Right" VerticalAlignment="Center"
+                                 MinWidth="120" TextAlignment="Right" VerticalAlignment="Center"
                                  Text="{Binding OpenedAt, StringFormat='{}{0:dd.MM.yyyy HH:mm}'}"/>
                       <ax:AxChip DockPanel.Dock="Right" VerticalAlignment="Center" Margin="{DynamicResource AxSpaceSidesThickness}"
                                  Content="{ax:Loc projects.missing}"
                                  IsVisible="{Binding !Exists}"/>
                       <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="{Binding Name}" FontWeight="Medium" FontSize="{DynamicResource AxFontSize}"/>
+                        <!-- Путь длиннее строки сокращается многоточием и читается целиком в подсказке. -->
                         <TextBlock Classes="mono dimmer" Text="{Binding Path}" Margin="0,1,0,0"
                                    FontSize="{DynamicResource AxFontSizeSmall}"
-                                   TextTrimming="CharacterEllipsis"/>
+                                   TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}"/>
                       </StackPanel>
                     </DockPanel>
                   </Border>

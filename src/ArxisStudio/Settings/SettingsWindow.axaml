@@ -136,7 +136,7 @@
                         необратимое на расстоянии одного промаха от частого
                         незачем.
                     -->
-                    <ax:AxSplitButton DockPanel.Dock="Right" MinWidth="112" Height="{DynamicResource AxControlHeightSmall}" Margin="{DynamicResource AxSpaceLeadingThickness}"
+                    <ax:AxSplitButton DockPanel.Dock="Right" MinWidth="112" MinHeight="{DynamicResource AxControlHeightSmall}" Margin="{DynamicResource AxSpaceLeadingThickness}"
                                       VerticalAlignment="Center" FontSize="{DynamicResource AxFontSizeSmall}"
                                       Click="OnPluginToggleClick" Tag="{Binding}"
                                       Content="{Binding IsOn, Converter={x:Static conv:PluginToggleConverter.Instance}}"
@@ -153,7 +153,7 @@
                         кнопка у него своя: под стрелкой удаление было бы
                         спрятано за действием, которого у него нет.
                     -->
-                    <ax:AxButton DockPanel.Dock="Right" Height="{DynamicResource AxControlHeightSmall}" Margin="{DynamicResource AxSpaceLeadingThickness}"
+                    <ax:AxButton DockPanel.Dock="Right" MinHeight="{DynamicResource AxControlHeightSmall}" Margin="{DynamicResource AxSpaceLeadingThickness}"
                                  VerticalAlignment="Center" FontSize="{DynamicResource AxFontSizeSmall}"
                                  Click="OnPluginRemoveClick" Tag="{Binding}"
                                  Content="{ax:Loc plugins.remove}"
@@ -176,9 +176,10 @@
                         -->
                         <ax:AxChip Content="{ax:Loc plugins.pending}" IsVisible="{Binding IsChanged}"/>
                       </StackPanel>
+                      <!-- Описание длиннее строки сокращается многоточием и читается целиком в подсказке. -->
                       <TextBlock Classes="dim" Margin="0,1,0,0" TextTrimming="CharacterEllipsis"
                                  FontSize="{DynamicResource AxFontSizeSmall}"
-                                 Text="{Binding Plugin.Description}"/>
+                                 Text="{Binding Plugin.Description}" ToolTip.Tip="{Binding Plugin.Description}"/>
                       <TextBlock Classes="dimmer" Margin="0,1,0,0" TextTrimming="CharacterEllipsis"
                                  FontSize="{DynamicResource AxFontSizeSmall}"
                                  Text="{Binding Plugin.Error}" IsVisible="{Binding !Plugin.IsValid}"/>

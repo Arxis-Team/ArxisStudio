@@ -37,12 +37,13 @@
         <ax:AxToolBar Margin="{DynamicResource AxSpaceWideSidesThickness}">
           <ax:AxToolBar.LeftContent>
             <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxSpaceWide}">
-              <Border Width="24" Height="24" CornerRadius="{DynamicResource AxCornerRadius}"
-                      Background="{DynamicResource AxAccStrongBrush}">
-                <TextBlock Text="Ax" FontSize="{DynamicResource AxFontSizeCaption}" FontWeight="Bold"
-                           Foreground="{DynamicResource AxOnAccBrush}"
-                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
-              </Border>
+              <!--
+                  Плитка знака — монограмма темы, а не своя рамка с текстом: у
+                  монограммы инициалы вписываются в плитку, когда кегль темы
+                  растёт, а своя рамка их срезала.
+              -->
+              <ax:AxAvatar Width="24" Height="24" Initials="Ax" CornerRadius="{DynamicResource AxCornerRadius}"
+                           FontSize="{DynamicResource AxFontSizeCaption}" FontWeight="Bold"/>
               <ax:ToolBarStrip x:Name="LeftStrip"/>
             </StackPanel>
           </ax:AxToolBar.LeftContent>
@@ -100,7 +101,7 @@
 
     <!-- Статус-бар: 24, как в макете экрана Editor. -->
     <ax:StudioShell.StatusBar>
-      <DockPanel Height="{DynamicResource AxControlHeightCompact}" Margin="{DynamicResource AxSpaceWideSidesThickness}">
+      <DockPanel MinHeight="{DynamicResource AxControlHeightCompact}" Margin="{DynamicResource AxSpaceWideSidesThickness}">
         <TextBlock Classes="dim" Text="{Binding Status}" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
         <!--
             Идущая задача: имя, чем занята, полоса и отмена. Место одно на всех

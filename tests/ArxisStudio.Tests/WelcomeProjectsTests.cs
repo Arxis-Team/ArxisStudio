@@ -313,7 +313,8 @@ public class WelcomeProjectsTests : IDisposable
     /// <remarks>
     /// Поле было прибито к 340 точкам, и при ширине окна по умолчанию остатка на него не хватало:
     /// оно требовало своё и вылезало поверх первой кнопки. Проверяется поэтому не ширина поля, а
-    /// то, что оно кончается там, где начинаются кнопки.
+    /// то, что поле и кнопки не делят ни одной точки: в узком окне кнопки уходят строкой ниже, и
+    /// сравнивать края по одной оси там уже нельзя.
     /// </remarks>
     [AvaloniaFact]
     public void The_search_field_never_runs_over_the_buttons()
@@ -325,17 +326,41 @@ public class WelcomeProjectsTests : IDisposable
             window.Width = width;
             Dispatcher.UIThread.RunJobs();
 
-            var search = window.GetVisualDescendants().OfType<AxSearchField>().Single();
-            var buttons = window.GetVisualDescendants().OfType<AxButton>()
-                .Single(button => Equals(button.Content, Localizer.Instance["projects.new"]));
+            var search = Placed(window, window.GetVisualDescendants().OfType<AxSearchField>().Single());
+            var button = Placed(window, window.GetVisualDescendants().OfType<AxButton>()
+                .Single(candidate => Equals(candidate.Content, Localizer.Instance["projects.new"])));
 
-            var searchRight = search.TranslatePoint(new Point(search.Bounds.Width, 0), window)!.Value.X;
-            var buttonsLeft = buttons.TranslatePoint(new Point(0, 0), window)!.Value.X;
-
-            Assert.True(
-                searchRight <= buttonsLeft,
-                $"при ширине {width} поиск кончается на {searchRight}, а кнопки начинаются на {buttonsLeft}");
+            Assert.False(
+                search.Intersects(button),
+                $"при ширине {width} поиск стоит на {search}, а первая кнопка — на {button}");
         }
+    }
+
+    /// <summary>
+    /// Кнопки, которым тесно рядом с поиском, уходят под него, а не за край окна.
+    /// </summary>
+    /// <remarks>
+    /// Сетка с колонкой под кнопки их ширины держала шапку одной строкой любой ценой: при
+    /// двойном кегле поле поиска сжималось в ноль, а «Каркас студии» уходил за край окна. Теперь
+    /// тесно — значит, строкой ниже, и поле остаётся полем.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Buttons_short_of_room_go_under_the_search_field()
+    {
+        var window = Window(out _, Solution("WaveChat.sln"));
+
+        TypeScale.Enlarge(window, 2);
+
+        var search = Placed(window, window.GetVisualDescendants().OfType<AxSearchField>().Single());
+        var stub = window.GetVisualDescendants().OfType<AxButton>()
+            .Single(candidate => Equals(candidate.Content, Localizer.Instance["projects.stub"]));
+        var button = Placed(window, stub);
+
+        Assert.True(button.Top >= search.Bottom, $"поиск стоит на {search}, а «Каркас студии» — на {button}");
+        Assert.True(search.Width >= 200, $"поле поиска сжалось до {search.Width}");
+        Assert.True(button.Right <= window.ClientSize.Width, $"«Каркас студии» ушёл за край окна: {button}");
+
+        window.Close();
     }
 
     /// <summary>
@@ -457,6 +482,35 @@ public class WelcomeProjectsTests : IDisposable
         window.Close();
     }
 
+    /// <summary>
+    /// Экран Welcome читается целиком и при двойной шкале кеглей.
+    /// </summary>
+    /// <remarks>
+    /// Кнопки, строки навигации и недавние проекты стояли на прибитых высотах, и прогон
+    /// студии с удвоенными кеглями срезал их все до одной. Здесь шкалу растят тем же путём —
+    /// ключами темы — и смотрят на каждую показанную строку.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_welcome_screen_reads_whole_at_twice_the_type_scale()
+    {
+        Localizer.Instance.SetLanguage("ru");
+        Solution("Hello.slnx");
+        Solution("TestApp.sln");
+
+        var window = Window(out _);
+
+        TypeScale.Enlarge(window, 2);
+
+        var cut = TypeScale.Labels(window)
+            .Select(label => TypeScale.Whole(label, window, out var why) ? null : $"«{label.Text}»: {why}")
+            .OfType<string>()
+            .ToList();
+
+        Assert.True(cut.Count == 0, "срезано при двойном кегле:\n" + string.Join("\n", cut));
+
+        window.Close();
+    }
+
     private WelcomeWindow Window(out WelcomeViewModel model, string? _ = null, bool canOpen = true)
     {
         var window = new WelcomeWindow(
@@ -474,6 +528,10 @@ public class WelcomeProjectsTests : IDisposable
         model = (WelcomeViewModel)window.DataContext!;
         return window;
     }
+
+    /// <summary>Где контрол стоит в окне.</summary>
+    private static Rect Placed(WelcomeWindow window, Visual visual) =>
+        new Rect(visual.Bounds.Size).TransformToAABB(visual.TransformToVisual(window)!.Value);
 
     /// <summary>Правый край последней кнопки в окне.</summary>
     private static double ButtonsRight(WelcomeWindow window)

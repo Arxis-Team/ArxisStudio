@@ -31,7 +31,7 @@ public static class StudioDevTools
 #if DEBUG
         ArgumentNullException.ThrowIfNull(application);
 
-        application.AttachAvaDevTools(new DevToolsOptions
+        var options = new DevToolsOptions
         {
             // Конечная точка поднимается сразу: агент подключается к уже
             // запущенной студии, а не запускает её сам, поэтому ждать, пока
@@ -55,7 +55,15 @@ public static class StudioDevTools
             // «а не обрежется ли это у пользователя» относится к ней самой не
             // меньше, чем к тому, что в ней открыли.
             McpAllowVariants = ReadFlag("ARXIS_DEVTOOLS_MCP_VARIANTS", true),
-        });
+        };
+
+        // Оси студии: плотность, язык и шкала кеглей темы. Встроенные оси знают о
+        // приложении вообще, а человек меняет студию этими тремя дорогами — их и надо
+        // прогонять, спрашивая «не обрежется ли».
+        foreach (var axis in StudioVariants.Axes())
+            options.ExtraAxes.Add(axis);
+
+        application.AttachAvaDevTools(options);
 #endif
     }
 
