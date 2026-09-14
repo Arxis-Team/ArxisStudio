@@ -49,7 +49,7 @@ public static class StudioAsk
 
         var cancel = new AxButton { Content = Localizer.Instance["common.cancel"] };
         var agree = new AxButton { Content = confirm };
-        var alert = new AxIcon { Data = AxIcons.Warning, Width = 20, Height = 20 };
+        var alert = new AxIcon { Data = AxIcons.Warning };
 
         // Размер и цвет — привязкой к теме, а не значением, снятым один раз:
         // снятая кисть не переключилась бы вместе с темой, а число ширины

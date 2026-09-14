@@ -187,7 +187,7 @@
                             сама картинка, а не путь к ней, — иначе объявленный
                             и битый файл оставлял бы на карточке пустое место.
                         -->
-                        <ax:AxIcon Width="18" Height="18" Data="{x:Static ax:AxIcons.Package}"
+                        <ax:AxIcon Data="{x:Static ax:AxIcons.Package}"
                                    Foreground="{DynamicResource AxPurBrush}"
                                    IsVisible="{Binding #PluginIcon.Source, Converter={x:Static ObjectConverters.IsNull}}"/>
                       </Panel>
