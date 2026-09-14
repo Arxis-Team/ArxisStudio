@@ -51,7 +51,9 @@ public sealed class HelloPanel : ToolWindow
         count.Bind(ContentControl.ContentProperty, Context.Strings.Text("panel.count"));
         count.Click += async (_, _) => await CountAsync();
 
-        var intro = new TextBlock();
+        // Текст панели переносится: ширину панели выбирает человек, а не автор,
+        // и при крупном кегле строка без переноса обрывалась бы краем.
+        var intro = new TextBlock { TextWrapping = TextWrapping.Wrap };
 
         intro.Bind(TextBlock.TextProperty, Context.Strings.Text("panel.intro"));
 
