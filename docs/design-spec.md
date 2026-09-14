@@ -42,6 +42,9 @@ ArxisStudio.Themes.Arxis) и всех экранов студии.
 | Контур фокуса | **2** | `AxFocusOutlineWidth` / `…Thickness` |
 | Скругление контрола | **4** | `AxCornerRadius` |
 | Скругление сегмента, мелких элементов | **3** | `AxCornerRadiusSmall` |
+| Скругление строки навигации экрана, верх полосы вкладок | **6** | `AxCornerRadiusMedium`, `AxCornerRadiusMediumTop` |
+| Кольцо фокуса строки с подписью | **6** — радиус коробки флажка 3 плюс поле кольца 3 | `AxCornerRadiusFocusRow` |
+| Пилюля (бейдж, чип, дорожка тумблера, круглый аватар) | полукруглые торцы при любой высоте | `AxCornerRadiusPill` |
 | Кнопка | высота **28**, отступы **12×6**, минимум ширины **72** | `AxControlHeight`, `AxButtonPadding`, `AxButtonMinWidth` |
 | Поле ввода | высота **28**, отступ **9** (8 + рамка) | `AxTextFieldPadding` |
 | Выпадающий список | высота **24**, отступы **6×2** | `AxControlHeightCompact`, `AxComboBoxPadding` |
