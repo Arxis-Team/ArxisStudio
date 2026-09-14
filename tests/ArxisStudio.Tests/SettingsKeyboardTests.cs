@@ -41,19 +41,11 @@ public class SettingsKeyboardTests : IDisposable
 {
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(5);
 
-    private readonly string _home = Path.Combine(Path.GetTempPath(), $"arxis-settings-keys-{Guid.NewGuid():N}");
-    private readonly StudioLog _log = new();
-    private readonly PluginGuard _guard = new();
-    private readonly StudioTaskRegistry _tasks = new();
-    private readonly PluginContributionRegistry _contributions = new();
-
-    public SettingsKeyboardTests() => Directory.CreateDirectory(Path.Combine(_home, "plugins"));
+    private readonly SettingsHarness _harness = new();
 
     public void Dispose()
     {
-        if (Directory.Exists(_home))
-            Directory.Delete(_home, recursive: true);
-
+        _harness.Dispose();
         GC.SuppressFinalize(this);
     }
 
@@ -147,25 +139,7 @@ public class SettingsKeyboardTests : IDisposable
         owner.Close();
     }
 
-    private (Window Owner, SettingsWindow Settings, Task Shown) Open()
-    {
-        var owner = new Window { Width = 400, Height = 300 };
-
-        owner.Show();
-        Dispatcher.UIThread.RunJobs();
-
-        var catalog = new PluginCatalog(Path.Combine(_home, "plugins"));
-        var shown = SettingsWindow.ShowAsync(
-            owner,
-            new JsonSettingsStore(Path.Combine(_home, "settings.json")),
-            Extensions(catalog),
-            [Module()],
-            catalog);
-
-        Dispatcher.UIThread.RunJobs();
-
-        return (owner, Assert.Single(owner.OwnedWindows.OfType<SettingsWindow>()), shown);
-    }
+    private (Window Owner, SettingsWindow Settings, Task Shown) Open() => _harness.Open();
 
     private static void Escape(Window window)
     {
@@ -180,46 +154,4 @@ public class SettingsKeyboardTests : IDisposable
             .OfType<ExtensionPage>()
             .SelectMany(page => page.Rows)
             .ToList();
-
-    /// <summary>Служба расширений, собранная, но не поднятая, — со своим файлом настроек.</summary>
-    private StudioPlugins Extensions(PluginCatalog catalog)
-    {
-        var dock = new StudioDock(new DockView());
-
-        return new StudioPlugins(_log, _guard, _tasks, _contributions)
-        {
-            Commands = new StudioCommands(_guard),
-            Dock = dock,
-            ToolBar = new StudioToolBar(new ToolBarStrip(), new ToolBarStrip(), new ToolBarStrip()),
-            Documents = new StudioDocuments(dock, _contributions.EditorFor, new Silence()),
-            Services = new Dictionary<Type, object>(),
-            Catalog = catalog.Scan,
-            Assemblies = [],
-            Settings = new PluginSettingsStore(userFile: Path.Combine(_home, "plugin-settings.json")),
-        };
-    }
-
-    /// <summary>Модуль, объявивший одну настройку: правка в ней и есть несохранённое.</summary>
-    private static InstalledPlugin Module() => new(
-        AppContext.BaseDirectory,
-        new PluginManifest
-        {
-            Id = "arxis.terminal",
-            Name = "Терминал",
-            Contributions = new PluginContributions
-            {
-                Settings = { new PluginSetting("terminal.fontSize", "number", "user", "Кегль", 13) },
-            },
-        },
-        Error: null,
-        IsEnabled: true,
-        IsBuiltIn: true);
-
-    /// <summary>Строка состояния, которая молчит.</summary>
-    private sealed class Silence : IStudioStatus
-    {
-        public void Show(string message)
-        {
-        }
-    }
 }

@@ -25,30 +25,34 @@
     <DataTemplate DataType="s:AppearancePage">
       <ax:AxCard Padding="{DynamicResource AxSettingsCardPadding}">
         <StackPanel>
-          <DockPanel Classes="settings-row">
-            <ax:AxSegmentedControl DockPanel.Dock="Right"
-                                   AutomationProperties.Name="{ax:Loc settings.theme}"
+          <!--
+              Подпись и контрол — ряд, а не док: док зазора не знает, и при крупном кегле
+              подпись вставала к контролу вплотную. Ряд держит зазор сам, а когда тесно,
+              ставит контрол под подпись.
+          -->
+          <ax:WrapRow Classes="settings-row" Spacing="{DynamicResource AxGapFormRow}">
+            <TextBlock Text="{ax:Loc settings.theme}" FontSize="{DynamicResource AxFontSize}"/>
+            <ax:AxSegmentedControl AutomationProperties.Name="{ax:Loc settings.theme}"
                                    SelectedIndex="{Binding ThemeIndex, Mode=TwoWay}">
               <ax:AxSegmentItem Content="{ax:Loc settings.theme.dark}"/>
               <ax:AxSegmentItem Content="{ax:Loc settings.theme.light}"/>
             </ax:AxSegmentedControl>
-            <TextBlock Text="{ax:Loc settings.theme}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
-          </DockPanel>
+          </ax:WrapRow>
           <ax:AxDivider/>
-          <DockPanel Classes="settings-row">
-            <ax:AxSegmentedControl DockPanel.Dock="Right"
-                                   AutomationProperties.Name="{ax:Loc settings.density}"
+          <ax:WrapRow Classes="settings-row" Spacing="{DynamicResource AxGapFormRow}">
+            <TextBlock Text="{ax:Loc settings.density}" FontSize="{DynamicResource AxFontSize}"/>
+            <ax:AxSegmentedControl AutomationProperties.Name="{ax:Loc settings.density}"
                                    SelectedIndex="{Binding DensityIndex, Mode=TwoWay}">
               <ax:AxSegmentItem Content="{ax:Loc settings.density.compact}"/>
               <ax:AxSegmentItem Content="{ax:Loc settings.density.normal}"/>
               <ax:AxSegmentItem Content="{ax:Loc settings.density.comfortable}"/>
             </ax:AxSegmentedControl>
-            <TextBlock Text="{ax:Loc settings.density}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
-          </DockPanel>
+          </ax:WrapRow>
           <ax:AxDivider/>
-          <DockPanel Classes="settings-row">
+          <ax:WrapRow Classes="settings-row" Spacing="{DynamicResource AxGapFormRow}">
+            <TextBlock Text="{ax:Loc settings.language}" FontSize="{DynamicResource AxFontSize}"/>
             <!-- Список языков студия узнаёт на ходу, а не знает наперёд. -->
-            <ax:AxComboBox DockPanel.Dock="Right" Width="170"
+            <ax:AxComboBox Width="170"
                            AutomationProperties.Name="{ax:Loc settings.language}"
                            ItemsSource="{Binding Languages}"
                            SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}">
@@ -58,8 +62,7 @@
                 </DataTemplate>
               </ax:AxComboBox.ItemTemplate>
             </ax:AxComboBox>
-            <TextBlock Text="{ax:Loc settings.language}" FontSize="{DynamicResource AxFontSize}" VerticalAlignment="Center"/>
-          </DockPanel>
+          </ax:WrapRow>
         </StackPanel>
       </ax:AxCard>
     </DataTemplate>
@@ -268,14 +271,9 @@
                 объявляет «поле» — одинаково во всех строках подряд.
             -->
             <DataTemplate x:DataType="vm:PluginSettingRow">
-              <DockPanel Classes="settings-row">
-                <ax:AxToggleSwitch DockPanel.Dock="Right" IsChecked="{Binding Flag, Mode=TwoWay}"
-                                   AutomationProperties.Name="{Binding Label}"
-                                   IsEnabled="{Binding IsEditable}" IsVisible="{Binding IsToggle}"/>
-                <ax:AxTextBox DockPanel.Dock="Right" Width="220" Text="{Binding Text, Mode=TwoWay}"
-                              AutomationProperties.Name="{Binding Label}"
-                              IsEnabled="{Binding IsEditable}" IsVisible="{Binding IsText}"/>
-                <StackPanel VerticalAlignment="Center">
+              <!-- Ряд, как у строк оформления: подпись, затем её контрол — один из двух. -->
+              <ax:WrapRow Classes="settings-row" Spacing="{DynamicResource AxGapFormRow}">
+                <StackPanel>
                   <TextBlock Text="{Binding Label}" FontSize="{DynamicResource AxFontSize}"/>
                   <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,1,0,0"
                              Text="{Binding Key}"/>
@@ -283,7 +281,13 @@
                              Text="{Binding Note}"
                              IsVisible="{Binding Note, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
                 </StackPanel>
-              </DockPanel>
+                <ax:AxToggleSwitch IsChecked="{Binding Flag, Mode=TwoWay}"
+                                   AutomationProperties.Name="{Binding Label}"
+                                   IsEnabled="{Binding IsEditable}" IsVisible="{Binding IsToggle}"/>
+                <ax:AxTextBox Width="220" Text="{Binding Text, Mode=TwoWay}"
+                              AutomationProperties.Name="{Binding Label}"
+                              IsEnabled="{Binding IsEditable}" IsVisible="{Binding IsText}"/>
+              </ax:WrapRow>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
