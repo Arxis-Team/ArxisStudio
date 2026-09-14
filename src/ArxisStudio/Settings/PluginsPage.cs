@@ -354,8 +354,14 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
 
         Cards.Clear();
 
+        // Причина отказа — только у включённого: выключенный не поднимался и не должен был, а
+        // запись о его прежнем отказе живёт в службе до следующей попытки.
         foreach (var plugin in installed)
-            Cards.Add(new PluginCard(plugin, PluginGraph.Describe(plugin, all)));
+        {
+            var riseError = plugin.IsEnabled && _extensions.Unrisen.TryGetValue(plugin.Id, out var why) ? why : null;
+
+            Cards.Add(new PluginCard(plugin, PluginGraph.Describe(plugin, all), riseError));
+        }
 
         Notify(nameof(Cards));
         Notify(nameof(IsEmpty));

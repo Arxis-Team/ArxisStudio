@@ -58,6 +58,7 @@
   "plugins.disabled.many": "Disabled: {0}",
   "plugins.coverage": "{0} — {1} of {2} translated",
   "plugins.broken": "Manifest error",
+  "plugins.unrisen": "Did not start",
   "plugins.openfolder": "Open plugin folder",
   "plugins.installed.suffix": "— installed",
   "plugins.remove": "Remove",

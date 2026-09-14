@@ -50,6 +50,9 @@ public sealed class StudioPlugins
     /// </remarks>
     private readonly Dictionary<string, List<object>> _built = new(StringComparer.Ordinal);
 
+    // Кто не поднялся и почему — до следующей попытки; показывает менеджер плагинов.
+    private readonly Dictionary<string, string> _unrisen = new(StringComparer.Ordinal);
+
     private PluginHost? _host;
     private StudioContextFactory? _contexts;
     private IReadOnlyList<InstalledPlugin> _installed = [];
@@ -757,6 +760,17 @@ public sealed class StudioPlugins
             : $"{plugin.DisplayName}: сочетание «{gesture}» занято командой {winner} — {declared.Id} осталась без него");
     }
 
+    /// <summary>
+    /// Расширения, которые не поднялись, — по идентификатору, с причиной.
+    /// </summary>
+    /// <remarks>
+    /// Журнал на Welcome не виден, и какой именно плагин не поднялся, человеку иначе узнать негде:
+    /// строка о неполном запуске говорит только, что такой есть. Причину показывает карточка в
+    /// менеджере плагинов. Запись живёт до следующей попытки: поднявшееся потом — включением или
+    /// перезагрузкой — из списка уходит.
+    /// </remarks>
+    public IReadOnlyDictionary<string, string> Unrisen => _unrisen;
+
     /// <summary>Принимает поднятый модуль или плагин: вклады и панели.</summary>
     /// <returns><c>false</c>, если расширение не поднялось.</returns>
     private bool Accept(LoadedPlugin loaded)
@@ -764,6 +778,7 @@ public sealed class StudioPlugins
         if (loaded.Error is { } error)
         {
             _log.Write(StudioLogLevel.Error, "Plugins", $"{loaded.Installed.DisplayName}: {error}");
+            _unrisen[loaded.Installed.Id] = error;
 
             // Кнопки несостоявшегося плагина стоять не должны: команда за ними
             // не найдётся никогда.
@@ -772,6 +787,7 @@ public sealed class StudioPlugins
         }
 
         _log.Write(StudioLogLevel.Info, "Plugins", $"{loaded.Installed.DisplayName} поднят");
+        _unrisen.Remove(loaded.Installed.Id);
 
         _contributions.Add(loaded);
         MountPanels(loaded);

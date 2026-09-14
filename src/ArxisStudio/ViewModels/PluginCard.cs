@@ -25,14 +25,26 @@ public sealed class PluginCard : INotifyPropertyChanged
     /// <summary>Собирает строку поверх записи каталога.</summary>
     /// <param name="plugin">Запись каталога.</param>
     /// <param name="dependencies">Зависимости с состоянием каждой цели.</param>
-    public PluginCard(InstalledPlugin plugin, IReadOnlyList<PluginDependencyState> dependencies)
+    /// <param name="riseError">Почему плагин не поднялся на этом запуске; null — поднялся или не пробовал.</param>
+    public PluginCard(InstalledPlugin plugin, IReadOnlyList<PluginDependencyState> dependencies, string? riseError = null)
     {
         ArgumentNullException.ThrowIfNull(plugin);
 
         Plugin = plugin;
         Dependencies = dependencies;
+        RiseError = riseError;
         _on = plugin.IsEnabled;
     }
+
+    /// <summary>Почему плагин не поднялся; null — поднялся или его и не поднимали.</summary>
+    /// <remarks>
+    /// Отдельно от ошибки манифеста: манифест может быть цел, а сборка — не читаться или точка
+    /// входа падать. Такой плагин включён и в списке выглядел исправным, хотя не работал.
+    /// </remarks>
+    public string? RiseError { get; }
+
+    /// <summary>Отметка «не поднялся» показывается только тому, кто не поднялся.</summary>
+    public bool HasRiseError => RiseError is not null;
 
     /// <inheritdoc/>
     public event PropertyChangedEventHandler? PropertyChanged;

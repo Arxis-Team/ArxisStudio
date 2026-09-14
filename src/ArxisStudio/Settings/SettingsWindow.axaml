@@ -173,6 +173,12 @@
                                    Text="{Binding Plugin.Manifest.Publisher}"/>
                         <ax:AxChip Content="{ax:Loc plugins.broken}" IsVisible="{Binding !Plugin.IsValid}"/>
                         <!--
+                            Манифест цел, а плагин не поднялся: сборка не читается или точка
+                            входа падает. Без отметки он выглядел исправным, хотя не работал, а
+                            журнал, где сказана причина, с Welcome не виден.
+                        -->
+                        <ax:AxChip Content="{ax:Loc plugins.unrisen}" IsVisible="{Binding HasRiseError}"/>
+                        <!--
                             Отметка непринятого: галочку копят до «Сохранить», и
                             без неё человек не отличит выключенное от того, что
                             он только что решил выключить.
@@ -186,6 +192,11 @@
                       <TextBlock Classes="dimmer" Margin="0,1,0,0" TextTrimming="CharacterEllipsis"
                                  FontSize="{DynamicResource AxFontSizeSmall}"
                                  Text="{Binding Plugin.Error}" IsVisible="{Binding !Plugin.IsValid}"/>
+                      <!-- Причина отказа — одной строкой, целиком в подсказке. -->
+                      <TextBlock Classes="dimmer" TextTrimming="CharacterEllipsis"
+                                 FontSize="{DynamicResource AxFontSizeSmall}"
+                                 Text="{Binding RiseError}" ToolTip.Tip="{Binding RiseError}"
+                                 IsVisible="{Binding HasRiseError}"/>
 
                       <!--
                           Метки: то, чем расширение назвало себя само. Известные

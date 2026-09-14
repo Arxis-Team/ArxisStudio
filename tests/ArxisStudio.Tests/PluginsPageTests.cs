@@ -6,6 +6,7 @@ using ArxisStudio.Services;
 using ArxisStudio.Settings;
 using ArxisStudio.Shell;
 using ArxisStudio.ViewModels;
+using Avalonia.Headless.XUnit;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -166,6 +167,35 @@ public class PluginsPageTests : IDisposable
         Assert.Contains("tools", Page(out _).Terms);
     }
 
+    /// <summary>
+    /// Плагин, который не поднялся, говорит об этом на своей карточке — и причину тоже.
+    /// </summary>
+    /// <remarks>
+    /// Манифест у него цел, и прежде карточка выглядела исправной, хотя плагин не работал.
+    /// Строка о неполном запуске говорит только, что такой есть, а журнал, где названа причина, с
+    /// Welcome не виден. Выключенный плагин отметки не носит: его и не поднимали.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_plugin_that_did_not_start_says_so_on_its_card()
+    {
+        Broken("arxis.broken", "Сломанный");
+        Plugin("arxis.one", "Первый");
+
+        var catalog = new PluginCatalog(_root);
+        var extensions = Extensions(catalog);
+
+        extensions.LoadPlugins();
+
+        var page = new PluginsPage(catalog, extensions, _answers);
+        var broken = page.Cards.Single(card => card.Plugin.Id == "arxis.broken");
+        var fine = page.Cards.Single(card => card.Plugin.Id == "arxis.one");
+
+        Assert.True(broken.Plugin.IsValid, "манифест сломанного цел — отказ не в нём");
+        Assert.True(broken.HasRiseError, "не поднявшийся плагин выглядит исправным");
+        Assert.False(string.IsNullOrWhiteSpace(broken.RiseError), "отметка есть, а причины нет");
+        Assert.False(fine.HasRiseError);
+    }
+
     /// <summary>Страница поверх временной папки плагинов.</summary>
     private PluginsPage Page(out PluginCatalog catalog)
     {
@@ -196,6 +226,28 @@ public class PluginsPageTests : IDisposable
             Catalog = catalog.Scan,
             Assemblies = [],
         };
+    }
+
+    /// <summary>Кладёт плагин, манифест которого цел, а сборка сборкой не является.</summary>
+    private void Broken(string id, string name)
+    {
+        var folder = Path.Combine(_root, id);
+
+        Directory.CreateDirectory(Path.Combine(folder, "bin"));
+        File.WriteAllBytes(Path.Combine(folder, "bin", "Broken.dll"), "не сборка"u8.ToArray());
+        File.WriteAllText(
+            Path.Combine(folder, "plugin.json"),
+            JsonSerializer.Serialize(
+                new Dictionary<string, object>
+                {
+                    ["id"] = id,
+                    ["name"] = name,
+                    ["version"] = "1.0.0",
+                    ["publisher"] = "Тест",
+                    ["entry"] = "bin/Broken.dll",
+                    ["activation"] = new[] { "onStartup" },
+                },
+                new JsonSerializerOptions { WriteIndented = true }));
     }
 
     /// <summary>Кладёт в папку плагин: манифест без сборки — как у языкового пакета.</summary>
