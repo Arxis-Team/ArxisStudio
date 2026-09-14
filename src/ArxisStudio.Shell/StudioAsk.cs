@@ -2,6 +2,7 @@ using ArxisStudio.Controls;
 using ArxisStudio.Icons;
 using ArxisStudio.Shell.Localization;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 
@@ -45,18 +46,17 @@ public static class StudioAsk
     {
         ArgumentNullException.ThrowIfNull(owner);
 
-        var cancel = new AxButton { Content = Localizer.Instance["common.cancel"], MinWidth = 96 };
-        var agree = new AxButton { Content = confirm, MinWidth = 96 };
+        var cancel = new AxButton { Content = Localizer.Instance["common.cancel"] };
+        var agree = new AxButton { Content = confirm };
         var alert = new AxIcon { Data = AxIcons.Warning, Width = 20, Height = 20 };
 
-        // Кисть ищется с вариантом темы: без него ресурс не находится, а
-        // выставленный null убил бы наследование цвета — значок стал бы
-        // невидимым.
-        if (owner.TryFindResource("AxYelBrush", owner.ActualThemeVariant, out var yellow) &&
-            yellow is IBrush brush)
-        {
-            alert.Foreground = brush;
-        }
+        // Размер и цвет — привязкой к теме, а не значением, снятым один раз:
+        // снятая кисть не переключилась бы вместе с темой, а число ширины
+        // разошлось бы с плотностью. Кнопки подвала ровняет ключ темы, как и в
+        // остальных диалогах студии.
+        cancel.Bind(Layoutable.MinWidthProperty, cancel.GetResourceObservable("AxDialogButtonMinWidth"));
+        agree.Bind(Layoutable.MinWidthProperty, agree.GetResourceObservable("AxDialogButtonMinWidth"));
+        alert.Bind(TemplatedControl.ForegroundProperty, alert.GetResourceObservable("AxYelBrush"));
 
         agree.Classes.Add(danger ? "danger" : "accent");
 

@@ -56,6 +56,24 @@
     <Setter Property="Icon" Value="avares://ArxisStudio.Shell/Assets/arxis.ico"/>
   </Style>
 
+  <!--
+      Подпись зависимости плагина: обычная — приглушённо, проблемная — цветом
+      предупреждения для текста. Классом и стилем, а не преобразователем: тот
+      брал кисть у темы один раз, в миг привязки, и после переключения темы чип
+      оставался в прежней. Живой замер нашёл это как тёмный второстепенный
+      на светлой плашке — 1,7:1. Стиль с динамическим ресурсом переключается
+      сам.
+
+      Предупреждение — AxYellowText, а не AxYel: AxYel — цвет заливки и
+      значка, у текста своя пара, подобранная под порог.
+  -->
+  <Style Selector="ax|AxChip.dependency">
+    <Setter Property="Foreground" Value="{DynamicResource AxFg2Brush}"/>
+  </Style>
+  <Style Selector="ax|AxChip.dependency.problem">
+    <Setter Property="Foreground" Value="{DynamicResource AxYellowTextBrush}"/>
+  </Style>
+
   <Style Selector="ToggleButton.nav">
     <Setter Property="Height" Value="30"/>
     <Setter Property="Padding" Value="{DynamicResource AxSpaceWideSidesThickness}"/>

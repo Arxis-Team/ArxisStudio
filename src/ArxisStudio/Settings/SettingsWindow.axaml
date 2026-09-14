@@ -108,7 +108,14 @@
                             CornerRadius="{DynamicResource AxCornerRadiusLarge}"
                             Background="{DynamicResource AxBg3Brush}">
                       <Panel>
+                        <!--
+                            Значок — украшение: имя плагина стоит рядом текстом, и
+                            экранный диктор, назвав картинку ещё раз, сказал бы
+                            одно и то же дважды. Поэтому из дерева доступности
+                            значок убран, а не назван.
+                        -->
                         <Image x:Name="PluginIcon" Width="22" Height="22"
+                               AutomationProperties.AccessibilityView="Raw"
                                RenderOptions.BitmapInterpolationMode="HighQuality"
                                Source="{Binding Plugin.IconPath, Converter={x:Static conv:PluginIconConverter.Instance}}"/>
                         <!--
@@ -226,8 +233,7 @@
                           </ItemsControl.ItemsPanel>
                           <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="ext:PluginDependencyState">
-                              <ax:AxChip Content="{Binding Label}"
-                                         Foreground="{Binding IsProblem, Converter={x:Static conv:DependencyProblemBrushConverter.Instance}}"/>
+                              <ax:AxChip Classes="dependency" Classes.problem="{Binding IsProblem}" Content="{Binding Label}"/>
                             </DataTemplate>
                           </ItemsControl.ItemTemplate>
                         </ItemsControl>

@@ -71,8 +71,12 @@
           </ToggleButton>
           <Border BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,1,0,0" Padding="10,8,0,0">
             <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapControls}">
-              <ax:AxAvatar Classes="round" Width="22" Height="22" Initials="FF" FontSize="{DynamicResource AxFontSizeCaption}"
-                           TileBrush="{DynamicResource AxPurBrush}"/>
+              <!--
+                  Монограмма — классом темы, а не своей кистью. Тема прямо
+                  запрещает ставить инициалы на AxPur: белый даёт на нём 3,4:1, а
+                  класс purple берёт ступень шкалы, где белый держит порог.
+              -->
+              <ax:AxAvatar Classes="round purple" Width="22" Height="22" Initials="FF" FontSize="{DynamicResource AxFontSizeCaption}"/>
               <TextBlock Classes="dim" Text="FibonacciFox" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center"/>
             </StackPanel>
           </Border>
