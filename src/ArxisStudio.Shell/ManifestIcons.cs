@@ -45,12 +45,20 @@ public static class ManifestIcons
     /// <param name="icon">Запись из манифеста; пусто — значка нет.</param>
     /// <param name="problem">Почему значка не будет; null, если всё в порядке или его не просили.</param>
     /// <returns>Геометрия глифа или null.</returns>
+    /// <remarks>
+    /// Пробелы по краям записи снимаются: « arxis:Play» иначе не узнавалось бы по
+    /// приставке и уходило бы разбираться контуром. Так же читает запись и
+    /// <c>ARX0011</c> — правило при сборке не вправе пропускать то, чего студия
+    /// не нарисует.
+    /// </remarks>
     public static Geometry? Resolve(string? icon, out string? problem)
     {
         problem = null;
 
         if (string.IsNullOrWhiteSpace(icon))
             return null;
+
+        icon = icon.Trim();
 
         if (icon.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase))
         {

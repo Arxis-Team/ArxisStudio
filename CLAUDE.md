@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 сборки в этапе 17: контракт проверялся на коде, которому он был не нужен. Вернутся плагинами.
 
 Три документа, и они не взаимозаменяемы. [README.md](README.md) — что работает сегодня.
-[docs/plan.md](docs/plan.md) — **журнал сделанного, а не опись текущего состояния**: 188 записей,
+[docs/plan.md](docs/plan.md) — **журнал сделанного, а не опись текущего состояния**: 189 записей,
 принятые решения, формат манифеста (приложение A). [docs/design-spec.md](docs/design-spec.md) —
 входные данные дизайна: токены, метрики, инвентарь экранов; числа берутся оттуда, а не
 придумываются.
@@ -148,7 +148,7 @@ def call(name, args=None, port=5171):
 | Проект | Роль | Ссылается на |
 |---|---|---|
 | [ArxisStudio.Sdk](src/ArxisStudio.Sdk) | контракт для плагинов и модель манифеста | Controls, Icons — и ничего из студии |
-| [ArxisStudio.Sdk.Analyzers](src/ArxisStudio.Sdk.Analyzers) | ARX0001–ARX0010, едут вместе с SDK | Roslyn |
+| [ArxisStudio.Sdk.Analyzers](src/ArxisStudio.Sdk.Analyzers) | ARX0001–ARX0011, едут вместе с SDK | Roslyn |
 | [ArxisStudio.Shell](src/ArxisStudio.Shell) | каркас окна, словари, настройки, полоса | Controls, Icons |
 | [ArxisStudio.Docking](src/ArxisStudio.Docking) | движок докинга | Controls, Icons |
 | [ArxisStudio.Extensibility](src/ArxisStudio.Extensibility) | хост плагинов: контексты загрузки, граф, контракты, шов сбоев | Sdk, Shell |
@@ -310,7 +310,7 @@ csproj — при заведении нового не забудьте.
 
 ## Тесты
 
-1165 тестов, headless-UI на `Avalonia.Headless.XUnit`, и пакет завязан на **xunit v3**. Тесту,
+1181 тест, headless-UI на `Avalonia.Headless.XUnit`, и пакет завязан на **xunit v3**. Тесту,
 которому нужно живое дерево контролов, нужен `[AvaloniaFact]`, а не `[Fact]`: он поднимает
 приложение из `TestApp` и загоняет тело в UI-поток. Рисование настоящее (`UseSkia`,
 `UseHeadlessDrawing = false`) — заглушка не зовёт декодер картинок и на любой файл отвечает

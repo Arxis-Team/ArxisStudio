@@ -65,6 +65,24 @@ public class ManifestIconsTests
         Assert.NotNull(problem);
     }
 
+    /// <summary>
+    /// Пробелы по краям записи не мешают — ни имени, ни контуру.
+    /// </summary>
+    /// <remarks>
+    /// Запись с пробелом впереди не узнавалась по приставке и уходила разбираться
+    /// контуром, а контуром «arxis:Play» не бывает. Правило сборки читает запись так
+    /// же, и пропустить то, чего студия не нарисует, ему было бы нечем объяснить.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Spaces_around_the_record_do_not_get_in_the_way()
+    {
+        Assert.Same(AxIcons.Play, ManifestIcons.Resolve("  arxis:Play ", out var problem));
+        Assert.Null(problem);
+
+        Assert.NotNull(ManifestIcons.Resolve(" M3.5 8H12.5  ", out problem));
+        Assert.Null(problem);
+    }
+
     /// <summary>Значка не просили — и замечания нет.</summary>
     [AvaloniaFact]
     public void No_icon_is_not_a_problem()
