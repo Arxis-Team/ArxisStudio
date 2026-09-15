@@ -55,8 +55,8 @@ public class ThemeValueCodeAnalyzerTests
     {
         var found = await AnalyzeAsync(
             """
-            var colour = Avalonia.Media.Color.Parse("#3574F0");
-            var brush = Avalonia.Media.Brush.Parse("#3574f0");
+            var colour = Avalonia.Media.Color.Parse("#5A8FF3");
+            var brush = Avalonia.Media.Brush.Parse("#5a8ff3");
             """);
 
         Assert.Equal(2, found.Length);

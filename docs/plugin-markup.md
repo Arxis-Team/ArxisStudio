@@ -306,8 +306,8 @@ AxSpaceWide 12 · AxSpaceLoose 16 · AxSpaceSection 24 · AxSpaceScreen 40`, у 
 **Три правила, и каждое называет ключ, а не просто запрещает.**
 
 - `ARX0008` — число в разметке: `Spacing="8"` → «8 — это AxSpace»; `Spacing="10"` → «10 — не
-  ступень шкалы; ближайшие — AxSpace (8) и AxSpaceWide (12)»; `Foreground="#3574F0"` → «это цвет
-  AxAccentBrush». Цвет, которого в теме нет, правило не трогает: своя палитра графика законна.
+  ступень шкалы; ближайшие — AxSpace (8) и AxSpaceWide (12)»; `Foreground="#5A8FF3"` → «это цвет
+  AxAccentBrush или AxFocusRingBrush». Цвет, которого в теме нет, правило не трогает: своя палитра графика законна.
 - `ARX0009` — ресурс назван не тем именем: цвет там, где свойству нужна кисть, или имя темы до
   SDK 6.0. `{a:DynamicResource AxAccentColor}` в `Foreground` не разрешится в кисть и не нарисует
   ничего, и узнать об этом без правила можно только глазами; `{a:DynamicResource AxFg3Brush}` →

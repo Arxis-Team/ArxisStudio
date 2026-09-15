@@ -173,7 +173,7 @@ public class ToolBarStripTests
         window.Close();
     }
 
-    /// <summary>Разделитель полосы — двадцать высотой, цветом нажатия.</summary>
+    /// <summary>Разделитель полосы — двадцать высотой, цветом разделителей.</summary>
     [AvaloniaFact]
     public void The_toolbar_divider_is_twenty_high()
     {
@@ -186,7 +186,7 @@ public class ToolBarStripTests
 
         Assert.Equal(20d, divider.Bounds.Height);
         Assert.Equal(1d, divider.Bounds.Width);
-        Assert.Equal(Colour(Brush(window, "AxStrokeStrongBrush")), Colour(divider.Fill));
+        Assert.Equal(Colour(Brush(window, "AxStrokeSubtleBrush")), Colour(divider.Fill));
 
         window.Close();
     }

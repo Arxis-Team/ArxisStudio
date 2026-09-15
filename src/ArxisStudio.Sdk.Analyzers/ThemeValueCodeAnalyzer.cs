@@ -19,7 +19,7 @@ namespace ArxisStudio.Sdk.Analyzers;
 /// Что правило спрашивает: <c>new Thickness</c> из чисел, присвоение числа
 /// свойствам <c>Spacing</c> и <c>FontSize</c> контролов Avalonia и разбор цвета из
 /// строки — <c>Color.Parse</c>, <c>Brush.Parse</c>. Последнее — прямой близнец
-/// атрибута <c>Foreground="#3574F0"</c>.
+/// атрибута <c>Foreground="#5A8FF3"</c>.
 /// </para>
 /// <para>
 /// Чего не спрашивает, и почему. Цвет, собранный из байтов, — <c>Color.FromRgb</c>:

@@ -88,9 +88,9 @@ public sealed class TerminalView : Control
     private double _cellHeight = 16;
     private int _columns = 80;
     private int _rows = 24;
-    private Color _background = Color.FromRgb(0x1E, 0x1F, 0x22);
+    private Color _background = Color.FromRgb(0x17, 0x1A, 0x1D);
     private Color _foreground = Color.FromRgb(0xCC, 0xCC, 0xCC);
-    private Color _selection = Color.FromRgb(0x2E, 0x43, 0x6E);
+    private Color _selection = Color.FromRgb(0x26, 0x3D, 0x68);
     private Color _thumb = Color.FromRgb(0x6F, 0x73, 0x7A);
     private CursorStyle _cursorStyle = CursorStyle.Block;
     private bool _blinkOn = true;

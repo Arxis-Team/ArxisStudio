@@ -91,13 +91,13 @@ public class ThemeValueAnalyzerTests
     /// </summary>
     /// <remarks>
     /// Разметка принимает и строчные буквы, и короткую запись с прозрачностью;
-    /// сверка по записи как она есть пропустила бы <c>#3574f0</c> мимо
-    /// <c>#3574F0</c>.
+    /// сверка по записи как она есть пропустила бы <c>#5a8ff3</c> мимо
+    /// <c>#5A8FF3</c>.
     /// </remarks>
     [Theory]
-    [InlineData("#3574F0")]
-    [InlineData("#3574f0")]
-    [InlineData("#FF3574F0")]
+    [InlineData("#5A8FF3")]
+    [InlineData("#5a8ff3")]
+    [InlineData("#FF5A8FF3")]
     public async Task A_theme_colour_written_as_a_number_names_its_brush(string colour)
     {
         var found = Assert.Single(await AnalyzeAsync($"""<TextBlock Foreground="{colour}"/>"""));

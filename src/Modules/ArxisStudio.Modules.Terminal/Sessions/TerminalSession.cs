@@ -177,9 +177,9 @@ public sealed class TerminalSession : IDisposable
             // удвоить пустые строки.
             ConvertEol = false,
             Theme = TerminalTheme.Campbell(
-                Color.FromRgb(0x1E, 0x1F, 0x22),
+                Color.FromRgb(0x17, 0x1A, 0x1D),
                 Color.FromRgb(0xCC, 0xCC, 0xCC),
-                Color.FromRgb(0x2E, 0x43, 0x6E)),
+                Color.FromRgb(0x26, 0x3D, 0x68)),
         };
     }
 
