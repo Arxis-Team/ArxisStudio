@@ -111,10 +111,20 @@
         делает: анализатор обязан считаться закэшированным, а файл под ним
         меняется.
     -->
+    <!--
+        Словари помечены ролью AxStrings — default у словаря по умолчанию,
+        translation у переводов — и роль открыта анализатору: ARX0012 проверяет,
+        прочтёт ли их студия, только помеченные. Угадывать словарь по расширению
+        он не должен — чужой JSON рядом с манифестом сорвал бы сборку ложной
+        порчей.
+    -->
     <ItemGroup>
         <AdditionalFiles Include="$(AxPluginManifest)" Condition="Exists('$(AxPluginManifest)')" />
         <AdditionalFiles Include="$(MSBuildProjectDirectory)/lang/strings.json"
-                         Condition="Exists('$(MSBuildProjectDirectory)/lang/strings.json')" />
+                         Condition="Exists('$(MSBuildProjectDirectory)/lang/strings.json')"
+                         AxStrings="default" />
+        <AdditionalFiles Include="$(MSBuildProjectDirectory)/lang/strings.*.json" AxStrings="translation" />
+        <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="AxStrings" />
     </ItemGroup>
 
     <Target Name="AxPluginCheckManifest" BeforeTargets="Build">

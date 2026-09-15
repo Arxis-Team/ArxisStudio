@@ -43,4 +43,13 @@
         </ItemGroup>
     </Target>
 
+    <!--
+        Роль словаря у входа сборки открыта анализатору: модуль помечает словарь студии,
+        который он показывает, AxStrings="default" в своём csproj, и ARX0012 проверяет,
+        прочтёт ли его студия. Тот же приём у плагина делает таргет SDK.
+    -->
+    <ItemGroup>
+        <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="AxStrings"/>
+    </ItemGroup>
+
 </Project>

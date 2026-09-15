@@ -160,6 +160,11 @@ public sealed class ManifestStringsAnalyzer : DiagnosticAnalyzer
     /// Словарём считается всё поданное, кроме самих манифестов: у плагина это
     /// <c>lang/strings.json</c>, у модуля — словарь студии. Имена здесь не
     /// написаны нарочно — где лежат словари, решает тот, кто их подаёт.
+    /// <para>
+    /// Кроме переводов: их сборка подаёт ради <c>ARX0012</c> и помечает ролью
+    /// <c>translation</c>. Сверяется словарь по умолчанию, и ключ, который есть
+    /// только в переводе, в словаре по умолчанию всё равно отсутствует.
+    /// </para>
     /// </remarks>
     private static HashSet<string> Known(AdditionalFileAnalysisContext context)
     {
@@ -167,7 +172,9 @@ public sealed class ManifestStringsAnalyzer : DiagnosticAnalyzer
 
         foreach (var file in context.Options.AdditionalFiles)
         {
-            if (IsManifest(file.Path) || file.GetText(context.CancellationToken) is not { } text)
+            if (IsManifest(file.Path) ||
+                StringsFileAnalyzer.Role(context.Options, file) == "translation" ||
+                file.GetText(context.CancellationToken) is not { } text)
             {
                 continue;
             }

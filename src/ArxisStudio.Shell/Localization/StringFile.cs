@@ -46,11 +46,56 @@ public static class StringFile
 
         try
         {
-            return JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path), Options) ?? [];
+            if (JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path), Options) is { } read)
+                return read;
+
+            Tell(path, "в файле null, а не словарь");
         }
         catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException)
         {
-            return [];
+            Tell(path, e.Message);
         }
+
+        return [];
+    }
+
+    /// <summary>
+    /// Файл словаря есть, а прочитать его не вышло: студия читает его пустым.
+    /// </summary>
+    /// <remarks>
+    /// Пустой словарь вместо отказа — правило, и оно остаётся. Но молчать о нём
+    /// нельзя: все строки хозяина словаря покажутся ключами, а у языкового пакета
+    /// и у слоя поверх языка студии нет сборки, которая сказала бы об этом
+    /// раньше. Звучит раз на версию файла: словарь перечитывают при смене языка
+    /// и при перезагрузке плагина, и один сломанный файл заполнил бы журнал.
+    /// Исправленный и снова испорченный — новая версия, о нём скажут снова.
+    /// </remarks>
+    public static event EventHandler<StringFileProblem>? Unreadable;
+
+    private static readonly Dictionary<string, DateTime> Told = new(StringComparer.OrdinalIgnoreCase);
+
+    private static void Tell(string path, string reason)
+    {
+        // Некому слушать — и помечать сказанным нечего: первый же слушатель
+        // обязан услышать о файле, который сломан сейчас.
+        if (Unreadable is not { } listeners)
+            return;
+
+        var written = File.GetLastWriteTimeUtc(path);
+
+        lock (Told)
+        {
+            if (Told.TryGetValue(path, out var before) && before == written)
+                return;
+
+            Told[path] = written;
+        }
+
+        listeners(null, new StringFileProblem(path, reason));
     }
 }
+
+/// <summary>Словарь, который студия не прочла, и почему.</summary>
+/// <param name="Path">Путь к файлу.</param>
+/// <param name="Reason">Что помешало — словами разборщика.</param>
+public sealed record StringFileProblem(string Path, string Reason);

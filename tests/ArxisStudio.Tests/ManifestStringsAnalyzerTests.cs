@@ -130,6 +130,25 @@ public class ManifestStringsAnalyzerTests
     }
 
     /// <summary>
+    /// Ключ, который есть только в переводе, в словаре по умолчанию всё равно отсутствует.
+    /// </summary>
+    /// <remarks>
+    /// Переводы сборка подаёт анализаторам ради проверки порчи и помечает ролью <c>translation</c>.
+    /// Посчитай правило их ключи, опечатка в словаре по умолчанию пряталась бы за переводом — а на
+    /// любом другом языке студия показала бы <c>!ключ!</c>.
+    /// </remarks>
+    [Fact]
+    public async Task A_key_only_in_a_translation_is_still_missing()
+    {
+        var found = await AnalyzeAsync(
+            Manifest,
+            """{ "panel.other": "Другая" }""",
+            translation: """{ "panel.probe": "Probe" }""");
+
+        Assert.Contains("panel.probe", Assert.Single(found).GetMessage(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Закомментированная строка словаря ключа не даёт — его нет.
     /// </summary>
     /// <remarks>
@@ -237,7 +256,8 @@ public class ManifestStringsAnalyzerTests
         string manifest,
         string? dictionary,
         string manifestName = "plugin.json",
-        string dictionaryPath = "C:/probe/lang/strings.json")
+        string dictionaryPath = "C:/probe/lang/strings.json",
+        string? translation = null)
     {
         var references = AppDomain.CurrentDomain.GetAssemblies()
             .Where(assembly => !assembly.IsDynamic && assembly.Location.Length > 0)
@@ -254,12 +274,26 @@ public class ManifestStringsAnalyzerTests
 
         var files = new List<AdditionalText> { new Given($"C:/probe/{manifestName}", manifest) };
 
+        var roles = new Dictionary<string, string>(StringComparer.Ordinal);
+
         if (dictionary is not null)
+        {
             files.Add(new Given(dictionaryPath, dictionary));
+            roles[dictionaryPath] = "default";
+        }
+
+        // Перевод сборка подаёт с ролью translation — так его и отличают от словаря по умолчанию.
+        if (translation is not null)
+        {
+            const string translationPath = "C:/probe/lang/strings.en.json";
+
+            files.Add(new Given(translationPath, translation));
+            roles[translationPath] = "translation";
+        }
 
         var analyzed = compilation.WithAnalyzers(
             ImmutableArray.Create<DiagnosticAnalyzer>(new ManifestStringsAnalyzer()),
-            new AnalyzerOptions([.. files]));
+            new AnalyzerOptions([.. files], new StringsRoles(roles)));
 
         return await analyzed.GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
     }

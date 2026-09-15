@@ -53,6 +53,11 @@ public class App : Application
     {
         StudioLaunch.Mark("платформа");
 
+        // Первым делом, раньше первого словаря: студия читает непрочитанный
+        // словарь пустым, и сказать об этом, кроме журнала, некому. Отпускать
+        // незачем — журнал и словари живут, пока жив процесс.
+        _ = DictionaryJournal.Attach(_log);
+
         AvaloniaXamlLoader.Load(this);
         StudioLaunch.Mark("стили");
 
