@@ -127,6 +127,33 @@ public class StudioLanguagesTests : IDisposable
     }
 
     /// <summary>
+    /// Комментарии и висячие запятые файла не отменяют.
+    /// </summary>
+    /// <remarks>
+    /// Словарь правит человек, и пометить строку комментарием для него так же естественно, как в
+    /// манифесте и в <c>keymap.json</c>, — а те студия читает с комментариями давно. Словарь читался
+    /// строго, и одна строка комментария выбрасывала весь файл: своих строк не оставалось ни одной, а
+    /// сказать об этом было некому. Закомментированная строка при этом не действует — её нет.
+    /// </remarks>
+    [Fact]
+    public void A_file_with_comments_and_trailing_commas_is_read()
+    {
+        Write("ru.json", """
+            {
+              // Своё слово вместо «Недавние».
+              "projects.recent": "Раскрыть",
+              /* "welcome.nav.projects": "Работы", */
+            }
+            """);
+
+        Localizer.Instance.UseFolders(_folder, _folder);
+        Localizer.Instance.SetLanguage("ru");
+
+        Assert.Equal("Раскрыть", Localizer.Instance["projects.recent"]);
+        Assert.Equal("Проекты", Localizer.Instance["welcome.nav.projects"]);
+    }
+
+    /// <summary>
     /// Перечитывание подхватывает правку файла.
     /// </summary>
     /// <remarks>

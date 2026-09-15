@@ -130,6 +130,41 @@ public class ManifestStringsAnalyzerTests
     }
 
     /// <summary>
+    /// Закомментированная строка словаря ключа не даёт — его нет.
+    /// </summary>
+    /// <remarks>
+    /// Студия такую строку не прочтёт, и подпись с этим ключом покажется как <c>!ключ!</c>. Правило,
+    /// собиравшее ключи словаря по всему тексту, считало закомментированный ключ на месте и молчало.
+    /// </remarks>
+    [Fact]
+    public async Task A_key_commented_out_in_the_dictionary_is_missing()
+    {
+        var found = await AnalyzeAsync(Manifest, """
+            {
+              // "panel.probe": "Проба",
+              "panel.other": "Другая",
+            }
+            """);
+
+        Assert.Contains("panel.probe", Assert.Single(found).GetMessage(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Словарь с комментариями и висячими запятыми отвечает за свои ключи.
+    /// </summary>
+    /// <remarks>Студия читает словарь так же мягко, как манифест, и правило не вправе быть строже.</remarks>
+    [Fact]
+    public async Task A_dictionary_with_comments_and_trailing_commas_answers_for_its_keys()
+    {
+        Assert.Empty(await AnalyzeAsync(Manifest, """
+            {
+              /* Подписи панели. */
+              "panel.probe": "Проба",
+            }
+            """));
+    }
+
+    /// <summary>
     /// Находка стоит ровно на ключе — и тогда, когда перед ним в строке экранирование.
     /// </summary>
     /// <remarks>

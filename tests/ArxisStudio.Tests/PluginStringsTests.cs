@@ -153,6 +153,30 @@ public class PluginStringsTests : IDisposable
     }
 
     /// <summary>
+    /// Словарь плагина с комментариями и висячими запятыми читается, а закомментированной строки в нём
+    /// нет.
+    /// </summary>
+    /// <remarks>
+    /// Манифест плагина студия читает с комментариями, и автор вправе ждать того же от словаря рядом
+    /// с ним. Прежде одна строка комментария делала словарь пустым, и все подписи плагина молча
+    /// становились <c>!ключами!</c>.
+    /// </remarks>
+    [Fact]
+    public void A_dictionary_with_comments_and_trailing_commas_is_read()
+    {
+        var plugin = Plugin(("strings.json", """
+            {
+              // Подписи панели.
+              "panel.main": "Панель",
+              /* "panel.old": "Старая", */
+            }
+            """));
+
+        Assert.Equal("Панель", plugin.Strings.Resolve("%panel.main%"));
+        Assert.Equal("!panel.old!", plugin.Strings.Resolve("%panel.old%"));
+    }
+
+    /// <summary>
     /// Перезагрузка плагина перечитывает его словари.
     /// </summary>
     /// <remarks>

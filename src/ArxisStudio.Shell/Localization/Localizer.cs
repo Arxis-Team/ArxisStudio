@@ -364,7 +364,7 @@ public sealed class Localizer : INotifyPropertyChanged, IStringSource
 
         try
         {
-            return JsonSerializer.Deserialize<Dictionary<string, string>>(stream) ?? [];
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(stream, StringFile.Options) ?? [];
         }
         catch (JsonException)
         {

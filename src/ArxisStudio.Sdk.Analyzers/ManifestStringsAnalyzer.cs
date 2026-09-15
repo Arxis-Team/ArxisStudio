@@ -51,7 +51,6 @@ public sealed class ManifestStringsAnalyzer : DiagnosticAnalyzer
     private static readonly string[] Manifests = { "plugin.json", "module.json" };
 
     private static readonly Regex Keys = new(@"%([A-Za-z0-9._-]+)%", RegexOptions.Compiled);
-    private static readonly Regex Declared = new(@"""([^""]+)""\s*:", RegexOptions.Compiled);
 
     private static readonly DiagnosticDescriptor Rule = new(
         DiagnosticId,
@@ -173,12 +172,15 @@ public sealed class ManifestStringsAnalyzer : DiagnosticAnalyzer
                 continue;
             }
 
-            // Словарь плоский: имя свойства — ключ, значение — строка. Разбирать
-            // JSON целиком анализатору нечем, да и незачем: нужен только список
-            // имён, а вложенности в этом файле не бывает.
-            foreach (Match match in Declared.Matches(text.ToString()))
+            // Словарь плоский: имя поля — ключ, значение — строка, и дорога к
+            // строке у ManifestJson — её имя. Разбор тот же, что у манифеста, и
+            // по той же причине: студия читает словарь с комментариями, и
+            // закомментированная строка — не строка. Регулярное выражение по
+            // тексту считало её на месте, и подпись с её ключом проходила сборку,
+            // чтобы показаться в студии как !ключ!.
+            foreach (var field in ManifestJson.Strings(text.ToString()))
             {
-                known.Add(match.Groups[1].Value);
+                known.Add(field.Path);
             }
         }
 
