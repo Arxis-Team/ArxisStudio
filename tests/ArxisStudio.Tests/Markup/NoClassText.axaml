@@ -1,0 +1,9 @@
+<!--
+    Разметка без x:Class, какой её пишет плагин, не желающий заводить свой
+    класс-контрол: корень принадлежит Avalonia, и сборку {Text} по корню не
+    узнать. Грузится по адресу скомпилированной — так её и грузит плагин.
+-->
+<a:StackPanel xmlns="https://github.com/Arxis-Team/ArxisStudio"
+              xmlns:a="https://github.com/avaloniaui">
+  <a:TextBlock Text="{Text panel.hint}"/>
+</a:StackPanel>

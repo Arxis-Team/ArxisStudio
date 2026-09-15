@@ -1,0 +1,11 @@
+<!--
+    Словарь ресурсов с шаблоном строки: корень — словарь Avalonia, а {Text}
+    стоит внутри шаблона и разбирается, когда шаблон строят.
+-->
+<a:ResourceDictionary xmlns="https://github.com/Arxis-Team/ArxisStudio"
+                      xmlns:a="https://github.com/avaloniaui"
+                      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <a:DataTemplate x:Key="Row" x:DataType="x:String">
+    <a:TextBlock Text="{Text panel.hint}"/>
+  </a:DataTemplate>
+</a:ResourceDictionary>

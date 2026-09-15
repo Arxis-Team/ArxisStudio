@@ -15,9 +15,18 @@ namespace ArxisStudio.Sdk;
 /// Чей словарь брать, расширение узнаёт по сборке, из которой пришла разметка.
 /// Иначе никак: у каждого расширения словарь свой, ключ <c>panel.main</c>
 /// придуман дважды в двух плагинах — и каждому обязан достаться его
-/// собственный. Сборку даёт корень разметки, а связь «сборка → словарь»
-/// кладёт <see cref="StudioStringsRegistry"/> — его наполняет хозяин,
-/// поднявший расширение.
+/// собственный. Связь «сборка → словарь» кладёт <see cref="StudioStringsRegistry"/> —
+/// его наполняет хозяин, поднявший расширение.
+/// </para>
+/// <para>
+/// Сборку даёт корень разметки, а если корень не из расширения — сама
+/// скомпилированная разметка. У <c>x:Class</c> корень — класс плагина. У разметки
+/// без него корень принадлежит Avalonia: панель, загруженная по адресу, словарь
+/// ресурсов, стили, — и по одному корню <c>{Text}</c> там отдавал бы
+/// <c>!ключ!</c>, что и показала живая студия. Контекст, который скомпилированная
+/// разметка передаёт расширению, объявлен в её собственной сборке, — это
+/// проверено замером на всех трёх дорогах, — и отвечает на вопрос точно, без
+/// гадания по простому имени сборки из адреса.
 /// </para>
 /// <para>
 /// <b>Имя класса — это синтаксис разметки, и переименование его ломает.</b>
@@ -57,7 +66,8 @@ public sealed class TextExtension
     public object ProvideValue(IServiceProvider serviceProvider)
     {
         var root = (serviceProvider?.GetService(typeof(IRootObjectProvider)) as IRootObjectProvider)?.RootObject;
-        var strings = StudioStringsRegistry.Of(root?.GetType().Assembly);
+        var strings = StudioStringsRegistry.Of(root?.GetType().Assembly)
+            ?? StudioStringsRegistry.Of(serviceProvider?.GetType().Assembly);
 
         return strings is null ? $"!{Key}!" : strings.Text(Key);
     }

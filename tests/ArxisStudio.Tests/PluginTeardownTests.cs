@@ -1,9 +1,13 @@
 using System.Runtime.CompilerServices;
+using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
+using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Platform;
+using Avalonia.Threading;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -205,6 +209,103 @@ public class PluginTeardownTests : IDisposable
             "у примера появились свои ресурсы — проверке нужен адрес, которого нет");
 
         Assert.True(studio.Host.Drop("arxis.hello"));
+
+        return context;
+    }
+
+    /// <summary>
+    /// Плагин, чей собственный контрол побывал на экране, выгружается.
+    /// </summary>
+    /// <remarks>
+    /// Свойство Avalonia кэширует метаданные по типу, у которого их спросили, — словарём с сильным
+    /// ключом, а спрашивает оформление. Тип-контрол плагина, показанный в окне, оставался ключом у
+    /// свойств, которые ему назначила тема, и контекст не собирался никогда: так терял перезагрузку на
+    /// ходу всякий плагин со своим классом-контролом, а значит и всякий с разметкой <c>x:Class</c>.
+    /// Контрол здесь собран кодом: разметку тест не скомпилирует, а держит тот же тип.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_plugin_whose_control_was_on_screen_still_unloads()
+    {
+        var context = ShownAndDropped();
+
+        for (var attempt = 0; attempt < 10 && context.IsAlive; attempt++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+
+        Assert.False(context.IsAlive, "свойства Avalonia держат тип-контрол плагина: контекст не выгрузился");
+    }
+
+    /// <summary>
+    /// Ставит плагин со своим типом-контролом, показывает контрол в окне, закрывает окно и снимает плагин.
+    /// </summary>
+    /// <remarks>
+    /// Не встраиваемый — по той же причине, что <see cref="Seen"/>. Отрисовку прокручивают руками: в
+    /// безголовом режиме таймер отрисовки стоит, и пачка композитора с закрытым окном держала бы контрол
+    /// до первого тика — это была бы утечка стенда, а не студии.
+    /// </remarks>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private WeakReference ShownAndDropped()
+    {
+        const string id = "probe.view";
+
+        var folder = Directory.CreateDirectory(Path.Combine(_root, id)).FullName;
+        var bin = Directory.CreateDirectory(Path.Combine(folder, "bin")).FullName;
+        var name = $"Probe.View{Guid.NewGuid():N}";
+
+        // Компилятор берёт ссылки из загруженного: библиотека контролов обязана быть в процессе.
+        _ = typeof(AxUserControl);
+
+        TestAssembly.EmitFile(Path.Combine(bin, name + ".dll"), name, """
+            using ArxisStudio.Controls;
+            using ArxisStudio.Sdk;
+            using Avalonia.Controls;
+
+            namespace Probe;
+
+            public sealed class ViewPlugin : StudioPlugin
+            {
+            }
+
+            public sealed class View : AxUserControl
+            {
+                public View() => Content = new TextBlock { Text = "probe" };
+            }
+            """);
+
+        File.WriteAllText(Path.Combine(folder, "plugin.json"), $$"""
+            {
+              "id": "{{id}}",
+              "name": "{{id}}",
+              "version": "1.0.0",
+              "entry": "bin/{{name}}.dll",
+              "activation": [ "onStartup" ]
+            }
+            """);
+
+        using var studio = new TestHost();
+
+        var loaded = Assert.Single(studio.Host.LoadStartup(new PluginCatalog(_root).Scan()));
+
+        Assert.True(loaded.IsLoaded, loaded.Error);
+
+        var view = loaded.Assemblies.SelectMany(assembly => assembly.GetTypes()).Single(type => type.Name == "View");
+        var window = new Window { Width = 300, Height = 200, Content = Activator.CreateInstance(view) };
+
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        window.Close();
+
+        for (var tick = 0; tick < 3; tick++)
+        {
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            Dispatcher.UIThread.RunJobs();
+        }
+
+        var context = new WeakReference(loaded.Context);
+
+        Assert.True(studio.Host.Drop(id));
 
         return context;
     }

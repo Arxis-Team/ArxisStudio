@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using ArxisStudio.Sdk;
+using Avalonia;
 using Avalonia.Platform;
 
 namespace ArxisStudio.Extensibility;
@@ -1073,11 +1074,49 @@ internal sealed class PluginLoadContext(string name, string entryPath)
         try
         {
             Forget();
+            Unregister();
         }
         finally
         {
             Unload();
         }
+    }
+
+    /// <summary>
+    /// Снимает с реестра свойств Avalonia всё, что свойства запомнили о типах плагина.
+    /// </summary>
+    /// <remarks>
+    /// Свойство Avalonia кэширует свои метаданные для каждого типа, у которого их спросили, —
+    /// словарём с сильным ключом-типом, а спрашивает оформление. Тип-контрол плагина, побывавший на
+    /// экране, оставался ключом у свойств, которые ему назначила тема, — в замере это
+    /// <c>Border.Background</c>, <c>Visual.ClipToBounds</c>, <c>Visual.IsVisible</c> и
+    /// <c>TemplatedControl.Template</c>, — и контекст загрузки не собирался никогда. Так терял
+    /// перезагрузку на ходу всякий плагин со своим классом-контролом, а значит и всякий с разметкой
+    /// <c>x:Class</c>.
+    /// <para>
+    /// Средство у Avalonia открытое: <c>UnregisterByModule</c> забывает по списку типов их
+    /// регистрации, переопределения метаданных и кэши. Типы спрашиваются у всех сборок контекста:
+    /// приватная зависимость плагина тоже может завести свой контрол.
+    /// </para>
+    /// </remarks>
+    private void Unregister()
+    {
+        var types = new List<Type>();
+
+        foreach (var assembly in Assemblies)
+        {
+            try
+            {
+                types.AddRange(assembly.GetTypes());
+            }
+            catch (ReflectionTypeLoadException e)
+            {
+                // Типы, которые не загрузились, ни у кого метаданных не спрашивали.
+                types.AddRange(e.Types.OfType<Type>());
+            }
+        }
+
+        AvaloniaPropertyRegistry.Instance.UnregisterByModule(types);
     }
 
     /// <summary>

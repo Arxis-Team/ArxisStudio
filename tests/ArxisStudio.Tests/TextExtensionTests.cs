@@ -87,6 +87,33 @@ public class TextExtensionTests
     }
 
     /// <summary>
+    /// Разметка без <c>x:Class</c> берёт подписи из словаря своей сборки, хотя корень у неё — Avalonia.
+    /// </summary>
+    /// <remarks>
+    /// Панель, загруженная по адресу, и шаблон в словаре ресурсов — разметка, у которой свой класс не
+    /// заведён, и корень принадлежит Avalonia. По одному корню <c>{Text}</c> отдавал там <c>!ключ!</c>:
+    /// так показала живая студия на плагине с панелью без класса. Разметка здесь скомпилирована
+    /// сборкой тестов и грузится по адресу — той же дорогой, что у плагина.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Markup_without_a_class_takes_captions_from_its_own_assembly()
+    {
+        var words = new Words();
+
+        words.Set("panel.hint", "Подсказка без класса");
+        StudioStringsRegistry.Remember(typeof(TextExtensionTests).Assembly, words);
+
+        var panel = Assert.IsType<StackPanel>(AvaloniaXamlLoader.Load(new Uri("avares://ArxisStudio.Tests/Markup/NoClassText.axaml")));
+
+        Assert.Equal("Подсказка без класса", Assert.IsType<TextBlock>(Assert.Single(panel.Children)).Text);
+
+        var resources = Assert.IsType<ResourceDictionary>(AvaloniaXamlLoader.Load(new Uri("avares://ArxisStudio.Tests/Markup/TextTemplates.axaml")));
+        var row = Assert.IsAssignableFrom<Avalonia.Controls.Templates.IDataTemplate>(resources["Row"]).Build("строка");
+
+        Assert.Equal("Подсказка без класса", Assert.IsType<TextBlock>(row).Text);
+    }
+
+    /// <summary>
     /// Связь «сборка → словарь» кладёт хозяин, поднимая расширение.
     /// </summary>
     /// <remarks>
