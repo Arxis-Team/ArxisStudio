@@ -406,8 +406,9 @@ dotnet build src/Plugins/Arxis.HelloPlugin -p:AxPluginDeploy=true
 ## Документы
 
 - [docs/plan.md](docs/plan.md) — план разработки, принятые решения, формат плагина.
-- [docs/design-spec.md](docs/design-spec.md) — выжимка дизайна: палитры, шрифты,
-  метрики, инвентарь экранов.
+- [docs/design-system.md](docs/design-system.md) — дизайн-система: роли цвета и
+  пороги контраста, сетка и плотность, типографика, иконки, поведение контролов,
+  окно, панель, знак и заставка.
 - [docs/projects.md](docs/projects.md) — руководство автора плагина: как читать
   открытое решение, собирать его и править пакеты. Примеры компилируются тестом.
 - [docs/devtools.md](docs/devtools.md) — отладка интерфейса и управление студией

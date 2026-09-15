@@ -33,7 +33,7 @@ public class CodeBlockLineTests
         var (window, text) = Shown();
         var pitch = Pitch(text);
 
-        Assert.True(Math.Abs(pitch - 20) <= 0.5, $"строка кода {pitch}, а спецификация — 20");
+        Assert.True(Math.Abs(pitch - 20) <= 0.5, $"строка кода {pitch}, а должна быть 20");
         Assert.True(text.DesiredSize.Height == 60, $"три строки кода заняли {text.DesiredSize.Height}, а не 60");
 
         window.Close();

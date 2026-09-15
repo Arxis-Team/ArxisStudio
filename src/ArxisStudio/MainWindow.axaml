@@ -54,9 +54,8 @@
             <!--
                 Шестерёнка — своя, а не вклад: в ленте стоит принесённое
                 манифестами, и порядок в ней принадлежит вкладам, а этой кнопке
-                место назначено — крайняя справа, у самых кнопок окна, как в
-                §6 спецификации: «…настройки; разделитель 1×18; окно-кнопки».
-                По той же причине здесь и логотип слева.
+                место назначено — крайняя справа, у самых кнопок окна, а за ней
+                разделитель. По той же причине здесь и логотип слева.
 
                 Меню, а не прямое действие: щелчок по шестерёнке у Rider
                 открывает дела студии целиком, и следующий пункт встанет рядом,
@@ -99,7 +98,7 @@
       </ax:DockView.Empty>
     </ax:DockView>
 
-    <!-- Статус-бар: 24, как в макете экрана Editor. -->
+    <!-- Статус-бар: наименьшая высота контрола, 24 при обычной плотности. -->
     <ax:StudioShell.StatusBar>
       <DockPanel MinHeight="{DynamicResource AxControlHeightCompact}" Margin="{DynamicResource AxSpaceWideSidesThickness}">
         <TextBlock Classes="dim" Text="{Binding Status}" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
