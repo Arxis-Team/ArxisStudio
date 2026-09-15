@@ -24,11 +24,19 @@ namespace ArxisStudio.Sdk.Analyzers;
 /// Про свой контрол одного манифеста мало: класс живёт в сборке, и сверить их
 /// можно только в конце компиляции, когда известны оба.
 /// </para>
+/// <para>
+/// Оба манифеста: <c>plugin.json</c> у внешнего плагина и <c>module.json</c> у
+/// встроенного модуля. Полосу обоих студия строит по одной секции и одними
+/// правилами, и код, переносимый между режимами, не должен менять смысл при
+/// переносе. Прежде правила узнавали только <c>plugin.json</c>, и модуль с
+/// кнопкой, зовущей необъявленную команду, собирался без единого замечания —
+/// тот же пробел, что был когда-то у <c>ARX0002</c>.
+/// </para>
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class ToolBarAnalyzer : DiagnosticAnalyzer
 {
-    /// <summary>Кнопка зовёт команду, которой плагин не объявлял.</summary>
+    /// <summary>Кнопка зовёт команду, которой расширение не объявляло.</summary>
     public const string CommandId = "ARX0003";
 
     /// <summary>Свой контрол объявлен манифестом, а класса нет.</summary>
@@ -39,20 +47,21 @@ public sealed class ToolBarAnalyzer : DiagnosticAnalyzer
 
     private const string Attribute = "ToolBarItemAttribute";
     private const string Namespace = "ArxisStudio.Sdk";
-    private const string Manifest = "plugin.json";
+
+    private static readonly string[] Manifests = { "plugin.json", "module.json" };
 
     private static readonly Regex Field =
         new(@"""(id|kind|command)""\s*:\s*""([^""]*)""", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly DiagnosticDescriptor Command = new(
         CommandId,
-        "Кнопка полосы зовёт команду, которой плагин не объявлял",
+        "Кнопка полосы зовёт команду, которой расширение не объявляло",
         "{0}: команды {1} нет в contributions.commands — щелчок по кнопке ничего не сделает",
         "ArxisStudio",
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "Кнопку студия рисует по манифесту и зовёт по ней команду, не спрашивая сборку. " +
-                     "Команда, которую плагин не объявил, не попадёт ни в меню, ни в пробуждение по " +
+                     "Команда, которую расширение не объявило, не попадёт ни в меню, ни в пробуждение по " +
                      "onCommand: — а щелчок по кнопке останется замечанием в журнале.");
 
     private static readonly DiagnosticDescriptor Missing = new(
@@ -62,8 +71,8 @@ public sealed class ToolBarAnalyzer : DiagnosticAnalyzer
         "ArxisStudio",
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "Место в полосе студия отводит по манифесту, а класс ищет по атрибуту, когда плагин " +
-                     "поднят. Не найдя его, она скажет об этом в журнал — но журнал увидит уже пользователь.",
+        description: "Место в полосе студия отводит по манифесту, а класс ищет по атрибуту, когда расширение " +
+                     "поднято. Не найдя его, она скажет об этом в журнал — но журнал увидит уже пользователь.",
         customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     private static readonly DiagnosticDescriptor Undeclared = new(
@@ -325,11 +334,27 @@ public sealed class ToolBarAnalyzer : DiagnosticAnalyzer
 
     private static readonly char[] Separators = { '/', '\\' };
 
+    /// <summary>
+    /// Манифест ли это — по имени файла.
+    /// </summary>
+    /// <remarks>
+    /// По имени, а не по тому, что файл — JSON: рядом с манифестом сборка подаёт
+    /// словарь (у плагина <c>lang/strings.json</c>, у модуля — словарь студии), и
+    /// принятый за манифест словарь дал бы находки на пустом месте.
+    /// </remarks>
     private static bool IsManifest(string path)
     {
         var separator = path.LastIndexOfAny(Separators);
         var name = separator < 0 ? path : path.Substring(separator + 1);
 
-        return string.Equals(name, Manifest, StringComparison.OrdinalIgnoreCase);
+        foreach (var manifest in Manifests)
+        {
+            if (string.Equals(name, manifest, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

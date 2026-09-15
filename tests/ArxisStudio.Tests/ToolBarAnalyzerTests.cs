@@ -15,6 +15,13 @@ namespace ArxisStudio.Tests;
 /// Разойтись они могут молча — класс переименовали, а в манифесте забыли, — и
 /// человек увидит пустое место вместо кнопки. Студия скажет об этом в журнал,
 /// но журнал прочтёт уже пользователь, а не автор.
+/// <para>
+/// Главные случаи идут на обоих манифестах — <c>plugin.json</c> внешнего плагина
+/// и <c>module.json</c> встроенного модуля: полосу обоих студия строит по одной
+/// секции, и код, переносимый между режимами, не должен менять смысл при
+/// переносе. Прежде правила узнавали только <c>plugin.json</c>, и полоса модулей
+/// при сборке не сверялась вовсе.
+/// </para>
 /// </remarks>
 public class ToolBarAnalyzerTests
 {
@@ -28,9 +35,11 @@ public class ToolBarAnalyzerTests
         }
         """;
 
-    /// <summary>Кнопка зовёт команду, которую плагин не объявлял.</summary>
-    [Fact]
-    public async Task A_button_naming_an_undeclared_command_is_reported()
+    /// <summary>Кнопка зовёт команду, которую расширение не объявляло.</summary>
+    [Theory]
+    [InlineData("plugin.json")]
+    [InlineData("module.json")]
+    public async Task A_button_naming_an_undeclared_command_is_reported(string manifestName)
     {
         var found = await AnalyzeAsync("""
             {
@@ -43,7 +52,7 @@ public class ToolBarAnalyzerTests
                 ]
               }
             }
-            """);
+            """, manifestName: manifestName);
 
         var diagnostic = Assert.Single(found);
 
@@ -51,7 +60,7 @@ public class ToolBarAnalyzerTests
         Assert.Contains("probe.halt", diagnostic.GetMessage(), StringComparison.Ordinal);
 
         // Место находки — сам манифест: править нужно там, а не в коде.
-        Assert.EndsWith("plugin.json", diagnostic.Location.GetLineSpan().Path, StringComparison.Ordinal);
+        Assert.EndsWith(manifestName, diagnostic.Location.GetLineSpan().Path, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -101,8 +110,10 @@ public class ToolBarAnalyzerTests
     }
 
     /// <summary>Свой контрол объявлен, а класса под него нет.</summary>
-    [Fact]
-    public async Task A_custom_item_without_its_class_is_reported()
+    [Theory]
+    [InlineData("plugin.json")]
+    [InlineData("module.json")]
+    public async Task A_custom_item_without_its_class_is_reported(string manifestName)
     {
         var found = await AnalyzeAsync("""
             {
@@ -111,13 +122,13 @@ public class ToolBarAnalyzerTests
                 "toolBar": [ { "id": "probe.strip", "kind": "custom" } ]
               }
             }
-            """);
+            """, manifestName: manifestName);
 
         var diagnostic = Assert.Single(found);
 
         Assert.Equal(ToolBarAnalyzer.MissingId, diagnostic.Id);
         Assert.Contains("probe.strip", diagnostic.GetMessage(), StringComparison.Ordinal);
-        Assert.EndsWith("plugin.json", diagnostic.Location.GetLineSpan().Path, StringComparison.Ordinal);
+        Assert.EndsWith(manifestName, diagnostic.Location.GetLineSpan().Path, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -127,8 +138,10 @@ public class ToolBarAnalyzerTests
     /// Самая обычная ошибка первого раза: класс написан, а объявить его забыли —
     /// и полоса о нём не узнает, потому что собирается по манифесту.
     /// </remarks>
-    [Fact]
-    public async Task A_marked_class_that_the_manifest_does_not_declare_is_reported()
+    [Theory]
+    [InlineData("plugin.json")]
+    [InlineData("module.json")]
+    public async Task A_marked_class_that_the_manifest_does_not_declare_is_reported(string manifestName)
     {
         var found = await AnalyzeAsync("""
             {
@@ -145,7 +158,7 @@ public class ToolBarAnalyzerTests
 
             [ToolBarItem("probe.forgotten")]
             public sealed class Forgotten { }
-            """);
+            """, manifestName);
 
         var diagnostic = Assert.Single(found);
 
@@ -157,8 +170,10 @@ public class ToolBarAnalyzerTests
     }
 
     /// <summary>Манифест и код совпали — правила молчат.</summary>
-    [Fact]
-    public async Task A_toolbar_that_matches_its_code_is_left_alone()
+    [Theory]
+    [InlineData("plugin.json")]
+    [InlineData("module.json")]
+    public async Task A_toolbar_that_matches_its_code_is_left_alone(string manifestName)
     {
         Assert.Empty(await AnalyzeAsync("""
             {
@@ -176,7 +191,7 @@ public class ToolBarAnalyzerTests
 
             [ToolBarItem("probe.strip")]
             public sealed class Strip { }
-            """));
+            """, manifestName));
     }
 
     /// <summary>
@@ -261,7 +276,17 @@ public class ToolBarAnalyzerTests
             """));
     }
 
-    private static async Task<ImmutableArray<Diagnostic>> AnalyzeAsync(string? manifest, string? source = null)
+    /// <summary>Прогоняет правила над кодом и манифестом.</summary>
+    /// <param name="manifest">Текст манифеста; null — проект без манифеста.</param>
+    /// <param name="source">Код проекта; null — пустой класс.</param>
+    /// <param name="manifestName">Имя манифеста: <c>plugin.json</c> у плагина, <c>module.json</c> у модуля.</param>
+    /// <remarks>
+    /// Словарь подаётся раньше манифеста, как в настоящей сборке: плагин отдаёт анализаторам
+    /// <c>lang/strings.json</c>, модуль — словарь студии. Манифестом правила обязаны признать ровно
+    /// манифест, а не первый попавшийся JSON.
+    /// </remarks>
+    private static async Task<ImmutableArray<Diagnostic>> AnalyzeAsync(
+        string? manifest, string? source = null, string manifestName = "plugin.json")
     {
         var references = AppDomain.CurrentDomain.GetAssemblies()
             .Where(assembly => !assembly.IsDynamic && assembly.Location.Length > 0)
@@ -284,10 +309,15 @@ public class ToolBarAnalyzerTests
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-        var files = new List<AdditionalText>();
+        var files = new List<AdditionalText>
+        {
+            new Given(
+                manifestName == "module.json" ? "C:/studio/Localization/Strings/en.json" : "C:/probe/lang/strings.json",
+                """{ "menu.tools": "Tools" }"""),
+        };
 
         if (manifest is not null)
-            files.Add(new Given("C:/probe/plugin.json", manifest));
+            files.Add(new Given($"C:/probe/{manifestName}", manifest));
 
         var analyzed = compilation.WithAnalyzers(
             ImmutableArray.Create<DiagnosticAnalyzer>(new ToolBarAnalyzer()),
