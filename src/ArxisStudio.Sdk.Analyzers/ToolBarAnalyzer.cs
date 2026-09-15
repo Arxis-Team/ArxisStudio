@@ -50,8 +50,15 @@ public sealed class ToolBarAnalyzer : DiagnosticAnalyzer
 
     private static readonly string[] Manifests = { "plugin.json", "module.json" };
 
-    private static readonly Regex Field =
-        new(@"""(id|kind|command)""\s*:\s*""([^""]*)""", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    /// <summary>Поле элемента полосы — только во вкладах и только своё, не вложенное.</summary>
+    private static readonly Regex ItemField = new(
+        @"^(?<item>contributions\.toolBar\[\d+\])\.(?<field>id|kind|command)$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    /// <summary>Имя объявленной команды.</summary>
+    private static readonly Regex CommandField = new(
+        @"^contributions\.commands\[\d+\]\.id$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     private static readonly DiagnosticDescriptor Command = new(
         CommandId,
@@ -115,10 +122,10 @@ public sealed class ToolBarAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        var source = text.ToString();
-        var declared = Declared(source, "commands");
+        var fields = ManifestJson.Strings(text.ToString());
+        var declared = Declared(fields);
 
-        foreach (var item in Items(source))
+        foreach (var item in Items(fields))
         {
             if (!item.IsButton || item.Command.Length == 0 || declared.Contains(item.Command))
             {
@@ -155,8 +162,7 @@ public sealed class ToolBarAnalyzer : DiagnosticAnalyzer
 
         context.RegisterCompilationEndAction(end =>
         {
-            var source = text.ToString();
-            var custom = Items(source).Where(item => item.IsCustom).ToList();
+            var custom = Items(ManifestJson.Strings(text.ToString())).Where(item => item.IsCustom).ToList();
 
             foreach (var item in custom.Where(item => item.Id.Length > 0 && !marked.ContainsKey(item.Id)))
             {
@@ -212,122 +218,86 @@ public sealed class ToolBarAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    /// Разбирает секцию <c>toolBar</c>.
+    /// Элементы полосы — из <c>contributions.toolBar</c>, в порядке записи.
     /// </summary>
     /// <remarks>
-    /// Разбирать JSON анализатору нечем: он живёт в netstandard2.0 и тащить в
-    /// плагин чужую сборку ради одной секции не станет. Разбор поэтому свой и
-    /// нарочно простой — он и может быть простым: у элемента полосы все поля
-    /// строковые, вложенных объектов внутри не бывает, и кавычки в тексте
-    /// считаются честно.
+    /// Элемент узнаётся по месту в структуре манифеста, а не по первому
+    /// вхождению имени секции в тексте: разбор общий с <c>ARX0011</c> —
+    /// <see cref="ManifestJson"/>. Прежний разбор искал секцию регулярным
+    /// выражением и комментариев не видел, хотя студия их читает:
+    /// закомментированная старая полоса над настоящей сверялась вместо неё,
+    /// элемент в комментарии считался объявленным, а одноимённая секция вне
+    /// <c>contributions</c> — полосой студии.
     /// </remarks>
-    private static IEnumerable<Item> Items(string source)
+    private static List<Item> Items(List<ManifestJson.Field> fields)
     {
-        var start = Section(source, "toolBar");
+        var order = new List<string>();
+        var drafts = new Dictionary<string, Draft>(StringComparer.Ordinal);
 
-        if (start < 0)
+        foreach (var field in fields)
         {
-            yield break;
-        }
+            var match = ItemField.Match(field.Path);
 
-        var quoted = false;
-        var open = -1;
-
-        for (var at = start; at < source.Length; at++)
-        {
-            var symbol = source[at];
-
-            if (symbol == '"' && (at == 0 || source[at - 1] != '\\'))
-            {
-                quoted = !quoted;
-            }
-
-            if (quoted)
+            if (!match.Success)
             {
                 continue;
             }
 
-            if (symbol == '{')
-            {
-                open = at;
-            }
-            else if (symbol == '}' && open >= 0)
-            {
-                yield return Read(source.Substring(open, at - open + 1), open);
-                open = -1;
-            }
-            else if (symbol == ']')
-            {
-                yield break;
-            }
-        }
-    }
+            // Элемент — по полной дороге к нему, а не по номеру: номер 0 есть у
+            // первого элемента любого массива, и поля двух разных элементов
+            // слились бы в один.
+            var item = match.Groups["item"].Value;
 
-    private static Item Read(string body, int offset)
-    {
-        var id = string.Empty;
-        var kind = string.Empty;
-        var command = string.Empty;
-        var span = new TextSpan(offset, body.Length);
+            if (!drafts.TryGetValue(item, out var draft))
+            {
+                draft = new Draft();
+                drafts[item] = draft;
+                order.Add(item);
+            }
 
-        foreach (Match match in Field.Matches(body))
-        {
-            var value = match.Groups[2].Value;
-
-            switch (match.Groups[1].Value.ToLowerInvariant())
+            switch (match.Groups["field"].Value.ToLowerInvariant())
             {
                 case "id":
-                    id = value;
-
-                    // Место находки — имя элемента: по нему автор его и узнаёт.
-                    span = new TextSpan(offset + match.Index, match.Length);
+                    draft.Id = field.Value;
+                    draft.Named = field.Span;
                     break;
 
                 case "kind":
-                    kind = value;
+                    draft.Kind = field.Value;
                     break;
 
                 case "command":
-                    command = value;
+                    draft.Command = field.Value;
+                    draft.Called = field.Span;
                     break;
             }
         }
 
-        return new Item(id, kind, command, span);
+        // Место находки — имя элемента: по нему автор его и узнаёт. Безымянной
+        // кнопке остаётся её команда — о ней находка и говорит.
+        return order
+            .Select(item => drafts[item])
+            .Select(draft => new Item(draft.Id, draft.Kind, draft.Command, draft.Named ?? draft.Called ?? default))
+            .ToList();
     }
 
-    /// <summary>Имена, объявленные в секции: <c>{ "id": "…" }</c> подряд.</summary>
-    private static HashSet<string> Declared(string source, string section)
+    /// <summary>Элемент полосы, пока его поля собираются по одному.</summary>
+    private sealed class Draft
     {
-        var names = new HashSet<string>(StringComparer.Ordinal);
-        var start = Section(source, section);
+        public string Id { get; set; } = string.Empty;
 
-        if (start < 0)
-        {
-            return names;
-        }
+        public string Kind { get; set; } = string.Empty;
 
-        var end = source.IndexOf(']', start);
-        var body = end < 0 ? source.Substring(start) : source.Substring(start, end - start);
+        public string Command { get; set; } = string.Empty;
 
-        foreach (Match match in Field.Matches(body))
-        {
-            if (string.Equals(match.Groups[1].Value, "id", StringComparison.OrdinalIgnoreCase))
-            {
-                names.Add(match.Groups[2].Value);
-            }
-        }
+        public TextSpan? Named { get; set; }
 
-        return names;
+        public TextSpan? Called { get; set; }
     }
 
-    /// <summary>Где начинается массив названной секции; -1 — её нет.</summary>
-    private static int Section(string source, string name)
-    {
-        var match = Regex.Match(source, @"""" + name + @"""\s*:\s*\[", RegexOptions.IgnoreCase);
-
-        return match.Success ? match.Index + match.Length : -1;
-    }
+    /// <summary>Команды, объявленные в <c>contributions.commands</c>.</summary>
+    private static HashSet<string> Declared(List<ManifestJson.Field> fields) =>
+        new(fields.Where(field => CommandField.IsMatch(field.Path)).Select(field => field.Value), StringComparer.Ordinal);
 
     private static Location At(string path, SourceText text, TextSpan span) =>
         Location.Create(path, span, text.Lines.GetLinePositionSpan(span));

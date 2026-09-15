@@ -41,7 +41,7 @@ public class ToolBarAnalyzerTests
     [InlineData("module.json")]
     public async Task A_button_naming_an_undeclared_command_is_reported(string manifestName)
     {
-        var found = await AnalyzeAsync("""
+        const string manifest = """
             {
               "id": "arxis.probe",
               "contributions": {
@@ -52,15 +52,19 @@ public class ToolBarAnalyzerTests
                 ]
               }
             }
-            """, manifestName: manifestName);
+            """;
 
-        var diagnostic = Assert.Single(found);
+        var diagnostic = Assert.Single(await AnalyzeAsync(manifest, manifestName: manifestName));
 
         Assert.Equal(ToolBarAnalyzer.CommandId, diagnostic.Id);
         Assert.Contains("probe.halt", diagnostic.GetMessage(), StringComparison.Ordinal);
 
-        // Место находки — сам манифест: править нужно там, а не в коде.
+        // Место находки — сам манифест: править нужно там, а не в коде. И в нём — имя элемента:
+        // по нему автор кнопку и узнаёт.
         Assert.EndsWith(manifestName, diagnostic.Location.GetLineSpan().Path, StringComparison.Ordinal);
+        Assert.Equal(
+            "probe.stop",
+            manifest.Substring(diagnostic.Location.SourceSpan.Start, diagnostic.Location.SourceSpan.Length));
     }
 
     /// <summary>
@@ -242,6 +246,116 @@ public class ToolBarAnalyzerTests
               }
             }
             """));
+    }
+
+    /// <summary>
+    /// Закомментированная старая полоса не подменяет собой настоящую.
+    /// </summary>
+    /// <remarks>
+    /// Студия читает манифест с комментариями, и старую полосу автор вполне может оставить
+    /// комментарием над новой. Разбор, искавший секцию первым вхождением в тексте, сверял бы её — с
+    /// находкой про давно убранную команду и молчанием о настоящей кнопке.
+    /// </remarks>
+    [Fact]
+    public async Task A_commented_out_toolbar_does_not_stand_in_for_the_real_one()
+    {
+        // Старых кнопок две, а настоящая одна: прочитанная как текст, первая старая встала бы на
+        // ту же дорогу, что настоящая, и спряталась бы за ней, а второй спрятаться не за кого.
+        var diagnostic = Assert.Single(await AnalyzeAsync("""
+            {
+              "id": "arxis.probe",
+              "contributions": {
+                "commands": [ { "id": "probe.run" } ],
+                // "toolBar": [ { "id": "probe.old", "command": "probe.gone" }, { "id": "probe.older", "command": "probe.lost" } ],
+                "toolBar": [ { "id": "probe.stop", "command": "probe.halt" } ]
+              }
+            }
+            """));
+
+        Assert.Equal(ToolBarAnalyzer.CommandId, diagnostic.Id);
+        Assert.Contains("probe.halt", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.DoesNotContain("probe.gone", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    /// <summary>Команда, объявленная только в комментарии, не объявлена.</summary>
+    /// <remarks>Студия её не прочтёт — значит, и кнопка, зовущая её, зовёт в пустоту.</remarks>
+    [Fact]
+    public async Task A_command_declared_only_in_a_comment_is_not_declared()
+    {
+        var diagnostic = Assert.Single(await AnalyzeAsync("""
+            {
+              "id": "arxis.probe",
+              "contributions": {
+                /* "commands": [ { "id": "probe.halt" } ], */
+                "commands": [ { "id": "probe.run" } ],
+                "toolBar": [ { "id": "probe.stop", "command": "probe.halt" } ]
+              }
+            }
+            """));
+
+        Assert.Equal(ToolBarAnalyzer.CommandId, diagnostic.Id);
+        Assert.Contains("probe.halt", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Свой контрол, закомментированный в полосе, не объявлен — и класс под него объявления не
+    /// получает.
+    /// </summary>
+    /// <remarks>
+    /// Разбор, читавший комментарий как текст, находил в нём элемент: класс под убранный контрол
+    /// проходил бы объявленным, и полоса его так и не построила бы.
+    /// </remarks>
+    [Fact]
+    public async Task A_custom_item_in_a_comment_declares_nothing()
+    {
+        var diagnostic = Assert.Single(await AnalyzeAsync("""
+            {
+              "id": "arxis.probe",
+              "contributions": {
+                "toolBar": [
+                  // { "id": "probe.ghost", "kind": "custom" },
+                  { "id": "probe.strip", "kind": "custom" }
+                ]
+              }
+            }
+            """, """
+            using ArxisStudio.Sdk;
+
+            [ToolBarItem("probe.strip")]
+            public sealed class Strip { }
+
+            [ToolBarItem("probe.ghost")]
+            public sealed class Ghost { }
+            """));
+
+        Assert.Equal(ToolBarAnalyzer.UndeclaredId, diagnostic.Id);
+        Assert.Contains("probe.ghost", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Полоса студии — та, что во вкладах: одноимённые секции в другом месте манифеста не в счёт.
+    /// </summary>
+    /// <remarks>
+    /// Студия читает полосу и команды только из <c>contributions</c>. Секция с тем же именем выше по
+    /// тексту — не её, и сверять по ней значило бы проверять то, чего студия не увидит.
+    /// </remarks>
+    [Fact]
+    public async Task Only_the_sections_of_the_contributions_count()
+    {
+        var diagnostic = Assert.Single(await AnalyzeAsync("""
+            {
+              "id": "arxis.probe",
+              "toolBar": [ { "id": "probe.top", "command": "probe.nowhere" } ],
+              "commands": [ { "id": "probe.halt" } ],
+              "contributions": {
+                "commands": [ { "id": "probe.run" } ],
+                "toolBar": [ { "id": "probe.stop", "command": "probe.halt" } ]
+              }
+            }
+            """));
+
+        Assert.Equal(ToolBarAnalyzer.CommandId, diagnostic.Id);
+        Assert.Contains("probe.halt", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
     /// <summary>Полосы в манифесте нет вовсе — спрашивать не о чем.</summary>
