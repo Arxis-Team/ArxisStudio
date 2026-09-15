@@ -86,6 +86,61 @@ public class ManifestTagsAnalyzerTests
         Assert.Empty(await AnalyzeAsync("""{ "id": "arxis.probe" }"""));
     }
 
+    /// <summary>
+    /// Закомментированный старый список тегов не подменяет собой настоящий.
+    /// </summary>
+    /// <remarks>
+    /// Студия читает манифест с комментариями. Разбор, искавший секцию первым вхождением в тексте,
+    /// судил бы старые теги — с находками про то, чего в манифесте уже нет, и молчанием о настоящих.
+    /// </remarks>
+    [Fact]
+    public async Task A_commented_out_tag_list_does_not_stand_in_for_the_real_one()
+    {
+        var diagnostic = Assert.Single(await AnalyzeAsync("""
+            {
+              "id": "arxis.probe",
+              // "tags": [ "Old Tools" ],
+              "tags": [ "tools", "Terminal" ]
+            }
+            """));
+
+        Assert.Contains("«Terminal»", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Теги расширения — те, что в голове манифеста; поле с тем же именем глубже — не они.
+    /// </summary>
+    [Fact]
+    public async Task Only_the_tags_of_the_head_are_judged()
+    {
+        Assert.Empty(await AnalyzeAsync("""
+            {
+              "id": "arxis.probe",
+              "contributions": {
+                "settings": [ { "key": "probe.labels", "type": "string", "scope": "user", "tags": [ "Not Tags" ] } ]
+              },
+              "tags": [ "tools" ]
+            }
+            """));
+    }
+
+    /// <summary>
+    /// Тег судится таким, каким его прочтёт студия, — с разобранным экранированием.
+    /// </summary>
+    /// <remarks>
+    /// <c>\u0054ools</c> в файле — это «Tools» в студии, с заглавной. Судить записанный текст
+    /// значило бы промолчать о регистре, которого в записи не видно.
+    /// </remarks>
+    [Fact]
+    public async Task An_escaped_tag_is_judged_as_the_studio_reads_it()
+    {
+        var diagnostic = Assert.Single(await AnalyzeAsync("""
+            { "id": "arxis.probe", "tags": [ "\u0054ools" ] }
+            """));
+
+        Assert.Contains("tools", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
     /// <summary>Манифест встроенного модуля проверяется той же дорогой.</summary>
     /// <remarks>
     /// Секция манифеста у модуля и у плагина одна, и правила у них одни: код,

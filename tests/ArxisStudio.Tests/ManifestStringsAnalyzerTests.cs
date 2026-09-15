@@ -105,6 +105,58 @@ public class ManifestStringsAnalyzerTests
     }
 
     /// <summary>
+    /// Ключ в комментарии правилу не интересен — студия его не прочтёт.
+    /// </summary>
+    /// <remarks>
+    /// Старую подпись автор вполне может оставить комментарием, а её ключ из словаря — убрать.
+    /// Правило, искавшее ключи по всему тексту, давало на неё находку на пустом месте, а сборка с
+    /// предупреждениями-ошибками из-за неё не собиралась.
+    /// </remarks>
+    [Fact]
+    public async Task A_key_in_a_comment_is_not_asked_about()
+    {
+        const string manifest = """
+            {
+              "id": "arxis.probe",
+              // "name": "%plugin.old%",
+              "contributions": {
+                /* "toolWindows": [ { "id": "probe.old", "title": "%panel.gone%" } ], */
+                "toolWindows": [ { "id": "probe.panel", "title": "%panel.probe%" } ]
+              }
+            }
+            """;
+
+        Assert.Empty(await AnalyzeAsync(manifest, """{ "panel.probe": "Проба" }"""));
+    }
+
+    /// <summary>
+    /// Находка стоит ровно на ключе — и тогда, когда перед ним в строке экранирование.
+    /// </summary>
+    /// <remarks>
+    /// В пути меню ключей несколько, и косая между ними вправе быть записана как <c>\/</c>. Ключ ищется
+    /// в записанном тексте строки, а не в разобранном: разобранный на знак короче, и место находки
+    /// уехало бы с ключа.
+    /// </remarks>
+    [Fact]
+    public async Task A_missing_key_is_marked_where_it_is_written()
+    {
+        const string manifest = """
+            {
+              "id": "arxis.probe",
+              "contributions": {
+                "menus": [ { "path": "%menu.tools%\/%menu.gone%", "command": "probe.run" } ]
+              }
+            }
+            """;
+
+        var diagnostic = Assert.Single(await AnalyzeAsync(manifest, """{ "menu.tools": "Инструменты" }"""));
+
+        Assert.Equal(
+            "%menu.gone%",
+            manifest.Substring(diagnostic.Location.SourceSpan.Start, diagnostic.Location.SourceSpan.Length));
+    }
+
+    /// <summary>
     /// Манифест встроенного модуля проверяется так же, как манифест плагина.
     /// </summary>
     /// <remarks>

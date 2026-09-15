@@ -17,9 +17,12 @@ namespace ArxisStudio.Sdk.Analyzers;
 /// или не доедет вовсе. Автор об этом узнать обязан, и узнать при своей
 /// сборке: в чужой студии его тег будет уже просто не тем.
 /// <para>
-/// Разбор регулярным выражением, а не JSON-разбором: анализатор живёт по
-/// правилам Roslyn, на <c>netstandard2.0</c> и без своих зависимостей, — той
-/// же дорогой, что и <c>ARX0002</c> рядом.
+/// Теги берутся у <see cref="ManifestJson"/> — там, где их читает студия: в голове
+/// манифеста, <c>tags[N]</c>, и такими, какими она их прочтёт, с разобранным
+/// экранированием. Прежде секция искалась регулярным выражением — первым
+/// вхождением в тексте, вместе с комментариями: закомментированный старый список
+/// судился вместо настоящего, поле с тем же именем глубже в манифесте — тоже, а
+/// <c>\u0054ools</c> проходил без замечания о регистре.
 /// </para>
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
@@ -36,8 +39,8 @@ public sealed class ManifestTagsAnalyzer : DiagnosticAnalyzer
 
     private static readonly string[] Manifests = { "plugin.json", "module.json" };
 
-    private static readonly Regex Section = new(@"""tags""\s*:\s*\[(?<body>[^\]]*)\]", RegexOptions.Compiled);
-    private static readonly Regex Item = new(@"""(?<tag>[^""]*)""", RegexOptions.Compiled);
+    /// <summary>Тег — строка в списке головы манифеста.</summary>
+    private static readonly Regex Tag = new(@"^tags\[\d+\]$", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     private static readonly DiagnosticDescriptor Rule = new(
         DiagnosticId,
@@ -81,31 +84,24 @@ public sealed class ManifestTagsAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        var source = text.ToString();
-        var section = Section.Match(source);
-
-        if (!section.Success)
-        {
-            return;
-        }
-
-        var body = section.Groups["body"];
         var seen = new HashSet<string>();
         var counted = 0;
 
-        foreach (Match item in Item.Matches(body.Value))
+        foreach (var field in ManifestJson.Strings(text.ToString()))
         {
-            var tag = item.Groups["tag"].Value;
-            var span = new TextSpan(body.Index + item.Groups["tag"].Index, item.Groups["tag"].Length);
+            if (!Tag.IsMatch(field.Path))
+            {
+                continue;
+            }
 
             counted++;
 
-            foreach (var complaint in Complaints(tag, seen, counted))
+            foreach (var complaint in Complaints(field.Value, seen, counted))
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     Rule,
-                    Location.Create(manifest.Path, span, text.Lines.GetLinePositionSpan(span)),
-                    tag,
+                    Location.Create(manifest.Path, field.Span, text.Lines.GetLinePositionSpan(field.Span)),
+                    field.Value,
                     complaint));
             }
         }

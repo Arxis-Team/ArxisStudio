@@ -33,6 +33,14 @@ namespace ArxisStudio.Sdk.Analyzers;
 /// языка, на который расширение ещё не переведено, и требовать полноты от
 /// каждого файла значило бы запретить переводить по частям.
 /// </para>
+/// <para>
+/// Ключи ищутся во всех строковых значениях манифеста, а не в известных правилу
+/// полях: новая секция попадает под проверку без правки анализатора. Но только в
+/// значениях — их отдаёт <see cref="ManifestJson"/>. Прежде проверка шла по всему
+/// тексту вместе с комментариями, хотя студия их не читает: закомментированная
+/// старая подпись с ключом, убранным из словаря, давала находку на пустом месте,
+/// а сборка с предупреждениями-ошибками из-за неё не собиралась.
+/// </para>
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class ManifestStringsAnalyzer : DiagnosticAnalyzer
@@ -95,21 +103,29 @@ public sealed class ManifestStringsAnalyzer : DiagnosticAnalyzer
         var known = Known(context);
         var source = text.ToString();
 
-        foreach (Match match in Keys.Matches(source))
+        foreach (var field in ManifestJson.Strings(source))
         {
-            var key = match.Groups[1].Value;
+            // Ключ ищется в записанном тексте строки, а не в разобранном: место
+            // находки — в файле, и экранирование перед ключом (в пути меню это
+            // вполне может быть \/) сдвинуло бы его с ключа.
+            var written = source.Substring(field.Span.Start, field.Span.Length);
 
-            if (known.Contains(key))
+            foreach (Match match in Keys.Matches(written))
             {
-                continue;
+                var key = match.Groups[1].Value;
+
+                if (known.Contains(key))
+                {
+                    continue;
+                }
+
+                var span = new TextSpan(field.Span.Start + match.Index, match.Length);
+
+                context.ReportDiagnostic(Diagnostic.Create(
+                    Rule,
+                    Location.Create(manifest.Path, span, text.Lines.GetLinePositionSpan(span)),
+                    key));
             }
-
-            var span = new TextSpan(match.Index, match.Length);
-
-            context.ReportDiagnostic(Diagnostic.Create(
-                Rule,
-                Location.Create(manifest.Path, span, text.Lines.GetLinePositionSpan(span)),
-                key));
         }
     }
 
