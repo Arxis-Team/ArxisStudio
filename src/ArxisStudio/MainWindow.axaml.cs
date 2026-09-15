@@ -48,10 +48,8 @@ public partial class MainWindow : AxWindow
     private readonly StudioShortcuts _shortcuts;
     private readonly PaletteOverlay _palette;
 
-    // Правка keymap.json при открытой студии: слежение за файлом и страница «Клавиши», если окно
-    // настроек сейчас открыто, — ей перечитать реестр вслед за раздачей.
+    // Правка keymap.json при открытой студии: сохранённый файл раздаётся заново.
     private readonly KeymapWatch _keymapWatch;
-    private ArxisStudio.Settings.KeysPage? _keysShown;
 
     // Раскладка: дерево доков, живые панели в нём и уборка по хозяину.
     private readonly StudioDock _dock;
@@ -418,29 +416,7 @@ public partial class MainWindow : AxWindow
     {
         try
         {
-            // Страница клавиш собирается на каждое открытие: плагины поднимаются и
-            // уходят по ходу сеанса, и вчерашний список сочетаний соврал бы.
-            var keys = ArxisStudio.Settings.KeysPage.From(
-                _shortcuts,
-                CommandPalette.Gather(
-                    StudioMenu.Build(_plugins.Contributing),
-                    [.. Own(), new(Localizer.Instance["command.palette"], "studio.palette")],
-                    Declared(),
-                    _shortcuts.Gesture),
-                id => _plugins.Installed.Concat(_plugins.Modules).FirstOrDefault(plugin => plugin.Id == id)?.DisplayName,
-                StudioPaths.KeymapFile,
-                StudioOpen.InShell);
-
-            _keysShown = keys;
-
-            try
-            {
-                await ArxisStudio.Settings.SettingsWindow.ShowAsync(this, Settings, _plugins, _plugins.Declaring(), Catalog, keys: keys);
-            }
-            finally
-            {
-                _keysShown = null;
-            }
+            await ArxisStudio.Settings.SettingsWindow.ShowAsync(this, Settings, _plugins, _plugins.Declaring(), Catalog, keys: KeysSettings());
         }
         catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
         {
@@ -451,6 +427,26 @@ public partial class MainWindow : AxWindow
             _model.Say($"{Localizer.Instance["common.error"]}: {e.Message}");
         }
     }
+
+    /// <summary>
+    /// Страница «Клавиши» для окна настроек — открытого из студии или из Welcome.
+    /// </summary>
+    /// <remarks>
+    /// Сочетания раздаёт окно студии, и собрано оно раньше Welcome: этап «shell» идёт до «welcome», и к
+    /// приветствию реестр уже знает файл человека, свои сочетания и сочетания поднятых расширений.
+    /// Страница собирается на каждое открытие и слушает реестр, пока окно настроек открыто.
+    /// </remarks>
+    internal ArxisStudio.Settings.KeysPage KeysSettings() =>
+        ArxisStudio.Settings.KeysPage.From(
+            _shortcuts,
+            () => CommandPalette.Gather(
+                StudioMenu.Build(_plugins.Contributing),
+                [.. Own(), new(Localizer.Instance["command.palette"], "studio.palette")],
+                Declared(),
+                _shortcuts.Gesture),
+            id => _plugins.Installed.Concat(_plugins.Modules).FirstOrDefault(plugin => plugin.Id == id)?.DisplayName,
+            StudioPaths.KeymapFile,
+            StudioOpen.InShell);
 
     /// <summary>
     /// Спрашивает имя и сохраняет под ним нынешнюю раскладку.
@@ -611,7 +607,6 @@ public partial class MainWindow : AxWindow
 
         _log.Write(StudioLogLevel.Info, "Keys", "keymap.json применён");
         _model.Say(Localizer.Instance[keymap.Complaints.Count > 0 ? "keys.applied.partly" : "keys.applied"]);
-        _keysShown?.Refresh();
     }
 
     /// <summary>

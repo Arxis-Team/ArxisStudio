@@ -71,6 +71,16 @@ public partial class WelcomeWindow : AxWindow
     /// </remarks>
     internal Func<bool> CanOpenProjects { get; init; }
 
+    /// <summary>
+    /// Страница «Клавиши» для окна настроек; <c>null</c> — окно без неё.
+    /// </summary>
+    /// <remarks>
+    /// Сочетания раздаёт окно студии, и спрашивать страницу надо у него: собрано оно раньше Welcome, и
+    /// сочетания в нём уже розданы. Прежде настройки из Welcome страницы не показывали вовсе, хотя
+    /// открывают их отсюда чаще, чем из студии.
+    /// </remarks>
+    internal Func<KeysPage>? Keys { get; init; }
+
     /// <summary>Пользователь просит открыть студию без проекта.</summary>
     public event EventHandler? StudioRequested;
 
@@ -100,7 +110,7 @@ public partial class WelcomeWindow : AxWindow
 
         try
         {
-            await SettingsWindow.ShowAsync(this, _settings, _extensions, _extensions.Declaring(), _model.Plugins);
+            await SettingsWindow.ShowAsync(this, _settings, _extensions, _extensions.Declaring(), _model.Plugins, keys: Keys?.Invoke());
         }
         finally
         {
@@ -124,7 +134,7 @@ public partial class WelcomeWindow : AxWindow
         try
         {
             await SettingsWindow.ShowAsync(
-                this, _settings, _extensions, _extensions.Declaring(), _model.Plugins, "studio.plugins");
+                this, _settings, _extensions, _extensions.Declaring(), _model.Plugins, "studio.plugins", Keys?.Invoke());
         }
         finally
         {

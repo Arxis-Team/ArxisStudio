@@ -34,15 +34,17 @@ public sealed record KeyRefusal(string Gesture, string Command, string Winner, s
 /// порядок и решает, кому достаётся занятое, — показать его значит объяснить отказы.
 /// </para>
 /// <para>
-/// Страница открыта, а файл сохранили — она перечитывает реестр по <see cref="Refresh"/>. Кнопка
-/// страницы и ведёт к правке файла, и человек, вернувшийся из редактора, должен увидеть, что стало, а
-/// не список на миг открытия окна.
+/// Собранная по реестру, страница его слушает и перечитывает, пока её не отпустят: кнопка страницы
+/// ведёт к правке файла, и человек, вернувшийся из редактора — или со страницы плагинов того же окна,
+/// — должен увидеть, что стало, а не список на миг открытия. Отпускает её окно настроек, закрываясь:
+/// реестр живёт весь сеанс, и забытая подписка держала бы страницу вместе с ним.
 /// </para>
 /// </remarks>
-public sealed class KeysPage : ISettingsPage, INotifyPropertyChanged
+public sealed class KeysPage : ISettingsPage, INotifyPropertyChanged, IDisposable
 {
     private readonly Func<(IReadOnlyList<KeyRow> Rows, IReadOnlyList<KeyRefusal> Refusals)> _read;
     private readonly Action<string> _open;
+    private Action? _release;
 
     /// <summary>Собирает страницу и читает строки первый раз.</summary>
     /// <param name="read">Отданные сочетания в порядке раздачи и отказы — такими, какие они сейчас.</param>
@@ -100,7 +102,7 @@ public sealed class KeysPage : ISettingsPage, INotifyPropertyChanged
     /// <summary>Путь к <c>keymap.json</c>.</summary>
     public string File { get; }
 
-    /// <summary>Перечитывает сочетания и отказы — файл человека раздали заново.</summary>
+    /// <summary>Перечитывает сочетания и отказы.</summary>
     public void Refresh()
     {
         (Rows, Refusals) = _read();
@@ -110,17 +112,27 @@ public sealed class KeysPage : ISettingsPage, INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasRefusals)));
     }
 
+    /// <summary>Перестаёт слушать реестр: окно, показывавшее страницу, закрыто.</summary>
+    public void Dispose()
+    {
+        _release?.Invoke();
+        _release = null;
+    }
+
     /// <summary>
-    /// Собирает страницу по реестру сочетаний.
+    /// Собирает страницу по реестру сочетаний и начинает его слушать.
     /// </summary>
     /// <param name="shortcuts">Реестр сочетаний студии.</param>
-    /// <param name="commands">Названия команд — те же, что показывает палитра.</param>
+    /// <param name="commands">
+    /// Названия команд — те же, что показывает палитра. Спрашиваются при каждом чтении: расширение,
+    /// поднятое при открытой странице, приносит и сочетания, и названия.
+    /// </param>
     /// <param name="plugin">Имя расширения по идентификатору; <c>null</c> — не нашлось.</param>
     /// <param name="file">Путь к <c>keymap.json</c>.</param>
     /// <param name="open">Чем открыть файл.</param>
     public static KeysPage From(
         StudioShortcuts shortcuts,
-        IReadOnlyList<PaletteEntry> commands,
+        Func<IReadOnlyList<PaletteEntry>> commands,
         Func<string, string?> plugin,
         string file,
         Action<string> open)
@@ -129,19 +141,19 @@ public sealed class KeysPage : ISettingsPage, INotifyPropertyChanged
         ArgumentNullException.ThrowIfNull(commands);
         ArgumentNullException.ThrowIfNull(plugin);
 
-        var titles = new Dictionary<string, string>(StringComparer.Ordinal);
-
-        foreach (var command in commands)
-            titles.TryAdd(command.CommandId, command.Title);
-
-        string Title(string id) => titles.TryGetValue(id, out var title) ? title : id;
-
         string Source(string? owner, bool personal) =>
             personal ? "keymap.json" : owner is null ? Localizer.Instance["keys.studio"] : plugin(owner) ?? owner;
 
-        return new KeysPage(
-            () =>
-            (
+        (IReadOnlyList<KeyRow>, IReadOnlyList<KeyRefusal>) Read()
+        {
+            var titles = new Dictionary<string, string>(StringComparer.Ordinal);
+
+            foreach (var command in commands())
+                titles.TryAdd(command.CommandId, command.Title);
+
+            string Title(string id) => titles.TryGetValue(id, out var title) ? title : id;
+
+            return (
                 [.. shortcuts.All.Select(bound => new KeyRow(bound.Gesture.ToString(), Title(bound.CommandId), Source(bound.Owner, bound.Personal)))],
                 [
                     .. shortcuts.Refused.Select(refusal => new KeyRefusal(
@@ -149,10 +161,17 @@ public sealed class KeysPage : ISettingsPage, INotifyPropertyChanged
                         Title(refusal.CommandId),
                         string.Format(CultureInfo.CurrentCulture, Localizer.Instance["keys.refused.winner"], Title(refusal.Winner)),
                         Source(refusal.Owner, refusal.Personal))),
-                ]
-            ),
-            file,
-            open);
+                ]);
+        }
+
+        var page = new KeysPage(Read, file, open);
+
+        void OnChanged(object? sender, EventArgs e) => page.Refresh();
+
+        shortcuts.Changed += OnChanged;
+        page._release = () => shortcuts.Changed -= OnChanged;
+
+        return page;
     }
 
     /// <summary>

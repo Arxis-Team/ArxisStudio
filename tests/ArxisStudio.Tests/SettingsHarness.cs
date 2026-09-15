@@ -5,9 +5,15 @@ using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Services;
 using ArxisStudio.Settings;
 using ArxisStudio.Shell;
+using ArxisStudio.Shell.Localization;
 using ArxisStudio.Shell.Settings;
+using ArxisStudio.Welcome;
+using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -58,6 +64,35 @@ internal sealed class SettingsHarness : IDisposable
         Dispatcher.UIThread.RunJobs();
 
         return (owner, Assert.Single(owner.OwnedWindows.OfType<SettingsWindow>()), shown);
+    }
+
+    /// <summary>Открывает настройки так, как их открывает Welcome, — щелчком по двери в его полосе.</summary>
+    /// <param name="door">Ключ подписи двери: <c>welcome.nav.settings</c> или <c>welcome.nav.plugins</c>.</param>
+    /// <param name="keys">Чем Welcome спрашивает страницу клавиш; null — не спрашивает.</param>
+    /// <returns>Экран Welcome и открытое им окно настроек.</returns>
+    public (WelcomeWindow Welcome, SettingsWindow Settings) OpenFromWelcome(string door, Func<KeysPage>? keys)
+    {
+        var catalog = new PluginCatalog(Path.Combine(_home, "plugins"));
+        var welcome = new WelcomeWindow(
+            new JsonSettingsStore(Path.Combine(_home, "settings.json")),
+            new RecentProjects(Path.Combine(_home, "recent-projects.json")),
+            catalog,
+            Extensions(catalog))
+        {
+            Keys = keys,
+        };
+
+        welcome.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        var button = welcome.GetVisualDescendants()
+            .OfType<ToggleButton>()
+            .Single(candidate => AutomationProperties.GetName(candidate) == Localizer.Instance[door]);
+
+        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
+
+        return (welcome, Assert.Single(welcome.OwnedWindows.OfType<SettingsWindow>()));
     }
 
     private StudioPlugins Extensions(PluginCatalog catalog)

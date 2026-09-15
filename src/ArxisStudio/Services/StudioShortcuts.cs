@@ -65,6 +65,15 @@ public sealed class StudioShortcuts(Func<string, bool> invoke)
     public IReadOnlyList<ShortcutConflict> Refused => _refused;
 
     /// <summary>
+    /// Раздача переменилась: расширение попросило сочетание или ушло, человек сохранил файл.
+    /// </summary>
+    /// <remarks>
+    /// Слушает страница «Клавиши», пока открыто её окно: человек возвращается к ней из редактора
+    /// файла или со страницы плагинов того же окна и должен видеть то, что стало.
+    /// </remarks>
+    public event EventHandler? Changed;
+
+    /// <summary>
     /// Просит сочетание для команды.
     /// </summary>
     /// <param name="gesture">Как в манифесте: <c>Ctrl+W</c>, <c>Shift+F6</c>.</param>
@@ -88,7 +97,11 @@ public sealed class StudioShortcuts(Func<string, bool> invoke)
         // получит своё по умолчанию, когда человек уберёт её из файла.
         _asked.Add(new Request(gesture, commandId, owner));
 
-        return Deal(gesture, commandId, owner);
+        var given = Deal(gesture, commandId, owner);
+
+        Changed?.Invoke(this, EventArgs.Empty);
+
+        return given;
     }
 
     /// <summary>
@@ -136,6 +149,8 @@ public sealed class StudioShortcuts(Func<string, bool> invoke)
 
         foreach (var asked in _asked)
             Deal(asked.Gesture, asked.CommandId, asked.Owner);
+
+        Changed?.Invoke(this, EventArgs.Empty);
 
         return [.. _refused.Where(refusal => !before.Contains(refusal))];
     }
@@ -188,6 +203,8 @@ public sealed class StudioShortcuts(Func<string, bool> invoke)
         _bindings.RemoveAll(bound => string.Equals(bound.Owner, owner, StringComparison.Ordinal));
         _refused.RemoveAll(refusal => string.Equals(refusal.Owner, owner, StringComparison.Ordinal));
         _asked.RemoveAll(request => string.Equals(request.Owner, owner, StringComparison.Ordinal));
+
+        Changed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Каким сочетанием зовут эту команду; <c>null</c> — никаким.</summary>

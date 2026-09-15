@@ -490,7 +490,11 @@ public class App : Application
         // открытый из Welcome, смотрел в то же хранилище, что и живые плагины.
         // Окно студии к этому мигу собрано, а модули и плагины подняты —
         // этапы «shell», «modules» и «extensions» идут раньше «welcome».
-        var welcome = new WelcomeWindow(_settings, _recent, _plugins, _studio.Extensions, _log);
+        var welcome = new WelcomeWindow(_settings, _recent, _plugins, _studio.Extensions, _log)
+        {
+            // Сочетания раздаёт окно студии, и страницу клавиш даёт оно же — одну на оба входа.
+            Keys = _studio.KeysSettings,
+        };
         welcome.StudioRequested += (_, _) =>
         {
             _studio.Show();

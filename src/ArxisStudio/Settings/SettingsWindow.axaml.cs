@@ -67,7 +67,10 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
     /// <param name="declaring">Кто объявляет настройки: модули, затем плагины.</param>
     /// <param name="catalog">Каталог плагинов на диске.</param>
     /// <param name="page">На каком разделе открыть; null — на первом.</param>
-    /// <param name="keys">Страница сочетаний клавиш; null — у окна, открытого не из студии, её нет.</param>
+    /// <param name="keys">
+    /// Страница сочетаний клавиш; null — окно без неё. Окно отпускает страницу, закрываясь: она слушает
+    /// реестр сочетаний, который живёт весь сеанс.
+    /// </param>
     /// <remarks>
     /// Хранилище берётся у студии, а не заводится своё: оно читает файл в
     /// память при создании и переписывает его целиком, поэтому второй
@@ -102,6 +105,7 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
             keys);
 
         window.Attach(model, page);
+        window.Closed += (_, _) => keys?.Dispose();
 
         return window.ShowDialog(owner);
     }

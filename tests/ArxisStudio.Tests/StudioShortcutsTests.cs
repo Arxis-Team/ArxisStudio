@@ -436,6 +436,33 @@ public class StudioShortcutsTests
         Assert.Equal("Ctrl+Shift+P", starting.Gesture("studio.palette"));
     }
 
+    /// <summary>
+    /// Реестр говорит о каждой перемене раздачи — и молчит, когда сломанный файл не меняет ничего.
+    /// </summary>
+    /// <remarks>
+    /// Слушает открытая страница «Клавиши»: без этого она показывала бы раздачу на миг открытия окна.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_registry_tells_when_the_deal_changes()
+    {
+        var keys = new StudioShortcuts(_ => true);
+        var heard = 0;
+
+        keys.Changed += (_, _) => heard++;
+
+        keys.Bind("Ctrl+Alt+G", "hello.greet", "arxis.hello");
+        Assert.Equal(1, heard);
+
+        keys.Personalize(Keymap(("studio.palette", ["Ctrl+Alt+P"])));
+        Assert.Equal(2, heard);
+
+        keys.RemoveOwnedBy("arxis.hello");
+        Assert.Equal(3, heard);
+
+        keys.Personalize(StudioKeymap.Parse("""{ "studio.palette": """));
+        Assert.Equal(3, heard);
+    }
+
     /// <summary>Файл человека из пар «команда — сочетания».</summary>
     private static StudioKeymap Keymap(params (string Command, string[] Gestures)[] entries) =>
         new([.. entries.Select(entry => new KeymapEntry(entry.Command, entry.Gestures))], []);

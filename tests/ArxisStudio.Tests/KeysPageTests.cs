@@ -177,14 +177,15 @@ public class KeysPageTests : IDisposable
     }
 
     /// <summary>
-    /// Открытая страница показывает новую раздачу: человек сохранил файл, не закрывая настроек.
+    /// Открытая страница идёт за реестром сама: человек сохранил файл, расширение ушло.
     /// </summary>
     /// <remarks>
-    /// Кнопка страницы и ведёт к правке файла, и вернувшийся из редактора должен увидеть, что стало: новое
-    /// сочетание плашкой и пропавший отказ — без раздела «Не досталось».
+    /// Кнопка страницы ведёт к правке файла, и вернувшийся из редактора должен увидеть, что стало: новое
+    /// сочетание плашкой и пропавший отказ — без раздела «Не досталось». Так же и с расширением, которое
+    /// выключили на соседней странице того же окна: его сочетаний больше нет.
     /// </remarks>
     [AvaloniaFact]
-    public async Task An_open_page_shows_the_new_deal()
+    public async Task An_open_page_follows_the_registry_by_itself()
     {
         var (page, keys) = Keyed(Path.Combine(_root, "keymap.json"), _ => { });
         var (owner, settings, shown) = _harness.Open(page, "studio.keys");
@@ -192,14 +193,15 @@ public class KeysPageTests : IDisposable
         Dispatcher.UIThread.RunJobs();
 
         keys.Personalize(new StudioKeymap([new KeymapEntry("hello.greet", ["Ctrl+Alt+J"]), new KeymapEntry("hello.close", [])], []));
-        page.Refresh();
         Dispatcher.UIThread.RunJobs();
 
-        var chips = settings.GetVisualDescendants().OfType<AxChip>().Where(chip => chip.IsEffectivelyVisible).Select(chip => chip.Content as string).ToList();
-        var texts = settings.GetVisualDescendants().OfType<TextBlock>().Where(text => text.IsEffectivelyVisible).Select(text => text.Text).ToList();
+        Assert.Equal(["Ctrl+Alt+J", "Ctrl+W", "Ctrl+Alt+G"], Chips(settings));
+        Assert.DoesNotContain(Localizer.Instance["keys.refused"], Texts(settings));
 
-        Assert.Equal(["Ctrl+Alt+J", "Ctrl+W", "Ctrl+Alt+G"], chips);
-        Assert.DoesNotContain(Localizer.Instance["keys.refused"], texts);
+        keys.RemoveOwnedBy("arxis.hello");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(["Ctrl+Alt+J", "Ctrl+W"], Chips(settings));
 
         settings.Cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
@@ -207,6 +209,65 @@ public class KeysPageTests : IDisposable
 
         owner.Close();
     }
+
+    /// <summary>Закрытое окно настроек отпускает реестр: страница больше не слушает его.</summary>
+    /// <remarks>
+    /// Реестр живёт весь сеанс, а страница собирается на каждое открытие окна. Не отпусти окно страницу,
+    /// каждое открытие настроек оставляло бы в памяти ещё одну, перечитывающую реестр на каждой перемене.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_closed_settings_window_lets_go_of_the_registry()
+    {
+        var (page, keys) = Keyed(Path.Combine(_root, "keymap.json"), _ => { });
+        var (owner, settings, shown) = _harness.Open(page, "studio.keys");
+        var heard = 0;
+
+        page.PropertyChanged += (_, _) => heard++;
+
+        settings.Cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        Assert.Same(shown, await Task.WhenAny(shown, Task.Delay(Patience)));
+
+        keys.Bind("Ctrl+Alt+K", "studio.panel.next");
+
+        Assert.Equal(0, heard);
+
+        owner.Close();
+    }
+
+    /// <summary>Настройки, открытые из Welcome, показывают «Клавиши» — через обе двери его полосы.</summary>
+    /// <remarks>
+    /// Страница стояла только в окне, открытом из студии, с доводом, что из Welcome показать нечего. Довод
+    /// был неверен — окно студии собирается раньше Welcome, и сочетания к нему уже розданы, — а
+    /// настройки открывают как раз отсюда: человек, запустивший студию, страницы не нашёл.
+    /// </remarks>
+    [AvaloniaTheory]
+    [InlineData("welcome.nav.settings")]
+    [InlineData("welcome.nav.plugins")]
+    public async Task The_settings_opened_from_welcome_show_the_keys(string door)
+    {
+        var page = Page(Path.Combine(_root, "keymap.json"), _ => { });
+        var (welcome, settings) = _harness.OpenFromWelcome(door, () => page);
+
+        Assert.Contains(Localizer.Instance["keys.title"], Texts(settings));
+
+        var closed = new TaskCompletionSource();
+
+        settings.Closed += (_, _) => closed.TrySetResult();
+        settings.Cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        Assert.Same(closed.Task, await Task.WhenAny(closed.Task, Task.Delay(Patience)));
+
+        welcome.Close();
+    }
+
+    /// <summary>Плашки сочетаний, которые окно показывает сейчас.</summary>
+    private static List<string?> Chips(Window window) =>
+        [.. window.GetVisualDescendants().OfType<AxChip>().Where(chip => chip.IsEffectivelyVisible).Select(chip => chip.Content as string)];
+
+    /// <summary>Строки текста, которые окно показывает сейчас.</summary>
+    private static List<string?> Texts(Window window) =>
+        [.. window.GetVisualDescendants().OfType<TextBlock>().Where(text => text.IsEffectivelyVisible).Select(text => text.Text)];
 
     /// <summary>
     /// Страница по реестру, где есть всё сразу: сочетание человека, студии и плагина и один отказ.
@@ -229,6 +290,6 @@ public class KeysPageTests : IDisposable
             new("Поздороваться", "hello.greet"),
         ];
 
-        return (KeysPage.From(keys, commands, id => id == "arxis.hello" ? "Пример" : null, file, open), keys);
+        return (KeysPage.From(keys, () => commands, id => id == "arxis.hello" ? "Пример" : null, file, open), keys);
     }
 }
