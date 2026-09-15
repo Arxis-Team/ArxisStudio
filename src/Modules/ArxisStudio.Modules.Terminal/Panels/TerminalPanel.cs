@@ -121,7 +121,7 @@ public sealed class TerminalPanel : ToolWindow
         view.CursorBlink = settings.CursorBlink;
         view.Describe(string.Format(CultureInfo.CurrentCulture, strings["terminal.view"], profile.Title));
 
-        var tab = new AxTabItem { Classes = { "compact" }, Content = Title(profile), IsClosable = true };
+        var tab = new AxTabItem { Content = Title(profile), IsClosable = true };
 
         var entry = new Entry
         {

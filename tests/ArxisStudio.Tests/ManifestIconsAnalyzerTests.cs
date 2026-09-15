@@ -298,17 +298,14 @@ public class ManifestIconsAnalyzerTests
     /// </summary>
     /// <remarks>
     /// Имена у них берутся разными дорогами — у студии отражением по типу, у правила по символам
-    /// компиляции, — и разойтись им есть где: вложенный набор значков палитры дизайнера студия в
-    /// манифест не отдаёт. Сверяются все имена набора и все имена вложенного.
+    /// компиляции, — и разойтись им есть где: служебные члены набора, которые значками не являются,
+    /// правило обязано пропускать так же, как студия. Сверяются все имена набора и одно, которого в
+    /// нём нет.
     /// </remarks>
     [AvaloniaFact]
     public async Task The_rule_and_the_studio_know_the_same_glyphs()
     {
-        var top = Glyphs(typeof(AxIcons));
-        var nested = Glyphs(typeof(AxIcons.Toolbox)).Except(top, StringComparer.Ordinal).ToList();
-        var records = top.Concat(nested).Select(name => "arxis:" + name).ToList();
-
-        Assert.NotEmpty(nested);
+        var records = Glyphs(typeof(AxIcons)).Append("Nope").Select(name => "arxis:" + name).ToList();
 
         var manifest = "{ \"contributions\": { \"commands\": [ "
             + string.Join(", ", records.Select((record, index) => $"{{ \"id\": \"c{index}\", \"icon\": \"{record}\" }}"))

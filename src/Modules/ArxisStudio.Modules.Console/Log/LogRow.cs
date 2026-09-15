@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using ArxisStudio.Controls;
 using ArxisStudio.Sdk;
 
 namespace ArxisStudio.Modules.Console.Log;
@@ -68,14 +69,14 @@ public sealed class LogRow : INotifyPropertyChanged
     /// </remarks>
     public string Text { get; }
 
-    /// <summary>Ошибка.</summary>
-    public bool IsError => Record.Level == StudioLogLevel.Error;
-
-    /// <summary>Предупреждение.</summary>
-    public bool IsWarning => Record.Level == StudioLogLevel.Warning;
-
-    /// <summary>Подробность для отладки.</summary>
-    public bool IsDebug => Record.Level == StudioLogLevel.Debug;
+    /// <summary>Тон слова уровня: ошибка и предупреждение — своим цветом, отладка — приглушённо.</summary>
+    public AxTextTone LevelTone => Record.Level switch
+    {
+        StudioLogLevel.Error => AxTextTone.Error,
+        StudioLogLevel.Warning => AxTextTone.Warning,
+        StudioLogLevel.Debug => AxTextTone.Secondary,
+        _ => AxTextTone.Primary,
+    };
 
     /// <summary>Сколько одинаковых записей схлопнуто в эту строку.</summary>
     public int Repeats

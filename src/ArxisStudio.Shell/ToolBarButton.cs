@@ -1,44 +1,27 @@
 using ArxisStudio.Controls;
-using Avalonia;
-using Avalonia.Controls;
 
 namespace ArxisStudio.Shell;
 
 /// <summary>
-/// Кнопка полосы: обычная кнопка студии, умеющая быть включённой.
+/// Кнопка полосы: переключатель студии, чью включённость решает полоса, а не нажатие.
 /// </summary>
 /// <remarks>
-/// Включённость инструмента тема записывает псевдоклассом <c>:selected</c>, а
-/// своего свойства у кнопки под это нет — «включённость знает приложение, а не
-/// контрол». Полоса и есть то приложение: здесь состояние становится свойством,
-/// которое можно поставить из реестра, а псевдокласс за ним следует.
+/// Включённость инструмента знает приложение, а не контрол: нажатие зовёт команду, а
+/// горит ли кнопка после этого — скажет реестр полосы, когда команда отработает. Обычный
+/// переключатель перевернул бы себя сам ещё до команды, и кнопка команды, которая ничего
+/// не включает, осталась бы гореть после первого же нажатия.
 /// <para>
-/// Тему кнопка берёт у <see cref="AxButton"/>: наследник без этой оговорки
+/// Тему кнопка берёт у <see cref="AxToggleButton"/>: наследник без этой оговорки
 /// искал бы тему по своему типу и остался бы без неё.
 /// </para>
 /// </remarks>
-public sealed class ToolBarButton : AxButton
+public sealed class ToolBarButton : AxToggleButton
 {
-    /// <summary>Включён ли инструмент, который представляет кнопка.</summary>
-    public static readonly StyledProperty<bool> IsCheckedProperty =
-        AvaloniaProperty.Register<ToolBarButton, bool>(nameof(IsChecked));
-
-    /// <inheritdoc cref="IsCheckedProperty"/>
-    public bool IsChecked
-    {
-        get => GetValue(IsCheckedProperty);
-        set => SetValue(IsCheckedProperty, value);
-    }
-
     /// <inheritdoc/>
-    protected override Type StyleKeyOverride => typeof(AxButton);
+    protected override Type StyleKeyOverride => typeof(AxToggleButton);
 
-    /// <inheritdoc/>
-    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    /// <summary>Нажатие включённость не переворачивает: её ставит полоса.</summary>
+    protected override void Toggle()
     {
-        base.OnPropertyChanged(change);
-
-        if (change.Property == IsCheckedProperty)
-            PseudoClasses.Set(":selected", change.GetNewValue<bool>());
     }
 }

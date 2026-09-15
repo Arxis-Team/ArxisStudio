@@ -39,7 +39,7 @@ public sealed class HelloStrip : ToolBarItem
             Orientation = Orientation.Horizontal,
             Children =
             {
-                new AxIcon { Classes = { "small" }, Data = AxIcons.Star },
+                new AxIcon { Size = AxIconSize.Small, Data = AxIcons.Star },
                 label,
             },
         };
@@ -49,7 +49,8 @@ public sealed class HelloStrip : ToolBarItem
 
         var button = new AxButton
         {
-            Classes = { "ghost", "compact" },
+            Appearance = AxButtonAppearance.Subtle,
+            Size = AxControlSize.Compact,
             Content = content,
         };
 

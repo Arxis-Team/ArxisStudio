@@ -204,7 +204,7 @@ public class ConsolePanelTests : IDisposable
         window.Show();
         Dispatcher.UIThread.RunJobs();
 
-        Part<ConsoleToggle>(panel, "Details").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Part<AxToggleButton>(panel, "Details").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Dispatcher.UIThread.RunJobs();
 
         var details = Part<Border>(panel, "DetailsPane");
@@ -234,7 +234,7 @@ public class ConsolePanelTests : IDisposable
         var panel = LogPanel(new StudioLog());
 
         var handle = Part<AxSplitter>(panel, "Handle");
-        var details = Part<ConsoleToggle>(panel, "Details");
+        var details = Part<AxToggleButton>(panel, "Details");
 
         Assert.False(handle.IsVisible, "граница стоит, а граничить ей не с чем");
 
@@ -272,7 +272,7 @@ public class ConsolePanelTests : IDisposable
         var chosen = records.SelectedItem;
         var before = panel.Rebuilds;
 
-        Part<ConsoleToggle>(panel, "Autoscroll").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Part<AxToggleButton>(panel, "Autoscroll").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(before, panel.Rebuilds);

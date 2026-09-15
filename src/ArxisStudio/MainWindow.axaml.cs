@@ -300,7 +300,7 @@ public partial class MainWindow : AxWindow
                 var item = new AxMenuItem { Header = panel.Title };
 
                 if (panel.Standing)
-                    item.Icon = new AxIcon { Classes = { "small" }, Data = AxIcons.Check };
+                    item.Icon = new AxIcon { Size = AxIconSize.Small, Data = AxIcons.Check };
 
                 var id = panel.Id;
                 var standing = panel.Standing;
@@ -332,7 +332,7 @@ public partial class MainWindow : AxWindow
                 // человеку незачем, поэтому щелчка у него и нет.
                 if (string.Equals(name, _dock.Layout, StringComparison.Ordinal))
                 {
-                    set.Icon = new AxIcon { Classes = { "small" }, Data = AxIcons.Check };
+                    set.Icon = new AxIcon { Size = AxIconSize.Small, Data = AxIcons.Check };
                 }
                 else
                 {
@@ -361,7 +361,7 @@ public partial class MainWindow : AxWindow
                 var forget = new AxMenuItem
                 {
                     Header = Localizer.Instance["menu.layout.delete"],
-                    Classes = { "danger" },
+                    IsDestructive = true,
                 };
 
                 forget.Click += (_, _) => _dock.Forget();
@@ -462,7 +462,7 @@ public partial class MainWindow : AxWindow
         var save = new AxButton
         {
             Content = Localizer.Instance["common.save"],
-            Classes = { "accent" },
+            Appearance = AxButtonAppearance.Primary,
         };
         var buttons = new StackPanel
         {

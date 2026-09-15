@@ -32,7 +32,7 @@
       <AxButton x:Name="Cancel" Content="{Text common.cancel}" MinWidth="{a:DynamicResource AxDialogButtonMinWidth}"/>
 
       <!-- Без хоста подключаться некуда: кнопка выключена, пока поле пустое. -->
-      <AxButton x:Name="Connect" Classes="accent" Content="{Text terminal.ssh.connect}"
+      <AxButton x:Name="Connect" Appearance="Primary" Content="{Text terminal.ssh.connect}"
                 MinWidth="{a:DynamicResource AxDialogButtonMinWidth}" IsEnabled="False"/>
     </a:StackPanel>
   </AxDialog.Buttons>

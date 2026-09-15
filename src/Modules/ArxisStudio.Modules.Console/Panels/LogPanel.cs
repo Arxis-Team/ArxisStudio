@@ -38,6 +38,7 @@ public sealed class LogPanel : ToolWindow
     private LogCounts _counts;
     private bool _collapse;
     private bool _autoscroll = true;
+    private bool _details;
     private bool _stamps = true;
 
     // Чем закончилось прошлое перестроение: первая учтённая запись и сколько
@@ -220,20 +221,26 @@ public sealed class LogPanel : ToolWindow
         _seen = 0;
     }
 
+    /// <summary>
+    /// Включает или выключает уровень, на кнопку которого нажали.
+    /// </summary>
+    /// <remarks>
+    /// Включённость уровня хранит фильтр, а кнопка её только показывает. Переключатель
+    /// переворачивает себя сам на нажатии, и переворот отсюда вернул бы его назад, — поэтому
+    /// переворачивается фильтр, а кнопке состояние ставит <see cref="ShowLevels"/>.
+    /// </remarks>
     private void OnLevelClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is not ConsoleToggle toggle)
+        if (ReferenceEquals(sender, _view.Errors))
+            _filter = _filter with { Error = !_filter.Error };
+        else if (ReferenceEquals(sender, _view.Warnings))
+            _filter = _filter with { Warning = !_filter.Warning };
+        else if (ReferenceEquals(sender, _view.Infos))
+            _filter = _filter with { Info = !_filter.Info };
+        else if (ReferenceEquals(sender, _view.Debugs))
+            _filter = _filter with { Debug = !_filter.Debug };
+        else
             return;
-
-        toggle.IsChecked = !toggle.IsChecked;
-
-        _filter = _filter with
-        {
-            Error = _view.Errors.IsChecked,
-            Warning = _view.Warnings.IsChecked,
-            Info = _view.Infos.IsChecked,
-            Debug = _view.Debugs.IsChecked,
-        };
 
         ShowLevels();
         Forget();
@@ -281,12 +288,13 @@ public sealed class LogPanel : ToolWindow
     /// </remarks>
     private void OnDetailsClick(object? sender, RoutedEventArgs e)
     {
-        _view.Details.IsChecked = !_view.Details.IsChecked;
+        _details = !_details;
 
-        _view.DetailsPane.IsVisible = _view.Details.IsChecked;
-        _view.Handle.IsVisible = _view.Details.IsChecked;
+        _view.Details.IsChecked = _details;
+        _view.DetailsPane.IsVisible = _details;
+        _view.Handle.IsVisible = _details;
 
-        _view.Body.RowDefinitions[2].Height = _view.Details.IsChecked
+        _view.Body.RowDefinitions[2].Height = _details
             ? new GridLength(1, GridUnitType.Star)
             : new GridLength(0);
     }
@@ -385,9 +393,8 @@ public sealed class LogPanel : ToolWindow
     /// Показывает, какие уровни включены.
     /// </summary>
     /// <remarks>
-    /// Выключенный счётчик приглушается целиком. Тема красит <c>:selected</c>
-    /// только у кнопок класса <c>icon</c> — квадратных по высоте строки, — а
-    /// счётчику нужна ширина под число, и класс у него другой.
+    /// Выключенный счётчик приглушается целиком: включённый лежит на заливке, но число
+    /// выключенного уровня рядом с ним читалось бы тем же весом.
     /// </remarks>
     private void ShowLevels()
     {
@@ -396,7 +403,7 @@ public sealed class LogPanel : ToolWindow
         Show(_view.Infos, _filter.Info);
         Show(_view.Debugs, _filter.Debug);
 
-        static void Show(ConsoleToggle toggle, bool on)
+        static void Show(AxToggleButton toggle, bool on)
         {
             toggle.IsChecked = on;
             toggle.Opacity = on ? 1 : 0.45;

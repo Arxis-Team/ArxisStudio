@@ -25,19 +25,21 @@ namespace ArxisStudio.Shell;
 /// глиф, добавленный в набор, становится доступен плагинам без правки студии.
 /// Сравнение строгое к регистру — имя копируется из кода как есть.
 /// </para>
+/// <para>
+/// По имени запоминается геттер, а не путь: набор разбирает путь при первом обращении,
+/// и словарь, построенный вызовом всех геттеров, разобрал бы весь набор на старте ради
+/// единиц значков, которые назвали манифесты.
+/// </para>
 /// </remarks>
 public static class ManifestIcons
 {
     /// <summary>Чем начинается ссылка на глиф набора.</summary>
     public const string Prefix = "arxis:";
 
-    private static readonly FrozenDictionary<string, Geometry> Named = typeof(AxIcons)
+    private static readonly FrozenDictionary<string, PropertyInfo> Named = typeof(AxIcons)
         .GetProperties(BindingFlags.Public | BindingFlags.Static)
         .Where(property => typeof(Geometry).IsAssignableFrom(property.PropertyType))
-        .ToFrozenDictionary(
-            property => property.Name,
-            property => (Geometry)property.GetValue(null)!,
-            StringComparer.Ordinal);
+        .ToFrozenDictionary(property => property.Name, StringComparer.Ordinal);
 
     /// <summary>
     /// Разбирает запись значка.
@@ -64,8 +66,8 @@ public static class ManifestIcons
         {
             var name = icon[Prefix.Length..].Trim();
 
-            if (Named.TryGetValue(name, out var found))
-                return found;
+            if (Named.TryGetValue(name, out var getter))
+                return (Geometry)getter.GetValue(null)!;
 
             problem = $"значка {icon} в наборе студии нет";
             return null;

@@ -63,7 +63,7 @@
             -->
             <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxSpaceTight}" VerticalAlignment="Center">
               <ax:ToolBarStrip x:Name="RightStrip"/>
-              <ax:AxButton x:Name="SettingsButton" Classes="icon"
+              <ax:AxButton x:Name="SettingsButton" Appearance="Toolbar"
                            AutomationProperties.Name="{ax:Loc toolbar.settings}"
                            ToolTip.Tip="{ax:Loc toolbar.settings}"
                            Click="OnSettingsClick">
@@ -91,8 +91,8 @@
                  HideTitle="{ax:Loc action.hide}">
       <ax:DockView.Empty>
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="{DynamicResource AxSpace}">
-          <TextBlock Classes="dim" Text="ArxisStudio" FontSize="{DynamicResource AxFontSizeTitle}" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-          <TextBlock Classes="dimmer" Text="{ax:Loc studio.canvas.hint}"
+          <TextBlock ax:AxText.Tone="Secondary" Text="ArxisStudio" FontSize="{DynamicResource AxFontSizeTitle}" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+          <TextBlock ax:AxText.Tone="Tertiary" Text="{ax:Loc studio.canvas.hint}"
                      FontSize="{DynamicResource AxFontSizeSmall}" HorizontalAlignment="Center"/>
         </StackPanel>
       </ax:DockView.Empty>
@@ -101,7 +101,7 @@
     <!-- Статус-бар: наименьшая высота контрола, 24 при обычной плотности. -->
     <ax:StudioShell.StatusBar>
       <DockPanel MinHeight="{DynamicResource AxControlHeightCompact}" Margin="{DynamicResource AxSpaceWideSidesThickness}">
-        <TextBlock Classes="dim" Text="{Binding Status}" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+        <TextBlock ax:AxText.Tone="Secondary" Text="{Binding Status}" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
         <!--
             Идущая задача: имя, чем занята, полоса и отмена. Место одно на всех
             плагинов — иначе каждый заведёт свою мельницу, и человек будет
@@ -110,17 +110,17 @@
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="{DynamicResource AxSpace}"
                     VerticalAlignment="Center" Margin="{DynamicResource AxSpaceLooseSidesThickness}" IsVisible="{Binding HasTask}">
           <TextBlock Text="{Binding TaskTitle}" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center"/>
-          <TextBlock Text="{Binding TaskMessage}" Classes="dim" FontSize="{DynamicResource AxFontSizeSmall}"
+          <TextBlock Text="{Binding TaskMessage}" ax:AxText.Tone="Secondary" FontSize="{DynamicResource AxFontSizeSmall}"
                      VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="220"/>
           <ax:AxProgressBar Width="120" VerticalAlignment="Center"
                             IsIndeterminate="{Binding IsTaskIndeterminate}" Value="{Binding TaskProgress}"/>
           <TextBlock Text="{Binding MoreTasks}" IsVisible="{Binding HasMoreTasks}"
-                     Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}"
+                     ax:AxText.Tone="Tertiary" FontSize="{DynamicResource AxFontSizeSmall}"
                      VerticalAlignment="Center"/>
-          <ax:AxButton Classes="icon" Width="20" Height="20" IsEnabled="{Binding CanCancelTask}"
+          <ax:AxButton Appearance="Toolbar" Width="20" Height="20" IsEnabled="{Binding CanCancelTask}"
                        AutomationProperties.Name="{ax:Loc task.cancel}"
                        ToolTip.Tip="{ax:Loc task.cancel}" Click="OnCancelTaskClick">
-            <ax:AxIcon Classes="small" Data="{x:Static ax:AxIcons.Close}"/>
+            <ax:AxIcon Size="Small" Data="{x:Static ax:AxIcons.Close}"/>
           </ax:AxButton>
         </StackPanel>
 

@@ -66,7 +66,7 @@ public static class StudioAsk
         buttons.Bind(StackPanel.SpacingProperty, buttons.GetResourceObservable("AxGapControls"));
         alert.Bind(TemplatedControl.ForegroundProperty, alert.GetResourceObservable("AxWarningBrush"));
 
-        agree.Classes.Add(danger ? "danger" : "accent");
+        agree.Appearance = danger ? AxButtonAppearance.Danger : AxButtonAppearance.Primary;
 
         var dialog = new AxDialog
         {

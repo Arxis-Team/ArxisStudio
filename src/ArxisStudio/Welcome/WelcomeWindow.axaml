@@ -32,7 +32,7 @@
 
     <!-- Полоса заголовка: подпись слева, кнопки окна справа. -->
     <ax:AxTitleBar DockPanel.Dock="Top" MinHeight="38">
-      <TextBlock Classes="dimmer" Text="{ax:Loc welcome.title}" FontSize="{DynamicResource AxFontSizeSmall}"
+      <TextBlock ax:AxText.Tone="Tertiary" Text="{ax:Loc welcome.title}" FontSize="{DynamicResource AxFontSizeSmall}"
                  VerticalAlignment="Center" Margin="{DynamicResource AxSpaceWideSidesThickness}"/>
     </ax:AxTitleBar>
 
@@ -54,7 +54,7 @@
           <StackPanel VerticalAlignment="Center">
             <TextBlock Text="{ax:Loc app.name}" FontWeight="SemiBold" FontSize="{DynamicResource AxFontSize}"
                        TextTrimming="CharacterEllipsis"/>
-            <TextBlock Classes="dimmer" Text="Avalonia 12.1 · net10.0" FontSize="{DynamicResource AxFontSizeSmall}"
+            <TextBlock ax:AxText.Tone="Tertiary" Text="Avalonia 12.1 · net10.0" FontSize="{DynamicResource AxFontSizeSmall}"
                        TextTrimming="CharacterEllipsis"/>
           </StackPanel>
         </DockPanel>
@@ -69,14 +69,14 @@
               шестерёнкой везде. Ползунки в наборе остаются за Settings — они
               про подстройку, а не про вход.
           -->
-          <ToggleButton Classes="nav" IsChecked="{Binding IsSettingsOpen, Mode=OneWay}"
+          <ax:AxToggleButton Classes="nav" IsChecked="{Binding IsSettingsOpen, Mode=OneWay}"
                         AutomationProperties.Name="{ax:Loc welcome.nav.settings}"
                         Click="OnSettingsClick">
             <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapControls}">
               <ax:AxIcon Data="{x:Static ax:AxIcons.Gear}"/>
               <TextBlock Text="{ax:Loc welcome.nav.settings}" VerticalAlignment="Center"/>
             </StackPanel>
-          </ToggleButton>
+          </ax:AxToggleButton>
           <Border BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="0,1,0,0" Padding="10,8,0,0">
             <!-- Док, а не стопка, — по той же причине, что у знака наверху. -->
             <DockPanel>
@@ -85,41 +85,41 @@
                   запрещает ставить инициалы на AxTintPurple: белый даёт на нём 3,4:1, а
                   класс purple берёт ступень шкалы, где белый держит порог.
               -->
-              <ax:AxAvatar DockPanel.Dock="Left" Classes="round purple" Width="22" Height="22" Initials="FF" FontSize="{DynamicResource AxFontSizeCaption}"
+              <ax:AxAvatar DockPanel.Dock="Left" Shape="Circle" Tint="Purple" Width="22" Height="22" Initials="FF" FontSize="{DynamicResource AxFontSizeCaption}"
                            Margin="{DynamicResource AxSpaceTrailingThickness}"/>
-              <TextBlock Classes="dim" Text="FibonacciFox" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center"
+              <TextBlock ax:AxText.Tone="Secondary" Text="FibonacciFox" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center"
                          TextTrimming="CharacterEllipsis"/>
             </DockPanel>
           </Border>
         </StackPanel>
 
         <StackPanel Spacing="{DynamicResource AxSpaceHair}">
-          <ToggleButton Classes="nav" IsChecked="{Binding IsProjects, Mode=OneWay}"
+          <ax:AxToggleButton Classes="nav" IsChecked="{Binding IsProjects, Mode=OneWay}"
                         AutomationProperties.Name="{ax:Loc welcome.nav.projects}" Click="OnProjectsClick">
             <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapControls}">
               <ax:AxIcon Data="{x:Static ax:AxIcons.Folder}"/>
               <TextBlock Text="{ax:Loc welcome.nav.projects}" VerticalAlignment="Center"/>
             </StackPanel>
-          </ToggleButton>
-          <ToggleButton Classes="nav" IsChecked="{Binding IsLearn, Mode=OneWay}"
+          </ax:AxToggleButton>
+          <ax:AxToggleButton Classes="nav" IsChecked="{Binding IsLearn, Mode=OneWay}"
                         AutomationProperties.Name="{ax:Loc welcome.nav.learn}" Click="OnLearnClick">
             <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapControls}">
               <ax:AxIcon Data="{x:Static ax:AxIcons.Play}"/>
               <TextBlock Text="{ax:Loc welcome.nav.learn}" VerticalAlignment="Center"/>
             </StackPanel>
-          </ToggleButton>
+          </ax:AxToggleButton>
           <!--
               Плагины разделом быть перестали — как и настройки: менеджер живёт
               страницей того же окна, одного на студию и на Welcome. Строка
               осталась там же и отмечается, пока окно открыто.
           -->
-          <ToggleButton Classes="nav" IsChecked="{Binding IsPluginsOpen, Mode=OneWay}"
+          <ax:AxToggleButton Classes="nav" IsChecked="{Binding IsPluginsOpen, Mode=OneWay}"
                         AutomationProperties.Name="{ax:Loc welcome.nav.plugins}" Click="OnPluginsClick">
             <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapControls}">
               <ax:AxIcon Data="{x:Static ax:AxIcons.Package}"/>
               <TextBlock Text="{ax:Loc welcome.nav.plugins}" VerticalAlignment="Center"/>
             </StackPanel>
-          </ToggleButton>
+          </ax:AxToggleButton>
         </StackPanel>
 
       </DockPanel>
@@ -137,7 +137,7 @@
               BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="0,1,0,0"
               Padding="24,10">
         <DockPanel>
-          <ax:AxButton DockPanel.Dock="Right" Classes="ghost" Content="{ax:Loc common.close}"
+          <ax:AxButton DockPanel.Dock="Right" Appearance="Subtle" Content="{ax:Loc common.close}"
                        Click="OnDismissStatus" MinHeight="{DynamicResource AxControlHeightCompact}" FontSize="{DynamicResource AxFontSizeSmall}"/>
           <TextBlock Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center"
                      FontSize="{DynamicResource AxFontSizeSmall}"/>
@@ -179,10 +179,10 @@
                                 Text="{Binding ProjectFilter, Mode=TwoWay}"/>
 
               <WrapPanel ItemSpacing="{DynamicResource AxGapFormRow}" LineSpacing="{DynamicResource AxGapControls}">
-                <ax:AxButton Classes="accent" Content="{ax:Loc projects.new}" Click="OnNewProjectClick"/>
+                <ax:AxButton Appearance="Primary" Content="{ax:Loc projects.new}" Click="OnNewProjectClick"/>
                 <ax:AxButton Content="{ax:Loc projects.open}" Click="OnOpenProjectClick"/>
                 <ax:AxButton Content="{ax:Loc projects.clone}" Click="OnCloneClick"/>
-                <ax:AxButton Classes="ghost" Content="{ax:Loc projects.stub}"
+                <ax:AxButton Appearance="Subtle" Content="{ax:Loc projects.stub}"
                              AutomationProperties.Name="{ax:Loc projects.stub.hint}"
                              ToolTip.Tip="{ax:Loc projects.stub.hint}"
                              Click="OnStudioClick"/>
@@ -192,9 +192,9 @@
             <!-- Черта отделяет действия от списка: выше делают, ниже выбирают. -->
             <ax:AxDivider Margin="{DynamicResource AxSpaceLooseAboveThickness}"/>
 
-            <TextBlock Classes="section" Text="{ax:Loc projects.recent}" Margin="0,16,0,8"/>
+            <TextBlock ax:AxText.Role="Section" Text="{ax:Loc projects.recent}" Margin="0,16,0,8"/>
 
-            <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="{DynamicResource AxSpaceEndsThickness}"
+            <TextBlock ax:AxText.Tone="Tertiary" FontSize="{DynamicResource AxFontSizeSmall}" Margin="{DynamicResource AxSpaceEndsThickness}"
                        Text="{ax:Loc projects.empty}"
                        IsVisible="{Binding HasNoRecent}"/>
 
@@ -243,7 +243,7 @@
                           прозрачная кнопка ловила бы щелчки, которых человек ей не адресовал.
                       -->
                       <Panel DockPanel.Dock="Right" Width="28" VerticalAlignment="Center">
-                        <ax:AxButton Classes="icon more" Width="24" Height="24"
+                        <ax:AxButton Classes="more" Appearance="Toolbar" Width="24" Height="24"
                                      Tag="{Binding}" Click="OnRecentMoreClick"
                                      AutomationProperties.Name="{ax:Loc projects.actions}"
                                      ToolTip.Tip="{ax:Loc projects.actions}">
@@ -255,7 +255,7 @@
                           Колонка даты — наименьшая, а не прибитая: сто двадцать держат даты строк
                           одной колонкой, но при крупном кегле дата в них не помещалась и теряла время.
                       -->
-                      <TextBlock DockPanel.Dock="Right" Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}"
+                      <TextBlock DockPanel.Dock="Right" ax:AxText.Tone="Tertiary" FontSize="{DynamicResource AxFontSizeSmall}"
                                  MinWidth="120" TextAlignment="Right" VerticalAlignment="Center"
                                  Text="{Binding OpenedAt, StringFormat='{}{0:dd.MM.yyyy HH:mm}'}"/>
                       <ax:AxChip DockPanel.Dock="Right" VerticalAlignment="Center" Margin="{DynamicResource AxSpaceSidesThickness}"
@@ -264,7 +264,7 @@
                       <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="{Binding Name}" FontWeight="Medium" FontSize="{DynamicResource AxFontSize}"/>
                         <!-- Путь длиннее строки сокращается многоточием и читается целиком в подсказке. -->
-                        <TextBlock Classes="mono dimmer" Text="{Binding Path}" Margin="0,1,0,0"
+                        <TextBlock ax:AxText.Role="Code" ax:AxText.Tone="Tertiary" Text="{Binding Path}" Margin="0,1,0,0"
                                    FontSize="{DynamicResource AxFontSizeSmall}"
                                    TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}"/>
                       </StackPanel>
@@ -278,7 +278,7 @@
           <!-- ===== Learn ===== -->
           <StackPanel IsVisible="{Binding IsLearn}" Spacing="0" MaxWidth="760" HorizontalAlignment="Left">
             <TextBlock Text="{ax:Loc learn.title}" FontSize="{DynamicResource AxFontSizeTitle}" FontWeight="SemiBold"/>
-            <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="{DynamicResource AxSpaceHairAboveThickness}" Text="{ax:Loc learn.subtitle}"/>
+            <TextBlock ax:AxText.Tone="Tertiary" FontSize="{DynamicResource AxFontSizeSmall}" Margin="{DynamicResource AxSpaceHairAboveThickness}" Text="{ax:Loc learn.subtitle}"/>
 
             <ax:AxCard Margin="{DynamicResource AxSpaceSectionAboveThickness}" Padding="{DynamicResource AxSpaceTightThickness}">
               <StackPanel>

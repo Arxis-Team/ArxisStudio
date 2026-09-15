@@ -1165,7 +1165,7 @@ public class DockViewTests
         var tabs = DockMouse.Tabs(view.View("left")!).Items.OfType<AxTabItem>().ToList();
         var chosen = tabs.First(tab => tab.IsSelected);
 
-        Assert.Contains("compact", chosen.Classes);
+        Assert.Contains(":tool-window", chosen.Classes);
 
         // Вес у выбранной прежний: ряд не должен ездить от щелчка к щелчку.
         Assert.Equal(FontWeight.Normal, chosen.FontWeight);

@@ -77,7 +77,7 @@
     <DataTemplate DataType="s:KeysPage">
       <StackPanel Spacing="{DynamicResource AxGapGroup}">
         <ax:WrapRow Spacing="{DynamicResource AxGapFormRow}">
-          <TextBlock Classes="dimmer" VerticalAlignment="Center" TextWrapping="Wrap"
+          <TextBlock ax:AxText.Tone="Tertiary" VerticalAlignment="Center" TextWrapping="Wrap"
                      FontSize="{DynamicResource AxFontSizeSmall}"
                      Text="{ax:Loc keys.subtitle}"/>
           <!-- Под подписью кнопка встаёт своей ширины, а не полосой во всю страницу. -->
@@ -87,16 +87,16 @@
         </ax:WrapRow>
 
         <StackPanel Spacing="{DynamicResource AxGapControls}" IsVisible="{Binding HasRefusals}">
-          <TextBlock Classes="section" Text="{ax:Loc keys.refused}"/>
+          <TextBlock ax:AxText.Role="Section" Text="{ax:Loc keys.refused}"/>
           <ax:AxCard Padding="0">
             <ItemsControl ItemsSource="{Binding Refusals}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="s:KeyRefusal">
                   <Border Padding="{DynamicResource AxSettingsRowPadding}" BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="0,0,0,1">
                     <DockPanel>
-                      <ax:AxChip DockPanel.Dock="Left" Classes="kbd" Content="{Binding Gesture}"
+                      <ax:AxChip DockPanel.Dock="Left" Kind="Key" Content="{Binding Gesture}"
                                  Margin="{DynamicResource AxSpaceWideTrailingThickness}" VerticalAlignment="Center"/>
-                      <TextBlock DockPanel.Dock="Right" Classes="dimmer" Text="{Binding Winner}"
+                      <TextBlock DockPanel.Dock="Right" ax:AxText.Tone="Tertiary" Text="{Binding Winner}"
                                  Margin="{DynamicResource AxSpaceWideLeadingThickness}" VerticalAlignment="Center"/>
                       <TextBlock Text="{Binding Command}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
                     </DockPanel>
@@ -113,9 +113,9 @@
               <DataTemplate x:DataType="s:KeyRow">
                 <Border Padding="{DynamicResource AxSettingsRowPadding}" BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="0,0,0,1">
                   <DockPanel>
-                    <ax:AxChip DockPanel.Dock="Left" Classes="kbd" Content="{Binding Gesture}"
+                    <ax:AxChip DockPanel.Dock="Left" Kind="Key" Content="{Binding Gesture}"
                                Margin="{DynamicResource AxSpaceWideTrailingThickness}" VerticalAlignment="Center"/>
-                    <TextBlock DockPanel.Dock="Right" Classes="dimmer" Text="{Binding Source}"
+                    <TextBlock DockPanel.Dock="Right" ax:AxText.Tone="Tertiary" Text="{Binding Source}"
                                Margin="{DynamicResource AxSpaceWideLeadingThickness}" VerticalAlignment="Center"/>
                     <TextBlock Text="{Binding Command}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
                   </DockPanel>
@@ -139,13 +139,13 @@
       <DockPanel>
 
         <DockPanel DockPanel.Dock="Top" Margin="{DynamicResource AxSpaceWideBelowThickness}">
-          <ax:AxButton DockPanel.Dock="Right" Classes="icon"
+          <ax:AxButton DockPanel.Dock="Right" Appearance="Toolbar"
                        AutomationProperties.Name="{ax:Loc plugins.actions}"
                        ToolTip.Tip="{ax:Loc plugins.actions}"
                        Click="OnPluginActionsClick">
             <ax:AxIcon Data="{x:Static ax:AxIcons.MoreHorizontal}"/>
           </ax:AxButton>
-          <TextBlock Classes="dimmer" VerticalAlignment="Center" TextWrapping="Wrap"
+          <TextBlock ax:AxText.Tone="Tertiary" VerticalAlignment="Center" TextWrapping="Wrap"
                      FontSize="{DynamicResource AxFontSizeSmall}"
                      Text="{ax:Loc plugins.subtitle}"/>
         </DockPanel>
@@ -157,7 +157,7 @@
                      FontSize="{DynamicResource AxFontSizeSmall}"/>
         </ax:AxCard>
 
-        <TextBlock DockPanel.Dock="Top" Classes="dimmer" TextWrapping="Wrap"
+        <TextBlock DockPanel.Dock="Top" ax:AxText.Tone="Tertiary" TextWrapping="Wrap"
                    FontSize="{DynamicResource AxFontSizeSmall}"
                    Text="{ax:Loc plugins.empty}" IsVisible="{Binding IsEmpty}"/>
 
@@ -206,7 +206,7 @@
                                       IsVisible="{Binding Plugin.IsValid}">
                       <ax:AxSplitButton.Flyout>
                         <ax:AxMenuFlyout Placement="BottomEdgeAlignedRight">
-                          <ax:AxMenuItem Classes="danger" Header="{ax:Loc plugins.remove}"
+                          <ax:AxMenuItem IsDestructive="True" Header="{ax:Loc plugins.remove}"
                                          Click="OnPluginRemoveClick" Tag="{Binding}"/>
                         </ax:AxMenuFlyout>
                       </ax:AxSplitButton.Flyout>
@@ -221,14 +221,14 @@
                                  Click="OnPluginRemoveClick" Tag="{Binding}"
                                  Content="{ax:Loc plugins.remove}"
                                  IsVisible="{Binding !Plugin.IsValid}"/>
-                    <TextBlock DockPanel.Dock="Right" Classes="mono dimmer" VerticalAlignment="Center"
+                    <TextBlock DockPanel.Dock="Right" ax:AxText.Role="Code" ax:AxText.Tone="Tertiary" VerticalAlignment="Center"
                                FontSize="{DynamicResource AxFontSizeSmall}"
                                Text="{Binding Plugin.Manifest.Version}"/>
                     <StackPanel VerticalAlignment="Center">
                       <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapControls}">
                         <TextBlock Text="{Binding Plugin.DisplayName}" FontWeight="SemiBold"
                                    FontSize="{DynamicResource AxFontSize}"/>
-                        <TextBlock Classes="dimmer" VerticalAlignment="Bottom"
+                        <TextBlock ax:AxText.Tone="Tertiary" VerticalAlignment="Bottom"
                                    FontSize="{DynamicResource AxFontSizeSmall}"
                                    Text="{Binding Plugin.Manifest.Publisher}"/>
                         <ax:AxChip Content="{ax:Loc plugins.broken}" IsVisible="{Binding !Plugin.IsValid}"/>
@@ -246,14 +246,14 @@
                         <ax:AxChip Content="{ax:Loc plugins.pending}" IsVisible="{Binding IsChanged}"/>
                       </StackPanel>
                       <!-- Описание длиннее строки сокращается многоточием и читается целиком в подсказке. -->
-                      <TextBlock Classes="dim" Margin="0,1,0,0" TextTrimming="CharacterEllipsis"
+                      <TextBlock ax:AxText.Tone="Secondary" Margin="0,1,0,0" TextTrimming="CharacterEllipsis"
                                  FontSize="{DynamicResource AxFontSizeSmall}"
                                  Text="{Binding Plugin.Description}" ToolTip.Tip="{Binding Plugin.Description}"/>
-                      <TextBlock Classes="dimmer" Margin="0,1,0,0" TextTrimming="CharacterEllipsis"
+                      <TextBlock ax:AxText.Tone="Tertiary" Margin="0,1,0,0" TextTrimming="CharacterEllipsis"
                                  FontSize="{DynamicResource AxFontSizeSmall}"
                                  Text="{Binding Plugin.Error}" IsVisible="{Binding !Plugin.IsValid}"/>
                       <!-- Причина отказа — одной строкой, целиком в подсказке. -->
-                      <TextBlock Classes="dimmer" TextTrimming="CharacterEllipsis"
+                      <TextBlock ax:AxText.Tone="Tertiary" TextTrimming="CharacterEllipsis"
                                  FontSize="{DynamicResource AxFontSizeSmall}"
                                  Text="{Binding RiseError}" ToolTip.Tip="{Binding RiseError}"
                                  IsVisible="{Binding HasRiseError}"/>
@@ -297,7 +297,7 @@
                       -->
                       <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapIconText}" Margin="{DynamicResource AxSpaceTightAboveThickness}"
                                   IsVisible="{Binding HasDependencies}">
-                        <TextBlock Classes="dimmer" VerticalAlignment="Center"
+                        <TextBlock ax:AxText.Tone="Tertiary" VerticalAlignment="Center"
                                    FontSize="{DynamicResource AxFontSizeSmall}"
                                    Text="{ax:Loc plugins.deps}"/>
                         <ItemsControl ItemsSource="{Binding Dependencies}">
@@ -326,7 +326,7 @@
 
     <!-- Ветка расширений: своих настроек нет, только подсказка. -->
     <DataTemplate DataType="s:ExtensionsPage">
-      <TextBlock Classes="dimmer" TextWrapping="Wrap"
+      <TextBlock ax:AxText.Tone="Tertiary" TextWrapping="Wrap"
                  FontSize="{DynamicResource AxFontSizeSmall}"
                  Text="{ax:Loc settings.extensions.hint}"/>
     </DataTemplate>
@@ -346,9 +346,9 @@
               <ax:WrapRow Classes="settings-row" Spacing="{DynamicResource AxGapFormRow}">
                 <StackPanel>
                   <TextBlock Text="{Binding Label}" FontSize="{DynamicResource AxFontSize}"/>
-                  <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,1,0,0"
+                  <TextBlock ax:AxText.Tone="Tertiary" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,1,0,0"
                              Text="{Binding Key}"/>
-                  <TextBlock Classes="dimmer" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,1,0,0"
+                  <TextBlock ax:AxText.Tone="Tertiary" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,1,0,0"
                              Text="{Binding Note}"
                              IsVisible="{Binding Note, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
                 </StackPanel>
@@ -395,7 +395,7 @@
 
     <ax:AxTitleBar DockPanel.Dock="Top">
       <TextBlock Text="{ax:Loc settings.title}" Margin="{DynamicResource AxSpaceWideSidesThickness}" VerticalAlignment="Center"
-                 FontSize="{DynamicResource AxFontSizeSmall}" Classes="dim"/>
+                 FontSize="{DynamicResource AxFontSizeSmall}" ax:AxText.Tone="Secondary"/>
     </ax:AxTitleBar>
 
     <!--
@@ -409,10 +409,10 @@
       <DockPanel Margin="{DynamicResource AxDialogBandPadding}">
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="{DynamicResource AxGapControls}">
           <ax:AxButton x:Name="Cancel" Content="{ax:Loc common.cancel}" MinWidth="{DynamicResource AxDialogButtonMinWidth}"/>
-          <ax:AxButton x:Name="Save" Classes="accent" Content="{ax:Loc common.save}" MinWidth="{DynamicResource AxDialogButtonMinWidth}"/>
+          <ax:AxButton x:Name="Save" Appearance="Primary" Content="{ax:Loc common.save}" MinWidth="{DynamicResource AxDialogButtonMinWidth}"/>
         </StackPanel>
         <TextBlock Text="{Binding Complaint}" IsVisible="{Binding HasComplaint}"
-                   Classes="bad" TextWrapping="Wrap" VerticalAlignment="Center"
+                   ax:AxText.Tone="Error" TextWrapping="Wrap" VerticalAlignment="Center"
                    FontSize="{DynamicResource AxFontSizeSmall}"/>
       </DockPanel>
     </Border>
@@ -429,7 +429,7 @@
                             PlaceholderText="{ax:Loc settings.search}"
                             Text="{Binding Search, Mode=TwoWay}"/>
 
-          <TextBlock DockPanel.Dock="Top" Classes="dimmer" Margin="2,6,0,0"
+          <TextBlock DockPanel.Dock="Top" ax:AxText.Tone="Tertiary" Margin="2,6,0,0"
                      FontSize="{DynamicResource AxFontSizeSmall}"
                      Text="{ax:Loc settings.empty}" IsVisible="{Binding IsEmpty}"/>
 
@@ -459,7 +459,7 @@
             <ax:AxTreeView.ItemTemplate>
               <TreeDataTemplate x:DataType="s:SettingsNode" ItemsSource="{Binding Children}">
                 <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapIconText}">
-                  <ax:AxIcon Classes="small" Data="{Binding Icon}" VerticalAlignment="Center"/>
+                  <ax:AxIcon Size="Small" Data="{Binding Icon}" VerticalAlignment="Center"/>
                   <TextBlock Text="{Binding Title}" VerticalAlignment="Center"/>
                 </StackPanel>
               </TreeDataTemplate>

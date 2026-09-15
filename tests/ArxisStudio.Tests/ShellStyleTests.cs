@@ -1,3 +1,4 @@
+using ArxisStudio.Controls;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
@@ -24,7 +25,7 @@ public class ShellStyleTests
     [AvaloniaFact]
     public void The_navigation_row_takes_its_size_from_the_theme()
     {
-        var button = new ToggleButton { Classes = { "nav" }, Content = "Проекты" };
+        var button = new AxToggleButton { Classes = { "nav" }, Content = "Проекты" };
 
         var window = new Window
         {
@@ -52,10 +53,9 @@ public class ShellStyleTests
     /// Выбранная строка навигации красится палитрой студии, а не Fluent-ом.
     /// </summary>
     /// <remarks>
-    /// ToggleButton — единственный контрол оболочки без своей темы, и берёт его
-    /// Fluent. Текст Fluent красит на PART_ContentPresenter, а оболочка ставила
-    /// цвет на самой кнопке: до текста он доходил наследованием, а наследование
-    /// слабее значения на том же элементе. Выигрывал белый Fluent-а.
+    /// Строка навигации была голым ToggleButton, и одевал его Fluent: текст он красит на
+    /// PART_ContentPresenter, а оболочка ставила цвет на самой кнопке, и выигрывал белый
+    /// Fluent-а. Теперь это переключатель студии, но проверка осталась — у презентера.
     /// <para>
     /// Светлая тема нужна здесь именно потому, что в тёмной подмена не видна:
     /// белое по AxSelectionActive (#2E436E) читается. В светлой AxSelectionActive — бледно-голубой, и
@@ -69,7 +69,7 @@ public class ShellStyleTests
     [AvaloniaFact]
     public void The_selected_navigation_row_takes_its_colour_from_the_theme()
     {
-        var button = new ToggleButton { Classes = { "nav" }, Content = "Проекты", IsChecked = true };
+        var button = new AxToggleButton { Classes = { "nav" }, Content = "Проекты", IsChecked = true };
 
         var window = new Window
         {

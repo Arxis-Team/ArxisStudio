@@ -1,6 +1,7 @@
 using ArxisStudio.Controls;
 using ArxisStudio.Icons;
 using ArxisStudio.Shell;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Headless.XUnit;
@@ -73,14 +74,14 @@ public class ToolBarStripTests
     /// Включённая иконочная кнопка берёт вид включённого инструмента у темы.
     /// </summary>
     /// <remarks>
-    /// Тема пишет это состояние псевдоклассом <c>:selected</c>; свойство кнопки
-    /// его лишь ставит. Заливка — выделения, глиф — акцентом, как у включённого
+    /// Кнопка полосы — переключатель, и тема пишет его включённость псевдоклассом
+    /// <c>:checked</c>. Заливка — выделения, глиф — акцентом, как у включённого
     /// инструмента в карточке.
     /// </remarks>
     [AvaloniaFact]
-    public void A_checked_icon_button_takes_the_selected_look()
+    public void A_checked_icon_button_takes_the_checked_look()
     {
-        var button = new ToolBarButton { Classes = { "icon" }, Content = new AxIcon { Data = AxIcons.Play } };
+        var button = new ToolBarButton { Appearance = AxButtonAppearance.Toolbar, Content = new AxIcon { Data = AxIcons.Play } };
         var window = Shown(button);
 
         var plate = Plate(button);
@@ -89,29 +90,30 @@ public class ToolBarStripTests
         button.IsChecked = true;
         window.UpdateLayout();
 
-        Assert.Contains(":selected", button.Classes);
+        Assert.Contains(":checked", button.Classes);
         Assert.Equal(Colour(Brush(window, "AxSelectionActiveBrush")), Colour(plate.Background));
         Assert.NotEqual(before, Colour(plate.Background));
 
         button.IsChecked = false;
         window.UpdateLayout();
 
-        Assert.DoesNotContain(":selected", button.Classes);
+        Assert.DoesNotContain(":checked", button.Classes);
 
         window.Close();
     }
 
     /// <summary>
-    /// У текстовой кнопки включённое состояние рисует оболочка.
+    /// Включённую текстовую кнопку тоже рисует тема переключателя.
     /// </summary>
     /// <remarks>
-    /// В теме его нет: нужно оно только полосе, и класть его в тему значило бы
-    /// обещать состояние каждой призрачной кнопке студии.
+    /// Прежде это состояние было только у иконочной кнопки, а текстовую включённую
+    /// рисовали стили оболочки: нужно оно было одной полосе. Переключатель студии знает
+    /// включённость при любом виде.
     /// </remarks>
     [AvaloniaFact]
-    public void A_checked_text_button_is_filled_by_the_shell()
+    public void A_checked_text_button_is_filled_by_the_theme()
     {
-        var button = new ToolBarButton { Classes = { "ghost", "compact" }, Content = "Debug" };
+        var button = new ToolBarButton { Appearance = AxButtonAppearance.Subtle, Size = AxControlSize.Compact, Content = "Debug" };
         var window = Shown(button);
 
         button.IsChecked = true;
@@ -123,16 +125,47 @@ public class ToolBarStripTests
     }
 
     /// <summary>
-    /// Кнопка полосы одета темой обычной кнопки.
+    /// Нажатие не переворачивает включённость кнопки полосы: её ставит полоса.
+    /// </summary>
+    /// <remarks>
+    /// Обычный переключатель перевернул бы себя сам ещё до команды, и кнопка команды,
+    /// которая ничего не включает, осталась бы гореть после первого нажатия.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_click_does_not_flip_a_toolbar_button()
+    {
+        var button = new ToolBarButton { Appearance = AxButtonAppearance.Toolbar, Content = new AxIcon { Data = AxIcons.Play } };
+        var plain = new AxToggleButton { Appearance = AxButtonAppearance.Toolbar, Content = new AxIcon { Data = AxIcons.Play } };
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Children = { button, plain } };
+        var window = Shown(row);
+        var clicks = 0;
+
+        button.Click += (_, _) => clicks++;
+
+        DockMouse.Click(window, Centre(button, window));
+        DockMouse.Click(window, Centre(plain, window));
+
+        Assert.Equal(1, clicks);
+        Assert.False(button.IsChecked, "нажатие перевернуло включённость кнопки полосы");
+        Assert.True(plain.IsChecked, "обычный переключатель не переключился — нажатие до кнопок не дошло");
+
+        window.Close();
+    }
+
+    private static Point Centre(Control control, Window window) =>
+        control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)!.Value;
+
+    /// <summary>
+    /// Кнопка полосы одета темой переключателя.
     /// </summary>
     /// <remarks>
     /// Наследник ищет тему по своему типу и без оговорки остался бы голым —
     /// без шаблона, а значит и без плашки, которую красит состояние.
     /// </remarks>
     [AvaloniaFact]
-    public void The_button_keeps_the_theme_of_a_button()
+    public void The_button_keeps_the_theme_of_a_toggle_button()
     {
-        var button = new ToolBarButton { Classes = { "icon" } };
+        var button = new ToolBarButton { Appearance = AxButtonAppearance.Toolbar };
         var window = Shown(button);
 
         Assert.NotNull(button.GetVisualDescendants().OfType<ContentPresenter>().FirstOrDefault());
@@ -153,7 +186,7 @@ public class ToolBarStripTests
 
         Assert.Equal(20d, divider.Bounds.Height);
         Assert.Equal(1d, divider.Bounds.Width);
-        Assert.Equal(Colour(Brush(window, "AxPressedBrush")), Colour(divider.Background));
+        Assert.Equal(Colour(Brush(window, "AxStrokeStrongBrush")), Colour(divider.Fill));
 
         window.Close();
     }

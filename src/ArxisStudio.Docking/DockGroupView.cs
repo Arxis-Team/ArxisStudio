@@ -342,11 +342,9 @@ public class DockGroupView : TemplatedControl
                 if (_items.Find(id) is not { } item || Hidden?.Contains(id) == true)
                     continue;
 
-                // Класс compact — это и есть вкладка в шапке панели: тема
-                // держит за ним начертание выбранной, толщину полосы под ней и
-                // скругление на наведении. Без него вкладка приходит в шапку
-                // одетой как вкладка документа, и выбор читается одной чертой.
-                var tab = new AxTabItem { Classes = { "compact" }, IsClosable = item.CanClose, Icon = item.Icon };
+                // Вид вкладки панели ей даёт полоса шапки: тема полосы ставит ей
+                // Kind=ToolWindow, а полоса отмечает вкладки сама, и готовые тоже.
+                var tab = new AxTabItem { IsClosable = item.CanClose, Icon = item.Icon };
 
                 if (item.CanClose)
                 {

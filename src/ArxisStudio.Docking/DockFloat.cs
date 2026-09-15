@@ -247,8 +247,8 @@ public class DockFloat : AxWindow
     {
         var button = new AxButton
         {
-            Classes = { "icon" },
-            Content = new AxIcon { Classes = { "small" }, Data = icon },
+            Appearance = AxButtonAppearance.Toolbar,
+            Content = new AxIcon { Size = AxIconSize.Small, Data = icon },
         };
 
         button.Click += (_, _) => act();

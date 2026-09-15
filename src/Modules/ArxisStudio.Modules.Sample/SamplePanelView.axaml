@@ -37,7 +37,7 @@
       <a:TextBlock Text="{Text module.sample.project.label}"
                    Margin="{a:DynamicResource AxSpaceSnugTrailingThickness}"/>
       <a:TextBlock Text="{a:Binding ProjectName}" TextWrapping="Wrap" IsVisible="{a:Binding HasProject}"/>
-      <a:TextBlock Classes="dim" Text="{Text module.sample.project.none}" TextWrapping="Wrap"
+      <a:TextBlock AxText.Tone="Secondary" Text="{Text module.sample.project.none}" TextWrapping="Wrap"
                    IsVisible="{a:Binding !HasProject}"/>
     </a:WrapPanel>
 

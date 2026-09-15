@@ -1,4 +1,4 @@
-# StudioSdk 5.5
+# StudioSdk 6.0
 ArxisStudio.Sdk.CommandAttribute : sealed class : System.Attribute
 ArxisStudio.Sdk.CommandAttribute :: .ctor(System.String id)
 ArxisStudio.Sdk.CommandAttribute :: System.String Id { get; }
@@ -75,9 +75,6 @@ ArxisStudio.Sdk.Plugins.PluginCommand :: System.String? Title { get; init; }
 ArxisStudio.Sdk.Plugins.PluginCommand :: System.Void Deconstruct(out System.String Id)
 ArxisStudio.Sdk.Plugins.PluginCommand :: static System.Boolean op_Equality(ArxisStudio.Sdk.Plugins.PluginCommand? left, ArxisStudio.Sdk.Plugins.PluginCommand? right)
 ArxisStudio.Sdk.Plugins.PluginCommand :: static System.Boolean op_Inequality(ArxisStudio.Sdk.Plugins.PluginCommand? left, ArxisStudio.Sdk.Plugins.PluginCommand? right)
-ArxisStudio.Sdk.Plugins.PluginCommand :: virtual System.Boolean Equals(System.Object? obj)
-ArxisStudio.Sdk.Plugins.PluginCommand :: virtual System.Int32 GetHashCode()
-ArxisStudio.Sdk.Plugins.PluginCommand :: virtual System.String ToString()
 ArxisStudio.Sdk.Plugins.PluginContributions : sealed class
 ArxisStudio.Sdk.Plugins.PluginContributions :: .ctor()
 ArxisStudio.Sdk.Plugins.PluginContributions :: System.Collections.Generic.IList<ArxisStudio.Sdk.Plugins.PluginCommand> Commands { get; set; }
@@ -101,9 +98,6 @@ ArxisStudio.Sdk.Plugins.PluginLanguage :: System.String Name { get; init; }
 ArxisStudio.Sdk.Plugins.PluginLanguage :: System.Void Deconstruct(out System.String Code, out System.String Name, out System.String File, out System.Collections.Generic.IList<ArxisStudio.Sdk.Plugins.PluginTranslation>? Translations)
 ArxisStudio.Sdk.Plugins.PluginLanguage :: static System.Boolean op_Equality(ArxisStudio.Sdk.Plugins.PluginLanguage? left, ArxisStudio.Sdk.Plugins.PluginLanguage? right)
 ArxisStudio.Sdk.Plugins.PluginLanguage :: static System.Boolean op_Inequality(ArxisStudio.Sdk.Plugins.PluginLanguage? left, ArxisStudio.Sdk.Plugins.PluginLanguage? right)
-ArxisStudio.Sdk.Plugins.PluginLanguage :: virtual System.Boolean Equals(System.Object? obj)
-ArxisStudio.Sdk.Plugins.PluginLanguage :: virtual System.Int32 GetHashCode()
-ArxisStudio.Sdk.Plugins.PluginLanguage :: virtual System.String ToString()
 ArxisStudio.Sdk.Plugins.PluginManifest : sealed class
 ArxisStudio.Sdk.Plugins.PluginManifest :: .ctor()
 ArxisStudio.Sdk.Plugins.PluginManifest :: ArxisStudio.Sdk.Plugins.PluginContributions Contributions { get; set; }
@@ -127,9 +121,6 @@ ArxisStudio.Sdk.Plugins.PluginMenuItem :: System.String Path { get; init; }
 ArxisStudio.Sdk.Plugins.PluginMenuItem :: System.Void Deconstruct(out System.String Path, out System.String Command)
 ArxisStudio.Sdk.Plugins.PluginMenuItem :: static System.Boolean op_Equality(ArxisStudio.Sdk.Plugins.PluginMenuItem? left, ArxisStudio.Sdk.Plugins.PluginMenuItem? right)
 ArxisStudio.Sdk.Plugins.PluginMenuItem :: static System.Boolean op_Inequality(ArxisStudio.Sdk.Plugins.PluginMenuItem? left, ArxisStudio.Sdk.Plugins.PluginMenuItem? right)
-ArxisStudio.Sdk.Plugins.PluginMenuItem :: virtual System.Boolean Equals(System.Object? obj)
-ArxisStudio.Sdk.Plugins.PluginMenuItem :: virtual System.Int32 GetHashCode()
-ArxisStudio.Sdk.Plugins.PluginMenuItem :: virtual System.String ToString()
 ArxisStudio.Sdk.Plugins.PluginPlacement : sealed class
 ArxisStudio.Sdk.Plugins.PluginPlacement :: .ctor()
 ArxisStudio.Sdk.Plugins.PluginPlacement :: System.Double Size { get; set; }
@@ -156,9 +147,6 @@ ArxisStudio.Sdk.Plugins.PluginSetting :: System.String? Title { get; init; }
 ArxisStudio.Sdk.Plugins.PluginSetting :: System.Void Deconstruct(out System.String Key, out System.String Type, out System.String Scope, out System.String? Title, out System.Object? Default)
 ArxisStudio.Sdk.Plugins.PluginSetting :: static System.Boolean op_Equality(ArxisStudio.Sdk.Plugins.PluginSetting? left, ArxisStudio.Sdk.Plugins.PluginSetting? right)
 ArxisStudio.Sdk.Plugins.PluginSetting :: static System.Boolean op_Inequality(ArxisStudio.Sdk.Plugins.PluginSetting? left, ArxisStudio.Sdk.Plugins.PluginSetting? right)
-ArxisStudio.Sdk.Plugins.PluginSetting :: virtual System.Boolean Equals(System.Object? obj)
-ArxisStudio.Sdk.Plugins.PluginSetting :: virtual System.Int32 GetHashCode()
-ArxisStudio.Sdk.Plugins.PluginSetting :: virtual System.String ToString()
 ArxisStudio.Sdk.Plugins.PluginToolBarItem : sealed class
 ArxisStudio.Sdk.Plugins.PluginToolBarItem :: .ctor()
 ArxisStudio.Sdk.Plugins.PluginToolBarItem :: System.Boolean IsButton { get; }
@@ -186,9 +174,6 @@ ArxisStudio.Sdk.Plugins.PluginTranslation :: System.String Id { get; init; }
 ArxisStudio.Sdk.Plugins.PluginTranslation :: System.Void Deconstruct(out System.String Id, out System.String File)
 ArxisStudio.Sdk.Plugins.PluginTranslation :: static System.Boolean op_Equality(ArxisStudio.Sdk.Plugins.PluginTranslation? left, ArxisStudio.Sdk.Plugins.PluginTranslation? right)
 ArxisStudio.Sdk.Plugins.PluginTranslation :: static System.Boolean op_Inequality(ArxisStudio.Sdk.Plugins.PluginTranslation? left, ArxisStudio.Sdk.Plugins.PluginTranslation? right)
-ArxisStudio.Sdk.Plugins.PluginTranslation :: virtual System.Boolean Equals(System.Object? obj)
-ArxisStudio.Sdk.Plugins.PluginTranslation :: virtual System.Int32 GetHashCode()
-ArxisStudio.Sdk.Plugins.PluginTranslation :: virtual System.String ToString()
 ArxisStudio.Sdk.StudioLogLevel : enum
 ArxisStudio.Sdk.StudioLogLevel :: Debug = 0
 ArxisStudio.Sdk.StudioLogLevel :: Error = 3
@@ -209,9 +194,6 @@ ArxisStudio.Sdk.StudioLogRecord :: System.String Stamp { get; }
 ArxisStudio.Sdk.StudioLogRecord :: System.Void Deconstruct(out System.DateTimeOffset Time, out ArxisStudio.Sdk.StudioLogLevel Level, out System.String Source, out System.String Message)
 ArxisStudio.Sdk.StudioLogRecord :: static System.Boolean op_Equality(ArxisStudio.Sdk.StudioLogRecord? left, ArxisStudio.Sdk.StudioLogRecord? right)
 ArxisStudio.Sdk.StudioLogRecord :: static System.Boolean op_Inequality(ArxisStudio.Sdk.StudioLogRecord? left, ArxisStudio.Sdk.StudioLogRecord? right)
-ArxisStudio.Sdk.StudioLogRecord :: virtual System.Boolean Equals(System.Object? obj)
-ArxisStudio.Sdk.StudioLogRecord :: virtual System.Int32 GetHashCode()
-ArxisStudio.Sdk.StudioLogRecord :: virtual System.String ToString()
 ArxisStudio.Sdk.StudioPlugin : abstract class
 ArxisStudio.Sdk.StudioPlugin :: .ctor()
 ArxisStudio.Sdk.StudioPlugin :: virtual System.Void Activate(ArxisStudio.Sdk.IStudioContext context)

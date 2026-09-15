@@ -46,7 +46,7 @@
               -->
               <ax:AxToolWindow.Tabs>
                 <DockPanel>
-                  <ax:AxButton x:Name="PART_Hide" DockPanel.Dock="Right" Classes="icon"
+                  <ax:AxButton x:Name="PART_Hide" DockPanel.Dock="Right" Appearance="Toolbar"
                                VerticalAlignment="Center">
                     <!--
                         Тот же контур, что у кнопки «скрыть» в шапке оторванного
@@ -58,7 +58,7 @@
                         кнопку — TemplateBinding перестал бы находить свойство
                         молча.
                     -->
-                    <ax:AxIcon Classes="small" Data="{x:Static ax:AxIcons.Minus}"/>
+                    <ax:AxIcon Size="Small" Data="{x:Static ax:AxIcons.Minus}"/>
                   </ax:AxButton>
                   <ax:AxTabStrip x:Name="PART_Tabs" Theme="{DynamicResource AxToolWindowTabStrip}"/>
                 </DockPanel>

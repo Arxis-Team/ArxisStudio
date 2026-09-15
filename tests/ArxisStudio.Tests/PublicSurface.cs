@@ -23,6 +23,12 @@ namespace ArxisStudio.Tests;
 /// от базового типа меняет рантайм, а не сборка, и новая версия .NET развела бы
 /// поверхность без единой правки в ней.
 /// </para>
+/// <para>
+/// Переопределения не пишутся: член объявил базовый тип, и обещание — его. Плагин,
+/// позвавший <c>MeasureOverride</c> у вкладки, в собранном виде зовёт член базы, и
+/// снятое переопределение его не ломает. Записанные, они требовали бы старшего номера
+/// за перенос расчёта из одного метода в другой.
+/// </para>
 /// </remarks>
 internal static class PublicSurface
 {
@@ -251,13 +257,14 @@ internal static class PublicSurface
         ConstructorInfo constructor when Visible(constructor) =>
             $".ctor({Parameters(constructor.GetParameters(), context)})",
 
-        MethodInfo method when Visible(method)
+        MethodInfo method when Visible(method) && !Overrides(method)
             && !method.Name.Contains('<', StringComparison.Ordinal)
             && (!method.IsSpecialName || method.Name.StartsWith("op_", StringComparison.Ordinal)) =>
             $"{Modifiers(method)}{Annotated(method.ReturnType, context.Create(method.ReturnParameter).ReadState)} " +
             $"{method.Name}{GenericArguments(method)}({Parameters(method.GetParameters(), context)})",
 
-        PropertyInfo property when Accessors(property) is { Length: > 0 } accessors =>
+        PropertyInfo property when Accessors(property) is { Length: > 0 } accessors
+            && !Overrides(property.GetMethod ?? property.SetMethod!) =>
             $"{Required(property)}{Static(property)}{Annotated(property.PropertyType, context.Create(property).ReadState)} " +
             $"{Indexer(property, context)} {{ {accessors} }}",
 
@@ -265,7 +272,7 @@ internal static class PublicSurface
             && !field.Name.Contains('<', StringComparison.Ordinal) =>
             Field(field, context),
 
-        EventInfo @event when @event.AddMethod is { } add && Visible(add) =>
+        EventInfo @event when @event.AddMethod is { } add && Visible(add) && !Overrides(add) =>
             $"event {TypeName(@event.EventHandlerType!)} {@event.Name}",
 
         _ => null,
@@ -273,6 +280,9 @@ internal static class PublicSurface
 
     private static bool Visible(MethodBase method) =>
         method.IsPublic || method.IsFamily || method.IsFamilyOrAssembly;
+
+    private static bool Overrides(MethodInfo method) =>
+        method.GetBaseDefinition().DeclaringType != method.DeclaringType;
 
     private static string Modifiers(MethodInfo method)
     {

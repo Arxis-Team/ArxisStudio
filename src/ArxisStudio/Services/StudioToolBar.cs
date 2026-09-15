@@ -481,13 +481,13 @@ public sealed class StudioToolBar
 
         if (glyph is not null)
         {
-            button.Classes.Add("icon");
+            button.Appearance = AxButtonAppearance.Toolbar;
             button.Content = new AxIcon { Data = glyph };
         }
         else
         {
-            button.Classes.Add("ghost");
-            button.Classes.Add("compact");
+            button.Appearance = AxButtonAppearance.Subtle;
+            button.Size = AxControlSize.Compact;
 
             if (declared.IsMenu)
             {
@@ -501,7 +501,7 @@ public sealed class StudioToolBar
                     Children =
                     {
                         label,
-                        new AxIcon { Classes = { "small" }, Data = AxIcons.ChevronDown },
+                        new AxIcon { Size = AxIconSize.Small, Data = AxIcons.ChevronDown },
                     },
                 };
 

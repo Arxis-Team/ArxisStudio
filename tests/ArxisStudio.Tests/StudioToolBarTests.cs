@@ -527,7 +527,7 @@ public class StudioToolBarTests : IDisposable
 
         var named = View<ToolBarButton>("hello:named");
 
-        Assert.Contains("ghost", named.Classes);
+        Assert.Equal(AxButtonAppearance.Subtle, named.Appearance);
         Assert.Equal("Run", named.Content);
 
         Assert.Single(_complaints, message => message.Contains("arxis:Nope", StringComparison.Ordinal));
@@ -556,12 +556,12 @@ public class StudioToolBarTests : IDisposable
 
         var run = View<ToolBarButton>("hello:run");
 
-        Assert.Contains("icon", run.Classes);
+        Assert.Equal(AxButtonAppearance.Toolbar, run.Appearance);
         Assert.Same(AxIcons.Refresh, Assert.IsType<AxIcon>(run.Content).Data);
 
         var say = View<ToolBarButton>("hello:say");
 
-        Assert.Contains("ghost", say.Classes);
+        Assert.Equal(AxButtonAppearance.Subtle, say.Appearance);
         Assert.Equal("Сказать", say.Content);
 
         Assert.Empty(_complaints);
@@ -598,7 +598,7 @@ public class StudioToolBarTests : IDisposable
 
         var run = View<ToolBarButton>("hello:run");
 
-        Assert.Contains("ghost", run.Classes);
+        Assert.Equal(AxButtonAppearance.Subtle, run.Appearance);
         Assert.Equal("Запустить", run.Content);
         Assert.Single(_complaints, message => message.Contains("arxis:Nope", StringComparison.Ordinal));
     }

@@ -61,6 +61,10 @@ public class App : Application
         AvaloniaXamlLoader.Load(this);
         StudioLaunch.Mark("стили");
 
+        // Имена иконочных кнопок в шаблонах темы — на языке студии. Отпускать незачем:
+        // приложение и язык живут, пока жив процесс.
+        _ = ControlTexts.Attach(this);
+
         StudioDevTools.Attach(this);
     }
 

@@ -24,9 +24,6 @@ ArxisStudio.Projects.ProjectOperation :: required ArxisStudio.ProjectSystem.Proj
 ArxisStudio.Projects.ProjectOperation :: required System.Int64 Id { get; init; }
 ArxisStudio.Projects.ProjectOperation :: static System.Boolean op_Equality(ArxisStudio.Projects.ProjectOperation? left, ArxisStudio.Projects.ProjectOperation? right)
 ArxisStudio.Projects.ProjectOperation :: static System.Boolean op_Inequality(ArxisStudio.Projects.ProjectOperation? left, ArxisStudio.Projects.ProjectOperation? right)
-ArxisStudio.Projects.ProjectOperation :: virtual System.Boolean Equals(System.Object? obj)
-ArxisStudio.Projects.ProjectOperation :: virtual System.Int32 GetHashCode()
-ArxisStudio.Projects.ProjectOperation :: virtual System.String ToString()
 ArxisStudio.Projects.ProjectOperationEventArgs : sealed class : System.EventArgs
 ArxisStudio.Projects.ProjectOperationEventArgs :: .ctor(ArxisStudio.Projects.ProjectOperation operation, ArxisStudio.ProjectSystem.ProjectOperationResult? result = null, System.Boolean isCancelled = false)
 ArxisStudio.Projects.ProjectOperationEventArgs :: ArxisStudio.ProjectSystem.ProjectOperationResult? Result { get; }
@@ -61,9 +58,6 @@ ArxisStudio.Projects.ProjectsLoad :: required ArxisStudio.ProjectSystem.Workspac
 ArxisStudio.Projects.ProjectsLoad :: required ArxisStudio.Projects.ProjectsLoadReason Reason { get; init; }
 ArxisStudio.Projects.ProjectsLoad :: static System.Boolean op_Equality(ArxisStudio.Projects.ProjectsLoad? left, ArxisStudio.Projects.ProjectsLoad? right)
 ArxisStudio.Projects.ProjectsLoad :: static System.Boolean op_Inequality(ArxisStudio.Projects.ProjectsLoad? left, ArxisStudio.Projects.ProjectsLoad? right)
-ArxisStudio.Projects.ProjectsLoad :: virtual System.Boolean Equals(System.Object? obj)
-ArxisStudio.Projects.ProjectsLoad :: virtual System.Int32 GetHashCode()
-ArxisStudio.Projects.ProjectsLoad :: virtual System.String ToString()
 ArxisStudio.Projects.ProjectsLoadReason : enum
 ArxisStudio.Projects.ProjectsLoadReason :: Configuration = 2
 ArxisStudio.Projects.ProjectsLoadReason :: FileSystem = 3
@@ -90,9 +84,6 @@ ArxisStudio.Projects.ProjectsStatus :: System.String? Configuration { get; init;
 ArxisStudio.Projects.ProjectsStatus :: static ArxisStudio.Projects.ProjectsStatus Closed { get; }
 ArxisStudio.Projects.ProjectsStatus :: static System.Boolean op_Equality(ArxisStudio.Projects.ProjectsStatus? left, ArxisStudio.Projects.ProjectsStatus? right)
 ArxisStudio.Projects.ProjectsStatus :: static System.Boolean op_Inequality(ArxisStudio.Projects.ProjectsStatus? left, ArxisStudio.Projects.ProjectsStatus? right)
-ArxisStudio.Projects.ProjectsStatus :: virtual System.Boolean Equals(System.Object? obj)
-ArxisStudio.Projects.ProjectsStatus :: virtual System.Int32 GetHashCode()
-ArxisStudio.Projects.ProjectsStatus :: virtual System.String ToString()
 ArxisStudio.Projects.StudioProjectsAccess : static class
 ArxisStudio.Projects.StudioProjectsAccess :: static ArxisStudio.Projects.IStudioBuild? Build(ArxisStudio.Sdk.IStudioContext context)
 ArxisStudio.Projects.StudioProjectsAccess :: static ArxisStudio.Projects.IStudioPackages? Packages(ArxisStudio.Sdk.IStudioContext context)

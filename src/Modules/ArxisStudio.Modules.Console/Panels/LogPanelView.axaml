@@ -12,7 +12,6 @@
                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                xmlns:a="https://github.com/avaloniaui"
                xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
-               xmlns:feed="using:ArxisStudio.Modules.Console.Feed"
                xmlns:log="using:ArxisStudio.Modules.Console.Log"
                x:Class="ArxisStudio.Modules.Console.Panels.LogPanelView">
 
@@ -32,93 +31,93 @@
         <a:StackPanel a:DockPanel.Dock="Left" Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceHair}"
                       VerticalAlignment="Center">
 
-          <feed:ConsoleToggle x:Name="Errors" Classes="compact ghost error"
+          <AxToggleButton x:Name="Errors" Appearance="Subtle" Size="Compact"
                               a:ToolTip.Tip="{Text console.level.error}"
                               a:AutomationProperties.Name="{Text console.level.error}">
             <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceTight}">
-              <AxIcon x:Name="ErrorIcon" Classes="small" Data="{x:Static ax:AxIcons.Error}"/>
+              <AxIcon x:Name="ErrorIcon" Size="Small" Data="{x:Static ax:AxIcons.Error}"/>
               <a:TextBlock x:Name="ErrorCount" VerticalAlignment="Center"/>
             </a:StackPanel>
-          </feed:ConsoleToggle>
+          </AxToggleButton>
 
-          <feed:ConsoleToggle x:Name="Warnings" Classes="compact ghost warn"
+          <AxToggleButton x:Name="Warnings" Appearance="Subtle" Size="Compact"
                               a:ToolTip.Tip="{Text console.level.warning}"
                               a:AutomationProperties.Name="{Text console.level.warning}">
             <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceTight}">
-              <AxIcon x:Name="WarningIcon" Classes="small" Data="{x:Static ax:AxIcons.Warning}"/>
+              <AxIcon x:Name="WarningIcon" Size="Small" Data="{x:Static ax:AxIcons.Warning}"/>
               <a:TextBlock x:Name="WarningCount" VerticalAlignment="Center"/>
             </a:StackPanel>
-          </feed:ConsoleToggle>
+          </AxToggleButton>
 
-          <feed:ConsoleToggle x:Name="Infos" Classes="compact ghost"
+          <AxToggleButton x:Name="Infos" Appearance="Subtle" Size="Compact"
                               a:ToolTip.Tip="{Text console.level.info}"
                               a:AutomationProperties.Name="{Text console.level.info}">
             <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceTight}">
-              <AxIcon Classes="small" Data="{x:Static ax:AxIcons.Info}"/>
+              <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Info}"/>
               <a:TextBlock x:Name="InfoCount" VerticalAlignment="Center"/>
             </a:StackPanel>
-          </feed:ConsoleToggle>
+          </AxToggleButton>
 
-          <feed:ConsoleToggle x:Name="Debugs" Classes="compact ghost"
+          <AxToggleButton x:Name="Debugs" Appearance="Subtle" Size="Compact"
                               a:ToolTip.Tip="{Text console.level.debug}"
                               a:AutomationProperties.Name="{Text console.level.debug}">
             <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceTight}">
-              <AxIcon Classes="small" Data="{x:Static ax:AxIcons.Debug}"/>
+              <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Debug}"/>
               <a:TextBlock x:Name="DebugCount" VerticalAlignment="Center"/>
             </a:StackPanel>
-          </feed:ConsoleToggle>
+          </AxToggleButton>
 
           <AxDivider Orientation="Vertical" Classes="toolbar"/>
         </a:StackPanel>
 
         <!--
-            Класс кнопок один: icon делает кнопку квадратной по высоте строки,
-            а добавленный к нему compact вернул бы минимальную ширину кнопки с
+            Вид кнопок один: Toolbar делает кнопку квадратной по высоте строки, а
+            тесный размер вместо него вернул бы минимальную ширину кнопки с
             текстом. Подпись у каждой двойная: подсказка под курсором и имя для
             средств доступности — значка средствам доступности мало.
         -->
         <a:StackPanel a:DockPanel.Dock="Right" Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceHair}"
                       VerticalAlignment="Center">
 
-          <AxButton x:Name="Sources" Classes="icon"
+          <AxButton x:Name="Sources" Appearance="Toolbar"
                     a:ToolTip.Tip="{Text console.source}"
                     a:AutomationProperties.Name="{Text console.source}">
-            <AxIcon Classes="small" Data="{x:Static ax:AxIcons.Filter}"/>
+            <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Filter}"/>
           </AxButton>
 
-          <feed:ConsoleToggle x:Name="Collapse" Classes="icon"
+          <AxToggleButton x:Name="Collapse" Appearance="Toolbar"
                               a:ToolTip.Tip="{Text console.collapse}"
                               a:AutomationProperties.Name="{Text console.collapse}">
-            <AxIcon Classes="small" Data="{x:Static ax:AxIcons.CollapseAll}"/>
-          </feed:ConsoleToggle>
+            <AxIcon Size="Small" Data="{x:Static ax:AxIcons.CollapseAll}"/>
+          </AxToggleButton>
 
-          <feed:ConsoleToggle x:Name="Autoscroll" Classes="icon"
+          <AxToggleButton x:Name="Autoscroll" Appearance="Toolbar"
                               a:ToolTip.Tip="{Text console.autoscroll}"
                               a:AutomationProperties.Name="{Text console.autoscroll}">
-            <AxIcon Classes="small" Data="{x:Static ax:AxIcons.Download}"/>
-          </feed:ConsoleToggle>
+            <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Download}"/>
+          </AxToggleButton>
 
-          <feed:ConsoleToggle x:Name="Details" Classes="icon"
+          <AxToggleButton x:Name="Details" Appearance="Toolbar"
                               a:ToolTip.Tip="{Text console.details}"
                               a:AutomationProperties.Name="{Text console.details}">
-            <AxIcon Classes="small" Data="{x:Static ax:AxIcons.Split}"/>
-          </feed:ConsoleToggle>
+            <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Split}"/>
+          </AxToggleButton>
 
-          <AxButton x:Name="Copy" Classes="icon"
+          <AxButton x:Name="Copy" Appearance="Toolbar"
                     a:ToolTip.Tip="{Text console.copy}"
                     a:AutomationProperties.Name="{Text console.copy}">
-            <AxIcon Classes="small" Data="{x:Static ax:AxIcons.Copy}"/>
+            <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Copy}"/>
           </AxButton>
 
-          <AxButton x:Name="Clear" Classes="icon"
+          <AxButton x:Name="Clear" Appearance="Toolbar"
                     a:ToolTip.Tip="{Text console.clear}"
                     a:AutomationProperties.Name="{Text console.clear}">
-            <AxIcon Classes="small" Data="{x:Static ax:AxIcons.Trash}"/>
+            <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Trash}"/>
           </AxButton>
 
         </a:StackPanel>
 
-        <AxSearchField x:Name="Query" Classes="compact"
+        <AxSearchField x:Name="Query" Size="Compact"
                        PlaceholderText="{Text console.search}"
                        MaxWidth="360" HorizontalAlignment="Left" Margin="{a:DynamicResource AxSpaceSidesThickness}"
                        VerticalAlignment="Center"
@@ -154,17 +153,15 @@
               <a:Grid MinHeight="{a:DynamicResource AxRowHeight}"
                       ColumnDefinitions="Auto,Auto,Auto,*,Auto">
 
-                <a:TextBlock a:Grid.Column="0" Classes="dim mono"
+                <a:TextBlock a:Grid.Column="0" AxText.Role="Code" AxText.Tone="Secondary"
                              Text="{a:Binding Stamp}" IsVisible="{a:Binding HasStamp}"
                              VerticalAlignment="Center" Margin="{a:DynamicResource AxSpaceTrailingThickness}"/>
 
                 <a:TextBlock a:Grid.Column="1" Text="{a:Binding Level}" MinWidth="52"
                              FontWeight="SemiBold" VerticalAlignment="Center" Margin="{a:DynamicResource AxSpaceTrailingThickness}"
-                             a:Classes.bad="{a:Binding IsError}"
-                             a:Classes.warn="{a:Binding IsWarning}"
-                             a:Classes.dim="{a:Binding IsDebug}"/>
+                             AxText.Tone="{a:Binding LevelTone}"/>
 
-                <a:TextBlock a:Grid.Column="2" Classes="dim" Text="{a:Binding Source}"
+                <a:TextBlock a:Grid.Column="2" AxText.Tone="Secondary" Text="{a:Binding Source}"
                              VerticalAlignment="Center" Margin="{a:DynamicResource AxSpaceTrailingThickness}"/>
 
                 <a:TextBlock a:Grid.Column="3" Text="{a:Binding Text}"
@@ -180,7 +177,7 @@
           </AxListBox.ItemTemplate>
         </AxListBox>
 
-        <a:TextBlock x:Name="Empty" Classes="dim" TextAlignment="Center"
+        <a:TextBlock x:Name="Empty" AxText.Tone="Secondary" TextAlignment="Center"
                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
       </a:Panel>
 
