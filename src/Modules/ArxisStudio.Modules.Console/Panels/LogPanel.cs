@@ -372,8 +372,8 @@ public sealed class LogPanel : ToolWindow
     /// </remarks>
     private void ReadTheme()
     {
-        _view.ErrorIcon.Foreground = Brush("AxRedBrush");
-        _view.WarningIcon.Foreground = Brush("AxYelBrush");
+        _view.ErrorIcon.Foreground = Brush("AxErrorBrush");
+        _view.WarningIcon.Foreground = Brush("AxWarningBrush");
     }
 
     private IBrush? Brush(string key) =>

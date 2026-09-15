@@ -3384,8 +3384,8 @@ public class StudioDockTests : IDisposable
         Assert.False(panel.Standing, "панель назвалась полом");
 
         // Цвета берём из палитры, а не цифрами: тема их и задаёт.
-        Assert.Equal(Tone("AxBg1Brush"), Paint(floor));
-        Assert.Equal(Tone("AxBg2Brush"), Paint(panel));
+        Assert.Equal(Tone("AxSurfaceBaseBrush"), Paint(floor));
+        Assert.Equal(Tone("AxSurfacePanelBrush"), Paint(panel));
         Assert.NotEqual(Paint(floor), Paint(panel));
     }
 

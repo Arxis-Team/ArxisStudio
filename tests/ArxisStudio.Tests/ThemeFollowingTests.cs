@@ -31,15 +31,15 @@ public class ThemeFollowingTests
 
         try
         {
-            Assert.Equal(Resource(window, "AxFg2Color", ThemeVariant.Dark), Colour(chip.Foreground));
+            Assert.Equal(Resource(window, "AxTextSecondaryColor", ThemeVariant.Dark), Colour(chip.Foreground));
 
             window.RequestedThemeVariant = ThemeVariant.Light;
 
-            Assert.Equal(Resource(window, "AxFg2Color", ThemeVariant.Light), Colour(chip.Foreground));
+            Assert.Equal(Resource(window, "AxTextSecondaryColor", ThemeVariant.Light), Colour(chip.Foreground));
 
             chip.Classes.Add("problem");
 
-            Assert.Equal(Resource(window, "AxYellowTextColor", ThemeVariant.Light), Colour(chip.Foreground));
+            Assert.Equal(Resource(window, "AxWarningTextColor", ThemeVariant.Light), Colour(chip.Foreground));
         }
         finally
         {

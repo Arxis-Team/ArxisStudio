@@ -81,6 +81,20 @@
         <EmbeddedResource Include="../../src/**/*.cs"
                           Exclude="../../**/bin/**;../../**/obj/**;../../src/Modules/**;../../src/Plugins/**;../../src/ArxisStudio.Sdk.Analyzers/**"
                           LogicalName="code/%(RecursiveDir)%(Filename)%(Extension)"/>
+        <!--
+            Код расширений, шаблона и общих библиотек — не для счёта отступов, а для сверки ключей
+            темы, названных строкой: переименованный ключ молчит в любом из них одинаково. Контролы и
+            значки лежат под разными приставками — у обеих библиотек есть свой Properties/AssemblyInfo.cs.
+        -->
+        <EmbeddedResource Include="../../src/Modules/**/*.cs;../../src/Plugins/**/*.cs;../../templates/**/*.cs"
+                          Exclude="../../**/bin/**;../../**/obj/**"
+                          LogicalName="code-extensions/%(RecursiveDir)%(Filename)%(Extension)"/>
+        <EmbeddedResource Include="../../external/ArxisStudio.Controls/src/**/*.cs"
+                          Exclude="../../**/bin/**;../../**/obj/**"
+                          LogicalName="code-controls/%(RecursiveDir)%(Filename)%(Extension)"/>
+        <EmbeddedResource Include="../../external/ArxisStudio.Icons/src/**/*.cs"
+                          Exclude="../../**/bin/**;../../**/obj/**"
+                          LogicalName="code-icons/%(RecursiveDir)%(Filename)%(Extension)"/>
     </ItemGroup>
 
     <ItemGroup>

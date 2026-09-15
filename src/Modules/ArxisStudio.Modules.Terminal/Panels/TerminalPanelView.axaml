@@ -17,7 +17,7 @@
     <a:Border a:DockPanel.Dock="Top"
               Padding="{a:DynamicResource AxToolBarPadding}"
               BorderThickness="0,0,0,1"
-              BorderBrush="{a:DynamicResource AxBrdBrush}">
+              BorderBrush="{a:DynamicResource AxStrokeSubtleBrush}">
       <a:DockPanel>
 
         <!--

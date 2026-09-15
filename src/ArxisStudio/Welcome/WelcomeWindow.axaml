@@ -39,8 +39,8 @@
     <Grid ColumnDefinitions="230,*">
 
     <!-- Sidebar 230px: логотип, разделы, Settings, пользователь. -->
-    <Border Grid.Column="0" Background="{DynamicResource AxBg2Brush}"
-            BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,0,1,0">
+    <Border Grid.Column="0" Background="{DynamicResource AxSurfacePanelBrush}"
+            BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="0,0,1,0">
       <DockPanel Margin="10,16,10,12">
 
         <!--
@@ -77,12 +77,12 @@
               <TextBlock Text="{ax:Loc welcome.nav.settings}" VerticalAlignment="Center"/>
             </StackPanel>
           </ToggleButton>
-          <Border BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,1,0,0" Padding="10,8,0,0">
+          <Border BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="0,1,0,0" Padding="10,8,0,0">
             <!-- Док, а не стопка, — по той же причине, что у знака наверху. -->
             <DockPanel>
               <!--
                   Монограмма — классом темы, а не своей кистью. Тема прямо
-                  запрещает ставить инициалы на AxPur: белый даёт на нём 3,4:1, а
+                  запрещает ставить инициалы на AxTintPurple: белый даёт на нём 3,4:1, а
                   класс purple берёт ступень шкалы, где белый держит порог.
               -->
               <ax:AxAvatar DockPanel.Dock="Left" Classes="round purple" Width="22" Height="22" Initials="FF" FontSize="{DynamicResource AxFontSizeCaption}"
@@ -133,8 +133,8 @@
           как только проект открыт, и сказанное после этого человеку уже некуда показать.
       -->
       <Border DockPanel.Dock="Bottom" IsVisible="{Binding HasStatus}"
-              Background="{DynamicResource AxBg2Brush}"
-              BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,1,0,0"
+              Background="{DynamicResource AxSurfacePanelBrush}"
+              BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="0,1,0,0"
               Padding="24,10">
         <DockPanel>
           <ax:AxButton DockPanel.Dock="Right" Classes="ghost" Content="{ax:Loc common.close}"

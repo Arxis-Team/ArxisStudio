@@ -80,9 +80,9 @@
       заставляла бы раскладку щёлкать под курсором.
   -->
   <Style Selector="Border.dock-hint">
-    <Setter Property="Background" Value="{DynamicResource AxAccBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource AxAccentBrush}"/>
     <Setter Property="Opacity" Value="0.28"/>
-    <Setter Property="BorderBrush" Value="{DynamicResource AxAccStrongBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource AxAccentFillBrush}"/>
     <Setter Property="BorderThickness" Value="2"/>
     <Setter Property="CornerRadius" Value="{DynamicResource AxCornerRadius}"/>
   </Style>
@@ -90,7 +90,7 @@
     <Setter Property="Margin" Value="{DynamicResource AxDockHintPadding}"/>
     <Setter Property="HorizontalAlignment" Value="Left"/>
     <Setter Property="VerticalAlignment" Value="Top"/>
-    <Setter Property="Foreground" Value="{DynamicResource AxFgBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource AxTextPrimaryBrush}"/>
     <Setter Property="FontSize" Value="{DynamicResource AxFontSize}"/>
     <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
   </Style>
@@ -103,7 +103,7 @@
       фона и одного цвета с телом группы, каким бы оно ни было.
   -->
   <Style Selector="ax|DockGroupView[Standing=True] /template/ ax|AxToolWindow">
-    <Setter Property="Background" Value="{DynamicResource AxBg1Brush}"/>
+    <Setter Property="Background" Value="{DynamicResource AxSurfaceBaseBrush}"/>
   </Style>
 
   <!--
@@ -113,8 +113,8 @@
       полупрозрачная рамка над рабочим столом читалась бы грязью.
   -->
   <Style Selector="Border.dock-ghost">
-    <Setter Property="Background" Value="{DynamicResource AxBg2Brush}"/>
-    <Setter Property="BorderBrush" Value="{DynamicResource AxAccStrongBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource AxSurfaceOverlayBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource AxAccentFillBrush}"/>
     <Setter Property="BorderThickness" Value="2"/>
     <Setter Property="CornerRadius" Value="{DynamicResource AxCornerRadius}"/>
   </Style>
@@ -122,7 +122,7 @@
     <Setter Property="Margin" Value="{DynamicResource AxDockHintPadding}"/>
     <Setter Property="HorizontalAlignment" Value="Left"/>
     <Setter Property="VerticalAlignment" Value="Top"/>
-    <Setter Property="Foreground" Value="{DynamicResource AxFgBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource AxTextPrimaryBrush}"/>
     <Setter Property="FontSize" Value="{DynamicResource AxFontSize}"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
     <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
@@ -133,7 +133,7 @@
       место в полосе выбирают тем же движением, каким несут.
   -->
   <Style Selector="Border.dock-caret">
-    <Setter Property="Background" Value="{DynamicResource AxAccStrongBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource AxAccentFillBrush}"/>
   </Style>
 
   <!--

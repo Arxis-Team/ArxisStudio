@@ -124,8 +124,8 @@ public sealed class ArxisMark : Control
     /// <summary>Собирает знак с цветами темы.</summary>
     public ArxisMark()
     {
-        this.Bind(StrokeProperty, this.GetResourceObservable("AxFgBrush"));
-        this.Bind(FillProperty, this.GetResourceObservable("AxBg1Brush"));
+        this.Bind(StrokeProperty, this.GetResourceObservable("AxTextPrimaryBrush"));
+        this.Bind(FillProperty, this.GetResourceObservable("AxSurfaceBaseBrush"));
     }
 
     /// <summary>Какая прорисовка выбирается под размер.</summary>

@@ -15,7 +15,7 @@
               IsVisible="False"
               Padding="{a:DynamicResource AxNotePadding}"
               BorderThickness="0,1,0,0"
-              BorderBrush="{a:DynamicResource AxBrdBrush}">
+              BorderBrush="{a:DynamicResource AxStrokeSubtleBrush}">
       <a:TextBlock x:Name="Reason" TextWrapping="Wrap"/>
     </a:Border>
 

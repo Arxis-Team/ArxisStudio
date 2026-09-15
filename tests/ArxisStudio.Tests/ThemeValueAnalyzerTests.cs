@@ -1,5 +1,10 @@
 using System.Collections.Immutable;
+using System.Text.RegularExpressions;
 using ArxisStudio.Sdk.Analyzers;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Headless.XUnit;
+using Avalonia.Styling;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -98,7 +103,7 @@ public class ThemeValueAnalyzerTests
         var found = Assert.Single(await AnalyzeAsync($"""<TextBlock Foreground="{colour}"/>"""));
 
         Assert.Equal(ThemeValueAnalyzer.LiteralId, found.Id);
-        Assert.Contains("AxAccBrush", found.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("AxAccentBrush", found.GetMessage(), StringComparison.Ordinal);
     }
 
     /// <summary>Цвета, которого в теме нет, правило не касается.</summary>
@@ -126,23 +131,94 @@ public class ThemeValueAnalyzerTests
         Assert.Contains("AxSpaceThickness", found.GetMessage(), StringComparison.Ordinal);
     }
 
-    /// <summary>Ступень шкалы палитры — внутренность темы.</summary>
+    /// <summary>
+    /// Имя темы до SDK 6.0 называет роль, которая его заменила.
+    /// </summary>
+    /// <remarks>
+    /// Значения в 6.0 не сдвинулись, сдвинулись имена, и разметка плагина, собранного под 5.x, в
+    /// новой студии получила бы пустую кисть без единой ошибки. Цвет, названный там, где нужна
+    /// кисть, называется кистью: иначе правка по совету принесла бы следующее замечание.
+    /// </remarks>
     [Fact]
-    public async Task A_scale_step_is_internal_to_the_theme()
+    public async Task A_name_from_before_six_names_the_role_that_replaced_it()
+    {
+        var found = await AnalyzeAsync(
+            $"""
+             <Panel>
+               <Border Background="{"{"}DynamicResource AxBg1Brush{"}"}"/>
+               <a:TextBlock xmlns:a="{Avalonia}" Foreground="{"{"}a:DynamicResource AxFg3Color{"}"}"/>
+               <Border Background="{"{"}DynamicResource AxBg3Brush{"}"}"/>
+               <Border Background="{"{"}DynamicResource AxBlue6{"}"}"/>
+             </Panel>
+             """);
+
+        Assert.Equal(4, found.Length);
+        Assert.All(found, notice => Assert.Equal(ThemeValueAnalyzer.FamilyId, notice.Id));
+        Assert.Contains("теперь это AxSurfaceBaseBrush", Message(found, line: 1), StringComparison.Ordinal);
+        Assert.Contains("теперь это AxTextTertiaryBrush", Message(found, line: 2), StringComparison.Ordinal);
+        Assert.Contains("AxHoverBrush или AxSurfaceRaisedBrush", Message(found, line: 3), StringComparison.Ordinal);
+        Assert.Contains("AxBlue6 — ступень шкалы палитры", Message(found, line: 4), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Прежнее имя замечено и в коде: строка с ключом ломается так же молча, как ссылка в разметке.
+    /// </summary>
+    [Fact]
+    public async Task A_name_from_before_six_is_noticed_in_code()
     {
         var found = Assert.Single(await AnalyzeAsync(
-            $"""<a:TextBlock xmlns:a="{Avalonia}" Foreground="{"{"}a:DynamicResource AxBlue6{"}"}"/>"""));
+            "<Panel/>",
+            code: """public sealed class Probe { public object Key => "AxSelBrush"; public string Name => "AxSelection"; }"""));
 
         Assert.Equal(ThemeValueAnalyzer.FamilyId, found.Id);
-        Assert.Contains("AxBlue6 — ступень шкалы палитры", found.GetMessage(), StringComparison.Ordinal);
-        Assert.Contains("AxAccBrush", found.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("теперь это AxSelectionActiveBrush", found.GetMessage(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Каждое имя палитры 5.x либо осталось в теме, либо правило называет ему замену, и замена в теме есть.
+    /// </summary>
+    /// <remarks>
+    /// Таблица прежних имён в анализаторе записана руками, и забытое в ней имя молчало бы ровно так,
+    /// как молчала бы тема без правила. Имена перечислены здесь такими, какими палитра была до
+    /// переименования, и обе стороны сверяются с живой темой, а не друг с другом: имя, которое в
+    /// теме есть, замечать нельзя, а замена, которой в теме нет, — совет в пустоту.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task Every_name_of_the_five_palette_resolves_or_is_named_with_a_real_role()
+    {
+        string[] names =
+        [
+            .. FivePalette.SelectMany(name => new[] { name + "Color", name + "Brush" }),
+            "AxPopupShadow", "AxModalShadow", "AxGray1", "AxBlue13", "AxTeal7",
+        ];
+
+        var found = await AnalyzeAsync(
+            "<Panel>\n" + string.Join("\n", names.Select(name => $"<Border Tag=\"{{DynamicResource {name}}}\"/>")) + "\n</Panel>");
+        var application = Application.Current!;
+        var wrong = new List<string>();
+
+        for (var line = 1; line <= names.Length; line++)
+        {
+            var name = names[line - 1];
+            var notice = found.SingleOrDefault(diagnostic => diagnostic.Location.GetLineSpan().StartLinePosition.Line == line);
+
+            if (Resolves(application, name) == notice is not null)
+                wrong.Add(notice is null ? $"{name}: в теме нет, а правило промолчало" : $"{name}: в теме есть, а правило заметило");
+            else if (notice is not null)
+                wrong.AddRange(Roles.Matches(notice.GetMessage())
+                    .Select(match => match.Value)
+                    .Where(role => role != name && !Resolves(application, role))
+                    .Select(role => $"{name}: совет называет {role}, которого в теме нет"));
+        }
+
+        Assert.True(wrong.Count == 0, string.Join("; ", wrong));
     }
 
     /// <summary>
     /// Цвет там, где нужна кисть, замечен; там, где нужен цвет, — нет.
     /// </summary>
     /// <remarks>
-    /// Ссылка на <c>AxAccColor</c> из <c>Foreground</c> не разрешится в кисть и
+    /// Ссылка на <c>AxAccentColor</c> из <c>Foreground</c> не разрешится в кисть и
     /// не нарисует ничего, и узнать об этом без правила можно только глазами.
     /// А <c>SolidColorBrush.Color</c> цвета и ждёт.
     /// </remarks>
@@ -152,13 +228,13 @@ public class ThemeValueAnalyzerTests
         var found = Assert.Single(await AnalyzeAsync(
             """
             <Panel>
-              <TextBlock Foreground="{DynamicResource AxAccColor}"/>
-              <SolidColorBrush Color="{DynamicResource AxAccColor}"/>
+              <TextBlock Foreground="{DynamicResource AxAccentColor}"/>
+              <SolidColorBrush Color="{DynamicResource AxAccentColor}"/>
             </Panel>
             """));
 
         Assert.Equal(ThemeValueAnalyzer.FamilyId, found.Id);
-        Assert.Contains("нужна кисть: AxAccBrush", found.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("нужна кисть: AxAccentBrush", found.GetMessage(), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -174,7 +250,7 @@ public class ThemeValueAnalyzerTests
         Assert.Empty(await AnalyzeAsync(
             """
             <StackPanel Spacing="{DynamicResource AxSpace}" Width="137" Height="24">
-              <TextBlock Foreground="{DynamicResource AxAccBrush}" FontSize="{DynamicResource AxFontSize}"/>
+              <TextBlock Foreground="{DynamicResource AxAccentBrush}" FontSize="{DynamicResource AxFontSize}"/>
             </StackPanel>
             """));
     }
@@ -218,11 +294,38 @@ public class ThemeValueAnalyzerTests
         Assert.Empty(await AnalyzeAsync("""<StackPanel Spacing="8" """));
     }
 
-    private static async Task<ImmutableArray<Diagnostic>> AnalyzeAsync(string markup, string path = "C:/probe/View.axaml")
+    /// <summary>Палитра 5.x без суффиксов: у каждого имени были цвет и кисть.</summary>
+    private static readonly string[] FivePalette =
+    [
+        "AxBgSunken", "AxBg1", "AxBg2", "AxBg3", "AxBg4", "AxBrd", "AxBrd2",
+        "AxFg", "AxFg2", "AxFg3", "AxFgDisabled", "AxOnAcc",
+        "AxAcc", "AxAccHover", "AxAccPressed", "AxAccStrong", "AxAccStrongHover",
+        "AxSel", "AxSelInactive", "AxCanvas", "AxDot", "AxInp", "AxInpDisabled",
+        "AxGrn", "AxRed", "AxYel", "AxOrg", "AxPur", "AxGreenText", "AxRedText", "AxYellowText",
+        "AxLink", "AxLinkHover", "AxLinkVisited", "AxLinkOn",
+        "AxOutlineFocused", "AxOutlineError", "AxOutlineWarning",
+        "AxInfoBackground", "AxSuccessBackground", "AxWarningBackground", "AxErrorBackground",
+        "AxInfoBorder", "AxSuccessBorder", "AxWarningBorder", "AxErrorBorder",
+        "AxMonogramOrange", "AxMonogramGreen", "AxMonogramPurple", "AxMonogramRed",
+        "AxScrollThumb", "AxScrollThumbHover", "AxTooltipBackground", "AxTooltipBorder",
+        "AxCodeFg", "AxCodeTag", "AxCodeAttr", "AxCodeString", "AxCodeComment",
+        "AxShadow", "AxAbShadow",
+    ];
+
+    private static readonly Regex Roles = new(@"\bAx[A-Z]\w*", RegexOptions.Compiled);
+
+    private static bool Resolves(Application application, string key) =>
+        application.TryFindResource(key, ThemeVariant.Dark, out _) && application.TryFindResource(key, ThemeVariant.Light, out _);
+
+    private static string Message(ImmutableArray<Diagnostic> found, int line) =>
+        Assert.Single(found, diagnostic => diagnostic.Location.GetLineSpan().StartLinePosition.Line == line).GetMessage();
+
+    private static async Task<ImmutableArray<Diagnostic>> AnalyzeAsync(
+        string markup, string path = "C:/probe/View.axaml", string code = "public sealed class Probe { }")
     {
         var compilation = CSharpCompilation.Create(
             "Probe",
-            [CSharpSyntaxTree.ParseText("public sealed class Probe { }")],
+            [CSharpSyntaxTree.ParseText(code)],
             [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)],
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 

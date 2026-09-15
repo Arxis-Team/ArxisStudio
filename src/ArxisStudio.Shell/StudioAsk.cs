@@ -64,7 +64,7 @@ public static class StudioAsk
         cancel.Bind(Layoutable.MinWidthProperty, cancel.GetResourceObservable("AxDialogButtonMinWidth"));
         agree.Bind(Layoutable.MinWidthProperty, agree.GetResourceObservable("AxDialogButtonMinWidth"));
         buttons.Bind(StackPanel.SpacingProperty, buttons.GetResourceObservable("AxGapControls"));
-        alert.Bind(TemplatedControl.ForegroundProperty, alert.GetResourceObservable("AxYelBrush"));
+        alert.Bind(TemplatedControl.ForegroundProperty, alert.GetResourceObservable("AxWarningBrush"));
 
         agree.Classes.Add(danger ? "danger" : "accent");
 

@@ -25,8 +25,8 @@
       docs/design-system.md: у экрана без записи нет критериев приёмки, и заставка
       разошлась со всем остальным ровно потому, что записи у неё не было.
   -->
-  <Border Background="{DynamicResource AxBg1Brush}"
-          BorderBrush="{DynamicResource AxBrdBrush}"
+  <Border Background="{DynamicResource AxSurfaceBaseBrush}"
+          BorderBrush="{DynamicResource AxStrokeSubtleBrush}"
           BorderThickness="1"
           CornerRadius="{DynamicResource AxCornerRadiusCard}"
           ClipToBounds="True">
@@ -36,7 +36,7 @@
       <StackPanel VerticalAlignment="Bottom" Margin="{DynamicResource AxSplashPadding}">
         <TextBlock Text="{Binding Stage}"
                    FontSize="{DynamicResource AxFontSizeSmall}"
-                   Foreground="{DynamicResource AxFg2Brush}"
+                   Foreground="{DynamicResource AxTextSecondaryBrush}"
                    TextTrimming="CharacterEllipsis"/>
 
         <ax:AxProgressBar Margin="{DynamicResource AxSpaceAboveThickness}"
@@ -59,7 +59,7 @@
           <TextBlock Text="{Binding Failure}"
                      FontFamily="{DynamicResource AxFontFamilyMono}"
                      FontSize="{DynamicResource AxFontSizeCaption}"
-                     Foreground="{DynamicResource AxRedTextBrush}"
+                     Foreground="{DynamicResource AxErrorTextBrush}"
                      TextWrapping="Wrap" MaxLines="3"
                      TextTrimming="CharacterEllipsis"/>
 
@@ -76,12 +76,12 @@
           <TextBlock Text="{Binding Credit}" HorizontalAlignment="Left"
                      FontFamily="{DynamicResource AxFontFamilyMono}"
                      FontSize="{DynamicResource AxFontSizeCaption}"
-                     Foreground="{DynamicResource AxFg3Brush}"/>
+                     Foreground="{DynamicResource AxTextTertiaryBrush}"/>
 
           <TextBlock Text="{Binding Runtime}" HorizontalAlignment="Right"
                      FontFamily="{DynamicResource AxFontFamilyMono}"
                      FontSize="{DynamicResource AxFontSizeCaption}"
-                     Foreground="{DynamicResource AxFg3Brush}"/>
+                     Foreground="{DynamicResource AxTextTertiaryBrush}"/>
         </Grid>
       </StackPanel>
     </Grid>

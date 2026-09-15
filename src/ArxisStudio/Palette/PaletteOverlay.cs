@@ -163,7 +163,7 @@ public sealed class PaletteOverlay
             var gesture = new TextBlock
             {
                 VerticalAlignment = VerticalAlignment.Center,
-                [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("AxFg3Brush"),
+                [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("AxTextTertiaryBrush"),
                 [!TextBlock.FontSizeProperty] = new DynamicResourceExtension("AxFontSizeSmall"),
             };
 

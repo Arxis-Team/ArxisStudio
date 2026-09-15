@@ -31,8 +31,10 @@
 
 ### 2.1 Роли
 
-Каждая роль — пара `*Color` и `*Brush` в словаре варианта темы (Dark, Light). Имена ролей — цель,
-R1a; до неё тема живёт на ключах `AxBg*`, `AxFg*`, `AxBrd*`, `AxAcc*`, `AxSel*`.
+Каждая роль — пара `*Color` и `*Brush` в словаре варианта темы (Dark, Light). Имена ролей стоят
+в теме с SDK 6.0 (R1a) и заменили ключи места в ряду — `AxBg*`, `AxFg*`, `AxBrd*`, `AxAcc*`,
+`AxSel*`; значения при переименовании не сдвинулись, новые — R2 (§2.3). Прежние имена у расширений
+называет ARX0009.
 
 | Роль | Где |
 |---|---|
@@ -42,16 +44,23 @@ R1a; до неё тема живёт на ключах `AxBg*`, `AxFg*`, `AxBrd*
 | `AxSurfaceRaised` | шапка активной панели, плашки |
 | `AxSurfaceOverlay` | меню, подсказки, всплывающие окна |
 | `AxHover`, `AxPressed` | наведение и нажатие у кнопок и строк |
+| `AxTrack`, `AxFillDisabled` | дорожка тумблера и ползунка; заливка выключенного поля |
 | `AxStrokeSubtle` | разделители |
 | `AxStrokeControl` | граница поля, флажка, контурной кнопки |
 | `AxStrokeStrong` | граница, которая должна читаться сильнее контрольной |
 | `AxTextPrimary`, `AxTextSecondary`, `AxTextTertiary`, `AxTextDisabled` | четыре уровня текста |
 | `AxTextOnAccent` | текст на акцентной заливке |
+| `AxAccent`, `AxAccentHover` | акцентная графика: знак отмеченного флажка, спиннер, ход |
 | `AxAccentFill`, `AxAccentFillHover`, `AxAccentFillPressed` | основное действие |
-| `AxAccentText` | ссылка, акцентный глиф |
 | `AxFocusRing` | кольцо фокуса, линия активной панели |
 | `AxSelectionActive`, `AxSelectionInactive` | выделение при фокусе внутри области и вне её |
-| `Error`, `Warning`, `Success`, `Info` × `Text`, `Fill`, `Stroke` | состояния и сообщения |
+| `AxLink`, `AxLinkHover`, `AxLinkPressed`, `AxLinkVisited`, `AxLinkOnPlate` | ссылки; на залитой плашке — свой шаг |
+| `AxError`, `AxWarning`, `AxSuccess` × графика, `Text`, `Outline`; `AxInfo`, `AxSuccess`, `AxWarning`, `AxError` × `Fill`, `Stroke` | состояния поля и сообщения |
+| `AxTintOrange`, `AxTintPurple`, `AxMonogram*` | значки типов и плитки монограмм |
+| `AxToolTipFill`, `AxToolTipStroke`, `AxScrollThumb`, `AxScrollThumbHover` | накладки поверх содержимого |
+| `AxCode*` · `AxShadowPopup`, `AxShadowModal` | подсветка кода · тени всплывающего окна и диалога |
+
+Роль акцентного текста — `AxAccentText` — цель, R2: сегодня её место делят `AxLink` и `AxAccent`.
 
 В `Palette.axaml` у роли литеральный hex, а не ссылка на ступень шкалы: анализатор SDK
 (`ThemeTokens.cs`) читает именно литеральные пары, и синоним через `StaticResource` молча

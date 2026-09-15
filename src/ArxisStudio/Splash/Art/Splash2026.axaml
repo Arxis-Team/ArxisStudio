@@ -36,7 +36,7 @@
       <Canvas Width="48" Height="48">
         <Canvas.Styles>
           <Style Selector="Path">
-            <Setter Property="Stroke" Value="{DynamicResource AxFgBrush}"/>
+            <Setter Property="Stroke" Value="{DynamicResource AxTextPrimaryBrush}"/>
             <Setter Property="StrokeJoin" Value="Miter"/>
             <Setter Property="StrokeThickness" Value="0.15"/>
           </Style>
@@ -60,13 +60,13 @@
       -->
       <StackPanel Margin="11,3,0,0" VerticalAlignment="Top">
         <TextBlock FontSize="{DynamicResource AxFontSizeDisplay}" LetterSpacing="-0.52">
-          <Run Text="Arxis" FontWeight="Bold" Foreground="{DynamicResource AxFgBrush}"/><Run Text="Studio" Foreground="{DynamicResource AxFg2Brush}"/>
+          <Run Text="Arxis" FontWeight="Bold" Foreground="{DynamicResource AxTextPrimaryBrush}"/><Run Text="Studio" Foreground="{DynamicResource AxTextSecondaryBrush}"/>
         </TextBlock>
 
         <TextBlock Text="{Binding Edition}" Margin="1,6,0,0"
                    FontFamily="{DynamicResource AxFontFamilyMono}"
                    FontSize="{DynamicResource AxFontSizeSmall}"
-                   Foreground="{DynamicResource AxFg3Brush}"/>
+                   Foreground="{DynamicResource AxTextTertiaryBrush}"/>
       </StackPanel>
     </StackPanel>
   </Grid>

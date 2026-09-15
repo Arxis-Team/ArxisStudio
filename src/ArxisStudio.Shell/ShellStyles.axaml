@@ -16,20 +16,20 @@
           он не знает и знать не должен.
       -->
       <ControlTheme x:Key="{x:Type ax:StudioShell}" TargetType="ax:StudioShell">
-        <Setter Property="Background" Value="{DynamicResource AxBg1Brush}"/>
+        <Setter Property="Background" Value="{DynamicResource AxSurfaceBaseBrush}"/>
         <Setter Property="Template">
           <ControlTemplate>
             <DockPanel Background="{TemplateBinding Background}">
               <Border DockPanel.Dock="Top"
-                      Background="{DynamicResource AxBg2Brush}"
-                      BorderBrush="{DynamicResource AxBrdBrush}"
+                      Background="{DynamicResource AxSurfacePanelBrush}"
+                      BorderBrush="{DynamicResource AxStrokeSubtleBrush}"
                       BorderThickness="0,0,0,1"
                       IsVisible="{TemplateBinding TopBar, Converter={x:Static ObjectConverters.IsNotNull}}">
                 <ContentPresenter Content="{TemplateBinding TopBar}"/>
               </Border>
               <Border DockPanel.Dock="Bottom"
-                      Background="{DynamicResource AxBg2Brush}"
-                      BorderBrush="{DynamicResource AxBrdBrush}"
+                      Background="{DynamicResource AxSurfacePanelBrush}"
+                      BorderBrush="{DynamicResource AxStrokeSubtleBrush}"
                       BorderThickness="0,1,0,0"
                       IsVisible="{TemplateBinding StatusBar, Converter={x:Static ObjectConverters.IsNotNull}}">
                 <ContentPresenter Content="{TemplateBinding StatusBar}"/>
@@ -64,14 +64,14 @@
       на светлой плашке — 1,7:1. Стиль с динамическим ресурсом переключается
       сам.
 
-      Предупреждение — AxYellowText, а не AxYel: AxYel — цвет заливки и
+      Предупреждение — AxWarningText, а не AxWarning: AxWarning — цвет заливки и
       значка, у текста своя пара, подобранная под порог.
   -->
   <Style Selector="ax|AxChip.dependency">
-    <Setter Property="Foreground" Value="{DynamicResource AxFg2Brush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource AxTextSecondaryBrush}"/>
   </Style>
   <Style Selector="ax|AxChip.dependency.problem">
-    <Setter Property="Foreground" Value="{DynamicResource AxYellowTextBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource AxWarningTextBrush}"/>
   </Style>
 
   <Style Selector="ToggleButton.nav">
@@ -81,7 +81,7 @@
     <Setter Property="CornerRadius" Value="{DynamicResource AxCornerRadiusMedium}"/>
     <Setter Property="Background" Value="Transparent"/>
     <Setter Property="BorderThickness" Value="0"/>
-    <Setter Property="Foreground" Value="{DynamicResource AxFg2Brush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource AxTextSecondaryBrush}"/>
     <Setter Property="FontSize" Value="{DynamicResource AxFontSize}"/>
     <Setter Property="HorizontalAlignment" Value="Stretch"/>
     <Setter Property="HorizontalContentAlignment" Value="Left"/>
@@ -101,7 +101,7 @@
     </Setter>
   </Style>
   <Style Selector="ToggleButton.nav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{DynamicResource AxBg3Brush}"/>
+    <Setter Property="Background" Value="{DynamicResource AxHoverBrush}"/>
   </Style>
   <!--
       Цвет выбранной строки ставится на презентер, а не на кнопку, и это не
@@ -110,11 +110,11 @@
       не на контроле, а на PART_ContentPresenter — токеном
       ToggleButtonForegroundChecked. Значение на самой кнопке доезжает до текста
       только наследованием, а наследование всегда слабее значения, поставленного
-      на том же элементе: наш AxFg проигрывал, и выбранная строка красилась
+      на том же элементе: наш AxTextPrimary проигрывал, и выбранная строка красилась
       белым Fluent-а.
 
-      В тёмной теме это сходило с рук — белое по AxSel (#2E436E) читается. В
-      светлой AxSel — бледно-голубой #D4E2FF, и белым по нему подпись пропадала
+      В тёмной теме это сходило с рук — белое по AxSelectionActive (#2E436E) читается. В
+      светлой AxSelectionActive — бледно-голубой #D4E2FF, и белым по нему подпись пропадала
       совсем: контраст 1,3:1, темнее фона в строке не было ни одного пикселя.
 
       Состояния перечислены поимённо: у Fluent на каждое свой токен
@@ -122,14 +122,14 @@
       них вернуло бы белый текст в этом состоянии.
   -->
   <Style Selector="ToggleButton.nav:checked /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{DynamicResource AxSelBrush}"/>
-    <Setter Property="Foreground" Value="{DynamicResource AxFgBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource AxSelectionActiveBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource AxTextPrimaryBrush}"/>
   </Style>
   <Style Selector="ToggleButton.nav:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Foreground" Value="{DynamicResource AxFgBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource AxTextPrimaryBrush}"/>
   </Style>
   <Style Selector="ToggleButton.nav:checked:pressed /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Foreground" Value="{DynamicResource AxFgBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource AxTextPrimaryBrush}"/>
   </Style>
   <Style Selector="ToggleButton.nav:checked">
     <Setter Property="FontWeight" Value="Medium"/>
@@ -142,10 +142,10 @@
       полосе, здесь и живёт.
   -->
   <Style Selector="ax|AxButton.ghost:selected /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{DynamicResource AxSelBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource AxSelectionActiveBrush}"/>
   </Style>
   <Style Selector="ax|AxButton.ghost:selected">
-    <Setter Property="Foreground" Value="{DynamicResource AxFgBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource AxTextPrimaryBrush}"/>
   </Style>
   <!--
       Разделитель полосы: 20 высотой и цветом нажатия, а не рамки, — так его
@@ -155,7 +155,7 @@
   <Style Selector="ax|AxDivider.toolbar">
     <Setter Property="Height" Value="20"/>
     <Setter Property="Margin" Value="{DynamicResource AxSpaceHairSidesThickness}"/>
-    <Setter Property="Background" Value="{DynamicResource AxBg4Brush}"/>
+    <Setter Property="Background" Value="{DynamicResource AxStrokeStrongBrush}"/>
   </Style>
 
   <!-- Кликабельная строка списка: подсветка под курсором. -->
@@ -164,7 +164,7 @@
     <Setter Property="Cursor" Value="Hand"/>
   </Style>
   <Style Selector="Border.row:pointerover">
-    <Setter Property="Background" Value="{DynamicResource AxBg2Brush}"/>
+    <Setter Property="Background" Value="{DynamicResource AxSurfacePanelBrush}"/>
   </Style>
 
   <!--
@@ -172,7 +172,7 @@
       Отдельно от подсветки под курсором — мышь и клавиатура могут указывать на разные строки.
   -->
   <Style Selector="Border.row:focus">
-    <Setter Property="Background" Value="{DynamicResource AxSelBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource AxSelectionActiveBrush}"/>
   </Style>
 
   <!--
@@ -211,7 +211,7 @@
     <Setter Property="Cursor" Value="Hand"/>
   </Style>
   <Style Selector="Border.link-row:pointerover">
-    <Setter Property="Background" Value="{DynamicResource AxBg3Brush}"/>
+    <Setter Property="Background" Value="{DynamicResource AxHoverBrush}"/>
   </Style>
 
 </Styles>

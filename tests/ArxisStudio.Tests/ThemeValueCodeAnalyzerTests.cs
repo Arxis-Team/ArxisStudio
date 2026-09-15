@@ -60,7 +60,7 @@ public class ThemeValueCodeAnalyzerTests
             """);
 
         Assert.Equal(2, found.Length);
-        Assert.All(found, notice => Assert.Contains("AxAccBrush", notice.GetMessage(), StringComparison.Ordinal));
+        Assert.All(found, notice => Assert.Contains("AxAccentBrush", notice.GetMessage(), StringComparison.Ordinal));
     }
 
     /// <summary>

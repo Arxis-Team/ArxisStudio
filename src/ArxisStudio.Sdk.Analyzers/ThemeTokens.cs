@@ -19,11 +19,11 @@ namespace ArxisStudio.Sdk.Analyzers;
 /// Словари едут вместе с SDK, поэтому плагин получает ровно ту тему, против
 /// которой собирается.
 /// <para>
-/// Семейств три, и расширению открыто одно. Ступени шкал палитры
-/// (<c>AxGray1</c>, <c>AxBlue6</c>) — внутренность темы: из них собраны
-/// смысловые цвета, и переименовать ступень тема вправе. Цвета
-/// (<c>AxAccColor</c>) — значения типа <c>Color</c>, их берут там, где нужен
-/// цвет, а не кисть. Кисти (<c>AxAccBrush</c>) — то, что называет разметка.
+/// Семейств у палитры два. Цвета (<c>AxAccentColor</c>) — значения типа
+/// <c>Color</c>, их берут там, где нужен цвет, а не кисть. Кисти
+/// (<c>AxAccentBrush</c>) — то, что называет разметка. Ступеней шкал, из которых
+/// до SDK 6.0 собирались цвета, в словаре больше нет: роль записана числом, и
+/// прежние имена помнит <see cref="ThemeRenames"/>, а не тема.
 /// </para>
 /// </remarks>
 internal sealed class ThemeTokens
@@ -38,15 +38,13 @@ internal sealed class ThemeTokens
         IReadOnlyList<Shaped> gaps,
         IReadOnlyList<Named> fontSizes,
         IReadOnlyDictionary<string, List<string>> brushesByColour,
-        IReadOnlyDictionary<string, string> brushByColourKey,
-        IReadOnlyDictionary<string, string> scale)
+        IReadOnlyDictionary<string, string> brushByColourKey)
     {
         Steps = steps;
         Gaps = gaps;
         FontSizes = fontSizes;
         BrushesByColour = brushesByColour;
         BrushByColourKey = brushByColourKey;
-        Scale = scale;
     }
 
     /// <summary>Таблица темы, разобранная один раз на загрузку анализатора.</summary>
@@ -64,11 +62,8 @@ internal sealed class ThemeTokens
     /// <summary>Цвет в записи <c>#AARRGGBB</c> — кисти, которые его несут хотя бы в одном варианте темы.</summary>
     public IReadOnlyDictionary<string, List<string>> BrushesByColour { get; }
 
-    /// <summary>Смысловой цвет — его кисть: <c>AxAccColor</c> — <c>AxAccBrush</c>.</summary>
+    /// <summary>Цвет роли — её кисть: <c>AxAccentColor</c> — <c>AxAccentBrush</c>.</summary>
     public IReadOnlyDictionary<string, string> BrushByColourKey { get; }
-
-    /// <summary>Ступень шкалы палитры — её цвет в тёмном варианте, по которому ищется смысловая кисть.</summary>
-    public IReadOnlyDictionary<string, string> Scale { get; }
 
     /// <summary>
     /// Приводит запись цвета к <c>#AARRGGBB</c> прописными; не цвет — <c>null</c>.
@@ -145,23 +140,12 @@ internal sealed class ThemeTokens
 
         var brushesByColour = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var brushByColourKey = new Dictionary<string, string>(StringComparer.Ordinal);
-        var scale = new Dictionary<string, string>(StringComparer.Ordinal);
 
         foreach (var element in palette.Descendants(XName.Get("Color", Avalonia)))
         {
-            if (Key(element) is not { } key || Colour(element.Value) is not { } colour)
+            if (Key(element) is not { } key || Colour(element.Value) is not { } colour ||
+                !key.EndsWith("Color", StringComparison.Ordinal))
                 continue;
-
-            if (!key.EndsWith("Color", StringComparison.Ordinal))
-            {
-                // Ступень шкалы объявлена в обоих вариантах; запоминается первый —
-                // тёмный, он в словаре идёт раньше. Смысловую кисть по ступени
-                // ищут только ради подсказки, и одного варианта для неё хватает.
-                if (!scale.ContainsKey(key))
-                    scale[key] = colour;
-
-                continue;
-            }
 
             var brush = key.Substring(0, key.Length - "Color".Length) + "Brush";
 
@@ -180,7 +164,7 @@ internal sealed class ThemeTokens
         foreach (var brushes in brushesByColour.Values)
             brushes.Sort(StringComparer.Ordinal);
 
-        return new ThemeTokens(steps, gaps, fontSizes, brushesByColour, brushByColourKey, scale);
+        return new ThemeTokens(steps, gaps, fontSizes, brushesByColour, brushByColourKey);
     }
 
     private static List<Named> Doubles(XDocument document, Func<string, bool> wanted) =>

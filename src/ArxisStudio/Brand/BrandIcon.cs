@@ -43,8 +43,8 @@ internal static class BrandIcon
     /// <summary>Картинка значка одного размера, в PNG.</summary>
     public static byte[] Png(int size)
     {
-        var tile = Colour("AxAccStrongColor");
-        var mark = Colour("AxOnAccColor");
+        var tile = Colour("AxAccentFillColor");
+        var mark = Colour("AxTextOnAccentColor");
 
         var surface = new Border
         {

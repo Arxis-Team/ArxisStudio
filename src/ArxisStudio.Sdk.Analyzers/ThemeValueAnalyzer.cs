@@ -23,8 +23,14 @@ namespace ArxisStudio.Sdk.Analyzers;
 /// <para>
 /// Два правила, и граница между ними — вопрос, а не место. <c>ARX0008</c>
 /// спрашивает «почему здесь число»; <c>ARX0009</c> — «почему здесь не то
-/// имя»: ступень шкалы палитры, которую тема вправе переименовать, или цвет там,
-/// где свойству нужна кисть, — такая ссылка не разрешится во что-то видимое.
+/// имя»: цвет там, где свойству нужна кисть, или имя, которого с SDK 6.0 в теме
+/// нет, — такая ссылка не разрешится во что-то видимое.
+/// </para>
+/// <para>
+/// Прежнее имя ARX0009 ищет и в коде, в любой строке: <c>GetResourceObservable("AxBg2Brush")</c>
+/// ломается так же молча, как ссылка в разметке, а строка, совпавшая с именем из
+/// <see cref="ThemeRenames"/>, ничем другим быть не может. Цвет вместо кисти в коде не
+/// спрашивается: у строки нет свойства, по которому видно, что нужно.
 /// </para>
 /// <para>
 /// Чего правило не спрашивает, и почему. Ширины и высоты: собственная канва
@@ -39,7 +45,7 @@ public sealed class ThemeValueAnalyzer : DiagnosticAnalyzer
     /// <summary>Код диагностики: число вместо значения темы.</summary>
     public const string LiteralId = "ARX0008";
 
-    /// <summary>Код диагностики: ресурс темы не того семейства.</summary>
+    /// <summary>Код диагностики: ресурс темы назван не тем именем.</summary>
     public const string FamilyId = "ARX0009";
 
     private const string Markup = ".axaml";
@@ -56,13 +62,13 @@ public sealed class ThemeValueAnalyzer : DiagnosticAnalyzer
 
     private static readonly DiagnosticDescriptor Family = new(
         FamilyId,
-        "Ресурс темы не того семейства",
+        "Ресурс темы назван не тем именем",
         "{0}",
         "ArxisStudio",
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "Ступени шкал палитры (AxGray1, AxBlue6) — внутренность темы; цвета (AxAccColor) — значения типа Color; " +
-                     "разметке нужны кисти (AxAccBrush).");
+        description: "Цвета (AxAccentColor) — значения типа Color, разметке нужны кисти (AxAccentBrush). " +
+                     "Имён темы до SDK 6.0 (AxBg2Brush, AxFg3Brush) и ступеней шкал (AxBlue6) в теме нет: их заменили роли.");
 
     private static readonly Regex Resource = new(
         @"^\{\s*(?:[A-Za-z_][\w.]*:)?(?:Dynamic|Static)Resource\s+(?:ResourceKey\s*=\s*)?([A-Za-z_][\w.]*)\s*\}$",
@@ -89,6 +95,14 @@ public sealed class ThemeValueAnalyzer : DiagnosticAnalyzer
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
         context.RegisterAdditionalFileAction(Check);
+        context.RegisterOperationAction(Named, OperationKind.Literal);
+    }
+
+    private static void Named(OperationAnalysisContext context)
+    {
+        if (context.Operation.ConstantValue is { HasValue: true, Value: string key } &&
+            ThemeRenames.Retired(key, brush: false) is { } complaint)
+            context.ReportDiagnostic(Diagnostic.Create(Family, context.Operation.Syntax.GetLocation(), complaint));
     }
 
     private static void Check(AdditionalFileAnalysisContext context)
@@ -174,14 +188,8 @@ public sealed class ThemeValueAnalyzer : DiagnosticAnalyzer
     /// </summary>
     internal static string? Misnamed(string property, string key, ThemeTokens tokens)
     {
-        if (tokens.Scale.TryGetValue(key, out var colour))
-        {
-            var instead = tokens.BrushesByColour.TryGetValue(colour, out var brushes)
-                ? $"; тот же цвет несёт {string.Join(" или ", brushes)}"
-                : string.Empty;
-
-            return $"{key} — ступень шкалы палитры, внутренняя для темы: тема вправе её переименовать{instead}";
-        }
+        if (ThemeRenames.Retired(key, Brushes.Contains(property)) is { } retired)
+            return retired;
 
         if (Brushes.Contains(property) && tokens.BrushByColourKey.TryGetValue(key, out var brush))
             return $"{key} — цвет, а свойству {property} нужна кисть: {brush}";

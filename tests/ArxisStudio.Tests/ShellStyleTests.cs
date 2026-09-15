@@ -58,7 +58,7 @@ public class ShellStyleTests
     /// слабее значения на том же элементе. Выигрывал белый Fluent-а.
     /// <para>
     /// Светлая тема нужна здесь именно потому, что в тёмной подмена не видна:
-    /// белое по AxSel (#2E436E) читается. В светлой AxSel — бледно-голубой, и
+    /// белое по AxSelectionActive (#2E436E) читается. В светлой AxSelectionActive — бледно-голубой, и
     /// подпись пропадала совсем.
     /// </para>
     /// <para>
@@ -84,8 +84,8 @@ public class ShellStyleTests
             .OfType<ContentPresenter>()
             .Single(found => found.Name == "PART_ContentPresenter");
 
-        Assert.Equal(Token(window, "AxFgBrush"), presenter.Foreground);
-        Assert.Equal(Token(window, "AxSelBrush"), presenter.Background);
+        Assert.Equal(Token(window, "AxTextPrimaryBrush"), presenter.Foreground);
+        Assert.Equal(Token(window, "AxSelectionActiveBrush"), presenter.Background);
 
         window.Close();
     }

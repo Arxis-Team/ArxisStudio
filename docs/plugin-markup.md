@@ -272,13 +272,30 @@ avares не трогали вовсе                             -> выгру�
 темой и не сжимается вместе с плотностью: панель плагина остаётся тёмной в светлой студии
 и просторной в плотной, а рядом стоят панели самой студии, которые переключились.
 
-**Ключей темы три семейства, и расширению открыто одно.**
+**Цвет темы — роль, и у роли два ключа.**
 
-| Семейство | Пример | Кто называет |
+| Ключ | Пример | Кто называет |
 |---|---|---|
-| Ступени шкал палитры | `AxGray1`, `AxBlue6` | только тема: из них собраны смысловые цвета, и переименовать ступень тема вправе |
-| Цвета | `AxAccColor`, `AxFgColor` | там, где свойство ждёт `Color`: `SolidColorBrush.Color`, рисование в коде |
-| Кисти | `AxAccBrush`, `AxFgBrush` | разметка: `Foreground`, `Background`, `BorderBrush`, `Fill`, `Stroke` |
+| Цвет | `AxAccentColor`, `AxTextPrimaryColor` | там, где свойство ждёт `Color`: `SolidColorBrush.Color`, рисование в коде |
+| Кисть | `AxAccentBrush`, `AxTextPrimaryBrush` | разметка: `Foreground`, `Background`, `BorderBrush`, `Fill`, `Stroke` |
+
+**С SDK 6.0 палитра называет роль, а не место в ряду.** Значения не сдвинулись, сдвинулись
+имена, и ключ 5.x в студии 6.0 не разрешается — кисть молча остаётся пустой. Ступеней шкал
+(`AxGray1`, `AxBlue6`) в словаре больше нет вовсе. Прежнее имя при сборке называет `ARX0009`
+вместе с новым; порядок переименования такой:
+
+| До 6.0 | С 6.0 |
+|---|---|
+| `AxBg1`, `AxInp` · `AxBg2` · `AxBgSunken` | `AxSurfaceBase` · `AxSurfacePanel`, во всплывающем `AxSurfaceOverlay` · `AxSurfaceSunken` |
+| `AxBg3` · `AxBg4` · `AxInpDisabled` | `AxHover`, у приподнятой плашки `AxSurfaceRaised` · `AxPressed`, у дорожки `AxTrack` · `AxFillDisabled` |
+| `AxBrd` · `AxBrd2` | `AxStrokeSubtle` · `AxStrokeControl` |
+| `AxFg` · `AxFg2` · `AxFg3` · `AxFgDisabled` · `AxOnAcc` | `AxTextPrimary` · `AxTextSecondary` · `AxTextTertiary` · `AxTextDisabled` · `AxTextOnAccent` |
+| `AxAcc`, `AxAccHover` · `AxAccStrong*`, `AxAccPressed` | `AxAccent`, `AxAccentHover` · `AxAccentFill*`, `AxAccentFillPressed` |
+| `AxSel` · `AxSelInactive` · `AxOutlineFocused` | `AxSelectionActive` · `AxSelectionInactive` · `AxFocusRing` |
+| `AxRed`, `AxYel`, `AxGrn` и их `*Text` | `AxError`, `AxWarning`, `AxSuccess` и их `*Text` |
+| `AxInfoBackground`, `AxInfoBorder` и соседи · `AxOutlineError`, `AxOutlineWarning` | `AxInfoFill`, `AxInfoStroke` и соседи · `AxErrorOutline`, `AxWarningOutline` |
+| `AxOrg`, `AxPur` · `AxLinkOn` · `AxTooltip*` · `AxCodeFg`, `AxCodeAttr` | `AxTintOrange`, `AxTintPurple` · `AxLinkOnPlate` · `AxToolTipFill`, `AxToolTipStroke` · `AxCodeText`, `AxCodeAttribute` |
+| `AxPopupShadow`, `AxModalShadow` | `AxShadowPopup`, `AxShadowModal` |
 
 Расстояния — шкала `AxSpaceHair 2 · AxSpaceTight 4 · AxSpaceSnug 6 · AxSpace 8 ·
 AxSpaceWide 12 · AxSpaceLoose 16 · AxSpaceSection 24 · AxSpaceScreen 40`, у каждой ступени
@@ -290,10 +307,12 @@ AxSpaceWide 12 · AxSpaceLoose 16 · AxSpaceSection 24 · AxSpaceScreen 40`, у 
 
 - `ARX0008` — число в разметке: `Spacing="8"` → «8 — это AxSpace»; `Spacing="10"` → «10 — не
   ступень шкалы; ближайшие — AxSpace (8) и AxSpaceWide (12)»; `Foreground="#3574F0"` → «это цвет
-  AxAccBrush». Цвет, которого в теме нет, правило не трогает: своя палитра графика законна.
-- `ARX0009` — ресурс не того семейства: ступень шкалы палитры где угодно или цвет там, где
-  свойству нужна кисть. `{a:DynamicResource AxAccColor}` в `Foreground` не разрешится в кисть и
-  не нарисует ничего, и узнать об этом без правила можно только глазами.
+  AxAccentBrush». Цвет, которого в теме нет, правило не трогает: своя палитра графика законна.
+- `ARX0009` — ресурс назван не тем именем: цвет там, где свойству нужна кисть, или имя темы до
+  SDK 6.0. `{a:DynamicResource AxAccentColor}` в `Foreground` не разрешится в кисть и не нарисует
+  ничего, и узнать об этом без правила можно только глазами; `{a:DynamicResource AxFg3Brush}` →
+  «AxFg3Brush — имя темы до SDK 6.0; теперь это AxTextTertiaryBrush». Прежнее имя правило
+  находит и в коде, в любой строке: `GetResourceObservable("AxFg3Brush")` ломается так же молча.
 - `ARX0010` — то же в коде: `new Thickness(…)` из чисел, число в `Spacing` и `FontSize`
   контролов Avalonia, `Color.Parse("#…")` и `Brush.Parse("#…")`.
 
@@ -312,7 +331,8 @@ body.Bind(StackPanel.SpacingProperty, body.GetResourceObservable("AxGapFormRow")
 
 Так написан пример `Arxis.HelloPlugin`, и так пишет шаблон. Плагин, назвавший ключ шкалы,
 объявляет в манифесте `sdk.min` не ниже 5.3: в студии без шкалы ресурс не разрешится, и
-отступ молча станет нулевым.
+отступ молча станет нулевым. Плагин, назвавший роль палитры, — не ниже 6.0: в студии 5.x
+у роли было другое имя.
 
 ## Открытые концы
 

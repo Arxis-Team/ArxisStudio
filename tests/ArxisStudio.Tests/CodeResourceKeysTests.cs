@@ -6,12 +6,13 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Shapes;
 using Avalonia.Headless.XUnit;
 using Avalonia.Layout;
+using Avalonia.Styling;
 using Xunit;
 
 namespace ArxisStudio.Tests;
 
 /// <summary>
-/// Ключ темы, названный в коде студии, в теме есть и подходит свойству, к которому привязан.
+/// Ключ темы, названный в коде строкой, в теме есть и подходит свойству, к которому привязан.
 /// </summary>
 /// <remarks>
 /// В коде значение темы берут привязкой к ключу, и ошибка в его имени не валит ни сборку, ни
@@ -25,6 +26,9 @@ public class CodeResourceKeysTests
     private static readonly Regex Bindings = new(
         """Bind\(\s*(?:(\w+)\.)?(\w+)Property\s*,\s*[\w.]+\.GetResourceObservable\("(\w+)"\)\s*\)""",
         RegexOptions.Compiled);
+
+    /// <summary>Ключ темы строкой: кавычка, приставка <c>Ax</c> и имя.</summary>
+    private static readonly Regex Named = new(@"""(Ax[A-Z][A-Za-z0-9]*)""", RegexOptions.Compiled);
 
     /// <summary>Где искать свойство, названное без хозяина.</summary>
     private static readonly Type[] Owners =
@@ -57,6 +61,46 @@ public class CodeResourceKeysTests
         }
 
         Assert.True(wrong.Count == 0, string.Join("; ", wrong));
+    }
+
+    /// <summary>
+    /// Ключ темы, названный строкой в любом коде — студии, модуля, плагина, шаблона, контролов,
+    /// значков, — тема объявляет в обоих вариантах.
+    /// </summary>
+    /// <remarks>
+    /// Проверка выше видит только привязку одной строкой, а ключ строкой берут и иначе: цвет рамки
+    /// окна у <c>AxWindow</c>, палитра терминала, значок заставки — через свои помощники с
+    /// <c>TryFindResource</c>. Промах там не пустой отступ, а запасной цвет, нарочно похожий на
+    /// тему, и глазами он не виден вовсе, пока тема не сменит значение.
+    /// <para>
+    /// Строка с приставкой <c>Ax</c> в коде — всегда ключ темы: имена типов берут через
+    /// <c>nameof</c> и <c>typeof</c>, а не строкой. Комментарии не читаются — в них имена
+    /// контролов стоят в <c>cref</c>.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void Every_theme_key_named_anywhere_in_code_is_declared_in_both_variants()
+    {
+        var named = CodeSources.Everywhere()
+            .SelectMany(source => source.Text.Split('\n')
+                .Where(line => !line.TrimStart().StartsWith("//", StringComparison.Ordinal))
+                .SelectMany(line => Named.Matches(line))
+                .Select(match => (source.Name, Key: match.Groups[1].Value)))
+            .Distinct()
+            .ToList();
+
+        Assert.Contains(named, entry => entry.Key == "AxSurfacePanelColor");
+        Assert.Contains(named, entry => entry.Key == "AxScrollThumbColor");
+        Assert.Contains(named, entry => entry.Key == "AxGapFormRow");
+
+        var application = Application.Current!;
+        var missing = named
+            .Where(entry => !application.TryFindResource(entry.Key, ThemeVariant.Dark, out _) ||
+                            !application.TryFindResource(entry.Key, ThemeVariant.Light, out _))
+            .Select(entry => $"{entry.Name}: {entry.Key}")
+            .ToList();
+
+        Assert.True(missing.Count == 0, "в теме нет ключей: " + string.Join("; ", missing));
     }
 
     private static AvaloniaProperty? Property(string? owner, string name) =>

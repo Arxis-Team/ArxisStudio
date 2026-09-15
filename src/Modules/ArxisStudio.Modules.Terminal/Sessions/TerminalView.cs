@@ -842,9 +842,9 @@ public sealed class TerminalView : Control
         _italic = new Typeface(_fontFamily, FontStyle.Italic);
         _boldItalic = new Typeface(_fontFamily, FontStyle.Italic, FontWeight.Bold);
 
-        _background = ThemeColor("AxBg1Color", _background);
-        _foreground = ThemeColor("AxFgColor", _foreground);
-        _selection = ThemeColor("AxSelColor", _selection);
+        _background = ThemeColor("AxSurfaceBaseColor", _background);
+        _foreground = ThemeColor("AxTextPrimaryColor", _foreground);
+        _selection = ThemeColor("AxSelectionActiveColor", _selection);
         _thumb = ThemeColor("AxScrollThumbColor", _thumb);
         _brushes.Clear();
     }

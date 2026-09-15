@@ -92,7 +92,7 @@
             <ItemsControl ItemsSource="{Binding Refusals}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="s:KeyRefusal">
-                  <Border Padding="{DynamicResource AxSettingsRowPadding}" BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,0,0,1">
+                  <Border Padding="{DynamicResource AxSettingsRowPadding}" BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="0,0,0,1">
                     <DockPanel>
                       <ax:AxChip DockPanel.Dock="Left" Classes="kbd" Content="{Binding Gesture}"
                                  Margin="{DynamicResource AxSpaceWideTrailingThickness}" VerticalAlignment="Center"/>
@@ -111,7 +111,7 @@
           <ItemsControl ItemsSource="{Binding Rows}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="s:KeyRow">
-                <Border Padding="{DynamicResource AxSettingsRowPadding}" BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,0,0,1">
+                <Border Padding="{DynamicResource AxSettingsRowPadding}" BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="0,0,0,1">
                   <DockPanel>
                     <ax:AxChip DockPanel.Dock="Left" Classes="kbd" Content="{Binding Gesture}"
                                Margin="{DynamicResource AxSpaceWideTrailingThickness}" VerticalAlignment="Center"/>
@@ -165,11 +165,11 @@
           <ItemsControl ItemsSource="{Binding Cards}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:PluginCard">
-                <Border Padding="{DynamicResource AxSettingsRowPadding}" BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,0,0,1">
+                <Border Padding="{DynamicResource AxSettingsRowPadding}" BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="0,0,0,1">
                   <DockPanel>
                     <Border DockPanel.Dock="Left" Width="32" Height="32" Margin="{DynamicResource AxSpaceWideTrailingThickness}"
                             CornerRadius="{DynamicResource AxCornerRadiusLarge}"
-                            Background="{DynamicResource AxBg3Brush}">
+                            Background="{DynamicResource AxSurfaceRaisedBrush}">
                       <Panel>
                         <!--
                             Значок — украшение: имя плагина стоит рядом текстом, и
@@ -188,7 +188,7 @@
                             и битый файл оставлял бы на карточке пустое место.
                         -->
                         <ax:AxIcon Data="{x:Static ax:AxIcons.Package}"
-                                   Foreground="{DynamicResource AxPurBrush}"
+                                   Foreground="{DynamicResource AxTintPurpleBrush}"
                                    IsVisible="{Binding #PluginIcon.Source, Converter={x:Static ObjectConverters.IsNull}}"/>
                       </Panel>
                     </Border>
@@ -404,8 +404,8 @@
         о том, что не легло, хуже, чем остаться открытым.
     -->
     <Border DockPanel.Dock="Bottom"
-            Background="{DynamicResource AxBg2Brush}"
-            BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,1,0,0">
+            Background="{DynamicResource AxSurfacePanelBrush}"
+            BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="0,1,0,0">
       <DockPanel Margin="{DynamicResource AxDialogBandPadding}">
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="{DynamicResource AxGapControls}">
           <ax:AxButton x:Name="Cancel" Content="{ax:Loc common.cancel}" MinWidth="{DynamicResource AxDialogButtonMinWidth}"/>
@@ -421,8 +421,8 @@
 
       <!-- Слева: поиск и дерево разделов. Ширина — как у боковой полосы Welcome. -->
       <Border Grid.Column="0"
-              Background="{DynamicResource AxBg2Brush}"
-              BorderBrush="{DynamicResource AxBrdBrush}" BorderThickness="0,0,1,0">
+              Background="{DynamicResource AxSurfacePanelBrush}"
+              BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="0,0,1,0">
         <DockPanel Margin="{DynamicResource AxSpaceWideThickness}">
           <ax:AxSearchField DockPanel.Dock="Top" x:Name="SearchBox" Margin="{DynamicResource AxSpaceWideBelowThickness}"
                             AutomationProperties.Name="{ax:Loc settings.search}"

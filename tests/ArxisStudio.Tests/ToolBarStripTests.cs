@@ -90,7 +90,7 @@ public class ToolBarStripTests
         window.UpdateLayout();
 
         Assert.Contains(":selected", button.Classes);
-        Assert.Equal(Colour(Brush(window, "AxSelBrush")), Colour(plate.Background));
+        Assert.Equal(Colour(Brush(window, "AxSelectionActiveBrush")), Colour(plate.Background));
         Assert.NotEqual(before, Colour(plate.Background));
 
         button.IsChecked = false;
@@ -117,7 +117,7 @@ public class ToolBarStripTests
         button.IsChecked = true;
         window.UpdateLayout();
 
-        Assert.Equal(Colour(Brush(window, "AxSelBrush")), Colour(Plate(button).Background));
+        Assert.Equal(Colour(Brush(window, "AxSelectionActiveBrush")), Colour(Plate(button).Background));
 
         window.Close();
     }
@@ -153,7 +153,7 @@ public class ToolBarStripTests
 
         Assert.Equal(20d, divider.Bounds.Height);
         Assert.Equal(1d, divider.Bounds.Width);
-        Assert.Equal(Colour(Brush(window, "AxBg4Brush")), Colour(divider.Background));
+        Assert.Equal(Colour(Brush(window, "AxPressedBrush")), Colour(divider.Background));
 
         window.Close();
     }
