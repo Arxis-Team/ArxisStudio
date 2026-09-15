@@ -5,11 +5,11 @@
   "publisher": "",
   "description": "%plugin.description%",
   "tags": [ "tools" ],
-  "sdk": { "min": "5.3" },
+  "sdk": { "min": "5.5" },
   "entry": "bin/Arxis.MyPlugin.dll",
   "contributions": {
     "commands": [
-      { "id": "arxis.my-plugin.hello" }
+      { "id": "arxis.my-plugin.hello", "icon": "arxis:Star" }
     ],
     "menus": [
       { "path": "%menu.tools%/%plugin.name%/%command.hello%", "command": "arxis.my-plugin.hello" }
@@ -18,7 +18,6 @@
       {
         "id": "hello",
         "command": "arxis.my-plugin.hello",
-        "icon": "arxis:Star",
         "title": "%command.hello%"
       }
     ],
@@ -26,6 +25,7 @@
       {
         "id": "panel",
         "title": "%plugin.name%",
+        "icon": "arxis:Window",
         "placement": { "side": "right", "size": 0.22 }
       }
     ]

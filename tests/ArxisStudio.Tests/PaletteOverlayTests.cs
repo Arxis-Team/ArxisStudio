@@ -171,6 +171,45 @@ public class PaletteOverlayTests
         Assert.Empty(window.GetVisualDescendants().OfType<AxQuickSearch>());
     }
 
+    /// <summary>
+    /// Значок команды стоит в строке слева, а место под него держит каждая строка.
+    /// </summary>
+    /// <remarks>
+    /// Колонка значков — как в меню: пункт без значка получает пустое место той же ширины. Иначе
+    /// названия стояли бы лесенкой, и глаз, идущий по списку сверху вниз, спотыкался бы на каждой
+    /// строке без значка.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_icon_of_a_command_stands_on_the_left_and_every_name_stands_in_line()
+    {
+        IReadOnlyList<PaletteEntry> entries =
+        [
+            new("Обновить проект", "projects.reload") { Icon = ArxisStudio.Icons.AxIcons.Refresh },
+            new("Закрыть вкладку", "studio.close", "Ctrl+W"),
+        ];
+
+        var (palette, window, _) = Shown(entries: entries);
+        var card = Assert.Single(window.GetVisualDescendants().OfType<AxQuickSearch>());
+        var list = Assert.Single(card.GetVisualDescendants().OfType<AxListBox>());
+        var icons = list.GetVisualDescendants().OfType<ArxisStudio.Icons.AxIcon>().ToList();
+        var names = entries
+            .Select(entry => Assert.Single(list.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == entry.Title))
+            .ToList();
+
+        Assert.Equal(2, icons.Count);
+        Assert.Same(ArxisStudio.Icons.AxIcons.Refresh, icons[0].Data);
+        Assert.Null(icons[1].Data);
+
+        var first = names[0].TranslatePoint(default, list)!.Value.X;
+        var second = names[1].TranslatePoint(default, list)!.Value.X;
+        var iconEnd = icons[0].TranslatePoint(new Avalonia.Point(icons[0].Bounds.Width, 0), list)!.Value.X;
+
+        Assert.Equal(first, second, 3);
+        Assert.True(first > iconEnd, $"название начинается на {first:0.##}, а значок кончается на {iconEnd:0.##}");
+
+        palette.Close();
+    }
+
     /// <summary>Сочетания у правого края строк не заходят под ползунок прокрутки.</summary>
     /// <remarks>
     /// Полоса прокрутки лежит поверх строк, и живая палитра показала сочетания, чей последний знак

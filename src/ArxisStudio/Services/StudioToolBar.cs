@@ -428,6 +428,12 @@ public sealed class StudioToolBar
     {
         var item = new AxMenuItem { Header = source.Title };
 
+        // Колонку значков тема держит у каждого пункта, и пункт без значка
+        // получает пустое место той же ширины: подписи стоят ровно, есть значок
+        // у соседа или нет.
+        if (source.Icon is { } glyph)
+            item.Icon = new AxIcon { Data = glyph };
+
         if (source.CommandId is { } command)
         {
             item.Click += (_, _) =>
@@ -450,14 +456,25 @@ public sealed class StudioToolBar
     /// Значок, который не разобрался, кнопку не отменяет: она становится
     /// текстовой, а о значке остаётся замечание. Подпись к этому месту уже
     /// проверена — без неё элемент не ставится вовсе.
+    /// <para>
+    /// Кнопка, не назвавшая своего значка, берёт значок своей команды: он
+    /// объявлен у команды затем, чтобы одна команда выглядела одинаково в меню,
+    /// в палитре и в полосе. Команда ищется в манифесте хозяина — чужую команду
+    /// кнопке звать не положено, об этом говорит <c>ARX0003</c>. Свой значок,
+    /// который не разобрался, значком команды не подменяется: молча подменять
+    /// значок чужим было бы хуже пропажи. О значке команды замечание звучит при
+    /// чтении манифеста, и здесь его не повторяют.
+    /// </para>
     /// </remarks>
     private ToolBarButton Button(InstalledPlugin? owner, PluginToolBarItem declared)
     {
         var strings = owner?.Strings ?? PluginStrings.Studio;
-        var glyph = ToolBarIcons.Resolve(declared.Icon, out var problem);
+        var glyph = ManifestIcons.Resolve(declared.Icon, out var problem);
 
         if (problem is not null)
             Complained?.Invoke(this, $"{Key(owner?.Id, declared.Id)}: {problem}");
+        else if (glyph is null && declared.IsButton)
+            glyph = StudioMenu.IconOf(owner, declared.Command);
 
         var title = declared.Title!;
         var button = new ToolBarButton();

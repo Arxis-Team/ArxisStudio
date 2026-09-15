@@ -8,9 +8,9 @@
   "provides": { "contracts": [ "ArxisStudio.Projects.Contracts.dll" ] },
   "contributions": {
     "commands": [
-      { "id": "projects.reload" },
+      { "id": "projects.reload", "icon": "arxis:Refresh" },
       { "id": "projects.close" },
-      { "id": "projects.restore" },
+      { "id": "projects.restore", "icon": "arxis:Download" },
       { "id": "projects.build" },
       { "id": "projects.rebuild" },
       { "id": "projects.clean" }

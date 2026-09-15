@@ -7,20 +7,20 @@ using Xunit;
 namespace ArxisStudio.Tests;
 
 /// <summary>
-/// Значок элемента полосы по записи из манифеста.
+/// Значок по записи из манифеста — у кнопки полосы, панели и команды.
 /// </summary>
 /// <remarks>
 /// Запись читается без загрузки сборки плагина, поэтому и ошибка в ней должна
-/// быть словом, а не исключением: полоса — не то место, из-за которого стоит
-/// падать. Каждый отказ здесь называет причину.
+/// быть словом, а не исключением: полоса, вкладка и меню — не те места, из-за
+/// которых стоит падать. Каждый отказ здесь называет причину.
 /// </remarks>
-public class ToolBarIconsTests
+public class ManifestIconsTests
 {
     /// <summary>Имя из набора даёт тот самый глиф — не копию.</summary>
     [AvaloniaFact]
     public void A_name_from_the_set_gives_the_very_same_geometry()
     {
-        var drawn = ToolBarIcons.Resolve("arxis:Play", out var problem);
+        var drawn = ManifestIcons.Resolve("arxis:Play", out var problem);
 
         Assert.Null(problem);
         Assert.Same(AxIcons.Play, drawn);
@@ -30,7 +30,7 @@ public class ToolBarIconsTests
     [AvaloniaFact]
     public void A_path_in_the_sixteen_grid_is_drawn_as_given()
     {
-        var drawn = ToolBarIcons.Resolve("M3.5 8H12.5", out var problem);
+        var drawn = ManifestIcons.Resolve("M3.5 8H12.5", out var problem);
 
         Assert.Null(problem);
         Assert.NotNull(drawn);
@@ -47,10 +47,10 @@ public class ToolBarIconsTests
     [AvaloniaFact]
     public void An_unknown_name_is_reported_rather_than_drawn()
     {
-        Assert.Null(ToolBarIcons.Resolve("arxis:Nope", out var problem));
+        Assert.Null(ManifestIcons.Resolve("arxis:Nope", out var problem));
         Assert.Contains("arxis:Nope", problem);
 
-        Assert.Null(ToolBarIcons.Resolve("arxis:play", out problem));
+        Assert.Null(ManifestIcons.Resolve("arxis:play", out problem));
         Assert.NotNull(problem);
     }
 
@@ -58,10 +58,10 @@ public class ToolBarIconsTests
     [AvaloniaFact]
     public void A_path_that_draws_nothing_is_reported()
     {
-        Assert.Null(ToolBarIcons.Resolve("M oops", out var problem));
+        Assert.Null(ManifestIcons.Resolve("M oops", out var problem));
         Assert.NotNull(problem);
 
-        Assert.Null(ToolBarIcons.Resolve("M8 8", out problem));
+        Assert.Null(ManifestIcons.Resolve("M8 8", out problem));
         Assert.NotNull(problem);
     }
 
@@ -69,10 +69,10 @@ public class ToolBarIconsTests
     [AvaloniaFact]
     public void No_icon_is_not_a_problem()
     {
-        Assert.Null(ToolBarIcons.Resolve(string.Empty, out var problem));
+        Assert.Null(ManifestIcons.Resolve(string.Empty, out var problem));
         Assert.Null(problem);
 
-        Assert.Null(ToolBarIcons.Resolve(null, out problem));
+        Assert.Null(ManifestIcons.Resolve(null, out problem));
         Assert.Null(problem);
     }
 }

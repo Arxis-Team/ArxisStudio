@@ -442,7 +442,7 @@ public partial class MainWindow : AxWindow
             () => CommandPalette.Gather(
                 StudioMenu.Build(_plugins.Contributing),
                 [.. Own(), new(Localizer.Instance["command.palette"], "studio.palette")],
-                Declared(),
+                CommandPalette.Declared(_plugins.Contributing),
                 _shortcuts.Gesture),
             id => _plugins.Installed.Concat(_plugins.Modules).FirstOrDefault(plugin => plugin.Id == id)?.DisplayName,
             StudioPaths.KeymapFile,
@@ -629,7 +629,7 @@ public partial class MainWindow : AxWindow
             CommandPalette.Gather(
                 StudioMenu.Build(_plugins.Contributing),
                 Own(),
-                Declared(),
+                CommandPalette.Declared(_plugins.Contributing),
                 _shortcuts.Gesture));
 
     /// <summary>
@@ -645,23 +645,6 @@ public partial class MainWindow : AxWindow
         new(Localizer.Instance["command.close"], "studio.close"),
         new(Localizer.Instance["command.panel.next"], "studio.panel.next"),
         new(Localizer.Instance["command.panel.previous"], "studio.panel.previous"),
-    ];
-
-    /// <summary>
-    /// Команды расширений, назвавшие себя в манифесте.
-    /// </summary>
-    /// <remarks>
-    /// Нужны те, у кого нет пункта меню: без названия они не показывались
-    /// нигде и были доступны только тому, кто знал идентификатор. У назвавших
-    /// себя дважды побеждает пункт меню — он идёт в списке раньше.
-    /// </remarks>
-    private IReadOnlyList<PaletteEntry> Declared() =>
-    [
-        .. _plugins.Contributing
-            .Where(plugin => plugin is { IsEnabled: true, IsValid: true })
-            .SelectMany(plugin => plugin.Manifest!.Contributions.Commands
-                .Where(command => command.Title is { Length: > 0 })
-                .Select(command => new PaletteEntry(plugin.Strings.Resolve(command.Title!), command.Id))),
     ];
 
     /// <summary>Говорит строкой состояния — тем же местом, что и всё прочее.</summary>

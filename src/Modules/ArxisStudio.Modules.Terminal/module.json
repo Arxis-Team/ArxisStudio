@@ -7,10 +7,10 @@
   "tags": [ "tools", "terminal" ],
   "contributions": {
     "commands": [
-      { "id": "terminal.open" },
-      { "id": "terminal.new" },
+      { "id": "terminal.open", "icon": "arxis:Terminal" },
+      { "id": "terminal.new", "icon": "arxis:Plus" },
       { "id": "terminal.newSsh" },
-      { "id": "terminal.settings" }
+      { "id": "terminal.settings", "icon": "arxis:Gear" }
     ],
     "menus": [
       { "path": "%menu.tools%/%menu.terminal%/%menu.terminal.new%", "command": "terminal.new" },
@@ -18,11 +18,11 @@
       { "path": "%menu.tools%/%menu.terminal%/%menu.terminal.settings%", "command": "terminal.settings" }
     ],
     "toolWindows": [
-      { "id": "terminal.panel", "title": "%panel.terminal%", "placement": { "side": "bottom", "size": 0.3 } }
+      { "id": "terminal.panel", "title": "%panel.terminal%", "icon": "arxis:Terminal", "placement": { "side": "bottom", "size": 0.3 } }
     ],
     "toolBar": [
       { "id": "terminal.open", "kind": "button", "slot": "right", "command": "terminal.open",
-        "icon": "arxis:Terminal", "title": "%toolbar.terminal.open%" }
+        "title": "%toolbar.terminal.open%" }
     ],
     "settings": [
       { "key": "terminal.shell", "type": "string", "scope": "user", "title": "%settings.terminal.shell%", "default": "" },

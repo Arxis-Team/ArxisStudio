@@ -1,4 +1,7 @@
+using ArxisStudio.Extensibility;
 using ArxisStudio.Services;
+using ArxisStudio.Shell;
+using Avalonia.Media;
 
 namespace ArxisStudio.Palette;
 
@@ -6,7 +9,11 @@ namespace ArxisStudio.Palette;
 /// <param name="Title">Что написано.</param>
 /// <param name="CommandId">Кого звать.</param>
 /// <param name="Gesture">Каким сочетанием её зовут ещё; <c>null</c> — никаким.</param>
-public sealed record PaletteEntry(string Title, string CommandId, string? Gesture = null);
+public sealed record PaletteEntry(string Title, string CommandId, string? Gesture = null)
+{
+    /// <summary>Значок команды из её объявления; <c>null</c> — без значка.</summary>
+    public Geometry? Icon { get; init; }
+}
 
 /// <summary>
 /// Палитра команд: всё, что студия умеет, одним списком.
@@ -67,6 +74,37 @@ public static class CommandPalette
     }
 
     /// <summary>
+    /// Команды расширений, назвавшие себя в манифесте.
+    /// </summary>
+    /// <param name="plugins">Расширения, которые вкладываются в студию.</param>
+    /// <returns>Строки с названием из манифеста и значком из него же.</returns>
+    /// <remarks>
+    /// Нужны те, у кого нет пункта меню: без названия они не показывались
+    /// нигде и были доступны только тому, кто знал идентификатор. У назвавших
+    /// себя дважды побеждает пункт меню — он идёт в списке раньше.
+    /// <para>
+    /// Значок разбирается молча: о том, что не разобралось, журнал услышал при
+    /// чтении манифеста, а палитра собирается на каждом открытии.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<PaletteEntry> Declared(IEnumerable<InstalledPlugin> plugins)
+    {
+        ArgumentNullException.ThrowIfNull(plugins);
+
+        return
+        [
+            .. plugins
+                .Where(plugin => plugin is { IsEnabled: true, IsValid: true })
+                .SelectMany(plugin => plugin.Manifest!.Contributions.Commands
+                    .Where(command => command.Title is { Length: > 0 })
+                    .Select(command => new PaletteEntry(plugin.Strings.Resolve(command.Title!), command.Id)
+                    {
+                        Icon = ManifestIcons.Resolve(command.Icon, out _),
+                    })),
+        ];
+    }
+
+    /// <summary>
     /// Отбирает строки по набранному.
     /// </summary>
     /// <param name="all">Всё, что есть.</param>
@@ -106,7 +144,7 @@ public static class CommandPalette
         foreach (var item in items)
         {
             if (item.CommandId is { Length: > 0 } id)
-                yield return new PaletteEntry(item.Title, id);
+                yield return new PaletteEntry(item.Title, id) { Icon = item.Icon };
 
             foreach (var nested in Flatten(item.Children))
                 yield return nested;

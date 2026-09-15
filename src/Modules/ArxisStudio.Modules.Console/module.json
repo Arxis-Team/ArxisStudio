@@ -7,19 +7,19 @@
   "tags": [ "tools" ],
   "contributions": {
     "commands": [
-      { "id": "console.open" },
-      { "id": "console.clear" }
+      { "id": "console.open", "icon": "arxis:List" },
+      { "id": "console.clear", "icon": "arxis:Trash" }
     ],
     "menus": [
       { "path": "%menu.tools%/%menu.console%/%menu.console.open%", "command": "console.open" },
       { "path": "%menu.tools%/%menu.console%/%menu.console.clear%", "command": "console.clear" }
     ],
     "toolWindows": [
-      { "id": "console.log", "title": "%panel.console%", "placement": { "side": "bottom", "size": 0.3 } }
+      { "id": "console.log", "title": "%panel.console%", "icon": "arxis:List", "placement": { "side": "bottom", "size": 0.3 } }
     ],
     "toolBar": [
       { "id": "console.open", "kind": "button", "slot": "right", "command": "console.open",
-        "icon": "arxis:List", "title": "%toolbar.console.open%" }
+        "title": "%toolbar.console.open%" }
     ],
     "settings": [
       { "key": "console.autoscroll", "type": "bool", "scope": "user", "title": "%settings.console.autoscroll%", "default": true },

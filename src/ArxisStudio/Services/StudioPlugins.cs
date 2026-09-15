@@ -729,8 +729,34 @@ public sealed class StudioPlugins
             // без загрузки сборки, и нажатие будит спящего хозяина тем же
             // путём, что и щелчок по кнопке полосы.
             foreach (var declared in plugin.Manifest.Contributions.Commands)
+            {
                 Claim(plugin, declared);
+                Glyph(plugin, $"команда {declared.Id}", declared.Icon);
+            }
+
+            foreach (var declared in plugin.Manifest.Contributions.ToolWindows)
+                Glyph(plugin, $"панель {declared.Id}", declared.Icon);
         }
+    }
+
+    /// <summary>
+    /// Говорит в журнал о значке панели или команды, который не разобрался.
+    /// </summary>
+    /// <param name="plugin">Чей манифест.</param>
+    /// <param name="what">Чей значок — словами, для журнала.</param>
+    /// <param name="icon">Запись из манифеста.</param>
+    /// <remarks>
+    /// Здесь, а не там, где значок рисуют. Рисуют его на каждой перестройке — меню и палитра
+    /// собираются на каждом открытии, вкладка встаёт при каждом подъёме, — и замечание звучало бы
+    /// столько же раз. Манифест же читается здесь, и сказать о нём один раз на чтение честнее.
+    /// Значок, который не разобрался, ничего не отменяет: пункт, строка и вкладка встают без него.
+    /// </remarks>
+    private void Glyph(InstalledPlugin plugin, string what, string? icon)
+    {
+        ManifestIcons.Resolve(icon, out var problem);
+
+        if (problem is not null)
+            _log.Write(StudioLogLevel.Warning, "Plugins", $"{plugin.DisplayName}: {what} — {problem}");
     }
 
     /// <summary>
@@ -985,7 +1011,11 @@ public sealed class StudioPlugins
     {
         var id = Panel(plugin.Id, declared.Id);
 
-        Dock.Add(plugin.Id, id, declared.Wanted, declared.Title, plugin.Strings, content);
+        // Замечание о значке уже прозвучало, когда манифест читали, — здесь его
+        // только рисуют: панель встаёт при каждом подъёме плагина.
+        var icon = ManifestIcons.Resolve(declared.Icon, out _);
+
+        Dock.Add(plugin.Id, id, declared.Wanted, declared.Title, plugin.Strings, content, icon);
 
         _log.Write(StudioLogLevel.Debug, "Plugins",
             $"Панель «{plugin.Strings.Resolve(declared.Title)}» встала в раскладку");

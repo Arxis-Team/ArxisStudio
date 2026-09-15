@@ -346,7 +346,7 @@ public class DockGroupView : TemplatedControl
                 // держит за ним начертание выбранной, толщину полосы под ней и
                 // скругление на наведении. Без него вкладка приходит в шапку
                 // одетой как вкладка документа, и выбор читается одной чертой.
-                var tab = new AxTabItem { Classes = { "compact" }, IsClosable = item.CanClose };
+                var tab = new AxTabItem { Classes = { "compact" }, IsClosable = item.CanClose, Icon = item.Icon };
 
                 if (item.CanClose)
                 {

@@ -3,6 +3,7 @@ using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk.Plugins;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Media;
 using Avalonia.Threading;
 
 namespace ArxisStudio.Services;
@@ -540,6 +541,7 @@ public sealed class StudioDock
     /// <param name="title">Заголовок из манифеста; ключ вида <c>%panel.main%</c> переводится.</param>
     /// <param name="strings">Словари плагина, которому принадлежит панель.</param>
     /// <param name="content">Построенное содержимое панели.</param>
+    /// <param name="icon">Значок вкладки, уже разобранный из манифеста; null — без значка.</param>
     /// <remarks>
     /// Место из манифеста — пожелание для незнакомого имени, а не приказ на
     /// каждый запуск. У панели, которая в дереве уже есть, место своё: её увели
@@ -547,7 +549,13 @@ public sealed class StudioDock
     /// спрашивают, иначе каждый подъём затаскивал бы панели обратно.
     /// </remarks>
     public void Add(
-        string owner, string id, PluginPlacement where, string title, PluginStrings strings, Control content)
+        string owner,
+        string id,
+        PluginPlacement where,
+        string title,
+        PluginStrings strings,
+        Control content,
+        Geometry? icon = null)
     {
         ArgumentNullException.ThrowIfNull(strings);
         ArgumentNullException.ThrowIfNull(where);
@@ -555,7 +563,7 @@ public sealed class StudioDock
         // Крестик у панели есть: закрытую возвращают из меню «Панели», и
         // возвращают на прежнее место — дорога назад заведена, значит и вперёд
         // открыта.
-        var item = new DockItem(id, content) { CanClose = true };
+        var item = new DockItem(id, content) { CanClose = true, Icon = icon };
 
         // Заголовок — единственный текст панели, который показывает не её автор,
         // а студия, поэтому и переводить его при смене языка — забота студии.

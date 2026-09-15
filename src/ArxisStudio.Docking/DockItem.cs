@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Media;
 
 namespace ArxisStudio.Docking;
 
@@ -51,6 +52,16 @@ public sealed class DockItem : AvaloniaObject
     /// предполагает: признак ставят снаружи.
     /// </remarks>
     public bool CanClose { get; init; }
+
+    /// <summary>
+    /// Значок вкладки; null — вкладка без значка.
+    /// </summary>
+    /// <remarks>
+    /// Геометрия, а не запись из манифеста: движок не знает ни манифестов, ни набора студии, и
+    /// разбирает запись хозяин дерева. Контур — объект Avalonia, типов плагина в нём нет, и
+    /// раскладка, пережившая плагин, его контекст загрузки через значок не удержит.
+    /// </remarks>
+    public Geometry? Icon { get; init; }
 
     /// <inheritdoc cref="TitleProperty"/>
     public string? Title

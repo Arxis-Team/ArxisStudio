@@ -1,4 +1,5 @@
 using ArxisStudio.Controls;
+using ArxisStudio.Icons;
 using ArxisStudio.Shell.Localization;
 using Avalonia;
 using Avalonia.Controls;
@@ -144,10 +145,20 @@ public sealed class PaletteOverlay
         _shown = [];
     }
 
-    /// <summary>Строка списка: название слева, сочетание справа.</summary>
+    /// <summary>Строка списка: значок и название слева, сочетание справа.</summary>
+    /// <remarks>
+    /// Место под значок держит каждая строка, есть у команды значок или нет, — как колонка
+    /// значков в меню: иначе названия стояли бы лесенкой, и глаз, идущий по списку сверху вниз,
+    /// спотыкался бы на каждой строке без значка.
+    /// </remarks>
     private static IDataTemplate Row() => new FuncDataTemplate<PaletteEntry>(
         (_, _) =>
         {
+            var icon = new AxIcon
+            {
+                VerticalAlignment = VerticalAlignment.Center,
+                [!Layoutable.MarginProperty] = new DynamicResourceExtension("AxGapIconTextThickness"),
+            };
             var title = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
             var gesture = new TextBlock
             {
@@ -156,12 +167,14 @@ public sealed class PaletteOverlay
                 [!TextBlock.FontSizeProperty] = new DynamicResourceExtension("AxFontSizeSmall"),
             };
 
+            icon.Bind(AxIcon.DataProperty, new Avalonia.Data.Binding(nameof(PaletteEntry.Icon)));
             title.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding(nameof(PaletteEntry.Title)));
             gesture.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding(nameof(PaletteEntry.Gesture)));
 
+            DockPanel.SetDock(icon, Avalonia.Controls.Dock.Left);
             DockPanel.SetDock(gesture, Avalonia.Controls.Dock.Right);
 
-            return new DockPanel { Children = { gesture, title } };
+            return new DockPanel { Children = { icon, gesture, title } };
         },
         supportsRecycling: true);
 

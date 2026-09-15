@@ -1,6 +1,7 @@
 using System.Reflection;
 using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
+using ArxisStudio.Icons;
 using ArxisStudio.Sdk;
 using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Services;
@@ -530,6 +531,105 @@ public class StudioToolBarTests : IDisposable
         Assert.Equal("Run", named.Content);
 
         Assert.Single(_complaints, message => message.Contains("arxis:Nope", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Кнопка без своего значка берёт значок своей команды, а без обоих остаётся текстовой.
+    /// </summary>
+    /// <remarks>
+    /// Значок объявлен у команды затем, чтобы одна команда выглядела одинаково в меню, в палитре и в
+    /// полосе. Иначе автор объявлял бы один значок дважды — у команды и у кнопки, — и однажды два
+    /// объявления разошлись бы.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_button_without_its_own_icon_takes_the_icon_of_its_command()
+    {
+        var plugin = Plugin("hello",
+            ButtonOf("run", "hello.run", icon: null, title: "Запустить"),
+            ButtonOf("say", "hello.say", icon: null, title: "Сказать"));
+
+        plugin.Manifest!.Contributions.Commands.Add(new PluginCommand("hello.run") { Icon = "arxis:Refresh" });
+        plugin.Manifest.Contributions.Commands.Add(new PluginCommand("hello.say"));
+
+        foreach (var declared in plugin.Manifest.Contributions.ToolBar)
+            _bar.Add(plugin, declared);
+
+        var run = View<ToolBarButton>("hello:run");
+
+        Assert.Contains("icon", run.Classes);
+        Assert.Same(AxIcons.Refresh, Assert.IsType<AxIcon>(run.Content).Data);
+
+        var say = View<ToolBarButton>("hello:say");
+
+        Assert.Contains("ghost", say.Classes);
+        Assert.Equal("Сказать", say.Content);
+
+        Assert.Empty(_complaints);
+    }
+
+    /// <summary>Свой значок кнопки сильнее значка её команды.</summary>
+    [AvaloniaFact]
+    public void Its_own_icon_is_stronger_than_the_icon_of_its_command()
+    {
+        var plugin = Plugin("hello", ButtonOf("run", "hello.run", icon: "arxis:Play", title: "Запустить"));
+
+        plugin.Manifest!.Contributions.Commands.Add(new PluginCommand("hello.run") { Icon = "arxis:Refresh" });
+
+        _bar.Add(plugin, plugin.Manifest.Contributions.ToolBar[0]);
+
+        Assert.Same(AxIcons.Play, Assert.IsType<AxIcon>(View<ToolBarButton>("hello:run").Content).Data);
+    }
+
+    /// <summary>
+    /// Свой значок, который не разобрался, значком команды не подменяется.
+    /// </summary>
+    /// <remarks>
+    /// Автор назвал значок кнопке — значит, хотел на ней именно его. Подмени студия опечатку
+    /// значком команды, кнопка выглядела бы исправной, и опечатку не нашёл бы никто.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_broken_own_icon_is_not_replaced_by_the_icon_of_the_command()
+    {
+        var plugin = Plugin("hello", ButtonOf("run", "hello.run", icon: "arxis:Nope", title: "Запустить"));
+
+        plugin.Manifest!.Contributions.Commands.Add(new PluginCommand("hello.run") { Icon = "arxis:Refresh" });
+
+        _bar.Add(plugin, plugin.Manifest.Contributions.ToolBar[0]);
+
+        var run = View<ToolBarButton>("hello:run");
+
+        Assert.Contains("ghost", run.Classes);
+        Assert.Equal("Запустить", run.Content);
+        Assert.Single(_complaints, message => message.Contains("arxis:Nope", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Пункт меню показывает значок своей команды в колонке значков.
+    /// </summary>
+    /// <remarks>
+    /// Колонку тема держит у каждого пункта, и пункт без значка получает пустое место той же ширины
+    /// — подписи стоят ровно. Ветке значок не положен: команды за ней нет.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_menu_item_shows_the_icon_of_its_command()
+    {
+        var tools = new StudioMenuItem("Инструменты");
+
+        tools.Children.Add(new StudioMenuItem("Импорт…", "figma", "figma.import") { Icon = AxIcons.Download });
+        tools.Children.Add(new StudioMenuItem("Экспорт…", "figma", "figma.export"));
+        _bar.Menu = () => [tools];
+
+        var plugin = Plugin("figma", MenuOf("all", path: null), MenuOf("tools", path: "Инструменты"));
+
+        foreach (var declared in plugin.Manifest!.Contributions.ToolBar)
+            _bar.Add(plugin, declared);
+
+        var branch = Assert.Single(Opened("figma:all"));
+        var items = Opened("figma:tools");
+
+        Assert.Null(branch.Icon);
+        Assert.Same(AxIcons.Download, Assert.IsType<AxIcon>(items[0].Icon).Data);
+        Assert.Null(items[1].Icon);
     }
 
     /// <summary>Элемент без подписи не ставится — и говорит почему.</summary>

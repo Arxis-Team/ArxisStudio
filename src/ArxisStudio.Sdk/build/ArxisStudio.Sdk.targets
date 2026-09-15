@@ -37,9 +37,9 @@
 
     <!--
         Голова манифеста — всё до вкладов. У каждой команды, панели и кнопки в
-        полосе там свой id, а у кнопки — и свой icon; манифест без собственного
-        отдал бы вместо них первый попавшийся чужой: плагин уехал бы в папку с
-        именем команды, а значком плагина сочли бы значок кнопки.
+        полосе там свой id и свой icon; манифест без собственного отдал бы
+        вместо них первый попавшийся чужой: плагин уехал бы в папку с именем
+        команды, а значком плагина сочли бы значок кнопки или панели.
     -->
     <PropertyGroup Condition="'$(_AxPluginManifestText)' != ''">
         <_AxPluginManifestHead>$([System.Text.RegularExpressions.Regex]::Replace($(_AxPluginManifestText), '"contributions"[\s\S]*$', ''))</_AxPluginManifestHead>
@@ -50,9 +50,9 @@
     </PropertyGroup>
 
     <!--
-        Значок плагина — из головы, и только из неё: у кнопок полосы тоже есть
-        icon, но это не файл, а имя из набора студии или контур. Проверка
-        существования файла к нему не относится.
+        Значок плагина — из головы, и только из неё: у кнопок полосы, панелей и
+        команд тоже есть icon, но это не файл, а имя из набора студии или контур.
+        Проверка существования файла к ним не относится.
     -->
     <PropertyGroup Condition="'$(_AxPluginManifestHead)' != '' And $([System.Text.RegularExpressions.Regex]::IsMatch($(_AxPluginManifestHead), '&quot;icon&quot;\s*:\s*&quot;'))">
         <AxPluginIcon>$([System.Text.RegularExpressions.Regex]::Replace($(_AxPluginManifestHead), '^[\s\S]*?"icon"\s*:\s*"([^"]+)"[\s\S]*$', '$1'))</AxPluginIcon>

@@ -1,4 +1,4 @@
-# StudioSdk 5.4
+# StudioSdk 5.5
 ArxisStudio.Sdk.CommandAttribute : sealed class : System.Attribute
 ArxisStudio.Sdk.CommandAttribute :: .ctor(System.String id)
 ArxisStudio.Sdk.CommandAttribute :: System.String Id { get; }
@@ -69,6 +69,7 @@ ArxisStudio.Sdk.Plugins.PluginCommand : sealed record : System.IEquatable<ArxisS
 ArxisStudio.Sdk.Plugins.PluginCommand :: .ctor(System.String Id)
 ArxisStudio.Sdk.Plugins.PluginCommand :: System.Boolean Equals(ArxisStudio.Sdk.Plugins.PluginCommand? other)
 ArxisStudio.Sdk.Plugins.PluginCommand :: System.String Id { get; init; }
+ArxisStudio.Sdk.Plugins.PluginCommand :: System.String? Icon { get; init; }
 ArxisStudio.Sdk.Plugins.PluginCommand :: System.String? Key { get; init; }
 ArxisStudio.Sdk.Plugins.PluginCommand :: System.String? Title { get; init; }
 ArxisStudio.Sdk.Plugins.PluginCommand :: System.Void Deconstruct(out System.String Id)
@@ -176,6 +177,7 @@ ArxisStudio.Sdk.Plugins.PluginToolWindow :: ArxisStudio.Sdk.Plugins.PluginPlacem
 ArxisStudio.Sdk.Plugins.PluginToolWindow :: ArxisStudio.Sdk.Plugins.PluginPlacement? Placement { get; set; }
 ArxisStudio.Sdk.Plugins.PluginToolWindow :: System.String Id { get; set; }
 ArxisStudio.Sdk.Plugins.PluginToolWindow :: System.String Title { get; set; }
+ArxisStudio.Sdk.Plugins.PluginToolWindow :: System.String? Icon { get; set; }
 ArxisStudio.Sdk.Plugins.PluginTranslation : sealed record : System.IEquatable<ArxisStudio.Sdk.Plugins.PluginTranslation>
 ArxisStudio.Sdk.Plugins.PluginTranslation :: .ctor(System.String Id, System.String File)
 ArxisStudio.Sdk.Plugins.PluginTranslation :: System.Boolean Equals(ArxisStudio.Sdk.Plugins.PluginTranslation? other)
