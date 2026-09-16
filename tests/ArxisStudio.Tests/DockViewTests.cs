@@ -1181,4 +1181,88 @@ public class DockViewTests
         // нижний пиксель полосы выбора под разделитель под шапкой.
         Assert.Equal(DockMouse.Tabs(view.View("left")!).Bounds.Height, chosen.Bounds.Height);
     }
+
+    /// <summary>
+    /// Полоса выбранной вкладки едет за клавиатурой из группы в группу.
+    /// </summary>
+    /// <remarks>
+    /// Так группа отвечает на вопрос «куда пойдёт нажатие»: акцентная полоса в окне ровно одна, у
+    /// той панели, где стоит каретка; у соседки полоса остаётся нейтральной — она всё ещё говорит,
+    /// какая вкладка выбрана. Прежде вместо неё поднималась вся шапка панели, и пятно во всю её
+    /// ширину переезжало между панелями на каждый щелчок.
+    /// <para>
+    /// Проверяется на настоящих группах докинга: тема видит признак области, наследуемый панелью
+    /// вкладкам её шапки, а не выставленный тестом псевдокласс.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_bar_of_a_chosen_tab_follows_the_keyboard_between_groups()
+    {
+        var items = new DockItems();
+        var here = new Border { Focusable = true };
+        var there = new Border { Focusable = true };
+
+        items.Add("hello", new DockItem("solution", here) { Title = "Решение" });
+        items.Add("hello", new DockItem("properties", there) { Title = "Свойства" });
+
+        var view = new DockView
+        {
+            Items = items,
+            Root = new DockSplit
+            {
+                Orientation = DockOrientation.Horizontal,
+                Children =
+                [
+                    new DockGroup { Id = "left", Items = ["solution"], Selected = "solution" },
+                    new DockGroup { Id = "right", Items = ["properties"], Selected = "properties" },
+                ],
+                Weights = [0.5, 0.5],
+            },
+        };
+
+        var window = new Window { Content = view, Width = 900, Height = 600 };
+
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        var accent = Tone("AxAccentBrush");
+        var idle = Tone("AxStrokeControlBrush");
+
+        Assert.True(here.Focus(), "каретка не встала в левую панель");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(accent, Bar(view, "left"));
+        Assert.Equal(idle, Bar(view, "right"));
+
+        Assert.True(there.Focus(), "каретка не встала в правую панель");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(idle, Bar(view, "left"));
+        Assert.Equal(accent, Bar(view, "right"));
+
+        window.Close();
+    }
+
+    /// <summary>Чем покрашена полоса под выбранной вкладкой названной группы.</summary>
+    private static Color Bar(DockView view, string group)
+    {
+        var chosen = DockMouse.Tabs(view.View(group)!).Items.OfType<AxTabItem>().Single(tab => tab.IsSelected);
+        var marker = chosen.GetVisualDescendants().OfType<Border>().First(border => border.Name == "PART_ActiveMarker");
+
+        return Assert.IsAssignableFrom<ISolidColorBrush>(marker.Background).Color;
+    }
+
+    /// <summary>Цвет из палитры темы по имени кисти.</summary>
+    /// <remarks>
+    /// Спрашивается с вариантом темы: палитра объявлена внутри тёмного и светлого словарей, и без
+    /// варианта ключ не находится.
+    /// </remarks>
+    private static Color Tone(string key)
+    {
+        var app = Application.Current!;
+
+        Assert.True(app.TryFindResource(key, app.ActualThemeVariant, out var found));
+
+        return Assert.IsAssignableFrom<ISolidColorBrush>(found).Color;
+    }
 }
