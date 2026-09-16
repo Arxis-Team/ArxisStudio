@@ -189,6 +189,8 @@
   "console.source": "Filter by source",
   "console.source.all": "All sources",
   "console.source.only": "This source only",
+  "console.source.hide": "Hide this source",
+  "console.sources": "Sources",
   "console.repeats": "Repeated {0} times",
   "console.level.debug": "Debug",
   "console.level.info": "Information",

@@ -61,4 +61,13 @@
         <AdditionalFiles Include="../../ArxisStudio.Shell/Localization/Strings/en.json" AxStrings="default"/>
     </ItemGroup>
 
+    <!--
+        Тестам открыты внутренности: пункты меню собираются в коде, а показываются в попапе —
+        в отдельном окне, которого у безголового прогона нет. Проверять их там, где они
+        рождаются, честнее, чем через окно, которого не будет.
+    -->
+    <ItemGroup>
+        <InternalsVisibleTo Include="ArxisStudio.Tests"/>
+    </ItemGroup>
+
 </Project>

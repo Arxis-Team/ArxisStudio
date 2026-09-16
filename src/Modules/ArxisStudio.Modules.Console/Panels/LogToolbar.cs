@@ -52,6 +52,18 @@ internal sealed class LogToolbar(LogPanelView view)
         }
     }
 
+    /// <summary>
+    /// Показывает, сужен ли отбор по источнику.
+    /// </summary>
+    /// <param name="sources">Отбор по источнику.</param>
+    /// <remarks>
+    /// Иначе отбор прятал бы записи молча: воронка, открывающая меню, выглядит одинаково и когда
+    /// показаны все, и когда спрятаны шестеро из восьми, — а человек, забывший о своём же отборе,
+    /// ищет пропавшую ошибку в студии. Нажатая кнопка отвечает на это до открытия меню; так же
+    /// помечены включённые отборы в Rider.
+    /// </remarks>
+    public void ShowSources(LogSources sources) => view.Sources.IsChecked = !sources.ShowsAll;
+
     /// <summary>Показывает, сколько записей каждого уровня в журнале.</summary>
     /// <param name="counts">Счётчики по всему журналу.</param>
     public void ShowCounts(LogCounts counts)

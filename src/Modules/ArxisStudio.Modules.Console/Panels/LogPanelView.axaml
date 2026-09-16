@@ -133,11 +133,17 @@
                          MaxWidth="360"
                          a:AutomationProperties.Name="{Text console.search}"/>
 
-          <AxButton x:Name="Sources" Appearance="Toolbar"
-                    a:ToolTip.Tip="{Text console.source}"
-                    a:AutomationProperties.Name="{Text console.source}">
+          <!--
+              Воронка — переключатель, а не кнопка: нажатие открывает меню, но
+              нажатой она остаётся, пока отбор сужен. Отбор по источнику прячет
+              записи, и кнопка, выглядящая одинаково при любом отборе, оставляла
+              бы человека искать пропавшую ошибку в студии.
+          -->
+          <AxToggleButton x:Name="Sources" Appearance="Toolbar"
+                          a:ToolTip.Tip="{Text console.source}"
+                          a:AutomationProperties.Name="{Text console.source}">
             <AxIcon Data="{x:Static ax:AxIcons.Filter}"/>
-          </AxButton>
+          </AxToggleButton>
 
         </a:StackPanel>
 

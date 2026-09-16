@@ -18,18 +18,18 @@ namespace ArxisStudio.Modules.Console.Log;
 /// <param name="Info">Показывать обычные сообщения.</param>
 /// <param name="Warning">Показывать предупреждения.</param>
 /// <param name="Error">Показывать ошибки.</param>
-/// <param name="Source">Чей источник показывать; null — все.</param>
+/// <param name="Sources">Кого из пишущих не показывать.</param>
 /// <param name="Query">Что искать в источнике и сообщении; пусто — всё.</param>
 public readonly record struct LogFilter(
     bool Debug,
     bool Info,
     bool Warning,
     bool Error,
-    string? Source,
+    LogSources Sources,
     string Query)
 {
     /// <summary>Отбор, пропускающий всё, — с него панель начинает.</summary>
-    public static LogFilter Everything { get; } = new(true, true, true, true, null, string.Empty);
+    public static LogFilter Everything { get; } = new(true, true, true, true, LogSources.All, string.Empty);
 
     /// <summary>Подходит ли запись.</summary>
     /// <param name="record">Запись журнала.</param>
@@ -40,11 +40,8 @@ public readonly record struct LogFilter(
         if (!Allows(record.Level))
             return false;
 
-        if (Source is { Length: > 0 } source &&
-            !string.Equals(record.Source, source, StringComparison.Ordinal))
-        {
+        if (!Sources.Shows(record.Source))
             return false;
-        }
 
         if (Query is not { Length: > 0 } query)
             return true;

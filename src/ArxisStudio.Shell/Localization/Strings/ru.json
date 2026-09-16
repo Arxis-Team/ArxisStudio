@@ -189,6 +189,8 @@
   "console.source": "Фильтр по источнику",
   "console.source.all": "Все источники",
   "console.source.only": "Только этот источник",
+  "console.source.hide": "Скрыть этот источник",
+  "console.sources": "Источники",
   "console.repeats": "Повторено {0} раз",
   "console.level.debug": "Отладка",
   "console.level.info": "Сведения",

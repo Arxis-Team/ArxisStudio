@@ -48,6 +48,7 @@ public sealed class LogPanel : ToolWindow
     private LogPanelView _view = null!;
     private ScrollViewer? _scroll;
     private LogToolbar _toolbar = null!;
+    private LogSourcePicker _sources = null!;
     private LogRowMenu _menu = null!;
     private Refresh _refresh = null!;
     private IStudioLogFeed? _feed;
@@ -67,12 +68,27 @@ public sealed class LogPanel : ToolWindow
     /// <summary>Сколько раз список перестраивался — открыто ради теста.</summary>
     public int Rebuilds => _refresh?.Runs ?? 0;
 
+    /// <summary>
+    /// Пункты списка источников — те самые, что показывает меню; открыто ради теста.
+    /// </summary>
+    /// <remarks>
+    /// Меню живёт в попапе, а попап — отдельное окно, которого у безголового прогона нет. Здесь
+    /// же отдаётся ровно то, что меню показывает: те же пункты, с теми же обработчиками и тем же
+    /// отбором за спиной.
+    /// </remarks>
+    internal IReadOnlyList<AxMenuItem> SourceItems() => LogSourceMenu.Items(_sources, Context.Strings);
+
+    /// <summary>Пункты меню строки — те самые, что показывает меню; открыто ради теста.</summary>
+    /// <param name="row">Строка, на которой стоят; <c>null</c> — щёлкнули мимо строк.</param>
+    internal IReadOnlyList<AxMenuItem> RowItems(LogRow? row) => _menu.Items(row);
+
     /// <inheritdoc/>
     protected override Control Build()
     {
         _view = new LogPanelView();
         _toolbar = new LogToolbar(_view);
-        _menu = new LogRowMenu(Context.Strings, CopyRows, CopyMessage, OnlySource, Clear);
+        _sources = new LogSourcePicker(Sources, () => _filter.Sources, PickSources);
+        _menu = new LogRowMenu(Context.Strings, CopyRows, CopyMessage, Clear, _sources);
         _refresh = new Refresh(Rebuild);
         _feed = Context.GetService<IStudioLogFeed>();
 
@@ -112,6 +128,7 @@ public sealed class LogPanel : ToolWindow
         _toolbar.ReadTheme();
         Apply(ConsoleSettings.Read(Context.Settings));
         _toolbar.ShowLevels(_filter);
+        _toolbar.ShowSources(_filter.Sources);
 
         _view.Collapse.IsChecked = _collapse;
         _view.Details.IsChecked = false;
@@ -469,24 +486,47 @@ public sealed class LogPanel : ToolWindow
     /// <summary>
     /// Меню источников: все, кто писал в этот журнал.
     /// </summary>
-    private void OnSourcesClick(object? sender, RoutedEventArgs e) =>
-        LogSourceMenu.ShowAt(_view.Sources, Sources(), _filter.Source, Context.Strings, OnSourcePicked);
-
-    private void OnSourcePicked(string? source)
+    /// <remarks>
+    /// Кнопка — переключатель, и нажатие переворачивает её само: отбор при этом не меняется, меню
+    /// только открывается, — поэтому состояние ставится заново, прежде чем меню встанет. Перевёрнутой
+    /// кнопка не останется и на миг: ставится она в том же обработчике, до показа.
+    /// </remarks>
+    private void OnSourcesClick(object? sender, RoutedEventArgs e)
     {
-        _filter = _filter with { Source = source };
+        _toolbar.ShowSources(_filter.Sources);
 
+        LogSourceMenu.ShowAt(_view.Sources, _sources, Context.Strings);
+    }
+
+    /// <summary>
+    /// Отбор по источнику выбрали — в полосе или в меню строки.
+    /// </summary>
+    /// <remarks>
+    /// Сравнение здесь не бережливость, а условие: меню остаётся открытым, и «все источники»,
+    /// нажатые дважды, пришли бы сюда вторым тем же отбором. Перестроение на нём стёрло бы
+    /// выделение и место прокрутки, ничего не изменив в списке.
+    /// </remarks>
+    private void PickSources(LogSources sources)
+    {
+        if (sources == _filter.Sources)
+            return;
+
+        _filter = _filter with { Sources = sources };
+
+        _toolbar.ShowSources(sources);
         Refilter();
     }
 
-    /// <summary>Оставляет в отборе только названный источник — пункт меню строки.</summary>
-    private void OnlySource(string source) => OnSourcePicked(source);
-
-    private IEnumerable<string> Sources() =>
-        (_feed?.Records ?? [])
+    /// <summary>Кто писал в журнал к этому мигу — по одному имени, по алфавиту.</summary>
+    /// <remarks>
+    /// Список строится на каждый показ меню: источник появляется тогда, когда просыпается
+    /// расширение, и держать его между показами значило бы показывать вчерашний состав.
+    /// </remarks>
+    private IReadOnlyList<string> Sources() =>
+        [.. (_feed?.Records ?? [])
             .Select(record => record.Source)
             .Distinct(StringComparer.Ordinal)
-            .OrderBy(source => source, StringComparer.CurrentCulture);
+            .OrderBy(source => source, StringComparer.CurrentCulture)];
 
     private void OnSelected(object? sender, SelectionChangedEventArgs e) =>
         _view.DetailsText.Text = _view.Records.SelectedItem is LogRow row ? row.Record.Message : string.Empty;

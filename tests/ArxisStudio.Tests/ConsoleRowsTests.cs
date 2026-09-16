@@ -90,9 +90,76 @@ public class ConsoleRowsTests
             (StudioLogLevel.Info, "Plugins", "раз"),
             (StudioLogLevel.Info, "Layout", "два"));
 
-        var built = LogRows.Build(records, LogFilter.Everything with { Source = "Layout" }, collapse: false);
+        var sources = LogSources.Only("Layout", ["Plugins", "Layout"]);
+        var built = LogRows.Build(records, LogFilter.Everything with { Sources = sources }, collapse: false);
 
         Assert.Equal("два", Assert.Single(built.Rows).Text);
+    }
+
+    /// <summary>Спрятанный источник пропадает из списка, остальные остаются.</summary>
+    [Fact]
+    public void A_hidden_source_leaves_the_list_and_the_others_stay()
+    {
+        var records = Records(
+            (StudioLogLevel.Info, "Plugins", "раз"),
+            (StudioLogLevel.Info, "Layout", "два"),
+            (StudioLogLevel.Info, "Startup", "три"));
+
+        var sources = LogSources.All.Hide("Layout");
+        var built = LogRows.Build(records, LogFilter.Everything with { Sources = sources }, collapse: false);
+
+        Assert.Equal(["раз", "три"], built.Rows.Select(row => row.Text));
+    }
+
+    /// <summary>
+    /// Источник, о котором отбор не знал, показан.
+    /// </summary>
+    /// <remarks>
+    /// Ради этого отбор и перечисляет спрятанных. Плагин просыпается щелчком, сборка начинается
+    /// через полчаса после запуска, и первая же их ошибка обязана дойти до глаз — даже если отбор
+    /// человек сделал час назад.
+    /// </remarks>
+    [Fact]
+    public void A_source_the_filter_never_heard_of_is_shown()
+    {
+        var records = Records(
+            (StudioLogLevel.Info, "Plugins", "раз"),
+            (StudioLogLevel.Error, "Hello", "упал"));
+
+        var sources = LogSources.Only("Plugins", ["Plugins", "Layout"]);
+        var built = LogRows.Build(records, LogFilter.Everything with { Sources = sources }, collapse: false);
+
+        Assert.Equal(["раз", "упал"], built.Rows.Select(row => row.Text));
+    }
+
+    /// <summary>Отбор по источнику сравнивается как множество, а не как ссылка.</summary>
+    /// <remarks>
+    /// На этом равенстве стоит отказ панели перестраивать список: меню остаётся открытым, и один и
+    /// тот же отбор приходит к ней столько раз, сколько человек щёлкнул.
+    /// </remarks>
+    [Fact]
+    public void Two_source_filters_hiding_the_same_names_are_equal()
+    {
+        var first = LogSources.All.Hide("Plugins").Hide("Layout");
+        var second = LogSources.All.Hide("Layout").Hide("Plugins");
+
+        Assert.Equal(first, second);
+        Assert.Equal(first.GetHashCode(), second.GetHashCode());
+        Assert.NotEqual(first, second.Show("Layout"));
+
+        Assert.True(LogSources.All.ShowsAll, "Пустой отбор не прячет никого");
+        Assert.True(LogSources.All.Hide("A").Show("A").ShowsAll, "Спрятанный и показанный — это пустой отбор");
+    }
+
+    /// <summary>Флажок источника переворачивается в обе стороны.</summary>
+    [Fact]
+    public void A_source_toggles_both_ways()
+    {
+        var hidden = LogSources.All.Toggle("Plugins");
+
+        Assert.False(hidden.Shows("Plugins"), "После переворота источник спрятан");
+        Assert.True(hidden.Toggle("Plugins").Shows("Plugins"), "Второй переворот возвращает источник");
+        Assert.Equal(1, hidden.HiddenCount);
     }
 
     /// <summary>Свёртка схлопывает одинаковые подряд и считает их.</summary>

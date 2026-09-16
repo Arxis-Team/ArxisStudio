@@ -35,6 +35,7 @@ public class ConsolePanelTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-console-{Guid.NewGuid():N}");
 
     private IStudioSettings _settings = null!;
+    private IStudioStrings _strings = null!;
 
     public ConsolePanelTests()
     {
@@ -517,6 +518,192 @@ public class ConsolePanelTests : IDisposable
     }
 
     /// <summary>Нажимает клавишу там, где стоит человек, и говорит, взяла ли её панель.</summary>
+    /// <summary>
+    /// Меню источников — список флажков: щелчок прячет один источник, не трогая остальных.
+    /// </summary>
+    /// <remarks>
+    /// Прежде пункты были переключателями: показать можно было либо всех, либо одного, и «студия
+    /// и мой плагин, без шума запуска» не выражалось никак. Отбор из нескольких — обычная работа,
+    /// и так собран отбор по источнику в консоли браузера и в журналах Rider.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Clicking_a_source_in_the_menu_hides_only_that_source()
+    {
+        var log = new StudioLog();
+
+        log.Write(StudioLogLevel.Info, "Plugins", "раз");
+        log.Write(StudioLogLevel.Info, "Startup", "два");
+        log.Write(StudioLogLevel.Info, "Terminal", "три");
+
+        var panel = LogPanel(log);
+        var items = panel.SourceItems();
+
+        // Первый пункт — «все источники», дальше сами источники по алфавиту.
+        Assert.Equal(4, items.Count);
+        Assert.Equal(["Plugins", "Startup", "Terminal"], items.Skip(1).Select(item => item.Header));
+
+        Click(items, "Startup");
+
+        Assert.Equal(["раз", "три"], Shown(panel).Select(row => row.Text));
+
+        Click(items, "Terminal");
+
+        Assert.Equal(["раз"], Shown(panel).Select(row => row.Text));
+    }
+
+    /// <summary>
+    /// Меню остаётся открытым, а флажки говорят правду после каждого щелчка.
+    /// </summary>
+    /// <remarks>
+    /// Отбор из трёх источников, закрывающий меню на каждом щелчке, стоил бы трёх открытий
+    /// подряд. Правда флажков при этом берётся у отбора, а не у самого пункта: пункт
+    /// переворачивает свой флажок сам, и на «всех источниках» этот переворот — ложь.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_source_menu_stays_open_and_its_checks_tell_the_truth()
+    {
+        var log = new StudioLog();
+
+        log.Write(StudioLogLevel.Info, "Plugins", "раз");
+        log.Write(StudioLogLevel.Info, "Startup", "два");
+
+        var panel = LogPanel(log);
+        var items = panel.SourceItems();
+
+        Assert.All(items, item => Assert.True(item.StaysOpenOnClick, "Меню закрылось бы на первом же щелчке"));
+        Assert.All(items, item => Assert.True(item.IsChecked, "Сначала показаны все"));
+
+        Click(items, "Startup");
+
+        Assert.False(Item(items, "Startup").IsChecked, "Спрятанный источник остался отмеченным");
+        Assert.True(Item(items, "Plugins").IsChecked, "Соседний источник потерял отметку");
+        Assert.False(items[0].IsChecked, "«Все источники» отмечены при суженном отборе");
+
+        Click(items, "Startup");
+
+        Assert.True(Item(items, "Startup").IsChecked, "Второй щелчок не вернул источник");
+        Assert.True(items[0].IsChecked, "Вернувшийся источник не вернул «все источники»");
+    }
+
+    /// <summary>
+    /// «Все источники» возвращают отбор к пустому одним щелчком.
+    /// </summary>
+    /// <remarks>
+    /// Снимать семь флажков руками, чтобы вернуться к тому, с чего панель начала, человек не
+    /// должен. Кнопка полосы при этом гаснет: нажатой она стоит ровно пока отбор сужен.
+    /// </remarks>
+    [AvaloniaFact]
+    public void All_sources_brings_everyone_back()
+    {
+        var log = new StudioLog();
+
+        log.Write(StudioLogLevel.Info, "Plugins", "раз");
+        log.Write(StudioLogLevel.Info, "Startup", "два");
+
+        var panel = LogPanel(log);
+        var funnel = Part<AxToggleButton>(panel, "Sources");
+        var items = panel.SourceItems();
+
+        Assert.False(funnel.IsChecked, "Воронка нажата при нетронутом отборе");
+
+        Click(items, "Startup");
+
+        Assert.True(funnel.IsChecked, "Воронка не показала суженный отбор");
+
+        Click(items, (string)items[0].Header!);
+
+        Assert.Equal(["раз", "два"], Shown(panel).Select(row => row.Text));
+        Assert.False(funnel.IsChecked, "Воронка осталась нажатой при полном отборе");
+    }
+
+    /// <summary>
+    /// «Только этот источник» прячет известных, но не того, кто придёт после.
+    /// </summary>
+    /// <remarks>
+    /// Ради этого отбор и перечисляет спрятанных: плагин просыпается щелчком, и его первая же
+    /// ошибка обязана дойти до глаз — даже если человек сузил отбор час назад.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Only_this_source_hides_the_known_ones_but_not_a_newcomer()
+    {
+        var log = new StudioLog();
+
+        log.Write(StudioLogLevel.Info, "Plugins", "раз");
+        log.Write(StudioLogLevel.Info, "Startup", "два");
+
+        var panel = LogPanel(log);
+
+        Click(panel.RowItems(Shown(panel)[0]), _strings["console.source.only"]);
+
+        Assert.Equal(["раз"], Shown(panel).Select(row => row.Text));
+
+        log.Write(StudioLogLevel.Error, "Hello", "упал");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(["раз", "упал"], Shown(panel).Select(row => row.Text));
+    }
+
+    /// <summary>«Скрыть этот источник» убирает его, оставляя остальных.</summary>
+    [AvaloniaFact]
+    public void Hiding_a_source_from_the_row_menu_drops_it_alone()
+    {
+        var log = new StudioLog();
+
+        log.Write(StudioLogLevel.Info, "Plugins", "раз");
+        log.Write(StudioLogLevel.Info, "Startup", "два");
+        log.Write(StudioLogLevel.Info, "Terminal", "три");
+
+        var panel = LogPanel(log);
+
+        Click(panel.RowItems(Shown(panel)[1]), _strings["console.source.hide"]);
+
+        Assert.Equal(["раз", "три"], Shown(panel).Select(row => row.Text));
+    }
+
+    /// <summary>
+    /// Меню строки несёт тот же список источников — подменю с теми же флажками.
+    /// </summary>
+    /// <remarks>
+    /// До кнопки полосы от строки далеко, а решение о показе принимают, читая записи. Список тот
+    /// же и собирается тем же кодом: два входа к одному отбору, а не две его копии.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_row_menu_carries_the_same_source_list_in_a_submenu()
+    {
+        var log = new StudioLog();
+
+        log.Write(StudioLogLevel.Info, "Plugins", "раз");
+        log.Write(StudioLogLevel.Info, "Startup", "два");
+
+        var panel = LogPanel(log);
+        var items = panel.RowItems(Shown(panel)[0]);
+        var sources = Item(items, _strings["console.sources"]).Items.OfType<AxMenuItem>().ToList();
+
+        Assert.Equal(["Plugins", "Startup"], sources.Skip(1).Select(item => item.Header));
+
+        Click(sources, "Plugins");
+
+        Assert.Equal(["два"], Shown(panel).Select(row => row.Text));
+        Assert.True(Part<AxToggleButton>(panel, "Sources").IsChecked, "Воронка не показала отбор из меню строки");
+    }
+
+    /// <summary>
+    /// Нажимает пункт меню по его подписи.
+    /// </summary>
+    /// <remarks>
+    /// Событием, а не указателем: меню живёт в попапе — отдельном окне, которого у безголового
+    /// прогона нет, — и пункты берутся там, где собираются. Проверять при этом остаётся то же
+    /// самое: что панель сделала по нажатию.
+    /// </remarks>
+    private static void Click(IEnumerable<AxMenuItem> items, string header)
+    {
+        Item(items, header).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private static AxMenuItem Item(IEnumerable<AxMenuItem> items, string header) =>
+        items.Single(item => Equals(item.Header, header));
+
     private static bool Press(Control where, Key key, KeyModifiers modifiers)
     {
         var args = new KeyEventArgs
@@ -590,6 +777,10 @@ public class ConsolePanelTests : IDisposable
         // Запись мимо неё — прямо в хранилище — панель бы не разбудила: о
         // правке со стороны модулю говорит студия, отдельным уведомлением.
         _settings = context.Settings;
+
+        // Словарь — тот же, которым панель подписывает пункты меню: искать их по подписи, взятой
+        // из другого места, значило бы проверять совпадение двух словарей, а не работу панели.
+        _strings = context.Strings;
 
         return context;
     }
