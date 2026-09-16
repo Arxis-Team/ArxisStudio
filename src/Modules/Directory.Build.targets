@@ -6,8 +6,15 @@
         Студия раскладывает модули в свою папку modules (правило — в
         src/ArxisStudio/build/ArxisStudio.Modules.targets) и спрашивает состав у самого
         модуля: только он знает, что на самом деле тянет — свои проекты, пакеты и пакеты
-        своих проектов. Цель ниже отвечает путями внутри папки модуля и ничего не собирает
-        сама: студия зовёт её после сборки ссылок, в том же экземпляре проекта.
+        своих проектов. Цель ниже отвечает путями и ничего не собирает сама: студия зовёт её
+        после сборки ссылок, в том же экземпляре проекта.
+
+        Идентификатор модуля читается здесь же, из его манифеста, и уезжает вместе с каждым
+        файлом пометкой StudioModuleId: им названа папка модуля в выходе студии — так же, как
+        менеджер расширений называет папку установленного плагина. Разбирать JSON в сборке
+        нечем, поэтому строка достаётся выражением; правило то же, что у плагина в
+        src/ArxisStudio.Sdk/build/ArxisStudio.Sdk.targets, и отличие от него одно, названное
+        ниже по месту.
 
         Файлы документации не отдаются: они нужны компилятору, а не студии.
     -->
@@ -18,7 +25,49 @@
 
     <Import Project="$(_StudioParentBuildTargets)" Condition="'$(_StudioParentBuildTargets)' != ''"/>
 
+    <PropertyGroup>
+        <AxModuleManifest Condition="'$(AxModuleManifest)' == ''">$(MSBuildProjectDirectory)/module.json</AxModuleManifest>
+    </PropertyGroup>
+
+    <!--
+        Условие по существованию файла, а не по роли проекта: под src/Modules/ лежит и
+        ArxisStudio.Projects.Contracts — контрактная сборка, а не модуль, и манифеста у неё нет.
+        Свойство у неё останется пустым, а цель StudioModuleFiles студия у неё и не спрашивает.
+    -->
+    <PropertyGroup Condition="Exists('$(AxModuleManifest)')">
+        <_AxModuleManifestText>$([System.IO.File]::ReadAllText('$(AxModuleManifest)'))</_AxModuleManifestText>
+    </PropertyGroup>
+
+    <!--
+        Голова манифеста — всё до вкладов. У каждой команды, панели и кнопки полосы там свой id;
+        манифест, прочитанный целиком, отдал бы вместо идентификатора модуля первый попавшийся
+        чужой, и консоль уехала бы в папку с именем console.open.
+    -->
+    <PropertyGroup Condition="'$(_AxModuleManifestText)' != ''">
+        <_AxModuleManifestHead>$([System.Text.RegularExpressions.Regex]::Replace($(_AxModuleManifestText), '"contributions"[\s\S]*$', ''))</_AxModuleManifestHead>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(AxModuleId)' == '' And '$(_AxModuleManifestHead)' != ''">
+        <AxModuleId>$([System.Text.RegularExpressions.Regex]::Replace($(_AxModuleManifestHead), '^[\s\S]*?"id"\s*:\s*"([^"]+)"[\s\S]*$', '$1'))</AxModuleId>
+    </PropertyGroup>
+
+    <!--
+        Не разобрали — очищаем, и никакого отката к имени сборки. У плагина такой откат есть:
+        там угаданный идентификатор портит имя архива, и плохое имя файла лучше сорванной сборки.
+        Здесь идентификатор — это имя папки, которую студия обходит при поиске сборок, и догадка
+        дала бы папку, чьё имя спорит с манифестом внутри неё. Пустое значение роняет сборку
+        ошибкой AXL1003 там, где оно понадобилось.
+    -->
+    <PropertyGroup Condition="'$(AxModuleId)' != '' And !$([System.Text.RegularExpressions.Regex]::IsMatch($(AxModuleId), '^[A-Za-z0-9._-]+$'))">
+        <AxModuleId></AxModuleId>
+    </PropertyGroup>
+
     <Target Name="StudioModuleFiles" DependsOnTargets="ResolveReferences" Returns="@(_StudioModuleFile)">
+
+        <Error Code="AXL1003"
+               Condition="'$(AxModuleId)' == ''"
+               Text="У модуля не прочитался идентификатор: ждали &quot;id&quot; из $(AxModuleManifest), а он либо не найден, либо не годится в имя папки (разрешены буквы, цифры, точка, дефис и подчёркивание). Идентификатором названа папка модуля в выходе студии — без него раскладывать нечего."/>
+
         <ItemGroup>
             <_StudioModuleFile Include="$(TargetPath)" StudioRelativePath="$(TargetFileName)"/>
             <_StudioModuleFile Include="$(TargetDir)$(TargetName).pdb"
@@ -40,6 +89,15 @@
             <_StudioModuleFile Include="@(ResourceCopyLocalItems)"
                                StudioRelativePath="%(ResourceCopyLocalItems.DestinationSubPath)"
                                Condition="'%(ResourceCopyLocalItems.CopyLocal)' == 'true'"/>
+
+            <!--
+                Владелец — на каждом файле, последней строкой, чтобы пометка досталась всем
+                перечисленным выше. По ней студия раскладывает файлы по папкам модулей и по ней
+                же называет виноватых, когда один файл едет сразу к двоим.
+            -->
+            <_StudioModuleFile>
+                <StudioModuleId>$(AxModuleId)</StudioModuleId>
+            </_StudioModuleFile>
         </ItemGroup>
     </Target>
 
