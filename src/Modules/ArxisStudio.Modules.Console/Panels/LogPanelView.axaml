@@ -38,7 +38,7 @@
                               a:ToolTip.Tip="{Text console.level.error}"
                               a:AutomationProperties.Name="{Text console.level.error}">
             <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceTight}">
-              <AxIcon x:Name="ErrorIcon" Size="Small" Data="{x:Static ax:AxIcons.Error}"/>
+              <AxIcon x:Name="ErrorIcon" Data="{x:Static ax:AxIcons.Error}"/>
               <a:TextBlock x:Name="ErrorCount" VerticalAlignment="Center"/>
             </a:StackPanel>
           </AxToggleButton>
@@ -47,7 +47,7 @@
                               a:ToolTip.Tip="{Text console.level.warning}"
                               a:AutomationProperties.Name="{Text console.level.warning}">
             <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceTight}">
-              <AxIcon x:Name="WarningIcon" Size="Small" Data="{x:Static ax:AxIcons.Warning}"/>
+              <AxIcon x:Name="WarningIcon" Data="{x:Static ax:AxIcons.Warning}"/>
               <a:TextBlock x:Name="WarningCount" VerticalAlignment="Center"/>
             </a:StackPanel>
           </AxToggleButton>
@@ -56,7 +56,7 @@
                               a:ToolTip.Tip="{Text console.level.info}"
                               a:AutomationProperties.Name="{Text console.level.info}">
             <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceTight}">
-              <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Info}"/>
+              <AxIcon Data="{x:Static ax:AxIcons.Info}"/>
               <a:TextBlock x:Name="InfoCount" VerticalAlignment="Center"/>
             </a:StackPanel>
           </AxToggleButton>
@@ -65,7 +65,7 @@
                               a:ToolTip.Tip="{Text console.level.debug}"
                               a:AutomationProperties.Name="{Text console.level.debug}">
             <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceTight}">
-              <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Debug}"/>
+              <AxIcon Data="{x:Static ax:AxIcons.Debug}"/>
               <a:TextBlock x:Name="DebugCount" VerticalAlignment="Center"/>
             </a:StackPanel>
           </AxToggleButton>
@@ -88,19 +88,19 @@
           <AxToggleButton x:Name="Collapse" Appearance="Toolbar"
                               a:ToolTip.Tip="{Text console.collapse}"
                               a:AutomationProperties.Name="{Text console.collapse}">
-            <AxIcon Size="Small" Data="{x:Static ax:AxIcons.CollapseAll}"/>
+            <AxIcon Data="{x:Static ax:AxIcons.CollapseAll}"/>
           </AxToggleButton>
 
           <AxToggleButton x:Name="Autoscroll" Appearance="Toolbar"
                               a:ToolTip.Tip="{Text console.autoscroll}"
                               a:AutomationProperties.Name="{Text console.autoscroll}">
-            <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Download}"/>
+            <AxIcon Data="{x:Static ax:AxIcons.Download}"/>
           </AxToggleButton>
 
           <AxToggleButton x:Name="Details" Appearance="Toolbar"
                               a:ToolTip.Tip="{Text console.details}"
                               a:AutomationProperties.Name="{Text console.details}">
-            <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Split}"/>
+            <AxIcon Data="{x:Static ax:AxIcons.Split}"/>
           </AxToggleButton>
 
           <AxDivider Orientation="Vertical" Classes="toolbar"/>
@@ -108,13 +108,13 @@
           <AxButton x:Name="Copy" Appearance="Toolbar"
                     a:ToolTip.Tip="{Text console.copy}"
                     a:AutomationProperties.Name="{Text console.copy}">
-            <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Copy}"/>
+            <AxIcon Data="{x:Static ax:AxIcons.Copy}"/>
           </AxButton>
 
           <AxButton x:Name="Clear" Appearance="Toolbar"
                     a:ToolTip.Tip="{Text console.clear}"
                     a:AutomationProperties.Name="{Text console.clear}">
-            <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Trash}"/>
+            <AxIcon Data="{x:Static ax:AxIcons.Trash}"/>
           </AxButton>
 
         </a:StackPanel>
@@ -136,7 +136,7 @@
           <AxButton x:Name="Sources" Appearance="Toolbar"
                     a:ToolTip.Tip="{Text console.source}"
                     a:AutomationProperties.Name="{Text console.source}">
-            <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Filter}"/>
+            <AxIcon Data="{x:Static ax:AxIcons.Filter}"/>
           </AxButton>
 
         </a:StackPanel>
@@ -195,13 +195,13 @@
                 -->
                 <a:Panel a:Grid.Column="1" VerticalAlignment="Center"
                          Margin="{a:DynamicResource AxSpaceTrailingThickness}">
-                  <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Error}" IsVisible="{a:Binding IsError}"
+                  <AxIcon Data="{x:Static ax:AxIcons.Error}" IsVisible="{a:Binding IsError}"
                           Foreground="{a:DynamicResource AxErrorBrush}"/>
-                  <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Warning}" IsVisible="{a:Binding IsWarning}"
+                  <AxIcon Data="{x:Static ax:AxIcons.Warning}" IsVisible="{a:Binding IsWarning}"
                           Foreground="{a:DynamicResource AxWarningBrush}"/>
-                  <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Info}" IsVisible="{a:Binding IsInfo}"
+                  <AxIcon Data="{x:Static ax:AxIcons.Info}" IsVisible="{a:Binding IsInfo}"
                           Foreground="{a:DynamicResource AxTextSecondaryBrush}"/>
-                  <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Debug}" IsVisible="{a:Binding IsDebug}"
+                  <AxIcon Data="{x:Static ax:AxIcons.Debug}" IsVisible="{a:Binding IsDebug}"
                           Foreground="{a:DynamicResource AxTextTertiaryBrush}"/>
                 </a:Panel>
 

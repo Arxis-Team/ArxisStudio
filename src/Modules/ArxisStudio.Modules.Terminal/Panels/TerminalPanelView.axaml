@@ -32,7 +32,7 @@
           <AxButton x:Name="Add" Appearance="Toolbar"
                     a:ToolTip.Tip="{Text terminal.new}"
                     a:AutomationProperties.Name="{Text terminal.new}">
-            <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Plus}"/>
+            <AxIcon Data="{x:Static ax:AxIcons.Plus}"/>
           </AxButton>
 
           <AxButton x:Name="Shells" Appearance="Toolbar"
@@ -44,7 +44,7 @@
           <AxButton x:Name="More" Appearance="Toolbar"
                     a:ToolTip.Tip="{Text terminal.more}"
                     a:AutomationProperties.Name="{Text terminal.more}">
-            <AxIcon Size="Small" Data="{x:Static ax:AxIcons.MoreVertical}"/>
+            <AxIcon Data="{x:Static ax:AxIcons.MoreVertical}"/>
 
             <AxButton.Flyout>
               <AxMenuFlyout Placement="BottomEdgeAlignedRight">

@@ -459,7 +459,7 @@
             <ax:AxTreeView.ItemTemplate>
               <TreeDataTemplate x:DataType="s:SettingsNode" ItemsSource="{Binding Children}">
                 <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapIconText}">
-                  <ax:AxIcon Size="Small" Data="{Binding Icon}" VerticalAlignment="Center"/>
+                  <ax:AxIcon Data="{Binding Icon}" VerticalAlignment="Center"/>
                   <TextBlock Text="{Binding Title}" VerticalAlignment="Center"/>
                 </StackPanel>
               </TreeDataTemplate>

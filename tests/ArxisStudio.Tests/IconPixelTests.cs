@@ -90,6 +90,40 @@ public class IconPixelTests
             "размер значка написан числом — его дают ключ AxIconSize темы или класс small: " + string.Join(", ", found));
     }
 
+    /// <summary>Запись мелкого размера в разметке.</summary>
+    private const string Small = "Size=\"Small\"";
+
+    /// <summary>
+    /// Мелкий значок достаётся шеврону, а не полосе инструментов.
+    /// </summary>
+    /// <remarks>
+    /// Размер набора один — шестнадцать точек, — и мелкие двенадцать названы в теме единственным
+    /// отступлением: шеврон в тесной строке, где шестнадцать не помещаются. Отступление расползлось
+    /// по студии: двенадцатью точками рисовались счётчики консоли, кнопки её полосы, значок уровня
+    /// в строке, плюс и «ещё» терминала, кнопка скрытия группы доков, отмена задачи в статус-баре и
+    /// значок узла настроек. Глиф в двенадцать точек рядом с подписью в тринадцать читается
+    /// огрызком — в Rider, Visual Studio и Unity значок полосы шестнадцать.
+    /// <para>
+    /// Правило проверяется по имени рисунка, а не по месту: шеврон остаётся шевроном и в полосе, и
+    /// в строке дерева, а всё прочее в двенадцати точках — ошибка.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_small_size_belongs_to_the_chevron_alone()
+    {
+        var found = MarkupSources.All()
+            .SelectMany(source => MarkupIcons.Matches(source.Text)
+                .Select(match => match.Groups[1].Value)
+                .Where(icon => icon.Contains(Small, StringComparison.Ordinal))
+                .Where(icon => !icon.Contains("Chevron", StringComparison.Ordinal))
+                .Select(icon => $"{source.Name}: {icon.Trim()}"))
+            .ToList();
+
+        Assert.True(
+            found.Count == 0,
+            "мелкий значок не у шеврона — размер набора шестнадцать: " + string.Join("; ", found));
+    }
+
     /// <summary>Счётчик видит каждый значок, заведённый разметкой и кодом.</summary>
     /// <remarks>
     /// Запрет разбирает текст, и форма записи, которой он не знает, прошла бы мимо молча.

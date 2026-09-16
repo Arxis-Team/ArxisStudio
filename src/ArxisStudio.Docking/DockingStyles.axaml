@@ -51,7 +51,7 @@
                         кнопку — TemplateBinding перестал бы находить свойство
                         молча.
                     -->
-                    <ax:AxIcon Size="Small" Data="{x:Static ax:AxIcons.Minus}"/>
+                    <ax:AxIcon Data="{x:Static ax:AxIcons.Minus}"/>
                   </ax:AxButton>
                   <ax:AxTabStrip x:Name="PART_Tabs" Theme="{DynamicResource AxToolWindowTabStrip}"/>
                 </DockPanel>

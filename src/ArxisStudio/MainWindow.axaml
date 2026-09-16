@@ -120,7 +120,7 @@
           <ax:AxButton Appearance="Toolbar" Width="{DynamicResource AxControlHeightCompact}" Height="{DynamicResource AxControlHeightCompact}" IsEnabled="{Binding CanCancelTask}"
                        AutomationProperties.Name="{ax:Loc task.cancel}"
                        ToolTip.Tip="{ax:Loc task.cancel}" Click="OnCancelTaskClick">
-            <ax:AxIcon Size="Small" Data="{x:Static ax:AxIcons.Close}"/>
+            <ax:AxIcon Data="{x:Static ax:AxIcons.Close}"/>
           </ax:AxButton>
         </StackPanel>
 
