@@ -19,7 +19,15 @@
     <ItemGroup>
         <ProjectReference Include="../../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
         <ProjectReference Include="../../../external/ArxisStudio.Controls/src/ArxisStudio.Controls.csproj"/>
-        <ProjectReference Include="../ArxisStudio.Projects.Contracts/ArxisStudio.Projects.Contracts.csproj"/>
+
+        <!--
+            Контракт соседа — только для компиляции: возит его владелец, модуль «Проекты», который
+            объявил его в своём манифесте. Так же подключает чужой контракт и плагин, и правило это
+            не вкусовое — контракт обязан быть одной сборкой на всех, иначе тип из второй копии
+            окажется другим типом, и приведение упадёт у того, кто службу берёт.
+        -->
+        <ProjectReference Include="../ArxisStudio.Projects.Contracts/ArxisStudio.Projects.Contracts.csproj"
+                          Private="false" ExcludeAssets="runtime"/>
     </ItemGroup>
 
     <!--
