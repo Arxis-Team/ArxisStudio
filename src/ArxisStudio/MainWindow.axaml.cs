@@ -161,6 +161,7 @@ public partial class MainWindow : AxWindow
         {
             Invoke = _commands.Invoke,
             Extra = StudioBranches,
+            Gesture = _shortcuts.Bound,
         };
 
         _toolbar.Complained += (_, message) => _log.Write(StudioLogLevel.Warning, "ToolBar", message);

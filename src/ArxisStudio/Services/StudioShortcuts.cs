@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using System.Globalization;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 
@@ -209,10 +210,35 @@ public sealed class StudioShortcuts(Func<string, bool> invoke)
 
     /// <summary>Каким сочетанием зовут эту команду; <c>null</c> — никаким.</summary>
     /// <param name="commandId">Имя команды.</param>
-    /// <remarks>Нужно подписи в меню и в палитре: там сочетание пишут рядом с названием.</remarks>
-    public string? Gesture(string commandId) =>
+    /// <remarks>
+    /// Нужно подписи в палитре: там сочетание пишут рядом с названием. Пишется оно так, как пишет
+    /// его платформа: на macOS у той же команды знаки модификаторов, а клавиши с именем Ctrl под
+    /// пальцем нет вовсе.
+    /// </remarks>
+    public string? Gesture(string commandId) => Written(Bound(commandId));
+
+    /// <summary>
+    /// Сочетание словами платформы; <c>null</c> — нечего писать.
+    /// </summary>
+    /// <param name="gesture">Сочетание.</param>
+    /// <remarks>
+    /// Одно место на всю студию: <c>ToString()</c> у жеста отдаёт инвариантную запись, и
+    /// разошедшиеся экраны — палитра, клавиши, меню — писали бы одно и то же по-разному.
+    /// </remarks>
+    public static string? Written(KeyGesture? gesture) =>
+        gesture?.ToString("p", CultureInfo.CurrentCulture);
+
+    /// <summary>
+    /// Сочетание этой команды — жестом, а не строкой; <c>null</c> — никаким.
+    /// </summary>
+    /// <param name="commandId">Имя команды.</param>
+    /// <remarks>
+    /// Меню и подсказка полосы берут жест отсюда: писать его словами — дело показа, и пишется он
+    /// по-разному на разных платформах. Строка, собранная здесь, отняла бы у них этот выбор.
+    /// </remarks>
+    public KeyGesture? Bound(string commandId) =>
         _bindings.FirstOrDefault(bound => string.Equals(bound.CommandId, commandId, StringComparison.Ordinal))
-            ?.Gesture.ToString();
+            ?.Gesture;
 
     /// <summary>Начинает слушать клавиши этого окна.</summary>
     /// <param name="window">Окно студии.</param>

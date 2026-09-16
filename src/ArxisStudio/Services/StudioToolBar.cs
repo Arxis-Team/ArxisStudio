@@ -7,6 +7,7 @@ using ArxisStudio.Shell;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Threading;
 
 namespace ArxisStudio.Services;
@@ -73,6 +74,16 @@ public sealed class StudioToolBar
 
     /// <summary>Чем собирать дерево меню; null — меню пусты.</summary>
     public Func<IReadOnlyList<StudioMenuItem>>? Menu { get; set; }
+
+    /// <summary>
+    /// Чем узнать сочетание команды; null — сочетаний не показываем.
+    /// </summary>
+    /// <remarks>
+    /// Спрашивается на каждое открытие меню и на каждый показ подсказки, а не запоминается при
+    /// сборке: сочетания правит человек — в настройках и прямо в <c>keymap.json</c>, — и
+    /// запомненное однажды разошлось бы с тем, что делает клавиша.
+    /// </remarks>
+    public Func<string, KeyGesture?>? Gesture { get; set; }
 
     /// <summary>
     /// Чем студия дополняет своё меню снизу; null — нечем.
@@ -436,6 +447,11 @@ public sealed class StudioToolBar
 
         if (source.CommandId is { } command)
         {
+            // Сочетание — в колонке жестов, справа от подписи: команда, у которой есть клавиша,
+            // обязана называть её там, где на неё смотрят. Иначе о клавише знает только тот, кто
+            // дошёл до настроек.
+            item.InputGesture = Gesture?.Invoke(command);
+
             item.Click += (_, _) =>
             {
                 if (Invoke is not { } invoke || !invoke(command))
@@ -519,6 +535,11 @@ public sealed class StudioToolBar
         // раскладки.
         Text(button, ToolTip.TipProperty, title, strings);
         Text(button, AutomationProperties.NameProperty, title, strings);
+
+        // Сочетание спрашивается в миг показа подсказки, а не при сборке кнопки: человек правит
+        // клавиши в настройках и в keymap.json, а полоса собирается один раз за сеанс.
+        if (declared.Command is { Length: > 0 } command)
+            ToolTip.AddToolTipOpeningHandler(button, (_, _) => AxToolTip.SetGesture(button, Gesture?.Invoke(command)));
 
         return button;
     }

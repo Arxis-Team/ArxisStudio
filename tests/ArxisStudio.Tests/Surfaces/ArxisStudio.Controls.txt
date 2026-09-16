@@ -1,4 +1,4 @@
-# StudioSdk 6.3
+# StudioSdk 6.4
 ArxisStudio.Controls.AxAvatar : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Controls.AxAvatar :: .ctor()
 ArxisStudio.Controls.AxAvatar :: ArxisStudio.Controls.AxAvatarShape Shape { get; set; }
@@ -137,6 +137,10 @@ ArxisStudio.Controls.AxQuickSearch :: System.Object? SelectedItem { get; set; }
 ArxisStudio.Controls.AxQuickSearch :: System.String? Hints { get; set; }
 ArxisStudio.Controls.AxQuickSearch :: System.String? PlaceholderText { get; set; }
 ArxisStudio.Controls.AxQuickSearch :: System.String? Text { get; set; }
+ArxisStudio.Controls.AxQuickSearch :: event System.EventHandler<Avalonia.Interactivity.RoutedEventArgs> Accepted
+ArxisStudio.Controls.AxQuickSearch :: event System.EventHandler<Avalonia.Interactivity.RoutedEventArgs> Cancelled
+ArxisStudio.Controls.AxQuickSearch :: static readonly Avalonia.Interactivity.RoutedEvent<Avalonia.Interactivity.RoutedEventArgs> AcceptedEvent
+ArxisStudio.Controls.AxQuickSearch :: static readonly Avalonia.Interactivity.RoutedEvent<Avalonia.Interactivity.RoutedEventArgs> CancelledEvent
 ArxisStudio.Controls.AxQuickSearch :: static readonly Avalonia.StyledProperty<Avalonia.Controls.Templates.IDataTemplate> ItemTemplateProperty
 ArxisStudio.Controls.AxQuickSearch :: static readonly Avalonia.StyledProperty<System.Collections.IEnumerable> ItemsSourceProperty
 ArxisStudio.Controls.AxQuickSearch :: static readonly Avalonia.StyledProperty<System.Object> SelectedItemProperty
@@ -241,6 +245,10 @@ ArxisStudio.Controls.AxToolBar :: System.Object? RightContent { get; set; }
 ArxisStudio.Controls.AxToolBar :: static readonly Avalonia.StyledProperty<System.Object> CenterContentProperty
 ArxisStudio.Controls.AxToolBar :: static readonly Avalonia.StyledProperty<System.Object> LeftContentProperty
 ArxisStudio.Controls.AxToolBar :: static readonly Avalonia.StyledProperty<System.Object> RightContentProperty
+ArxisStudio.Controls.AxToolTip : static class
+ArxisStudio.Controls.AxToolTip :: static Avalonia.Input.KeyGesture? GetGesture(Avalonia.Controls.Control control)
+ArxisStudio.Controls.AxToolTip :: static System.Void SetGesture(Avalonia.Controls.Control control, Avalonia.Input.KeyGesture? value)
+ArxisStudio.Controls.AxToolTip :: static readonly Avalonia.AttachedProperty<Avalonia.Input.KeyGesture> GestureProperty
 ArxisStudio.Controls.AxToolWindow : class : Avalonia.Controls.ContentControl
 ArxisStudio.Controls.AxToolWindow :: .ctor()
 ArxisStudio.Controls.AxToolWindow :: System.Boolean ShowHeader { get; set; }

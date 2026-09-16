@@ -153,11 +153,15 @@ public sealed class KeysPage : ISettingsPage, INotifyPropertyChanged, IDisposabl
 
             string Title(string id) => titles.TryGetValue(id, out var title) ? title : id;
 
+            // Жест пишется так, как пишет его платформа, и пишется он одним местом на всю студию:
+            // страница клавиш и палитра не должны расходиться в записи одного и того же.
+            static string Written(Avalonia.Input.KeyGesture gesture) => StudioShortcuts.Written(gesture) ?? string.Empty;
+
             return (
-                [.. shortcuts.All.Select(bound => new KeyRow(bound.Gesture.ToString(), Title(bound.CommandId), Source(bound.Owner, bound.Personal)))],
+                [.. shortcuts.All.Select(bound => new KeyRow(Written(bound.Gesture), Title(bound.CommandId), Source(bound.Owner, bound.Personal)))],
                 [
                     .. shortcuts.Refused.Select(refusal => new KeyRefusal(
-                        refusal.Gesture.ToString(),
+                        Written(refusal.Gesture),
                         Title(refusal.CommandId),
                         string.Format(CultureInfo.CurrentCulture, Localizer.Instance["keys.refused.winner"], Title(refusal.Winner)),
                         Source(refusal.Owner, refusal.Personal))),

@@ -23,8 +23,8 @@ namespace ArxisStudio.Palette;
 /// поднимать, отбирать у него фокус и следить, чтобы оно не осталось висеть,
 /// когда главное свернули. Слой оверлеев делает это сам.
 /// <para>
-/// Стрелки, Enter и Esc перехватываются туннельно и принадлежат палитре, а не
-/// её полю ввода: набирают в поле, а ходят по списку.
+/// Клавиатуру разбирает сама карточка поиска: стрелки водят выбор, Enter говорит «это», Esc —
+/// «передумал». Палитре остаётся ответить на два события — выполнить команду и закрыться.
 /// </para>
 /// </remarks>
 public sealed class PaletteOverlay
@@ -77,6 +77,8 @@ public sealed class PaletteOverlay
         _owner = owner;
         _all = entries;
 
+        // Ширина карточки — ключ темы, а не число здесь: то же обещание, что у всякого другого
+        // размера, и палитра не должна быть единственным местом, где оно нарушено.
         _card = new AxQuickSearch
         {
             PlaceholderText = Localizer.Instance["palette.hint"],
@@ -84,18 +86,19 @@ public sealed class PaletteOverlay
             ItemTemplate = Row(),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(0, 80, 0, 0),
-            Width = 520,
+            [!Layoutable.MarginProperty] = new DynamicResourceExtension("AxPaletteMargin"),
+            [!Layoutable.WidthProperty] = new DynamicResourceExtension("AxPaletteWidth"),
         };
 
         _card.PropertyChanged += OnCardChanged;
+        _card.Accepted += OnAccepted;
+        _card.Cancelled += OnCancelled;
 
         // Затемнения нет нарочно: палитра открывается на секунду, и гашение
         // всего окна ради неё мигало бы сильнее, чем сама карточка. Подложка
         // нужна только затем, чтобы щелчок мимо карточки закрывал палитру.
         _scrim = new Panel { Background = Brushes.Transparent, Children = { _card } };
         _scrim.PointerPressed += OnScrimPressed;
-        _scrim.AddHandler(InputElement.KeyDownEvent, OnKey, RoutingStrategies.Tunnel);
 
         layer.Children.Add(_scrim);
 
@@ -132,12 +135,15 @@ public sealed class PaletteOverlay
             layer.Children.Remove(_scrim);
 
         _scrim.PointerPressed -= OnScrimPressed;
-        _scrim.RemoveHandler(InputElement.KeyDownEvent, OnKey);
         _owner.Closed -= OnOwnerClosed;
         _owner.SizeChanged -= OnOwnerResized;
 
         if (_card is not null)
+        {
             _card.PropertyChanged -= OnCardChanged;
+            _card.Accepted -= OnAccepted;
+            _card.Cancelled -= OnCancelled;
+        }
 
         _scrim = null;
         _card = null;
@@ -203,43 +209,9 @@ public sealed class PaletteOverlay
             Close();
     }
 
-    private void OnKey(object? sender, KeyEventArgs e)
-    {
-        switch (e.Key)
-        {
-            case Key.Escape:
-                e.Handled = true;
-                Close();
-                break;
+    private void OnAccepted(object? sender, RoutedEventArgs e) => Run();
 
-            case Key.Enter:
-                e.Handled = true;
-                Run();
-                break;
-
-            case Key.Down:
-                e.Handled = true;
-                Step(1);
-                break;
-
-            case Key.Up:
-                e.Handled = true;
-                Step(-1);
-                break;
-        }
-    }
-
-    /// <summary>Двигает выбор по кругу.</summary>
-    private void Step(int by)
-    {
-        if (_card is null || _shown.Count == 0)
-            return;
-
-        var shown = _shown.ToList();
-        var at = _card.SelectedItem is PaletteEntry chosen ? shown.IndexOf(chosen) : -1;
-
-        _card.SelectedItem = shown[((at + by) % shown.Count + shown.Count) % shown.Count];
-    }
+    private void OnCancelled(object? sender, RoutedEventArgs e) => Close();
 
     /// <summary>
     /// Выполняет выбранное.
