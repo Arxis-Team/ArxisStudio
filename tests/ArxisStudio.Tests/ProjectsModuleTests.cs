@@ -107,20 +107,26 @@ public class ProjectsModuleTests
     /// Провайдер ссылается на пакеты MSBuild только ради компиляции, и это условие обязано дойти
     /// по ссылкам до приложения. Копия рядом — второй MSBuild в процессе, и падает это позже и в
     /// чужом месте.
+    /// <para>
+    /// Обходом, а не одной папкой: модули лежат каждый в своей, и копия, спрятавшаяся в чужом
+    /// <c>bin</c>, прошла бы мимо проверки верхнего уровня. Локатор при этом обязан быть ровно
+    /// там, где ему место, — у модуля, который его везёт.
+    /// </para>
     /// </remarks>
     [Fact]
     public void The_studio_ships_no_msbuild_of_its_own()
     {
         var copies = Directory
-            .EnumerateFiles(AppContext.BaseDirectory, "Microsoft.Build*.dll")
-            .Select(Path.GetFileName)
-            .Where(name => !string.Equals(name, "Microsoft.Build.Locator.dll", StringComparison.OrdinalIgnoreCase))
+            .EnumerateFiles(AppContext.BaseDirectory, "Microsoft.Build*.dll", SearchOption.AllDirectories)
+            .Where(path => !string.Equals(Path.GetFileName(path), "Microsoft.Build.Locator.dll", StringComparison.OrdinalIgnoreCase))
+            .Select(path => Path.GetRelativePath(AppContext.BaseDirectory, path))
             .ToList();
 
         Assert.True(copies.Count == 0, $"рядом со студией лежит свой MSBuild: {string.Join(", ", copies)}");
-        Assert.True(
-            File.Exists(Path.Combine(AppContext.BaseDirectory, "Microsoft.Build.Locator.dll")),
-            "локатора нет — искать MSBuild будет некому");
+
+        var locator = Path.Combine(AppContext.BaseDirectory, "modules", Manifest().Id, "bin", "Microsoft.Build.Locator.dll");
+
+        Assert.True(File.Exists(locator), $"локатора нет в {locator} — искать MSBuild будет некому");
     }
 
     private static PluginManifest Manifest()

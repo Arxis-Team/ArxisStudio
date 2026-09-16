@@ -52,12 +52,21 @@
 
     <!--
         Ядро модели проектов — общая сборка студии: тест сверяет его поверхность с
-        записанной и видит его типы так же, как их видит плагин. Движки ProjectSystem
-        прямой ссылкой сюда не подключаются: MSBuild приходит только через модуль
-        «Проекты», как и в студию, — его держит служба, а не тест.
+        записанной и видит его типы так же, как их видит плагин.
+
+        Движки названы следом и только ради того, чтобы их выход остался в папке модуля
+        «Проекты», который их и везёт. Транзитивные ссылки у тестового проекта включены — ими
+        сюда приезжает всё, на что ссылается модуль, — и пометка ExcludeAssets на ссылке самого
+        модуля соседей по цепочке не касается: без этих двух строк движки легли бы у корня, а
+        раскладка тестов разошлась бы с боевой ровно на них.
     -->
     <ItemGroup>
         <ProjectReference Include="../../external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem/ArxisStudio.ProjectSystem.csproj"/>
+
+        <ProjectReference Include="../../external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem.MSBuild/ArxisStudio.ProjectSystem.MSBuild.csproj"
+                          Private="false" ExcludeAssets="runtime"/>
+        <ProjectReference Include="../../external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem.NuGet/ArxisStudio.ProjectSystem.NuGet.csproj"
+                          Private="false" ExcludeAssets="runtime"/>
     </ItemGroup>
 
     <!--
@@ -101,10 +110,31 @@
         <ProjectReference Include="../../src/ArxisStudio/ArxisStudio.csproj"/>
         <ProjectReference Include="../../src/ArxisStudio.Extensibility/ArxisStudio.Extensibility.csproj"/>
         <ProjectReference Include="../../src/ArxisStudio.Shell/ArxisStudio.Shell.csproj"/>
-        <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Sample/ArxisStudio.Modules.Sample.csproj"/>
-        <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Terminal/ArxisStudio.Modules.Terminal.csproj"/>
-        <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Console/ArxisStudio.Modules.Console.csproj"/>
-        <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Projects/ArxisStudio.Modules.Projects.csproj"/>
     </ItemGroup>
+
+    <!--
+        Модули подключаются теми же пометками, что и в студии, и тем же таргетом раскладываются в
+        папки: тесты обязаны идти по боевой раскладке, а не по её плоскому подобию. Своей папки у
+        модуля в плоском выходе нет, а с ней нет и манифеста — один module.json не может служить
+        четырём модулям. Дорогу к папкам процессу тестов показывает TestAssemblyFolders.
+
+        Контракт службы проектов назван прямо и только для компиляции — так же, как в
+        ArxisStudio.csproj: возит его модуль «Проекты», который объявил его в своём манифесте.
+    -->
+    <ItemGroup>
+        <ProjectReference Include="../../src/Modules/ArxisStudio.Projects.Contracts/ArxisStudio.Projects.Contracts.csproj"
+                          Private="false" ExcludeAssets="runtime"/>
+
+        <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Sample/ArxisStudio.Modules.Sample.csproj"
+                          StudioModule="true" Private="false" ExcludeAssets="runtime"/>
+        <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Terminal/ArxisStudio.Modules.Terminal.csproj"
+                          StudioModule="true" Private="false" ExcludeAssets="runtime"/>
+        <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Console/ArxisStudio.Modules.Console.csproj"
+                          StudioModule="true" Private="false" ExcludeAssets="runtime"/>
+        <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Projects/ArxisStudio.Modules.Projects.csproj"
+                          StudioModule="true" Private="false" ExcludeAssets="runtime"/>
+    </ItemGroup>
+
+    <Import Project="../../src/ArxisStudio/build/ArxisStudio.Modules.targets"/>
 
 </Project>
