@@ -1,10 +1,14 @@
-# StudioSdk 6.0
+# StudioSdk 6.5
 ArxisStudio.Icons.AxIcon : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Icons.AxIcon :: .ctor()
 ArxisStudio.Icons.AxIcon :: ArxisStudio.Icons.AxIconSize Size { get; set; }
 ArxisStudio.Icons.AxIcon :: Avalonia.Media.Geometry? Data { get; set; }
+ArxisStudio.Icons.AxIcon :: Avalonia.Media.Geometry? Shown { get; }
 ArxisStudio.Icons.AxIcon :: System.Boolean IsFilled { get; set; }
+ArxisStudio.Icons.AxIcon :: System.Double Cell { get; }
 ArxisStudio.Icons.AxIcon :: System.Double StrokeThickness { get; set; }
+ArxisStudio.Icons.AxIcon :: static readonly Avalonia.DirectProperty<ArxisStudio.Icons.AxIcon, Avalonia.Media.Geometry> ShownProperty
+ArxisStudio.Icons.AxIcon :: static readonly Avalonia.DirectProperty<ArxisStudio.Icons.AxIcon, System.Double> CellProperty
 ArxisStudio.Icons.AxIcon :: static readonly Avalonia.StyledProperty<ArxisStudio.Icons.AxIconSize> SizeProperty
 ArxisStudio.Icons.AxIcon :: static readonly Avalonia.StyledProperty<Avalonia.Media.Geometry> DataProperty
 ArxisStudio.Icons.AxIcon :: static readonly Avalonia.StyledProperty<System.Boolean> IsFilledProperty
