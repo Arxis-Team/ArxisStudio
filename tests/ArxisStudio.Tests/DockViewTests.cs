@@ -1183,20 +1183,20 @@ public class DockViewTests
     }
 
     /// <summary>
-    /// Полоса выбранной вкладки едет за клавиатурой из группы в группу.
+    /// Подпись выбранной вкладки едет за клавиатурой из группы в группу.
     /// </summary>
     /// <remarks>
-    /// Так группа отвечает на вопрос «куда пойдёт нажатие»: акцентная полоса в окне ровно одна, у
-    /// той панели, где стоит каретка; у соседки полоса остаётся нейтральной — она всё ещё говорит,
-    /// какая вкладка выбрана. Прежде вместо неё поднималась вся шапка панели, и пятно во всю её
-    /// ширину переезжало между панелями на каждый щелчок.
+    /// Так группа отвечает на вопрос «куда пойдёт нажатие»: подпись выбранной вкладки основная
+    /// там, где стоит каретка, и вторичная у соседки. Прежде вместо неё поднималась вся шапка
+    /// панели, и пятно во всю её ширину переезжало между панелями на каждый щелчок.
     /// <para>
-    /// Проверяется на настоящих группах докинга: тема видит признак области, наследуемый панелью
-    /// вкладкам её шапки, а не выставленный тестом псевдокласс.
+    /// Полосы под вкладками здесь нет ни у одной группы: в каждой по одной вкладке, и выбирать не
+    /// из чего. Проверяется это тем же прогоном — на настоящих группах докинга, где признак
+    /// области панель раздаёт вкладкам своей шапки сама.
     /// </para>
     /// </remarks>
     [AvaloniaFact]
-    public void The_bar_of_a_chosen_tab_follows_the_keyboard_between_groups()
+    public void The_label_of_a_chosen_tab_follows_the_keyboard_between_groups()
     {
         var items = new DockItems();
         var here = new Border { Focusable = true };
@@ -1225,32 +1225,38 @@ public class DockViewTests
         window.Show();
         Dispatcher.UIThread.RunJobs();
 
-        var accent = Tone("AxAccentBrush");
-        var idle = Tone("AxStrokeControlBrush");
+        var lit = Tone("AxTextPrimaryBrush");
+        var calm = Tone("AxTextSecondaryBrush");
+
+        Assert.False(Bar(view, "left").IsVisible, "у одинокой вкладки левой группы есть полоса");
+        Assert.False(Bar(view, "right").IsVisible, "у одинокой вкладки правой группы есть полоса");
 
         Assert.True(here.Focus(), "каретка не встала в левую панель");
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Equal(accent, Bar(view, "left"));
-        Assert.Equal(idle, Bar(view, "right"));
+        Assert.Equal(lit, Label(view, "left"));
+        Assert.Equal(calm, Label(view, "right"));
 
         Assert.True(there.Focus(), "каретка не встала в правую панель");
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Equal(idle, Bar(view, "left"));
-        Assert.Equal(accent, Bar(view, "right"));
+        Assert.Equal(calm, Label(view, "left"));
+        Assert.Equal(lit, Label(view, "right"));
 
         window.Close();
     }
 
-    /// <summary>Чем покрашена полоса под выбранной вкладкой названной группы.</summary>
-    private static Color Bar(DockView view, string group)
-    {
-        var chosen = DockMouse.Tabs(view.View(group)!).Items.OfType<AxTabItem>().Single(tab => tab.IsSelected);
-        var marker = chosen.GetVisualDescendants().OfType<Border>().First(border => border.Name == "PART_ActiveMarker");
+    /// <summary>Выбранная вкладка названной группы.</summary>
+    private static AxTabItem Chosen(DockView view, string group) =>
+        DockMouse.Tabs(view.View(group)!).Items.OfType<AxTabItem>().Single(tab => tab.IsSelected);
 
-        return Assert.IsAssignableFrom<ISolidColorBrush>(marker.Background).Color;
-    }
+    /// <summary>Чем покрашена подпись выбранной вкладки названной группы.</summary>
+    private static Color Label(DockView view, string group) =>
+        Assert.IsAssignableFrom<ISolidColorBrush>(Chosen(view, group).Foreground).Color;
+
+    /// <summary>Полоса под выбранной вкладкой названной группы.</summary>
+    private static Border Bar(DockView view, string group) =>
+        Chosen(view, group).GetVisualDescendants().OfType<Border>().First(border => border.Name == "PART_ActiveMarker");
 
     /// <summary>Цвет из палитры темы по имени кисти.</summary>
     /// <remarks>
