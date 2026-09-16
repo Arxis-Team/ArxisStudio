@@ -69,6 +69,15 @@
                Text="У модуля не прочитался идентификатор: ждали &quot;id&quot; из $(AxModuleManifest), а он либо не найден, либо не годится в имя папки (разрешены буквы, цифры, точка, дефис и подчёркивание). Идентификатором названа папка модуля в выходе студии — без него раскладывать нечего."/>
 
         <ItemGroup>
+            <!--
+                Манифест — единственный файл не внутри bin, и говорит он это своей пометкой, а не
+                «..» в пути: путь внутри bin остаётся путём внутри bin, и вычитание платформы,
+                которое сравнивает такие пути целиком, его не касается.
+            -->
+            <_StudioModuleFile Include="$(AxModuleManifest)"
+                               StudioRelativePath="module.json"
+                               StudioModuleRoot="true"/>
+
             <_StudioModuleFile Include="$(TargetPath)" StudioRelativePath="$(TargetFileName)"/>
             <_StudioModuleFile Include="$(TargetDir)$(TargetName).pdb"
                                StudioRelativePath="$(TargetName).pdb"

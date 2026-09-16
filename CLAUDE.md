@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 сборки в этапе 17: контракт проверялся на коде, которому он был не нужен. Вернутся плагинами.
 
 Три документа, и они не взаимозаменяемы. [README.md](README.md) — что работает сегодня.
-[docs/plan.md](docs/plan.md) — **журнал сделанного, а не опись текущего состояния**: 219 записей,
+[docs/plan.md](docs/plan.md) — **журнал сделанного, а не опись текущего состояния**: 220 записей,
 принятые решения, формат манифеста (приложение A). [docs/design-system.md](docs/design-system.md) —
 дизайн-система: роли цвета и пороги контраста, сетка и плотность, типографика, иконки, поведение
 контролов и цели редизайна по вехам; числа берутся оттуда, а не придумываются. Мокапа и
@@ -187,14 +187,30 @@ def call(name, args=None, port=5171):
 модуль, а в [ArxisStudio.csproj](src/ArxisStudio/ArxisStudio.csproj) — ссылку на него с пометками
 `StudioModule="true" Private="false" ExcludeAssets="runtime"`), и выгрузить модуль отдельно нельзя.
 
-**У корня выхода — только сама студия.** Платформа лежит в `lib/`, модули и то, что везут
-только они, — в `modules/`; у корня остаются exe, сборка студии и два файла среды. Правила раскладки —
+**У корня выхода — только сама студия.** Платформа лежит в `lib/`, у корня остаются exe, сборка
+студии и два файла среды, а у каждого модуля **своя папка в `modules/`, формой как у установленного
+плагина**: манифест в корне, сборки в `bin/`.
+
+```
+modules/arxis.terminal/module.json
+modules/arxis.terminal/bin/{ArxisStudio.Modules.Terminal,Porta.Pty,XTerm.NET}.dll
+```
+
+Имя папки — идентификатор из манифеста; читает его сам модуль, а не студия. Правила раскладки —
 [build/ArxisStudio.Library.targets](src/ArxisStudio/build/ArxisStudio.Library.targets) и
 [build/ArxisStudio.Modules.targets](src/ArxisStudio/build/ArxisStudio.Modules.targets); состав модуль
 отдаёт сам (цель `StudioModuleFiles` в
 [src/Modules/Directory.Build.targets](src/Modules/Directory.Build.targets)), а дорогу к обеим папкам
 основной контекст загрузки получает от
-[`StudioAssemblyFolder`](src/ArxisStudio/Services/StudioAssemblyFolder.cs).
+[`StudioAssemblyFolder`](src/ArxisStudio/Services/StudioAssemblyFolder.cs): платформу он ищет в самой
+папке, модули — в `bin` каждого.
+
+**Один файл — один модуль.** Модули живут в одном основном контексте загрузки, где имя грузится
+ровно один раз, и две папки с одноимённой сборкой дали бы две копии на диске и одну работающую.
+`AXL1002` валит сборку, называя файл и всех его владельцев; общей сборке место в `lib/` — её проект
+называют прямо в `ArxisStudio.csproj`, — а чужой контракт подключают `Private="false"
+ExcludeAssets="runtime"`: возит его владелец. Идентификатор, который не прочитался из манифеста,
+называет `AXL1003`.
 
 **В `Main` нет ничего, кроме двух строк дороги и вызова `Start`**, и это условие запуска, а не стиль:
 JIT компилирует метод целиком до первой его строки, и тип из `lib`, названный в точке входа, роняет
@@ -317,7 +333,7 @@ csproj — при заведении нового не забудьте.
 
 ## Тесты
 
-1290 тестов, headless-UI на `Avalonia.Headless.XUnit`, и пакет завязан на **xunit v3**. Тесту,
+1294 теста, headless-UI на `Avalonia.Headless.XUnit`, и пакет завязан на **xunit v3**. Тесту,
 которому нужно живое дерево контролов, нужен `[AvaloniaFact]`, а не `[Fact]`: он поднимает
 приложение из `TestApp` и загоняет тело в UI-поток. Рисование настоящее (`UseSkia`,
 `UseHeadlessDrawing = false`) — заглушка не зовёт декодер картинок и на любой файл отвечает

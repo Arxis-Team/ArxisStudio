@@ -78,6 +78,52 @@ public class StudioAssemblyFolderTests : IDisposable
         Assert.Null(StudioAssemblyFolder.Locate(folder, new AssemblyName { Name = "../Escape" }));
     }
 
+    /// <summary>
+    /// В папке модулей спрашивают каждый <c>bin</c>, а плоскую папку — саму.
+    /// </summary>
+    /// <remarks>
+    /// У модуля своя папка формы установленного плагина, и сборки лежат на два уровня глубже, чем
+    /// у платформы. Правило поиска при этом одно: меняется не оно, а список мест.
+    /// </remarks>
+    [Fact]
+    public void The_module_folder_is_searched_through_the_bin_of_every_module()
+    {
+        var first = Directory.CreateDirectory(Path.Combine(_root, "arxis.first", "bin")).FullName;
+        var second = Directory.CreateDirectory(Path.Combine(_root, "arxis.second", "bin")).FullName;
+
+        Assert.Equal([first, second], StudioAssemblyFolder.Places(_root, folders: true));
+        Assert.Equal([_root], StudioAssemblyFolder.Places(_root, folders: false));
+    }
+
+    /// <summary>
+    /// Папки обходятся в устоявшемся порядке, а не в том, какой отдала файловая система.
+    /// </summary>
+    /// <remarks>
+    /// Одноимённых сборок в двух папках не бывает — их запрещает AXL1002 при сборке, — но выход
+    /// собирают не только мы, и отвечать на один и тот же вопрос по-разному от запуска к запуску
+    /// резолвер не должен.
+    /// </remarks>
+    [Fact]
+    public void Module_folders_are_searched_in_a_settled_order()
+    {
+        foreach (var name in new[] { "arxis.zeta", "arxis.alpha", "arxis.mu" })
+            Directory.CreateDirectory(Path.Combine(_root, name, "bin"));
+
+        Assert.Equal(
+            ["arxis.alpha", "arxis.mu", "arxis.zeta"],
+            StudioAssemblyFolder.Places(_root, folders: true).Select(place => Path.GetFileName(Path.GetDirectoryName(place))));
+    }
+
+    /// <summary>Папка без <c>bin</c> — не модуль, и спрашивать её незачем.</summary>
+    [Fact]
+    public void A_folder_without_a_bin_is_not_searched()
+    {
+        Directory.CreateDirectory(Path.Combine(_root, "arxis.empty"));
+
+        Assert.Empty(StudioAssemblyFolder.Places(_root, folders: true));
+        Assert.Empty(StudioAssemblyFolder.Places(Path.Combine(_root, "нет такой папки"), folders: true));
+    }
+
     /// <summary>Контекст, спросивший сборку модуля, получает файл из папки модулей.</summary>
     [Fact]
     public void A_load_context_that_asks_for_a_module_assembly_gets_the_file_from_the_folder()

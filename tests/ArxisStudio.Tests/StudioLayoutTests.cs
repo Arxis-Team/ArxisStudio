@@ -1,6 +1,7 @@
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using ArxisStudio.Services;
 using Xunit;
 
@@ -54,22 +55,50 @@ public class StudioLayoutTests
         Assert.True(strangers.Count == 0, $"у корня лежат сборки, кроме самой студии: {string.Join(", ", strangers)}");
     }
 
-    /// <summary>Каждый модуль лежит в папке модулей, а не у корня и не в платформе.</summary>
+    /// <summary>Каждый модуль лежит в своей папке, а не у корня и не в платформе.</summary>
     [Fact]
-    public void Every_module_lies_in_the_module_folder_and_nowhere_else()
+    public void Every_module_lies_in_its_own_folder_and_nowhere_else()
     {
         var output = Output();
         var library = Library();
         var root = Root();
 
-        foreach (var name in StudioModules.Assemblies.Select(assembly => assembly.GetName().Name!))
+        foreach (var (assembly, module) in StudioModules.Assemblies.Zip(StudioModules.Describe()))
         {
-            Assert.True(
-                File.Exists(Path.Combine(output, StudioAssemblyFolder.Modules.Name, name + ".dll")),
-                $"модуля {name} нет в папке {StudioAssemblyFolder.Modules.Name}");
+            var name = assembly.GetName().Name!;
+            var folder = Path.Combine(output, StudioAssemblyFolder.Modules.Name, module.Id);
+
+            Assert.True(File.Exists(Path.Combine(folder, "bin", name + ".dll")), $"модуля {name} нет в {folder}/bin");
+            Assert.True(File.Exists(Path.Combine(folder, "module.json")), $"у модуля {module.Id} нет манифеста в {folder}");
 
             Assert.False(root.ContainsKey(name), $"модуль {name} лежит у корня студии");
             Assert.False(library.ContainsKey(name), $"модуль {name} лежит в платформе");
+        }
+    }
+
+    /// <summary>
+    /// Папка модуля устроена как папка установленного плагина.
+    /// </summary>
+    /// <remarks>
+    /// Манифест в корне, сборки в <c>bin</c>, имя папки — идентификатор из самого манифеста. Ради
+    /// этого равенства переезд и затевался: у двух доставок одна форма на диске, и упаковщику,
+    /// читателю манифеста и менеджеру расширений не нужно знать, какая из них перед ними.
+    /// </remarks>
+    [Fact]
+    public void Every_module_folder_is_shaped_like_an_installed_plugin()
+    {
+        foreach (var folder in ModuleFolders())
+        {
+            var manifest = Path.Combine(folder, "module.json");
+
+            Assert.True(File.Exists(manifest), $"в папке {folder} нет манифеста");
+
+            Assert.Empty(Directory.EnumerateFiles(folder, "*.dll"));
+            Assert.True(Directory.Exists(Path.Combine(folder, "bin")), $"в папке {folder} нет bin");
+
+            var declared = JsonDocument.Parse(File.ReadAllText(manifest)).RootElement.GetProperty("id").GetString();
+
+            Assert.Equal(declared, Path.GetFileName(folder));
         }
     }
 
@@ -196,11 +225,17 @@ public class StudioLayoutTests
             File.Exists(Path.Combine(output, "runtimes", "linux-x64", "native", "libporta_pty.so")),
             "нативная библиотека терминала пропала из runtimes/ у корня студии");
 
+        // Обходом, а не проверкой одного места: у модуля своя папка, и runtimes/ внутри неё
+        // спрятался бы на уровень глубже, чем смотрело прежнее правило.
         foreach (var folder in new[] { StudioAssemblyFolder.Library.Name, StudioAssemblyFolder.Modules.Name })
         {
-            Assert.False(
-                Directory.Exists(Path.Combine(output, folder, "runtimes")),
-                $"в папку {folder} уехало runtimes/ — там его не ищут ни среда, ни резолвер");
+            var stray = Directory
+                .EnumerateDirectories(Path.Combine(output, folder), "runtimes", SearchOption.AllDirectories)
+                .Select(path => Path.GetRelativePath(output, path))
+                .Order(StringComparer.Ordinal)
+                .ToList();
+
+            Assert.True(stray.Count == 0, $"уехало runtimes/, где его не ищут ни среда, ни резолвер: {string.Join(", ", stray)}");
         }
     }
 
@@ -288,9 +323,55 @@ public class StudioLayoutTests
     private static Dictionary<string, string> Library() =>
         Assemblies(Path.Combine(Output(), StudioAssemblyFolder.Library.Name));
 
-    /// <summary>Сборки модулей.</summary>
-    private static Dictionary<string, string> Modules() =>
-        Assemblies(Path.Combine(Output(), StudioAssemblyFolder.Modules.Name));
+    /// <summary>
+    /// Сборки модулей: всё, что лежит в <c>bin</c> каждой папки модуля.
+    /// </summary>
+    /// <remarks>
+    /// Непустоту проверяет сам помощник, а не каждое правило, которое им пользуется. Пустой набор —
+    /// это не «всё хорошо», а «искали не там»: три правила ниже на нём молча проходят, и тогда
+    /// раскладку никто не сторожит. Правило, которое можно забыть написать, забывают.
+    /// <para>
+    /// Одноимённые сборки в двух папках тоже ловятся здесь, обоими путями в сообщении: иначе
+    /// <see cref="Enumerable.ToDictionary{T, K}(IEnumerable{T}, Func{T, K})"/> уронил бы прогон
+    /// невнятным исключением о повторе ключа.
+    /// </para>
+    /// </remarks>
+    private static Dictionary<string, string> Modules()
+    {
+        var found = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var folder in ModuleFolders())
+        {
+            foreach (var path in Directory.EnumerateFiles(Path.Combine(folder, "bin"), "*.dll", SearchOption.AllDirectories))
+            {
+                var name = Path.GetFileNameWithoutExtension(path);
+
+                Assert.False(
+                    found.TryGetValue(name, out var first),
+                    $"сборка {name} лежит в двух папках модулей сразу: {first} и {path}");
+
+                found[name] = path;
+            }
+        }
+
+        Assert.True(found.Count > 0, $"в папке {StudioAssemblyFolder.Modules.Name} не нашлось ни одной сборки — раскладка сменилась, а правила смотрят не туда");
+
+        return found;
+    }
+
+    /// <summary>Папки модулей: по одной на модуль, с <c>bin</c> внутри.</summary>
+    private static IReadOnlyList<string> ModuleFolders()
+    {
+        var modules = Path.Combine(Output(), StudioAssemblyFolder.Modules.Name);
+
+        Assert.True(Directory.Exists(modules), $"папки {StudioAssemblyFolder.Modules.Name} нет вовсе");
+
+        var folders = Directory.EnumerateDirectories(modules).Order(StringComparer.Ordinal).ToList();
+
+        Assert.Equal(StudioModules.Assemblies.Count, folders.Count);
+
+        return folders;
+    }
 
     /// <summary>Сборки папки: простое имя — путь.</summary>
     private static Dictionary<string, string> Assemblies(string folder) =>

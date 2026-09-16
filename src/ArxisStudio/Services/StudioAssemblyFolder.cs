@@ -15,10 +15,19 @@ namespace ArxisStudio.Services;
 /// показывают первыми строками <c>Main</c>.
 /// </para>
 /// <para>
-/// <b>Правило поиска одно на обе папки.</b> Сборка ищется по простому имени, сборка ресурсов — в
-/// подпапке своей культуры, а имя, похожее на путь, не ищется вовсе: из папки дорога уводить не
-/// должна. Порядок решает, кто отвечает первым: платформа подключается раньше модулей, и общая
-/// сборка приходит из <see cref="Library"/>, даже если копия её лежала бы в <see cref="Modules"/>.
+/// <b>Форм у папки две, правило поиска одно.</b> Платформа лежит плоско, а модули — каждый в своей
+/// папке, той же формы, что у установленного плагина: манифест в корне, сборки в <c>bin</c>. Искать
+/// от этого приходится не в одном месте, а в нескольких, но ищут в каждом одинаково — по простому
+/// имени, сборку ресурсов в подпапке её культуры, а имя, похожее на путь, не ищут вовсе: из папки
+/// дорога уводить не должна.
+/// </para>
+/// <para>
+/// <b>Порядок решает, кто отвечает первым.</b> Платформа подключается раньше модулей, и общая сборка
+/// приходит из <see cref="Library"/>, даже если копия её лежала бы у модуля. Между собой папки
+/// модулей обходятся в порядковом порядке имён — не в порядке подъёма модулей: чтобы узнать его,
+/// пришлось бы назвать <c>StudioModules</c>, а это загрузило бы все сборки модулей внутри резолвера,
+/// до того как студия начала подниматься. Одноимённых сборок в двух папках не бывает — их запрещает
+/// <c>AXL1002</c> при сборке, — и порядок здесь нужен на случай выхода, собранного не нами.
 /// </para>
 /// <para>
 /// <b>Файл зависимостей по-прежнему называет сборки у корня.</b> Существование он не обещает:
@@ -35,17 +44,31 @@ namespace ArxisStudio.Services;
 internal sealed class StudioAssemblyFolder
 {
     /// <summary>Платформа студии: Avalonia, оболочка, контролы, SDK, ядро модели проектов.</summary>
-    public static StudioAssemblyFolder Library { get; } = new("lib");
+    public static StudioAssemblyFolder Library { get; } = new("lib", Shape.Flat);
 
     /// <summary>Встроенные модули и то, что везут только они.</summary>
-    public static StudioAssemblyFolder Modules { get; } = new("modules");
+    public static StudioAssemblyFolder Modules { get; } = new("modules", Shape.Folders);
+
+    private readonly Lazy<string[]> _places;
 
     private int _attached;
 
-    private StudioAssemblyFolder(string name)
+    private StudioAssemblyFolder(string name, Shape shape)
     {
         Name = name;
         Path = System.IO.Path.Combine(AppContext.BaseDirectory, name);
+
+        _places = new Lazy<string[]>(() => Places(Path, shape));
+    }
+
+    /// <summary>Как разложена папка.</summary>
+    private enum Shape
+    {
+        /// <summary>Сборки лежат в самой папке.</summary>
+        Flat,
+
+        /// <summary>Папка держит папки, у каждой сборки в <c>bin</c>, — форма установленного плагина.</summary>
+        Folders,
     }
 
     /// <summary>Имя папки в выходе студии.</summary>
@@ -88,6 +111,54 @@ internal sealed class StudioAssemblyFolder
         return File.Exists(path) ? path : null;
     }
 
-    private Assembly? OnResolving(AssemblyLoadContext context, AssemblyName name) =>
-        Locate(Path, name) is { } path ? context.LoadFromAssemblyPath(path) : null;
+    /// <summary>
+    /// Места, где эта папка ищет сборки.
+    /// </summary>
+    /// <param name="root">Папка рядом со студией.</param>
+    /// <param name="shape">Как она разложена.</param>
+    /// <returns>Папки в том порядке, в каком их спрашивают; пустой набор — искать негде.</returns>
+    /// <remarks>
+    /// Открыто ради теста: обход считается один раз на процесс, и проверять его надо на своём дереве,
+    /// а не на выходе студии.
+    /// </remarks>
+    internal static string[] Places(string root, bool folders)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(root);
+
+        if (!folders)
+            return [root];
+
+        if (!Directory.Exists(root))
+            return [];
+
+        return
+        [
+            .. Directory.EnumerateDirectories(root)
+                .Select(folder => System.IO.Path.Combine(folder, "bin"))
+                .Where(Directory.Exists)
+                .Order(StringComparer.Ordinal),
+        ];
+    }
+
+    private static string[] Places(string root, Shape shape) => Places(root, shape == Shape.Folders);
+
+    /// <summary>
+    /// Основной контекст не нашёл сборку сам.
+    /// </summary>
+    /// <remarks>
+    /// Обход папок считается один раз, при первом промахе: событие приходит на каждое имя, которого
+    /// нет в файле зависимостей, — а папка при работе студии не меняется, её раскладывает сборка.
+    /// Ленивое, а не при <see cref="Attach"/>: дорогу показывают из <c>Main</c>, и чтения диска там
+    /// быть не должно.
+    /// </remarks>
+    private Assembly? OnResolving(AssemblyLoadContext context, AssemblyName name)
+    {
+        foreach (var place in _places.Value)
+        {
+            if (Locate(place, name) is { } path)
+                return context.LoadFromAssemblyPath(path);
+        }
+
+        return null;
+    }
 }

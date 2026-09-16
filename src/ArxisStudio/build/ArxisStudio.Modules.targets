@@ -1,8 +1,24 @@
 <Project>
 
     <!--
-        Раскладка встроенных модулей: модули и то, что везут только они, — в папку
-        modules; платформа лежит в lib, у корня — сама студия.
+        Раскладка встроенных модулей: у каждого своя папка в modules; платформа лежит в lib,
+        у корня — сама студия.
+
+        Форма папки — та же, что у установленного плагина, и это не сходство, а равенство:
+
+            modules/arxis.terminal/module.json
+            modules/arxis.terminal/bin/ArxisStudio.Modules.Terminal.dll
+            modules/arxis.terminal/bin/XTerm.NET.dll
+
+        Имя папки — идентификатор из манифеста, тот же, которым менеджер расширений называет папку
+        плагина; читает его сам модуль (src/Modules/Directory.Build.targets) и отдаёт пометкой
+        StudioModuleId на каждом файле.
+
+        Порядок шагов в StudioCollectModuleFiles важен, и каждый стоит там, где стоит, по причине:
+        сначала состав спрашивается у модулей, потом из него вычитается то, что уже лежит у корня и
+        в lib, потом спрашивается AXL1001, потом приклеивается имя папки и только потом снимаются
+        повторы. Вычитание — до приставки, снятие повторов — после неё; почему именно так, написано
+        по месту у обоих шагов. Перепутать их местами сборка не помешает, а выход испортит молча.
 
         Как делится. Ссылка на модуль в ArxisStudio.csproj помечена StudioModule="true",
         Private="false" и ExcludeAssets="runtime": компилироваться против модуля можно, а
@@ -43,9 +59,17 @@
         </MSBuild>
 
         <ItemGroup>
+            <!--
+                Дорога к файлу запоминается до всяких преобразований: после них %(FullPath) считался
+                бы от папки студии, а файл лежит у модуля.
+            -->
             <_StudioModuleCandidate>
                 <StudioSource>%(FullPath)</StudioSource>
             </_StudioModuleCandidate>
+
+            <!-- Манифест в корне папки модуля, всё прочее — в bin. -->
+            <_StudioModuleRoot Include="@(_StudioModuleCandidate)" Condition="'%(_StudioModuleCandidate.StudioModuleRoot)' == 'true'"/>
+            <_StudioModuleBin Include="@(_StudioModuleCandidate)" Condition="'%(_StudioModuleCandidate.StudioModuleRoot)' != 'true'"/>
 
             <!--
                 Именем файла и путём сразу: платформа уехала в lib, и её путь у студии теперь с
@@ -55,25 +79,76 @@
             <_StudioRootFile Include="@(ReferenceCopyLocalPaths->'%(Filename)%(Extension)')"/>
             <_StudioRootFile Include="@(IntermediateAssembly->'%(Filename)%(Extension)')"/>
 
-            <_StudioModuleByPath Include="@(_StudioModuleCandidate->'%(StudioRelativePath)')"/>
+            <!--
+                Вычитание идёт по пути внутри bin, до того как к нему приклеено имя папки модуля:
+                Remove сравнивает Identity целиком, и приставка отменила бы каждое совпадение — все
+                четыре модуля повезли бы свою копию Avalonia.
+            -->
+            <_StudioModuleByPath Include="@(_StudioModuleBin->'%(StudioRelativePath)')"/>
             <_StudioModuleByPath Remove="@(_StudioRootFile)"/>
         </ItemGroup>
 
-        <RemoveDuplicates Inputs="@(_StudioModuleByPath)">
-            <Output TaskParameter="Filtered" ItemName="StudioModuleFile"/>
-        </RemoveDuplicates>
-
         <!--
-            Управляемая сборка под конкретную платформу лежала бы в modules/runtimes/, куда
-            резолвер модулей не смотрит, — и модуль упал бы на той машине, где она нужна.
+            Управляемая сборка под конкретную платформу лежала бы в runtimes/, куда резолвер модулей
+            не смотрит, — и модуль упал бы на той машине, где она нужна. Спрашивается до приставки:
+            так вопрос остаётся в координатах самого модуля, и сообщение может назвать виноватого.
             Такого пакета у модулей пока нет; появится — раскладку придётся учить.
         -->
         <Error Code="AXL1001"
-               Condition="'@(StudioModuleFile)' != '' and $([System.String]::Copy('%(StudioModuleFile.Identity)').Replace('\', '/').StartsWith('runtimes/'))"
-               Text="Модуль везёт сборку под конкретную платформу: %(StudioModuleFile.Identity). Раскладка папки modules таких не поддерживает — резолвер модулей ищет только в самой папке и в подпапках культур. Уберите пакет из модуля или научите раскладку и резолвер runtimes/."/>
+               Condition="'@(_StudioModuleByPath)' != '' and $([System.String]::Copy('%(_StudioModuleByPath.Identity)').Replace('\', '/').StartsWith('runtimes/'))"
+               Text="Модуль %(_StudioModuleByPath.StudioModuleId) везёт сборку под конкретную платформу: %(_StudioModuleByPath.Identity). Раскладка папки modules таких не поддерживает — резолвер модулей ищет только в bin каждого модуля и в подпапках культур. Уберите пакет из модуля или научите раскладку и резолвер runtimes/."/>
+
+        <ItemGroup>
+            <!--
+                Место файла: <идентификатор>/bin/<путь> для сборок, <идентификатор>/module.json для
+                манифеста. Приставка ставится после вычитания и до снятия повторов — снятые раньше,
+                одноимённые файлы двух модулей схлопнулись бы в один, и один модуль молча остался бы
+                без своей копии, вместо того чтобы получить AXL1002.
+            -->
+            <_StudioModuleBinPlaced Include="@(_StudioModuleByPath->'%(StudioModuleId)\bin\%(Identity)')"/>
+            <_StudioModuleRootPlaced Include="@(_StudioModuleRoot->'%(StudioModuleId)\%(StudioRelativePath)')"/>
+        </ItemGroup>
+
+        <RemoveDuplicates Inputs="@(_StudioModuleBinPlaced)">
+            <Output TaskParameter="Filtered" ItemName="_StudioModuleBinOnce"/>
+        </RemoveDuplicates>
+
+        <RemoveDuplicates Inputs="@(_StudioModuleRootPlaced)">
+            <Output TaskParameter="Filtered" ItemName="_StudioModuleRootOnce"/>
+        </RemoveDuplicates>
+
+        <ItemGroup>
+            <StudioModuleFile Include="@(_StudioModuleRootOnce)"/>
+            <StudioModuleFile Include="@(_StudioModuleBinOnce)"/>
+
+            <!--
+                Имена сборок с владельцами — вход для AXL1002. Только из bin: четыре module.json в
+                четырёх папках одноимённы по делу.
+            -->
+            <_StudioModuleName Include="@(_StudioModuleBinOnce->'%(Filename)%(Extension)')"/>
+        </ItemGroup>
     </Target>
 
-    <Target Name="StudioCopyModules" AfterTargets="CopyFilesToOutputDirectory" DependsOnTargets="StudioCollectModuleFiles">
+    <!--
+        Один файл — один модуль.
+
+        Модули живут в одном основном контексте загрузки, где имя грузится ровно один раз. Две папки
+        с одноимённой сборкой дают две копии на диске и одну работающую, а какая из них работает —
+        решает порядок обхода папок. Разбираться в этом потом не должен никто, поэтому сборка
+        падает здесь.
+
+        Сравнение по имени файла, без подпапки: сателлит ru/X.resources.dll грузится по имени с
+        культурой, и две его копии — та же беда, что две копии сборки.
+    -->
+    <Target Name="StudioCheckModuleNames"
+            DependsOnTargets="StudioCollectModuleFiles"
+            Outputs="%(_StudioModuleName.Identity)">
+        <Error Code="AXL1002"
+               Condition="@(_StudioModuleName->Count()) &gt; 1"
+               Text="Файл %(_StudioModuleName.Identity) едет сразу в несколько модулей: @(_StudioModuleName->'%(StudioModuleId)', ', '). Загрузится одна копия из нескольких, и какая — решит порядок обхода папок. Общей сборке место в lib: назовите её проект прямо в ArxisStudio.csproj. Чужой контракт подключают с Private=&quot;false&quot; ExcludeAssets=&quot;runtime&quot; — возит его владелец."/>
+    </Target>
+
+    <Target Name="StudioCopyModules" AfterTargets="CopyFilesToOutputDirectory" DependsOnTargets="StudioCollectModuleFiles;StudioCheckModuleNames">
         <Copy SourceFiles="@(StudioModuleFile->'%(StudioSource)')"
               DestinationFiles="@(StudioModuleFile->'$(OutDir)$(StudioModuleFolder)\%(Identity)')"
               SkipUnchangedFiles="$(SkipCopyUnchangedFiles)"
@@ -87,7 +162,7 @@
         </ItemGroup>
     </Target>
 
-    <Target Name="StudioPublishModules" AfterTargets="ComputeResolvedFilesToPublishList" DependsOnTargets="StudioCollectModuleFiles">
+    <Target Name="StudioPublishModules" AfterTargets="ComputeResolvedFilesToPublishList" DependsOnTargets="StudioCollectModuleFiles;StudioCheckModuleNames">
         <ItemGroup>
             <ResolvedFileToPublish Include="@(StudioModuleFile->'%(StudioSource)')"
                                    RelativePath="$(StudioModuleFolder)\%(StudioModuleFile.Identity)"
