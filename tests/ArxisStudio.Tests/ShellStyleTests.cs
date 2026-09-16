@@ -37,8 +37,10 @@ public class ShellStyleTests
         window.UpdateLayout();
 
         // Высота — из стилей оболочки и больше ниоткуда: без неё проверка кегля
-        // прошла бы и на голом наследовании, то есть не проверяла бы стиль.
-        Assert.Equal(30d, button.Bounds.Height);
+        // прошла бы и на голом наследовании, то есть не проверяла бы стиль. Строка
+        // навигации ростом с контрол: своих тридцати у неё больше нет.
+        Assert.True(window.TryFindResource("AxControlHeight", window.ActualThemeVariant, out var height));
+        Assert.Equal(height, button.Bounds.Height);
         Assert.Equal(13d, button.FontSize);
 
         window.Resources["AxFontSize"] = 26d;

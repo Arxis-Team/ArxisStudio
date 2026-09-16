@@ -31,7 +31,7 @@
   <DockPanel>
 
     <!-- Полоса заголовка: подпись слева, кнопки окна справа. -->
-    <ax:AxTitleBar DockPanel.Dock="Top" MinHeight="38">
+    <ax:AxTitleBar DockPanel.Dock="Top">
       <TextBlock ax:AxText.Tone="Tertiary" Text="{ax:Loc welcome.title}" FontSize="{DynamicResource AxFontSizeSmall}"
                  VerticalAlignment="Center" Margin="{DynamicResource AxSpaceWideSidesThickness}"/>
     </ax:AxTitleBar>
@@ -40,16 +40,16 @@
 
     <!-- Sidebar 230px: логотип, разделы, Settings, пользователь. -->
     <Border Grid.Column="0" Background="{DynamicResource AxSurfacePanelBrush}"
-            BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="0,0,1,0">
-      <DockPanel Margin="10,16,10,12">
+            BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="{DynamicResource AxHairlineTrailingThickness}">
+      <DockPanel Margin="{DynamicResource AxWelcomeSidebarPadding}">
 
         <!--
             Док, а не горизонтальная стопка: стопка отдаёт тексту сколько угодно ширины, и при
             крупном кегле подпись вылезала из колонки в 230 под соседний раздел. В доке текст
             знает свою ширину и сокращается многоточием.
         -->
-        <DockPanel DockPanel.Dock="Top" Margin="8,0,8,16">
-          <ax:AxAvatar DockPanel.Dock="Left" Width="34" Height="34" Initials="Ax" FontSize="{DynamicResource AxFontSizeTitle}"
+        <DockPanel DockPanel.Dock="Top" Margin="{DynamicResource AxWelcomeBrandMargin}">
+          <ax:AxAvatar DockPanel.Dock="Left" Initials="Ax" FontSize="{DynamicResource AxFontSizeTitle}"
                        Margin="{DynamicResource AxSpaceWideTrailingThickness}"/>
           <StackPanel VerticalAlignment="Center">
             <TextBlock Text="{ax:Loc app.name}" FontWeight="SemiBold" FontSize="{DynamicResource AxFontSize}"
@@ -77,7 +77,7 @@
               <TextBlock Text="{ax:Loc welcome.nav.settings}" VerticalAlignment="Center"/>
             </StackPanel>
           </ax:AxToggleButton>
-          <Border BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="0,1,0,0" Padding="10,8,0,0">
+          <Border BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="{DynamicResource AxHairlineTopThickness}" Padding="{DynamicResource AxWelcomeFooterPadding}">
             <!-- Док, а не стопка, — по той же причине, что у знака наверху. -->
             <DockPanel>
               <!--
@@ -85,7 +85,7 @@
                   запрещает ставить инициалы на AxTintPurple: белый даёт на нём 3,4:1, а
                   класс purple берёт ступень шкалы, где белый держит порог.
               -->
-              <ax:AxAvatar DockPanel.Dock="Left" Shape="Circle" Tint="Purple" Width="22" Height="22" Initials="FF" FontSize="{DynamicResource AxFontSizeCaption}"
+              <ax:AxAvatar DockPanel.Dock="Left" Shape="Circle" Tint="Purple" Width="{DynamicResource AxAvatarSizeSmall}" Height="{DynamicResource AxAvatarSizeSmall}" Initials="FF" FontSize="{DynamicResource AxFontSizeCaption}"
                            Margin="{DynamicResource AxSpaceTrailingThickness}"/>
               <TextBlock ax:AxText.Tone="Secondary" Text="FibonacciFox" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center"
                          TextTrimming="CharacterEllipsis"/>
@@ -134,8 +134,8 @@
       -->
       <Border DockPanel.Dock="Bottom" IsVisible="{Binding HasStatus}"
               Background="{DynamicResource AxSurfacePanelBrush}"
-              BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="0,1,0,0"
-              Padding="24,10">
+              BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="{DynamicResource AxHairlineTopThickness}"
+              Padding="{DynamicResource AxWelcomeStatusPadding}">
         <DockPanel>
           <ax:AxButton DockPanel.Dock="Right" Appearance="Subtle" Content="{ax:Loc common.close}"
                        Click="OnDismissStatus" MinHeight="{DynamicResource AxControlHeightCompact}" FontSize="{DynamicResource AxFontSizeSmall}"/>
@@ -174,7 +174,7 @@
                 ширины, и тогда переносятся уже они.
             -->
             <ax:WrapRow Spacing="{DynamicResource AxGapFormRow}">
-              <ax:AxSearchField MaxWidth="340"
+              <ax:AxSearchField MaxWidth="{DynamicResource AxSearchFieldMaxWidth}"
                                 PlaceholderText="{ax:Loc projects.search}"
                                 Text="{Binding ProjectFilter, Mode=TwoWay}"/>
 
@@ -192,7 +192,7 @@
             <!-- Черта отделяет действия от списка: выше делают, ниже выбирают. -->
             <ax:AxDivider Margin="{DynamicResource AxSpaceLooseAboveThickness}"/>
 
-            <TextBlock ax:AxText.Role="Section" Text="{ax:Loc projects.recent}" Margin="0,16,0,8"/>
+            <TextBlock ax:AxText.Role="Section" Text="{ax:Loc projects.recent}" Margin="{DynamicResource AxSectionTitleMargin}"/>
 
             <TextBlock ax:AxText.Tone="Tertiary" FontSize="{DynamicResource AxFontSizeSmall}" Margin="{DynamicResource AxSpaceEndsThickness}"
                        Text="{ax:Loc projects.empty}"
@@ -206,7 +206,7 @@
             <ItemsControl ItemsSource="{Binding RecentProjects}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="svc:RecentProject">
-                  <Border Classes="row" MinHeight="58" CornerRadius="{DynamicResource AxCornerRadiusLarge}" Padding="{DynamicResource AxSpaceWideSidesThickness}"
+                  <Border Classes="row" MinHeight="{DynamicResource AxWelcomeRecentRowHeight}" CornerRadius="{DynamicResource AxCornerRadiusLarge}" Padding="{DynamicResource AxSpaceWideSidesThickness}"
                           Tag="{Binding Path}" Focusable="True"
                           PointerPressed="OnRecentPressed" KeyDown="OnRecentKeyDown">
                     <Border.ContextFlyout>
@@ -242,8 +242,8 @@
                           строка под курсором или в фокусе. Место держит панель, а не прозрачность:
                           прозрачная кнопка ловила бы щелчки, которых человек ей не адресовал.
                       -->
-                      <Panel DockPanel.Dock="Right" Width="28" VerticalAlignment="Center">
-                        <ax:AxButton Classes="more" Appearance="Toolbar" Width="24" Height="24"
+                      <Panel DockPanel.Dock="Right" Width="{DynamicResource AxToolbarButtonSize}" VerticalAlignment="Center">
+                        <ax:AxButton Classes="more" Appearance="Toolbar"
                                      Tag="{Binding}" Click="OnRecentMoreClick"
                                      AutomationProperties.Name="{ax:Loc projects.actions}"
                                      ToolTip.Tip="{ax:Loc projects.actions}">
@@ -256,7 +256,7 @@
                           одной колонкой, но при крупном кегле дата в них не помещалась и теряла время.
                       -->
                       <TextBlock DockPanel.Dock="Right" ax:AxText.Tone="Tertiary" FontSize="{DynamicResource AxFontSizeSmall}"
-                                 MinWidth="120" TextAlignment="Right" VerticalAlignment="Center"
+                                 MinWidth="{DynamicResource AxWelcomeDateColumnWidth}" TextAlignment="Right" VerticalAlignment="Center"
                                  Text="{Binding OpenedAt, StringFormat='{}{0:dd.MM.yyyy HH:mm}'}"/>
                       <ax:AxChip DockPanel.Dock="Right" VerticalAlignment="Center" Margin="{DynamicResource AxSpaceSidesThickness}"
                                  Content="{ax:Loc projects.missing}"
@@ -276,7 +276,7 @@
           </StackPanel>
 
           <!-- ===== Learn ===== -->
-          <StackPanel IsVisible="{Binding IsLearn}" Spacing="0" MaxWidth="760" HorizontalAlignment="Left">
+          <StackPanel IsVisible="{Binding IsLearn}" Spacing="0" MaxWidth="{DynamicResource AxReadingWidth}" HorizontalAlignment="Left">
             <TextBlock Text="{ax:Loc learn.title}" FontSize="{DynamicResource AxFontSizeTitle}" FontWeight="SemiBold"/>
             <TextBlock ax:AxText.Tone="Tertiary" FontSize="{DynamicResource AxFontSizeSmall}" Margin="{DynamicResource AxSpaceHairAboveThickness}" Text="{ax:Loc learn.subtitle}"/>
 

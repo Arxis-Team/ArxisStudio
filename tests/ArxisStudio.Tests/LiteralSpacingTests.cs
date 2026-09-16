@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Xunit;
 
@@ -29,11 +30,16 @@ public class LiteralSpacingTests
     /// Сколько отступов студии сегодня написано числом.
     /// </summary>
     /// <remarks>
-    /// Опускается коммитом миграции — вместе с экраном, из которого числа ушли,
-    /// и записью в плане. Не поднимается ничем: отступу, которому не нашлось
-    /// ступени, место либо в теме ключом, либо в разговоре о самой шкале.
+    /// Ноль: храповик дошёл до пола в вехе метрик, и теперь это запрет, а не счёт. Отступу,
+    /// которому не нашлось ступени, место либо в теме ключом, либо в разговоре о самой шкале.
+    /// <para>
+    /// Двух вещей счёт не касается, и обе названы правилом, а не исключением. Поправка в пиксель —
+    /// <c>Margin="0,1,0,0"</c> — не зазор, а выравнивание соседа по его рамке; так же на неё
+    /// смотрит и ARX0008 у плагинов. Картинка релиза заставки — рисунок: её числа задают, где
+    /// внутри картинки стоит буква, и ступенью шкалы не выражаются.
+    /// </para>
     /// </remarks>
-    private const int Ceiling = 15;
+    private const int Ceiling = 0;
 
     /// <summary>Объявления отступа: атрибутом и сеттером.</summary>
     private static readonly Regex Spacings = new(
@@ -76,6 +82,7 @@ public class LiteralSpacingTests
     public void Literal_spacings_are_exactly_as_many_as_the_ceiling_says()
     {
         var counted = MarkupSources.All()
+            .Where(source => !MarkupSources.IsSplashArt(source.Name))
             .Select(source => (source.Name, Count: Literals(source.Text)))
             .Where(row => row.Count > 0)
             .OrderByDescending(row => row.Count)
@@ -163,7 +170,20 @@ public class LiteralSpacingTests
     private static int Literals(string text) =>
         Spacings.Matches(text)
             .Select(match => match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value)
-            .Count(value => !value.Contains('{') && value.Any(symbol => symbol is >= '1' and <= '9'));
+            .Count(value => !value.Contains('{') && value.Any(symbol => symbol is >= '1' and <= '9') && !Nudge(value));
+
+    /// <summary>
+    /// Поправка в пиксель: каждая сторона меньше двух.
+    /// </summary>
+    /// <remarks>
+    /// Такую поправку ставят, чтобы сосед встал вровень с чужой рамкой, и ступени шкалы у неё нет
+    /// и быть не может: шкала начинается с двух. Ровно так же на неё смотрит ARX0008 у плагинов —
+    /// «отступ меньше двух — поправка на пиксель, а не зазор».
+    /// </remarks>
+    private static bool Nudge(string value) =>
+        value.Split(',')
+            .Select(part => double.TryParse(part.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var side) ? Math.Abs(side) : double.NaN)
+            .All(side => side is >= 0 and < 2);
 
     /// <summary>
     /// Считает отступы в коде, написанные числом.

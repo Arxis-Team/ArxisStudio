@@ -83,7 +83,7 @@
     <Setter Property="Background" Value="{DynamicResource AxAccentBrush}"/>
     <Setter Property="Opacity" Value="0.28"/>
     <Setter Property="BorderBrush" Value="{DynamicResource AxAccentFillBrush}"/>
-    <Setter Property="BorderThickness" Value="2"/>
+    <Setter Property="BorderThickness" Value="{DynamicResource AxDockHintThickness}"/>
     <Setter Property="CornerRadius" Value="{DynamicResource AxCornerRadius}"/>
   </Style>
   <Style Selector="Border.dock-hint > TextBlock">
@@ -115,7 +115,7 @@
   <Style Selector="Border.dock-ghost">
     <Setter Property="Background" Value="{DynamicResource AxSurfaceOverlayBrush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource AxAccentFillBrush}"/>
-    <Setter Property="BorderThickness" Value="2"/>
+    <Setter Property="BorderThickness" Value="{DynamicResource AxDockHintThickness}"/>
     <Setter Property="CornerRadius" Value="{DynamicResource AxCornerRadius}"/>
   </Style>
   <Style Selector="Border.dock-ghost > TextBlock">

@@ -23,7 +23,7 @@
               <Border DockPanel.Dock="Top"
                       Background="{DynamicResource AxSurfacePanelBrush}"
                       BorderBrush="{DynamicResource AxStrokeSubtleBrush}"
-                      BorderThickness="0,0,0,1"
+                      BorderThickness="{DynamicResource AxHairlineBottomThickness}"
                       IsVisible="{TemplateBinding TopBar, Converter={x:Static ObjectConverters.IsNotNull}}">
                 <ContentPresenter Content="{TemplateBinding TopBar}"/>
               </Border>
@@ -36,7 +36,7 @@
                       MinHeight="{DynamicResource AxStatusBarHeight}"
                       Background="{DynamicResource AxSurfacePanelBrush}"
                       BorderBrush="{DynamicResource AxStrokeSubtleBrush}"
-                      BorderThickness="0,1,0,0"
+                      BorderThickness="{DynamicResource AxHairlineTopThickness}"
                       IsVisible="{TemplateBinding StatusBar, Converter={x:Static ObjectConverters.IsNotNull}}">
                 <ContentPresenter Content="{TemplateBinding StatusBar}"/>
               </Border>
@@ -87,7 +87,7 @@
   -->
   <Style Selector="ax|AxToggleButton.nav">
     <!-- Наименьшая: подпись растёт с кеглем темы, прибитая высота её срезала бы. -->
-    <Setter Property="MinHeight" Value="30"/>
+    <Setter Property="MinHeight" Value="{DynamicResource AxControlHeight}"/>
     <Setter Property="FontWeight" Value="Normal"/>
     <Setter Property="Padding" Value="{DynamicResource AxSpaceWideSidesThickness}"/>
     <Setter Property="CornerRadius" Value="{DynamicResource AxCornerRadiusMedium}"/>
@@ -132,7 +132,7 @@
       одного веса. Токена под эти двадцать в теме нет: число живёт здесь одно.
   -->
   <Style Selector="ax|AxDivider.toolbar">
-    <Setter Property="Height" Value="20"/>
+    <Setter Property="Height" Value="{DynamicResource AxToolBarDividerHeight}"/>
     <Setter Property="Margin" Value="{DynamicResource AxSpaceHairSidesThickness}"/>
   </Style>
 
@@ -159,7 +159,7 @@
       Высота наименьшая: подпись и контрол в строке растут с кеглем темы.
   -->
   <Style Selector=":is(Panel).settings-row">
-    <Setter Property="MinHeight" Value="44"/>
+    <Setter Property="MinHeight" Value="{DynamicResource AxSettingsRowHeight}"/>
   </Style>
   <!--
       Подпись и контрол в строке настроек стоят по центру, а не тянутся во всю
@@ -182,7 +182,7 @@
     <Setter Property="Foreground" Value="{DynamicResource AxLinkHoverBrush}"/>
   </Style>
   <Style Selector="Border.link-row">
-    <Setter Property="MinHeight" Value="40"/>
+    <Setter Property="MinHeight" Value="{DynamicResource AxLinkRowHeight}"/>
     <Setter Property="Padding" Value="{DynamicResource AxSpaceWideSidesThickness}"/>
     <Setter Property="CornerRadius" Value="{DynamicResource AxCornerRadiusMedium}"/>
     <Setter Property="Background" Value="Transparent"/>

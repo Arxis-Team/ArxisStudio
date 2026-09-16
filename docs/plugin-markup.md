@@ -335,7 +335,8 @@ body.Bind(StackPanel.SpacingProperty, body.GetResourceObservable("AxGapFormRow")
 у роли было другое имя. Высоты хрома (`AxTabHeight`, `AxTitleBarHeight`,
 `AxStatusBarHeight`, `AxMenuRowHeight`, `AxToolbarButtonSize`, `AxWindowButtonWidth`), шаг
 лестницы дерева (`AxTreeIndent`) и доля высоты строки (`AxLineHeightRatio`) появились в
-6.1 — панель, назвавшая их, требует не ниже.
+6.1 — панель, назвавшая их, требует не ниже. Геометрия темы — линия в пиксель `AxHairline` с
+толщинами по сторонам, дорожка `AxTrackHeight`, клетка набора `AxIconGrid` и прочее — в 6.2.
 
 ## Открытые концы
 

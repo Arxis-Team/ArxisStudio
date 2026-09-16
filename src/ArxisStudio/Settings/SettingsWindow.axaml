@@ -52,7 +52,7 @@
           <ax:WrapRow Classes="settings-row" Spacing="{DynamicResource AxGapFormRow}">
             <TextBlock Text="{ax:Loc settings.language}" FontSize="{DynamicResource AxFontSize}"/>
             <!-- Список языков студия узнаёт на ходу, а не знает наперёд. -->
-            <ax:AxComboBox Width="170"
+            <ax:AxComboBox Width="{DynamicResource AxSettingsFilterWidth}"
                            AutomationProperties.Name="{ax:Loc settings.language}"
                            ItemsSource="{Binding Languages}"
                            SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}">
@@ -92,7 +92,7 @@
             <ItemsControl ItemsSource="{Binding Refusals}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="s:KeyRefusal">
-                  <Border Padding="{DynamicResource AxSettingsRowPadding}" BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="0,0,0,1">
+                  <Border Padding="{DynamicResource AxSettingsRowPadding}" BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="{DynamicResource AxHairlineBottomThickness}">
                     <DockPanel>
                       <ax:AxChip DockPanel.Dock="Left" Kind="Key" Content="{Binding Gesture}"
                                  Margin="{DynamicResource AxSpaceWideTrailingThickness}" VerticalAlignment="Center"/>
@@ -111,7 +111,7 @@
           <ItemsControl ItemsSource="{Binding Rows}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="s:KeyRow">
-                <Border Padding="{DynamicResource AxSettingsRowPadding}" BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="0,0,0,1">
+                <Border Padding="{DynamicResource AxSettingsRowPadding}" BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="{DynamicResource AxHairlineBottomThickness}">
                   <DockPanel>
                     <ax:AxChip DockPanel.Dock="Left" Kind="Key" Content="{Binding Gesture}"
                                Margin="{DynamicResource AxSpaceWideTrailingThickness}" VerticalAlignment="Center"/>
@@ -165,9 +165,9 @@
           <ItemsControl ItemsSource="{Binding Cards}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:PluginCard">
-                <Border Padding="{DynamicResource AxSettingsRowPadding}" BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="0,0,0,1">
+                <Border Padding="{DynamicResource AxSettingsRowPadding}" BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="{DynamicResource AxHairlineBottomThickness}">
                   <DockPanel>
-                    <Border DockPanel.Dock="Left" Width="32" Height="32" Margin="{DynamicResource AxSpaceWideTrailingThickness}"
+                    <Border DockPanel.Dock="Left" Width="{DynamicResource AxPluginTileSize}" Height="{DynamicResource AxPluginTileSize}" Margin="{DynamicResource AxSpaceWideTrailingThickness}"
                             CornerRadius="{DynamicResource AxCornerRadiusLarge}"
                             Background="{DynamicResource AxSurfaceRaisedBrush}">
                       <Panel>
@@ -177,7 +177,7 @@
                             одно и то же дважды. Поэтому из дерева доступности
                             значок убран, а не назван.
                         -->
-                        <Image x:Name="PluginIcon" Width="22" Height="22"
+                        <Image x:Name="PluginIcon" Width="{DynamicResource AxAvatarSizeSmall}" Height="{DynamicResource AxAvatarSizeSmall}"
                                AutomationProperties.AccessibilityView="Raw"
                                RenderOptions.BitmapInterpolationMode="HighQuality"
                                Source="{Binding Plugin.IconPath, Converter={x:Static conv:PluginIconConverter.Instance}}"/>
@@ -199,7 +199,7 @@
                         необратимое на расстоянии одного промаха от частого
                         незачем.
                     -->
-                    <ax:AxSplitButton DockPanel.Dock="Right" MinWidth="112" MinHeight="{DynamicResource AxControlHeightSmall}" Margin="{DynamicResource AxSpaceLeadingThickness}"
+                    <ax:AxSplitButton DockPanel.Dock="Right" MinWidth="{DynamicResource AxSettingsActionWidth}" MinHeight="{DynamicResource AxControlHeightCompact}" Margin="{DynamicResource AxSpaceLeadingThickness}"
                                       VerticalAlignment="Center" FontSize="{DynamicResource AxFontSizeSmall}"
                                       Click="OnPluginToggleClick" Tag="{Binding}"
                                       Content="{Binding IsOn, Converter={x:Static conv:PluginToggleConverter.Instance}}"
@@ -355,7 +355,7 @@
                 <ax:AxToggleSwitch IsChecked="{Binding Flag, Mode=TwoWay}"
                                    AutomationProperties.Name="{Binding Label}"
                                    IsEnabled="{Binding IsEditable}" IsVisible="{Binding IsToggle}"/>
-                <ax:AxTextBox Width="220" Text="{Binding Text, Mode=TwoWay}"
+                <ax:AxTextBox Width="{DynamicResource AxSettingsFieldWidth}" Text="{Binding Text, Mode=TwoWay}"
                               AutomationProperties.Name="{Binding Label}"
                               IsEnabled="{Binding IsEditable}" IsVisible="{Binding IsText}"/>
               </ax:WrapRow>
@@ -405,7 +405,7 @@
     -->
     <Border DockPanel.Dock="Bottom"
             Background="{DynamicResource AxSurfacePanelBrush}"
-            BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="0,1,0,0">
+            BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="{DynamicResource AxHairlineTopThickness}">
       <DockPanel Margin="{DynamicResource AxDialogBandPadding}">
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="{DynamicResource AxGapControls}">
           <ax:AxButton x:Name="Cancel" Content="{ax:Loc common.cancel}" MinWidth="{DynamicResource AxDialogButtonMinWidth}"/>
@@ -422,14 +422,14 @@
       <!-- Слева: поиск и дерево разделов. Ширина — как у боковой полосы Welcome. -->
       <Border Grid.Column="0"
               Background="{DynamicResource AxSurfacePanelBrush}"
-              BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="0,0,1,0">
+              BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="{DynamicResource AxHairlineTrailingThickness}">
         <DockPanel Margin="{DynamicResource AxSpaceWideThickness}">
           <ax:AxSearchField DockPanel.Dock="Top" x:Name="SearchBox" Margin="{DynamicResource AxSpaceWideBelowThickness}"
                             AutomationProperties.Name="{ax:Loc settings.search}"
                             PlaceholderText="{ax:Loc settings.search}"
                             Text="{Binding Search, Mode=TwoWay}"/>
 
-          <TextBlock DockPanel.Dock="Top" ax:AxText.Tone="Tertiary" Margin="2,6,0,0"
+          <TextBlock DockPanel.Dock="Top" ax:AxText.Tone="Tertiary" Margin="{DynamicResource AxFieldNoteMargin}"
                      FontSize="{DynamicResource AxFontSizeSmall}"
                      Text="{ax:Loc settings.empty}" IsVisible="{Binding IsEmpty}"/>
 

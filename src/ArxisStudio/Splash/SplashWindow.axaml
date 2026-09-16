@@ -27,7 +27,7 @@
   -->
   <Border Background="{DynamicResource AxSurfaceBaseBrush}"
           BorderBrush="{DynamicResource AxStrokeSubtleBrush}"
-          BorderThickness="1"
+          BorderThickness="{DynamicResource AxHairlineThickness}"
           CornerRadius="{DynamicResource AxCornerRadiusCard}"
           ClipToBounds="True">
     <Grid>

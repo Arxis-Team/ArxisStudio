@@ -14,7 +14,7 @@
               a:DockPanel.Dock="Bottom"
               IsVisible="False"
               Padding="{a:DynamicResource AxNotePadding}"
-              BorderThickness="0,1,0,0"
+              BorderThickness="{a:DynamicResource AxHairlineTopThickness}"
               BorderBrush="{a:DynamicResource AxStrokeSubtleBrush}">
       <a:TextBlock x:Name="Reason" TextWrapping="Wrap"/>
     </a:Border>
