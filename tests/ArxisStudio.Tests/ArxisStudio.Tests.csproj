@@ -18,7 +18,6 @@
             «прочиталось» и «не прочиталось» неразличимы.
         -->
         <PackageReference Include="Avalonia.Skia"/>
-        <PackageReference Include="Avalonia.Themes.Fluent"/>
         <!--
             Разбор разметки на ходу: словарь xmlns проверяется по тому, что
             объявили сборки, а не по тому, что компилятор XAML однажды

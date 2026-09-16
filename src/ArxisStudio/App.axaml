@@ -3,9 +3,12 @@
              xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
              x:Class="ArxisStudio.App"
              RequestedThemeVariant="Dark">
-  <!-- FluentTheme — базовый слой M0 для не-Ax примитивов; поверх — тема и стили студии. -->
+  <!--
+      Три слоя, и все свои: тема, стили оболочки, стили докинга. Чужой базовой темы здесь больше
+      нет — окно, окно попапа и простые контейнеры одеты в AxRoots, и грузить ради трёх шаблонов
+      сотню чужих незачем.
+  -->
   <Application.Styles>
-    <FluentTheme/>
     <ax:ArxisTheme/>
     <ax:ShellStyles/>
     <ax:DockingStyles/>

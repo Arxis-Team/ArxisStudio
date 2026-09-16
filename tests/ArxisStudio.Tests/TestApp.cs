@@ -4,7 +4,6 @@ using ArxisStudio.Tests;
 using ArxisStudio.Themes.Arxis;
 using Avalonia;
 using Avalonia.Headless;
-using Avalonia.Themes.Fluent;
 using Xunit;
 
 [assembly: AvaloniaTestApplication(typeof(TestApp))]
@@ -33,17 +32,16 @@ public class TestApp : Application
     /// Ставит те же слои стилей, что и студия.
     /// </summary>
     /// <remarks>
-    /// Один Fluent тестам мало: у контролов студии тема живёт в ArxisTheme, и
-    /// без неё окно инструментов остаётся без шаблона — а тогда проверка
-    /// «вкладка встала на место» доказывала бы только, что объект создан.
+    /// Все три слоя и в том же порядке, что в App.axaml: тема, стили оболочки, стили докинга.
+    /// Порядок решает, кто кого перекроет, а слой оболочки сюда когда-то не попал — и проверить
+    /// его было нечем.
     ///
-    /// Все четыре слоя и в том же порядке, что в App.axaml. Слоёв было три:
-    /// стили оболочки сюда не попали, и проверить их было нечем — порядок же
-    /// решает, кто кого перекроет.
+    /// Чужой базовой темы здесь нет, как нет её и в студии: окно, окно попапа и простые
+    /// контейнеры одеты темой студии. Это же и проверка — тесты, которым нужно живое дерево,
+    /// падали бы первыми, подмени тема чужой шаблон своим отсутствием.
     /// </remarks>
     public override void Initialize()
     {
-        Styles.Add(new FluentTheme());
         Styles.Add(new ArxisTheme());
         Styles.Add(new ShellStyles());
         Styles.Add(new DockingStyles());
