@@ -640,6 +640,112 @@ public class TerminalViewTests
         return panel;
     }
 
+    /// <summary>
+    /// Бегунок полосы прокрутки тянется мышью.
+    /// </summary>
+    /// <remarks>
+    /// Полоса была рисунком, а не контролом: колесо листало историю, а нажатие на полосу попадало
+    /// в текст — там начиналось выделение последнего столбца. Человек видел полосу, брал её и не
+    /// получал ничего.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_scrollbar_thumb_drags_the_history()
+    {
+        var (window, view, pty, session) = Show();
+
+        History(view, pty, session);
+
+        var buffer = session.Terminal.Buffer;
+
+        Assert.Equal(buffer.YBase, buffer.YDisp);
+
+        // Внизу истории бегунок стоит в самом низу дорожки: берём его там и тянем к верху.
+        window.MouseDown(Bar(view, view.Bounds.Height - TerminalView.Inset - 1), MouseButton.Left, RawInputModifiers.None);
+        window.MouseMove(Bar(view, TerminalView.Inset), RawInputModifiers.None);
+        window.MouseUp(Bar(view, TerminalView.Inset), MouseButton.Left, RawInputModifiers.None);
+
+        Assert.Equal(0, buffer.YDisp);
+        Assert.False(view.HasSelection, "полоса выделила текст, которого под ней нет");
+        Assert.Empty(pty.WrittenText);
+    }
+
+    /// <summary>
+    /// Нажатие на дорожку листает страницу, а не прыгает на место указателя.
+    /// </summary>
+    /// <remarks>
+    /// Так ведут себя полосы Windows, Rider и VS Code. Заодно это тот вход к прокрутке, который не
+    /// требует тянуть мышь, — WCAG 2.2 просит его у всякого перетаскивания.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Pressing_the_track_turns_a_page_of_history()
+    {
+        var (window, view, pty, session) = Show();
+
+        History(view, pty, session);
+
+        var buffer = session.Terminal.Buffer;
+        var was = buffer.YDisp;
+
+        // Верх дорожки: бегунок внизу, значит выше него — дорожка.
+        window.MouseDown(Bar(view, TerminalView.Inset + 1), MouseButton.Left, RawInputModifiers.None);
+        window.MouseUp(Bar(view, TerminalView.Inset + 1), MouseButton.Left, RawInputModifiers.None);
+
+        Assert.Equal(Math.Max(0, was - view.Rows), buffer.YDisp);
+        Assert.False(view.HasSelection, "нажатие на дорожку выделило текст");
+        Assert.Empty(pty.WrittenText);
+    }
+
+    /// <summary>
+    /// Shift+PageUp листает историю, а оболочка об этом не слышит.
+    /// </summary>
+    /// <remarks>
+    /// Сочетания у Windows Terminal, и без них история листалась только мышью. Оболочке эти
+    /// клавиши не нужны: страницу собственной истории терминала не посылает никто.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Shift_page_up_scrolls_the_history_and_the_shell_hears_nothing()
+    {
+        var (window, view, pty, session) = Show();
+
+        view.Focus();
+        History(view, pty, session);
+
+        var buffer = session.Terminal.Buffer;
+        var was = buffer.YDisp;
+
+        window.KeyPress(Key.PageUp, RawInputModifiers.Shift, PhysicalKey.PageUp, null);
+
+        Assert.Equal(Math.Max(0, was - view.Rows), buffer.YDisp);
+        Assert.Empty(pty.WrittenText);
+
+        window.KeyPress(Key.PageDown, RawInputModifiers.Shift, PhysicalKey.PageDown, null);
+
+        Assert.Equal(was, buffer.YDisp);
+
+        window.KeyPress(Key.Home, RawInputModifiers.Shift | RawInputModifiers.Control, PhysicalKey.Home, null);
+
+        Assert.Equal(0, buffer.YDisp);
+
+        window.KeyPress(Key.End, RawInputModifiers.Shift | RawInputModifiers.Control, PhysicalKey.End, null);
+
+        Assert.Equal(buffer.YBase, buffer.YDisp);
+        Assert.Empty(pty.WrittenText);
+    }
+
+    /// <summary>Набивает историю, которую есть чем листать.</summary>
+    private static void History(TerminalView view, FakePty pty, TerminalSession session)
+    {
+        for (var i = 0; i < 200; i++)
+            pty.Emit($"line{i}\r\n");
+
+        Until(() => session.Terminal.Buffer.YBase > view.Rows
+                    && session.Terminal.GetVisibleLines().Any(line => line.StartsWith("line199", StringComparison.Ordinal)));
+    }
+
+    /// <summary>Точка на дорожке полосы прокрутки — у правого края вида.</summary>
+    private static Point Bar(TerminalView view, double y) =>
+        new(view.Bounds.Width - (TerminalView.ScrollBarWidth / 2), y);
+
     private static (Window Window, TerminalView View, FakePty Pty, TerminalSession Session) Show()
     {
         var pty = new FakePty();

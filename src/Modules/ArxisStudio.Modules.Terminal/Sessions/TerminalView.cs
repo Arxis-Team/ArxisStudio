@@ -45,8 +45,18 @@ public sealed class TerminalView : Control
     /// <summary>Отступ от края до первой ячейки.</summary>
     public const double Inset = 6;
 
-    /// <summary>Ширина полосы прокрутки справа.</summary>
-    public const double ScrollBarWidth = 8;
+    /// <summary>
+    /// Ширина дорожки полосы прокрутки, когда темы под рукой нет.
+    /// </summary>
+    /// <remarks>
+    /// Обычно берётся у темы ключом <c>AxScrollBarLane</c> — полоса терминала обязана быть той же
+    /// ширины, что полосы списков и деревьев студии. Дорожка при этом не только место под рисунок,
+    /// но и область попадания: бегунок в шесть точек мышью не взять, и берут его за дорожку.
+    /// </remarks>
+    public const double ScrollBarWidth = 12;
+
+    /// <summary>Короче бегунок не бывает: на длинной истории он выродился бы в точку.</summary>
+    private const double MinThumb = 20;
 
     /// <summary>
     /// Сколько тишины в раскладке ждать, прежде чем сказать оболочке новый размер.
@@ -74,6 +84,12 @@ public sealed class TerminalView : Control
 
     private static readonly FontFamily FallbackFont = new("Cascadia Mono,Consolas,Menlo,DejaVu Sans Mono,monospace");
 
+    /// <summary>Курсор над текстом и курсор над полосой: полоса — не текст, и каретку в неё не ставят.</summary>
+    private static readonly Cursor TextCursor = new(StandardCursorType.Ibeam);
+
+    /// <inheritdoc cref="TextCursor"/>
+    private static readonly Cursor BarCursor = new(StandardCursorType.Arrow);
+
     private readonly Dictionary<(int Rgb, double Opacity), IImmutableBrush> _brushes = new();
     private readonly DispatcherTimer _blink = new() { Interval = TimeSpan.FromMilliseconds(530) };
     private readonly DispatcherTimer _settle = new() { Interval = ResizeQuiet };
@@ -91,17 +107,24 @@ public sealed class TerminalView : Control
     private Color _background = Color.FromRgb(0x17, 0x1A, 0x1D);
     private Color _foreground = Color.FromRgb(0xCC, 0xCC, 0xCC);
     private Color _selection = Color.FromRgb(0x26, 0x3D, 0x68);
-    private Color _thumb = Color.FromRgb(0x6F, 0x73, 0x7A);
+    private Color _thumb = Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF);
+    private Color _thumbOver = Color.FromArgb(0x59, 0xFF, 0xFF, 0xFF);
+    private double _lane = ScrollBarWidth;
+    private double _thumbWidth = 6;
+    private double _thumbWidthOver = 8;
     private CursorStyle _cursorStyle = CursorStyle.Block;
     private bool _blinkOn = true;
     private bool _selecting;
+    private bool _dragging;
+    private bool _overBar;
+    private double _grab;
 
     /// <summary>Создаёт вид: он принимает фокус и показывает текстовый курсор.</summary>
     public TerminalView()
     {
         Focusable = true;
         ClipToBounds = true;
-        Cursor = new Cursor(StandardCursorType.Ibeam);
+        Cursor = TextCursor;
 
         _regular = new Typeface(_fontFamily);
         _bold = new Typeface(_fontFamily, FontStyle.Normal, FontWeight.Bold);
@@ -315,7 +338,7 @@ public sealed class TerminalView : Control
     /// <inheritdoc/>
     protected override Size MeasureOverride(Size availableSize)
     {
-        var width = double.IsFinite(availableSize.Width) ? availableSize.Width : (80 * _cellWidth) + (2 * Inset) + ScrollBarWidth;
+        var width = double.IsFinite(availableSize.Width) ? availableSize.Width : (80 * _cellWidth) + (2 * Inset) + _lane;
         var height = double.IsFinite(availableSize.Height) ? availableSize.Height : (24 * _cellHeight) + (2 * Inset);
 
         return new Size(width, height);
@@ -332,7 +355,7 @@ public sealed class TerminalView : Control
     /// </remarks>
     protected override Size ArrangeOverride(Size finalSize)
     {
-        var columns = (int)Math.Floor((finalSize.Width - (2 * Inset) - ScrollBarWidth) / _cellWidth);
+        var columns = (int)Math.Floor((finalSize.Width - (2 * Inset) - _lane) / _cellWidth);
         var rows = (int)Math.Floor((finalSize.Height - (2 * Inset)) / _cellHeight);
 
         if (columns < MinColumns || rows < MinRows)
@@ -378,7 +401,7 @@ public sealed class TerminalView : Control
         }
 
         RenderCursor(context, terminal);
-        RenderScrollBar(context, buffer);
+        RenderScrollBar(context);
     }
 
     /// <inheritdoc/>
@@ -421,6 +444,17 @@ public sealed class TerminalView : Control
         {
             TopLevel.GetTopLevel(this)?.FocusManager?.TryMoveFocus(NavigationDirection.Next);
             e.Handled = true;
+            return;
+        }
+
+        // История листается и с клавиатуры: у полосы прокрутки должен быть вход, не требующий
+        // тянуть мышь, — этого требует и WCAG 2.2 (Dragging Movements), и здравый смысл. Сочетания
+        // взяты у Windows Terminal, и оболочке они не нужны: Shift+PageUp за страницу не посылает
+        // никто.
+        if (shift && Scroll(e.Key, control))
+        {
+            e.Handled = true;
+
             return;
         }
 
@@ -485,6 +519,18 @@ public sealed class TerminalView : Control
             return;
 
         var point = e.GetCurrentPoint(this);
+
+        // Полоса прокрутки — раньше всего остального, и раньше мыши программы: полоса наша, под
+        // ней нет ни одной ячейки, и работать она обязана даже там, где программа просила мышь
+        // себе. Так же ведут себя полосы Windows Terminal и VS Code.
+        if (point.Properties.IsLeftButtonPressed && OverBar(point.Position))
+        {
+            GrabBar(point.Position.Y, e.Pointer);
+            e.Handled = true;
+
+            return;
+        }
+
         var (x, y) = Cell(point.Position);
 
         if (Reporting(e.KeyModifiers))
@@ -518,13 +564,38 @@ public sealed class TerminalView : Control
     {
         base.OnPointerMoved(e);
 
-        if (!_selecting || _session is null)
+        if (_session is null)
             return;
 
-        var (x, y) = Cell(e.GetPosition(this));
+        var position = e.GetPosition(this);
 
-        _session.Terminal.Selection.UpdateSelection(x, y);
-        InvalidateVisual();
+        if (_dragging)
+        {
+            DragBar(position.Y);
+            return;
+        }
+
+        if (_selecting)
+        {
+            var (x, y) = Cell(position);
+
+            _session.Terminal.Selection.UpdateSelection(x, y);
+            InvalidateVisual();
+
+            return;
+        }
+
+        ShowBar(OverBar(position));
+    }
+
+    /// <inheritdoc/>
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+
+        // Кроме как в перетаскивании: указатель уходит за край окна, а бегунок всё ещё в руке.
+        if (!_dragging)
+            ShowBar(false);
     }
 
     /// <inheritdoc/>
@@ -535,7 +606,20 @@ public sealed class TerminalView : Control
         if (_session is null)
             return;
 
-        var (x, y) = Cell(e.GetPosition(this));
+        var position = e.GetPosition(this);
+
+        if (_dragging)
+        {
+            _dragging = false;
+            e.Pointer.Capture(null);
+
+            ShowBar(OverBar(position));
+            InvalidateVisual();
+
+            return;
+        }
+
+        var (x, y) = Cell(position);
 
         if (_selecting)
         {
@@ -727,21 +811,171 @@ public sealed class TerminalView : Control
         }
     }
 
-    private void RenderScrollBar(DrawingContext context, TerminalBuffer buffer)
+    /// <summary>
+    /// Листает историю с клавиатуры.
+    /// </summary>
+    /// <param name="key">Что нажали при удержанном Shift.</param>
+    /// <param name="control">Удержан ли ещё и Control.</param>
+    /// <returns>Взяли ли клавишу; <c>false</c> — она уйдёт оболочке.</returns>
+    /// <remarks>
+    /// Сочетания взяты у Windows Terminal: Shift+PageUp и Shift+PageDown — страница истории,
+    /// Ctrl+Shift+Home и Ctrl+Shift+End — её края. Отобрать у оболочки здесь нечего: страницу
+    /// собственной истории терминала не посылает никто.
+    /// <para>
+    /// На альтернативном экране истории нет, и листать нечего — но клавиша всё равно остаётся за
+    /// терминалом: полноэкранная программа листает себя своими же PageUp и PageDown, без Shift.
+    /// </para>
+    /// </remarks>
+    private bool Scroll(Key key, bool control)
     {
-        var total = buffer.Lines.Length;
+        if (_session is null)
+            return false;
 
-        if (total <= _rows)
-            return;
+        var terminal = _session.Terminal;
+
+        switch (key)
+        {
+            case Key.PageUp: terminal.ScrollLines(-_rows); return true;
+            case Key.PageDown: terminal.ScrollLines(_rows); return true;
+            case Key.Home when control: terminal.ScrollToTop(); return true;
+            case Key.End when control: terminal.ScrollToBottom(); return true;
+            default: return false;
+        }
+    }
+
+    /// <summary>
+    /// Где стоит бегунок полосы; <c>null</c> — истории нет, и полосы тоже.
+    /// </summary>
+    /// <remarks>
+    /// Одно место на рисунок и на попадание. Разойдясь, они дали бы полосу, которая берётся не
+    /// там, где нарисована, — и починить такое можно только вернув их в одно место.
+    /// <para>
+    /// Мерится по <c>YBase</c> — самой нижней строке, на которую можно встать, — а не по длине
+    /// списка строк: список кольцевой, и длина у него бывает больше, чем есть куда вставать.
+    /// Прежде на этой разнице бегунок не доходил до низа дорожки: на живом сеансе <c>cmd</c> при
+    /// двухстах строках истории он кончался на одиннадцать точек выше её дна, и низ бегунка оказывался
+    /// дорожкой — нажатие туда листало страницу вниз вместо того, чтобы взять бегунок.
+    /// </para>
+    /// </remarks>
+    private Bar? Thumb()
+    {
+        if (_session is null)
+            return null;
+
+        var buffer = _session.Terminal.Buffer;
+        var max = buffer.YBase;
+
+        if (max <= 0)
+            return null;
 
         var track = Bounds.Height - (2 * Inset);
-        var thumb = Math.Max(20, track * _rows / total);
-        var travel = track - thumb;
-        var top = Inset + (travel * buffer.YDisp / Math.Max(1, total - _rows));
-        var left = Bounds.Width - ScrollBarWidth + 2;
+        var height = Math.Max(MinThumb, track * _rows / (max + _rows));
+        var travel = Math.Max(0, track - height);
 
-        context.FillRectangle(Brush(Rgb(_thumb), 0.7), new Rect(left, top, ScrollBarWidth - 4, thumb), 2);
+        return new Bar(Inset + (travel * buffer.YDisp / max), height, travel, max);
     }
+
+    /// <summary>
+    /// Рисует бегунок полосы прокрутки.
+    /// </summary>
+    /// <remarks>
+    /// Дорожка, ширина бегунка и его цвет берутся у темы: полоса терминала — та же полоса, что у
+    /// списков студии, и выглядеть иначе ей незачем. Дорожка при этом одной ширины всегда, а
+    /// толстеет в ней бегунок — содержимое от наведения не дёргается.
+    /// <para>
+    /// Прозрачность берётся из самого цвета: у темы полоса — полупрозрачная накладка поверх
+    /// содержимого, и альфа записана в ключе. Прежде она была числом здесь, и в светлой теме
+    /// чёрный бегунок выходил втрое плотнее, чем везде в студии.
+    /// </para>
+    /// </remarks>
+    private void RenderScrollBar(DrawingContext context)
+    {
+        if (Thumb() is not { } bar)
+            return;
+
+        var over = _overBar || _dragging;
+        var width = over ? _thumbWidthOver : _thumbWidth;
+        var color = over ? _thumbOver : _thumb;
+        var left = Bounds.Width - ((_lane + width) / 2);
+
+        context.FillRectangle(Brush(Rgb(color), color.A / 255d), new Rect(left, bar.Top, width, bar.Height), (float)(width / 2));
+    }
+
+    /// <summary>Указатель на дорожке полосы — там, где текста нет вовсе.</summary>
+    /// <param name="position">Точка в координатах вида.</param>
+    private bool OverBar(Point position) => position.X >= Bounds.Width - _lane;
+
+    /// <summary>
+    /// Полосу взяли мышью.
+    /// </summary>
+    /// <param name="y">Где нажали.</param>
+    /// <param name="pointer">Указатель, которому отдаётся захват на время протяжки.</param>
+    /// <remarks>
+    /// По бегунку — протяжка, по дорожке — страница вверх или вниз: так ведут себя полосы Windows,
+    /// Rider и VS Code. Захват указателя обязателен: рука с бегунком уходит за край окна чаще, чем
+    /// остаётся в нём, и без захвата протяжка обрывалась бы на границе.
+    /// </remarks>
+    private void GrabBar(double y, IPointer pointer)
+    {
+        if (_session is null || Thumb() is not { } bar)
+            return;
+
+        if (y >= bar.Top && y < bar.Top + bar.Height)
+        {
+            _dragging = true;
+            _grab = y - bar.Top;
+
+            pointer.Capture(this);
+        }
+        else
+        {
+            _session.Terminal.ScrollLines(y < bar.Top ? -_rows : _rows);
+        }
+
+        ShowBar(true);
+        InvalidateVisual();
+    }
+
+    /// <summary>
+    /// Бегунок тянут.
+    /// </summary>
+    /// <param name="y">Где указатель.</param>
+    /// <remarks>
+    /// Считается обратным ходом того же расчёта, которым бегунок нарисован, и от точки захвата, а
+    /// не от верха бегунка: взятый за середину, он и тянется за середину — иначе на первом же
+    /// движении прыгнул бы под курсор.
+    /// </remarks>
+    private void DragBar(double y)
+    {
+        if (_session is null || Thumb() is not { } bar)
+            return;
+
+        var line = (int)Math.Round((y - _grab - Inset) * bar.Max / Math.Max(1, bar.Travel));
+        var delta = Math.Clamp(line, 0, bar.Max) - _session.Terminal.Buffer.YDisp;
+
+        if (delta != 0)
+            _session.Terminal.ScrollLines(delta);
+    }
+
+    /// <summary>Показывает, что полоса под рукой: бегунок толще, курсор — стрелка, а не каретка.</summary>
+    /// <param name="over">Указатель на дорожке.</param>
+    private void ShowBar(bool over)
+    {
+        if (over == _overBar)
+            return;
+
+        _overBar = over;
+        Cursor = over ? BarCursor : TextCursor;
+
+        InvalidateVisual();
+    }
+
+    /// <summary>Бегунок полосы: где стоит, какой длины и сколько ему ходу.</summary>
+    /// <param name="Top">Верх бегунка в координатах вида.</param>
+    /// <param name="Height">Длина бегунка.</param>
+    /// <param name="Travel">Сколько бегунку ходу от верха дорожки до низа.</param>
+    /// <param name="Max">Самая нижняя строка истории, на которую можно встать.</param>
+    private readonly record struct Bar(double Top, double Height, double Travel, int Max);
 
     /// <summary>Ячейка под точкой; за краями — ближайшая.</summary>
     private (int X, int Y) Cell(Point point)
@@ -846,11 +1080,30 @@ public sealed class TerminalView : Control
         _foreground = ThemeColor("AxTextPrimaryColor", _foreground);
         _selection = ThemeColor("AxSelectionActiveColor", _selection);
         _thumb = ThemeColor("AxScrollThumbColor", _thumb);
+        _thumbOver = ThemeColor("AxScrollThumbHoverColor", _thumbOver);
+        _lane = ThemeSize("AxScrollBarLane", _lane);
+        _thumbWidth = ThemeSize("AxScrollThumbSize", _thumbWidth);
+        _thumbWidthOver = ThemeSize("AxScrollThumbSizeHover", _thumbWidthOver);
         _brushes.Clear();
     }
 
     private Color ThemeColor(string key, Color fallback) =>
         this.TryFindResource(key, ActualThemeVariant, out var value) && value is Color color ? color : fallback;
+
+    /// <summary>
+    /// Размер из темы; нет ключа — остаётся встроенный.
+    /// </summary>
+    /// <param name="key">Ключ темы.</param>
+    /// <param name="fallback">Что взять, если ключа нет.</param>
+    /// <remarks>
+    /// Отбивка бегунка от края дорожки не спрашивается: у темы она ровно такова, что бегунок стоит
+    /// посередине дорожки — 3 при шести в двенадцати, 2 при восьми, — и посчитать её вернее, чем
+    /// хранить два ключа, которые обязаны сойтись с третьим.
+    /// </remarks>
+    private double ThemeSize(string key, double fallback) =>
+        this.TryFindResource(key, ActualThemeVariant, out var value) && value is double size && size > 0
+            ? size
+            : fallback;
 
     /// <summary>Отдаёт эмулятору цвета студии: так и рисуется, и на вопрос «какой у тебя фон» отвечается одно.</summary>
     private void ApplyTheme() =>
