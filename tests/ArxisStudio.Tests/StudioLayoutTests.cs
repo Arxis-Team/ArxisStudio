@@ -103,6 +103,43 @@ public class StudioLayoutTests
     }
 
     /// <summary>
+    /// Одна и та же сборка не лежит в двух папках модулей.
+    /// </summary>
+    /// <remarks>
+    /// То же правило, что и <c>AXL1002</c> при сборке, но спрошенное у готового выхода: модули живут
+    /// в одном основном контексте загрузки, где имя грузится ровно один раз, и две копии дали бы
+    /// одну работающую, а какая — решил бы порядок обхода папок. Это тот довод, которым запись 126
+    /// оставляла модулям одну общую папку, и здесь он проверяется на артефакте, а не на правиле,
+    /// которое его соблюдает.
+    /// </remarks>
+    [Fact]
+    public void No_assembly_lies_in_two_module_folders()
+    {
+        var owners = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var folder in ModuleFolders())
+        {
+            foreach (var path in Directory.EnumerateFiles(Path.Combine(folder, "bin"), "*.dll", SearchOption.AllDirectories))
+            {
+                var name = Path.GetRelativePath(Path.Combine(folder, "bin"), path);
+
+                if (!owners.TryGetValue(name, out var found))
+                    owners[name] = found = [];
+
+                found.Add(Path.GetFileName(folder));
+            }
+        }
+
+        var shared = owners
+            .Where(pair => pair.Value.Count > 1)
+            .Select(pair => $"{pair.Key}: {string.Join(", ", pair.Value)}")
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(shared.Count == 0, $"сборка лежит в нескольких модулях сразу: {string.Join("; ", shared)}");
+    }
+
+    /// <summary>
     /// Ни одна сборка не лежит в двух местах сразу.
     /// </summary>
     /// <remarks>
