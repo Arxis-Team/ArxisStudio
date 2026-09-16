@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using ArxisStudio.Controls;
 using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
@@ -550,7 +550,7 @@ public class StudioPluginsTests : IDisposable
     }
 
     /// <summary>Модуль, который падает ровно там, где студия зовёт чужой код.</summary>
-    private static Assembly Falling() => TestAssembly.Emit(
+    private static Assembly Falling() => TestAssembly.EmitModule(
         "Probe.Falling",
         """
             using ArxisStudio.Sdk;
@@ -656,7 +656,7 @@ public class StudioPluginsTests : IDisposable
     [AvaloniaFact]
     public void The_studio_takes_the_projects_service_from_the_exports()
     {
-        var plugins = Start(modules: TestAssembly.Emit("Probe.Projects", ProjectsSource, ProjectsManifest));
+        var plugins = Start(modules: TestAssembly.EmitModule("Probe.Projects", ProjectsSource, ProjectsManifest));
 
         Assert.Equal(ProbeSolution.Value, plugins.Project.Path);
         Assert.NotNull(plugins.Projects);

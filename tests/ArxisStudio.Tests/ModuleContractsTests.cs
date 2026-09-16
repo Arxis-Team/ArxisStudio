@@ -50,7 +50,7 @@ public class ModuleContractsTests : IDisposable
     {
         using var host = new PluginHost(new StudioContextFactory(new StudioLog(), new StudioCommands(), null));
 
-        var loaded = host.LoadBuiltIn(TestAssembly.Emit("Arxis.ContractModule", ModuleSource, """
+        var loaded = host.LoadBuiltIn(TestAssembly.EmitModule("Arxis.ContractModule", ModuleSource, """
             {
               "id": "arxis.contractmodule",
               "name": "Контракт модуля",
@@ -102,38 +102,41 @@ public class ModuleContractsTests : IDisposable
     }
 
     /// <summary>
-    /// Контракт модуля ищется рядом с модулем, где бы тот ни лежал.
+    /// Папка модуля — та, что над его <c>bin</c>, и контракт объявлен от неё.
     /// </summary>
     /// <remarks>
-    /// Папкой встроенного модуля считался корень студии, и контракт искался там же.
-    /// Студия теперь кладёт модули в свою папку modules — вместе с их контрактами, — а
-    /// тесты держат их рядом с собой; где модуль на самом деле, знает только его сборка.
+    /// Папка у модуля устроена как у установленного плагина: манифест в корне, сборки в <c>bin</c>.
+    /// Значит и путь к контракту объявляется от корня папки, а не от места сборки, — и обе доставки
+    /// пишут в манифесте одно и то же. Где модуль на самом деле, знает только его сборка.
     /// </remarks>
     [Fact]
-    public void A_module_contract_is_looked_up_beside_the_module_wherever_it_lies()
+    public void A_module_folder_is_the_one_above_its_bin_and_the_contract_is_declared_from_it()
     {
-        var folder = Directory.CreateDirectory(Path.Combine(_root, "modules")).FullName;
+        var folder = Directory.CreateDirectory(Path.Combine(_root, "modules", "probe.beside")).FullName;
+        var bin = Directory.CreateDirectory(Path.Combine(folder, "bin")).FullName;
         var contract = $"Probe.BesideContracts{Guid.NewGuid():N}";
         var module = $"Probe.BesideModule{Guid.NewGuid():N}";
 
-        TestAssembly.EmitFile(Path.Combine(folder, contract + ".dll"), contract, "namespace Probe; public interface IBesideContract { }");
-        TestAssembly.EmitFile(Path.Combine(folder, module + ".dll"), module, ModuleSource, $$"""
+        TestAssembly.EmitFile(Path.Combine(bin, contract + ".dll"), contract, "namespace Probe; public interface IBesideContract { }");
+        TestAssembly.EmitFile(Path.Combine(bin, module + ".dll"), module, ModuleSource);
+
+        File.WriteAllText(Path.Combine(folder, "module.json"), $$"""
             {
               "id": "probe.beside",
               "name": "probe.beside",
               "version": "1.0.0",
-              "provides": { "contracts": [ "{{contract}}.dll" ] }
+              "provides": { "contracts": [ "bin/{{contract}}.dll" ] }
             }
             """);
 
         using var host = new PluginHost(new StudioContextFactory(new StudioLog(), new StudioCommands(), null));
 
-        var loaded = host.LoadBuiltIn(Assembly.LoadFrom(Path.Combine(folder, module + ".dll")));
+        var loaded = host.LoadBuiltIn(Assembly.LoadFrom(Path.Combine(bin, module + ".dll")));
 
         Assert.True(loaded.IsLoaded, loaded.Error);
         Assert.Equal(folder, loaded.Installed.Directory, ignoreCase: true);
         Assert.Equal(
-            Path.Combine(folder, contract + ".dll"),
+            Path.Combine(bin, contract + ".dll"),
             PluginContracts.Find(new AssemblyName(contract))?.Location,
             ignoreCase: true);
     }
@@ -202,7 +205,7 @@ public class ModuleContractsTests : IDisposable
 
         roster.Attach(host, () => []);
 
-        var loaded = host.LoadBuiltIn(TestAssembly.Emit("Arxis.VersionedModule", PublishingSource, """
+        var loaded = host.LoadBuiltIn(TestAssembly.EmitModule("Arxis.VersionedModule", PublishingSource, """
             {
               "id": "arxis.versioned",
               "name": "Версия модуля",

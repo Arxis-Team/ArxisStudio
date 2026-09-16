@@ -128,7 +128,7 @@
   "module.verbose.on": "Sample: verbose log on",
   "module.verbose.off": "Sample: verbose log off",
   "module.sample.heading": "A built-in module sample",
-  "module.sample.manifest": "Manifest: the module.json resource inside the assembly",
+  "module.sample.manifest": "Manifest: module.json in the module folder",
   "module.sample.loadcontext": "Load context: the main one, never unloaded",
   "module.sample.project.label": "Project:",
   "module.sample.project.none": "none open",

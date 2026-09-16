@@ -252,7 +252,7 @@ public class DeclaredIconsTests : IDisposable
 
         _plugins = new StudioPlugins(_log, _guard, new StudioTaskRegistry(), _contributions)
         {
-            Assemblies = [TestAssembly.Emit("Probe.Glyphs", Source, Manifest)],
+            Assemblies = [TestAssembly.EmitModule("Probe.Glyphs", Source, Manifest)],
             Commands = new StudioCommands(),
             Dock = dock,
             ToolBar = new StudioToolBar(new ToolBarStrip(), new ToolBarStrip(), new ToolBarStrip()),

@@ -113,7 +113,7 @@ public class ManifestShortcutsTests : IDisposable
 
         _plugins = new StudioPlugins(_log, _guard, new StudioTaskRegistry(), _contributions)
         {
-            Assemblies = [TestAssembly.Emit("Probe.Keys", Source, Manifest(gesture))],
+            Assemblies = [TestAssembly.EmitModule("Probe.Keys", Source, Manifest(gesture))],
             Commands = new StudioCommands(),
             Dock = dock,
             ToolBar = new StudioToolBar(new ToolBarStrip(), new ToolBarStrip(), new ToolBarStrip()),

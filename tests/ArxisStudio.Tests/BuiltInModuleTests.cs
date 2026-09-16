@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Modules.Sample;
@@ -68,9 +68,9 @@ public class BuiltInModuleTests
         Assert.Equal("arxis.probe", loaded.Installed.Id);
     }
 
-    /// <summary>Манифест модуля читается из его сборки.</summary>
+    /// <summary>Манифест модуля читается из его папки.</summary>
     [Fact]
-    public void The_manifest_of_a_built_in_module_is_read_from_the_assembly()
+    public void The_manifest_of_a_built_in_module_is_read_from_its_folder()
     {
         var (manifest, error) = ModuleManifest.Load(Module());
 
@@ -84,9 +84,10 @@ public class BuiltInModuleTests
     /// Сборка без манифеста объясняет, почему не поднялась.
     /// </summary>
     /// <remarks>
-    /// Забыть встроить <c>module.json</c> — самая обычная ошибка при заведении
-    /// модуля, и молчание в ответ означало бы панель, которой нет, без единого
-    /// слова о причине.
+    /// Забыть положить <c>module.json</c> рядом — самая обычная ошибка при заведении модуля, и
+    /// молчание в ответ означало бы панель, которой нет, без единого слова о причине. Дорога в
+    /// сообщении обязательна: «нет манифеста» без ответа на «где искали» отправляет читателя
+    /// гадать, а заодно озеленило бы этот тест, окажись чужой <c>module.json</c> в корне выхода.
     /// </remarks>
     [Fact]
     public void An_assembly_without_a_manifest_says_why()
@@ -96,6 +97,7 @@ public class BuiltInModuleTests
         Assert.Null(manifest);
         Assert.NotNull(error);
         Assert.Contains("module.json", error);
+        Assert.Contains(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar), error);
     }
 
     /// <summary>
@@ -389,6 +391,10 @@ public class BuiltInModuleTests
 
             Assert.Contains("<AdditionalFiles Include=\"module.json\"", text, StringComparison.Ordinal);
 
+            // Манифест — файл в папке модуля, и второй его формы быть не должно: ресурс в сборке
+            // разошёлся бы с файлом молча, а поймать это расхождение нечем.
+            Assert.DoesNotContain("<EmbeddedResource Include=\"module.json\"", text, StringComparison.Ordinal);
+
             Assert.True(
                 text.Contains("Localization/Strings/en.json", StringComparison.Ordinal),
                 $"{name}: словарь студии не подан сборке — сверять ключи манифеста не с чем");
@@ -411,7 +417,7 @@ public class BuiltInModuleTests
 
     /// <summary>Сборка модуля со встроенным манифестом.</summary>
     /// <summary>Модуль, который падает ровно там, где студия зовёт чужой код.</summary>
-    private static Assembly Falling() => TestAssembly.Emit(
+    private static Assembly Falling() => TestAssembly.EmitModule(
         "Arxis.FallingModule",
         """
             using ArxisStudio.Sdk;
@@ -426,7 +432,7 @@ public class BuiltInModuleTests
             """,
         Manifest);
 
-    private static Assembly Module() => TestAssembly.Emit(
+    private static Assembly Module() => TestAssembly.EmitModule(
         "Arxis.ProbeModule",
         """
             using ArxisStudio.Sdk;

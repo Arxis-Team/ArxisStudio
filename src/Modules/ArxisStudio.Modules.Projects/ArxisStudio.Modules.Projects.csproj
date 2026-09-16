@@ -59,11 +59,6 @@
                           ReferenceOutputAssembly="false"/>
     </ItemGroup>
 
-    <!-- Манифест едет внутри сборки — как у всякого встроенного модуля. -->
-    <ItemGroup>
-        <EmbeddedResource Include="module.json"/>
-    </ItemGroup>
-
     <ItemGroup>
         <AdditionalFiles Include="module.json"/>
         <AdditionalFiles Include="../../ArxisStudio.Shell/Localization/Strings/en.json" AxStrings="default"/>

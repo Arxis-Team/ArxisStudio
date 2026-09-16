@@ -64,7 +64,12 @@ public class ProjectsContractTests
         var provides = manifest?.Provides;
 
         Assert.NotNull(provides);
-        Assert.Equal(Path.GetFileName(typeof(IStudioProjects).Assembly.Location), Assert.Single(provides.Contracts));
+
+        // Путь от корня папки модуля, а не от места сборки: у модуля она в bin, как у плагина, и
+        // манифест у обеих доставок говорит об этом одинаково.
+        Assert.Equal(
+            "bin/" + Path.GetFileName(typeof(IStudioProjects).Assembly.Location),
+            Assert.Single(provides.Contracts));
     }
 
     /// <summary>Корень репозитория: тесты бегут из bin, файлы лежат выше.</summary>

@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Sdk.Plugins;
@@ -301,7 +301,7 @@ public class SdkContractTests
 
         using var host = new PluginHost(new StudioContextFactory(new StudioLog(), commands, null));
 
-        var loaded = host.LoadBuiltIn(TestAssembly.Emit("Arxis.Commands", Source, CommandsManifest));
+        var loaded = host.LoadBuiltIn(TestAssembly.EmitModule("Arxis.Commands", Source, CommandsManifest));
 
         Assert.True(loaded.IsLoaded, loaded.Error);
 

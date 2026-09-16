@@ -5,7 +5,7 @@
   "publisher": "Arxis",
   "description": "%module.projects.description%",
   "tags": [ "tools" ],
-  "provides": { "contracts": [ "ArxisStudio.Projects.Contracts.dll" ] },
+  "provides": { "contracts": [ "bin/ArxisStudio.Projects.Contracts.dll" ] },
   "contributions": {
     "commands": [
       { "id": "projects.reload", "icon": "arxis:Refresh" },

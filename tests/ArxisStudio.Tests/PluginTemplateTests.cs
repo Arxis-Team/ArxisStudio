@@ -64,7 +64,7 @@ public class PluginTemplateTests : IDisposable
 
         using var host = new PluginHost(new StudioContextFactory(new StudioLog(), commands, null));
 
-        var assembly = TestAssembly.Emit("Probe.Figma", [.. made.Sources, Populate("Probe.Figma")], made.Manifest);
+        var assembly = TestAssembly.EmitModule("Probe.Figma", [.. made.Sources, Populate("Probe.Figma")], made.Manifest);
         var loaded = host.LoadBuiltIn(assembly);
 
         Assert.True(loaded.IsLoaded, loaded.Error);

@@ -32,6 +32,15 @@ public class StudioModulesTests
         var ids = described.Select(module => module.Id).ToList();
 
         Assert.Equal(ids.Count, ids.Distinct(StringComparer.Ordinal).Count());
+
+        // Папка модуля названа его идентификатором, и манифест лежит в ней — так же, как у
+        // установленного плагина. Разойдись имя папки с идентификатором, менеджер поставил бы
+        // рядом вторую копию того же расширения.
+        Assert.All(described, module => Assert.Equal(module.Id, Path.GetFileName(module.Directory)));
+        Assert.All(described, module => Assert.True(
+            File.Exists(Path.Combine(module.Directory, "module.json")),
+            $"{module.Id}: манифеста нет в {module.Directory}"));
+
         Assert.Contains("arxis.sample", ids);
         Assert.Contains("arxis.terminal", ids);
         Assert.Contains("arxis.console", ids);

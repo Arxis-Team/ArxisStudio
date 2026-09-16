@@ -12,7 +12,7 @@ namespace ArxisStudio.Extensibility;
 /// <param name="Error">Сообщение об ошибке разбора или null.</param>
 /// <param name="IsEnabled">Включён ли плагин в настройках студии.</param>
 /// <param name="IsBuiltIn">
-/// Модуль, приехавший со студией: своей папки у него нет, и словарём ему служат
+/// Модуль, приехавший со студией: папка у него своя, но словарём ему служат
 /// словари самой студии.
 /// </param>
 public sealed record InstalledPlugin(
