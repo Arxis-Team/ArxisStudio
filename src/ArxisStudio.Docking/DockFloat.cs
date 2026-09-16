@@ -225,8 +225,8 @@ public class DockFloat : AxWindow
     /// </remarks>
     private Control Buttons()
     {
-        _dock = Button(AxIcons.WindowRestore, Close);
-        _hide = Button(AxIcons.Minus, () => Hiding?.Invoke(this, EventArgs.Empty));
+        _dock = Button(AxIcons.WindowRestore, View.DockTitle, Close);
+        _hide = Button(AxIcons.Minus, View.HideTitle, () => Hiding?.Invoke(this, EventArgs.Empty));
 
         Describe();
 
@@ -242,14 +242,28 @@ public class DockFloat : AxWindow
         return buttons;
     }
 
-    /// <summary>Одна кнопка шапки: значок и то, что она делает.</summary>
-    private static AxButton Button(Geometry icon, Action act)
+    /// <summary>
+    /// Одна кнопка шапки: значок, подпись и то, что она делает.
+    /// </summary>
+    /// <param name="icon">Значок из набора студии.</param>
+    /// <param name="title">Чем кнопка называет себя: подсказкой и именем для средств доступности.</param>
+    /// <param name="act">Что она делает.</param>
+    /// <remarks>
+    /// Подпись ставится здесь же, а не только в <see cref="Describe"/>: кнопка со значком без
+    /// имени нема для экранного диктора, и правило это не терпит ни у плагина, ни у студии —
+    /// <c>ARX0013</c>. Обновлять подпись <see cref="Describe"/> продолжает: заголовки панели
+    /// меняются вместе с тем, что в ней показано.
+    /// </remarks>
+    private static AxButton Button(Geometry icon, string? title, Action act)
     {
         var button = new AxButton
         {
             Appearance = AxButtonAppearance.Toolbar,
             Content = new AxIcon { Size = AxIconSize.Small, Data = icon },
         };
+
+        ToolTip.SetTip(button, title);
+        AutomationProperties.SetName(button, title ?? string.Empty);
 
         button.Click += (_, _) => act();
 
