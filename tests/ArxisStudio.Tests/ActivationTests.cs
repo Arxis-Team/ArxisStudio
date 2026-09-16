@@ -186,7 +186,7 @@ public class ActivationTests
         return new InstalledPlugin(Path.Combine(Path.GetTempPath(), id), manifest, null, IsEnabled: true);
     }
 
-    /// <summary>Запись о встроенном модуле: своей папки у него нет.</summary>
+    /// <summary>Запись о встроенном модуле: словарём ему служат словари студии.</summary>
     private static InstalledPlugin BuiltIn(string id, params (string Path, string Command)[] menus) =>
         Installed(id, menus) with { IsBuiltIn = true };
 }

@@ -27,7 +27,7 @@ public static class StudioModules
     /// Записи о модулях — как о плагинах, только встроенных.
     /// </summary>
     /// <remarks>
-    /// Читаются манифесты из сборок, сами модули не поднимаются: менеджеру
+    /// Читаются манифесты из папок модулей, сами модули не поднимаются: менеджеру
     /// нужны цели зависимостей, а не работающий код.
     /// </remarks>
     public static IReadOnlyList<InstalledPlugin> Describe() => Describe(Assemblies);
