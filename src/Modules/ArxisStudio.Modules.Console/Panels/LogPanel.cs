@@ -2,11 +2,13 @@ using ArxisStudio.Controls;
 using ArxisStudio.Modules.Console.Feed;
 using ArxisStudio.Modules.Console.Log;
 using ArxisStudio.Sdk;
+using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives.PopupPositioning;
+using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
-using Avalonia.Media;
+using Avalonia.VisualTree;
 
 namespace ArxisStudio.Modules.Console.Panels;
 
@@ -14,23 +16,39 @@ namespace ArxisStudio.Modules.Console.Panels;
 /// Панель журнала: что студия и расширения сказали за этот сеанс.
 /// </summary>
 /// <remarks>
-/// До этой панели журнал был виден только в стандартном выводе, то есть только
-/// тому, кто запустил студию из терминала. О сбое расширения, об отключении его
-/// за три падения и о неудавшемся этапе запуска обычный человек не узнавал
-/// никак.
+/// До этой панели журнал был виден только в стандартном выводе, то есть только тому, кто запустил
+/// студию из терминала. О сбое расширения, об отключении его за три падения и о неудавшемся этапе
+/// запуска обычный человек не узнавал никак.
 /// <para>
-/// <b>Панель никогда не пишет в журнал.</b> Студия пишет «панель встала в
-/// раскладку» ровно в тот миг, когда панель подписывается на журнал, и панель,
-/// пишущая из своего же обработчика, кормила бы себя. Склейка перестроений это
-/// пережила бы, но разбираться в такой петле не должен никто.
+/// Здесь — жизненный цикл и связывание: подписки, состояние отбора и передача работы тем, кто её
+/// делает. Счётчики уровней показывает <see cref="LogToolbar"/>, меню источников —
+/// <see cref="LogSourceMenu"/>, меню строки — <see cref="LogRowMenu"/>, вид записи текстом —
+/// <see cref="LogText"/>.
+/// </para>
+/// <para>
+/// <b>Панель никогда не пишет в журнал.</b> Студия пишет «панель встала в раскладку» ровно в тот
+/// миг, когда панель подписывается на журнал, и панель, пишущая из своего же обработчика, кормила
+/// бы себя. Склейка перестроений это пережила бы, но разбираться в такой петле не должен никто.
 /// </para>
 /// </remarks>
 [ToolWindow(ConsoleModule.LogPanelId)]
 public sealed class LogPanel : ToolWindow
 {
+    /// <summary>
+    /// Насколько близко к низу список считается «у хвоста», в точках раскладки.
+    /// </summary>
+    /// <remarks>
+    /// Не ноль: доля пикселя набегает от округления строки и масштаба экрана, и требовать точного
+    /// совпадения значило бы не поймать возврат к хвосту на дробном масштабе.
+    /// </remarks>
+    private const double TailTolerance = 1;
+
     private readonly Rows<LogRow> _rows = [];
 
     private LogPanelView _view = null!;
+    private ScrollViewer? _scroll;
+    private LogToolbar _toolbar = null!;
+    private LogRowMenu _menu = null!;
     private Refresh _refresh = null!;
     private IStudioLogFeed? _feed;
 
@@ -53,6 +71,8 @@ public sealed class LogPanel : ToolWindow
     protected override Control Build()
     {
         _view = new LogPanelView();
+        _toolbar = new LogToolbar(_view);
+        _menu = new LogRowMenu(Context.Strings, CopyRows, CopyMessage, OnlySource, Clear);
         _refresh = new Refresh(Rebuild);
         _feed = Context.GetService<IStudioLogFeed>();
 
@@ -72,6 +92,14 @@ public sealed class LogPanel : ToolWindow
         _view.Clear.Click += OnClearClick;
         _view.Query.PropertyChanged += OnQueryChanged;
 
+        // Клавиши ловятся там, где они всплывают: Ctrl+C из подробностей не должен достаться
+        // списку, и потому обработчик стоит на корне панели, а не туннелем.
+        _view.Records.AddHandler(InputElement.ContextRequestedEvent, OnMenuAsked);
+        _view.AddHandler(InputElement.KeyDownEvent, OnKeyDown);
+
+        // Область прокрутки появляется вместе с шаблоном списка, и берётся она по имени части.
+        _view.Records.TemplateApplied += OnRecordsTemplate;
+
         // Обработчики именованные: лямбду не отписать, а отписаться придётся —
         // студия зовёт Release прежде, чем отпустит панель.
         if (_feed is not null)
@@ -81,9 +109,9 @@ public sealed class LogPanel : ToolWindow
 
         _view.ActualThemeVariantChanged += OnThemeChanged;
 
-        ReadTheme();
+        _toolbar.ReadTheme();
         Apply(ConsoleSettings.Read(Context.Settings));
-        ShowLevels();
+        _toolbar.ShowLevels(_filter);
 
         _view.Collapse.IsChecked = _collapse;
         _view.Details.IsChecked = false;
@@ -110,6 +138,15 @@ public sealed class LogPanel : ToolWindow
         _view.Records.SelectionChanged -= OnSelected;
         _view.Query.PropertyChanged -= OnQueryChanged;
 
+        _view.Records.RemoveHandler(InputElement.ContextRequestedEvent, OnMenuAsked);
+        _view.RemoveHandler(InputElement.KeyDownEvent, OnKeyDown);
+        _view.Records.TemplateApplied -= OnRecordsTemplate;
+
+        if (_scroll is not null)
+            _scroll.PropertyChanged -= OnScrollMoved;
+
+        _scroll = null;
+
         _refresh.Stop();
         ConsoleHub.Detach();
     }
@@ -125,9 +162,8 @@ public sealed class LogPanel : ToolWindow
     /// Журнал изменился.
     /// </summary>
     /// <remarks>
-    /// Здесь не делается ничего, кроме просьбы перестроить: событие приходит на
-    /// каждую запись и на потоке того, кто писал, — а писать могут пачкой и из
-    /// фоновой задачи.
+    /// Здесь не делается ничего, кроме просьбы перестроить: событие приходит на каждую запись и на
+    /// потоке того, кто писал, — а писать могут пачкой и из фоновой задачи.
     /// </remarks>
     private void OnFeedChanged(object? sender, EventArgs e) => _refresh.Ask();
 
@@ -135,16 +171,14 @@ public sealed class LogPanel : ToolWindow
     /// Настройку поменяли — снаружи или нашей же кнопкой.
     /// </summary>
     /// <remarks>
-    /// Перестраивает только то, что меняет сами строки, — показ времени.
-    /// Следование за хвостом решает, прокручивать ли список, и строк не
-    /// трогает; перестроение ради него было бы не просто лишней работой, а
-    /// потерей: список пересобирается новыми строками, и выделение вместе с
+    /// Перестраивает только то, что меняет сами строки, — показ времени. Следование за хвостом
+    /// решает, прокручивать ли список, и строк не трогает; перестроение ради него было бы не просто
+    /// лишней работой, а потерей: список пересобирается новыми строками, и выделение вместе с
     /// открытыми подробностями пропадает у человека под руками.
     /// <para>
-    /// Сравнение здесь обязательно, а не бережливость: настройки пишутся
-    /// парой, поэтому щелчок по прокрутке будит и ключ времени — с прежним
-    /// значением. Спрашивать надо не «какой ключ пришёл», а «изменилось ли
-    /// то, из чего собраны строки».
+    /// Сравнение здесь обязательно, а не бережливость: настройки пишутся парой, поэтому щелчок по
+    /// прокрутке будит и ключ времени — с прежним значением. Спрашивать надо не «какой ключ
+    /// пришёл», а «изменилось ли то, из чего собраны строки».
     /// </para>
     /// </remarks>
     private void OnSettingsChanged(object? sender, string key)
@@ -175,16 +209,17 @@ public sealed class LogPanel : ToolWindow
     private void Rebuild()
     {
         var records = _feed?.Records ?? [];
+        var repeats = Context.Strings["console.repeats"];
 
         if (Grew(records))
         {
             _counts = LogRows.Add(
                 _counts,
-                LogRows.Append(_rows, records, _seen, _filter, _collapse, _stamps));
+                LogRows.Append(_rows, records, _seen, _filter, _collapse, _stamps, repeats));
         }
         else
         {
-            var built = LogRows.Build(records, _filter, _collapse, _stamps);
+            var built = LogRows.Build(records, _filter, _collapse, _stamps, repeats);
 
             _rows.Reset(built.Rows);
             _counts = built.Counts;
@@ -193,7 +228,7 @@ public sealed class LogPanel : ToolWindow
         _seen = records.Count;
         _head = records.Count > 0 ? records[0] : null;
 
-        ShowCounts();
+        _toolbar.ShowCounts(_counts);
         ShowEmpty(records.Count);
 
         if (_autoscroll)
@@ -204,9 +239,9 @@ public sealed class LogPanel : ToolWindow
     /// Журнал только дописали — старое на месте.
     /// </summary>
     /// <remarks>
-    /// Сравнивается ссылка на первую запись: журнал вытесняет старое с начала,
-    /// и стоило ему это сделать, как прежние строки перестают отвечать
-    /// содержимому. Записи неизменяемы, поэтому ссылки достаточно.
+    /// Сравнивается ссылка на первую запись: журнал вытесняет старое с начала, и стоило ему это
+    /// сделать, как прежние строки перестают отвечать содержимому. Записи неизменяемы, поэтому
+    /// ссылки достаточно.
     /// </remarks>
     private bool Grew(IReadOnlyList<StudioLogRecord> records) =>
         _head is not null &&
@@ -221,13 +256,20 @@ public sealed class LogPanel : ToolWindow
         _seen = 0;
     }
 
+    /// <summary>Отбор изменился: строки надо собрать заново.</summary>
+    private void Refilter()
+    {
+        Forget();
+        _refresh.Ask();
+    }
+
     /// <summary>
     /// Включает или выключает уровень, на кнопку которого нажали.
     /// </summary>
     /// <remarks>
-    /// Включённость уровня хранит фильтр, а кнопка её только показывает. Переключатель
+    /// Включённость уровня хранит отбор, а кнопка её только показывает. Переключатель
     /// переворачивает себя сам на нажатии, и переворот отсюда вернул бы его назад, — поэтому
-    /// переворачивается фильтр, а кнопке состояние ставит <see cref="ShowLevels"/>.
+    /// переворачивается отбор, а кнопке состояние ставит <see cref="LogToolbar.ShowLevels"/>.
     /// </remarks>
     private void OnLevelClick(object? sender, RoutedEventArgs e)
     {
@@ -242,9 +284,8 @@ public sealed class LogPanel : ToolWindow
         else
             return;
 
-        ShowLevels();
-        Forget();
-        _refresh.Ask();
+        _toolbar.ShowLevels(_filter);
+        Refilter();
     }
 
     private void OnCollapseClick(object? sender, RoutedEventArgs e)
@@ -252,17 +293,16 @@ public sealed class LogPanel : ToolWindow
         _collapse = !_collapse;
         _view.Collapse.IsChecked = _collapse;
 
-        Forget();
-        _refresh.Ask();
+        Refilter();
     }
 
     /// <summary>
-    /// Следовать за хвостом или нет.
+    /// Прокручивать ли к последней записи.
     /// </summary>
     /// <remarks>
-    /// Решает только этот переключатель: прокрутка вверх его не выключает.
-    /// Так поведение остаётся предсказуемым — человек, отказавшийся следовать
-    /// за хвостом, не обнаружит, что студия передумала за него.
+    /// Нажатие — выбор человека, и он же уходит в настройки: следование за хвостом переживает
+    /// перезапуск. Прокрутка колесом тоже отпускает хвост (<see cref="OnScrollMoved"/>), но в
+    /// настройки не пишется — иначе файл переписывался бы на каждое движение колеса.
     /// </remarks>
     private void OnAutoscrollClick(object? sender, RoutedEventArgs e)
     {
@@ -276,15 +316,60 @@ public sealed class LogPanel : ToolWindow
     }
 
     /// <summary>
+    /// Шаблон списка развернулся: у него появилась область прокрутки.
+    /// </summary>
+    /// <remarks>
+    /// Берётся она по имени части — так же, как это делает всякий контрол со своим шаблоном.
+    /// Маршрутизируемое событие <c>ScrollChanged</c> сюда не годится: до списка оно не доходит, и
+    /// панель узнавала бы о прокрутке только на живом окне — проверено безголовым прогоном.
+    /// </remarks>
+    private void OnRecordsTemplate(object? sender, TemplateAppliedEventArgs e)
+    {
+        if (_scroll is not null)
+            _scroll.PropertyChanged -= OnScrollMoved;
+
+        _scroll = e.NameScope.Find<ScrollViewer>("PART_ScrollViewer");
+
+        if (_scroll is not null)
+            _scroll.PropertyChanged += OnScrollMoved;
+    }
+
+    /// <summary>
+    /// Список прокрутили: у хвоста мы или ушли от него.
+    /// </summary>
+    /// <remarks>
+    /// Так ведут себя консоли Rider и VS Code: человек, уехавший вверх читать давнюю ошибку, не
+    /// хочет, чтобы его утащило вниз следующей же записью, — а вернувшись к низу, снова ждёт
+    /// хвоста, и просить об этом кнопкой ему незачем.
+    /// <para>
+    /// Смотрим только на место: новая запись меняет высоту содержимого, а не место человека в нём,
+    /// и на галочку не влияет. Собственная прокрутка панели к хвосту приводит сюда же — и
+    /// оставляет всё как есть, потому что кончается ровно у низа.
+    /// </para>
+    /// </remarks>
+    private void OnScrollMoved(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property != ScrollViewer.OffsetProperty || _scroll is null)
+            return;
+
+        var tail = _scroll.Offset.Y >= _scroll.Extent.Height - _scroll.Viewport.Height - TailTolerance;
+
+        if (tail == _autoscroll)
+            return;
+
+        _autoscroll = tail;
+        _view.Autoscroll.IsChecked = tail;
+    }
+
+    /// <summary>
     /// Показывает или прячет подробности.
     /// </summary>
     /// <remarks>
-    /// Меняется доля строки, а не только видимость: скрытая строка ненулевой
-    /// высоты оставила бы под списком пустую полосу, а показанная в
-    /// фиксированные полтораста пикселей съела бы невысокую панель целиком —
-    /// список пропал бы с глаз. Дальше долю правит человек: между строками
-    /// стоит <c>AxSplitter</c>, и прячется он вместе с подробностями — граница,
-    /// которой не с чем граничить, ничего не разделяет.
+    /// Меняется доля строки, а не только видимость: скрытая строка ненулевой высоты оставила бы под
+    /// списком пустую полосу, а показанная в фиксированные полтораста пикселей съела бы невысокую
+    /// панель целиком — список пропал бы с глаз. Дальше долю правит человек: между строками стоит
+    /// <c>AxSplitter</c>, и прячется он вместе с подробностями — граница, которой не с чем
+    /// граничить, ничего не разделяет.
     /// </remarks>
     private void OnDetailsClick(object? sender, RoutedEventArgs e)
     {
@@ -299,55 +384,91 @@ public sealed class LogPanel : ToolWindow
             : new GridLength(0);
     }
 
-    private void OnClearClick(object? sender, RoutedEventArgs e) => _feed?.Clear();
+    private void OnClearClick(object? sender, RoutedEventArgs e) => Clear();
 
-    private void OnCopyClick(object? sender, RoutedEventArgs e)
+    private void OnCopyClick(object? sender, RoutedEventArgs e) => CopyRows();
+
+    /// <summary>
+    /// Клавиши панели.
+    /// </summary>
+    /// <remarks>
+    /// Всплывающим событием, а не туннельным: <c>Ctrl+C</c> в подробностях копирует выделенный там
+    /// текст, и перехват на пути вниз отобрал бы его у поля. Сюда доходит только то, что не взял
+    /// никто.
+    /// </remarks>
+    private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_view.Records.SelectedItem is not LogRow row)
+        if (e.KeyModifiers == KeyModifiers.Control && e.Key == Key.C)
+        {
+            CopyRows();
+            e.Handled = true;
+
             return;
+        }
 
-        var text = $"{row.Stamp} {row.Level} {row.Source} {row.Record.Message}";
+        if (e.KeyModifiers == KeyModifiers.Control && e.Key == Key.F)
+        {
+            _view.Query.Focus();
+            _view.Query.SelectAll();
+            e.Handled = true;
 
-        // Отпущенная задача намеренно: буфер обмена — дело платформы, и ждать
-        // его в обработчике щелчка нечего. Не вышло — человек нажмёт ещё раз.
-        _ = TopLevel.GetTopLevel(_view)?.Clipboard?.SetTextAsync(text);
+            return;
+        }
+
+        if (e.Key == Key.Escape && ReferenceEquals(e.Source, _view.Query))
+        {
+            _view.Query.Clear();
+            _view.Records.Focus();
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>
+    /// У списка попросили меню — мышью или клавишей меню.
+    /// </summary>
+    /// <remarks>
+    /// Строка под курсором выделяется, если не была выделена: иначе пункт «скопировать» относился
+    /// бы к записи, на которую человек не показывал. Выделенную группу щелчок правой кнопкой не
+    /// рушит — так ведут себя списки Windows.
+    /// </remarks>
+    private void OnMenuAsked(object? sender, ContextRequestedEventArgs e)
+    {
+        var row = RowOf(e.Source as Visual);
+
+        if (row is not null && !_view.Records.SelectedItems!.Contains(row))
+            _view.Records.SelectedItem = row;
+
+        _menu.ShowAt(_view.Records, row ?? _view.Records.SelectedItem as LogRow);
+        e.Handled = true;
+    }
+
+    /// <summary>Строка, которой принадлежит элемент разметки; <c>null</c> — щёлкнули мимо строк.</summary>
+    private static LogRow? RowOf(Visual? source)
+    {
+        for (var node = source; node is not null; node = node.GetVisualParent())
+        {
+            if (node is AxListBoxItem item)
+                return item.DataContext as LogRow;
+        }
+
+        return null;
     }
 
     /// <summary>
     /// Меню источников: все, кто писал в этот журнал.
     /// </summary>
-    /// <remarks>
-    /// Список собирается при каждом открытии, а не держится: источник — просто
-    /// строка, которую называет пишущий, и появиться новый может в любой миг.
-    /// Это то же, что «Show output from» у Visual Studio, только имена приходят
-    /// не из перечня каналов, а из самих записей.
-    /// </remarks>
-    private void OnSourcesClick(object? sender, RoutedEventArgs e)
+    private void OnSourcesClick(object? sender, RoutedEventArgs e) =>
+        LogSourceMenu.ShowAt(_view.Sources, Sources(), _filter.Source, Context.Strings, OnSourcePicked);
+
+    private void OnSourcePicked(string? source)
     {
-        var flyout = new AxMenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight };
+        _filter = _filter with { Source = source };
 
-        flyout.Items.Add(Item(Context.Strings["console.source.all"], null));
-
-        foreach (var source in Sources())
-            flyout.Items.Add(Item(source, source));
-
-        flyout.ShowAt(_view.Sources);
-
-        AxMenuItem Item(string header, string? source)
-        {
-            var item = new AxMenuItem { Header = header };
-
-            item.Click += (_, _) =>
-            {
-                _filter = _filter with { Source = source };
-
-                Forget();
-                _refresh.Ask();
-            };
-
-            return item;
-        }
+        Refilter();
     }
+
+    /// <summary>Оставляет в отборе только названный источник — пункт меню строки.</summary>
+    private void OnlySource(string source) => OnSourcePicked(source);
 
     private IEnumerable<string> Sources() =>
         (_feed?.Records ?? [])
@@ -358,73 +479,57 @@ public sealed class LogPanel : ToolWindow
     private void OnSelected(object? sender, SelectionChangedEventArgs e) =>
         _view.DetailsText.Text = _view.Records.SelectedItem is LogRow row ? row.Record.Message : string.Empty;
 
-    private void OnQueryChanged(object? sender, Avalonia.AvaloniaPropertyChangedEventArgs e)
+    private void OnQueryChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
         if (e.Property != TextBox.TextProperty)
             return;
 
         _filter = _filter with { Query = _view.Query.Text ?? string.Empty };
 
-        Forget();
-        _refresh.Ask();
+        Refilter();
     }
+
+    private void OnThemeChanged(object? sender, EventArgs e) => _toolbar.ReadTheme();
+
+    private void Clear() => _feed?.Clear();
 
     /// <summary>
-    /// Берёт у темы цвета уровней.
+    /// Копирует выделенные записи в порядке показа.
     /// </summary>
     /// <remarks>
-    /// Кистью, а не стилем в разметке: селектор, лезущий в содержимое чужой
-    /// кнопки, до значка не достаёт — проверено на живой студии, значок
-    /// оставался цвета кнопки. Кисти при этом по-прежнему принадлежат теме:
-    /// здесь только просьба выдать их по имени, как это делает вид терминала.
+    /// В порядке показа, а не выделения: человек выделяет снизу вверх так же часто, как сверху
+    /// вниз, а читает вставленное сверху вниз всегда.
+    /// <para>
+    /// Задача отпущена намеренно: буфер обмена — дело платформы, и ждать его в обработчике щелчка
+    /// нечего. Не вышло — человек нажмёт ещё раз.
+    /// </para>
     /// </remarks>
-    private void ReadTheme()
+    private void CopyRows()
     {
-        _view.ErrorIcon.Foreground = Brush("AxErrorBrush");
-        _view.WarningIcon.Foreground = Brush("AxWarningBrush");
+        var chosen = _view.Records.SelectedItems?.OfType<LogRow>().ToHashSet();
+
+        if (chosen is not { Count: > 0 })
+            return;
+
+        Copy(LogText.Of(_rows.Where(chosen.Contains)));
     }
 
-    private IBrush? Brush(string key) =>
-        _view.TryFindResource(key, _view.ActualThemeVariant, out var value) ? value as IBrush : null;
-
-    private void OnThemeChanged(object? sender, EventArgs e) => ReadTheme();
-
-    /// <summary>
-    /// Показывает, какие уровни включены.
-    /// </summary>
-    /// <remarks>
-    /// Выключенный счётчик приглушается целиком: включённый лежит на заливке, но число
-    /// выключенного уровня рядом с ним читалось бы тем же весом.
-    /// </remarks>
-    private void ShowLevels()
+    /// <summary>Копирует сообщение записи, на которой стоят, — без времени, уровня и источника.</summary>
+    private void CopyMessage()
     {
-        Show(_view.Errors, _filter.Error);
-        Show(_view.Warnings, _filter.Warning);
-        Show(_view.Infos, _filter.Info);
-        Show(_view.Debugs, _filter.Debug);
-
-        static void Show(AxToggleButton toggle, bool on)
-        {
-            toggle.IsChecked = on;
-            toggle.Opacity = on ? 1 : 0.45;
-        }
+        if (_view.Records.SelectedItem is LogRow row)
+            Copy(LogText.Message(row));
     }
 
-    private void ShowCounts()
-    {
-        _view.ErrorCount.Text = _counts.Error.ToString(System.Globalization.CultureInfo.CurrentCulture);
-        _view.WarningCount.Text = _counts.Warning.ToString(System.Globalization.CultureInfo.CurrentCulture);
-        _view.InfoCount.Text = _counts.Info.ToString(System.Globalization.CultureInfo.CurrentCulture);
-        _view.DebugCount.Text = _counts.Debug.ToString(System.Globalization.CultureInfo.CurrentCulture);
-    }
+    private void Copy(string text) =>
+        _ = TopLevel.GetTopLevel(_view)?.Clipboard?.SetTextAsync(text);
 
     /// <summary>
     /// Объясняет пустоту.
     /// </summary>
     /// <remarks>
-    /// «Журнал пуст» и «под отбор ничего не подходит» — разные положения, и
-    /// ответить вторым на первое значит дать человеку повод считать панель
-    /// сломанной.
+    /// «Журнал пуст» и «ничего не найдено» — разные положения, и ответить вторым на первое значит
+    /// дать человеку повод считать панель сломанной.
     /// </remarks>
     private void ShowEmpty(int records)
     {

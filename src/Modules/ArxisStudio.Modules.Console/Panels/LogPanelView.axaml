@@ -5,6 +5,11 @@
     шапка принадлежит группе вкладок — там живут вкладки соседних панелей и
     кнопки студии, — и делить её с ними панель не может.
 
+    Полоса разбита на три группы, и порядок их не случаен: слева отбор по
+    уровню (счётчики), посередине отбор по тексту и источнику, справа вид
+    списка и действия над записями. Группы разделены линиями — так собрана
+    полоса в Rider, и так человек находит кнопку по месту, а не по значку.
+
     По умолчанию словарь студии: контрол без префикса — её контрол. Всё родное
     Avalonia пишется через a:.
 -->
@@ -69,6 +74,9 @@
         </a:StackPanel>
 
         <!--
+            Справа вид списка и действия, между ними линия: свёртка, хвост и
+            подробности меняют показ, а копирование и очистка трогают записи.
+
             Вид кнопок один: Toolbar делает кнопку квадратной по высоте строки, а
             тесный размер вместо него вернул бы минимальную ширину кнопки с
             текстом. Подпись у каждой двойная: подсказка под курсором и имя для
@@ -76,12 +84,6 @@
         -->
         <a:StackPanel a:DockPanel.Dock="Right" Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceHair}"
                       VerticalAlignment="Center">
-
-          <AxButton x:Name="Sources" Appearance="Toolbar"
-                    a:ToolTip.Tip="{Text console.source}"
-                    a:AutomationProperties.Name="{Text console.source}">
-            <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Filter}"/>
-          </AxButton>
 
           <AxToggleButton x:Name="Collapse" Appearance="Toolbar"
                               a:ToolTip.Tip="{Text console.collapse}"
@@ -101,6 +103,8 @@
             <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Split}"/>
           </AxToggleButton>
 
+          <AxDivider Orientation="Vertical" Classes="toolbar"/>
+
           <AxButton x:Name="Copy" Appearance="Toolbar"
                     a:ToolTip.Tip="{Text console.copy}"
                     a:AutomationProperties.Name="{Text console.copy}">
@@ -115,11 +119,27 @@
 
         </a:StackPanel>
 
-        <AxSearchField x:Name="Query" Size="Compact"
-                       PlaceholderText="{Text console.search}"
-                       MaxWidth="360" HorizontalAlignment="Left" Margin="{a:DynamicResource AxSpaceSidesThickness}"
-                       VerticalAlignment="Center"
-                       a:AutomationProperties.Name="{Text console.search}"/>
+        <!--
+            Поиск и источник стоят рядом: оба сужают показанное, и разводить их
+            по краям полосы значило бы прятать половину отбора от того, кто
+            смотрит на другую половину.
+        -->
+        <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceHair}"
+                      HorizontalAlignment="Left" VerticalAlignment="Center"
+                      Margin="{a:DynamicResource AxSpaceSidesThickness}">
+
+          <AxSearchField x:Name="Query" Size="Compact"
+                         PlaceholderText="{Text console.search}"
+                         MaxWidth="360"
+                         a:AutomationProperties.Name="{Text console.search}"/>
+
+          <AxButton x:Name="Sources" Appearance="Toolbar"
+                    a:ToolTip.Tip="{Text console.source}"
+                    a:AutomationProperties.Name="{Text console.source}">
+            <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Filter}"/>
+          </AxButton>
+
+        </a:StackPanel>
 
       </a:DockPanel>
     </a:Border>
@@ -144,7 +164,7 @@
         подмена значила бы, что список собирают заново при каждой очистке.
     -->
     <a:Panel a:Grid.Row="0">
-        <AxListBox x:Name="Records" SelectionMode="Single">
+        <AxListBox x:Name="Records" SelectionMode="Multiple">
           <AxListBox.ItemTemplate>
             <a:DataTemplate x:DataType="log:LogRow">
 
@@ -162,20 +182,44 @@
                              Text="{a:Binding Stamp}" IsVisible="{a:Binding HasStamp}"
                              VerticalAlignment="Center" Margin="{a:DynamicResource AxSpaceTrailingThickness}"/>
 
-                <a:TextBlock a:Grid.Column="1" Text="{a:Binding Level}" MinWidth="52"
-                             FontWeight="SemiBold" VerticalAlignment="Center" Margin="{a:DynamicResource AxSpaceTrailingThickness}"
-                             AxText.Tone="{a:Binding LevelTone}"/>
+                <!--
+                    Уровень назван значком, а не словом. Слово приходило из SDK по-английски —
+                    ERROR, WARN, INFO, DEBUG — и стояло так в русском окне, забирая под себя
+                    полсотни точек ширины у сообщения. Значками уровень назван и в консоли Unity, и
+                    в списках Rider.
+
+                    Значков четыре, показан один: цвет каждому даёт своя кисть темы, а привязка
+                    цвета к уровню одним элементом потребовала бы либо кисти в модели строки, либо
+                    преобразователя, лезущего в ресурсы приложения. Три скрытых элемента в строке
+                    дешевле обоих.
+                -->
+                <a:Panel a:Grid.Column="1" VerticalAlignment="Center"
+                         Margin="{a:DynamicResource AxSpaceTrailingThickness}">
+                  <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Error}" IsVisible="{a:Binding IsError}"
+                          Foreground="{a:DynamicResource AxErrorBrush}"/>
+                  <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Warning}" IsVisible="{a:Binding IsWarning}"
+                          Foreground="{a:DynamicResource AxWarningBrush}"/>
+                  <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Info}" IsVisible="{a:Binding IsInfo}"
+                          Foreground="{a:DynamicResource AxTextSecondaryBrush}"/>
+                  <AxIcon Size="Small" Data="{x:Static ax:AxIcons.Debug}" IsVisible="{a:Binding IsDebug}"
+                          Foreground="{a:DynamicResource AxTextTertiaryBrush}"/>
+                </a:Panel>
 
                 <a:TextBlock a:Grid.Column="2" AxText.Tone="Secondary" Text="{a:Binding Source}"
                              VerticalAlignment="Center" Margin="{a:DynamicResource AxSpaceTrailingThickness}"/>
 
-                <a:TextBlock a:Grid.Column="3" Text="{a:Binding Text}"
+                <!--
+                    Тон сообщения — по уровню: ошибка читается ошибкой с одного взгляда, отладка
+                    уходит на второй план. Цвет здесь второй признак, а не единственный: первый —
+                    значок слева, и различается он рисунком.
+                -->
+                <a:TextBlock a:Grid.Column="3" Text="{a:Binding Text}" AxText.Tone="{a:Binding LevelTone}"
                              TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
 
                 <AxBadge a:Grid.Column="4" Content="{a:Binding RepeatsText}"
                          IsVisible="{a:Binding IsRepeated}"
                          VerticalAlignment="Center" Margin="{a:DynamicResource AxSpaceLeadingThickness}"
-                         a:ToolTip.Tip="{a:Binding RepeatsText}"/>
+                         a:ToolTip.Tip="{a:Binding RepeatsTip}"/>
 
               </a:Grid>
             </a:DataTemplate>
@@ -203,13 +247,18 @@
       -->
       <a:Border x:Name="DetailsPane" a:Grid.Row="2" IsVisible="False">
         <!--
+            Строки переносятся: в подробностях лежит стек исключения, и путь к
+            файлу длиннее панели — обычное дело. Прокрутка вбок ради одного
+            длинного кадра стека заставляла бы возить её туда-обратно на каждой
+            строке.
+
             Своего минимума высоты у поля здесь нет: многострочному полю его
             даёт тема — четыре строки, — а высоту подробностей решает граница,
             которую тянет человек. С минимумом поле переставало помещаться в
             отведённую долю и вылезало за нижний край панели.
         -->
         <AxTextArea x:Name="DetailsText" MinHeight="0" IsReadOnly="True" AcceptsReturn="True"
-                    TextWrapping="NoWrap" BorderThickness="0"
+                    TextWrapping="Wrap" BorderThickness="0"
                     FontFamily="{a:DynamicResource AxFontFamilyMono}"
                     FontSize="{a:DynamicResource AxFontSizeSmall}"
                     a:AutomationProperties.Name="{Text console.details}"/>

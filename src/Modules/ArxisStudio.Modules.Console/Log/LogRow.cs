@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using ArxisStudio.Controls;
 using ArxisStudio.Sdk;
 
@@ -20,6 +21,8 @@ namespace ArxisStudio.Modules.Console.Log;
 /// </remarks>
 public sealed class LogRow : INotifyPropertyChanged
 {
+    private readonly string? _format;
+
     private int _repeats = 1;
 
     /// <summary>Заводит строку по записи журнала.</summary>
@@ -31,13 +34,18 @@ public sealed class LogRow : INotifyPropertyChanged
     /// селектором стиля. Селектор, лезущий внутрь чужого шаблона ради одного
     /// столбца, — дорога, на которой правка темы молча ломает панель.
     /// </remarks>
-    public LogRow(StudioLogRecord record, bool stamp = true)
+    /// <param name="repeats">
+    /// Как назвать счётчик повторов: строка формата с <c>{0}</c> из словаря студии. Пусто — знак
+    /// покажет одно число.
+    /// </param>
+    public LogRow(StudioLogRecord record, bool stamp = true, string? repeats = null)
     {
         ArgumentNullException.ThrowIfNull(record);
 
         Record = record;
         Text = FirstLine(record.Message);
         HasStamp = stamp;
+        _format = repeats;
     }
 
     /// <inheritdoc/>
@@ -52,8 +60,27 @@ public sealed class LogRow : INotifyPropertyChanged
     /// <summary>Показывать ли столбец времени.</summary>
     public bool HasStamp { get; }
 
-    /// <summary>Уровень словом.</summary>
+    /// <summary>
+    /// Уровень словом: <c>ERROR</c>, <c>WARN</c>, <c>INFO</c>, <c>DEBUG</c>.
+    /// </summary>
+    /// <remarks>
+    /// С экрана это слово ушло — там уровень показан значком, — но осталось там, где нужно именно
+    /// слово: в буфере обмена (<see cref="LogText"/>) и в <see cref="ToString"/>, которым строку
+    /// называет программа чтения с экрана.
+    /// </remarks>
     public string Level => Record.LevelName;
+
+    /// <summary>Запись об ошибке.</summary>
+    public bool IsError => Record.Level == StudioLogLevel.Error;
+
+    /// <summary>Запись-предупреждение.</summary>
+    public bool IsWarning => Record.Level == StudioLogLevel.Warning;
+
+    /// <summary>Обычное сообщение.</summary>
+    public bool IsInfo => Record.Level == StudioLogLevel.Info;
+
+    /// <summary>Подробность для отладки.</summary>
+    public bool IsDebug => Record.Level == StudioLogLevel.Debug;
 
     /// <summary>Кто написал.</summary>
     public string Source => Record.Source;
@@ -69,7 +96,13 @@ public sealed class LogRow : INotifyPropertyChanged
     /// </remarks>
     public string Text { get; }
 
-    /// <summary>Тон слова уровня: ошибка и предупреждение — своим цветом, отладка — приглушённо.</summary>
+    /// <summary>
+    /// Тон сообщения: ошибка и предупреждение — своим цветом, отладка — приглушённо.
+    /// </summary>
+    /// <remarks>
+    /// Цвет здесь второй признак, а не единственный: уровень назван значком, и различаются значки
+    /// рисунком, а не краской. Человеку, не различающему цвета, строка читается по значку.
+    /// </remarks>
     public AxTextTone LevelTone => Record.Level switch
     {
         StudioLogLevel.Error => AxTextTone.Error,
@@ -91,14 +124,27 @@ public sealed class LogRow : INotifyPropertyChanged
 
             Raise(nameof(Repeats));
             Raise(nameof(RepeatsText));
+            Raise(nameof(RepeatsTip));
             Raise(nameof(IsRepeated));
         }
     }
 
-    /// <summary>Счётчик повторов текстом — его показывает бейдж.</summary>
-    public string RepeatsText => Repeats.ToString(System.Globalization.CultureInfo.CurrentCulture);
+    /// <summary>Счётчик повторов текстом — его показывает знак повторов.</summary>
+    public string RepeatsText => Repeats.ToString(CultureInfo.CurrentCulture);
 
-    /// <summary>Есть ли что показывать бейджем.</summary>
+    /// <summary>
+    /// Счётчик повторов словами — его читают под курсором и средства доступности.
+    /// </summary>
+    /// <remarks>
+    /// Знак показывает число, потому что места у него на число: строка журнала высотой в
+    /// двадцать точек. Что это за число, говорит подсказка — без неё «3» рядом с записью значит
+    /// что угодно.
+    /// </remarks>
+    public string RepeatsTip => _format is { Length: > 0 } format
+        ? string.Format(CultureInfo.CurrentCulture, format, Repeats)
+        : RepeatsText;
+
+    /// <summary>Есть ли что показывать знаком повторов.</summary>
     public bool IsRepeated => Repeats > 1;
 
     /// <summary>Ещё одна такая же запись.</summary>

@@ -204,6 +204,100 @@ public class ConsoleRowsTests
     }
 
     /// <summary>
+    /// Счётчик повторов называет себя словами.
+    /// </summary>
+    /// <remarks>
+    /// Знак показывает одно число — места у него на число, — и «3» рядом с записью значит что
+    /// угодно, пока подсказка не скажет, что это повторы. Формат приходит из словаря студии, и
+    /// строка журнала его только подставляет.
+    /// </remarks>
+    [Fact]
+    public void The_repeat_badge_says_what_its_number_means()
+    {
+        var row = new LogRow(Record(StudioLogLevel.Info, "Плагины", "поднят"), repeats: "Повторено {0} раз");
+
+        row.Repeat();
+        row.Repeat();
+
+        Assert.Equal("Повторено 3 раз", row.RepeatsTip);
+        Assert.Equal("3", row.RepeatsText);
+    }
+
+    /// <summary>Без формата подсказка остаётся числом — и не врёт.</summary>
+    [Fact]
+    public void Without_a_caption_the_badge_keeps_its_number()
+    {
+        var row = new LogRow(Record(StudioLogLevel.Info, "Плагины", "поднят"));
+
+        row.Repeat();
+
+        Assert.Equal("2", row.RepeatsTip);
+    }
+
+    /// <summary>
+    /// В буфер обмена запись уходит целиком, а не первой строкой.
+    /// </summary>
+    /// <remarks>
+    /// Список показывает первую строку, потому что строка списка однострочна. Копируют запись как
+    /// раз ради остального — стека исключения.
+    /// </remarks>
+    [Fact]
+    public void A_copied_record_carries_its_whole_message()
+    {
+        var row = new LogRow(Record(StudioLogLevel.Error, "Плагины", "не вышло\r\n  в методе Open\r\n  в методе Run"));
+
+        var text = LogText.Of(row);
+
+        Assert.Contains("в методе Run", text, StringComparison.Ordinal);
+        Assert.StartsWith(row.Stamp, text, StringComparison.Ordinal);
+        Assert.Contains("ERROR", text, StringComparison.Ordinal);
+        Assert.Contains("Плагины", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>Несколько записей уходят в порядке показа, каждая своей строкой.</summary>
+    [Fact]
+    public void Copied_records_keep_the_order_they_are_shown_in()
+    {
+        var first = new LogRow(Record(StudioLogLevel.Info, "A", "раз"));
+        var second = new LogRow(Record(StudioLogLevel.Info, "A", "два"));
+
+        var text = LogText.Of([first, second]);
+
+        Assert.Equal($"{LogText.Of(first)}{Environment.NewLine}{LogText.Of(second)}", text);
+    }
+
+    /// <summary>Только сообщение — без времени, уровня и источника.</summary>
+    [Fact]
+    public void A_copied_message_carries_nothing_but_itself()
+    {
+        var row = new LogRow(Record(StudioLogLevel.Warning, "A", "внимание"));
+
+        Assert.Equal("внимание", LogText.Message(row));
+    }
+
+    /// <summary>
+    /// Уровень строка знает о себе сама — им список выбирает значок.
+    /// </summary>
+    /// <remarks>
+    /// Слово уровня приходит из SDK по-английски, и на экране его больше нет: уровень назван
+    /// значком, как в консоли Unity. Значок выбирается по этим четырём ответам, и ровно один из
+    /// них истинный.
+    /// </remarks>
+    [Theory]
+    [InlineData(StudioLogLevel.Error)]
+    [InlineData(StudioLogLevel.Warning)]
+    [InlineData(StudioLogLevel.Info)]
+    [InlineData(StudioLogLevel.Debug)]
+    public void A_row_answers_for_exactly_one_level(StudioLogLevel level)
+    {
+        var row = new LogRow(Record(level, "A", "раз"));
+
+        bool[] answers = [row.IsError, row.IsWarning, row.IsInfo, row.IsDebug];
+
+        Assert.Single(answers, answer => answer);
+    }
+
+    /// <summary>
     /// Строка называет себя тем, что в ней написано.
     /// </summary>
     /// <remarks>
@@ -222,6 +316,9 @@ public class ConsoleRowsTests
         Assert.Contains("упало", said, StringComparison.Ordinal);
         Assert.DoesNotContain(nameof(LogRow), said, StringComparison.Ordinal);
     }
+
+    private static StudioLogRecord Record(StudioLogLevel level, string source, string message) =>
+        new(DateTimeOffset.Now, level, source, message);
 
     private static List<StudioLogRecord> Records(params (StudioLogLevel Level, string Source, string Message)[] written) =>
         [.. written.Select(record => new StudioLogRecord(

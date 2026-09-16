@@ -24,6 +24,7 @@ public static class LogRows
     /// <param name="filter">Отбор.</param>
     /// <param name="collapse">Схлопывать ли одинаковые подряд.</param>
     /// <param name="stamps">Показывать ли столбец времени.</param>
+    /// <param name="repeats">Как назвать счётчик повторов; пусто — одним числом.</param>
     /// <remarks>
     /// Полный проход нужен, когда журнал вытеснил старое, его очистили или
     /// человек сменил отбор: во всех трёх случаях прежние строки не годятся
@@ -33,7 +34,8 @@ public static class LogRows
         IReadOnlyList<StudioLogRecord> records,
         LogFilter filter,
         bool collapse,
-        bool stamps = true)
+        bool stamps = true,
+        string? repeats = null)
     {
         ArgumentNullException.ThrowIfNull(records);
 
@@ -45,7 +47,7 @@ public static class LogRows
             counts = Count(counts, record.Level);
 
             if (filter.Matches(record))
-                Emit(rows, record, collapse, stamps);
+                Emit(rows, record, collapse, stamps, repeats);
         }
 
         return new LogBuild(rows, counts);
@@ -60,6 +62,7 @@ public static class LogRows
     /// <param name="filter">Отбор.</param>
     /// <param name="collapse">Схлопывать ли одинаковые подряд.</param>
     /// <param name="stamps">Показывать ли столбец времени.</param>
+    /// <param name="repeats">Как назвать счётчик повторов; пусто — одним числом.</param>
     /// <returns>Сколько записей каждого уровня в дописанном хвосте.</returns>
     /// <remarks>
     /// Быстрый путь: пока журнал только растёт, перестраивать нечего — старые
@@ -74,7 +77,8 @@ public static class LogRows
         int from,
         LogFilter filter,
         bool collapse,
-        bool stamps = true)
+        bool stamps = true,
+        string? repeats = null)
     {
         ArgumentNullException.ThrowIfNull(rows);
         ArgumentNullException.ThrowIfNull(records);
@@ -88,7 +92,7 @@ public static class LogRows
             counts = Count(counts, record.Level);
 
             if (filter.Matches(record))
-                Emit(rows, record, collapse, stamps);
+                Emit(rows, record, collapse, stamps, repeats);
         }
 
         return counts;
@@ -111,7 +115,12 @@ public static class LogRows
     /// записью журнала: одинаковые записи, между которыми отбор спрятал
     /// чужую, человек видит соседними — и схлопнуть их он ждёт.
     /// </remarks>
-    private static void Emit(IList<LogRow> rows, StudioLogRecord record, bool collapse, bool stamps)
+    private static void Emit(
+        IList<LogRow> rows,
+        StudioLogRecord record,
+        bool collapse,
+        bool stamps,
+        string? repeats)
     {
         if (collapse && rows.Count > 0 && rows[^1].SameAs(record))
         {
@@ -119,7 +128,7 @@ public static class LogRows
             return;
         }
 
-        rows.Add(new LogRow(record, stamps));
+        rows.Add(new LogRow(record, stamps, repeats));
     }
 
     private static LogCounts Count(LogCounts counts, StudioLogLevel level) => level switch

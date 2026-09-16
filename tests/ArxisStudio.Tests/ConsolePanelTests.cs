@@ -1,4 +1,5 @@
 using ArxisStudio.Controls;
+using ArxisStudio.Icons;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Modules.Console;
 using ArxisStudio.Modules.Console.Feed;
@@ -6,11 +7,16 @@ using ArxisStudio.Modules.Console.Log;
 using ArxisStudio.Modules.Console.Panels;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
+using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -326,6 +332,225 @@ public class ConsolePanelTests : IDisposable
         Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(after, panel.Rebuilds);
+    }
+
+    /// <summary>
+    /// Ctrl+C копирует все выделенные записи, а не одну.
+    /// </summary>
+    /// <remarks>
+    /// Копировала запись только кнопка полосы и только выделенную: в панели, куда смотрят, чтобы
+    /// показать ошибку коллеге, это половина дела. Порядок — показанный, а не порядок выделения.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Copying_with_the_keyboard_takes_every_chosen_record()
+    {
+        var log = new StudioLog();
+
+        log.Write(StudioLogLevel.Info, "A", "раз");
+        log.Write(StudioLogLevel.Warning, "B", "два");
+        log.Write(StudioLogLevel.Error, "C", "три");
+
+        var panel = LogPanel(log);
+        var window = new Window { Width = 900, Height = 300, Content = panel.Content };
+
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        var records = Records(panel);
+        var shown = Shown(panel);
+
+        // Выделяем снизу вверх: в буфер записи обязаны уйти сверху вниз.
+        records.SelectedItems!.Add(shown[2]);
+        records.SelectedItems!.Add(shown[0]);
+        Dispatcher.UIThread.RunJobs();
+
+        var taken = Press(records, Key.C, KeyModifiers.Control);
+
+        Assert.True(taken, "Ctrl+C прошёл мимо панели");
+
+        var text = Clipboard(window);
+
+        if (text is null)
+            return;
+
+        Assert.Equal($"{LogText.Of(shown[0])}{Environment.NewLine}{LogText.Of(shown[2])}", text);
+
+        window.Close();
+    }
+
+    /// <summary>
+    /// Меню строки открывается на той записи, на которую показали.
+    /// </summary>
+    /// <remarks>
+    /// Иначе «скопировать» относилось бы к записи, о которой человек не думал: он показал на
+    /// одну, а выделена оставалась другая. Так ведут себя списки Windows и оба редактора, на
+    /// которые мы смотрим.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Asking_for_the_menu_stands_on_the_record_under_the_pointer()
+    {
+        var log = new StudioLog();
+
+        log.Write(StudioLogLevel.Info, "A", "раз");
+        log.Write(StudioLogLevel.Info, "A", "два");
+
+        var panel = LogPanel(log);
+        var window = new Window { Width = 900, Height = 300, Content = panel.Content };
+
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        var records = Records(panel);
+
+        records.SelectedIndex = 0;
+        Dispatcher.UIThread.RunJobs();
+
+        var second = records.ContainerFromIndex(1)!;
+
+        second.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = InputElement.ContextRequestedEvent });
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(Shown(panel)[1], records.SelectedItem);
+
+        window.Close();
+    }
+
+    /// <summary>
+    /// Прокрутка вверх отпускает хвост, возврат к низу берёт его обратно.
+    /// </summary>
+    /// <remarks>
+    /// Человек, уехавший вверх читать давнюю ошибку, не хочет, чтобы его утащило вниз следующей же
+    /// записью. Прежде решала только кнопка — прокрутка её не трогала, — и панель тянула человека
+    /// обратно, пока он не догадывался нажать. Так же ведут себя консоли Rider и VS Code.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Scrolling_up_lets_go_of_the_tail_and_coming_back_takes_it_again()
+    {
+        var log = new StudioLog();
+
+        for (var index = 0; index < 60; index++)
+            log.Write(StudioLogLevel.Info, "A", $"запись {index}");
+
+        var panel = LogPanel(log);
+        var window = new Window { Width = 900, Height = 200, Content = panel.Content };
+
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        var tail = Part<AxToggleButton>(panel, "Autoscroll");
+
+        // Своя область прокрутки есть и у поля поиска: берётся та, что внутри списка.
+        var scroll = Records(panel).GetVisualDescendants().OfType<ScrollViewer>().First();
+
+        Assert.True(scroll.Extent.Height > scroll.Viewport.Height, "список уместился целиком — прокручивать нечего");
+        Assert.True(tail.IsChecked, "панель начала, не следуя за хвостом");
+
+        // Место ставится руками: в безголовом прогоне список стоит наверху — ScrollIntoView без
+        // настоящего кадра его не двигает, и проверять было бы нечего.
+        Bottom();
+
+        Assert.True(tail.IsChecked, "у хвоста, а галочка слетела");
+
+        scroll.Offset = new Vector(scroll.Offset.X, 0);
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(tail.IsChecked, "уехали вверх, а панель всё ещё держится за хвост");
+
+        Bottom();
+
+        Assert.True(tail.IsChecked, "вернулись к низу, а хвост не взялся обратно");
+
+        void Bottom()
+        {
+            scroll.Offset = new Vector(scroll.Offset.X, scroll.Extent.Height - scroll.Viewport.Height);
+            window.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
+        }
+
+        window.Close();
+    }
+
+    /// <summary>
+    /// Уровень записи назван значком, а не английским словом.
+    /// </summary>
+    /// <remarks>
+    /// Слово приходит из SDK — ERROR, WARN, INFO, DEBUG — и в русском окне стояло как есть, забирая
+    /// полсотни точек ширины у сообщения. Значок называет уровень рисунком, и в строке он ровно
+    /// один: три соседних скрыты.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_record_names_its_level_by_an_icon()
+    {
+        var log = new StudioLog();
+
+        log.Write(StudioLogLevel.Error, "A", "не вышло");
+
+        var panel = LogPanel(log);
+        var window = new Window { Width = 900, Height = 200, Content = panel.Content };
+
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        var row = Records(panel).ContainerFromIndex(0)!;
+        var icons = row.GetVisualDescendants().OfType<AxIcon>().Where(icon => icon.IsVisible).ToList();
+
+        Assert.Single(icons);
+
+        Assert.DoesNotContain(
+            row.GetVisualDescendants().OfType<TextBlock>(),
+            text => string.Equals(text.Text, "ERROR", StringComparison.Ordinal));
+
+        window.Close();
+    }
+
+    /// <summary>Подробности переносят длинные строки, а не возят их вбок.</summary>
+    /// <remarks>
+    /// В подробностях лежит стек исключения, и путь к файлу длиннее панели — обычное дело.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_details_wrap_what_does_not_fit()
+    {
+        var panel = LogPanel(new StudioLog());
+
+        Assert.Equal(TextWrapping.Wrap, Part<AxTextArea>(panel, "DetailsText").TextWrapping);
+    }
+
+    /// <summary>Нажимает клавишу там, где стоит человек, и говорит, взяла ли её панель.</summary>
+    private static bool Press(Control where, Key key, KeyModifiers modifiers)
+    {
+        var args = new KeyEventArgs
+        {
+            RoutedEvent = InputElement.KeyDownEvent,
+            Key = key,
+            KeyModifiers = modifiers,
+            Source = where,
+        };
+
+        where.RaiseEvent(args);
+        Dispatcher.UIThread.RunJobs();
+
+        return args.Handled;
+    }
+
+    /// <summary>
+    /// Что лежит в буфере обмена; <c>null</c> — буфера в этом прогоне нет.
+    /// </summary>
+    /// <remarks>
+    /// Буфер обмена — дело платформы, и в безголовом прогоне его может не быть вовсе. Тогда
+    /// проверять остаётся то, что панель клавишу взяла: сам текст проверен там, где он и
+    /// собирается, — в <c>ConsoleRowsTests</c>.
+    /// </remarks>
+    private static string? Clipboard(TopLevel window)
+    {
+        var clipboard = window.Clipboard;
+
+        if (clipboard is null)
+            return null;
+
+        var reading = clipboard.TryGetTextAsync();
+
+        return reading.Wait(TimeSpan.FromSeconds(1)) ? reading.Result : null;
     }
 
     private LogPanel LogPanel(StudioLog log)
