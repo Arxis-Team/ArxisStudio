@@ -430,15 +430,27 @@ public sealed class LogPanel : ToolWindow
     /// Строка под курсором выделяется, если не была выделена: иначе пункт «скопировать» относился
     /// бы к записи, на которую человек не показывал. Выделенную группу щелчок правой кнопкой не
     /// рушит — так ведут себя списки Windows.
+    /// <para>
+    /// Откуда пришла просьба, говорит сам довод: у мыши есть место, у клавиши меню его нет.
+    /// Мышью меню встаёт под указателем, клавишей — у строки, на которой стоят; привязанное к
+    /// списку, оно уезжало бы к его углу, а список тут во всю ширину панели.
+    /// </para>
     /// </remarks>
     private void OnMenuAsked(object? sender, ContextRequestedEventArgs e)
     {
-        var row = RowOf(e.Source as Visual);
+        ArgumentNullException.ThrowIfNull(e);
+
+        var row = RowOf(e.Source as Visual) ?? _view.Records.SelectedItem as LogRow;
 
         if (row is not null && !_view.Records.SelectedItems!.Contains(row))
             _view.Records.SelectedItem = row;
 
-        _menu.ShowAt(_view.Records, row ?? _view.Records.SelectedItem as LogRow);
+        var pointer = e.TryGetPosition(null, out _);
+        var anchor = pointer || row is null
+            ? _view.Records
+            : _view.Records.ContainerFromItem(row) as Control ?? _view.Records;
+
+        _menu.ShowAt(anchor, row, pointer);
         e.Handled = true;
     }
 

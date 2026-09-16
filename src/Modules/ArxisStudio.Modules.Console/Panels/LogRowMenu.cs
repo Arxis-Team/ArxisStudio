@@ -29,17 +29,26 @@ internal sealed class LogRowMenu(
     Action<string> only,
     Action clear)
 {
-    /// <summary>Показывает меню у строки.</summary>
-    /// <param name="list">Список записей: у него меню и встаёт.</param>
+    /// <summary>Показывает меню там, где его попросили.</summary>
+    /// <param name="anchor">
+    /// К чему привязать меню: у мыши это список — меню встаёт под указателем, — у клавиатуры
+    /// строка, на которой стоят.
+    /// </param>
     /// <param name="row">Строка, на которой стоят; <c>null</c> — щёлкнули мимо строк.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="list"/> равен <c>null</c>.</exception>
+    /// <param name="atPointer">Просили мышью: меню встаёт под указателем, а не у края списка.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="anchor"/> равен <c>null</c>.</exception>
     /// <remarks>
     /// Без строки меню показывает одну «Очистить»: копировать нечего, а источник неизвестен.
     /// Пустого меню при этом не бывает — оно всегда отвечает хоть что-то.
+    /// <para>
+    /// Место меню — не мелочь: привязанное к списку, оно встаёт у его угла, и при списке во всю
+    /// ширину панели это метр от того места, куда человек щёлкнул. Мышью меню просят там, где
+    /// смотрят.
+    /// </para>
     /// </remarks>
-    public void ShowAt(Control list, LogRow? row)
+    public void ShowAt(Control anchor, LogRow? row, bool atPointer)
     {
-        ArgumentNullException.ThrowIfNull(list);
+        ArgumentNullException.ThrowIfNull(anchor);
 
         var flyout = new AxMenuFlyout();
 
@@ -55,7 +64,7 @@ internal sealed class LogRowMenu(
         // цвет отделяет пункт надёжнее линии.
         flyout.Items.Add(Item(strings["console.clear"], null, clear, destructive: true));
 
-        flyout.ShowAt(list, showAtPointer: false);
+        flyout.ShowAt(anchor, atPointer);
 
         static AxMenuItem Item(string header, KeyGesture? gesture, Action act, bool destructive = false)
         {
