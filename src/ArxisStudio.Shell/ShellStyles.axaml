@@ -20,12 +20,22 @@
         <Setter Property="Template">
           <ControlTemplate>
             <DockPanel Background="{TemplateBinding Background}">
+              <!--
+                  Полосы хрома отделены от рабочей области разделителем, а не своей нижней
+                  рамкой. Раскладочная единица ровна пикселю только при 100 и 200 %: при 150 %
+                  она даёт два, и тулбар со статус-баром обрастали кантом вдвое толще линий,
+                  которыми разрезаны доки под ними. Разделитель меряет пиксель устройства сам.
+
+                  Разделитель стоит первым и прижат к своему краю — иначе полоса займёт место
+                  раньше него и линия ляжет под содержимое.
+              -->
               <Border DockPanel.Dock="Top"
                       Background="{DynamicResource AxSurfacePanelBrush}"
-                      BorderBrush="{DynamicResource AxStrokeSubtleBrush}"
-                      BorderThickness="{DynamicResource AxHairlineBottomThickness}"
                       IsVisible="{TemplateBinding TopBar, Converter={x:Static ObjectConverters.IsNotNull}}">
-                <ContentPresenter Content="{TemplateBinding TopBar}"/>
+                <DockPanel>
+                  <ax:AxDivider DockPanel.Dock="Bottom"/>
+                  <ContentPresenter Content="{TemplateBinding TopBar}"/>
+                </DockPanel>
               </Border>
               <!--
                   Статус-бар ростом с ключ хрома: он идёт за плотностью вместе с
@@ -35,10 +45,11 @@
               <Border DockPanel.Dock="Bottom"
                       MinHeight="{DynamicResource AxStatusBarHeight}"
                       Background="{DynamicResource AxSurfacePanelBrush}"
-                      BorderBrush="{DynamicResource AxStrokeSubtleBrush}"
-                      BorderThickness="{DynamicResource AxHairlineTopThickness}"
                       IsVisible="{TemplateBinding StatusBar, Converter={x:Static ObjectConverters.IsNotNull}}">
-                <ContentPresenter Content="{TemplateBinding StatusBar}"/>
+                <DockPanel>
+                  <ax:AxDivider DockPanel.Dock="Top"/>
+                  <ContentPresenter Content="{TemplateBinding StatusBar}"/>
+                </DockPanel>
               </Border>
               <ContentPresenter Content="{TemplateBinding Content}"
                                 ContentTemplate="{TemplateBinding ContentTemplate}"/>

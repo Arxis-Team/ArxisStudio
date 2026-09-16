@@ -97,6 +97,7 @@
   "controls.search.clear": "Clear search",
   "controls.message.close": "Close message",
   "controls.dialog.close": "Close",
+  "controls.tabs.overflow": "More tabs",
   "common.error": "Error",
   "common.all": "All files",
   "editor.loading": "Loading document…",

@@ -1,8 +1,10 @@
 using ArxisStudio.Controls;
+using ArxisStudio.Shell;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
@@ -88,6 +90,53 @@ public class ShellStyleTests
 
         Assert.Equal(Token(window, "AxTextPrimaryBrush"), presenter.Foreground);
         Assert.Equal(Token(window, "AxSelectionActiveBrush"), presenter.Background);
+
+        window.Close();
+    }
+
+    /// <summary>
+    /// Линии под тулбаром и над статус-баром — по пикселю устройства на любом масштабе.
+    /// </summary>
+    /// <remarks>
+    /// Обе стояли нижней и верхней рамкой своей полосы. Рамка мерится раскладочной единицей, а та
+    /// ровна пикселю только при 100 и 200 %: при 125 и 150 % полосы хрома обрастали кантом в два
+    /// пикселя — вдвое толще линий, которыми разрезаны доки между ними, — и окно выглядело
+    /// собранным из обведённых плит. Границу области рисует разделитель, он же и считает пиксель.
+    /// </remarks>
+    [AvaloniaTheory]
+    [InlineData(1d)]
+    [InlineData(1.25d)]
+    [InlineData(1.5d)]
+    [InlineData(1.75d)]
+    [InlineData(2d)]
+    public void The_chrome_bands_are_parted_by_one_device_pixel(double scaling)
+    {
+        var shell = new StudioShell
+        {
+            TopBar = new AxTitleBar { ShowWindowControls = false, Content = new TextBlock() },
+            StatusBar = new TextBlock { Text = "Готово" },
+            Content = new Border(),
+        };
+
+        var window = new Window
+        {
+            Width = 400,
+            Height = 300,
+            RequestedThemeVariant = ThemeVariant.Dark,
+            Content = shell,
+        };
+
+        window.Show();
+        window.SetRenderScaling(scaling);
+        window.UpdateLayout();
+
+        // Своя у каждой полосы и ещё одна у самой полосы заголовка — считаются все.
+        var rules = shell.GetVisualDescendants().OfType<AxDivider>().ToList();
+
+        Assert.Equal(3, rules.Count);
+
+        foreach (var rule in rules)
+            Assert.Equal(1d, Math.Round(rule.Bounds.Height * scaling, 6));
 
         window.Close();
     }

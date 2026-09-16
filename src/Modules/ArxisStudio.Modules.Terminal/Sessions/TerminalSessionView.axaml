@@ -13,11 +13,16 @@
     <a:Border x:Name="Note"
               a:DockPanel.Dock="Bottom"
               IsVisible="False"
-              Padding="{a:DynamicResource AxNotePadding}"
-              BorderThickness="{a:DynamicResource AxHairlineTopThickness}"
-              BorderBrush="{a:DynamicResource AxStrokeSubtleBrush}">
+              Padding="{a:DynamicResource AxNotePadding}">
       <a:TextBlock x:Name="Reason" TextWrapping="Wrap"/>
     </a:Border>
+
+    <!--
+        Линия над объяснением показывается вместе с ним: линия, отделяющая пустое место от
+        пустого места, отделяет одно ничто от другого. Разделитель, а не верхняя рамка плашки, —
+        пиксель устройства он меряет сам.
+    -->
+    <AxDivider a:DockPanel.Dock="Bottom" IsVisible="{a:Binding #Note.IsVisible}"/>
 
     <sessions:TerminalView x:Name="Screen">
       <a:Control.ContextFlyout>

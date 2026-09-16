@@ -19,16 +19,9 @@
       <ControlTheme x:Key="{x:Type ax:DockGroupView}" TargetType="ax:DockGroupView">
         <Setter Property="Template">
           <ControlTemplate>
-            <!--
-                Углы прямые. Скругление у AxToolWindow — для панели, стоящей
-                отдельной карточкой; в доках они стоят встык, и на каждом стыке
-                скруглённый угол открывает фон оболочки — тот темнее панели, и
-                на границах выступают чёрные зазубрины.
-            -->
             <ax:AxToolWindow ShowHeaderSeparator="True"
                              ShowHeader="{TemplateBinding HasTabs}"
-                             Actions="{TemplateBinding Actions}"
-                             CornerRadius="0">
+                             Actions="{TemplateBinding Actions}">
               <!--
                   Кнопка скрытия едет вместе с вкладками, а не в правом краю
                   шапки: правый край принадлежит хозяину группы — туда

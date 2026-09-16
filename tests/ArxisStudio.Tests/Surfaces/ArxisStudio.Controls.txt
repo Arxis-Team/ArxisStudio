@@ -1,4 +1,4 @@
-# StudioSdk 6.1
+# StudioSdk 6.3
 ArxisStudio.Controls.AxAvatar : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Controls.AxAvatar :: .ctor()
 ArxisStudio.Controls.AxAvatar :: ArxisStudio.Controls.AxAvatarShape Shape { get; set; }
@@ -98,6 +98,7 @@ ArxisStudio.Controls.AxDivider : class : Avalonia.Controls.Control
 ArxisStudio.Controls.AxDivider :: .ctor()
 ArxisStudio.Controls.AxDivider :: Avalonia.Layout.Orientation Orientation { get; set; }
 ArxisStudio.Controls.AxDivider :: Avalonia.Media.IBrush? Fill { get; set; }
+ArxisStudio.Controls.AxDivider :: static System.Double Hairline(Avalonia.Layout.Layoutable control)
 ArxisStudio.Controls.AxDivider :: static readonly Avalonia.StyledProperty<Avalonia.Layout.Orientation> OrientationProperty
 ArxisStudio.Controls.AxDivider :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> FillProperty
 ArxisStudio.Controls.AxDropDownButton : class : Avalonia.Controls.DropDownButton

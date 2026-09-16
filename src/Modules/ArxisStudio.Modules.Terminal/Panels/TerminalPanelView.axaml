@@ -15,9 +15,7 @@
   <a:DockPanel>
 
     <a:Border a:DockPanel.Dock="Top"
-              Padding="{a:DynamicResource AxToolBarPadding}"
-              BorderThickness="{a:DynamicResource AxHairlineBottomThickness}"
-              BorderBrush="{a:DynamicResource AxStrokeSubtleBrush}">
+              Padding="{a:DynamicResource AxToolBarPadding}">
       <a:DockPanel>
 
         <!--
@@ -63,6 +61,13 @@
 
       </a:DockPanel>
     </a:Border>
+
+    <!--
+        Линия под полосой — разделитель, а не нижняя рамка: пиксель устройства он меряет сам, а
+        раскладочная единица при 150 % даёт два, и полоса обрастала кантом вдвое толще линий, на
+        которых собран весь остальной хром студии.
+    -->
+    <AxDivider a:DockPanel.Dock="Top"/>
 
     <!--
         Экран сеанса и приглашение открыть первый лежат рядом, а не подменяют

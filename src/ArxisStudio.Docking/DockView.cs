@@ -50,6 +50,9 @@ public class DockView : Decorator
     /// </summary>
     private const double Threshold = 6;
 
+    /// <summary>Окно, чей масштаб решает толщину границ.</summary>
+    private TopLevel? _root;
+
     /// <summary>
     /// Насколько глубоко от края тянется зона «раздели».
     /// </summary>
@@ -400,14 +403,37 @@ public class DockView : Decorator
     }
 
     /// <inheritdoc/>
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+
+        // Окно переезжает между экранами с разным масштабом, и пиксель устройства становится
+        // другой длины: полосы под границы приходится раздать заново.
+        _root = TopLevel.GetTopLevel(this);
+
+        if (_root is not null)
+            _root.ScalingChanged += OnScalingChanged;
+
+        Rebuild();
+    }
+
+    /// <inheritdoc/>
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        if (_root is not null)
+            _root.ScalingChanged -= OnScalingChanged;
+
+        _root = null;
+
         base.OnDetachedFromVisualTree(e);
 
         // Подсветка живёт не в нас, а в слое поверх окна: уходя, забираем её с
         // собой, иначе она осталась бы висеть над пустым местом.
         Stop();
     }
+
+    // Масштаб сменился: пиксель устройства стал другой длины, и сетка деления собирается заново.
+    private void OnScalingChanged(object? sender, EventArgs e) => Rebuild();
 
     /// <summary>Запоминает вкладку, на которой нажали.</summary>
     private void OnPressed(object? sender, PointerPressedEventArgs e)
@@ -998,7 +1024,10 @@ public class DockView : Decorator
                 Shares(grid, down, [.. sized.Select(item => item.Row)]),
                 floor)));
 
-        Put(grid, down, splitter, Row(grid, down, new GridLength(1)));
+        // Полоса под границу — один пиксель устройства, как и сама линия: прибитая единица
+        // раскладки при 150 % даёт два пикселя, и между панелями появляется щель, в которой
+        // видно фон окна.
+        Put(grid, down, splitter, Row(grid, down, new GridLength(AxDivider.Hairline(this))));
     }
 
     /// <summary>

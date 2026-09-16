@@ -1371,8 +1371,17 @@ public class StudioDockTests : IDisposable
     /// её прячет, а в главном она стоит в той же полосе — отбираем по имени,
     /// чтобы тест не зависел от порядка детей.
     /// </remarks>
+    /// <remarks>
+    /// Кнопки шапки — те, что положил туда владелец; части чужих шаблонов сюда не считаются.
+    /// Своё имя есть у каждой: «скрыть» принадлежит группе, переполнение вкладок — полосе, и
+    /// обе приезжают вместе с шаблоном, а не с шапкой окна.
+    /// </remarks>
     private static IReadOnlyList<AxButton> Chrome(DockFloat window) =>
-        [.. window.GetVisualDescendants().OfType<AxButton>().Where(button => button.Name != "PART_Hide")];
+    [
+        .. window.GetVisualDescendants()
+            .OfType<AxButton>()
+            .Where(button => button.Name is not ("PART_Hide" or "PART_Overflow")),
+    ];
 
     /// <summary>Нажимает кнопку так, как это делает человек.</summary>
     private static void Press(AxButton button) =>

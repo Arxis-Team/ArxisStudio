@@ -97,6 +97,7 @@
   "controls.search.clear": "Очистить поиск",
   "controls.message.close": "Закрыть сообщение",
   "controls.dialog.close": "Закрыть",
+  "controls.tabs.overflow": "Ещё вкладки",
   "common.error": "Ошибка",
   "common.all": "Все файлы",
   "editor.loading": "Загружаю документ…",

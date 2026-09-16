@@ -18,9 +18,7 @@
   <a:DockPanel>
 
     <a:Border a:DockPanel.Dock="Top"
-              Padding="{a:DynamicResource AxToolBarPadding}"
-              BorderThickness="{a:DynamicResource AxHairlineBottomThickness}"
-              BorderBrush="{a:DynamicResource AxStrokeSubtleBrush}">
+              Padding="{a:DynamicResource AxToolBarPadding}">
       <a:DockPanel>
 
         <!--
@@ -126,6 +124,13 @@
       </a:DockPanel>
     </a:Border>
 
+    <!--
+        Линия под полосой — разделитель, а не нижняя рамка: пиксель устройства он меряет сам, а
+        раскладочная единица при 150 % даёт два, и полоса обрастала кантом вдвое толще линий, на
+        которых собран весь остальной хром студии.
+    -->
+    <AxDivider a:DockPanel.Dock="Top"/>
+
 
     <!--
         Список и подробности делят место долями. Вторая строка сначала нулевая:
@@ -191,9 +196,12 @@
       <AxSplitter x:Name="Handle" a:Grid.Row="1" Orientation="Horizontal" IsVisible="False"
                   a:AutomationProperties.Name="{Text console.details}"/>
 
-      <a:Border x:Name="DetailsPane" a:Grid.Row="2" IsVisible="False"
-                BorderThickness="{a:DynamicResource AxHairlineTopThickness}"
-                BorderBrush="{a:DynamicResource AxStrokeSubtleBrush}">
+      <!--
+          Своей линии сверху у подробностей нет: прямо над ними стоит AxSplitter, и линию рисует
+          он. Две линии в трёх пикселях друг от друга читались канавкой, и чем крупнее масштаб
+          экрана, тем заметнее: рамка при 150 % толщиной в два пикселя, разделитель — в один.
+      -->
+      <a:Border x:Name="DetailsPane" a:Grid.Row="2" IsVisible="False">
         <!--
             Своего минимума высоты у поля здесь нет: многострочному полю его
             даёт тема — четыре строки, — а высоту подробностей решает граница,
