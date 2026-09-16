@@ -46,7 +46,7 @@ public class ThemeValueCodeAnalyzerTests
 
         Assert.Equal(2, found.Length);
         Assert.Contains(found, notice => notice.GetMessage().Contains("AxSpace (8) и AxSpaceWide (12)", StringComparison.Ordinal));
-        Assert.Contains(found, notice => notice.GetMessage().Contains("AxFontSizeSmall (11.5) и AxFontSize (13)", StringComparison.Ordinal));
+        Assert.Contains(found, notice => notice.GetMessage().Contains("AxFontSizeSmall (12) и AxFontSize (13)", StringComparison.Ordinal));
     }
 
     /// <summary>Цвет темы, разобранный из строки, называет свою кисть.</summary>

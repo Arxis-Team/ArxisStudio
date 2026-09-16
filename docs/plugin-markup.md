@@ -332,7 +332,10 @@ body.Bind(StackPanel.SpacingProperty, body.GetResourceObservable("AxGapFormRow")
 Так написан пример `Arxis.HelloPlugin`, и так пишет шаблон. Плагин, назвавший ключ шкалы,
 объявляет в манифесте `sdk.min` не ниже 5.3: в студии без шкалы ресурс не разрешится, и
 отступ молча станет нулевым. Плагин, назвавший роль палитры, — не ниже 6.0: в студии 5.x
-у роли было другое имя.
+у роли было другое имя. Высоты хрома (`AxTabHeight`, `AxTitleBarHeight`,
+`AxStatusBarHeight`, `AxMenuRowHeight`, `AxToolbarButtonSize`, `AxWindowButtonWidth`), шаг
+лестницы дерева (`AxTreeIndent`) и доля высоты строки (`AxLineHeightRatio`) появились в
+6.1 — панель, назвавшая их, требует не ниже.
 
 ## Открытые концы
 

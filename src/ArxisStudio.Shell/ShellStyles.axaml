@@ -27,7 +27,13 @@
                       IsVisible="{TemplateBinding TopBar, Converter={x:Static ObjectConverters.IsNotNull}}">
                 <ContentPresenter Content="{TemplateBinding TopBar}"/>
               </Border>
+              <!--
+                  Статус-бар ростом с ключ хрома: он идёт за плотностью вместе с
+                  полосой заголовка. Наименьшая, а не прибитая: полоса растёт
+                  вместе с кеглем темы.
+              -->
               <Border DockPanel.Dock="Bottom"
+                      MinHeight="{DynamicResource AxStatusBarHeight}"
                       Background="{DynamicResource AxSurfacePanelBrush}"
                       BorderBrush="{DynamicResource AxStrokeSubtleBrush}"
                       BorderThickness="0,1,0,0"

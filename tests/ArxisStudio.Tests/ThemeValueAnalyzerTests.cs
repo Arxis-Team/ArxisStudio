@@ -83,7 +83,7 @@ public class ThemeValueAnalyzerTests
         var drift = Assert.Single(await AnalyzeAsync("""<TextBlock FontSize="12.5"/>"""));
 
         Assert.Contains("13 — это AxFontSize", exact.GetMessage(), StringComparison.Ordinal);
-        Assert.Contains("AxFontSizeSmall (11.5) и AxFontSize (13)", drift.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("AxFontSizeSmall (12) и AxFontSize (13)", drift.GetMessage(), StringComparison.Ordinal);
     }
 
     /// <summary>

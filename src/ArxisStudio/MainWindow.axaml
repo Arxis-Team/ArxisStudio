@@ -91,7 +91,7 @@
                  HideTitle="{ax:Loc action.hide}">
       <ax:DockView.Empty>
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="{DynamicResource AxSpace}">
-          <TextBlock ax:AxText.Tone="Secondary" Text="ArxisStudio" FontSize="{DynamicResource AxFontSizeTitle}" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+          <TextBlock ax:AxText.Tone="Secondary" Text="ArxisStudio" FontSize="{DynamicResource AxFontSizeLarge}" FontWeight="SemiBold" HorizontalAlignment="Center"/>
           <TextBlock ax:AxText.Tone="Tertiary" Text="{ax:Loc studio.canvas.hint}"
                      FontSize="{DynamicResource AxFontSizeSmall}" HorizontalAlignment="Center"/>
         </StackPanel>

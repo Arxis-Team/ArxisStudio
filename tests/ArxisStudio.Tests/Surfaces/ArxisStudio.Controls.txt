@@ -1,4 +1,4 @@
-# StudioSdk 6.0
+# StudioSdk 6.1
 ArxisStudio.Controls.AxAvatar : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Controls.AxAvatar :: .ctor()
 ArxisStudio.Controls.AxAvatar :: ArxisStudio.Controls.AxAvatarShape Shape { get; set; }
@@ -189,10 +189,13 @@ ArxisStudio.Controls.AxTabStripKind :: ToolWindow = 1
 ArxisStudio.Controls.AxText : static class
 ArxisStudio.Controls.AxText :: static ArxisStudio.Controls.AxTextRole GetRole(Avalonia.Controls.TextBlock text)
 ArxisStudio.Controls.AxText :: static ArxisStudio.Controls.AxTextTone GetTone(Avalonia.Controls.TextBlock text)
+ArxisStudio.Controls.AxText :: static System.Double GetLineHeightRatio(Avalonia.Controls.TextBlock text)
+ArxisStudio.Controls.AxText :: static System.Void SetLineHeightRatio(Avalonia.Controls.TextBlock text, System.Double value)
 ArxisStudio.Controls.AxText :: static System.Void SetRole(Avalonia.Controls.TextBlock text, ArxisStudio.Controls.AxTextRole value)
 ArxisStudio.Controls.AxText :: static System.Void SetTone(Avalonia.Controls.TextBlock text, ArxisStudio.Controls.AxTextTone value)
 ArxisStudio.Controls.AxText :: static readonly Avalonia.AttachedProperty<ArxisStudio.Controls.AxTextRole> RoleProperty
 ArxisStudio.Controls.AxText :: static readonly Avalonia.AttachedProperty<ArxisStudio.Controls.AxTextTone> ToneProperty
+ArxisStudio.Controls.AxText :: static readonly Avalonia.AttachedProperty<System.Double> LineHeightRatioProperty
 ArxisStudio.Controls.AxTextArea : class : ArxisStudio.Controls.AxTextBox
 ArxisStudio.Controls.AxTextArea :: .ctor()
 ArxisStudio.Controls.AxTextBox : class : Avalonia.Controls.TextBox
