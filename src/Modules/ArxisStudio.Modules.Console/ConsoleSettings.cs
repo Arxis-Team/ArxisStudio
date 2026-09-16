@@ -16,11 +16,19 @@ namespace ArxisStudio.Modules.Console;
 /// решил, что её не было.
 /// </para>
 /// </remarks>
-/// <param name="Autoscroll">Следовать ли за хвостом журнала.</param>
+/// <param name="Autoscroll">
+/// Прокручивать ли журнал к последней записи.
+/// <para>
+/// Пишется сюда только явный выбор — нажатие кнопки на полосе. Прокрутка вверх тоже отпускает
+/// хвост, но остаётся при сеансе: писать настройку на каждое движение колеса значило бы
+/// переписывать файл настроек десятки раз в секунду, а вернувшись к низу, человек и так получает
+/// хвост обратно.
+/// </para>
+/// </param>
 /// <param name="Timestamps">Показывать ли столбец времени.</param>
 public sealed record ConsoleSettings(bool Autoscroll, bool Timestamps)
 {
-    /// <summary>Ключ настройки следования за хвостом.</summary>
+    /// <summary>Ключ настройки прокрутки к последней записи.</summary>
     public const string AutoscrollKey = "console.autoscroll";
 
     /// <summary>Ключ настройки показа времени.</summary>
