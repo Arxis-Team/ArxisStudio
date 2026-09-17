@@ -2,6 +2,8 @@
 
     <PropertyGroup>
         <RootNamespace>ArxisStudio.Shell</RootNamespace>
+        <!-- Как у остальных библиотек студии: с файлом документации XML-комментарии проверяет сборка. -->
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
     </PropertyGroup>
 
     <ItemGroup>

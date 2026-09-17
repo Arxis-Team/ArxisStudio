@@ -22,6 +22,15 @@
             нет. У открытого окна значок свой, из общего стиля окна; файл один.
         -->
         <ApplicationIcon>../ArxisStudio.Shell/Assets/arxis.ico</ApplicationIcon>
+        <!--
+            Файл документации собирается ради проверки, а не ради самого файла: без него
+            компилятор XML-комментарии не разбирает вовсе, и незакрытый тег, параметр, которого
+            уже нет, и ссылка на переименованный метод жили бы здесь сколько угодно — три таких
+            и нашлись, когда генерацию включили впервые. В выход файл не едет: у корня студии
+            лежит только сама студия, и за этим смотрит StudioLayoutTests.
+        -->
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <CopyDocumentationFileToOutputDirectory>false</CopyDocumentationFileToOutputDirectory>
     </PropertyGroup>
 
     <!--
