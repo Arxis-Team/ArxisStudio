@@ -23,27 +23,57 @@
 /// этот плагин сам, и стереть его выбор за него — не то же самое, что не звать
 /// сломанное сейчас. При следующем запуске плагин получит новую попытку.
 /// </para>
+/// <para>
+/// «Подряд» здесь буквально: вызов, который прошёл, счёт обнуляет. Пока счёт копился за весь
+/// сеанс, плагин с одним сбоем утром, сотней удачных вызовов и двумя сбоями к вечеру отключался
+/// с записью «после трёх сбоев подряд», которых подряд не было.
+/// </para>
+/// <para>
+/// Счёт закрыт замком. Студия зовёт шов из потока интерфейса, но доклады приходят и со стороны:
+/// исключение забытой задачи поднимает поток финализатора, продолжение фоновой задачи плагина —
+/// поток пула. Словарь без замка в такой гонке терял бы сбои или падал сам — внутри того, что
+/// заведено студию от падений беречь. События поднимаются вне замка: подписчик волен позвать шов.
+/// </para>
 /// </remarks>
 public sealed class PluginGuard
 {
     /// <summary>Сколько падений подряд плагин переживает, оставаясь в строю.</summary>
     public const int FailureLimit = 3;
 
+    private readonly Lock _gate = new();
     private readonly Dictionary<string, int> _failures = new(StringComparer.Ordinal);
     private readonly HashSet<string> _faulty = new(StringComparer.Ordinal);
 
     /// <summary>Плагин упал на вызове студии.</summary>
     public event EventHandler<PluginFailure>? Failed;
 
-    /// <summary>Плагин признан неисправным и больше не зовётся.</summary>
+    /// <summary>
+    /// Плагин признан неисправным и больше не зовётся.
+    /// </summary>
+    /// <remarks>
+    /// Поднимается один раз на отключение. Доклады о сбоях уже отключённого продолжают приходить —
+    /// вторая панель того же плагина падает на своём замере раньше, чем её снимут, — и каждый
+    /// повторный сигнал заводил бы ещё одну выгрузку уже выгружаемого.
+    /// </remarks>
     public event EventHandler<PluginFailure>? Disabled;
 
-    /// <summary>Плагины, которых студия больше не зовёт.</summary>
-    public IReadOnlyCollection<string> Faulty => _faulty;
+    /// <summary>Плагины, которых студия больше не зовёт, — снимок на момент вопроса.</summary>
+    public IReadOnlyCollection<string> Faulty
+    {
+        get
+        {
+            lock (_gate)
+                return [.. _faulty];
+        }
+    }
 
     /// <summary>Признан ли плагин неисправным.</summary>
     /// <param name="pluginId">Идентификатор плагина.</param>
-    public bool IsFaulty(string pluginId) => _faulty.Contains(pluginId);
+    public bool IsFaulty(string pluginId)
+    {
+        lock (_gate)
+            return _faulty.Contains(pluginId);
+    }
 
     /// <summary>
     /// Зовёт код плагина, ничего не ожидая в ответ.
@@ -99,12 +129,16 @@ public sealed class PluginGuard
 
         result = null;
 
-        if (_faulty.Contains(pluginId))
+        if (IsFaulty(pluginId))
             return false;
 
         try
         {
             result = call();
+
+            // Прошедший вызов рвёт цепочку сбоев: счёт — про сбои подряд.
+            lock (_gate)
+                _failures.Remove(pluginId);
 
             return true;
         }
@@ -142,6 +176,47 @@ public sealed class PluginGuard
     }
 
     /// <summary>
+    /// Зовёт прощальный код плагина — и у того, кого звать уже перестали.
+    /// </summary>
+    /// <param name="pluginId">Чей это код.</param>
+    /// <param name="what">С чем прощаются — попадёт в журнал.</param>
+    /// <param name="call">Сам вызов: <c>Release</c> панели или элемента полосы.</param>
+    /// <returns><c>true</c>, если прощание прошло.</returns>
+    /// <remarks>
+    /// Отказ отключённому — правило для работы, а не для прощания. Отключают плагин как раз затем,
+    /// чтобы выгрузить, а выгрузке нужно, чтобы панель отпустила своё: процессы, потоки, подписки.
+    /// Пока прощание шло обычной дорогой шва, у отключённого за сбои оно не звалось вовсе — гвард
+    /// помечает плагин сбойным раньше, чем сообщает об этом, — и упавший терминал оставлял свои
+    /// оболочки работать без окна.
+    /// <para>
+    /// Падение на прощании пишется, но не считается: считать его некому и незачем, плагин уходит.
+    /// </para>
+    /// </remarks>
+    public bool Farewell(string pluginId, string what, Action call)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(pluginId);
+        ArgumentNullException.ThrowIfNull(call);
+
+        try
+        {
+            call();
+
+            return true;
+        }
+        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        {
+            int count;
+
+            lock (_gate)
+                count = _failures.GetValueOrDefault(pluginId);
+
+            Failed?.Invoke(this, new PluginFailure(pluginId, what, e, count));
+
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Забывает падения плагина.
     /// </summary>
     /// <param name="pluginId">Идентификатор плагина.</param>
@@ -152,25 +227,33 @@ public sealed class PluginGuard
     /// </remarks>
     public void Forget(string pluginId)
     {
-        _failures.Remove(pluginId);
-        _faulty.Remove(pluginId);
+        lock (_gate)
+        {
+            _failures.Remove(pluginId);
+            _faulty.Remove(pluginId);
+        }
     }
 
     private void Fail(string pluginId, string what, Exception error)
     {
-        var count = _failures.TryGetValue(pluginId, out var seen) ? seen + 1 : 1;
+        int count;
+        bool disabled;
 
-        _failures[pluginId] = count;
+        lock (_gate)
+        {
+            count = _failures.GetValueOrDefault(pluginId) + 1;
+            _failures[pluginId] = count;
+
+            // Add отвечает false тому, кто уже отключён: сигнал об отключении — один.
+            disabled = count >= FailureLimit && _faulty.Add(pluginId);
+        }
 
         var failure = new PluginFailure(pluginId, what, error, count);
 
         Failed?.Invoke(this, failure);
 
-        if (count < FailureLimit)
-            return;
-
-        _faulty.Add(pluginId);
-        Disabled?.Invoke(this, failure);
+        if (disabled)
+            Disabled?.Invoke(this, failure);
     }
 }
 

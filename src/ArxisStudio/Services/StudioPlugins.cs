@@ -902,10 +902,14 @@ public sealed class StudioPlugins
             // студии со всеми открытыми документами.
             PluginSurface? surface = null;
 
+            // Кто сейчас стоит за поверхностью: перезапуск прощается с ним прежде, чем строить
+            // следующего. null — прежний упал на постройке, и прощаться не с кем.
+            var standing = built.Panel;
+
             surface = new PluginSurface(
                 built.Content,
                 error => _guard.Report(loaded.Installed.Id, $"раскладка панели {declared.Id}", error),
-                () => Reload(loaded, declared, type, studio, surface!));
+                () => standing = Reload(loaded, declared, type, studio, surface!, standing));
 
             // Названная панелью цель ложится хранителем каретки на ту самую
             // поверхность, которую держит раскладка: спрашивать панель док не
@@ -947,37 +951,54 @@ public sealed class StudioPlugins
             // значит звать её во второй раз подряд по тому же поводу.
             Remember(loaded.Installed.Id, panel);
 
-            return new Built(content, focus);
+            return new Built(panel, content, focus);
         });
 
-    /// <summary>Построенная панель: что показывать и кому отдать каретку.</summary>
+    /// <summary>Построенная панель: кто она, что показывать и кому отдать каретку.</summary>
+    /// <param name="Panel">Сам экземпляр — с ним прощаются при перезапуске.</param>
     /// <param name="Content">Содержимое панели.</param>
     /// <param name="Focus">Кому внутри неё достаётся каретка; null — первому, кто возьмёт.</param>
-    private sealed record Built(Control Content, Control? Focus);
+    private sealed record Built(ToolWindow Panel, Control Content, Control? Focus);
 
     /// <summary>
     /// Строит упавшую панель заново по кнопке в заглушке.
     /// </summary>
+    /// <returns>Новый экземпляр; <c>null</c> — построить не вышло, за поверхностью никого нет.</returns>
     /// <remarks>
     /// Счёт падений при этом обнуляется: человек попросил новую попытку, и
     /// отказать ему на том основании, что прежняя копия падала, значит сделать
     /// кнопку бессмысленной.
+    /// <para>
+    /// С прежним экземпляром прощаются, и раньше постройки нового. Без прощания упавшая панель
+    /// жила до выгрузки плагина, а у встроенного модуля это закрытие студии: терминал держал свои
+    /// оболочки, консоль — подписку на журнал, и каждый перезапуск добавлял ещё одну такую. Раньше
+    /// постройки — потому что панели модуля делят место встречи с командой: прощание, пришедшее
+    /// после, сняло бы с него уже новую панель.
+    /// </para>
     /// </remarks>
-    private void Reload(
+    private ToolWindow? Reload(
         LoadedPlugin loaded,
         Sdk.Plugins.PluginToolWindow declared,
         Type type,
         IStudioContext studio,
-        PluginSurface surface)
+        PluginSurface surface,
+        ToolWindow? previous)
     {
-        _guard.Forget(loaded.Installed.Id);
+        var id = loaded.Installed.Id;
+
+        _guard.Forget(id);
+
+        if (previous is not null && _built.TryGetValue(id, out var mine) && mine.Remove(previous))
+            _guard.Farewell(id, $"прощание панели {declared.Id}", previous.Release);
 
         if (Build(loaded, declared, type, studio) is not { } built)
-            return;
+            return null;
 
         surface.Reset(built.Content);
 
         Keep(surface, built.Focus);
+
+        return built.Panel;
     }
 
     /// <summary>
@@ -1123,7 +1144,8 @@ public sealed class StudioPlugins
     /// контексту загрузки уйти.
     /// <para>
     /// Через шов, как всякий чужой вызов: расширение вольно упасть и на
-    /// прощании, а выгрузка от этого останавливаться не должна.
+    /// прощании, а выгрузка от этого останавливаться не должна. Но прощальной его дорогой, а не
+    /// рабочей: рабочая отказывает отключённому за сбои, и как раз у него <c>Release</c> не звался.
     /// </para>
     /// </remarks>
     /// <param name="pluginId">Кто уходит.</param>
@@ -1137,11 +1159,11 @@ public sealed class StudioPlugins
             switch (built)
             {
                 case ToolWindow panel:
-                    _guard.Run(pluginId, "прощание панели", panel.Release);
+                    _guard.Farewell(pluginId, "прощание панели", panel.Release);
                     break;
 
                 case ToolBarItem item:
-                    _guard.Run(pluginId, "прощание элемента полосы", item.Release);
+                    _guard.Farewell(pluginId, "прощание элемента полосы", item.Release);
                     break;
             }
         }

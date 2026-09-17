@@ -140,6 +140,128 @@ public class PluginGuardTests
     }
 
     /// <summary>
+    /// Прошедший вызов рвёт цепочку сбоев.
+    /// </summary>
+    /// <remarks>
+    /// Счёт — про сбои подряд, так он назван везде: в описании шва, в пределе и в записи журнала об
+    /// отключении. Пока он копился за весь сеанс, плагин с редкими сбоями отключался «после трёх
+    /// подряд», которых подряд не было.
+    /// </remarks>
+    [Fact]
+    public void A_call_that_works_breaks_the_row_of_failures()
+    {
+        var guard = new PluginGuard();
+
+        for (var round = 0; round < 5; round++)
+        {
+            for (var attempt = 0; attempt < PluginGuard.FailureLimit - 1; attempt++)
+                guard.Run("arxis.demo", "команда", () => throw new InvalidOperationException("иногда"));
+
+            Assert.True(guard.Run("arxis.demo", "команда", () => { }), "между сбоями плагин обязан работать");
+        }
+
+        Assert.False(guard.IsFaulty("arxis.demo"), "сбои не шли подряд — отключать не за что");
+
+        for (var attempt = 0; attempt < PluginGuard.FailureLimit; attempt++)
+            guard.Run("arxis.demo", "команда", () => throw new InvalidOperationException("опять"));
+
+        Assert.True(guard.IsFaulty("arxis.demo"), "три сбоя подряд обязаны отключать по-прежнему");
+    }
+
+    /// <summary>
+    /// Отключают один раз, сколько бы докладов ни пришло следом.
+    /// </summary>
+    /// <remarks>
+    /// Доклады о сбоях уже отключённого продолжают приходить: вторая панель того же плагина падает
+    /// на своём замере раньше, чем её снимут. Каждый повторный сигнал заводил ещё одну выгрузку
+    /// уже выгружаемого и запись «отключён после 4 сбоев подряд».
+    /// </remarks>
+    [Fact]
+    public void A_plugin_is_disabled_once_however_many_reports_follow()
+    {
+        var guard = new PluginGuard();
+        var failed = 0;
+        var disabled = 0;
+
+        guard.Failed += (_, _) => failed++;
+        guard.Disabled += (_, _) => disabled++;
+
+        for (var report = 0; report < PluginGuard.FailureLimit + 2; report++)
+            guard.Report("arxis.demo", "раскладка панели", new InvalidOperationException("опять"));
+
+        Assert.Equal(PluginGuard.FailureLimit + 2, failed);
+        Assert.Equal(1, disabled);
+    }
+
+    /// <summary>
+    /// Прощание доходит и до отключённого.
+    /// </summary>
+    /// <remarks>
+    /// Отключают плагин затем, чтобы выгрузить, а выгрузке нужно, чтобы панель отпустила своё.
+    /// Рабочая дорога шва отключённому отказывает — и как раз у него <c>Release</c> не звался.
+    /// </remarks>
+    [Fact]
+    public void A_farewell_reaches_even_a_disabled_plugin()
+    {
+        var guard = new PluginGuard();
+
+        for (var attempt = 0; attempt < PluginGuard.FailureLimit; attempt++)
+            guard.Run("arxis.demo", "панель", () => throw new InvalidOperationException("опять"));
+
+        var released = false;
+
+        Assert.False(guard.Run("arxis.demo", "панель", () => released = true));
+        Assert.False(released, "рабочая дорога отключённого не зовёт");
+
+        Assert.True(guard.Farewell("arxis.demo", "прощание панели", () => released = true));
+        Assert.True(released, "прощание обязано дойти до отключённого");
+    }
+
+    /// <summary>Падение на прощании пишется, но не считается: плагин уходит.</summary>
+    [Fact]
+    public void A_farewell_that_fails_is_written_and_not_counted()
+    {
+        var guard = new PluginGuard();
+        var failures = new List<PluginFailure>();
+
+        guard.Failed += (_, failure) => failures.Add(failure);
+
+        for (var attempt = 0; attempt < PluginGuard.FailureLimit + 1; attempt++)
+            Assert.False(guard.Farewell("arxis.demo", "прощание панели", () => throw new InvalidOperationException("и тут")));
+
+        Assert.Equal(PluginGuard.FailureLimit + 1, failures.Count);
+        Assert.All(failures, failure => Assert.Equal("прощание панели", failure.What));
+        Assert.False(guard.IsFaulty("arxis.demo"), "сбой на прощании не отключает");
+    }
+
+    /// <summary>
+    /// Доклады с чужих потоков не теряются и не ломают счёт.
+    /// </summary>
+    /// <remarks>
+    /// Исключение забытой задачи поднимает поток финализатора, продолжение фоновой задачи плагина —
+    /// поток пула. Словарь без замка в такой гонке терял сбои или падал сам.
+    /// </remarks>
+    [Fact]
+    public void Reports_from_other_threads_are_all_counted()
+    {
+        const int Plugins = 512;
+
+        var guard = new PluginGuard();
+        var disabled = 0;
+
+        guard.Disabled += (_, _) => Interlocked.Increment(ref disabled);
+
+        Parallel.For(0, Plugins * PluginGuard.FailureLimit, new ParallelOptions { MaxDegreeOfParallelism = 8 }, step =>
+        {
+            guard.Report($"arxis.p{step % Plugins}", "забытая задача", new InvalidOperationException("фон"));
+            _ = guard.IsFaulty($"arxis.p{(step + 1) % Plugins}");
+        });
+
+        Assert.Equal(Plugins, disabled);
+        Assert.Equal(Plugins, guard.Faulty.Count);
+    }
+
+    /// <summary>
     /// Отказ процесса шов не перехватывает.
     /// </summary>
     /// <remarks>

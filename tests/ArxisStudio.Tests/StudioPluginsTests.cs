@@ -13,6 +13,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Layout;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -346,6 +347,141 @@ public class StudioPluginsTests : IDisposable
 
         Assert.DoesNotContain(plugins.Contributing, plugin => plugin.Id == "arxis.hello");
     }
+
+    /// <summary>
+    /// Панель плагина, отключённого за сбои, всё равно получает прощание.
+    /// </summary>
+    /// <remarks>
+    /// Гвард помечает плагин сбойным раньше, чем сообщает об этом, а прощание шло рабочей дорогой
+    /// шва — той, что отключённому отказывает. <c>Release</c> не звался ровно на той дороге, где он
+    /// нужнее всего: упавший терминал оставлял свои оболочки работать без окна.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_panel_of_an_extension_disabled_for_failures_still_gets_its_farewell()
+    {
+        var module = Farewell("Probe.FarewellDisabled", "arxis.farewell-disabled", broken: false);
+        var panel = module.GetType("Probe.FarewellPanel")!;
+
+        Start(modules: module);
+
+        Assert.Equal(1, Counter(panel, "Built"));
+
+        for (var failure = 0; failure < PluginGuard.FailureLimit; failure++)
+            _guard.Report("arxis.farewell-disabled", "проба", new InvalidOperationException("сломалось"));
+
+        Pump();
+
+        Assert.Equal(1, Counter(panel, "Released"));
+        Assert.DoesNotContain(_dock.Items.Known(), id => id.StartsWith("arxis.farewell-disabled:", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Перезапуск панели прощается с упавшей прежде, чем строить новую.
+    /// </summary>
+    /// <remarks>
+    /// Без прощания упавший экземпляр жил до выгрузки расширения, а у встроенного модуля это
+    /// закрытие студии: каждый перезапуск добавлял ещё одну панель со своими процессами и
+    /// подписками. Закрытие студии прощается уже только с той, что стоит.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Restarting_a_panel_says_goodbye_to_the_one_that_fell()
+    {
+        var module = Farewell("Probe.FarewellRestart", "arxis.farewell-restart", broken: true);
+        var panel = module.GetType("Probe.FarewellPanel")!;
+        var touchy = module.GetType("Probe.Touchy")!;
+
+        var plugins = Start(modules: module);
+
+        (TopLevel.GetTopLevel(_view) as Window)!.UpdateLayout();
+        Pump();
+
+        var surface = Assert.IsType<PluginSurface>(_dock.Items.Find("arxis.farewell-restart:farewell.panel")?.Content);
+
+        Assert.True(surface.IsBroken, "панель обязана упасть на замере — иначе проверять нечего");
+        Assert.Equal(0, Counter(panel, "Released"));
+
+        touchy.GetField("Broken")!.SetValue(null, false);
+
+        var restart = surface.GetVisualDescendants().OfType<Button>().Single();
+
+        restart.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Pump();
+
+        Assert.Equal(2, Counter(panel, "Built"));
+        Assert.Equal(1, Counter(panel, "Released"));
+
+        plugins.Stop();
+        Pump();
+
+        Assert.Equal(2, Counter(panel, "Released"));
+    }
+
+    private static int Counter(Type type, string field) => (int)type.GetField(field)!.GetValue(null)!;
+
+    /// <summary>Даёт отложенной работе студии дойти до конца: отключение идёт через очередь дважды.</summary>
+    private static void Pump()
+    {
+        for (var turn = 0; turn < 4; turn++)
+            Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>
+    /// Модуль с панелью, которая считает свои постройки и прощания.
+    /// </summary>
+    /// <param name="name">Имя сборки — своё на тест: тип со статическим счётом один на процесс.</param>
+    /// <param name="id">Идентификатор модуля.</param>
+    /// <param name="broken">Падает ли содержимое панели на замере.</param>
+    private static Assembly Farewell(string name, string id, bool broken) => TestAssembly.EmitModule(
+        name,
+        $$"""
+            using ArxisStudio.Sdk;
+            using Avalonia;
+            using Avalonia.Controls;
+
+            namespace Probe;
+
+            public sealed class FarewellModule : StudioPlugin
+            {
+                public override void Activate(IStudioContext context)
+                {
+                }
+            }
+
+            public sealed class Touchy : Control
+            {
+                public static bool Broken = {{(broken ? "true" : "false")}};
+
+                protected override Size MeasureOverride(Size availableSize) =>
+                    Broken ? throw new System.InvalidOperationException("панель сломана") : new Size(10, 10);
+            }
+
+            [ToolWindow("farewell.panel")]
+            public sealed class FarewellPanel : ToolWindow
+            {
+                public static int Built;
+                public static int Released;
+
+                protected override Control Build()
+                {
+                    Built++;
+
+                    return new Touchy();
+                }
+
+                public override void Release() => Released++;
+            }
+            """,
+        $$"""
+            {
+              "id": "{{id}}",
+              "name": "Прощание",
+              "version": "1.0.0",
+              "contributions": {
+                "toolWindows": [ { "id": "farewell.panel", "title": "Прощание", "placement": { "side": "bottom" } } ]
+              },
+              "activation": [ "onStartup" ]
+            }
+            """);
 
     /// <summary>
     /// Чужое исключение расширению не приписывают.
