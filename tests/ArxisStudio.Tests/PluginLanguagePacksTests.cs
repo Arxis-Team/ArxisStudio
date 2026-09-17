@@ -259,7 +259,7 @@ public class PluginLanguagePacksTests : IDisposable
     [Fact]
     public void A_pack_translates_someone_elses_plugin()
     {
-        var plugin = Plugin("arxis.hello", ("strings.json", """{ "panel.main": "Панель" }"""));
+        var plugin = Plugin("arxis.hello", ("en.json", """{ "panel.main": "Панель" }"""));
         var pack = Pack(
             "arxis.lang-de",
             "de",
@@ -285,8 +285,8 @@ public class PluginLanguagePacksTests : IDisposable
     {
         var plugin = Plugin(
             "arxis.hello",
-            ("strings.json", """{ "panel.main": "Панель" }"""),
-            ("strings.de.json", """{ "panel.main": "Von Autor" }"""));
+            ("en.json", """{ "panel.main": "Панель" }"""),
+            ("de.json", """{ "panel.main": "Von Autor" }"""));
 
         var pack = Pack(
             "arxis.lang-de",
@@ -314,7 +314,7 @@ public class PluginLanguagePacksTests : IDisposable
     {
         var plugin = Plugin(
             "arxis.hello",
-            ("strings.json", """{ "panel.main": "Панель", "panel.side": "Сбоку" }"""));
+            ("en.json", """{ "panel.main": "Панель", "panel.side": "Сбоку" }"""));
 
         var pack = Pack(
             "arxis.lang-de",
@@ -340,7 +340,7 @@ public class PluginLanguagePacksTests : IDisposable
     [Fact]
     public void Removing_a_pack_returns_the_plugin_to_its_own_words()
     {
-        var plugin = Plugin("arxis.hello", ("strings.json", """{ "panel.main": "Панель" }"""));
+        var plugin = Plugin("arxis.hello", ("en.json", """{ "panel.main": "Панель" }"""));
         var pack = Pack(
             "arxis.lang-de",
             "de",
@@ -369,7 +369,7 @@ public class PluginLanguagePacksTests : IDisposable
     [Fact]
     public void The_pack_that_loses_the_language_does_not_translate_either()
     {
-        var plugin = Plugin("arxis.hello", ("strings.json", """{ "panel.main": "Панель" }"""));
+        var plugin = Plugin("arxis.hello", ("en.json", """{ "panel.main": "Панель" }"""));
 
         var first = Pack(
             "arxis.lang-de", "de", "Deutsch", """{ "projects.recent": "Öffnen" }""",
@@ -400,7 +400,7 @@ public class PluginLanguagePacksTests : IDisposable
     [Fact]
     public void Changing_the_packs_changes_the_translation()
     {
-        var plugin = Plugin("arxis.hello", ("strings.json", """{ "panel.main": "Панель" }"""));
+        var plugin = Plugin("arxis.hello", ("en.json", """{ "panel.main": "Панель" }"""));
 
         Apply(Pack(
             "arxis.lang-de", "de", "Deutsch", """{ "projects.recent": "Öffnen" }""",
@@ -488,7 +488,7 @@ public class PluginLanguagePacksTests : IDisposable
     [Fact]
     public void An_ordinary_plugin_shows_no_coverage()
     {
-        Assert.Empty(Plugin("arxis.hello", ("strings.json", """{ "panel.main": "Панель" }""")).Coverage);
+        Assert.Empty(Plugin("arxis.hello", ("en.json", """{ "panel.main": "Панель" }""")).Coverage);
     }
 
     /// <summary>

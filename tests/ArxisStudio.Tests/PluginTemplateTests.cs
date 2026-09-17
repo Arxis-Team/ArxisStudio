@@ -133,8 +133,17 @@ public class PluginTemplateTests : IDisposable
         var files = made.Markup
             .Select(file => (AdditionalText)new Given(file.Path, file.Text))
             .Append(new Given("C:/probe/plugin.json", made.Manifest))
-            .Append(new Given("C:/probe/lang/strings.json", made.Strings))
+            .Concat(made.Dictionaries.Select(dictionary =>
+                (AdditionalText)new Given($"C:/probe/lang/{dictionary.Name}", dictionary.Text)))
             .ToImmutableArray();
+
+        // Роли — как их подаёт сборка: словарь по умолчанию один, остальные переводы. Без них
+        // правило сочло бы словарём по умолчанию каждый поданный файл, и ключ, забытый в
+        // английском, нашёлся бы в русском — то есть проверка молчала бы о настоящем пропуске.
+        var roles = made.Dictionaries.ToDictionary(
+            dictionary => $"C:/probe/lang/{dictionary.Name}",
+            dictionary => dictionary.Name == "en.json" ? "default" : "translation",
+            StringComparer.Ordinal);
 
         var analyzed = compilation.WithAnalyzers(
             ImmutableArray.Create<DiagnosticAnalyzer>(
@@ -142,7 +151,7 @@ public class PluginTemplateTests : IDisposable
                 new MarkupWidgetAnalyzer(),
                 new ManifestStringsAnalyzer(),
                 new ToolBarAnalyzer()),
-            new AnalyzerOptions(files));
+            new AnalyzerOptions(files, new StringsRoles(roles)));
 
         var found = await analyzed.GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
 
@@ -159,7 +168,12 @@ public class PluginTemplateTests : IDisposable
     {
         var made = Generate("Probe.Figma", "probe.figma", "Проба");
 
-        foreach (var text in made.Sources.Append(made.Manifest).Append(made.Strings).Append(made.Project))
+        var written = made.Sources
+            .Append(made.Manifest)
+            .Append(made.Project)
+            .Concat(made.Dictionaries.Select(dictionary => dictionary.Text));
+
+        foreach (var text in written)
         {
             Assert.DoesNotContain("PLUGIN-NAME", text, StringComparison.Ordinal);
             Assert.DoesNotContain("STUDIO-PATH", text, StringComparison.Ordinal);
@@ -184,8 +198,8 @@ public class PluginTemplateTests : IDisposable
         var files = new List<string>();
         var sources = new List<string>();
         var markup = new List<(string Path, string Text)>();
+        var dictionaries = new List<(string Name, string Text)>();
         string? manifest = null;
-        string? strings = null;
         string? project = null;
 
         var rules = Rules(source, name, id, display);
@@ -211,20 +225,22 @@ public class PluginTemplateTests : IDisposable
                 markup.Add((written, text));
             else if (Path.GetFileName(relative) == "plugin.json")
                 manifest = text;
-            else if (Path.GetFileName(relative) == "strings.json")
-                strings = text;
+            else if (relative.Replace('\\', '/').StartsWith("lang/", StringComparison.Ordinal))
+                dictionaries.Add((Path.GetFileName(relative), text));
             else if (relative.EndsWith(".csproj", StringComparison.Ordinal))
                 project = text;
         }
 
         Assert.NotNull(manifest);
-        Assert.NotNull(strings);
         Assert.NotNull(project);
         Assert.NotEmpty(sources);
-
         Assert.NotEmpty(markup);
 
-        return new Made(files, sources, markup, manifest!, strings!, project!);
+        // Английский обязателен: он запасной, и без него плагин, поставленный в студию с любым
+        // другим языком, покажет ключи вместо подписей.
+        Assert.Contains(dictionaries, dictionary => dictionary.Name == "en.json");
+
+        return new Made(files, sources, markup, manifest!, dictionaries, project!);
     }
 
     /// <summary>Поднимает в домен сборки, против которых собирается плагин.</summary>
@@ -327,7 +343,7 @@ public class PluginTemplateTests : IDisposable
         IReadOnlyList<string> Sources,
         IReadOnlyList<(string Path, string Text)> Markup,
         string Manifest,
-        string Strings,
+        IReadOnlyList<(string Name, string Text)> Dictionaries,
         string Project);
 
     /// <summary>Файл, переданный анализатору входом сборки.</summary>

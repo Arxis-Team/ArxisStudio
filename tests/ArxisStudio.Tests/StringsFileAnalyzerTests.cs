@@ -40,7 +40,7 @@ public class StringsFileAnalyzerTests
 
         var at = diagnostic.Location.GetLineSpan();
 
-        Assert.EndsWith("strings.json", at.Path, StringComparison.Ordinal);
+        Assert.EndsWith("en.json", at.Path, StringComparison.Ordinal);
         Assert.Equal(2, at.StartLinePosition.Line);
         Assert.Equal(2, at.StartLinePosition.Character);
     }
@@ -179,7 +179,7 @@ public class StringsFileAnalyzerTests
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-        const string path = "C:/probe/lang/strings.json";
+        const string path = "C:/probe/lang/en.json";
 
         var roles = new Dictionary<string, string>(StringComparer.Ordinal);
 

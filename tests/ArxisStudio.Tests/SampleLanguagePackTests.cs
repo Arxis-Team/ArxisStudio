@@ -77,7 +77,7 @@ public class SampleLanguagePackTests : IDisposable
     public void The_translation_uses_only_the_keys_of_that_plugin()
     {
         var translated = Keys(Path.Combine(Sample(), "lang", "arxis.hello.de.json"));
-        var own = Keys(Path.Combine(Hello(), "lang", "strings.json"));
+        var own = Keys(Path.Combine(Hello(), "lang", "en.json"));
 
         var stale = translated.Except(own).ToList();
 

@@ -1,0 +1,7 @@
+{
+  "plugin.description": "PLUGIN-NAME for ArxisStudio",
+  "plugin.name": "PLUGIN-NAME",
+  "menu.tools": "Plugin commands",
+  "command.hello": "Say hello",
+  "panel.hint": "Your plugin starts here"
+}

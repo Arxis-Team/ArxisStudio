@@ -77,8 +77,8 @@ public class PluginPackagingTests
     {
         var lang = Path.Combine(Package(), "lang");
 
-        Assert.True(File.Exists(Path.Combine(lang, "strings.json")), "нет словаря по умолчанию");
-        Assert.True(File.Exists(Path.Combine(lang, "strings.en.json")), "нет перевода");
+        Assert.True(File.Exists(Path.Combine(lang, "en.json")), "нет словаря запасного языка");
+        Assert.True(File.Exists(Path.Combine(lang, "ru.json")), "нет словаря языка");
     }
 
     /// <summary>

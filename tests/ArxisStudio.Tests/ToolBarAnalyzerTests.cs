@@ -396,7 +396,7 @@ public class ToolBarAnalyzerTests
     /// <param name="manifestName">Имя манифеста: <c>plugin.json</c> у плагина, <c>module.json</c> у модуля.</param>
     /// <remarks>
     /// Словарь подаётся раньше манифеста, как в настоящей сборке: плагин отдаёт анализаторам
-    /// <c>lang/strings.json</c>, модуль — словарь студии. Манифестом правила обязаны признать ровно
+    /// <c>lang/en.json</c>, модуль — словарь студии. Манифестом правила обязаны признать ровно
     /// манифест, а не первый попавшийся JSON.
     /// </remarks>
     private static async Task<ImmutableArray<Diagnostic>> AnalyzeAsync(
@@ -426,7 +426,7 @@ public class ToolBarAnalyzerTests
         var files = new List<AdditionalText>
         {
             new Given(
-                manifestName == "module.json" ? "C:/studio/Localization/Strings/en.json" : "C:/probe/lang/strings.json",
+                manifestName == "module.json" ? "C:/studio/Localization/Strings/en.json" : "C:/probe/lang/en.json",
                 """{ "menu.tools": "Tools" }"""),
         };
 

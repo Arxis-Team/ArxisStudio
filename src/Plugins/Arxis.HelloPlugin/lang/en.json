@@ -3,6 +3,7 @@
   "menu.tools": "Plugin commands",
   "menu.hello": "Sample plugin",
   "command.greet": "Say hello",
+  "command.focus": "Go to the sample panel",
   "toolbar.menu": "Sample: commands",
   "panel.hello": "Sample",
   "panel.intro": "A sample external plugin",

@@ -309,7 +309,7 @@ public sealed class ToolBarAnalyzer : DiagnosticAnalyzer
     /// </summary>
     /// <remarks>
     /// По имени, а не по тому, что файл — JSON: рядом с манифестом сборка подаёт
-    /// словарь (у плагина <c>lang/strings.json</c>, у модуля — словарь студии), и
+    /// словарь (у плагина <c>lang/en.json</c>, у модуля — словарь студии), и
     /// принятый за манифест словарь дал бы находки на пустом месте.
     /// </remarks>
     private static bool IsManifest(string path)

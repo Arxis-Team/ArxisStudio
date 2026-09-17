@@ -5,7 +5,7 @@
   "publisher": "Arxis Labs",
   "description": "%plugin.description%",
   "tags": [ "sample" ],
-  "sdk": { "min": "2.2" },
+  "sdk": { "min": "7.0" },
   "entry": "bin/Arxis.HelloFriend.dll",
   "dependencies": [
     { "id": "arxis.hello", "min": "1.0" }

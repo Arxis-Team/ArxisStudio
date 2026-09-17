@@ -36,33 +36,34 @@ public class PluginStringsTests : IDisposable
     public void A_key_is_taken_from_the_dictionary_of_the_current_language()
     {
         var plugin = Plugin(
-            ("strings.json", """{ "panel.main": "Панель" }"""),
-            ("strings.en.json", """{ "panel.main": "Panel" }"""));
+            ("en.json", """{ "panel.main": "Panel" }"""),
+            ("ru.json", """{ "panel.main": "Панель" }"""));
 
-        Localizer.Instance.SetLanguage("en");
+        Localizer.Instance.SetLanguage("ru");
 
-        Assert.Equal("Panel", plugin.Strings.Resolve("%panel.main%"));
+        Assert.Equal("Панель", plugin.Strings.Resolve("%panel.main%"));
     }
 
     /// <summary>
-    /// Перевода нет — берётся словарь по умолчанию.
+    /// Строки нет на текущем языке — отвечает английский.
     /// </summary>
     /// <remarks>
-    /// Иначе локализация была бы всё или ничего: плагин, переведённый на один
-    /// язык, показывал бы всем остальным пустые места вместо текста, который у
-    /// него есть.
+    /// Иначе локализация была бы всё или ничего: расширение, переведённое
+    /// наполовину, показывало бы на месте непереведённого пустоту вместо текста,
+    /// который у него есть. Запасной язык тот же, что у студии, и он один:
+    /// «язык автора» отдельным файлом больше не объявляется.
     /// </remarks>
     [Fact]
-    public void Without_a_translation_the_default_dictionary_answers()
+    public void What_the_current_language_misses_comes_from_english()
     {
         var plugin = Plugin(
-            ("strings.json", """{ "panel.main": "Панель", "panel.side": "Сбоку" }"""),
-            ("strings.en.json", """{ "panel.main": "Panel" }"""));
+            ("en.json", """{ "panel.main": "Panel", "panel.side": "Side" }"""),
+            ("ru.json", """{ "panel.main": "Панель" }"""));
 
-        Localizer.Instance.SetLanguage("en");
+        Localizer.Instance.SetLanguage("ru");
 
-        Assert.Equal("Panel", plugin.Strings.Resolve("%panel.main%"));
-        Assert.Equal("Сбоку", plugin.Strings.Resolve("%panel.side%"));
+        Assert.Equal("Панель", plugin.Strings.Resolve("%panel.main%"));
+        Assert.Equal("Side", plugin.Strings.Resolve("%panel.side%"));
     }
 
     /// <summary>
@@ -75,7 +76,7 @@ public class PluginStringsTests : IDisposable
     [Fact]
     public void A_key_that_is_nowhere_stays_visible()
     {
-        Assert.Equal("!panel.main!", Plugin(("strings.json", "{ }")).Strings.Resolve("%panel.main%"));
+        Assert.Equal("!panel.main!", Plugin(("en.json", "{ }")).Strings.Resolve("%panel.main%"));
     }
 
     /// <summary>
@@ -88,8 +89,8 @@ public class PluginStringsTests : IDisposable
     [Fact]
     public void One_plugin_does_not_read_the_dictionary_of_another()
     {
-        var first = Plugin(("strings.json", """{ "panel.main": "Первый" }"""));
-        var second = Plugin(("strings.json", """{ "panel.main": "Второй" }"""));
+        var first = Plugin(("en.json", """{ "panel.main": "Первый" }"""));
+        var second = Plugin(("en.json", """{ "panel.main": "Второй" }"""));
 
         Assert.Equal("Первый", first.Strings.Resolve("%panel.main%"));
         Assert.Equal("Второй", second.Strings.Resolve("%panel.main%"));
@@ -106,7 +107,7 @@ public class PluginStringsTests : IDisposable
     [Fact]
     public void The_studio_dictionary_is_not_open_to_plugins()
     {
-        Assert.Equal("!projects.open!", Plugin(("strings.json", "{ }")).Strings.Resolve("%projects.open%"));
+        Assert.Equal("!projects.open!", Plugin(("en.json", "{ }")).Strings.Resolve("%projects.open%"));
     }
 
     /// <summary>
@@ -138,7 +139,7 @@ public class PluginStringsTests : IDisposable
     [Fact]
     public void Plain_text_passes_through_untouched()
     {
-        var plugin = Plugin(("strings.json", """{ "panel.main": "Из словаря" }"""));
+        var plugin = Plugin(("en.json", """{ "panel.main": "Из словаря" }"""));
 
         Assert.Equal("Панель", plugin.Strings.Resolve("Панель"));
     }
@@ -147,7 +148,7 @@ public class PluginStringsTests : IDisposable
     [Fact]
     public void A_broken_dictionary_does_not_take_the_plugin_down()
     {
-        var plugin = Plugin(("strings.json", "{ это не json"));
+        var plugin = Plugin(("en.json", "{ это не json"));
 
         Assert.Equal("!panel.main!", plugin.Strings.Resolve("%panel.main%"));
     }
@@ -164,7 +165,7 @@ public class PluginStringsTests : IDisposable
     [Fact]
     public void A_dictionary_with_comments_and_trailing_commas_is_read()
     {
-        var plugin = Plugin(("strings.json", """
+        var plugin = Plugin(("en.json", """
             {
               // Подписи панели.
               "panel.main": "Панель",
@@ -186,7 +187,7 @@ public class PluginStringsTests : IDisposable
     [Fact]
     public void Reloading_a_plugin_rereads_its_dictionaries()
     {
-        var plugin = Plugin(("strings.json", """{ "panel.main": "Было" }"""));
+        var plugin = Plugin(("en.json", """{ "panel.main": "Было" }"""));
 
         Assert.Equal("Было", plugin.Strings.Resolve("%panel.main%"));
 
@@ -210,7 +211,7 @@ public class PluginStringsTests : IDisposable
     [Fact]
     public void A_menu_item_is_translated_by_the_dictionary_of_its_plugin()
     {
-        var plugin = Plugin(("strings.json", """{ "menu.tools": "Инструменты", "menu.run": "Запустить" }"""));
+        var plugin = Plugin(("en.json", """{ "menu.tools": "Инструменты", "menu.run": "Запустить" }"""));
 
         plugin.Manifest!.Contributions.Menus.Add(new PluginMenuItem("%menu.tools%/%menu.run%", "probe.run"));
 
@@ -232,8 +233,8 @@ public class PluginStringsTests : IDisposable
     public void Switching_language_updates_a_plugin_title_already_on_screen()
     {
         var plugin = Plugin(
-            ("strings.json", """{ "panel.main": "Панель" }"""),
-            ("strings.en.json", """{ "panel.main": "Panel" }"""));
+            ("en.json", """{ "panel.main": "Panel" }"""),
+            ("ru.json", """{ "panel.main": "Панель" }"""));
 
         Localizer.Instance.SetLanguage("ru");
 

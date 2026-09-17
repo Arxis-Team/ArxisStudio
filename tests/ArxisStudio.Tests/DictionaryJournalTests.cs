@@ -43,7 +43,7 @@ public class DictionaryJournalTests : IDisposable
 
         using var journal = DictionaryJournal.Attach(log);
 
-        var path = Write("strings.json", """{ "panel.main": "Панель" "panel.side": "Сбоку" }""", second: 0);
+        var path = Write("en.json", """{ "panel.main": "Панель" "panel.side": "Сбоку" }""", second: 0);
 
         Assert.Empty(StringFile.Read(path));
         Assert.Empty(StringFile.Read(path));
@@ -53,12 +53,12 @@ public class DictionaryJournalTests : IDisposable
         Assert.Equal(StudioLogLevel.Warning, told.Level);
         Assert.Contains("ключами", told.Message, StringComparison.Ordinal);
 
-        Write("strings.json", """{ panel.main: "Панель" }""", second: 1);
+        Write("en.json", """{ panel.main: "Панель" }""", second: 1);
         StringFile.Read(path);
 
         Assert.Equal(2, Told(log, path).Count);
 
-        Write("strings.json", """{ "panel.main": "Панель" }""", second: 2);
+        Write("en.json", """{ "panel.main": "Панель" }""", second: 2);
 
         Assert.Equal("Панель", StringFile.Read(path)["panel.main"]);
         Assert.Equal(2, Told(log, path).Count);
@@ -73,7 +73,7 @@ public class DictionaryJournalTests : IDisposable
 
         using var journal = DictionaryJournal.Attach(log);
 
-        var path = Write("strings.json", "null", second: 0);
+        var path = Write("en.json", "null", second: 0);
 
         Assert.Empty(StringFile.Read(path));
         Assert.Single(Told(log, path));
@@ -88,7 +88,7 @@ public class DictionaryJournalTests : IDisposable
 
         using var journal = DictionaryJournal.Attach(log);
 
-        var path = Path.Combine(_folder, "strings.de.json");
+        var path = Path.Combine(_folder, "de.json");
 
         Assert.Empty(StringFile.Read(path));
         Assert.Empty(Told(log, path));
@@ -105,7 +105,7 @@ public class DictionaryJournalTests : IDisposable
     [Fact]
     public void A_journal_attached_later_hears_about_a_file_broken_before()
     {
-        var path = Write("strings.json", """{ "panel.main" "Панель" }""", second: 0);
+        var path = Write("en.json", """{ "panel.main" "Панель" }""", second: 0);
 
         StringFile.Read(path);
 
@@ -126,7 +126,7 @@ public class DictionaryJournalTests : IDisposable
 
         DictionaryJournal.Attach(log).Dispose();
 
-        var path = Write("strings.json", "{ это не json", second: 0);
+        var path = Write("en.json", "{ это не json", second: 0);
 
         StringFile.Read(path);
 

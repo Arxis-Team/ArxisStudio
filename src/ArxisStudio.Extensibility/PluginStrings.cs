@@ -13,6 +13,12 @@ namespace ArxisStudio.Extensibility;
 /// и подпись настройки студия показывает раньше, чем плагин впервые поднимут, —
 /// иначе список установленного означал бы загрузку всего установленного.
 /// <para>
+/// Файл называется кодом языка — <c>lang/en.json</c>, <c>lang/ru.json</c>, <c>lang/de.json</c>, —
+/// той же формой, какой названы словари самой студии. Запасной язык тоже её: не нашлось файла
+/// текущего языка — читается <c>en.json</c>. Прежде язык автора был отдельным файлом без кода
+/// (<c>strings.json</c>), и одна и та же строка называлась в студии и в плагине по-разному.
+/// </para>
+/// <para>
 /// Встроенному модулю словарём служат словари самой студии, хотя папка у него
 /// своя: его строки студия и написала, и <c>lang/</c> в его папке нет намеренно.
 /// Внешнему плагину эта дорога закрыта — ключи студии внутренние, их переименование
@@ -24,8 +30,19 @@ public sealed class PluginStrings : IStudioStrings, IStringSource
     /// <summary>Папка словарей внутри плагина.</summary>
     public const string Folder = "lang";
 
-    /// <summary>Словарь языка, на котором плагин написан.</summary>
-    public const string DefaultFile = "strings.json";
+    /// <summary>
+    /// Словарь запасного языка: его читают, когда файла текущего языка у расширения нет.
+    /// </summary>
+    /// <remarks>
+    /// Считается от <see cref="Localizer.FallbackLanguage"/>, а не написан буквой второй раз:
+    /// запасной язык у студии и у расширения один, и разойтись им нельзя — иначе студия показывала
+    /// бы английский, а панель расширения молчала бы ключами.
+    /// </remarks>
+    public static string DefaultFile { get; } = FileOf(Localizer.FallbackLanguage);
+
+    /// <summary>Как называется словарь этого языка.</summary>
+    /// <param name="language">Код языка.</param>
+    public static string FileOf(string language) => $"{language}.json";
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, PluginStrings> Known =
         new(StringComparer.OrdinalIgnoreCase);
@@ -205,7 +222,13 @@ public sealed class PluginStrings : IStudioStrings, IStringSource
                 return;
 
             _written = Read(DefaultFile);
-            _translated = Read($"strings.{language}.json");
+
+            // На запасном языке свой файл и есть словарь по умолчанию: читать его второй раз
+            // незачем, а старшинство он сохраняет — слово автора о своём продукте старше слова
+            // языкового пакета, на каком бы языке оно ни было сказано.
+            _translated = string.Equals(language, Localizer.FallbackLanguage, StringComparison.OrdinalIgnoreCase)
+                ? _written
+                : Read(FileOf(language));
             _packed = _pluginId is { Length: > 0 } id && _translations is not null
                 ? _translations.Read(id, language).ToFrozenDictionary(StringComparer.Ordinal)
                 : FrozenDictionary<string, string>.Empty;

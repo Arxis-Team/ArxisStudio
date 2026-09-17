@@ -120,10 +120,12 @@
     -->
     <ItemGroup>
         <AdditionalFiles Include="$(AxPluginManifest)" Condition="Exists('$(AxPluginManifest)')" />
-        <AdditionalFiles Include="$(MSBuildProjectDirectory)/lang/strings.json"
-                         Condition="Exists('$(MSBuildProjectDirectory)/lang/strings.json')"
+        <AdditionalFiles Include="$(MSBuildProjectDirectory)/lang/en.json"
+                         Condition="Exists('$(MSBuildProjectDirectory)/lang/en.json')"
                          AxStrings="default" />
-        <AdditionalFiles Include="$(MSBuildProjectDirectory)/lang/strings.*.json" AxStrings="translation" />
+        <AdditionalFiles Include="$(MSBuildProjectDirectory)/lang/*.json"
+                         Exclude="$(MSBuildProjectDirectory)/lang/en.json"
+                         AxStrings="translation" />
         <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="AxStrings" />
     </ItemGroup>
 
@@ -186,8 +188,13 @@
             <_AxSharedName>^((Avalonia|ArxisStudio\.Sdk|ArxisStudio\.Controls|ArxisStudio\.Icons)(\..+)?|ArxisStudio\.ProjectSystem)$</_AxSharedName>
         </PropertyGroup>
 
-        <!-- Иначе вчерашние сборки уедут в архив вместе с сегодняшними. -->
-        <RemoveDir Directories="$(_AxPluginBinDir)" />
+        <!--
+            Раскладка собирается заново целиком: всё в ней — выход этой цели, и файл, которого в
+            плагине больше нет, иначе уедет в архив вместе с сегодняшними. Сборки чистились и
+            прежде, а словари и картинки — нет: переименованный словарь оставался лежать рядом с
+            новым, и установленный плагин получал оба.
+        -->
+        <RemoveDir Directories="$(AxPluginPackageDir)" />
 
         <!--
             Список общих контрактов повторяет PluginLoadContext.IsShared в

@@ -256,7 +256,7 @@ public class ManifestStringsAnalyzerTests
         string manifest,
         string? dictionary,
         string manifestName = "plugin.json",
-        string dictionaryPath = "C:/probe/lang/strings.json",
+        string dictionaryPath = "C:/probe/lang/en.json",
         string? translation = null)
     {
         var references = AppDomain.CurrentDomain.GetAssemblies()
@@ -285,7 +285,7 @@ public class ManifestStringsAnalyzerTests
         // Перевод сборка подаёт с ролью translation — так его и отличают от словаря по умолчанию.
         if (translation is not null)
         {
-            const string translationPath = "C:/probe/lang/strings.en.json";
+            const string translationPath = "C:/probe/lang/de.json";
 
             files.Add(new Given(translationPath, translation));
             roles[translationPath] = "translation";
