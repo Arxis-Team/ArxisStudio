@@ -1,0 +1,16 @@
+{
+  "menu.tools": "Команды плагинов",
+  "toolbar.sample.verbose": "Подробный журнал примера",
+  "panel.sample": "Пример модуля",
+  "menu.sample": "Пример модуля",
+  "menu.sample.about": "О модуле",
+  "module.sample.description": "Встроенный модуль-образец: панель, команда и служба",
+  "module.verbose.on": "Пример: подробный журнал включён",
+  "module.verbose.off": "Пример: подробный журнал выключен",
+  "module.sample.heading": "Пример встроенного модуля",
+  "module.sample.manifest": "Манифест: module.json в папке модуля",
+  "module.sample.loadcontext": "Контекст загрузки: основной, выгрузке не подлежит",
+  "module.sample.project.label": "Проект:",
+  "module.sample.project.none": "не открыт",
+  "module.sample.log": "Записать в журнал"
+}

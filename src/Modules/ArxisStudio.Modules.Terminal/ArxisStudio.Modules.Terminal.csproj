@@ -56,13 +56,11 @@
     </ItemGroup>
 
     <!--
-        Манифест и словарь — входами сборки, чтобы ARX0002 сверил одно с другим.
-        Словарь у модуля не свой: папка у него есть, а lang/ в ней нет — текст ему
-        дают словари самой студии, его строки студия и написала.
+        Манифест — входом сборки: по нему ARX0002 сверяет %ключи% со словарём модуля.
+        Сам словарь подаёт общий src/Modules/Directory.Build.targets, одним правилом на все модули.
     -->
     <ItemGroup>
         <AdditionalFiles Include="module.json"/>
-        <AdditionalFiles Include="../../ArxisStudio.Shell/Localization/Strings/en.json" AxStrings="default"/>
     </ItemGroup>
 
 </Project>

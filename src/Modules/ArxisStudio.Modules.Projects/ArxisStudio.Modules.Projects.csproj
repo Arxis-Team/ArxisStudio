@@ -61,7 +61,6 @@
 
     <ItemGroup>
         <AdditionalFiles Include="module.json"/>
-        <AdditionalFiles Include="../../ArxisStudio.Shell/Localization/Strings/en.json" AxStrings="default"/>
     </ItemGroup>
 
     <!--

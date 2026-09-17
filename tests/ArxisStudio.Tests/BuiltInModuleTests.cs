@@ -395,10 +395,23 @@ public class BuiltInModuleTests
             // разошёлся бы с файлом молча, а поймать это расхождение нечем.
             Assert.DoesNotContain("<EmbeddedResource Include=\"module.json\"", text, StringComparison.Ordinal);
 
+            // Словарь студии модулю больше не словарь: свой лежит в его папке, и подаёт его
+            // общий таргет. Строка, оставшаяся в csproj, добавила бы к ключам модуля ключи студии,
+            // и ARX0002 промолчал бы о том, чего в словаре модуля нет.
+            Assert.DoesNotContain("Localization/Strings", text, StringComparison.Ordinal);
+
             Assert.True(
-                text.Contains("Localization/Strings/en.json", StringComparison.Ordinal),
-                $"{name}: словарь студии не подан сборке — сверять ключи манифеста не с чем");
+                File.Exists(Path.Combine(Path.GetDirectoryName(project)!, "lang", "en.json")),
+                $"{name}: рядом с модулем нет lang/en.json — сверять ключи манифеста не с чем");
         }
+
+        // Правило подачи одно на все модули и живёт в общем таргете: снятое, оно оставило бы
+        // ARX0002 без словаря и без единого слова об этом.
+        var targets = File.ReadAllText(Path.Combine(Modules(), "Directory.Build.targets"));
+
+        Assert.Contains("lang/en.json", targets, StringComparison.Ordinal);
+        Assert.Contains("AxStrings=\"default\"", targets, StringComparison.Ordinal);
+        Assert.Contains("AxStrings=\"translation\"", targets, StringComparison.Ordinal);
     }
 
     /// <summary>Папка встроенных модулей в репозитории.</summary>

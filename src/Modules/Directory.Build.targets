@@ -70,12 +70,24 @@
 
         <ItemGroup>
             <!--
-                Манифест — единственный файл не внутри bin, и говорит он это своей пометкой, а не
+                Манифест и словари лежат не внутри bin, и говорят они это своей пометкой, а не
                 «..» в пути: путь внутри bin остаётся путём внутри bin, и вычитание платформы,
                 которое сравнивает такие пути целиком, его не касается.
             -->
             <_StudioModuleFile Include="$(AxModuleManifest)"
                                StudioRelativePath="module.json"
+                               StudioModuleRoot="true"/>
+
+            <!--
+                Словари — в lang/, формой как у установленного плагина. Пометка корня здесь не
+                украшение: файлы у модулей одноимённы по делу (en.json у каждого), а «один файл —
+                один модуль» AXL1002 считает по составу bin, и четыре словаря сорвали бы сборку
+                как четыре копии одной сборки. Разделитель обратный — им склеивает раскладка
+                (build/ArxisStudio.Modules.targets), и прямой доехал бы до копирования смешанным.
+            -->
+            <_StudioModuleLang Include="$(MSBuildProjectDirectory)/lang/*.json"/>
+            <_StudioModuleFile Include="@(_StudioModuleLang)"
+                               StudioRelativePath="lang\%(_StudioModuleLang.Filename)%(_StudioModuleLang.Extension)"
                                StudioModuleRoot="true"/>
 
             <_StudioModuleFile Include="$(TargetPath)" StudioRelativePath="$(TargetFileName)"/>
@@ -111,11 +123,23 @@
     </Target>
 
     <!--
-        Роль словаря у входа сборки открыта анализатору: модуль помечает словарь студии,
-        который он показывает, AxStrings="default" в своём csproj, и ARX0012 проверяет,
-        прочтёт ли его студия. Тот же приём у плагина делает таргет SDK.
+        Словари модуля — входами сборки, с ролью: по словарю по умолчанию ARX0002 сверяет %ключи%
+        манифеста, а ARX0012 проверяет, прочтёт ли студия каждый. Собирается здесь, а не строкой в
+        каждом csproj: правило одно на все модули, и четвёртая его копия — это место, где забудут.
+        Тот же приём у плагина делает таргет SDK, и форма у него та же.
+
+        Словарь по умолчанию — en.json: запасной язык и у студии, и у расширения. Всё прочее в
+        lang/ — переводы, и требовать от них полноты значило бы запретить переводить по частям;
+        отсюда Exclude, а не вторая маска: один и тот же файл с двумя ролями достался бы
+        анализатору с той, что записана последней.
     -->
     <ItemGroup>
+        <AdditionalFiles Include="$(MSBuildProjectDirectory)/lang/en.json"
+                         Condition="Exists('$(MSBuildProjectDirectory)/lang/en.json')"
+                         AxStrings="default"/>
+        <AdditionalFiles Include="$(MSBuildProjectDirectory)/lang/*.json"
+                         Exclude="$(MSBuildProjectDirectory)/lang/en.json"
+                         AxStrings="translation"/>
         <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="AxStrings"/>
     </ItemGroup>
 

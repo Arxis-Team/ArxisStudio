@@ -104,6 +104,33 @@ public class StudioLayoutTests
     }
 
     /// <summary>
+    /// У каждого модуля в выходе лежит его словарь.
+    /// </summary>
+    /// <remarks>
+    /// Английский обязателен: он запасной, и без него подписи модуля покажутся ключами на любом
+    /// языке, которого у модуля нет. Зеркало того же правила у плагина
+    /// (<c>PluginPackagingTests</c>): словарь едет вместе с расширением, а не остаётся в его
+    /// исходниках. Правило держится раскладкой, и одна пометка в
+    /// <c>src/Modules/Directory.Build.targets</c> — всё, что между «лежит» и «не лежит».
+    /// </remarks>
+    [Fact]
+    public void Every_module_folder_carries_its_own_dictionary()
+    {
+        foreach (var folder in ModuleFolders())
+        {
+            var english = Path.Combine(folder, "lang", "en.json");
+
+            Assert.True(File.Exists(english), $"в папке {folder} нет lang/en.json");
+
+            var strings = JsonDocument.Parse(File.ReadAllText(english)).RootElement;
+
+            Assert.True(
+                strings.EnumerateObject().Any(),
+                $"словарь {english} пуст — подписи модуля покажутся ключами");
+        }
+    }
+
+    /// <summary>
     /// Одна и та же сборка не лежит в двух папках модулей.
     /// </summary>
     /// <remarks>
