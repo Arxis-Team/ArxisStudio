@@ -85,20 +85,60 @@ public class SampleLanguagePackTests : IDisposable
     }
 
     /// <summary>
-    /// Ветка меню названа одним и тем же словом в обоих словарях.
+    /// Ветка меню названа одним и тем же словом во всех переводах пакета.
     /// </summary>
     /// <remarks>
-    /// Ветки меню сходятся по переведённому тексту: разойдись эти две
-    /// строки — и в меню оказалось бы два одинаковых с виду раздела. Пример
-    /// показывает именно этот случай, и потому обязан быть согласован.
+    /// Ветки меню сходятся по переведённому тексту: разойдись эти строки — и в меню оказалось бы
+    /// два одинаковых с виду раздела. Пакет переводит и модули, и плагин, каждого своим файлом, и
+    /// согласовать ветку обязан во всех сразу: студия здесь ни при чём, ключа <c>menu.tools</c> у
+    /// неё нет — его несёт у себя каждое расширение.
     /// </remarks>
     [Fact]
-    public void Both_dictionaries_name_the_menu_branch_alike()
+    public void Every_translation_in_the_pack_names_the_menu_branch_alike()
     {
-        var studio = Strings(Path.Combine(Sample(), "lang", "de.json"));
-        var plugin = Strings(Path.Combine(Sample(), "lang", "arxis.hello.de.json"));
+        const string Branch = "menu.tools";
 
-        Assert.Equal(studio["menu.tools"], plugin["menu.tools"]);
+        var named = Directory
+            .EnumerateFiles(Path.Combine(Sample(), "lang"), "*.de.json")
+            .Select(path => (Name: Path.GetFileName(path), Strings: Strings(path)))
+            .Where(translation => translation.Strings.ContainsKey(Branch))
+            .ToList();
+
+        Assert.True(named.Count > 1, "пакет переводит ветку меню меньше чем у одного расширения");
+
+        var apart = named.Select(translation => translation.Strings[Branch]).Distinct(StringComparer.Ordinal).ToList();
+
+        Assert.True(
+            apart.Count == 1,
+            "ветка названа по-разному: " +
+            string.Join("; ", named.Select(translation => $"{translation.Name} — «{translation.Strings[Branch]}»")));
+
+        // И ключ студии она больше не занимает: там его нет.
+        Assert.DoesNotContain(Branch, Strings(Path.Combine(Sample(), "lang", "de.json")).Keys);
+    }
+
+    /// <summary>
+    /// Пакет переводит встроенный модуль тем же полем, что и плагин.
+    /// </summary>
+    /// <remarks>
+    /// До того, как словари модулей переехали в их папки, эта дорога была закрыта: словарь модуля
+    /// короткозамыкал в словарь студии, и перевод, объявленный на модуль, не спрашивался никогда.
+    /// Пример показывает, что разницы между модулем и плагином у пакета нет.
+    /// </remarks>
+    [Fact]
+    public void The_pack_translates_a_built_in_module()
+    {
+        var declared = Pack().Manifest!.Contributions.Languages
+            .Single(language => language.Code == "de")
+            .Translations ?? [];
+
+        Assert.Contains(declared, translation => translation.Id == "arxis.terminal");
+
+        var translations = new PluginLanguages([Pack()]);
+        var terminal = translations.Read("arxis.terminal", "de");
+
+        Assert.NotEmpty(terminal);
+        Assert.Equal(terminal["menu.tools"], Strings(Path.Combine(Sample(), "lang", "arxis.hello.de.json"))["menu.tools"]);
     }
 
     private static InstalledPlugin Pack()

@@ -816,7 +816,15 @@ public class ConsolePanelTests : IDisposable
 
         Assert.Null(error);
 
-        var installed = new InstalledPlugin(AppContext.BaseDirectory, manifest, null, IsEnabled: true, IsBuiltIn: true);
+        // Папка — та же, какую считает студия: над bin сборки модуля. Корень выхода сюда не
+        // годится, хотя раньше и годился: словарь студии лежит именно там, и подмена была бы не
+        // видна — панель показывала бы ключи, а тест сверял бы их сам с собой.
+        var installed = new InstalledPlugin(
+            ModuleManifest.FolderOf(typeof(ConsoleModule).Assembly),
+            manifest,
+            null,
+            IsEnabled: true,
+            IsBuiltIn: true);
         var store = new PluginSettingsStore(null, Path.Combine(_root, "plugin-settings.json"));
 
         var context = new StudioContextFactory(log, new StudioCommands(), null, services, settings: store)

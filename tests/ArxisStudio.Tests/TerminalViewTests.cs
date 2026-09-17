@@ -663,7 +663,15 @@ public class TerminalViewTests
 
         Assert.Null(error);
 
-        var plugin = new InstalledPlugin(AppContext.BaseDirectory, manifest, null, IsEnabled: true, IsBuiltIn: true);
+        // Папка — та же, какую считает студия: над bin сборки модуля. Корень выхода сюда не
+        // годится, хотя раньше и годился: словарь студии лежит именно там, и подмена была бы не
+        // видна — панель показывала бы ключи, а тест сверял бы их сам с собой.
+        var plugin = new InstalledPlugin(
+            ModuleManifest.FolderOf(typeof(TerminalModule).Assembly),
+            manifest,
+            null,
+            IsEnabled: true,
+            IsBuiltIn: true);
         var context = new StudioContextFactory(new StudioLog(), new StudioCommands(), null).Create(plugin);
         var panel = new TerminalPanel();
 

@@ -37,6 +37,7 @@ public class StudioToolBarTests : IDisposable
     private readonly StudioToolBar _bar;
     private readonly List<string> _complaints = [];
     private readonly List<string> _invoked = [];
+    private readonly List<string> _folders = [];
     private readonly Window _window;
 
     public StudioToolBarTests()
@@ -69,6 +70,9 @@ public class StudioToolBarTests : IDisposable
     {
         _window.Close();
         Localizer.Instance.SetLanguage(Localizer.FallbackLanguage);
+
+        foreach (var folder in _folders.Where(Directory.Exists))
+            Directory.Delete(folder, recursive: true);
 
         GC.SuppressFinalize(this);
     }
@@ -466,31 +470,39 @@ public class StudioToolBarTests : IDisposable
     }
 
     /// <summary>
-    /// Подпись-ключ переводится при смене языка — студией, не автором.
+    /// Подпись-ключ переводится при смене языка — словарями своего расширения.
     /// </summary>
+    /// <remarks>
+    /// Своими, а не студийными, и у встроенного модуля тоже: словарь лежит в его папке, и студия
+    /// переводит подпись тем же кодом, каким переводит подпись плагина. Текст здесь написан в
+    /// самом тесте, а не спрошен у словаря второй раз: сверка двух одинаковых обращений прошла бы
+    /// и на пустом словаре, где оба ответа — <c>!menu.tools!</c>.
+    /// </remarks>
     [AvaloniaFact]
     public void A_title_key_follows_the_language()
     {
-        var module = Plugin("sample", builtIn: true, ButtonOf("about", "sample.about", title: "%menu.tools%"));
+        var module = Plugin(
+            "sample",
+            builtIn: true,
+            dictionaries: [("en", "Tools"), ("ru", "Инструменты")],
+            ButtonOf("about", "sample.about", title: "%menu.tools%"));
 
         _bar.Add(module, module.Manifest!.Contributions.ToolBar[0]);
 
         var button = View<ToolBarButton>("sample:about");
 
         Localizer.Instance.SetLanguage("ru");
-        var russian = Localizer.Instance["menu.tools"];
 
-        Assert.Equal(russian, ToolTip.GetTip(button));
+        Assert.Equal("Инструменты", ToolTip.GetTip(button));
 
         // Имя для средств доступности идёт той же дорогой: человек, который
         // кнопку не видит, читает её тем же словом и на том же языке.
-        Assert.Equal(russian, AutomationProperties.GetName(button));
+        Assert.Equal("Инструменты", AutomationProperties.GetName(button));
 
         Localizer.Instance.SetLanguage("en");
 
-        Assert.Equal(Localizer.Instance["menu.tools"], ToolTip.GetTip(button));
-        Assert.Equal(Localizer.Instance["menu.tools"], AutomationProperties.GetName(button));
-        Assert.NotEqual(russian, ToolTip.GetTip(button));
+        Assert.Equal("Tools", ToolTip.GetTip(button));
+        Assert.Equal("Tools", AutomationProperties.GetName(button));
     }
 
     /// <summary>Фабрика контекста выдаёт полосу именным фасадом.</summary>
@@ -721,16 +733,44 @@ public class StudioToolBarTests : IDisposable
 
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
-    private static InstalledPlugin Plugin(string id, params PluginToolBarItem[] items) => Plugin(id, false, items);
+    private InstalledPlugin Plugin(string id, params PluginToolBarItem[] items) => Plugin(id, false, items);
 
-    private static InstalledPlugin Plugin(string id, bool builtIn, params PluginToolBarItem[] items)
+    private InstalledPlugin Plugin(string id, bool builtIn, params PluginToolBarItem[] items) =>
+        Plugin(id, builtIn, dictionaries: [], items);
+
+    /// <summary>Расширение со своей папкой и, если попросили, со своими словарями.</summary>
+    /// <param name="id">Идентификатор расширения.</param>
+    /// <param name="builtIn">Встроенный модуль или внешний плагин.</param>
+    /// <param name="dictionaries">Словари по коду языка: что написано в них под ключом menu.tools.</param>
+    /// <param name="items">Объявленные элементы полосы.</param>
+    private InstalledPlugin Plugin(
+        string id,
+        bool builtIn,
+        IReadOnlyList<(string Language, string Branch)> dictionaries,
+        params PluginToolBarItem[] items)
     {
         var manifest = new PluginManifest { Id = id, Name = id };
 
         foreach (var item in items)
             manifest.Contributions.ToolBar.Add(item);
 
-        return new InstalledPlugin(Path.Combine(Path.GetTempPath(), $"arxis-bar-{id}"), manifest, null, IsEnabled: true, IsBuiltIn: builtIn);
+        var folder = Path.Combine(Path.GetTempPath(), $"arxis-bar-{id}-{Guid.NewGuid():N}");
+
+        _folders.Add(folder);
+
+        if (dictionaries.Count > 0)
+        {
+            Directory.CreateDirectory(Path.Combine(folder, PluginStrings.Folder));
+
+            foreach (var (language, branch) in dictionaries)
+            {
+                File.WriteAllText(
+                    Path.Combine(folder, PluginStrings.Folder, PluginStrings.FileOf(language)),
+                    $$"""{ "menu.tools": "{{branch}}" }""");
+            }
+        }
+
+        return new InstalledPlugin(folder, manifest, null, IsEnabled: true, IsBuiltIn: builtIn);
     }
 
     private static PluginToolBarItem ButtonOf(string id, string command, string? icon = "arxis:Play", string? title = "Кнопка", string slot = "right") =>

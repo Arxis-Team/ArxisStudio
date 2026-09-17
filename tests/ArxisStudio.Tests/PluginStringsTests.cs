@@ -111,23 +111,32 @@ public class PluginStringsTests : IDisposable
     }
 
     /// <summary>
-    /// Встроенный модуль говорит словарями студии.
+    /// Встроенный модуль говорит своими словами.
     /// </summary>
     /// <remarks>
-    /// Своего словаря у модуля нет, хотя папка есть: его строки писала студия, и
-    /// лежат они там же, где весь остальной её текст.
+    /// Дорога у модуля и плагина одна: словарь лежит в папке расширения. Тем модуль и переносится
+    /// во внешний плагин перекладыванием папки — прежде его строки оставались в студии, и переезд
+    /// был неполным.
+    /// <para>
+    /// Ключ студии модулю при этом не виден, как не виден плагину: ключи студии внутренние, и
+    /// переименование её строки не должно менять текст в чужой панели.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void A_built_in_module_speaks_with_the_words_of_the_studio()
+    public void A_built_in_module_speaks_with_its_own_words()
     {
         var module = new InstalledPlugin(
-            AppContext.BaseDirectory,
+            ModuleManifest.FolderOf(typeof(Modules.Sample.SampleModule).Assembly),
             new PluginManifest { Id = "arxis.sample", Name = "%panel.sample%" },
             null,
             IsEnabled: true,
             IsBuiltIn: true);
 
-        Assert.Equal(Localizer.Instance["panel.sample"], module.DisplayName);
+        // Текст написан здесь, а не спрошен у словаря второй раз: сверка двух одинаковых
+        // обращений прошла бы и на пустом словаре, где оба ответа — «!panel.sample!».
+        Assert.Equal("Sample module", module.DisplayName);
+
+        Assert.Equal("!projects.recent!", module.Strings.Resolve("%projects.recent%"));
     }
 
     /// <summary>Текст без процентов остаётся текстом.</summary>

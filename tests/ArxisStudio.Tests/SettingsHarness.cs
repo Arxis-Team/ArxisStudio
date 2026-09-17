@@ -113,8 +113,9 @@ internal sealed class SettingsHarness : IDisposable
     }
 
     /// <summary>Модуль, объявивший одну настройку.</summary>
+    /// <remarks>Папка — настоящая папка терминала: из неё берутся подписи настроек.</remarks>
     private static InstalledPlugin Module() => new(
-        AppContext.BaseDirectory,
+        ModuleManifest.FolderOf(typeof(ArxisStudio.Modules.Terminal.TerminalModule).Assembly),
         new PluginManifest
         {
             Id = "arxis.terminal",
