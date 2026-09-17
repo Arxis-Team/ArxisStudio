@@ -389,7 +389,14 @@ public sealed class StudioPlugins
         // и меню сборки не требуют, и спящий плагин получает их здесь и только
         // здесь. Модуль, поднятый следом, может тут же выключить свой элемент
         // из Activate — слово должно найти запись.
-        MountDeclared(StudioModules.Describe(Assemblies).Concat(_installed));
+        var declaring = StudioModules.Describe(Assemblies).Concat(_installed).ToList();
+
+        MountDeclared(declaring);
+
+        // Сочетания раздаются здесь же и по той же причине: манифест читают без загрузки
+        // сборки, и нажатие будит спящего хозяина тем же путём, что и щелчок по кнопке полосы.
+        foreach (var plugin in declaring.Where(candidate => candidate is { IsEnabled: true, IsValid: true }))
+            ClaimDeclared(plugin);
     }
 
     /// <summary>
@@ -620,14 +627,20 @@ public sealed class StudioPlugins
             .Where(plugin => plugin is { IsEnabled: true, IsValid: true })
             .ToList();
 
+        // Объявленное уходит вместе с выключенным — и у того, кто ещё спал. Спящего опускать
+        // нечем, его сборка не загружена, но стоит он в студии целиком: кнопки в полосе, сочетания
+        // и запись среди ждущих у хоста. Пока уборка стояла после раннего выхода ниже, выключение
+        // спящего не делало ничего, и первое же его событие — щелчок, жест, файл его типа —
+        // поднимало плагин, который человек только что выключил.
+        foreach (var id in disabled)
+        {
+            host.Withdraw(id);
+            Shortcuts?.RemoveOwnedBy(id);
+            Unmount(id);
+        }
+
         if (lower.Count == 0 && wanted.Count == 0)
             return null;
-
-        // Кнопки объявленных: у ушедшего снимаются вместе с ним, у пришедшего
-        // встают до подъёма — как на старте, где полоса собирается по
-        // манифестам раньше первого поднятого.
-        foreach (var id in disabled)
-            Unmount(id);
 
         var present = loaded.Where(plugin => !lower.Contains(plugin.Id, StringComparer.Ordinal)).ToList();
         var order = PluginGraph.Resolve(wanted, present.Concat(_modules).ToList());
@@ -635,13 +648,33 @@ public sealed class StudioPlugins
         foreach (var note in order.Notes)
             _log.Write(StudioLogLevel.Warning, "Plugins", note);
 
+        // Отказ графа — такой же несостоявшийся подъём, как сбой сборки, и сказать о нём надо теми
+        // же тремя словами: журнал, карточка в менеджере, ответ окну настроек. Иначе включённый
+        // плагин, чьей зависимости нет, просто молчал бы до перезапуска, а причина появлялась бы
+        // только там — записью старта.
+        var refusals = new List<string>();
+
+        foreach (var refused in wanted.Where(candidate => order.Refused.ContainsKey(candidate.Id)))
+        {
+            var reason = order.Refused[refused.Id];
+
+            _log.Write(StudioLogLevel.Error, "Plugins", $"{refused.DisplayName}: {reason}");
+            _unrisen[refused.Id] = reason;
+            refusals.Add($"{refused.DisplayName}: {reason}");
+        }
+
         var raise = order.Order
             .Where(plugin => wanted.Any(candidate => candidate.Id == plugin.Id))
             .ToList();
 
+        // Кнопки пришедшего встают до подъёма — как на старте, где полоса собирается по
+        // манифестам раньше первого поднятого. Сочетания — после: их снимает уход прежней копии.
         MountDeclared(raise);
 
-        return await CascadeAsync(host, lower, raise);
+        if (await CascadeAsync(host, lower, raise) is { } stuck)
+            refusals.Add(stuck);
+
+        return refusals.Count == 0 ? null : string.Join("; ", refusals);
 
         void Sink(string id)
         {
@@ -685,8 +718,14 @@ public sealed class StudioPlugins
         foreach (var note in cascade.Notes)
             _log.Write(StudioLogLevel.Warning, "Plugins", note);
 
+        // Сочетания манифеста заявляются после подъёма, а не до: уход прежней копии снимает всё,
+        // что записано на хозяина, и заявленное раньше каскада было бы стёрто им же. Без этой
+        // строки перезагруженный плагин оставался без своих сочетаний до перезапуска студии.
         foreach (var loaded in cascade.Raised)
-            Accept(loaded);
+        {
+            if (Accept(loaded))
+                ClaimDeclared(loaded.Installed);
+        }
 
         // Выгрузка кооперативная, и не удаться она может по вине любого из
         // опущенных: подписка на событие студии, оставленный таймер,
@@ -726,18 +765,29 @@ public sealed class StudioPlugins
             foreach (var declared in plugin.Manifest!.Contributions.ToolBar)
                 ToolBar.Add(plugin, declared);
 
-            // Сочетания раздаются здесь же и по той же причине: манифест читают
-            // без загрузки сборки, и нажатие будит спящего хозяина тем же
-            // путём, что и щелчок по кнопке полосы.
             foreach (var declared in plugin.Manifest.Contributions.Commands)
-            {
-                Claim(plugin, declared);
                 Glyph(plugin, $"команда {declared.Id}", declared.Icon);
-            }
 
             foreach (var declared in plugin.Manifest.Contributions.ToolWindows)
                 Glyph(plugin, $"панель {declared.Id}", declared.Icon);
         }
+    }
+
+    /// <summary>
+    /// Заявляет сочетания, объявленные манифестом расширения.
+    /// </summary>
+    /// <param name="plugin">Чей манифест.</param>
+    /// <remarks>
+    /// Отдельно от кнопок, потому что живут они по-разному. Кнопку ставят до подъёма и снимают с
+    /// экрана; сочетание записано на хозяина, и уход хозяина стирает его вместе с остальными его
+    /// записями. Заявка — ровно одна на жизнь хозяина: повторную реестр считает спором за занятое
+    /// и отказывает хозяину в его же сочетании. Поэтому дорог две и они не пересекаются — старт
+    /// для всех объявивших и каскад для поднятых заново.
+    /// </remarks>
+    private void ClaimDeclared(InstalledPlugin plugin)
+    {
+        foreach (var declared in plugin.Manifest?.Contributions.Commands ?? [])
+            Claim(plugin, declared);
     }
 
     /// <summary>

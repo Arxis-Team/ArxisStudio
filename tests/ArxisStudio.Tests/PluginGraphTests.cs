@@ -36,6 +36,59 @@ public class PluginGraphTests
         Assert.Contains("→", resolution.Refused["arxis.a"]);
     }
 
+    /// <summary>
+    /// Отказ по циклу доходит до тех, кто на цикле стоит.
+    /// </summary>
+    /// <remarks>
+    /// Цикл находится позже остальных отказов — обход идёт мимо уже отказанных, — и пока после него
+    /// отказы не разносились ещё раз, плагин, которому нужен участник цикла, поднимался без него:
+    /// ребро на отказанного в порядок не попадает, и узел выглядел готовым.
+    /// </remarks>
+    [Fact]
+    public void A_refusal_by_a_cycle_reaches_those_who_stand_on_it()
+    {
+        var resolution = PluginGraph.Resolve(
+            [
+                Plugin("arxis.a", "Альфа", depends: [Dep("arxis.b")]),
+                Plugin("arxis.b", "Бета", depends: [Dep("arxis.a")]),
+                Plugin("arxis.c", "Гамма", depends: [Dep("arxis.a")]),
+                Plugin("arxis.d", "Дельта", depends: [Dep("arxis.c")]),
+                Plugin("arxis.free", "Свободный"),
+            ],
+            present: []);
+
+        Assert.Equal(["arxis.free"], resolution.Order.Select(plugin => plugin.Id));
+
+        Assert.Contains("Альфа", resolution.Refused["arxis.c"], StringComparison.Ordinal);
+        Assert.Contains("цикл зависимостей", resolution.Refused["arxis.c"], StringComparison.Ordinal);
+
+        // И дальше по цепочке: причина зависимого несёт первопричину, а не последнее звено.
+        Assert.Contains("цикл зависимостей", resolution.Refused["arxis.d"], StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Об устаревшем необязательном соседе сказано один раз.
+    /// </summary>
+    /// <remarks>
+    /// Отказы разносятся кругами до неподвижной точки, и жалоба на соседа звучит на каждом круге.
+    /// Кругов больше одного, как только в графе есть хоть один отказ, — а заметка едет в журнал.
+    /// </remarks>
+    [Fact]
+    public void A_stale_optional_neighbour_is_mentioned_once()
+    {
+        var resolution = PluginGraph.Resolve(
+            [
+                Plugin("arxis.old", "Старый", version: "1.0.0"),
+                Plugin("arxis.picky", "Разборчивый", depends: [Dep("arxis.old", min: "2.0", optional: true)]),
+                Plugin("arxis.a", depends: [Dep("arxis.b")]),
+                Plugin("arxis.b", depends: [Dep("arxis.a")]),
+                Plugin("arxis.lonely", depends: [Dep("arxis.nowhere")]),
+            ],
+            present: []);
+
+        Assert.Single(resolution.Notes, note => note.Contains("Разборчивый", StringComparison.Ordinal));
+    }
+
     /// <summary>Отсутствующая обязательная зависимость — отказ с именем.</summary>
     [Fact]
     public void A_missing_mandatory_dependency_refuses_the_plugin_by_name()

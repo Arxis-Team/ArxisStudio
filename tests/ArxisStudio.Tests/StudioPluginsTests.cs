@@ -49,6 +49,7 @@ public class StudioPluginsTests : IDisposable
     private readonly StudioDock _dock;
     private readonly StudioToolBar _toolbar;
     private readonly StudioDocuments _documents;
+    private readonly StudioShortcuts _keys;
 
     private StudioPlugins? _plugins;
 
@@ -60,6 +61,7 @@ public class StudioPluginsTests : IDisposable
     public StudioPluginsTests()
     {
         _commands = new StudioCommands(_guard);
+        _keys = new StudioShortcuts(_commands.Invoke);
         _dock = new StudioDock(_view);
         _toolbar = new StudioToolBar(_left, _center, _right) { Invoke = _commands.Invoke };
         _documents = new StudioDocuments(_dock, _contributions.EditorFor, new Silence());
@@ -529,6 +531,110 @@ public class StudioPluginsTests : IDisposable
     }
 
     /// <summary>
+    /// Выключенный спящий плагин уходит целиком и больше не будится.
+    /// </summary>
+    /// <remarks>
+    /// Спящего опускать нечем — его сборка не загружена, — и выключение выходило ранним возвратом,
+    /// не тронув ничего: кнопки, сочетания и запись среди ждущих оставались. Первое же его событие
+    /// поднимало плагин, который человек только что выключил.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task Switching_a_sleeping_plugin_off_takes_it_out_for_good()
+    {
+        Install();
+
+        var plugins = Start(sleeping: true);
+
+        Assert.Contains(StudioToolBar.Key("arxis.hello", "hello.menu"), _toolbar.Shown("right"));
+        Assert.NotNull(_keys.Gesture("hello.greet"));
+
+        Assert.Null(new PluginCatalog(_root).SetEnabled("arxis.hello", false));
+        Assert.Null(await plugins.ApplyAsync(["arxis.hello"], []));
+
+        Assert.DoesNotContain(StudioToolBar.Key("arxis.hello", "hello.menu"), _toolbar.Shown("right"));
+        Assert.Null(_keys.Gesture("hello.greet"));
+
+        Assert.False(_commands.Invoke("hello.greet"), "выключенный плагин разбужен своей командой");
+        Assert.Empty(plugins.Reloadable);
+        Assert.DoesNotContain("arxis.hello:hello.panel", _dock.Items.Known());
+    }
+
+    /// <summary>
+    /// Перезагруженный плагин остаётся при сочетаниях своего манифеста.
+    /// </summary>
+    /// <remarks>
+    /// Уход прежней копии снимает всё, что записано на хозяина, — и сочетания тоже. Заявлялись они
+    /// только на старте, и после «Перезагрузить» команда оставалась без клавиши до перезапуска
+    /// студии. Заявка при этом обязана быть одна: повторную реестр считает спором за занятое.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_reloaded_plugin_keeps_the_gestures_of_its_manifest()
+    {
+        Install();
+
+        var plugins = Start();
+        var before = _keys.Gesture("hello.greet");
+
+        Assert.NotNull(before);
+
+        // Уже старт заявляет ровно один раз: вторая заявка — отказ хозяину в его же сочетании,
+        // и страница «Клавиши» показывала бы плагин проигравшим самому себе.
+        Assert.DoesNotContain(_keys.Refused, refusal => refusal.CommandId == "hello.greet");
+
+        await plugins.ReloadAsync("arxis.hello");
+
+        Assert.Equal(before, _keys.Gesture("hello.greet"));
+        Assert.Single(_keys.All, bound => bound.CommandId == "hello.greet");
+        Assert.DoesNotContain(_keys.Refused, refusal => refusal.CommandId == "hello.greet");
+    }
+
+    /// <summary>
+    /// Включённый плагин, чьей зависимости нет, говорит почему не поднялся.
+    /// </summary>
+    /// <remarks>
+    /// Граф ему отказывал, а отказ терялся: в журнал шли только заметки, карточка причины не
+    /// получала, окно настроек считало сохранение удачным. Причина появлялась после перезапуска —
+    /// записью старта.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task Enabling_a_plugin_whose_neighbour_is_missing_says_why()
+    {
+        var folder = Path.Combine(_root, "arxis.needy");
+
+        Directory.CreateDirectory(folder);
+
+        File.WriteAllText(Path.Combine(folder, "plugin.json"), """
+            {
+              "id": "arxis.needy",
+              "name": "Нуждающийся",
+              "version": "1.0.0",
+              "entry": "bin/Probe.Needy.dll",
+              "dependencies": [ { "id": "arxis.nowhere" } ],
+              "activation": [ "onStartup" ]
+            }
+            """);
+
+        var catalog = new PluginCatalog(_root);
+
+        Assert.Null(catalog.SetEnabled("arxis.needy", false));
+
+        var plugins = Start();
+
+        Assert.Empty(plugins.Unrisen);
+
+        Assert.Null(catalog.SetEnabled("arxis.needy", true));
+
+        var complaint = await plugins.ApplyAsync([], ["arxis.needy"]);
+
+        Assert.NotNull(complaint);
+        Assert.Contains("arxis.nowhere", complaint, StringComparison.Ordinal);
+        Assert.Contains("arxis.nowhere", plugins.Unrisen["arxis.needy"], StringComparison.Ordinal);
+
+        Assert.Contains(_log.Records, record =>
+            record.Level == StudioLogLevel.Error && record.Message.Contains("Нуждающийся", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// Чужое исключение расширению не приписывают.
     /// </summary>
     /// <remarks>
@@ -908,6 +1014,7 @@ public class StudioPluginsTests : IDisposable
             Dock = _dock,
             ToolBar = _toolbar,
             Documents = _documents,
+            Shortcuts = _keys,
             Services = new Dictionary<Type, object>
             {
                 [typeof(PluginContributionRegistry)] = _contributions,

@@ -73,7 +73,11 @@ public static class PluginGraph
         var notes = notesUpfront is null ? new List<string>() : new List<string>(notesUpfront);
         var refused = Refuse(all, notes, refusedUpfront);
 
-        Cycles(all, refused);
+        // Отказ по циклу заразителен так же, как всякий другой, а находится он позже остальных:
+        // обход идёт мимо уже отказанных. Поэтому после него отказы разносятся ещё раз — иначе
+        // плагин, которому нужен участник цикла, поднимался бы без него и без слова о причине.
+        if (Cycles(all, refused))
+            refused = Refuse(all, notes, refused);
 
         var order = Order(all, raised, refused, notes);
 
@@ -261,9 +265,12 @@ public static class PluginGraph
                             $"установлен {target.Manifest?.Version}";
 
             // Устаревший необязательный сосед — не отказ, но молчать о нём
-            // нельзя: человек будет гадать, почему связка не работает.
-            if (declared.Optional)
-                notes.Add($"{plugin.DisplayName}: {complaint} — сосед считается отсутствующим");
+            // нельзя: человек будет гадать, почему связка не работает. Сказать надо один раз:
+            // отказы разносятся кругами до неподвижной точки, и жалоба звучит на каждом.
+            var note = $"{plugin.DisplayName}: {complaint} — сосед считается отсутствующим";
+
+            if (declared.Optional && !notes.Contains(note))
+                notes.Add(note);
 
             return complaint;
         }
@@ -283,16 +290,20 @@ public static class PluginGraph
     /// Цикл, замыкающийся только необязательным ребром, не фатален: optional
     /// по определению «не мешает», такое ребро просто выпадает из порядка.
     /// </remarks>
-    private static void Cycles(
+    /// <returns><c>true</c>, если нашёлся хоть один цикл и отказов прибавилось.</returns>
+    private static bool Cycles(
         Dictionary<string, InstalledPlugin> all,
         Dictionary<string, string> refused)
     {
         var visiting = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var done = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var path = new List<string>();
+        var before = refused.Count;
 
         foreach (var plugin in all.Values)
             Visit(plugin.Id);
+
+        return refused.Count > before;
 
         void Visit(string id)
         {
