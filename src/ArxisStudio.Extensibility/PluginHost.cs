@@ -625,7 +625,8 @@ public sealed class PluginHost : IDisposable
                 $"Плагину нужен SDK {installed.Manifest!.Sdk!.Min}, у этой студии {StudioSdk.Version}: обновите студию или соберите плагин под неё");
         }
 
-        var assemblyPath = Path.Combine(installed.Directory, entry);
+        if (PluginPaths.Inside(installed.Directory, entry) is not { } assemblyPath)
+            return LoadedPlugin.Failed(installed, $"Сборка плагина уводит за пределы его папки: {entry}");
 
         if (!File.Exists(assemblyPath))
             return LoadedPlugin.Failed(installed, $"Сборка плагина не найдена: {entry}");
@@ -735,7 +736,10 @@ public sealed class PluginHost : IDisposable
 
         try
         {
-            var shadow = Path.Combine(ShadowRoot, $"{installed.Id}-{Guid.NewGuid():N}");
+            // Плагин, положенный в папку руками, через проверку установки не проходил, и его
+            // идентификатор в имя папки идёт только годным: иначе копия уехала бы из ShadowRoot.
+            var label = PluginPaths.IsFolderName(installed.Id) ? installed.Id : "plugin";
+            var shadow = Path.Combine(ShadowRoot, $"{label}-{Guid.NewGuid():N}");
 
             Directory.CreateDirectory(shadow);
 

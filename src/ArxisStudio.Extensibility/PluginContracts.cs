@@ -95,7 +95,7 @@ public static class PluginContracts
     {
         checked_ = default;
 
-        if (Inside(plugin.Directory, declared) is not { } path)
+        if (PluginPaths.Inside(plugin.Directory, declared) is not { } path)
             return $"контракт уводит за пределы папки плагина: {declared}";
 
         if (!File.Exists(path))
@@ -257,7 +257,10 @@ public static class PluginContracts
         // открытым до конца процесса, и без копии автор не смог бы
         // пересобрать плагин, не закрыв студию, а тест — прибрать за собой
         // временную папку.
-        var shadow = Path.Combine(ShadowRoot, $"{name}-{Guid.NewGuid():N}.dll");
+        // Имя сборки пишет автор контракта, и в имя файла оно идёт только проверенным:
+        // разделитель в нём увёл бы копию за пределы папки теневых копий.
+        var label = PluginPaths.IsFolderName(name) ? name : "contract";
+        var shadow = Path.Combine(ShadowRoot, $"{label}-{Guid.NewGuid():N}.dll");
 
         File.Copy(file.FullName, shadow);
 
@@ -267,37 +270,6 @@ public static class PluginContracts
             file.Length,
             file.LastWriteTimeUtc,
             ownerId);
-    }
-
-    /// <summary>
-    /// Полный путь к объявленному контракту либо null, если он уводит наружу.
-    /// </summary>
-    /// <remarks>
-    /// <see cref="Path.Combine(string, string)"/> отбрасывает папку плагина
-    /// целиком, если объявленный путь абсолютный, а «..» уводит куда угодно.
-    /// Контракт грузится в общий контекст навсегда и достаётся всем — пускать
-    /// туда файл со стороны нельзя. Та же проверка стоит на распаковке архива.
-    /// </remarks>
-    private static string? Inside(string directory, string declared)
-    {
-        string root, full;
-
-        try
-        {
-            // Разделитель на конце у папки бывает свой — он всегда есть у
-            // AppContext.BaseDirectory, папки модуля без файла, — и второй,
-            // приклеенный сверху, отказал бы модулю, объявившему контракт.
-            var folder = Path.GetFullPath(directory);
-
-            root = Path.EndsInDirectorySeparator(folder) ? folder : folder + Path.DirectorySeparatorChar;
-            full = Path.GetFullPath(Path.Combine(directory, declared));
-        }
-        catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
-        {
-            return null;
-        }
-
-        return full.StartsWith(root, StringComparison.Ordinal) ? full : null;
     }
 
     /// <summary>

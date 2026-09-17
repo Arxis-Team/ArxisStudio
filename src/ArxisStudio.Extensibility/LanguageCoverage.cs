@@ -37,10 +37,10 @@ public sealed record LanguageCoverage(string Name, int Translated, int Total)
     /// <returns>Полнота или null, если словаря нет.</returns>
     internal static LanguageCoverage? Of(string directory, Sdk.Plugins.PluginLanguage declared)
     {
-        if (declared.File is not { Length: > 0 } file)
+        if (PluginPaths.Inside(directory, declared.File) is not { } file)
             return null;
 
-        var strings = StringFile.Read(Path.Combine(directory, file));
+        var strings = StringFile.Read(file);
 
         if (strings.Count == 0)
             return null;

@@ -18,13 +18,6 @@ public static class ModuleManifest
     /// <summary>Имя файла манифеста в папке модуля.</summary>
     private const string FileName = "module.json";
 
-    private static readonly JsonSerializerOptions Options = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true,
-    };
-
     /// <summary>
     /// Читает манифест модуля.
     /// </summary>
@@ -48,7 +41,7 @@ public static class ModuleManifest
 
         try
         {
-            var manifest = JsonSerializer.Deserialize<PluginManifest>(File.ReadAllText(path), Options);
+            var manifest = JsonSerializer.Deserialize<PluginManifest>(File.ReadAllText(path), ManifestFormat.Options);
 
             // Тело из одного null разбирается без исключения и даёт null: без этой проверки
             // зовущий получил бы пустой ответ без единого слова о том, что случилось.

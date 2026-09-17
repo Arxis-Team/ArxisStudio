@@ -131,9 +131,9 @@ public sealed class PluginLanguages : ILanguageSource, IPluginTranslations
                 $"у этой студии {StudioSdk.Version} — часть строк может быть непереведена");
         }
 
-        var path = Path.Combine(plugin.Directory, declared.File ?? string.Empty);
-
-        if (declared.File is not { Length: > 0 } || !File.Exists(path))
+        // Словарь — файл пакета, и лежать обязан в его папке: путь наружу прочитал бы как
+        // словарь любой JSON на диске и показал его содержимое в меню студии.
+        if (PluginPaths.Inside(plugin.Directory, declared.File) is not { } path || !File.Exists(path))
         {
             _problems.Add($"{plugin.DisplayName}: словаря {declared.File} нет — язык {code} не предлагается");
             return;
@@ -161,9 +161,7 @@ public sealed class PluginLanguages : ILanguageSource, IPluginTranslations
             return;
         }
 
-        var path = Path.Combine(plugin.Directory, translation.File ?? string.Empty);
-
-        if (translation.File is not { Length: > 0 } || !File.Exists(path))
+        if (PluginPaths.Inside(plugin.Directory, translation.File) is not { } path || !File.Exists(path))
         {
             _problems.Add($"{plugin.DisplayName}: словаря {translation.File} нет — {id} не переведён");
             return;

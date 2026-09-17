@@ -98,8 +98,9 @@ public sealed record InstalledPlugin(
             if (Manifest?.Icon is not { Length: > 0 } icon)
                 return null;
 
-            var path = Path.Combine(Directory, icon);
-            return File.Exists(path) ? path : null;
+            // Значок, названный путём наружу, — не значок: картинку из чужой папки студия
+            // показывать не станет, как не станет грузить оттуда сборку.
+            return PluginPaths.Inside(Directory, icon) is { } path && File.Exists(path) ? path : null;
         }
     }
 }

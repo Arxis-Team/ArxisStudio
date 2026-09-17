@@ -170,12 +170,21 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
         if (changed.Count == 0)
             return;
 
+        // Применяется только записанное: галочка, не дошедшая до диска, после перезапуска
+        // вернулась бы прежней, а студия до него жила бы по новой — два состояния сразу.
+        var saved = new List<PluginCard>();
+
         foreach (var card in changed)
-            _catalog.SetEnabled(card.Plugin.Id, card.IsOn);
+        {
+            if (_catalog.SetEnabled(card.Plugin.Id, card.IsOn) is { } refusal)
+                problems.Add(refusal);
+            else
+                saved.Add(card);
+        }
 
         var complaint = await _extensions.ApplyAsync(
-            changed.Where(card => !card.IsOn).Select(card => card.Plugin.Id).ToList(),
-            changed.Where(card => card.IsOn).Select(card => card.Plugin.Id).ToList());
+            saved.Where(card => !card.IsOn).Select(card => card.Plugin.Id).ToList(),
+            saved.Where(card => card.IsOn).Select(card => card.Plugin.Id).ToList());
 
         if (complaint is not null)
             problems.Add(complaint);
@@ -317,7 +326,15 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
             return;
 
         foreach (var dependent in dependents)
-            _catalog.SetEnabled(dependent.Plugin.Id, false);
+        {
+            if (_catalog.SetEnabled(dependent.Plugin.Id, false) is not { } refusal)
+                continue;
+
+            // Зависимый не выключился — снимать того, на ком он стоит, нельзя: при следующем
+            // запуске он поднялся бы без соседа, о чём человек как раз и не соглашался.
+            Status = $"{Localizer.Instance["common.error"]}: {refusal}";
+            return;
+        }
 
         var error = _catalog.Uninstall(card.Plugin);
 

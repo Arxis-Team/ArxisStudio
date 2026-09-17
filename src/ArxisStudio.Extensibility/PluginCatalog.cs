@@ -7,19 +7,19 @@ namespace ArxisStudio.Extensibility;
 
 /// <summary>
 /// Каталог установленных плагинов: одна папка на плагин, манифест внутри.
-/// Каталог только читает манифесты и хранит состояние «включён / выключен» —
-/// загрузка сборок в collectible-контексты придёт в M7 и встанет поверх этого же
-/// списка, ничего в нём не меняя.
 /// </summary>
+/// <remarks>
+/// Каталог читает манифесты, хранит состояние «включён / выключен», ставит и снимает плагины.
+/// Сборок он не грузит: это дело <see cref="PluginHost"/>, который работает поверх того же списка.
+/// <para>
+/// Отказ файловой системы здесь — ответ, а не исключение. Зовут каталог обработчики окна
+/// настроек, и брошенное оттуда <see cref="IOException"/> доезжает до диспетчера как дефект самой
+/// студии: занятый файл или папка только для чтения роняли бы её на нажатии «Сохранить». Поэтому
+/// всё, что пишет на диск, возвращает слово о том, почему не вышло.
+/// </para>
+/// </remarks>
 public sealed class PluginCatalog
 {
-    private static readonly JsonSerializerOptions Options = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true,
-    };
-
     private readonly string _root;
     private readonly HashSet<string> _disabled;
     private readonly string _stateFile;
@@ -64,10 +64,29 @@ public sealed class PluginCatalog
     /// <summary>Включает или выключает плагин; состояние переживает перезапуск.</summary>
     /// <param name="id">Идентификатор плагина.</param>
     /// <param name="enabled">Включить или выключить.</param>
-    public void SetEnabled(string id, bool enabled)
+    /// <returns><c>null</c>, если состояние записано; иначе — почему не записалось.</returns>
+    /// <remarks>
+    /// Не записалось — значит, и в памяти не поменялось: каталог, который помнит одно, а на диске
+    /// держит другое, после перезапуска молча вернул бы прежнее, и человек не узнал бы, какое из
+    /// двух состояний настоящее.
+    /// </remarks>
+    public string? SetEnabled(string id, bool enabled)
     {
-        if (enabled ? _disabled.Remove(id) : _disabled.Add(id))
-            SaveDisabled();
+        ArgumentException.ThrowIfNullOrEmpty(id);
+
+        if (!(enabled ? _disabled.Remove(id) : _disabled.Add(id)))
+            return null;
+
+        if (SaveDisabled() is not { } error)
+            return null;
+
+        // Откат: правка в памяти без файла не пережила бы перезапуск.
+        if (enabled)
+            _disabled.Add(id);
+        else
+            _disabled.Remove(id);
+
+        return error;
     }
 
     /// <summary>
@@ -102,7 +121,15 @@ public sealed class PluginCatalog
         if (string.IsNullOrWhiteSpace(manifest.Id))
             return (null, "В манифесте не указан id плагина");
 
-        var target = Path.Combine(_root, manifest.Id);
+        // Идентификатор становится именем папки, а манифест пришёл из чужих рук. Без этой
+        // проверки «..» или полный путь уводили цель за пределы папки плагинов, и замена
+        // стирала рекурсивно то, что там лежало, — вплоть до всей папки данных студии.
+        if (!PluginPaths.IsFolderName(manifest.Id) || PluginPaths.Inside(_root, manifest.Id) is not { } target)
+        {
+            return (null,
+                $"Идентификатор «{manifest.Id}» не годится именем папки плагина: " +
+                "допустимы латинские буквы, цифры, точка, дефис и подчёркивание");
+        }
 
         if (Directory.Exists(target))
         {
@@ -113,7 +140,19 @@ public sealed class PluginCatalog
                 return (null, busy);
         }
 
-        CopyDirectory(sourceDirectory, target);
+        try
+        {
+            CopyDirectory(sourceDirectory, target);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // Недокопированная папка — это плагин, которого не собирал никто: манифест в ней
+            // может уже лежать, а сборки ещё нет. Убираем, что успели, и отвечаем словами.
+            Remove(target);
+
+            return (null, $"Плагин {manifest.Id} не скопировался: {e.Message}");
+        }
+
         return (Read(target, Path.Combine(target, "plugin.json")), null);
     }
 
@@ -168,17 +207,13 @@ public sealed class PluginCatalog
 
     private static string? Unpack(string archivePath, string destination)
     {
-        var root = Path.GetFullPath(destination) + Path.DirectorySeparatorChar;
-
         try
         {
             using var archive = ZipFile.OpenRead(archivePath);
 
             foreach (var entry in archive.Entries)
             {
-                var target = Path.GetFullPath(Path.Combine(destination, entry.FullName));
-
-                if (!target.StartsWith(root, StringComparison.Ordinal))
+                if (PluginPaths.Inside(destination, entry.FullName) is not { } target)
                     continue;
 
                 if (entry.Name.Length == 0)
@@ -222,6 +257,9 @@ public sealed class PluginCatalog
         if (Remove(plugin.Directory) is { } error)
             return error;
 
+        // Пометка снимается молча: плагина уже нет, и отказ записать её — не отказ удалить.
+        // Осиротевшая строка в файле ничего не выключит, пока плагин с этим именем не поставят
+        // заново, — а тогда её видно в менеджере обычной галочкой.
         if (_disabled.Remove(plugin.Id))
             SaveDisabled();
 
@@ -250,7 +288,7 @@ public sealed class PluginCatalog
         try
         {
             var manifest = JsonSerializer.Deserialize<PluginManifest>(
-                File.ReadAllText(manifestPath), Options);
+                File.ReadAllText(manifestPath), ManifestFormat.Options);
 
             return manifest is null
                 ? new InstalledPlugin(directory, null, "Пустой манифест", false)
@@ -278,10 +316,21 @@ public sealed class PluginCatalog
         return new HashSet<string>(StringComparer.Ordinal);
     }
 
-    private void SaveDisabled()
+    /// <summary>Записывает список выключенных.</summary>
+    /// <returns><c>null</c>, если записан; иначе — почему не вышло.</returns>
+    private string? SaveDisabled()
     {
-        Directory.CreateDirectory(_root);
-        File.WriteAllText(_stateFile, JsonSerializer.Serialize(_disabled));
+        try
+        {
+            Directory.CreateDirectory(_root);
+            File.WriteAllText(_stateFile, JsonSerializer.Serialize(_disabled));
+
+            return null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return $"Состояние плагинов не записалось ({_stateFile}): {e.Message}";
+        }
     }
 
     private static void CopyDirectory(string source, string target)
