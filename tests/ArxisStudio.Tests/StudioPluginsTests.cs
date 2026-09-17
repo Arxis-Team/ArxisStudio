@@ -484,6 +484,51 @@ public class StudioPluginsTests : IDisposable
             """);
 
     /// <summary>
+    /// Плагин, забывший отписаться от своих настроек, всё равно выгружается.
+    /// </summary>
+    /// <remarks>
+    /// Объект настроек студия выдаёт плагину и помнит сама — чтобы сказать ему о правке из окна
+    /// настроек. Подписчики его <c>Changed</c> — методы плагина, и пока запись жила в словаре
+    /// фабрики после ухода плагина, контекст загрузки держала сама студия: перезагрузка честно
+    /// сообщала «прежняя копия осталась в памяти» о ссылке из собственного словаря.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_plugin_that_forgot_its_settings_subscription_still_unloads()
+    {
+        var folder = Path.Combine(_root, "arxis.forgetful");
+
+        Directory.CreateDirectory(Path.Combine(folder, "bin"));
+
+        File.WriteAllText(Path.Combine(folder, "plugin.json"), """
+            {
+              "id": "arxis.forgetful",
+              "name": "Забывчивый",
+              "version": "1.0.0",
+              "entry": "bin/Probe.Forgetful.dll",
+              "activation": [ "onStartup" ]
+            }
+            """);
+
+        TestAssembly.EmitFile(Path.Combine(folder, "bin", "Probe.Forgetful.dll"), "Probe.Forgetful", """
+            using ArxisStudio.Sdk;
+
+            namespace Probe;
+
+            public sealed class ForgetfulPlugin : StudioPlugin
+            {
+                public override void Activate(IStudioContext context) =>
+                    context.Settings.Changed += (_, _) => { };
+            }
+            """);
+
+        var plugins = Start();
+
+        Assert.Contains(plugins.Reloadable, plugin => plugin.Id == "arxis.forgetful");
+
+        Assert.Null(await plugins.ReloadAsync("arxis.forgetful"));
+    }
+
+    /// <summary>
     /// Чужое исключение расширению не приписывают.
     /// </summary>
     /// <remarks>

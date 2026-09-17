@@ -29,6 +29,12 @@ public sealed class PluginHost : IDisposable
 
     private readonly List<LoadedPlugin> _loaded = [];
 
+    // Снимок для читающих: список правит поток интерфейса, а спрашивают его и со стороны —
+    // служба соседей из фоновой работы плагина, разбор исключения забытой задачи из потока
+    // финализатора. Перебор живого списка под правкой бросал бы «коллекция изменена» в чужом
+    // кадре; снимок меняется целиком и одной записью.
+    private volatile IReadOnlyList<LoadedPlugin> _standing = [];
+
     private PluginResolution? _resolution;
     private readonly List<InstalledPlugin> _deferred = [];
     private readonly IStudioContextFactory _contexts;
@@ -42,8 +48,14 @@ public sealed class PluginHost : IDisposable
         _contexts = contexts;
     }
 
-    /// <summary>Поднятые плагины.</summary>
-    public IReadOnlyList<LoadedPlugin> Loaded => _loaded;
+    /// <summary>
+    /// Поднятые плагины — снимок на момент вопроса.
+    /// </summary>
+    /// <remarks>
+    /// Читать можно из любого потока: снимок неизменяем и подменяется целиком. Запись у плагина
+    /// одна — поднятая или с ошибкой, — и новая попытка прежнюю вытесняет.
+    /// </remarks>
+    public IReadOnlyList<LoadedPlugin> Loaded => _standing;
 
     /// <summary>Плагины, ждущие своего события.</summary>
     public IReadOnlyList<InstalledPlugin> Deferred => _deferred;
@@ -104,7 +116,7 @@ public sealed class PluginHost : IDisposable
     /// плагина, подгруженную по требованию, знает только контекст.
     /// </para>
     /// </remarks>
-    public LoadedPlugin? Blame(Exception? error) => Blame(error, _loaded);
+    public LoadedPlugin? Blame(Exception? error) => Blame(error, _standing);
 
     /// <summary>
     /// Находит среди перечисленных плагинов того, чей код есть в стеке.
@@ -255,9 +267,33 @@ public sealed class PluginHost : IDisposable
     {
         var failed = LoadedPlugin.Failed(installed, reason);
 
-        _loaded.Add(failed);
+        Keep(failed);
         return failed;
     }
+
+    /// <summary>
+    /// Ставит запись на учёт, вытесняя прежнюю запись об ошибке того же плагина.
+    /// </summary>
+    /// <remarks>
+    /// Запись у плагина одна. Пока прежняя оставалась лежать рядом, хост находил первой её: плагин,
+    /// упавший на старте и поднятый заново после починки, на «Перезагрузить» получал отказ словами
+    /// о встроенном модуле, а отключение за сбои снимало мёртвую запись и оставляло живую копию
+    /// работать. Вытесняется только запись об ошибке: поднятого снимает <see cref="Retire"/>, и
+    /// никто другой.
+    /// </remarks>
+    private void Keep(LoadedPlugin record)
+    {
+        _loaded.RemoveAll(known => !known.IsLoaded && Same(known.Installed.Id, record.Installed.Id));
+        _loaded.Add(record);
+
+        _standing = [.. _loaded];
+    }
+
+    /// <summary>Поднят ли плагин с этим идентификатором.</summary>
+    private bool Stands(string pluginId) =>
+        _loaded.Any(known => known.IsLoaded && Same(known.Installed.Id, pluginId));
+
+    private static bool Same(string left, string right) => string.Equals(left, right, StringComparison.Ordinal);
 
     /// <summary>
     /// Поднимает ждущий плагин, а прежде — всё, что обязано стоять под ним.
@@ -298,6 +334,23 @@ public sealed class PluginHost : IDisposable
         }
 
         return raised;
+    }
+
+    /// <summary>
+    /// Снимает плагин с ожидания: его выключили или убрали, и будить его больше нечем.
+    /// </summary>
+    /// <param name="pluginId">Идентификатор плагина.</param>
+    /// <returns><c>true</c>, если плагин ждал.</returns>
+    /// <remarks>
+    /// Ждущий — это включённый плагин, чья сборка ещё не понадобилась. Выключить его значит убрать
+    /// отсюда: запись, оставшаяся в ожидании, поднимала выключенного первым же его событием —
+    /// щелчком по кнопке, жестом, открытием файла его типа.
+    /// </remarks>
+    public bool Withdraw(string pluginId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(pluginId);
+
+        return _deferred.RemoveAll(waiting => Same(waiting.Id, pluginId)) > 0;
     }
 
     /// <summary>
@@ -456,6 +509,14 @@ public sealed class PluginHost : IDisposable
                 continue;
             }
 
+            // Поднимать просят и того, кого не опускали: включённый в настройках плагин мог успеть
+            // подняться своим событием. Второй копии не будет.
+            if (Stands(installed.Id))
+            {
+                notes.Add($"{installed.DisplayName} уже поднят — второй раз не поднимается");
+                continue;
+            }
+
             // Словари читаются с диска и живут дольше подъёма: перезагрузка,
             // оставившая прежний текст, была бы перезагрузкой наполовину —
             // автор правит строки так же часто, как код.
@@ -498,12 +559,14 @@ public sealed class PluginHost : IDisposable
     [MethodImpl(MethodImplOptions.NoInlining)]
     private string? Refuse(string pluginId)
     {
-        var loaded = _loaded.FirstOrDefault(plugin => plugin.Installed.Id == pluginId);
+        var loaded = _loaded.FirstOrDefault(plugin => Same(plugin.Installed.Id, pluginId));
 
         if (loaded is null)
             return $"Плагин {pluginId} не поднят";
 
-        return loaded.Context is null
+        // Спрашивается сам признак, а не контекст загрузки: контекста нет и у записи об ошибке, и
+        // упавший внешний плагин получал бы отказ словами о модуле — вместо новой попытки.
+        return loaded.Installed.IsBuiltIn
             ? $"{loaded.Installed.DisplayName} — встроенный модуль: он приезжает вместе со студией, и отдельно от неё его не перезагрузить"
             : null;
     }
@@ -522,9 +585,11 @@ public sealed class PluginHost : IDisposable
     [MethodImpl(MethodImplOptions.NoInlining)]
     private WeakReference Retire(string pluginId)
     {
-        var loaded = _loaded.First(plugin => plugin.Installed.Id == pluginId);
+        var loaded = _loaded.First(plugin => Same(plugin.Installed.Id, pluginId));
 
         _loaded.Remove(loaded);
+        _standing = [.. _loaded];
+
         Unloading?.Invoke(this, pluginId);
         loaded.Unload();
         Changed?.Invoke(this, EventArgs.Empty);
@@ -581,19 +646,24 @@ public sealed class PluginHost : IDisposable
     {
         ArgumentException.ThrowIfNullOrEmpty(pluginId);
 
-        if (_loaded.All(plugin => plugin.Installed.Id != pluginId))
+        if (_loaded.All(plugin => !Same(plugin.Installed.Id, pluginId)))
             return false;
 
+        // О перемене состава говорит сам Retire — второй раз отсюда было бы два события на одно.
         Retire(pluginId);
-        Changed?.Invoke(this, EventArgs.Empty);
         return true;
     }
 
     private LoadedPlugin Add(InstalledPlugin installed)
     {
+        // Поднятый больше не ждёт. Включённый в настройках плагин поднимается сразу, не дожидаясь
+        // своего события, и запись, оставшаяся в ожидании, подняла бы первым же событием вторую
+        // копию: два обработчика на каждую команду и две панели на одно имя в раскладке.
+        _deferred.RemoveAll(waiting => Same(waiting.Id, installed.Id));
+
         var loaded = Load(installed);
 
-        _loaded.Add(loaded);
+        Keep(loaded);
         Changed?.Invoke(this, EventArgs.Empty);
         return loaded;
     }
@@ -608,6 +678,7 @@ public sealed class PluginHost : IDisposable
         }
 
         _loaded.Clear();
+        _standing = [];
         _deferred.Clear();
         _resolution = null;
         Changed?.Invoke(this, EventArgs.Empty);
@@ -631,32 +702,25 @@ public sealed class PluginHost : IDisposable
         if (!File.Exists(assemblyPath))
             return LoadedPlugin.Failed(installed, $"Сборка плагина не найдена: {entry}");
 
-        assemblyPath = Shadow(installed, assemblyPath);
+        PluginLoadContext? context = null;
 
-        var context = new PluginLoadContext(installed.Id, assemblyPath);
-
+        // Шов загрузки: фильтр тот же и по той же причине, что у Raise, — там она и записана.
+        // Контекст заводится уже внутри него. Его конструктор читает .deps.json плагина, и файл,
+        // обрезанный пересборкой, бросает прямо оттуда; пока конструктор стоял снаружи, исключение
+        // уходило из хоста на дорогах пробуждения и перезагрузки, где своего catch нет: плагин
+        // пропадал и из ждущих, и из поднятых, а каскад обрывался, никого не подняв.
         try
         {
+            assemblyPath = Shadow(installed, assemblyPath);
+            context = new PluginLoadContext(installed.Id, assemblyPath);
+
             var assembly = context.LoadFromAssemblyPath(Path.GetFullPath(assemblyPath));
 
             return Raise(installed, context, [assembly], _contexts.Create(installed));
         }
-        // Фильтр широкий нарочно, и это не небрежность. Подъём — это чужой
-        // код: загрузка чужой сборки, чужой Activate, чужой Start. Зовётся он
-        // здесь напрямую, а PluginGuard, через который идут остальные вызовы
-        // плагина, на загрузке ни при чём: считать падения ещё не поднятого
-        // плагина некому и незачем. Значит этот catch и есть шов загрузки.
-        //
-        // Список типов был перечислением известных бед: сборки нет, типа нет,
-        // версия SDK чужая. Всё это правда, но беды нельзя перечислить —
-        // NullReferenceException из чужого Activate уносил студию целиком
-        // просто потому, что его забыли назвать.
-        //
-        // Не ловятся две. Нехватку памяти нельзя пережить осмысленно,
-        // переполнение стека нельзя поймать вовсе.
         catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
         {
-            context.Release();
+            context?.Release();
             return LoadedPlugin.Failed(installed, Describe(e));
         }
     }
@@ -701,7 +765,7 @@ public sealed class PluginHost : IDisposable
                 ? LoadedPlugin.Failed(installed, refusal)
                 : Raise(installed, context: null, [assembly], _contexts.Create(installed));
 
-        _loaded.Add(loaded);
+        Keep(loaded);
         Changed?.Invoke(this, EventArgs.Empty);
         return loaded;
     }
@@ -809,7 +873,10 @@ public sealed class PluginHost : IDisposable
     /// <para>
     /// В любом другом классе сборки атрибут действует только на статическом
     /// методе: у такого класса нет ни контекста, ни причины существовать в
-    /// одном экземпляре.
+    /// одном экземпляре. Класс при этом может быть и статическим — это самый
+    /// естественный дом для таких методов. Для среды исполнения статический
+    /// класс — <c>abstract sealed</c>, и отбор по одному <c>IsAbstract</c>
+    /// молча оставлял его команды незаявленными.
     /// </para>
     /// </remarks>
     private static void Bind(
@@ -822,7 +889,9 @@ public sealed class PluginHost : IDisposable
 
         foreach (var type in assemblies.SelectMany(assembly => assembly.GetTypes()))
         {
-            if (type is { IsAbstract: false, IsPublic: true })
+            // Абстрактный класс отсеивается, статический — нет: наследника у статического не
+            // бывает, и его методы зовутся как есть. Открытый обобщённый тип звать не у кого.
+            if (type is { IsPublic: true, ContainsGenericParameters: false } && (!type.IsAbstract || type.IsSealed))
                 Register(type, owner: null, studio);
         }
     }
@@ -859,6 +928,11 @@ public sealed class PluginHost : IDisposable
         IReadOnlyList<Assembly> assemblies,
         IStudioContext studio)
     {
+        // Кого уже позвали. Ведётся снаружи try: упади подъём на середине, с этими надо
+        // попрощаться, а кроме этого списка о них не знает никто.
+        var activated = new List<StudioPlugin>();
+        var started = new List<StudioService>();
+
         try
         {
             var entries = assemblies.SelectMany(assembly => assembly.GetTypes())
@@ -880,11 +954,19 @@ public sealed class PluginHost : IDisposable
             foreach (var assembly in assemblies)
                 StudioStringsRegistry.Remember(assembly, studio.Strings);
 
+            // В список — до вызова: упавший на середине Activate мог успеть подписаться, и
+            // прощание нужно ему не меньше, чем тем, кто поднялся целиком.
             foreach (var plugin in entries)
+            {
+                activated.Add(plugin);
                 plugin.Activate(studio);
+            }
 
             foreach (var service in services)
+            {
+                started.Add(service);
                 service.Start(studio);
+            }
 
             Bind(assemblies, entries.Cast<object>().Concat(services), studio);
 
@@ -905,6 +987,16 @@ public sealed class PluginHost : IDisposable
         // переполнение стека нельзя поймать вовсе.
         catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
         {
+            // Поднятая половина останавливается тем же порядком, что у ушедшего: службы, потом
+            // точки входа. Без этого подписка или таймер из успевшего Activate держали контекст
+            // загрузки, а «несостоявшийся» плагин продолжал получать события студии — у
+            // встроенного модуля до конца сеанса.
+            foreach (var service in Enumerable.Reverse(started))
+                Quietly(service.Stop);
+
+            foreach (var plugin in Enumerable.Reverse(activated))
+                Quietly(plugin.Deactivate);
+
             // Плагин мог успеть опубликоваться в Activate и упасть уже на
             // запуске службы. Его записи снимаются так же, как у ушедшего:
             // иначе сосед получил бы объект из контекста, который студия
@@ -912,6 +1004,24 @@ public sealed class PluginHost : IDisposable
             Unloading?.Invoke(this, installed.Id);
             context?.Release();
             return LoadedPlugin.Failed(installed, Describe(e));
+        }
+    }
+
+    /// <summary>
+    /// Зовёт прощальный код плагина, не выпуская его исключение.
+    /// </summary>
+    /// <remarks>
+    /// Плагин, упавший на прощание, уже никому не мешает: студия его отпускает, и держаться за
+    /// исключение незачем. Остановить из-за него прощание остальных было бы хуже.
+    /// </remarks>
+    internal static void Quietly(Action farewell)
+    {
+        try
+        {
+            farewell();
+        }
+        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        {
         }
     }
 
@@ -992,25 +1102,12 @@ public sealed record LoadedPlugin(
     public void Unload()
     {
         foreach (var service in Services)
-            Safely(service.Stop);
+            PluginHost.Quietly(service.Stop);
 
         foreach (var plugin in Entries)
-            Safely(plugin.Deactivate);
+            PluginHost.Quietly(plugin.Deactivate);
 
         (Context as PluginLoadContext)?.Release();
-
-        // Плагин, упавший на прощание, уже никому не мешает: студия его
-        // отпускает, и держаться за исключение незачем.
-        static void Safely(Action action)
-        {
-            try
-            {
-                action();
-            }
-            catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
-            {
-            }
-        }
     }
 }
 

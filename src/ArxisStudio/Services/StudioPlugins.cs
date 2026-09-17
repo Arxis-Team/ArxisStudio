@@ -352,6 +352,7 @@ public sealed class StudioPlugins
             Shortcuts?.RemoveOwnedBy(id);
             _exports.RemoveOwnedBy(id);
             _contributions.Remove(id);
+            _contexts?.Forget(id);
         };
 
         // Служба проектов приходит экспортом, как всякая другая, и студия узнаёт о ней тем же

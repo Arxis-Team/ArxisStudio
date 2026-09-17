@@ -111,6 +111,23 @@ public sealed class StudioContextFactory(
 
     private readonly Dictionary<string, PluginSettings> _issued = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// Забывает настройки, выданные ушедшему плагину.
+    /// </summary>
+    /// <param name="pluginId">Кто ушёл.</param>
+    /// <remarks>
+    /// Выданный объект держит подписчиков своего <c>Changed</c>, а это методы плагина. Оставшись в
+    /// словаре, он держал бы контекст загрузки плагина, забывшего отписаться, — и студия сама же
+    /// сообщала бы, что прежняя копия осталась в памяти, — а правка из окна настроек звала бы
+    /// обработчики уже выгруженной копии.
+    /// </remarks>
+    public void Forget(string pluginId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(pluginId);
+
+        _issued.Remove(pluginId);
+    }
+
     /// <inheritdoc/>
     /// <remarks>
     /// Команды плагин получает своей обёрткой: реестр общий, а заявка должна
