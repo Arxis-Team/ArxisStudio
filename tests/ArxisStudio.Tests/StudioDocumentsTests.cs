@@ -309,6 +309,96 @@ public class StudioDocumentsTests
     }
 
     /// <summary>Строка студии на её же языке — как её увидит человек.</summary>
+    private const string Form = "C:/проект/Окно.axaml";
+    private const string Other = "C:/проект/Другое.axaml";
+
+    /// <summary>
+    /// Редактор, упавший на открытии, не оставляет вкладки, и сбой записан на его плагин.
+    /// </summary>
+    /// <remarks>
+    /// Открытие — чужой код и асинхронный: падает он и до первого ожидания, и после. Мимо шва сбой
+    /// уходил зовущему — в панель проекта, в команду соседа, — и приписывался тому, кто просил.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task An_editor_that_falls_on_opening_leaves_no_tab_and_is_charged()
+    {
+        var guard = new PluginGuard();
+        var failures = new List<PluginFailure>();
+
+        guard.Failed += (_, failure) => failures.Add(failure);
+
+        var (documents, dock, status) = Studio(_ => new EditorMatch(new FallingEditor(), "arxis.designer"), guard);
+
+        await documents.OpenAsync(Form);
+
+        Assert.Empty(documents.Opened);
+        Assert.DoesNotContain(StudioDocuments.Name(Form), dock.Items.Known());
+        Assert.Contains(status, said => said.StartsWith(Text("editor.loadfailed"), StringComparison.Ordinal));
+
+        var failure = Assert.Single(failures);
+
+        Assert.Equal("arxis.designer", failure.PluginId);
+        Assert.Equal("редактор упал после ожидания", failure.Message);
+    }
+
+    /// <summary>
+    /// Представление, упавшее на закрытии, не останавливает закрытие остальных.
+    /// </summary>
+    /// <remarks>
+    /// На этой дороге стоит каскад перезагрузки: документы плагина закрываются перед его выгрузкой,
+    /// и брошенное оттуда исключение обрывало каскад на середине — задачи уже остановлены, хост
+    /// никого не поднял.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_view_that_falls_on_closing_does_not_stop_the_others()
+    {
+        var guard = new PluginGuard();
+        var failures = new List<PluginFailure>();
+
+        guard.Failed += (_, failure) => failures.Add(failure);
+
+        var stubborn = new StubbornView();
+        var first = true;
+
+        var (documents, _, _) = Studio(
+            _ => new EditorMatch(new ProbeEditor(first ? (stubborn, null) : null), "arxis.designer"), guard);
+
+        await documents.OpenAsync(Form);
+
+        first = false;
+
+        await documents.OpenAsync(Other);
+
+        var second = Probe(documents.Opened[1]);
+
+        await documents.CloseOwnedByAsync("arxis.designer");
+
+        Assert.Empty(documents.Opened);
+        Assert.True(second.Disposed, "второй документ обязан закрыться, хотя первый упал");
+
+        Assert.Contains(failures, failure =>
+            failure.PluginId == "arxis.designer" && failure.What.StartsWith("закрытие", StringComparison.Ordinal));
+    }
+
+    /// <summary>Документ отключённого за сбои плагина всё равно отпускают: его ждёт выгрузка.</summary>
+    [AvaloniaFact]
+    public async Task A_document_of_a_disabled_plugin_is_still_released()
+    {
+        var guard = new PluginGuard();
+        var (documents, _, _) = Studio(guard: guard);
+
+        await documents.OpenAsync(Form);
+
+        var view = Probe(documents.Opened[0]);
+
+        for (var failure = 0; failure < PluginGuard.FailureLimit; failure++)
+            guard.Report("arxis.designer", "проба", new InvalidOperationException("сломалось"));
+
+        await documents.CloseOwnedByAsync("arxis.designer");
+
+        Assert.True(view.Disposed, "прощание обязано дойти и до отключённого");
+    }
+
     private static string Text(string key) => Localizer.Instance[key];
 
     /// <summary>Представление документа за записью о нём.</summary>
@@ -327,7 +417,8 @@ public class StudioDocumentsTests
     /// и с заглушкой они доказывали бы согласие с самими собой.
     /// </remarks>
     private static (StudioDocuments Documents, StudioDock Dock, IReadOnlyList<string> Status) Studio(
-        Func<string, EditorMatch?>? editorFor = null)
+        Func<string, EditorMatch?>? editorFor = null,
+        PluginGuard? guard = null)
     {
         var view = new DockView();
         var dock = new StudioDock(view);
@@ -338,8 +429,36 @@ public class StudioDocumentsTests
         var editor = new ProbeEditor();
         var sink = new Sink();
 
-        return (new StudioDocuments(dock, editorFor ?? (_ => new EditorMatch(editor, "arxis.designer")), sink),
+        return (new StudioDocuments(dock, editorFor ?? (_ => new EditorMatch(editor, "arxis.designer")), sink, guard),
             dock, sink.Said);
+    }
+
+    /// <summary>Редактор, падающий на открытии — уже после первого ожидания.</summary>
+    private sealed class FallingEditor : DocumentEditor
+    {
+        /// <inheritdoc/>
+        public override bool CanOpen(string filePath) => true;
+
+        /// <inheritdoc/>
+        public override async Task<(DocumentView? View, string? Error)> OpenAsync(string filePath)
+        {
+            await Task.Yield();
+
+            throw new InvalidOperationException("редактор упал после ожидания");
+        }
+    }
+
+    /// <summary>Представление, падающее на закрытии.</summary>
+    private sealed class StubbornView : DocumentView
+    {
+        /// <inheritdoc/>
+        public override Control Content { get; } = new Border();
+
+        /// <inheritdoc/>
+        public override string Title => "Упрямый";
+
+        /// <inheritdoc/>
+        public override ValueTask DisposeAsync() => throw new InvalidOperationException("не закроюсь");
     }
 
     /// <summary>Строка состояния, которая всё записывает.</summary>

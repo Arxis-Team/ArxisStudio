@@ -271,6 +271,48 @@ public class PluginHostRecordsTests : IDisposable
         Assert.Equal(2, host.Loaded.Count);
     }
 
+    /// <summary>
+    /// Библиотека, которая только начинается как общая, грузится из папки плагина.
+    /// </summary>
+    /// <remarks>
+    /// Проверяется сам резолвер, а не пересказ его правила: соседние тесты упаковки читают правило
+    /// из исходника и исполняют свою копию, и подмена тела метода мимо них проходит. Библиотека
+    /// названа по образцу <c>AvaloniaEdit</c> — чужая, в студии не лежит. Пока общую узнавали по
+    /// первым буквам, резолвер отказывался брать её из папки плагина, основной контекст её не
+    /// находил, и плагин падал на первом обращении.
+    /// </remarks>
+    [Fact]
+    public void A_library_that_only_starts_like_a_shared_one_loads_from_the_plugin_folder()
+    {
+        using var host = Host(out _);
+
+        var plugin = Plugin("arxis.lookalike", "Probe.Lookalike", """
+            using System.Reflection;
+            using ArxisStudio.Sdk;
+
+            namespace Probe;
+
+            public sealed class LookalikePlugin : StudioPlugin
+            {
+                public override void Activate(IStudioContext context) =>
+                    Assembly.Load(new AssemblyName("AvaloniaProbe"));
+            }
+            """, "onStartup");
+
+        TestAssembly.EmitFile(Path.Combine(plugin.Directory, "bin", "AvaloniaProbe.dll"), "AvaloniaProbe", """
+            namespace AvaloniaProbe;
+
+            public static class Answer
+            {
+                public const int Value = 42;
+            }
+            """);
+
+        var loaded = Assert.Single(host.LoadStartup([plugin]));
+
+        Assert.True(loaded.IsLoaded, loaded.Error);
+    }
+
     /// <summary>Настройки, выданные плагину, фабрика забывает по просьбе.</summary>
     [Fact]
     public void The_factory_forgets_the_settings_of_the_one_who_left()

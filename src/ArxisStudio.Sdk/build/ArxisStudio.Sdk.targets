@@ -175,6 +175,15 @@
 
         <PropertyGroup>
             <_AxPluginBinDir>$(AxPluginPackageDir)bin/</_AxPluginBinDir>
+
+            <!--
+                Общие сборки одним выражением — тем же правилом, что у
+                PluginLoadContext.IsShared: имя семейства целиком или с точкой за
+                ним, а модель проектов — точным именем. По первым буквам узнавать
+                нельзя: под «Avalonia» без точки попадали чужие библиотеки вроде
+                AvaloniaEdit, в студии не лежащие, и в пакет плагина они не ехали.
+            -->
+            <_AxSharedName>^((Avalonia|ArxisStudio\.Sdk|ArxisStudio\.Controls|ArxisStudio\.Icons)(\..+)?|ArxisStudio\.ProjectSystem)$</_AxSharedName>
         </PropertyGroup>
 
         <!-- Иначе вчерашние сборки уедут в архив вместе с сегодняшними. -->
@@ -194,11 +203,7 @@
         <ItemGroup>
             <_AxPluginCarry Include="@(ReferenceCopyLocalPaths)"
                             Condition="'%(Extension)' != '.xml' And
-                                       !$([System.String]::Copy('%(Filename)').StartsWith('Avalonia')) And
-                                       !$([System.String]::Copy('%(Filename)').StartsWith('ArxisStudio.Sdk')) And
-                                       !$([System.String]::Copy('%(Filename)').StartsWith('ArxisStudio.Controls')) And
-                                       !$([System.String]::Copy('%(Filename)').StartsWith('ArxisStudio.Icons')) And
-                                       '%(Filename)' != 'ArxisStudio.ProjectSystem'" />
+                                       !$([System.Text.RegularExpressions.Regex]::IsMatch('%(Filename)', '$(_AxSharedName)'))" />
 
             <_AxPluginBin Include="$(TargetPath)" />
             <_AxPluginBin Include="@(_AxPluginCarry)" />
@@ -237,37 +242,24 @@
         <ItemGroup>
             <_AxPluginByHand Include="@(None)"
                              Condition="'%(None.CopyToOutputDirectory)' != '' And '%(None.CopyToOutputDirectory)' != 'Never' And
-                                        ($([System.String]::Copy('%(None.Filename)').StartsWith('Avalonia')) Or
-                                         $([System.String]::Copy('%(None.Filename)').StartsWith('ArxisStudio.Sdk')) Or
-                                         $([System.String]::Copy('%(None.Filename)').StartsWith('ArxisStudio.Controls')) Or
-                                         $([System.String]::Copy('%(None.Filename)').StartsWith('ArxisStudio.Icons')) Or
-                                         '%(None.Filename)' == 'ArxisStudio.ProjectSystem')" />
+                                        $([System.Text.RegularExpressions.Regex]::IsMatch('%(None.Filename)', '$(_AxSharedName)'))" />
 
             <_AxPluginByHand Include="@(Content)"
                              Condition="'%(Content.CopyToOutputDirectory)' != '' And '%(Content.CopyToOutputDirectory)' != 'Never' And
-                                        ($([System.String]::Copy('%(Content.Filename)').StartsWith('Avalonia')) Or
-                                         $([System.String]::Copy('%(Content.Filename)').StartsWith('ArxisStudio.Sdk')) Or
-                                         $([System.String]::Copy('%(Content.Filename)').StartsWith('ArxisStudio.Controls')) Or
-                                         $([System.String]::Copy('%(Content.Filename)').StartsWith('ArxisStudio.Icons')) Or
-                                         '%(Content.Filename)' == 'ArxisStudio.ProjectSystem')" />
+                                        $([System.Text.RegularExpressions.Regex]::IsMatch('%(Content.Filename)', '$(_AxSharedName)'))" />
 
             <_AxPluginByHand Include="@(Reference)"
                              Condition="'%(Reference.HintPath)' != '' And '%(Reference.NuGetPackageId)' == '' And
-                                        ($([System.String]::Copy('%(Reference.Filename)').StartsWith('Avalonia')) Or
-                                         $([System.String]::Copy('%(Reference.Filename)').StartsWith('ArxisStudio.Sdk')) Or
-                                         $([System.String]::Copy('%(Reference.Filename)').StartsWith('ArxisStudio.Controls')) Or
-                                         $([System.String]::Copy('%(Reference.Filename)').StartsWith('ArxisStudio.Icons')) Or
-                                         '%(Reference.Filename)' == 'ArxisStudio.ProjectSystem')" />
-
-            <_AxPluginStray Include="$(_AxPluginBinDir)Avalonia*.dll;$(_AxPluginBinDir)ArxisStudio.Sdk*.dll;$(_AxPluginBinDir)ArxisStudio.Controls*.dll;$(_AxPluginBinDir)ArxisStudio.Icons*.dll" />
+                                        $([System.Text.RegularExpressions.Regex]::IsMatch('%(Reference.Filename)', '$(_AxSharedName)'))" />
 
             <!--
-                Модель проектов — точным путём, а значит, с условием: путь без маски
-                MSBuild кладёт в список всегда, есть такой файл или нет, и
+                Лишнее в bin/ ищется маской по всем сборкам и тем же выражением: точный
+                путь без маски MSBuild кладёт в список всегда, есть такой файл или нет, и
                 предупреждение звучало бы у каждого плагина.
             -->
-            <_AxPluginStray Include="$(_AxPluginBinDir)ArxisStudio.ProjectSystem.dll"
-                            Condition="Exists('$(_AxPluginBinDir)ArxisStudio.ProjectSystem.dll')" />
+            <_AxPluginBinFile Include="$(_AxPluginBinDir)*.dll" />
+            <_AxPluginStray Include="@(_AxPluginBinFile)"
+                            Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('%(Filename)', '$(_AxSharedName)'))" />
         </ItemGroup>
 
         <Warning Code="AXP0001" Condition="'@(_AxPluginByHand)' != ''"

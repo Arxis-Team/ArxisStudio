@@ -40,7 +40,7 @@ public partial class MainWindow : AxWindow
     private readonly StudioLog _log;
     private readonly PluginGuard _guard = new();
     private readonly StudioTaskRegistry _tasks = new();
-    private readonly PluginContributionRegistry _contributions = new();
+    private readonly PluginContributionRegistry _contributions;
 
     // Что окно рассказывает о себе — строка состояния и полоса задачи.
     private readonly MainWindowViewModel _model;
@@ -128,7 +128,11 @@ public partial class MainWindow : AxWindow
         _dock.Complained += (_, message) => _log.Write(StudioLogLevel.Warning, "Layout", message);
 
         _status = new StatusSink(_model);
-        _documents = new StudioDocuments(_dock, _contributions.EditorFor, _status);
+
+        // Реестр вкладов и документы получают тот же шов, что и остальная студия: сбой редактора
+        // считается тому же плагину и тем же счётом, что сбой его панели или команды.
+        _contributions = new PluginContributionRegistry(_guard);
+        _documents = new StudioDocuments(_dock, _contributions.EditorFor, _status, _guard);
 
         // Раскладка поднимается до панелей: иначе они успели бы разойтись по
         // стандартным местам, а прочитанное дерево тут же смело бы их оттуда.

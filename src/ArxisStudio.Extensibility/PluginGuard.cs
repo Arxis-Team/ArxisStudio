@@ -155,6 +155,75 @@ public sealed class PluginGuard
     }
 
     /// <summary>
+    /// Зовёт асинхронный код плагина и ждёт его.
+    /// </summary>
+    /// <param name="pluginId">Чей это код.</param>
+    /// <param name="what">Что студия просила сделать.</param>
+    /// <param name="call">Сам вызов.</param>
+    /// <returns><c>true</c>, если вызов прошёл.</returns>
+    /// <remarks>
+    /// Нужен редакторам документов: открытие файла у них асинхронное, и упасть оно может и до
+    /// первого <c>await</c>, и после. Ловится и то и другое — иначе половина сбоев редактора шла бы
+    /// мимо счёта.
+    /// </remarks>
+    public async Task<bool> RunAsync(string pluginId, string what, Func<Task> call)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(pluginId);
+        ArgumentNullException.ThrowIfNull(call);
+
+        if (IsFaulty(pluginId))
+            return false;
+
+        try
+        {
+            await call();
+
+            lock (_gate)
+                _failures.Remove(pluginId);
+
+            return true;
+        }
+        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        {
+            Fail(pluginId, what, e);
+
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Зовёт асинхронный прощальный код плагина — и у того, кого звать уже перестали.
+    /// </summary>
+    /// <param name="pluginId">Чей это код.</param>
+    /// <param name="what">С чем прощаются.</param>
+    /// <param name="call">Сам вызов: <c>DisposeAsync</c> представления документа.</param>
+    /// <returns><c>true</c>, если прощание прошло.</returns>
+    /// <remarks>То же правило, что у <see cref="Farewell"/>: падение пишется, но не считается.</remarks>
+    public async Task<bool> FarewellAsync(string pluginId, string what, Func<Task> call)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(pluginId);
+        ArgumentNullException.ThrowIfNull(call);
+
+        try
+        {
+            await call();
+
+            return true;
+        }
+        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        {
+            int count;
+
+            lock (_gate)
+                count = _failures.GetValueOrDefault(pluginId);
+
+            Failed?.Invoke(this, new PluginFailure(pluginId, what, e, count));
+
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Записывает падение, случившееся не на вызове шва.
     /// </summary>
     /// <param name="pluginId">Чей код упал.</param>

@@ -638,8 +638,19 @@ public sealed class TerminalView : Control
             return;
         }
 
+        // Отпущена та кнопка, что была нажата. Пока здесь стояла левая, программа с мышью в режиме
+        // SGR — tmux, vim — видела нажатие правой и отпускание левой, и её счёт кнопок расходился.
         if (Reporting(e.KeyModifiers))
-            Report(XMouseButton.Left, x, y, XMouseEventType.Up, e.KeyModifiers);
+        {
+            var button = e.InitialPressMouseButton switch
+            {
+                MouseButton.Right => XMouseButton.Right,
+                MouseButton.Middle => XMouseButton.Middle,
+                _ => XMouseButton.Left,
+            };
+
+            Report(button, x, y, XMouseEventType.Up, e.KeyModifiers);
+        }
     }
 
     /// <inheritdoc/>

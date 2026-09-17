@@ -1147,16 +1147,27 @@ internal sealed class PluginLoadContext(string name, string entryPath)
     /// Спрашивается не только резолвером: под этими именами нельзя объявить и
     /// контракт — иначе файл плагина подменил бы общую сборку и студии, и всем
     /// соседям.
+    /// <para>
+    /// Семейство узнаётся по имени целиком или по имени с точкой, а не по первым буквам: под
+    /// «Avalonia» без точки попадали и чужие библиотеки — <c>AvaloniaEdit</c>, <c>AvaloniaHex</c>, —
+    /// которые в студии не лежат. Плагину с такой зависимостью отказывали в его же файле, основной
+    /// контекст её не находил, и плагин падал на первом обращении к редактору.
+    /// </para>
     /// </remarks>
     internal static bool IsShared(string name) =>
-        name.StartsWith("Avalonia", StringComparison.Ordinal) ||
-        name.StartsWith("ArxisStudio.Sdk", StringComparison.Ordinal) ||
-        name.StartsWith("ArxisStudio.Controls", StringComparison.Ordinal) ||
-        name.StartsWith("ArxisStudio.Icons", StringComparison.Ordinal) ||
-        // Модель проектов — точным именем, а не префиксом: префикс отдал бы
+        Family(name, "Avalonia") ||
+        Family(name, "ArxisStudio.Sdk") ||
+        Family(name, "ArxisStudio.Controls") ||
+        Family(name, "ArxisStudio.Icons") ||
+        // Модель проектов — точным именем, а не семейством: семейство отдало бы
         // плагинам и её движки — MSBuild, NuGet, адаптер разметки, — а их держит
         // служба проектов, и второй экземпляр движка в процессе был бы бедой.
         name.Equals("ArxisStudio.ProjectSystem", StringComparison.Ordinal);
+
+    /// <summary>Само имя или имя из его семейства: <c>Avalonia</c>, <c>Avalonia.Base</c>, но не <c>AvaloniaEdit</c>.</summary>
+    private static bool Family(string name, string root) =>
+        name.Equals(root, StringComparison.Ordinal) ||
+        name.StartsWith(root + ".", StringComparison.Ordinal);
 
     /// <summary>
     /// Выгружает контекст, отпустив прежде то, что держит его снаружи.

@@ -17,9 +17,17 @@ namespace ArxisStudio.Extensibility;
 /// показывает, — заодно избавившись от изъяна, с которым уходят: рисовальщик
 /// не видел студию и потому не мог взять даже свои строки.
 /// </para>
+/// <para>
+/// Редактор — чужой код, и зовётся он через шов на каждой дороге: постройка, подключение, вопрос
+/// «возьмёшься ли». Пока он звался напрямую, конструктор одного редактора обрывал приём всех
+/// плагинов, поднятых после него, — хост их уже активировал, а панелей, полосы и редакторов они не
+/// получали, — а бросающий <c>CanOpen</c> валил открытие любого файла у всех.
+/// </para>
 /// </remarks>
-public sealed class PluginContributionRegistry
+/// <param name="guard">Шов вызовов плагина; null — завести свой, без счёта на всю студию.</param>
+public sealed class PluginContributionRegistry(PluginGuard? guard = null)
 {
+    private readonly PluginGuard _guard = guard ?? new PluginGuard();
     private readonly List<EditorRegistration> _editors = [];
 
     /// <summary>
@@ -59,14 +67,24 @@ public sealed class PluginContributionRegistry
 
             // Редактор документов живёт экземпляром: студия спрашивает его о
             // каждом открываемом файле.
-            if (typeof(DocumentEditor).IsAssignableFrom(type) &&
-                Activator.CreateInstance(type) is DocumentEditor editor)
-            {
-                if (studio is not null)
-                    editor.Attach(studio);
+            if (!typeof(DocumentEditor).IsAssignableFrom(type))
+                continue;
 
+            // Постройка и подключение — одним куском и через шов: редактор, построенный
+            // наполовину, студии не нужен, а упавший не должен стоить соседям ничего.
+            var editor = _guard.Get(pluginId, $"редактор {type.Name}", () =>
+            {
+                if (Activator.CreateInstance(type) is not DocumentEditor built)
+                    return null;
+
+                if (studio is not null)
+                    built.Attach(studio);
+
+                return built;
+            });
+
+            if (editor is not null)
                 _editors.Add(new EditorRegistration(pluginId, editor));
-            }
         }
     }
 
@@ -88,8 +106,18 @@ public sealed class PluginContributionRegistry
         // не отличить.
         foreach (var registration in _editors)
         {
-            if (registration.Editor.CanOpen(filePath))
+            var takes = false;
+
+            // Вопрос — тоже чужой код. Упавший на нём редактор за файл не берётся, и спрашивают
+            // следующего: один сломанный плагин не должен закрывать файлы остальным.
+            if (_guard.Run(
+                    registration.PluginId,
+                    $"вопрос редактору о {Path.GetFileName(filePath)}",
+                    () => takes = registration.Editor.CanOpen(filePath))
+                && takes)
+            {
                 return new EditorMatch(registration.Editor, registration.PluginId);
+            }
         }
 
         return null;

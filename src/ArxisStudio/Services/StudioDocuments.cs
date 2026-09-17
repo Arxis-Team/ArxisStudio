@@ -18,6 +18,12 @@ namespace ArxisStudio.Services;
 /// главное окно со всеми плагинами. Список документов и полоса вкладок при
 /// этом жили порознь и однажды разъехались.
 /// </para>
+/// <para>
+/// Редактор и представление документа — код плагина, и зовутся они через шов: открытие, заголовок
+/// и содержимое, показ и скрытие — рабочей дорогой, закрытие — прощальной, которая доходит и до
+/// отключённого за сбои. Иначе бросающий <c>DisposeAsync</c> обрывал перезагрузку плагина на
+/// середине: задачи уже остановлены, остальные документы открыты, хост никого не поднял.
+/// </para>
 /// </remarks>
 public sealed class StudioDocuments
 {
@@ -25,8 +31,9 @@ public sealed class StudioDocuments
     private readonly StudioDock _dock;
     private readonly Func<string, EditorMatch?> _editorFor;
     private readonly IStudioStatus _status;
+    private readonly PluginGuard _guard;
 
-    private DocumentView? _shown;
+    private OpenDocument? _shown;
 
     /// <summary>
     /// Заводит службу над полосой вкладок и вкладами плагинов.
@@ -34,12 +41,17 @@ public sealed class StudioDocuments
     /// <param name="dock">Раскладка, в которой стоят вкладки документов.</param>
     /// <param name="editorFor">Кто возьмётся за файл; null — никто.</param>
     /// <param name="status">Куда говорить о ходе открытия.</param>
+    /// <param name="guard">Шов вызовов плагина; null — завести свой, без счёта на всю студию.</param>
     /// <remarks>
     /// Выбор и закрытие вкладки служба слушает сама: связь «вкладка —
     /// документ» её и есть, и разнеси её по двум местам, эти два места
     /// разъедутся.
     /// </remarks>
-    public StudioDocuments(StudioDock dock, Func<string, EditorMatch?> editorFor, IStudioStatus status)
+    public StudioDocuments(
+        StudioDock dock,
+        Func<string, EditorMatch?> editorFor,
+        IStudioStatus status,
+        PluginGuard? guard = null)
     {
         ArgumentNullException.ThrowIfNull(dock);
         ArgumentNullException.ThrowIfNull(editorFor);
@@ -48,6 +60,7 @@ public sealed class StudioDocuments
         _dock = dock;
         _editorFor = editorFor;
         _status = status;
+        _guard = guard ?? new PluginGuard();
 
         _dock.Chosen += (_, id) => Show(id);
         _dock.Closing += async (_, id) => await CloseAsync(id);
@@ -67,7 +80,7 @@ public sealed class StudioDocuments
     public IReadOnlyList<OpenDocument> Opened => _open;
 
     /// <summary>Показанный документ; null — не показан ни один.</summary>
-    public DocumentView? Shown => _shown;
+    public DocumentView? Shown => _shown?.View;
 
     /// <summary>
     /// Имя документа в раскладке.
@@ -105,11 +118,35 @@ public sealed class StudioDocuments
 
         _status.Show(Localizer.Instance["editor.loading"]);
 
-        var (view, error) = await match.Editor.OpenAsync(filePath);
+        // Три чужих вызова одним куском: открытие, заголовок и содержимое. Документ, у которого
+        // удалось первое и упало третье, студии не нужен — вкладку из него не собрать.
+        DocumentView? view = null;
+        string? error = null;
+        string? title = null;
+        Avalonia.Controls.Control? content = null;
 
-        if (view is null)
+        var opened = await _guard.RunAsync(match.PluginId, $"открытие {Path.GetFileName(filePath)}", async () =>
         {
-            _status.Show($"{Localizer.Instance["editor.loadfailed"]}: {error}");
+            (view, error) = await match.Editor.OpenAsync(filePath);
+
+            if (view is null)
+                return;
+
+            title = view.Title;
+            content = view.Content;
+        });
+
+        if (!opened || view is null || title is null || content is null)
+        {
+            // Представление, построенное и не показанное, отпускается: за ним уже может стоять
+            // открытый файл. Причину сбоя назвал шов — в журнале, с именем плагина.
+            if (view is not null)
+                await _guard.FarewellAsync(match.PluginId, "закрытие недооткрытого документа", async () => await view.DisposeAsync());
+
+            _status.Show(error is null
+                ? Localizer.Instance["editor.loadfailed"]
+                : $"{Localizer.Instance["editor.loadfailed"]}: {error}");
+
             return;
         }
 
@@ -117,7 +154,7 @@ public sealed class StudioDocuments
         // показ приходит сюда же выбором вкладки. Свой вызов рядом был бы
         // вторым источником того же правила — и разошёлся бы с первым.
         _open.Add(new OpenDocument(id, filePath, view, match.PluginId));
-        _dock.Open(match.PluginId, id, view.Title, view.Content);
+        _dock.Open(match.PluginId, id, title, content);
     }
 
     /// <summary>
@@ -135,14 +172,25 @@ public sealed class StudioDocuments
             ? null
             : _open.FirstOrDefault(open => string.Equals(open.Id, id, StringComparison.Ordinal));
 
-        if (document is null || ReferenceEquals(_shown, document.View))
+        if (document is null || ReferenceEquals(_shown, document))
             return;
 
-        _shown?.OnDeactivated();
-        _shown = document.View;
-        _shown.OnActivated();
+        Hide();
+
+        _shown = document;
+        _guard.Run(document.PluginId, "показ документа", document.View.OnActivated);
 
         _status.Show(document.Path);
+    }
+
+    /// <summary>Говорит показанному документу, что его скрыли.</summary>
+    private void Hide()
+    {
+        if (_shown is not { } shown)
+            return;
+
+        _shown = null;
+        _guard.Run(shown.PluginId, "скрытие документа", shown.View.OnDeactivated);
     }
 
     /// <summary>Закрывает документ по просьбе человека — крестиком на вкладке.</summary>
@@ -188,29 +236,43 @@ public sealed class StudioDocuments
     /// </remarks>
     public async Task CloseAllAsync()
     {
-        _shown?.OnDeactivated();
-        _shown = null;
+        Hide();
 
-        foreach (var document in _open)
-            await document.View.DisposeAsync();
+        // Список снимается заранее: закрытие асинхронное, и открытый тем временем документ не
+        // должен ни попасть под него, ни сломать перебор.
+        var closing = _open.ToList();
 
         _open.Clear();
+
+        foreach (var document in closing)
+            await FarewellAsync(document);
     }
 
     /// <summary>Убирает документ отовсюду и отпускает его представление.</summary>
     private async Task ReleaseAsync(OpenDocument document)
     {
-        if (ReferenceEquals(_shown, document.View))
-        {
-            _shown.OnDeactivated();
-            _shown = null;
-        }
+        if (ReferenceEquals(_shown, document))
+            Hide();
 
         _open.Remove(document);
         _dock.Remove(document.Id);
 
-        await document.View.DisposeAsync();
+        await FarewellAsync(document);
     }
+
+    /// <summary>
+    /// Отпускает представление документа прощальной дорогой шва.
+    /// </summary>
+    /// <remarks>
+    /// Прощальной, потому что закрывают документы и у отключённого за сбои — как раз перед его
+    /// выгрузкой, — а рабочая дорога ему отказывает. И через шов, потому что упавшее закрытие не
+    /// должно обрывать того, кто закрывает: на нём стоит каскад перезагрузки.
+    /// </remarks>
+    private Task FarewellAsync(OpenDocument document) =>
+        _guard.FarewellAsync(
+            document.PluginId,
+            $"закрытие {Path.GetFileName(document.Path)}",
+            async () => await document.View.DisposeAsync());
 }
 
 /// <summary>Открытый документ.</summary>

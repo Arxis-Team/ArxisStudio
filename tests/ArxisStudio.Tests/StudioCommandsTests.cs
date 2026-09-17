@@ -104,4 +104,102 @@ public class StudioCommandsTests
 
         Assert.Contains("studio.run", commands.Registered);
     }
+
+    /// <summary>
+    /// Команду, заявленную соседом, второму не отдают — и говорят об этом.
+    /// </summary>
+    /// <remarks>
+    /// Пока заявка перезаписывала молча, второй плагин получал чужую команду, а его выгрузка
+    /// снимала её по владельцу целиком: до перезапуска она не находила обработчика вовсе. Правило
+    /// то же, что у экспортов: занятое другому не отдают.
+    /// </remarks>
+    [Fact]
+    public void A_command_taken_by_a_neighbour_is_not_given_to_another()
+    {
+        var commands = new StudioCommands();
+        var conflicts = new List<string>();
+        var ran = new List<string>();
+
+        commands.Conflict += (_, message) => conflicts.Add(message);
+
+        Assert.True(commands.Register("shared.run", () => ran.Add("первый"), "arxis.first"));
+        Assert.False(commands.Register("shared.run", () => ran.Add("второй"), "arxis.second"));
+
+        Assert.True(commands.Invoke("shared.run"));
+        Assert.Equal(["первый"], ran);
+
+        var conflict = Assert.Single(conflicts);
+
+        Assert.Contains("arxis.second", conflict, StringComparison.Ordinal);
+        Assert.Contains("arxis.first", conflict, StringComparison.Ordinal);
+
+        // Уход проигравшего команду не уносит: записи на него нет.
+        commands.RemoveOwnedBy("arxis.second");
+
+        Assert.True(commands.Invoke("shared.run"));
+    }
+
+    /// <summary>Свою команду студия плагину не отдаёт — и той обёрткой, какой заявляет плагин.</summary>
+    [Fact]
+    public void The_studio_keeps_its_own_commands()
+    {
+        var commands = new StudioCommands();
+        var ran = new List<string>();
+
+        commands.Register("studio.palette", () => ran.Add("студия"));
+
+        new PluginCommands(commands, "arxis.greedy").Register("studio.palette", () => ran.Add("плагин"));
+        commands.RemoveOwnedBy("arxis.greedy");
+
+        Assert.True(commands.Invoke("studio.palette"));
+        Assert.Equal(["студия"], ran);
+    }
+
+    /// <summary>
+    /// Студия старше принесённого: её заявка вытесняет чужую, сколько бы та ни простояла.
+    /// </summary>
+    /// <remarks>
+    /// Правило «кто раньше заявил» зависело бы от порядка подъёма, а не от того, чья это команда:
+    /// плагин, поднявшийся раньше окна, отнимал бы у студии её же «Закрыть».
+    /// </remarks>
+    [Fact]
+    public void The_studio_takes_back_a_command_a_plugin_took_first()
+    {
+        var commands = new StudioCommands();
+        var conflicts = new List<string>();
+        var ran = new List<string>();
+
+        commands.Conflict += (_, message) => conflicts.Add(message);
+
+        Assert.True(commands.Register("studio.close", () => ran.Add("плагин"), "arxis.early"));
+        Assert.True(commands.Register("studio.close", () => ran.Add("студия"), owner: null));
+
+        Assert.True(commands.Invoke("studio.close"));
+        Assert.Equal(["студия"], ran);
+        Assert.Contains("arxis.early", Assert.Single(conflicts), StringComparison.Ordinal);
+
+        // Уход плагина команду студии не трогает: хозяин у неё уже другой.
+        commands.RemoveOwnedBy("arxis.early");
+
+        Assert.True(commands.Invoke("studio.close"));
+    }
+
+    /// <summary>Свою команду хозяин вправе заявить заново — это обновление, а не спор.</summary>
+    [Fact]
+    public void An_owner_may_register_its_own_command_again()
+    {
+        var commands = new StudioCommands();
+        var conflicts = 0;
+        var ran = new List<string>();
+
+        commands.Conflict += (_, _) => conflicts++;
+
+        Assert.True(commands.Register("mine.run", () => ran.Add("было"), "arxis.mine"));
+        Assert.True(commands.Register("mine.run", () => ran.Add("стало"), "arxis.mine"));
+
+        commands.Invoke("mine.run");
+
+        Assert.Equal(["стало"], ran);
+        Assert.Equal(0, conflicts);
+    }
 }

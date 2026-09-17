@@ -144,6 +144,55 @@ public class ConsolePanelTests : IDisposable
         Assert.Equal(1, Records(panel).ItemCount);
     }
 
+    /// <summary>
+    /// Просьба показаться, пришедшая из чужого потока, панель не роняет.
+    /// </summary>
+    /// <remarks>
+    /// Просьба приходит в потоке того, кто позвал команду, а команду сосед волен позвать и из
+    /// фоновой работы. Панель по ней прокручивает список к хвосту — контрол, который трогают только
+    /// из потока интерфейса. Панель терминала на такие просьбы отвечала переходом в свой поток с
+    /// самого начала, консоль — нет.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Being_asked_to_show_up_from_another_thread_is_safe()
+    {
+        var log = new StudioLog();
+
+        // Журнал длиннее окна, а панель стоит в окне: без этого прокрутка к хвосту не трогает ни
+        // одного контрола, и из какого потока её позвали, не видно.
+        for (var index = 0; index < 60; index++)
+            log.Write(StudioLogLevel.Info, "Studio", $"запись {index}");
+
+        var panel = LogPanel(log);
+        var window = new Window { Width = 900, Height = 200, Content = panel.Content };
+
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        Exception? thrown = null;
+
+        var caller = new Thread(() =>
+        {
+            try
+            {
+                ConsoleHub.Show();
+            }
+            catch (Exception e)
+            {
+                thrown = e;
+            }
+        });
+
+        caller.Start();
+        caller.Join();
+
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(thrown);
+
+        window.Close();
+    }
+
     /// <summary>Очистка журнала опустошает панель.</summary>
     [AvaloniaFact]
     public void Clearing_the_log_empties_the_panel()

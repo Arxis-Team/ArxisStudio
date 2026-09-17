@@ -157,6 +157,11 @@ public sealed class StudioCommands(PluginGuard? guard = null) : IStudioCommands
     /// </remarks>
     public Action<string>? Awaken { get; set; }
 
+    /// <summary>
+    /// Заявке отказано: команда занята другим хозяином. В поле — что сказать в журнал.
+    /// </summary>
+    public event EventHandler<string>? Conflict;
+
     /// <inheritdoc/>
     public void Register(string id, Action handler) => Register(id, handler, owner: null);
 
@@ -166,12 +171,39 @@ public sealed class StudioCommands(PluginGuard? guard = null) : IStudioCommands
     /// <param name="id">Идентификатор команды.</param>
     /// <param name="handler">Что делать по вызову.</param>
     /// <param name="owner">Чей это обработчик; null — самой студии.</param>
-    public void Register(string id, Action handler, string? owner)
+    /// <returns><c>true</c>, если обработчик заявлен.</returns>
+    /// <remarks>
+    /// Занятую команду другому хозяину не отдают — тем же правилом, что у экспортов. Пока заявка
+    /// перезаписывала молча, плагин мог занять команду соседа или самой студии — пункт меню и
+    /// сочетание исполняли бы его код, — а его выгрузка снимала команду целиком, по владельцу, и до
+    /// перезапуска та не находила обработчика вовсе.
+    /// <para>
+    /// Своё перезаявить можно: это обновление, а не спор. Студия старше принесённого: её заявка
+    /// вытесняет чужую, сколько бы та ни простояла, — иначе плагин, поднявшийся раньше окна,
+    /// отнимал бы у студии её же команду.
+    /// </para>
+    /// </remarks>
+    public bool Register(string id, Action handler, string? owner)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(handler);
 
+        if (_handlers.TryGetValue(id, out var taken) && !string.Equals(taken.Owner, owner, StringComparison.Ordinal))
+        {
+            if (owner is not null)
+            {
+                Conflict?.Invoke(this,
+                    $"{owner}: команда {id} уже заявлена {(taken.Owner is null ? "студией" : $"плагином {taken.Owner}")} — заявка отклонена");
+
+                return false;
+            }
+
+            Conflict?.Invoke(this, $"Команда {id} принадлежит студии — заявка плагина {taken.Owner} снята");
+        }
+
         _handlers[id] = new Handler(handler, owner);
+
+        return true;
     }
 
     /// <inheritdoc/>

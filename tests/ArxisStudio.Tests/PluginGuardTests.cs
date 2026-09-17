@@ -262,6 +262,60 @@ public class PluginGuardTests
     }
 
     /// <summary>
+    /// Асинхронный вызов ловится и до первого ожидания, и после.
+    /// </summary>
+    /// <remarks>
+    /// Открытие файла у редактора асинхронное, и упасть оно может в любой половине. Пойманная одна
+    /// означала бы, что вторая идёт мимо счёта.
+    /// </remarks>
+    [Fact]
+    public async Task An_asynchronous_call_is_caught_on_either_side_of_its_wait()
+    {
+        var guard = new PluginGuard();
+        var failures = new List<PluginFailure>();
+
+        guard.Failed += (_, failure) => failures.Add(failure);
+
+        Assert.False(await guard.RunAsync("arxis.demo", "открытие", () => throw new InvalidOperationException("сразу")));
+
+        Assert.False(await guard.RunAsync("arxis.demo", "открытие", async () =>
+        {
+            await Task.Yield();
+
+            throw new InvalidOperationException("после ожидания");
+        }));
+
+        Assert.Equal(["сразу", "после ожидания"], failures.Select(failure => failure.Message));
+        Assert.True(await guard.RunAsync("arxis.demo", "открытие", () => Task.CompletedTask));
+
+        // Удачный вызов оборвал цепочку: два сбоя выше в счёт следующих не идут.
+        for (var attempt = 0; attempt < PluginGuard.FailureLimit - 1; attempt++)
+            await guard.RunAsync("arxis.demo", "открытие", () => throw new InvalidOperationException("опять"));
+
+        Assert.False(guard.IsFaulty("arxis.demo"));
+    }
+
+    /// <summary>Асинхронное прощание доходит до отключённого, а его сбой не считается.</summary>
+    [Fact]
+    public async Task An_asynchronous_farewell_reaches_a_disabled_plugin()
+    {
+        var guard = new PluginGuard();
+
+        for (var attempt = 0; attempt < PluginGuard.FailureLimit; attempt++)
+            guard.Run("arxis.demo", "панель", () => throw new InvalidOperationException("опять"));
+
+        var released = false;
+
+        Assert.False(await guard.RunAsync("arxis.demo", "закрытие", () => { released = true; return Task.CompletedTask; }));
+        Assert.False(released, "рабочая дорога отключённого не зовёт");
+
+        Assert.True(await guard.FarewellAsync("arxis.demo", "закрытие", () => { released = true; return Task.CompletedTask; }));
+        Assert.True(released);
+
+        Assert.False(await guard.FarewellAsync("arxis.demo", "закрытие", () => throw new InvalidOperationException("и тут")));
+    }
+
+    /// <summary>
     /// Отказ процесса шов не перехватывает.
     /// </summary>
     /// <remarks>

@@ -161,6 +161,38 @@ public class TerminalViewTests
         Assert.Equal(session.Terminal.Buffer.YBase, session.Terminal.Buffer.YDisp);
     }
 
+    /// <summary>
+    /// Программе с мышью сообщается отпускание той кнопки, что была нажата.
+    /// </summary>
+    /// <remarks>
+    /// В режиме SGR отпускание несёт номер кнопки. Пока здесь всегда стояла левая, tmux и vim
+    /// видели нажатие правой и отпускание левой, и их счёт кнопок расходился.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_program_with_the_mouse_is_told_which_button_was_released()
+    {
+        var (window, view, pty, session) = Show();
+
+        view.Focus();
+
+        // Программа просит мышь: отслеживание нажатий и запись SGR.
+        pty.Emit("\u001b[?1000h\u001b[?1006h");
+        Until(() => session.Terminal.MouseTrackingMode != XTerm.Input.MouseTrackingMode.None);
+
+        var cell = view.CellSize;
+        var point = new Point(TerminalView.Inset + (2.5 * cell.Width), TerminalView.Inset + (0.5 * cell.Height));
+
+        window.MouseDown(point, MouseButton.Right, RawInputModifiers.None);
+        window.MouseUp(point, MouseButton.Right, RawInputModifiers.None);
+
+        // Правая кнопка в записи SGR — номер 2: «M» на нажатии, «m» на отпускании.
+        Until(() => pty.WrittenText.Contains('m'));
+
+        Assert.Contains("\u001b[<2;3;1M", pty.WrittenText, StringComparison.Ordinal);
+        Assert.Contains("\u001b[<2;3;1m", pty.WrittenText, StringComparison.Ordinal);
+        Assert.DoesNotContain("\u001b[<0;", pty.WrittenText, StringComparison.Ordinal);
+    }
+
     /// <summary>Протяжка мышью выделяет текст; щелчок без протяжки — нет; Ctrl+C с выделением не прерывает оболочку.</summary>
     [AvaloniaFact]
     public void Dragging_selects_text_and_ctrl_c_copies_instead_of_interrupting()

@@ -240,10 +240,37 @@ public class PluginPackagingTests
     [MemberData(nameof(SharedNames))]
     public void The_target_and_the_resolver_mean_the_same_by_shared(string name)
     {
-        var targets = File.ReadAllText(
-            Path.Combine(Repository(), "src", "ArxisStudio.Sdk", "build", "ArxisStudio.Sdk.targets"));
+        var pack = SharedAssemblies.PackPattern();
+        var exact = Shared().Single(rule => rule.Name == name).Exact;
 
-        Assert.Contains($"'{name}'", targets, StringComparison.Ordinal);
+        Assert.True(pack.IsMatch(name), $"таргет не считает общей сборку {name}");
+
+        Assert.True(
+            pack.IsMatch(name + ".Inner") == IsShared(name + ".Inner") && IsShared(name + ".Inner") == !exact,
+            $"о сборке {name}.Inner таргет и резолвер отвечают по-разному");
+
+        Assert.False(pack.IsMatch(name + "Edit"), $"таргет узнаёт {name} по первым буквам: {name}Edit — чужая сборка");
+        Assert.False(IsShared(name + "Edit"), $"резолвер узнаёт {name} по первым буквам: {name}Edit — чужая сборка");
+    }
+
+    /// <summary>
+    /// Библиотека, которая только начинается как общая, — своя у плагина.
+    /// </summary>
+    /// <remarks>
+    /// <c>AvaloniaEdit</c> в студии не лежит. Пока общую узнавали по первым буквам, упаковка не клала
+    /// её в пакет, резолвер отказывался брать её из папки плагина, основной контекст не находил — и
+    /// плагин с редактором кода падал на первом обращении к нему.
+    /// </remarks>
+    [Fact]
+    public void A_library_that_only_starts_like_a_shared_one_is_the_plugins_own()
+    {
+        Assert.True(IsShared("Avalonia"));
+        Assert.True(IsShared("Avalonia.Base"));
+        Assert.True(IsShared("ArxisStudio.Sdk"));
+
+        Assert.False(IsShared("AvaloniaEdit"), "чужая библиотека объявлена общей");
+        Assert.False(IsShared("AvaloniaHex"), "чужая библиотека объявлена общей");
+        Assert.False(SharedAssemblies.PackPattern().IsMatch("AvaloniaEdit"), "упаковка не положит библиотеку в пакет");
     }
 
     /// <summary>

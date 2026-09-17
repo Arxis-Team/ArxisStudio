@@ -8,6 +8,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 
 namespace ArxisStudio.Modules.Console.Panels;
@@ -169,8 +170,19 @@ public sealed class LogPanel : ToolWindow
     }
 
     /// <summary>Панель попросили показаться: выделять нечего, но хвост показать стоит.</summary>
+    /// <remarks>
+    /// Просьба приходит в потоке того, кто позвал команду, а команду сосед волен позвать и из
+    /// фоновой работы. Список — контрол, и трогают его только из потока интерфейса; так же
+    /// отвечает на просьбы и панель терминала.
+    /// </remarks>
     private void Reveal()
     {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(Reveal);
+            return;
+        }
+
         if (_autoscroll)
             ScrollToTail();
     }

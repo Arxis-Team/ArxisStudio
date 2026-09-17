@@ -299,6 +299,7 @@ public sealed class StudioPlugins
         _release.Views = Unmount;
 
         _exports.Conflict += (_, message) => _log.Write(StudioLogLevel.Warning, "Plugins", message);
+        Commands.Conflict += (_, message) => _log.Write(StudioLogLevel.Warning, "Plugins", message);
 
         _guard.Failed += (_, failure) => _log.Write(
             StudioLogLevel.Error, "Plugins",

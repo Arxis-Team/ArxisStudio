@@ -21,10 +21,15 @@ public class PluginCascadeReloadTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-cascade-{Guid.NewGuid():N}");
 
+    // Ссылка, которую «забыли»: объект плагина, оставшийся у студии, держит его контекст загрузки.
+    private object? _forgotten;
+
     public PluginCascadeReloadTests() => Directory.CreateDirectory(_root);
 
     public void Dispose()
     {
+        _forgotten = null;
+
         try
         {
             if (Directory.Exists(_root))
@@ -140,9 +145,16 @@ public class PluginCascadeReloadTests : IDisposable
     /// Невыгрузившийся называется своим именем, не пороча соседей.
     /// </summary>
     /// <remarks>
-    /// Обработчик команды зависимого нарочно оставлен — так поступает всякий,
-    /// кто забыл отписаться. Ответ по каждому свой: безымянное «что-то не
-    /// выгрузилось» не говорит, кого чинить.
+    /// Объект зависимого нарочно оставлен на руках — так выходит у всякого, кто
+    /// забыл отписаться: студия продолжает держать его делегат, а через него и
+    /// контекст. Ответ по каждому свой: безымянное «что-то не выгрузилось» не
+    /// говорит, кого чинить.
+    /// <para>
+    /// Прежде забытым здесь был обработчик команды, и держался тест на том, что
+    /// второй клон молча перезаписывал команду первого. Теперь занятую команду
+    /// другому не отдают, и у клона-зависимого обработчиков нет вовсе — ссылку
+    /// держит сам тест, тем же способом, каким её держала бы забытая подписка.
+    /// </para>
     /// </remarks>
     [Fact]
     public void A_dependent_that_kept_a_reference_is_reported_by_its_own_name()
@@ -156,9 +168,12 @@ public class PluginCascadeReloadTests : IDisposable
 
         Start(host, expected: 2);
 
-        // Снимаются только команды зависимости: команда зависимого остаётся
-        // держать его объект, а через объект — контекст.
+        // Команды снимаются у обоих — как их снимает оболочка перед выгрузкой; держать
+        // контекст зависимого остаётся только забытая ссылка на его точку входа.
         commands.RemoveOwnedBy("cas.base");
+        commands.RemoveOwnedBy("cas.user");
+
+        _forgotten = Entry(host, "cas.user");
 
         var installed = new PluginCatalog(_root).Scan();
         var cascade = host.Reload(
@@ -172,6 +187,13 @@ public class PluginCascadeReloadTests : IDisposable
         Assert.False(cascade.Released["cas.user"], "оставленный обработчик не удержал контекст");
         Assert.True(cascade.Released["cas.base"], "зависимость оболгали: её никто не держал");
     }
+
+    /// <summary>
+    /// Точка входа поднятого плагина — без записи о нём в кадре теста.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static object Entry(PluginHost host, string pluginId) =>
+        host.Loaded.Single(plugin => plugin.Installed.Id == pluginId).Entries[0];
 
     /// <summary>
     /// Поднимает каталог, не оставляя записей в кадре теста.
