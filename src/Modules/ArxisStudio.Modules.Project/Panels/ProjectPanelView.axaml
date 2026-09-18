@@ -289,6 +289,10 @@
                 <a:Style Selector="AxListBoxItem:selected /template/ a|ContentPresenter#PART_ContentPresenter">
                   <a:Setter Property="Background" Value="Transparent"/>
                 </a:Style>
+                <!-- Метки строки у плитки нет: её выбор — подложка под значком и плашка под подписью. -->
+                <a:Style Selector="AxListBoxItem:selected /template/ a|Border#PART_SelectionMarker">
+                  <a:Setter Property="IsVisible" Value="False"/>
+                </a:Style>
                 <a:Style Selector="a|Border.backdrop">
                   <a:Setter Property="Padding" Value="{a:DynamicResource AxSpaceTightThickness}"/>
                   <a:Setter Property="CornerRadius" Value="{a:DynamicResource AxCornerRadiusLarge}"/>

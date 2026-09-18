@@ -479,6 +479,9 @@ public class ProjectWindowTilesTests
         Assert.Same(studio.Resource("AxSelectionActiveBrush"), caption.Background);
         Assert.Same(studio.Resource("AxSelectionInactiveBrush"), backdrop.Background);
         Assert.True(Clear(chrome.Background), "выбор залил плитку целиком");
+        Assert.False(
+            item.GetVisualDescendants().OfType<Border>().Single(part => part.Name == "PART_SelectionMarker").IsEffectivelyVisible,
+            "у плитки метка строки — выбор плитки держат подложка и плашка");
 
         studio.View.Query.Focus();
         Dispatcher.UIThread.RunJobs();
