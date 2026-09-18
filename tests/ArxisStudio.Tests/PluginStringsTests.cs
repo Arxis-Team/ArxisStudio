@@ -1,4 +1,5 @@
 ﻿using ArxisStudio.Extensibility;
+using ArxisStudio.Sdk;
 using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Services;
 using ArxisStudio.Shell.Localization;
@@ -210,6 +211,90 @@ public class PluginStringsTests : IDisposable
     }
 
     /// <summary>
+    /// Словаря по умолчанию нет — журнал говорит об этом раз на попытку.
+    /// </summary>
+    /// <remarks>
+    /// Без перевода отвечает английский, а без английского ключами становятся все строки
+    /// расширения разом, и сказать об этом, кроме журнала, некому: меню строится по манифесту, и
+    /// отказа, который назвал бы причину, нет. Смена языка перечитывает словари, но сказанного не
+    /// повторяет; перезагрузка — новая попытка автора, и словарь, не нашедшийся и после неё,
+    /// звучит снова.
+    /// </remarks>
+    [Fact]
+    public void A_missing_english_dictionary_is_told_once_per_attempt()
+    {
+        var log = new StudioLog();
+
+        using var journal = DictionaryJournal.Attach(log);
+
+        var plugin = Plugin(("ru.json", """{ "panel.main": "Панель" }"""));
+
+        Localizer.Instance.SetLanguage(Localizer.FallbackLanguage);
+
+        Assert.Equal("!panel.main!", plugin.Strings.Resolve("%panel.main%"));
+        Assert.Equal("!panel.side!", plugin.Strings.Resolve("%panel.side%"));
+
+        Localizer.Instance.SetLanguage("ru");
+
+        Assert.Equal("Панель", plugin.Strings.Resolve("%panel.main%"));
+
+        var told = Assert.Single(Told(log, plugin));
+        var expected = Path.Combine(plugin.Directory, PluginStrings.Folder, PluginStrings.DefaultFile);
+
+        Assert.Equal(StudioLogLevel.Warning, told.Level);
+        Assert.StartsWith($"У {plugin.Id} нет словаря {expected}", told.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("пересоберите", told.Message, StringComparison.Ordinal);
+
+        PluginStrings.Forget(plugin.Directory);
+
+        Assert.Equal("Панель", plugin.Strings.Resolve("%panel.main%"));
+        Assert.Equal(2, Told(log, plugin).Count);
+    }
+
+    /// <summary>
+    /// Словарь под прежним именем журнал называет, но студия его не читает.
+    /// </summary>
+    /// <remarks>
+    /// Так выглядит расширение, собранное до SDK 7.0. Студия его поднимает — прежний старший номер
+    /// <c>Satisfies</c> пропускает, — а словарь под прежним именем не читает, и все подписи
+    /// становятся ключами. Без подсказки причину искали бы по датам файлов; чтения прежнего имени
+    /// подсказка при этом не возвращает — обещание снято, и снято мажором.
+    /// </remarks>
+    [Fact]
+    public void A_dictionary_under_the_former_name_is_named_but_not_read()
+    {
+        var log = new StudioLog();
+
+        using var journal = DictionaryJournal.Attach(log);
+
+        var plugin = Plugin(("strings.json", """{ "panel.main": "Панель" }"""));
+
+        Assert.Equal("!panel.main!", plugin.Strings.Resolve("%panel.main%"));
+
+        var told = Assert.Single(Told(log, plugin));
+
+        Assert.Contains("strings.json", told.Message, StringComparison.Ordinal);
+        Assert.Contains("пересоберите", told.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>Перевода на язык студии у расширения нет — журнал молчит.</summary>
+    /// <remarks>Это обычное дело, а не беда: на месте перевода отвечает английский.</remarks>
+    [Fact]
+    public void An_extension_without_a_translation_is_not_told()
+    {
+        var log = new StudioLog();
+
+        using var journal = DictionaryJournal.Attach(log);
+
+        var plugin = Plugin(("en.json", """{ "panel.main": "Panel" }"""));
+
+        Localizer.Instance.SetLanguage("ru");
+
+        Assert.Equal("Panel", plugin.Strings.Resolve("%panel.main%"));
+        Assert.Empty(Told(log, plugin));
+    }
+
+    /// <summary>
     /// Пункт меню переводится словарями своего плагина.
     /// </summary>
     /// <remarks>
@@ -279,4 +364,8 @@ public class PluginStringsTests : IDisposable
             null,
             IsEnabled: true);
     }
+
+    /// <summary>Что журнал сказал о словарях этого расширения.</summary>
+    private static List<StudioLogRecord> Told(StudioLog log, InstalledPlugin plugin) =>
+        [.. log.Records.Where(record => record.Message.Contains(plugin.Directory, StringComparison.Ordinal))];
 }

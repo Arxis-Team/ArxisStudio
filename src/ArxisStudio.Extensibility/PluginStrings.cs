@@ -50,6 +50,28 @@ public sealed class PluginStrings : IStudioStrings, IStringSource
     /// <param name="language">Код языка.</param>
     public static string FileOf(string language) => $"{language}.json";
 
+    // Так словарь по умолчанию назывался до SDK 7.0. Студия его не читает — только называет, когда
+    // своего DefaultFile у расширения нет: собранное раньше она поднимает (Satisfies прежний
+    // старший номер пропускает), и без подсказки оно показывало бы ключи молча.
+    private const string FormerDefaultFile = "strings.json";
+
+    /// <summary>
+    /// У расширения спросили строку, а словаря по умолчанию у него нет.
+    /// </summary>
+    /// <remarks>
+    /// Пустой словарь вместо отказа — правило <see cref="StringFile"/>, и оно остаётся. Но пропуск
+    /// перевода и отсутствующий <see cref="DefaultFile"/> — разные беды: без перевода отвечает
+    /// английский, а без английского ключами становятся все строки расширения разом. Сказать об
+    /// этом, кроме журнала, некому: меню и полоса строятся по манифесту, сборка не загружается, и
+    /// отказа, который назвал бы причину, нет.
+    /// <para>
+    /// Звучит раз на попытку: смена языка перечитывает словари, но сказанного не повторяет, а
+    /// перезагрузка расширения — новая попытка автора, и словарь, не нашедшийся и после неё,
+    /// звучит снова.
+    /// </para>
+    /// </remarks>
+    public static event EventHandler<MissingDictionary>? Missing;
+
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, PluginStrings> Known =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -68,6 +90,7 @@ public sealed class PluginStrings : IStudioStrings, IStringSource
     private FrozenDictionary<string, string> _packed = FrozenDictionary<string, string>.Empty;
     private FrozenDictionary<string, string> _written = FrozenDictionary<string, string>.Empty;
     private string? _loaded;
+    private bool _told;
 
     /// <summary>Заводит словари плагина.</summary>
     /// <param name="directory">Папка плагина; пусто — словарей нет, текст берётся у студии.</param>
@@ -125,7 +148,7 @@ public sealed class PluginStrings : IStudioStrings, IStringSource
     public static void Forget(string? directory)
     {
         if (directory is { Length: > 0 } path && Known.TryGetValue(path, out var strings))
-            strings.Drop();
+            strings.Drop(retell: true);
     }
 
     /// <inheritdoc/>
@@ -202,6 +225,24 @@ public sealed class PluginStrings : IStudioStrings, IStringSource
     }
 
     /// <summary>
+    /// Забывает прочитанное: словари перечитаются при первом же вопросе.
+    /// </summary>
+    /// <param name="retell">
+    /// Сказать ли снова, что словаря по умолчанию нет. Перезагрузка — новая попытка автора, и об
+    /// этом говорят снова; смена набора языковых пакетов словаря расширения не касается.
+    /// </param>
+    private void Drop(bool retell = false)
+    {
+        lock (_lock)
+        {
+            _loaded = null;
+
+            if (retell)
+                _told = false;
+        }
+    }
+
+    /// <summary>
     /// Перечитывает словари, если язык студии сменился с прошлого раза.
     /// </summary>
     /// <remarks>
@@ -209,15 +250,10 @@ public sealed class PluginStrings : IStudioStrings, IStringSource
     /// сколько установлено плагинов, и подписка каждого держала бы в студии
     /// список, за которым надо следить при удалении плагина.
     /// </remarks>
-    private void Drop()
-    {
-        lock (_lock)
-            _loaded = null;
-    }
-
     private void Reload()
     {
         var language = Localizer.Instance.Language;
+        MissingDictionary? missing;
 
         lock (_lock)
         {
@@ -237,10 +273,52 @@ public sealed class PluginStrings : IStudioStrings, IStringSource
                 : FrozenDictionary<string, string>.Empty;
 
             _loaded = language;
+            missing = Unwritten();
         }
+
+        // Снаружи замка: слушатель — чужой код, и словарь, запертый на время записи в журнал,
+        // заставил бы ждать каждого, кто спрашивает строку.
+        if (missing is not null)
+            Missing?.Invoke(this, missing);
     }
 
+    /// <summary>
+    /// Словаря по умолчанию нет, и об этом ещё не сказано.
+    /// </summary>
+    /// <returns>Что сказать; <c>null</c> — сказать нечего или некому.</returns>
+    private MissingDictionary? Unwritten()
+    {
+        // Некому слушать — и помечать сказанным нечего, как у непрочитанного файла: первый же
+        // слушатель обязан услышать о словаре, которого нет сейчас.
+        if (_told || Missing is null)
+            return null;
+
+        var expected = PathOf(DefaultFile);
+
+        if (File.Exists(expected))
+            return null;
+
+        _told = true;
+
+        var former = PathOf(FormerDefaultFile);
+
+        return new MissingDictionary(
+            _pluginId is { Length: > 0 } id ? id : Path.GetFileName(_directory!),
+            expected,
+            File.Exists(former) ? former : null);
+    }
+
+    private string PathOf(string file) => Path.Combine(_directory!, Folder, file);
+
     private FrozenDictionary<string, string> Read(string file) =>
-        StringFile.Read(Path.Combine(_directory!, Folder, file))
-            .ToFrozenDictionary(StringComparer.Ordinal);
+        StringFile.Read(PathOf(file)).ToFrozenDictionary(StringComparer.Ordinal);
 }
+
+/// <summary>Расширение, у которого спросили строку, а словаря по умолчанию у него нет.</summary>
+/// <param name="Owner">Идентификатор расширения.</param>
+/// <param name="Path">Где словарь ждали.</param>
+/// <param name="Former">
+/// Словарь под именем, которым он назывался до SDK 7.0, если такой лежит рядом: так выглядит
+/// расширение, собранное раньше; иначе <c>null</c>.
+/// </param>
+public sealed record MissingDictionary(string Owner, string Path, string? Former);
