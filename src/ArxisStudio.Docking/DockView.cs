@@ -1005,7 +1005,7 @@ public class DockView : Decorator
             if (number > 0)
                 Line(grid, down, path, shares, sized, floor);
 
-            var row = Row(grid, down, new GridLength(room[number], GridUnitType.Star));
+            var row = Row(grid, down, new GridLength(room[number], GridUnitType.Star), this);
 
             Put(grid, down, control, row);
             sized.Add((at, row));
@@ -1225,12 +1225,36 @@ public class DockView : Decorator
     }
 
     /// <summary>Заводит очередную полосу сетки и возвращает её номер.</summary>
-    private static int Row(Grid grid, bool down, GridLength size)
+    /// <param name="grid">Сетка деления.</param>
+    /// <param name="down">Деление идёт сверху вниз.</param>
+    /// <param name="size">Длина полосы.</param>
+    /// <param name="pane">
+    /// Кто спрашивает у темы наименьший размер панели; пусто — полоса под границу, и предела у неё нет.
+    /// </param>
+    /// <remarks>
+    /// Панель не сжимается в ноль: граница упирается в наименьший размер, и доля в дереве остаётся
+    /// живой. Предел — ключом темы и привязкой: за сменой темы он идёт сам.
+    /// </remarks>
+    private static int Row(Grid grid, bool down, GridLength size, Control? pane = null)
     {
         if (down)
-            grid.RowDefinitions.Add(new RowDefinition(size));
+        {
+            var row = new RowDefinition(size);
+
+            if (pane is not null)
+                row.Bind(RowDefinition.MinHeightProperty, pane.GetResourceObservable("AxDockPaneMinSize"));
+
+            grid.RowDefinitions.Add(row);
+        }
         else
-            grid.ColumnDefinitions.Add(new ColumnDefinition(size));
+        {
+            var column = new ColumnDefinition(size);
+
+            if (pane is not null)
+                column.Bind(ColumnDefinition.MinWidthProperty, pane.GetResourceObservable("AxDockPaneMinSize"));
+
+            grid.ColumnDefinitions.Add(column);
+        }
 
         return (down ? grid.RowDefinitions.Count : grid.ColumnDefinitions.Count) - 1;
     }

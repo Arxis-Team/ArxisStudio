@@ -229,6 +229,63 @@ public class DockViewTests
     }
 
     /// <summary>
+    /// Граница упирается в наименьший размер панели, а не сжимает её в ноль; нулевая доля,
+    /// пришедшая из файла раскладки, тоже встаёт панелью наименьшего размера.
+    /// </summary>
+    /// <remarks>
+    /// Панель, сжатая в ноль, пропадала: взяться за неё было уже не за что, а в файл уходила нулевая
+    /// доля. Предел — ключ темы: шапка с вкладками и две строки под ней.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_pane_stops_at_its_least_size()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children =
+            [
+                new DockGroup { Id = "left", Items = ["solution"], Selected = "solution" },
+                new DockGroup { Id = "right", Items = ["properties"], Selected = "properties" },
+            ],
+            Weights = [0.5, 0.5],
+        };
+
+        var (view, _) = Shown(root, "solution", "properties");
+
+        view.Resized += (_, resize) => view.Root = DockTree.Resize(view.Root!, resize.Path, resize.Weights);
+
+        Assert.True(view.TryFindResource("AxDockPaneMinSize", out var found), "в теме нет наименьшего размера панели");
+
+        var least = (double)found!;
+        var window = Assert.IsAssignableFrom<Window>(TopLevel.GetTopLevel(view));
+        var splitter = Assert.IsType<Grid>(view.Child).Children.OfType<GridSplitter>().Single();
+        var grip = splitter.TranslatePoint(new Point(splitter.Bounds.Width / 2, splitter.Bounds.Height / 2), window)!.Value;
+
+        window.MouseMove(grip);
+        window.MouseDown(grip, MouseButton.Left);
+
+        for (var step = 1; step <= 8; step++)
+            window.MouseMove(grip.WithX(grip.X + (step * 400)));
+
+        window.MouseUp(grip.WithX(grip.X + 3200), MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+        view.UpdateLayout();
+
+        var pushed = Assert.IsType<Grid>(view.Child);
+
+        Assert.True(pushed.ColumnDefinitions[2].ActualWidth >= least - 0.5,
+            $"панель сжата до {pushed.ColumnDefinitions[2].ActualWidth} при пределе {least}");
+        Assert.True(Assert.IsType<DockSplit>(view.Root).Weights[1] > 0, "в дерево ушла нулевая доля");
+
+        view.Root = new DockSplit { Orientation = root.Orientation, Children = root.Children, Weights = [1, 0] };
+        Dispatcher.UIThread.RunJobs();
+        view.UpdateLayout();
+
+        Assert.True(Assert.IsType<Grid>(view.Child).ColumnDefinitions[2].ActualWidth >= least - 0.5,
+            "нулевая доля из файла сжала панель в ноль");
+    }
+
+    /// <summary>
     /// Брошенная в середину вкладка просится в своё окно.
     /// </summary>
     /// <remarks>

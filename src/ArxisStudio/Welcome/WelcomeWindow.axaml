@@ -36,11 +36,10 @@
                  VerticalAlignment="Center" Margin="{DynamicResource AxSpaceWideSidesThickness}"/>
     </ax:AxTitleBar>
 
-    <Grid ColumnDefinitions="230,*">
+    <Grid ColumnDefinitions="230,Auto,*">
 
     <!-- Sidebar 230px: логотип, разделы, Settings, пользователь. -->
-    <Border Grid.Column="0" Background="{DynamicResource AxSurfacePanelBrush}"
-            BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="{DynamicResource AxHairlineTrailingThickness}">
+    <Border Grid.Column="0" Background="{DynamicResource AxSurfacePanelBrush}">
       <DockPanel Margin="{DynamicResource AxWelcomeSidebarPadding}">
 
         <!--
@@ -77,20 +76,24 @@
               <TextBlock Text="{ax:Loc welcome.nav.settings}" VerticalAlignment="Center"/>
             </StackPanel>
           </ax:AxToggleButton>
-          <Border BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="{DynamicResource AxHairlineTopThickness}" Padding="{DynamicResource AxWelcomeFooterPadding}">
-            <!-- Док, а не стопка, — по той же причине, что у знака наверху. -->
-            <DockPanel>
-              <!--
-                  Монограмма — классом темы, а не своей кистью. Тема прямо
-                  запрещает ставить инициалы на AxTintPurple: белый даёт на нём 3,4:1, а
-                  класс purple берёт ступень шкалы, где белый держит порог.
-              -->
-              <ax:AxAvatar DockPanel.Dock="Left" Shape="Circle" Tint="Purple" Width="{DynamicResource AxAvatarSizeSmall}" Height="{DynamicResource AxAvatarSizeSmall}" Initials="FF" FontSize="{DynamicResource AxFontSizeCaption}"
-                           Margin="{DynamicResource AxSpaceTrailingThickness}"/>
-              <TextBlock ax:AxText.Tone="Secondary" Text="FibonacciFox" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center"
-                         TextTrimming="CharacterEllipsis"/>
-            </DockPanel>
-          </Border>
+          <!-- Линия над подвалом — разделитель вплотную к нему: зазор стопки ему не нужен. -->
+          <StackPanel>
+            <ax:AxDivider/>
+            <Border Padding="{DynamicResource AxWelcomeFooterPadding}">
+              <!-- Док, а не стопка, — по той же причине, что у знака наверху. -->
+              <DockPanel>
+                <!--
+                    Монограмма — классом темы, а не своей кистью. Тема прямо
+                    запрещает ставить инициалы на AxTintPurple: белый даёт на нём 3,4:1, а
+                    класс purple берёт ступень шкалы, где белый держит порог.
+                -->
+                <ax:AxAvatar DockPanel.Dock="Left" Shape="Circle" Tint="Purple" Width="{DynamicResource AxAvatarSizeSmall}" Height="{DynamicResource AxAvatarSizeSmall}" Initials="FF" FontSize="{DynamicResource AxFontSizeCaption}"
+                             Margin="{DynamicResource AxSpaceTrailingThickness}"/>
+                <TextBlock ax:AxText.Tone="Secondary" Text="FibonacciFox" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"/>
+              </DockPanel>
+            </Border>
+          </StackPanel>
         </StackPanel>
 
         <StackPanel Spacing="{DynamicResource AxSpaceHair}">
@@ -125,8 +128,14 @@
       </DockPanel>
     </Border>
 
+    <!--
+        Граница боковой полосы — разделитель своей колонкой, а не край рамки: край толщиной в
+        раскладочную единицу при 150 и 175 % выходил вдвое толще разделителей студии.
+    -->
+    <ax:AxDivider Grid.Column="1" Orientation="Vertical"/>
+
     <!-- Контент раздела. -->
-    <DockPanel Grid.Column="1">
+    <DockPanel Grid.Column="2">
 
       <!--
           Полоса состояния: единственное место, где экран отвечает на отказ. Окно закрывается,
@@ -134,7 +143,6 @@
       -->
       <Border DockPanel.Dock="Bottom" IsVisible="{Binding HasStatus}"
               Background="{DynamicResource AxSurfacePanelBrush}"
-              BorderBrush="{DynamicResource AxStrokeSubtleBrush}" BorderThickness="{DynamicResource AxHairlineTopThickness}"
               Padding="{DynamicResource AxWelcomeStatusPadding}">
         <DockPanel>
           <ax:AxButton DockPanel.Dock="Right" Appearance="Subtle" Content="{ax:Loc common.close}"
@@ -143,6 +151,7 @@
                      FontSize="{DynamicResource AxFontSizeSmall}" AutomationProperties.LiveSetting="Polite"/>
         </DockPanel>
       </Border>
+      <ax:AxDivider DockPanel.Dock="Bottom" IsVisible="{Binding HasStatus}"/>
 
       <ScrollViewer>
         <Panel Margin="{DynamicResource AxWelcomePadding}">

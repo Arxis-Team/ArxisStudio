@@ -31,8 +31,15 @@ public class CodeResourceKeysTests
     private static readonly Regex Named = new(@"""(Ax[A-Z][A-Za-z0-9]*)""", RegexOptions.Compiled);
 
     /// <summary>Где искать свойство, названное без хозяина.</summary>
+    /// <remarks>
+    /// Полосы сетки — тоже хозяева: наименьший размер панели дока движок привязывает к ключу темы на
+    /// строке и столбце сетки деления.
+    /// </remarks>
     private static readonly Type[] Owners =
-        [typeof(StackPanel), typeof(Layoutable), typeof(TemplatedControl), typeof(TextBlock), typeof(Shape)];
+    [
+        typeof(StackPanel), typeof(Layoutable), typeof(TemplatedControl), typeof(TextBlock), typeof(Shape),
+        typeof(RowDefinition), typeof(ColumnDefinition),
+    ];
 
     [AvaloniaFact]
     public void Every_theme_key_bound_in_studio_code_exists_and_fits_its_property()
