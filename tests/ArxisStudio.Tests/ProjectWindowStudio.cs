@@ -175,12 +175,12 @@ internal sealed class ProjectWindowStudio : IDisposable
     }
 
     /// <summary>Контейнер строки — прокрутив до неё.</summary>
-    public AxListBoxItem Item(Row row)
+    public TreeRow Item(Row row)
     {
         View.Tree.ScrollIntoView(row);
         Dispatcher.UIThread.RunJobs();
 
-        return Assert.IsType<AxListBoxItem>(View.Tree.ContainerFromItem(row));
+        return Assert.IsType<TreeRow>(View.Tree.ContainerFromItem(row));
     }
 
     /// <summary>Ячейка шеврона строки.</summary>

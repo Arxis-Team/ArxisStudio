@@ -140,7 +140,7 @@
           <ax:AxButton DockPanel.Dock="Right" Appearance="Subtle" Content="{ax:Loc common.close}"
                        Click="OnDismissStatus" MinHeight="{DynamicResource AxControlHeightCompact}" FontSize="{DynamicResource AxFontSizeSmall}"/>
           <TextBlock Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center"
-                     FontSize="{DynamicResource AxFontSizeSmall}"/>
+                     FontSize="{DynamicResource AxFontSizeSmall}" AutomationProperties.LiveSetting="Polite"/>
         </DockPanel>
       </Border>
 

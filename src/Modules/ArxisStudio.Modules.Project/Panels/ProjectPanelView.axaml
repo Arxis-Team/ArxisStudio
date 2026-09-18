@@ -86,10 +86,10 @@
 
         <a:Panel a:Grid.ColumnSpan="{a:Binding TreeSpan}">
 
-          <AxListBox x:Name="Tree"
+          <p:TreeRows x:Name="Tree"
                      ItemsSource="{a:Binding Tree.Rows}"
                      Padding="{a:DynamicResource AxTreeViewPadding}">
-            <AxListBox.Styles>
+            <p:TreeRows.Styles>
               <!--
                   Отбивка строки — строки дерева, а не списка: у дерева она идёт за плотностью (6, 8,
                   10), у строки списка — нет, и в компактной и просторной плотности окно разъехалось
@@ -103,8 +103,8 @@
                 <a:Setter Property="a:AutomationProperties.Name" Value="{a:Binding Name}"/>
                 <a:Setter Property="a:AutomationProperties.HelpText" Value="{a:Binding Hint}"/>
               </a:Style>
-            </AxListBox.Styles>
-            <AxListBox.ItemTemplate>
+            </p:TreeRows.Styles>
+            <p:TreeRows.ItemTemplate>
               <a:DataTemplate x:DataType="t:Row">
                 <a:DockPanel Background="Transparent">
                   <a:DockPanel.Margin>
@@ -158,8 +158,8 @@
                   </a:Grid>
                 </a:DockPanel>
               </a:DataTemplate>
-            </AxListBox.ItemTemplate>
-          </AxListBox>
+            </p:TreeRows.ItemTemplate>
+          </p:TreeRows>
 
           <a:TextBlock IsVisible="{a:Binding NothingFound}" Text="{Text project.search.none}"
                        AxText.Tone="Secondary" HorizontalAlignment="Center" VerticalAlignment="Center"/>

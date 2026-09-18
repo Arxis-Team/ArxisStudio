@@ -154,7 +154,7 @@
         <ax:AxCard DockPanel.Dock="Top" Margin="{DynamicResource AxSpaceWideBelowThickness}" Padding="{DynamicResource AxBannerPadding}"
                    IsVisible="{Binding HasStatus}">
           <TextBlock Text="{Binding Status}" TextWrapping="Wrap"
-                     FontSize="{DynamicResource AxFontSizeSmall}"/>
+                     FontSize="{DynamicResource AxFontSizeSmall}" AutomationProperties.LiveSetting="Polite"/>
         </ax:AxCard>
 
         <TextBlock DockPanel.Dock="Top" ax:AxText.Tone="Tertiary" TextWrapping="Wrap"

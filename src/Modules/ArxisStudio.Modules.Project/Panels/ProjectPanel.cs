@@ -124,6 +124,7 @@ public sealed class ProjectPanel : ToolWindow
         tree.DoubleTapped += OnDoubleTapped;
         tree.ContextRequested += OnContextRequested;
         tree.SelectionChanged += OnSelectionChanged;
+        tree.Expanding = OnExpanding;
         view.KeyDown += OnViewKeyDown;
         view.Query.PropertyChanged += OnQueryChanged;
         view.CollapseAll.Click += OnCollapseAll;
@@ -141,6 +142,7 @@ public sealed class ProjectPanel : ToolWindow
             tree.DoubleTapped -= OnDoubleTapped;
             tree.ContextRequested -= OnContextRequested;
             tree.SelectionChanged -= OnSelectionChanged;
+            tree.Expanding = null;
             view.KeyDown -= OnViewKeyDown;
             view.Query.PropertyChanged -= OnQueryChanged;
             view.CollapseAll.Click -= OnCollapseAll;
@@ -177,6 +179,21 @@ public sealed class ProjectPanel : ToolWindow
 
         Act(row);
         e.Handled = true;
+    }
+
+    /// <summary>Диктор просит раскрыть или свернуть узел — так же, как стрелкой.</summary>
+    private void OnExpanding(Row row, bool expand)
+    {
+        if (_model?.Tree is not { } tree)
+            return;
+
+        Keep(() =>
+        {
+            if (expand)
+                tree.Expand(row);
+            else
+                tree.Collapse(row);
+        });
     }
 
     private void OnTreeKeyDown(object? sender, KeyEventArgs e)

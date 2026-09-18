@@ -249,7 +249,10 @@ public sealed class StudioToolBar
         if (isChecked is { } on)
         {
             if (entry.Declared.IsButton)
+            {
                 entry.IsChecked = on;
+                entry.IsToggle = true;
+            }
             else
                 Complained?.Invoke(this, $"Элемент {key} — не кнопка, включённым он не бывает");
         }
@@ -317,7 +320,10 @@ public sealed class StudioToolBar
             view.IsEnabled = entry.IsEnabled;
 
         if (entry.Button is { } button)
+        {
+            button.IsToggle = entry.IsToggle;
             button.IsChecked = entry.IsChecked;
+        }
     }
 
     private int IndexOf(InstalledPlugin? owner, PluginToolBarItem declared)
@@ -586,6 +592,9 @@ public sealed class StudioToolBar
         public bool IsVisible { get; set; } = true;
 
         public bool IsChecked { get; set; }
+
+        /// <summary>Полоса хоть раз сказала, включена ли кнопка: для диктора она переключатель.</summary>
+        public bool IsToggle { get; set; }
     }
 }
 

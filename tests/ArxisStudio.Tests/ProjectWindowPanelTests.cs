@@ -5,6 +5,8 @@ using ArxisStudio.ProjectSystem;
 using ArxisStudio.Shell.Localization;
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
@@ -594,6 +596,90 @@ public class ProjectWindowPanelTests
 
         Assert.Equal(0, studio.Projects.Listeners);
     }
+
+    /// <summary>
+    /// Экранный диктор слышит окно деревом: дерево, узлы с именами, «свёрнуто», «развёрнуто» и лист.
+    /// </summary>
+    /// <remarks>
+    /// Раскладке и клавиатуре дерево — список, и прежде диктор так его и читал: «элемент списка», без
+    /// раскрытия. Роль и раскрытие спрашиваются у пиров — у тех, кого спрашивает мост платформы.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_screen_reader_hears_a_tree_of_nodes_that_open()
+    {
+        using var studio = new ProjectWindowStudio();
+
+        await studio.Open();
+
+        var tree = ControlAutomationPeer.CreatePeerForElement(studio.View.Tree);
+        var views = Peer(studio, "Views");
+        var program = Peer(studio, "Program.cs");
+
+        Assert.Equal(AutomationControlType.Tree, tree.GetAutomationControlType());
+        Assert.Equal(AutomationControlType.TreeItem, views.GetAutomationControlType());
+        Assert.Equal("Views", views.GetName());
+        Assert.Equal(ExpandCollapseState.Collapsed, Expander(views).ExpandCollapseState);
+        Assert.Equal(ExpandCollapseState.Expanded, Expander(Peer(studio, "App")).ExpandCollapseState);
+        Assert.Equal(ExpandCollapseState.LeafNode, Expander(program).ExpandCollapseState);
+        Assert.IsAssignableFrom<ISelectionItemProvider>(program.GetProvider<ISelectionItemProvider>());
+    }
+
+    /// <summary>
+    /// Диктор раскрывает и сворачивает узел той же дорогой, что стрелки, и слышит, что вышло.
+    /// </summary>
+    /// <remarks>
+    /// Дорога одна — и выделение с кареткой, унесённые свёрткой, так же переходят к свёрнутому узлу.
+    /// Выделение подхватил бы и запасной путь перестройки, а каретку — нет: она ушла бы вместе со
+    /// строкой, и диктор потерял бы место. Смену раскрытия пир объявляет сам: без этого диктор узнал
+    /// бы о ней, только вернувшись к строке.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_screen_reader_opens_and_closes_a_node_the_way_the_arrows_do()
+    {
+        using var studio = new ProjectWindowStudio();
+
+        await studio.Open();
+
+        var views = studio.Row("Views");
+        var peer = Peer(studio, "Views");
+        var heard = new List<(ExpandCollapseState Before, ExpandCollapseState After)>();
+
+        peer.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == ExpandCollapsePatternIdentifiers.ExpandCollapseStateProperty)
+                heard.Add(((ExpandCollapseState)e.OldValue!, (ExpandCollapseState)e.NewValue!));
+        };
+
+        Expander(peer).Expand();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(views.IsExpanded, "просьба диктора не раскрыла папку");
+        Assert.Contains(studio.Rows, row => row.Name == "MainWindow.axaml");
+        Assert.Equal(ExpandCollapseState.Expanded, Expander(peer).ExpandCollapseState);
+
+        studio.Select("MainWindow.axaml");
+        Expander(peer).Collapse();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(views.IsExpanded, "просьба диктора не свернула папку");
+        Assert.Same(views, studio.Selected);
+        Assert.Same(views, Assert.IsAssignableFrom<Control>(studio.Window.FocusManager?.GetFocusedElement()).DataContext);
+        Assert.Equal(
+            [(ExpandCollapseState.Collapsed, ExpandCollapseState.Expanded), (ExpandCollapseState.Expanded, ExpandCollapseState.Collapsed)],
+            heard);
+
+        var leaf = Expander(Peer(studio, "Program.cs"));
+
+        leaf.Expand();
+
+        Assert.Equal(ExpandCollapseState.LeafNode, leaf.ExpandCollapseState);
+    }
+
+    private static AutomationPeer Peer(ProjectWindowStudio studio, string name) =>
+        ControlAutomationPeer.CreatePeerForElement(studio.Item(studio.Row(name)));
+
+    private static IExpandCollapseProvider Expander(AutomationPeer peer) =>
+        Assert.IsAssignableFrom<IExpandCollapseProvider>(peer.GetProvider<IExpandCollapseProvider>());
 
     /// <summary>Перезагрузка не удалась, а прежний снимок остался.</summary>
     private static ProjectsStatus Failed(long sequence, SolutionSnapshot snapshot) => new()

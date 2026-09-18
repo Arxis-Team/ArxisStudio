@@ -8,6 +8,8 @@ using ArxisStudio.Services;
 using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
@@ -201,6 +203,53 @@ public class StudioToolBarTests : IDisposable
         Click(View<ToolBarButton>("hello:run"));
 
         Assert.Contains(_complaints, message => message.Contains("hello.run", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Экранному диктору кнопка полосы — кнопка, а переключателем её делает полоса, сказав о
+    /// включённости.
+    /// </summary>
+    /// <remarks>
+    /// Кнопка полосы устроена переключателем, чтобы гореть, когда велит полоса, и прежде диктор
+    /// читал любую «переключателем, выключено», хотя включённость держит одна из многих. Нажатие
+    /// диктором идёт той же дорогой, что щелчок, — через команду.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_screen_reader_hears_a_button_until_the_bar_keeps_it_checked()
+    {
+        var plugin = Plugin("hello", ButtonOf("run", "hello.run"));
+
+        _bar.Add(plugin, plugin.Manifest!.Contributions.ToolBar[0]);
+
+        var peer = ControlAutomationPeer.CreatePeerForElement(View<ToolBarButton>("hello:run"));
+
+        Assert.Null(peer.GetProvider<IToggleProvider>());
+        Assert.IsAssignableFrom<IInvokeProvider>(peer.GetProvider<IInvokeProvider>()).Invoke();
+        Assert.Equal(["hello.run"], _invoked);
+
+        var heard = new List<ToggleState>();
+
+        peer.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == TogglePatternIdentifiers.ToggleStateProperty)
+                heard.Add((ToggleState)e.NewValue!);
+        };
+
+        _bar.Update("hello", "run", isChecked: true);
+
+        var toggle = Assert.IsAssignableFrom<IToggleProvider>(peer.GetProvider<IToggleProvider>());
+
+        Assert.Null(peer.GetProvider<IInvokeProvider>());
+        Assert.Equal(ToggleState.On, toggle.ToggleState);
+
+        _bar.Update("hello", "run", isChecked: false);
+
+        Assert.Equal(ToggleState.Off, toggle.ToggleState);
+        Assert.Equal([ToggleState.On, ToggleState.Off], heard);
+
+        toggle.Toggle();
+
+        Assert.Equal(["hello.run", "hello.run"], _invoked);
     }
 
     /// <summary>Кнопка без команды не ставится — и говорит почему.</summary>

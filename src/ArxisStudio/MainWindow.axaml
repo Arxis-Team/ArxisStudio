@@ -105,10 +105,14 @@
       </ax:DockView.Empty>
     </ax:DockView>
 
-    <!-- Статус-бар: наименьшая высота контрола, 24 при обычной плотности. -->
+    <!--
+        Статус-бар: наименьшая высота контрола, 24 при обычной плотности. Сообщение — живая
+        область: диктор читает сказанное студией, не уводя каретку с того, что человек делал.
+    -->
     <ax:StudioShell.StatusBar>
       <DockPanel MinHeight="{DynamicResource AxControlHeightCompact}" Margin="{DynamicResource AxSpaceWideSidesThickness}">
-        <TextBlock ax:AxText.Tone="Secondary" Text="{Binding Status}" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+        <TextBlock ax:AxText.Tone="Secondary" Text="{Binding Status}" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                   AutomationProperties.LiveSetting="Polite"/>
         <!--
             Идущая задача: имя, чем занята, полоса и отмена. Место одно на всех
             плагинов — иначе каждый заведёт свою мельницу, и человек будет
