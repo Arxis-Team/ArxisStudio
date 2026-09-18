@@ -255,7 +255,8 @@ internal sealed class BrowserPane : IDisposable
         e.Handled = true;
         _wheel = Math.Sign(_wheel) == Math.Sign(e.Delta.Y) ? _wheel + e.Delta.Y : e.Delta.Y;
 
-        var steps = (int)Math.Truncate(_wheel);
+        // Доли складываются с погрешностью: десять десятых дают 0,999…, и щелчок не засчитывался бы.
+        var steps = (int)Math.Truncate(Math.Round(_wheel, 6));
 
         if (steps == 0)
             return;

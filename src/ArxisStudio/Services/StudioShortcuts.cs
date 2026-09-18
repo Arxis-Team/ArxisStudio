@@ -35,6 +35,13 @@ public sealed record ShortcutConflict(KeyGesture Gesture, string CommandId, stri
 /// только невостребованное.
 /// </para>
 /// <para>
+/// Исключение — короткий список команд, которые проходят мимо того, кто держит клавиатуру
+/// (<see cref="Pass"/>): переход между панелями и палитра. Их студия слышит на спуске, раньше
+/// всех. Терминал обрабатывает всякую клавишу, и F6 с палитрой в нём глохли: из терминала
+/// уходили только мышью или Shift+Esc. Так устроен и терминал VS Code — короткий список команд
+/// проходит мимо оболочки (<c>commandsToSkipShell</c>), и F6 в нём тот же.
+/// </para>
+/// <para>
 /// Занятое сочетание второму не отдаётся, и отказ не молчит: <see cref="Refused"/>
 /// помнит всех, кому не досталось, вместе с именем победителя. Команда при этом
 /// остаётся доступна из меню — потерять сочетание не значит потерять команду.
@@ -57,6 +64,7 @@ public sealed class StudioShortcuts(Func<string, bool> invoke)
     private readonly List<ShortcutBinding> _bindings = [];
     private readonly List<ShortcutConflict> _refused = [];
     private readonly HashSet<string> _personal = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _passing = new(StringComparer.Ordinal);
     private readonly List<Request> _asked = [];
 
     /// <summary>Все отданные сочетания, в порядке выдачи.</summary>
@@ -240,12 +248,30 @@ public sealed class StudioShortcuts(Func<string, bool> invoke)
         _bindings.FirstOrDefault(bound => string.Equals(bound.CommandId, commandId, StringComparison.Ordinal))
             ?.Gesture;
 
+    /// <summary>
+    /// Велит команде проходить мимо того, кто держит клавиатуру: её сочетание студия слышит раньше
+    /// всех, на спуске события.
+    /// </summary>
+    /// <param name="commandId">Команда студии.</param>
+    /// <remarks>
+    /// Проходит команда, а не сочетание: человек, переназначивший её в <c>keymap.json</c>, получает
+    /// новое сочетание таким же проходящим. Список короткий и только студийный — отнятая у терминала
+    /// клавиша — это клавиша, которой не получит программа в нём.
+    /// </remarks>
+    public void Pass(string commandId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(commandId);
+
+        _passing.Add(commandId);
+    }
+
     /// <summary>Начинает слушать клавиши этого окна.</summary>
     /// <param name="window">Окно студии.</param>
     public void Attach(TopLevel window)
     {
         ArgumentNullException.ThrowIfNull(window);
 
+        window.AddHandler(InputElement.KeyDownEvent, OnPassing, RoutingStrategies.Tunnel);
         window.AddHandler(InputElement.KeyDownEvent, OnKey, RoutingStrategies.Bubble);
     }
 
@@ -301,6 +327,24 @@ public sealed class StudioShortcuts(Func<string, bool> invoke)
     /// Сочетание, отданное команде, которой нет, клавишу не съедает: иначе
     /// плагин, объявивший жест и не поднявшийся, отнимал бы нажатие у всех.
     /// </remarks>
+    /// <summary>Сочетание проходящей команды — раньше того, кто держит клавиатуру.</summary>
+    private void OnPassing(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || _passing.Count == 0)
+            return;
+
+        foreach (var bound in _bindings)
+        {
+            if (!bound.Gesture.Matches(e))
+                continue;
+
+            if (_passing.Contains(bound.CommandId))
+                e.Handled = invoke(bound.CommandId);
+
+            return;
+        }
+    }
+
     private void OnKey(object? sender, KeyEventArgs e)
     {
         if (e.Handled)

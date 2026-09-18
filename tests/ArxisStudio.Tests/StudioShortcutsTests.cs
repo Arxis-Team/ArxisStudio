@@ -139,6 +139,45 @@ public class StudioShortcutsTests
     }
 
     /// <summary>
+    /// Проходящую команду реестр слышит раньше того, кто держит клавиатуру; остальные ей уступают.
+    /// </summary>
+    /// <remarks>
+    /// Терминал обрабатывает всякую клавишу, и F6 с палитрой в нём глохли: из терминала уходили
+    /// только мышью. Переход между панелями и палитра проходят мимо него, как в терминале VS Code, а
+    /// Ctrl+W остаётся оболочке — там он стирает слово.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_passing_command_is_heard_before_the_one_who_takes_every_key()
+    {
+        var called = new List<string>();
+        var keys = new StudioShortcuts(Calls(called));
+        var greedy = new Border { Focusable = true, Height = 20 };
+        var seen = new List<Key>();
+
+        greedy.KeyDown += (_, e) =>
+        {
+            seen.Add(e.Key);
+            e.Handled = true;
+        };
+
+        var window = Shown(keys, greedy);
+
+        Assert.True(keys.Bind("F6", "studio.panel.next"));
+        Assert.True(keys.Bind("Ctrl+W", "studio.close"));
+        keys.Pass("studio.panel.next");
+        Assert.True(greedy.Focus());
+
+        window.KeyPress(Key.F6, RawInputModifiers.None, PhysicalKey.F6, string.Empty);
+        window.KeyPress(Key.W, RawInputModifiers.Control, PhysicalKey.W, string.Empty);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(["studio.panel.next"], called);
+        Assert.Equal([Key.W], seen);
+
+        window.Close();
+    }
+
+    /// <summary>
     /// Неразобранное сочетание — отказ, но не конфликт.
     /// </summary>
     /// <remarks>

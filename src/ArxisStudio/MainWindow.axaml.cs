@@ -587,6 +587,13 @@ public partial class MainWindow : AxWindow
         Bind("Shift+F6", "studio.panel.previous");
         Bind("Ctrl+Shift+P", "studio.palette");
 
+        // Переход между панелями и палитра слышны и там, где клавиатуру держит терминал: без этого
+        // из него уходили только мышью или Shift+Esc. Ctrl+W сюда не входит: в оболочке он стирает
+        // слово.
+        _shortcuts.Pass("studio.panel.next");
+        _shortcuts.Pass("studio.panel.previous");
+        _shortcuts.Pass("studio.palette");
+
         _shortcuts.Attach(this);
         _shortcuts.Follow(_dock);
 

@@ -290,6 +290,15 @@ public class ProjectWindowTilesTests
         studio.Wheel(TileItem(studio, "Views"), 0.4, RawInputModifiers.Control);
 
         Assert.Equal(start, studio.View.Size.Value);
+
+        // Десять десятых в двоичной записи — 0,999…, и без поправки на погрешность щелчок не
+        // засчитывался бы. Копилку опустошает целый щелчок назад.
+        studio.Wheel(TileItem(studio, "Views"), -1, RawInputModifiers.Control);
+
+        for (var tenth = 0; tenth < 10; tenth++)
+            studio.Wheel(TileItem(studio, "Views"), 0.1, RawInputModifiers.Control);
+
+        Assert.Equal(start, studio.View.Size.Value);
     }
 
     /// <summary>

@@ -163,6 +163,31 @@ public class TerminalViewTests
     }
 
     /// <summary>
+    /// Доли щелчка колеса копятся: медленная прокрутка тачпадом листает историю.
+    /// </summary>
+    /// <remarks>
+    /// Тачпад шлёт щелчок долями — по десятой, — и округление каждой роняло их все: двумя
+    /// пальцами история не листалась вовсе. Десять десятых — один щелчок, три строки, как у колеса
+    /// мыши.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Wheel_fractions_add_up_to_a_notch()
+    {
+        var (window, view, pty, session) = Show();
+
+        view.Focus();
+        History(view, pty, session);
+
+        var buffer = session.Terminal.Buffer;
+        var bottom = buffer.YDisp;
+
+        for (var step = 0; step < 10; step++)
+            window.MouseWheel(new Point(100, 100), new Vector(0, 0.1), RawInputModifiers.None);
+
+        Assert.Equal(bottom - 3, buffer.YDisp);
+    }
+
+    /// <summary>
     /// Программе с мышью сообщается отпускание той кнопки, что была нажата.
     /// </summary>
     /// <remarks>

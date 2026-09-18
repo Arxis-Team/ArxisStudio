@@ -109,6 +109,9 @@ public sealed class TerminalView : Control
     private Color _selection = Color.FromRgb(0x26, 0x3D, 0x68);
     private Color _thumb = Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF);
     private Color _thumbOver = Color.FromArgb(0x59, 0xFF, 0xFF, 0xFF);
+
+    /// <summary>Недокрученная доля щелчка колеса: тачпад шлёт щелчок долями.</summary>
+    private double _wheel;
     private double _lane = ScrollBarWidth;
     private double _thumbWidth = 6;
     private double _thumbWidthOver = 8;
@@ -662,10 +665,25 @@ public sealed class TerminalView : Control
             return;
 
         var terminal = _session.Terminal;
-        var notches = (int)Math.Round(e.Delta.Y);
+
+        // Тачпад шлёт щелчок колеса долями, и округление роняло их все: медленная прокрутка двумя
+        // пальцами не листала историю вовсе. Доли копятся, а поворот в обратную сторону начинает
+        // счёт заново — иначе остаток прежнего хода съедал бы начало нового.
+        if (Math.Sign(e.Delta.Y) != Math.Sign(_wheel))
+            _wheel = 0;
+
+        _wheel += e.Delta.Y;
+
+        // Доли складываются с погрешностью: десять десятых дают 0,999…, и щелчок не засчитывался бы.
+        var notches = (int)Math.Truncate(Math.Round(_wheel, 6));
 
         if (notches == 0)
+        {
+            e.Handled = true;
             return;
+        }
+
+        _wheel -= notches;
 
         var (x, y) = Cell(e.GetPosition(this));
 
@@ -734,7 +752,10 @@ public sealed class TerminalView : Control
                    && line[x].Attributes.Equals(attributes)
                    && selection.IsCellSelected(x, row) == selected);
 
-            var (foreground, background) = TerminalTheme.Resolve(attributes, colors, boldIsBright);
+            // Выделенный текст лежит на подложке выделения, а не на своём фоне: читаемым он обязан
+            // быть на ней.
+            var (foreground, background) = TerminalTheme.Resolve(
+                attributes, colors, boldIsBright, selected ? Rgb(_selection) : null);
             var cells = x - start;
             var origin = new Point(Inset + (start * _cellWidth), y);
             var rect = new Rect(origin, new Size(cells * _cellWidth, _cellHeight));
