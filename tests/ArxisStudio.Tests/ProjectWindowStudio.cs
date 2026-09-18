@@ -35,12 +35,17 @@ internal sealed class ProjectWindowStudio : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-project-window-{Guid.NewGuid():N}");
     private readonly PluginHost _host;
+    private readonly IStudioContext _context;
 
     /// <summary>Поднимает модуль и показывает окно.</summary>
     /// <param name="service">Есть ли у студии служба проектов.</param>
     /// <param name="width">Ширина окна.</param>
     /// <param name="projects">Служба проектов, которую тест завёл заранее; пусто — новая.</param>
-    public ProjectWindowStudio(bool service = true, double width = 520, ProjectsProbe? projects = null)
+    /// <param name="twoColumns">
+    /// Раскладка окна. По умолчанию — одна колонка: большинство тестов проверяет дерево, и файлы в нём
+    /// есть только в одну колонку. Пусто — не трогать настройку и получить умолчание самого окна.
+    /// </param>
+    public ProjectWindowStudio(bool service = true, double width = 520, ProjectsProbe? projects = null, bool? twoColumns = false)
     {
         Directory.CreateDirectory(_root);
 
@@ -60,14 +65,17 @@ internal sealed class ProjectWindowStudio : IDisposable
 
         Assert.True(loaded.IsLoaded, loaded.Error);
 
+        _context = loaded.Studio!;
+
         // Словарь — тот же, которым подписывает окно: сверять подписи со словарём студии значило
         // бы проверять совпадение двух словарей, а не работу окна.
-        Strings = loaded.Studio!.Strings;
+        Strings = _context.Strings;
 
-        Panel = new ProjectPanel();
-        Panel.Attach(loaded.Studio);
+        if (twoColumns is { } columns)
+            _context.Settings.Set(ProjectSettings.TwoColumnsKey, columns);
 
-        Window = new Window { Width = width, Height = 720, Content = Panel.Content };
+        Window = new Window { Width = width, Height = 720 };
+        Panel = Build();
         Window.Show();
         Dispatcher.UIThread.RunJobs();
     }
@@ -84,8 +92,11 @@ internal sealed class ProjectWindowStudio : IDisposable
     /// <summary>Словари модуля.</summary>
     public IStudioStrings Strings { get; }
 
+    /// <summary>Настройки модуля — той же службой, что у окна.</summary>
+    public IStudioSettings Settings => _context.Settings;
+
     /// <summary>Панель.</summary>
-    public ProjectPanel Panel { get; }
+    public ProjectPanel Panel { get; private set; }
 
     /// <summary>Окно, в котором панель показана.</summary>
     public Window Window { get; }
@@ -110,6 +121,18 @@ internal sealed class ProjectWindowStudio : IDisposable
 
     /// <summary>То же решение как построитель — когда тесту нужны его пути.</summary>
     public ProjectWindowSolution Avalonia() => ProjectWindowSolution.Avalonia(root: _root).OnDisk();
+
+    /// <summary>
+    /// Прощается с окном и строит новое на том же контексте — так студия открывает закрытую панель.
+    /// </summary>
+    public ProjectPanel Reopen()
+    {
+        Panel.Release();
+        Panel = Build();
+        Dispatcher.UIThread.RunJobs();
+
+        return Panel;
+    }
 
     /// <summary>Открывает решение и ждёт, пока окно его покажет.</summary>
     /// <param name="snapshot">Снимок; пусто — обычное решение.</param>
@@ -252,6 +275,16 @@ internal sealed class ProjectWindowStudio : IDisposable
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
         }
+    }
+
+    private ProjectPanel Build()
+    {
+        var panel = new ProjectPanel();
+
+        panel.Attach(_context);
+        Window.Content = panel.Content;
+
+        return panel;
     }
 
     private Point Middle(Visual target)

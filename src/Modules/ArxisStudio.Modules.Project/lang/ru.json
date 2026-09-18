@@ -42,5 +42,18 @@
 
   "project.picker.title": "Открыть решение",
   "project.picker.solutions": "Решения и проекты",
-  "project.picker.all": "Все файлы"
+  "project.picker.all": "Все файлы",
+
+  "settings.project.twoColumns": "Показывать окно проекта в две колонки",
+  "settings.project.iconSize": "Размер значков в окне проекта: 0 — список, 1 — плитки, 2 — крупные плитки",
+  "project.options": "Параметры окна",
+  "project.layout.one": "Одна колонка",
+  "project.layout.two": "Две колонки",
+  "project.browser.path": "Путь",
+  "project.browser.empty": "Папка пуста",
+  "project.browser.results": "Результаты поиска: {0}",
+  "project.browser.capped": "Результаты поиска: первые {0} из {1}",
+  "project.browser.items": "Элементов: {0}",
+  "project.browser.size": "Размер значков",
+  "project.menu.showInFolder": "Показать в папке"
 }

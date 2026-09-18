@@ -36,6 +36,36 @@ internal sealed class Glyph : IMultiValueConverter
         values is [Node node, bool expanded, ..] ? Glyphs.Of(node, expanded) : null;
 }
 
+/// <summary>Значок узла свёрнутым: для подложки плитки, строки списка и сегмента крошек.</summary>
+internal sealed class NodeGlyph : IValueConverter
+{
+    /// <summary>Единственный экземпляр — состояния у преобразователя нет.</summary>
+    public static NodeGlyph Instance { get; } = new();
+
+    /// <inheritdoc/>
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is Node node ? Glyphs.Of(node, expanded: false) : null;
+
+    /// <inheritdoc/>
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>Силуэт плитки по узлу.</summary>
+internal sealed class Silhouette : IValueConverter
+{
+    /// <summary>Единственный экземпляр — состояния у преобразователя нет.</summary>
+    public static Silhouette Instance { get; } = new();
+
+    /// <inheritdoc/>
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is Node node ? Glyphs.TileOf(node) : null;
+
+    /// <inheritdoc/>
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
 /// <summary>Ключ цвета значка строки.</summary>
 internal sealed class TintKey : IValueConverter
 {

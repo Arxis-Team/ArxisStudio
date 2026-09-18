@@ -15,6 +15,10 @@
     "toolWindows": [
       { "id": "project.window", "title": "%panel.project%", "icon": "arxis:Solution",
         "placement": { "side": "bottom", "size": 0.3, "near": "arxis.console:console.log" } }
+    ],
+    "settings": [
+      { "key": "project.twoColumns", "type": "bool", "scope": "user", "title": "%settings.project.twoColumns%", "default": true },
+      { "key": "project.iconSize", "type": "number", "scope": "user", "title": "%settings.project.iconSize%", "default": 1 }
     ]
   },
   "activation": [ "onStartup" ]

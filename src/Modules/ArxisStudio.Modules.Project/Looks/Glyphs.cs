@@ -41,6 +41,17 @@ internal static class Glyphs
         },
     };
 
+    /// <summary>
+    /// Силуэт плитки: папка — папкой, всё прочее на диске — документом.
+    /// </summary>
+    /// <remarks>
+    /// Силуэт — только у того, что лежит на диске; у предмета модели — проекта, зависимости,
+    /// группы — формы на диске нет, и его плитка — подложка со значком <see cref="Of"/>.
+    /// </remarks>
+    /// <param name="node">Узел папки или файла.</param>
+    public static Geometry TileOf(Node node) =>
+        node.Kind is NodeKind.Folder or NodeKind.SolutionFolder ? AxIcons.FolderTile : AxIcons.DocumentTile;
+
     /// <summary>Ключ кисти темы для значка узла; <c>null</c> — значок идёт цветом подписи.</summary>
     /// <param name="node">Узел.</param>
     public static string? TintOf(Node node) => node.Kind switch

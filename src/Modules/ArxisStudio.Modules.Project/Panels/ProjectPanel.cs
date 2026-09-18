@@ -27,6 +27,13 @@ namespace ArxisStudio.Modules.Project.Panels;
 /// по имени среди видимых — это умеет сам список. Ctrl+F ставит каретку в поиск, Esc его очищает,
 /// а стрелка вниз из поиска возвращает в дерево.
 /// </para>
+/// <para>
+/// В две колонки, как в Unity, дерево слева — карта контейнеров, а их содержимое показывает правая
+/// колонка (<see cref="BrowserPane"/>): выбор в дереве ведёт колонку, переход в колонке выделяет
+/// контейнер в дереве. Раскладку выбирают в ⋮ полосы или в настройках студии, и применяется она
+/// из настройки — одной дорогой, откуда бы ни пришла. Смена раскладки оставляет человека там, где
+/// он стоял: файл, выделенный в дереве, в две колонки выделен плиткой в своей папке, и наоборот.
+/// </para>
 /// </remarks>
 [ToolWindow(ProjectModule.PanelId)]
 public sealed class ProjectPanel : ToolWindow
@@ -35,6 +42,7 @@ public sealed class ProjectPanel : ToolWindow
     private ProjectPanelView? _view;
     private ProjectModel? _model;
     private ProjectMenu? _menu;
+    private BrowserPane? _pane;
     private LanguageProbe? _language;
     private Node? _selected;
     private string? _query;
@@ -49,6 +57,9 @@ public sealed class ProjectPanel : ToolWindow
     /// <summary>Меню строк — тестам: попап — отдельное окно, которого у безголового прогона нет.</summary>
     internal ProjectMenu? Menu => _menu;
 
+    /// <summary>Правая колонка — тестам.</summary>
+    internal BrowserPane? Pane => _pane;
+
     /// <inheritdoc/>
     /// <remarks>Клавиатура окна — у дерева: с него начинают, и в него возвращаются из поиска.</remarks>
     public override Control? FocusTarget => _view?.Tree;
@@ -56,7 +67,9 @@ public sealed class ProjectPanel : ToolWindow
     /// <inheritdoc/>
     protected override Control Build()
     {
-        _model = new ProjectModel(Context, WordsOf(Context.Strings));
+        var settings = ProjectSettings.Read(Context.Settings);
+
+        _model = new ProjectModel(Context, WordsOf(Context.Strings), settings);
         _view = new ProjectPanelView { DataContext = _model };
         _menu = new ProjectMenu(Context.Strings, new MenuActions(
             _model.Open,
@@ -64,6 +77,8 @@ public sealed class ProjectPanel : ToolWindow
             Copy,
             row => Keep(() => _model.Tree.ExpandBranch(row)),
             row => Keep(() => _model.Tree.CollapseBranch(row))));
+        _pane = new BrowserPane(_view, _model, _menu, Located, Resize, Copy);
+        _pane.Show(settings.IconSize);
 
         Wire(_view, _model);
 
@@ -77,6 +92,8 @@ public sealed class ProjectPanel : ToolWindow
             release();
 
         _release.Clear();
+        _pane?.Dispose();
+        _pane = null;
         _language?.Dispose();
         _language = null;
         _model?.Dispose();
@@ -110,10 +127,12 @@ public sealed class ProjectPanel : ToolWindow
         view.KeyDown += OnViewKeyDown;
         view.Query.PropertyChanged += OnQueryChanged;
         view.CollapseAll.Click += OnCollapseAll;
+        view.Options.Click += OnOptions;
         view.OpenSolution.Click += OnOpenSolution;
         view.Retry.Click += OnRetry;
         view.Stale.Closed += OnStaleClosed;
         model.Tree.Rows.CollectionChanged += OnRowsChanged;
+        Context.Settings.Changed += OnSettingsChanged;
 
         _release.Add(() =>
         {
@@ -125,10 +144,12 @@ public sealed class ProjectPanel : ToolWindow
             view.KeyDown -= OnViewKeyDown;
             view.Query.PropertyChanged -= OnQueryChanged;
             view.CollapseAll.Click -= OnCollapseAll;
+            view.Options.Click -= OnOptions;
             view.OpenSolution.Click -= OnOpenSolution;
             view.Retry.Click -= OnRetry;
             view.Stale.Closed -= OnStaleClosed;
             model.Tree.Rows.CollectionChanged -= OnRowsChanged;
+            Context.Settings.Changed -= OnSettingsChanged;
         });
 
         // Подписи дерева — «Зависимости», «Пакеты», счёт проектов — строятся вместе с деревом, и
@@ -217,14 +238,32 @@ public sealed class ProjectPanel : ToolWindow
 
         var anchor = atPointer ? (Control)_view.Tree : _view.Tree.ContainerFromItem(row) ?? _view.Tree;
 
-        _menu.ShowAt(anchor, row, atPointer);
+        ProjectMenu.ShowAt(anchor, _menu.Items(row), atPointer);
         e.Handled = true;
     }
 
+    /// <summary>
+    /// Выделение в дереве сменилось; в две колонки выбранный контейнер открывается справа.
+    /// </summary>
+    /// <remarks>
+    /// Переход снимает поиск: колонка показывает место, а не найденное, и строка поиска, оставшаяся
+    /// с запросом, говорила бы неправду о том, что видно.
+    /// </remarks>
     private void OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_view?.Tree.SelectedItem is Row row)
-            _selected = row.Node;
+        if (_view?.Tree.SelectedItem is not Row row || _model is null)
+            return;
+
+        _selected = row.Node;
+
+        if (!_model.IsTwoColumns || !row.Node.IsContainer
+            || string.Equals(_model.Browser.Current?.Key, row.Key, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _model.Go(row.Node);
+        Unsearch();
     }
 
     /// <summary>
@@ -274,6 +313,19 @@ public sealed class ProjectPanel : ToolWindow
             _view.Tree.Focus();
             e.Handled = true;
         }
+        else if (e.Key == Key.Down && query.IsKeyboardFocusWithin && _model is { IsTwoColumns: true, IsSearching: true } && _pane is not null)
+        {
+            // В две колонки найденное — справа, и стрелка ведёт туда, а не в дерево.
+            var list = _pane.Shown;
+
+            if (list.ItemCount > 0)
+            {
+                list.SelectedIndex = Math.Max(list.SelectedIndex, 0);
+                (list.ContainerFromIndex(list.SelectedIndex) as Control)?.Focus(NavigationMethod.Directional);
+            }
+
+            e.Handled = true;
+        }
         else if (e.Key == Key.Down && query.IsKeyboardFocusWithin && _model?.Tree.Rows.Count > 0)
         {
             Select(_view.Tree.SelectedItem as Row ?? _model.Tree.Rows[0]);
@@ -307,6 +359,153 @@ public sealed class ProjectPanel : ToolWindow
     {
         if (_model is not null)
             Keep(_model.Tree.CollapseAll);
+    }
+
+    /// <summary>⋮ полосы: одна колонка или две.</summary>
+    private void OnOptions(object? sender, RoutedEventArgs e)
+    {
+        if (_view is null)
+            return;
+
+        var flyout = new AxMenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight };
+
+        foreach (var item in LayoutItems())
+            flyout.Items.Add(item);
+
+        flyout.ShowAt(_view.Options);
+    }
+
+    /// <summary>
+    /// Пункты ⋮ — раскладка окна переключателями.
+    /// </summary>
+    /// <remarks>
+    /// Пункт пишет настройку, а не раскладку: применит её обработчик настройки, тот же, что
+    /// ловит правку в окне настроек студии. Отдельно от показа — тестам: попап — отдельное окно.
+    /// </remarks>
+    internal IReadOnlyList<AxMenuItem> LayoutItems()
+    {
+        var two = _model?.IsTwoColumns == true;
+
+        return [Choice("project.layout.one", !two, false), Choice("project.layout.two", two, true)];
+
+        AxMenuItem Choice(string key, bool chosen, bool columns)
+        {
+            var item = new AxMenuItem
+            {
+                Header = Context.Strings[key],
+                ToggleType = MenuItemToggleType.Radio,
+                IsChecked = chosen,
+            };
+
+            item.Click += (_, _) => Context.Settings.Set(ProjectSettings.TwoColumnsKey, columns);
+
+            return item;
+        }
+    }
+
+    /// <summary>
+    /// Настройку окна изменили — в ⋮, ползунком или в окне настроек студии.
+    /// </summary>
+    private void OnSettingsChanged(object? sender, string key)
+    {
+        if (key is not (ProjectSettings.TwoColumnsKey or ProjectSettings.IconSizeKey))
+            return;
+
+        if (Dispatcher.UIThread.CheckAccess())
+            Arrange();
+        else
+            Dispatcher.UIThread.Post(Arrange);
+    }
+
+    /// <summary>
+    /// Применяет раскладку из настроек, оставляя человека на том же узле.
+    /// </summary>
+    private void Arrange()
+    {
+        if (_model is null || _view is null || _pane is null)
+            return;
+
+        var settings = ProjectSettings.Read(Context.Settings);
+        var picked = _model.IsTwoColumns ? _pane.Selected?.Node : null;
+        var stood = picked ?? (_view.Tree.SelectedItem as Row)?.Node;
+        var columns = settings.TwoColumns != _model.IsTwoColumns;
+
+        _model.Arrange(settings);
+        _pane.Show(settings.IconSize);
+
+        // Плитки и строки — два списка, и выделение у каждого своё: сменив ступень, человек видел
+        // бы невыделенный список, а строка под ним говорила бы о выбранном.
+        if (columns && stood is not null)
+            Stand(stood);
+        else if (!columns && picked is not null)
+            _pane.Select(picked);
+    }
+
+    /// <summary>Ставит выделение на узел в текущей раскладке.</summary>
+    /// <remarks>
+    /// В две колонки контейнер открывается справа, а файл выделяется плиткой в своей папке; в одну —
+    /// дерево раскрывает дорогу до узла и выделяет его строку.
+    /// </remarks>
+    private void Stand(Node node)
+    {
+        if (_model is null || _pane is null)
+            return;
+
+        if (!_model.IsTwoColumns)
+        {
+            _model.Tree.Reveal(node);
+
+            if (_model.Tree.Find(node.Key) is { } row)
+                Select(row);
+
+            return;
+        }
+
+        var container = node.IsContainer ? node : node.Ancestors().FirstOrDefault(ancestor => ancestor.IsContainer);
+
+        if (container is null)
+            return;
+
+        _pane.Go(container);
+
+        if (!node.IsContainer)
+            _pane.Select(node);
+    }
+
+    /// <summary>
+    /// Правая колонка ушла в контейнер — дерево слева раскрывает дорогу и выделяет его.
+    /// </summary>
+    /// <remarks>
+    /// Выделяет, но клавиатуры не забирает: человек работает в колонке, и дерево только показывает,
+    /// где он.
+    /// </remarks>
+    private void Located(Node container)
+    {
+        if (_view is null || _model is null)
+            return;
+
+        Unsearch();
+        _model.Tree.Reveal(container);
+
+        if (_model.Tree.Find(container.Key) is { } row)
+        {
+            _view.Tree.SelectedItem = row;
+            _view.Tree.ScrollIntoView(row);
+        }
+    }
+
+    /// <summary>Снимает поиск со строки поиска, если он там есть.</summary>
+    private void Unsearch()
+    {
+        if (_view?.Query.Text is { Length: > 0 })
+            _view.Query.Text = string.Empty;
+    }
+
+    /// <summary>Ползунок сдвинули — ступень уходит в настройки.</summary>
+    private void Resize(int size)
+    {
+        if (ProjectSettings.Read(Context.Settings).IconSize != size)
+            Context.Settings.Set(ProjectSettings.IconSizeKey, size);
     }
 
     /// <summary>

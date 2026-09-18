@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Globalization;
+using ArxisStudio.Modules.Project.Browse;
 using ArxisStudio.Modules.Project.Model;
 using ArxisStudio.Modules.Project.Tree;
 using ArxisStudio.Projects;
@@ -28,7 +29,7 @@ internal enum ProjectState
 }
 
 /// <summary>
-/// Окно проекта без окна: состояние, дерево и то, что с ними делают.
+/// Окно проекта без окна: состояние, дерево, правая колонка и то, что с ними делают.
 /// </summary>
 /// <remarks>
 /// Решение приходит от службы проектов событием в потоке интерфейса. Подписка — первой, чтение
@@ -38,6 +39,11 @@ internal enum ProjectState
 /// Дерево строится вне потока интерфейса: проверка диска для решения на тысячи файлов — это тысячи
 /// обращений к файловой системе. Каждая постройка берёт билет, и применяется только последняя:
 /// снимок, пришедший, пока диск отвечал о прежнем, делает прежний ответ ненужным.
+/// </para>
+/// <para>
+/// Раскладка — одна колонка или две — решает, куда идёт поиск: в одну колонку сужается дерево, в
+/// две ищет правая колонка по всему решению, как «Search: All» у Unity, а дерево слева остаётся
+/// картой. Смена раскладки переносит запрос, а не теряет его.
 /// </para>
 /// </remarks>
 internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
@@ -49,6 +55,8 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
     private ProjectsLoad? _load;
     private ProjectsLoad? _dismissed;
     private CanonicalPath _entry = CanonicalPath.None;
+    private Tile? _picked;
+    private string? _query;
     private long _sequence = -1;
     private long _ticket;
     private bool _disposed;
@@ -56,13 +64,16 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
     /// <summary>Заводит окно и подписывает его на службу проектов.</summary>
     /// <param name="context">Контекст модуля.</param>
     /// <param name="words">Подписи дерева на языке студии: первая постройка идёт прямо здесь.</param>
-    public ProjectModel(IStudioContext context, Words words)
+    /// <param name="settings">Раскладка: дерево строится сразу в неё, а не перестраивается следом.</param>
+    public ProjectModel(IStudioContext context, Words words, ProjectSettings settings)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(words);
+        ArgumentNullException.ThrowIfNull(settings);
 
         _context = context;
         Words = words;
+        Arrange(settings);
         _projects = context.Projects();
 
         if (_projects is null)
@@ -111,8 +122,49 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
     /// <summary>Перезагрузка не удалась, и дерево показывает последнее загруженное.</summary>
     public bool IsStale { get; private set; }
 
-    /// <summary>Поиск ничего не нашёл.</summary>
-    public bool NothingFound => Tree.IsFiltered && Tree.Found == 0;
+    /// <summary>Поиск по дереву ничего не нашёл — в одну колонку.</summary>
+    public bool NothingFound => !IsTwoColumns && Tree.IsFiltered && Tree.Found == 0;
+
+    /// <summary>Правая колонка двух колонок.</summary>
+    public Browser Browser { get; } = new();
+
+    /// <summary>Две колонки, как в Unity, — или одно дерево.</summary>
+    public bool IsTwoColumns { get; private set; }
+
+    /// <summary>Сколько колонок сетки занимает дерево: в одну колонку — всю ширину.</summary>
+    public int TreeSpan => IsTwoColumns ? 1 : 3;
+
+    /// <summary>Ступень правой колонки: список, плитки, крупные плитки.</summary>
+    public int IconSize { get; private set; } = ProjectSettings.Tiles;
+
+    /// <summary>Правая колонка — плитками.</summary>
+    public bool ShowsTiles => IconSize != ProjectSettings.List;
+
+    /// <summary>Правая колонка — списком.</summary>
+    public bool ShowsList => IconSize == ProjectSettings.List;
+
+    /// <summary>Плитки — крупные.</summary>
+    public bool LargeTiles => IconSize == ProjectSettings.LargeTiles;
+
+    /// <summary>Правая колонка показывает найденное, а не контейнер.</summary>
+    public bool IsSearching => Browser.IsSearching;
+
+    /// <summary>Правая колонка показывает контейнер — над ней крошки.</summary>
+    public bool IsBrowsing => !Browser.IsSearching;
+
+    /// <summary>Сколько нашлось — заголовок колонки во время поиска.</summary>
+    public string? Results => !Browser.IsSearching ? null
+        : Browser.Found > Browser.Cap ? Format("project.browser.capped", Browser.Cap, Browser.Found)
+        : Format("project.browser.results", Browser.Found);
+
+    /// <summary>Контейнер пуст.</summary>
+    public bool BrowserEmpty => !Browser.IsSearching && Browser.Current is not null && Browser.Items.Count == 0;
+
+    /// <summary>Поиск правой колонки ничего не нашёл.</summary>
+    public bool BrowserNothingFound => Browser.IsSearching && Browser.Found == 0;
+
+    /// <summary>Строка под колонкой: путь выбранного, а без выбора — сколько в колонке предметов.</summary>
+    public string? Status => _picked is { } tile ? tile.Hint : Format("project.browser.items", Browser.Items.Count);
 
     /// <summary>Последняя постройка дерева — тесты ждут её, а не времени.</summary>
     internal Task Settled { get; private set; } = Task.CompletedTask;
@@ -130,12 +182,87 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
             Build(_snapshot, forget: false);
     }
 
-    /// <summary>Ищет по решению.</summary>
+    /// <summary>
+    /// Ставит раскладку: сколько колонок и какая ступень у правой.
+    /// </summary>
+    /// <param name="settings">Настройки окна.</param>
+    /// <remarks>
+    /// В две колонки дерево слева показывает только контейнеры: файлы — дело правой колонки.
+    /// Запрос поиска переезжает туда, где ищет новая раскладка.
+    /// </remarks>
+    public void Arrange(ProjectSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        var columns = settings.TwoColumns != IsTwoColumns;
+
+        IsTwoColumns = settings.TwoColumns;
+        IconSize = settings.IconSize;
+
+        if (columns)
+        {
+            Tree.Limit(IsTwoColumns ? static node => node.IsContainer : null);
+            Search(_query);
+        }
+
+        Raise(null);
+    }
+
+    /// <summary>Ищет по решению: в одну колонку — сужая дерево, в две — правой колонкой.</summary>
     /// <param name="query">Запрос; пусто — показать всё.</param>
     public void Search(string? query)
     {
-        Tree.Filter(query);
-        Raise(nameof(NothingFound));
+        _query = string.IsNullOrWhiteSpace(query) ? null : query;
+
+        if (IsTwoColumns)
+        {
+            Tree.Filter(null);
+            Browser.Search(_query);
+        }
+        else
+        {
+            Browser.Search(null);
+            Tree.Filter(_query);
+        }
+
+        Browsed();
+    }
+
+    /// <summary>Переводит правую колонку в контейнер; поиск при этом снимается.</summary>
+    /// <param name="container">Контейнер.</param>
+    /// <returns>Перешла ли колонка.</returns>
+    public bool Go(Node container)
+    {
+        ArgumentNullException.ThrowIfNull(container);
+
+        if (!Browser.Go(container))
+            return false;
+
+        _query = null;
+        Browsed();
+
+        return true;
+    }
+
+    /// <summary>Поднимает правую колонку к родителю контейнера.</summary>
+    /// <returns>Поднялась ли: у корня родителя нет.</returns>
+    public bool Up()
+    {
+        if (!Browser.Up())
+            return false;
+
+        _query = null;
+        Browsed();
+
+        return true;
+    }
+
+    /// <summary>Отмечает выбранную плитку — о ней говорит строка под колонкой.</summary>
+    /// <param name="tile">Плитка; пусто — ничего не выбрано.</param>
+    public void Pick(Tile? tile)
+    {
+        _picked = tile;
+        Raise(nameof(Status));
     }
 
     /// <summary>Открывает файл в редакторе студии.</summary>
@@ -227,6 +354,8 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
             _ticket++;
             _building?.Cancel();
             Tree.Show(null, forget: false);
+            Browser.Show(null);
+            Browsed();
         }
         else if (rebuild || !ReferenceEquals(snapshot, _snapshot))
         {
@@ -279,15 +408,34 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
                         return;
 
                     Tree.Show(built.Result, forget);
-                    Raise(nameof(NothingFound));
+                    Browser.Show(built.Result);
+                    Browsed();
                 },
                 CancellationToken.None,
                 TaskContinuationOptions.None,
                 scheduler);
     }
 
-    private string Format(string key, string value) =>
-        string.Format(CultureInfo.CurrentCulture, _context.Strings[key], value);
+    /// <summary>
+    /// Правая колонка сменилась: выбранная плитка, если её больше нет, забывается, и всё, что
+    /// о колонке говорит окно, перечитывается.
+    /// </summary>
+    private void Browsed()
+    {
+        if (_picked is not null && !Browser.Items.Contains(_picked))
+            _picked = null;
+
+        Raise(nameof(NothingFound));
+        Raise(nameof(IsSearching));
+        Raise(nameof(IsBrowsing));
+        Raise(nameof(Results));
+        Raise(nameof(BrowserEmpty));
+        Raise(nameof(BrowserNothingFound));
+        Raise(nameof(Status));
+    }
+
+    private string Format(string key, params object[] values) =>
+        string.Format(CultureInfo.CurrentCulture, _context.Strings[key], values);
 
     private void Raise(string? property) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
 }

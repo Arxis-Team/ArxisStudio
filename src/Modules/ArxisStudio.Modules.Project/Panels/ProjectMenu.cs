@@ -1,4 +1,5 @@
 using ArxisStudio.Controls;
+using ArxisStudio.Modules.Project.Browse;
 using ArxisStudio.Modules.Project.Model;
 using ArxisStudio.Modules.Project.Tree;
 using ArxisStudio.Sdk;
@@ -21,16 +22,17 @@ internal sealed record MenuActions(
     Action<Row> CollapseBranch);
 
 /// <summary>
-/// Контекстное меню строки дерева: что можно сделать с тем, на чём стоят.
+/// Контекстное меню строки дерева и плитки правой колонки: что можно сделать с тем, на чём стоят.
 /// </summary>
 /// <remarks>
 /// Пункты зависят от вида узла. Файл открывают, показывают в проводнике и копируют его путь —
 /// полный и от решения, как в Rider; проект и решение открывают своим файлом; у зависимости
-/// копируют имя, а путь — только если он у неё есть. Раскрыть и свернуть ветку можно у всего, у
-/// чего есть дети. Ни создания, ни переименования, ни удаления: служба проектов файлов не пишет,
-/// и окно, правящее диск в обход неё, расходилось бы с её снимком.
+/// копируют имя, а путь — только если он у неё есть. Раскрыть и свернуть ветку можно у строки
+/// дерева, у которой есть дети; у найденного поиском есть «Показать в папке». Ни создания, ни
+/// переименования, ни удаления: служба проектов файлов не пишет, и окно, правящее диск в обход
+/// неё, расходилось бы с её снимком.
 /// <para>
-/// Меню собирается на каждый показ: пункты зависят от строки, и держать их между показами значило
+/// Меню собирается на каждый показ: пункты зависят от узла, и держать их между показами значило
 /// бы пересобирать их на каждый щелчок в дереве.
 /// </para>
 /// </remarks>
@@ -40,14 +42,12 @@ internal sealed class ProjectMenu(IStudioStrings strings, MenuActions actions)
 {
     /// <summary>Показывает меню там, где его попросили.</summary>
     /// <param name="anchor">К чему привязать: у мыши — список, у клавиатуры — строка.</param>
-    /// <param name="row">Строка, на которой стоят.</param>
+    /// <param name="items">Пункты.</param>
     /// <param name="atPointer">Просили мышью: меню встаёт под указателем.</param>
-    public void ShowAt(Control anchor, Row row, bool atPointer)
+    public static void ShowAt(Control anchor, IReadOnlyList<AxMenuItem> items, bool atPointer)
     {
         ArgumentNullException.ThrowIfNull(anchor);
-        ArgumentNullException.ThrowIfNull(row);
-
-        var items = Items(row);
+        ArgumentNullException.ThrowIfNull(items);
 
         if (items.Count == 0)
             return;
@@ -61,7 +61,7 @@ internal sealed class ProjectMenu(IStudioStrings strings, MenuActions actions)
     }
 
     /// <summary>
-    /// Собирает пункты меню строки.
+    /// Собирает пункты меню строки дерева.
     /// </summary>
     /// <param name="row">Строка.</param>
     /// <returns>Пункты в порядке показа.</returns>
@@ -73,7 +73,22 @@ internal sealed class ProjectMenu(IStudioStrings strings, MenuActions actions)
     {
         ArgumentNullException.ThrowIfNull(row);
 
-        var node = row.Node;
+        return Items(row.Node, row.HasChildren ? row : null, showInFolder: null);
+    }
+
+    /// <summary>Собирает пункты меню плитки правой колонки.</summary>
+    /// <param name="tile">Плитка.</param>
+    /// <param name="showInFolder">Показать найденное в его папке; пусто — колонка и так в ней.</param>
+    /// <returns>Пункты в порядке показа.</returns>
+    public IReadOnlyList<AxMenuItem> Items(Tile tile, Action? showInFolder)
+    {
+        ArgumentNullException.ThrowIfNull(tile);
+
+        return Items(tile.Node, branch: null, showInFolder);
+    }
+
+    private List<AxMenuItem> Items(Node node, Row? branch, Action? showInFolder)
+    {
         var items = new List<AxMenuItem>();
         var path = node.Path.IsEmpty ? null : node.Path.Value;
 
@@ -90,6 +105,9 @@ internal sealed class ProjectMenu(IStudioStrings strings, MenuActions actions)
                 break;
         }
 
+        if (showInFolder is not null)
+            items.Add(Item("project.menu.showInFolder", null, showInFolder));
+
         if (path is not null)
         {
             items.Add(Item(Reveal.Words, null, () => actions.Reveal(path)));
@@ -102,10 +120,10 @@ internal sealed class ProjectMenu(IStudioStrings strings, MenuActions actions)
         if (node.Kind == NodeKind.Dependency)
             items.Add(Item("project.menu.copyName", null, () => actions.Copy(node.Name)));
 
-        if (row.HasChildren)
+        if (branch is not null)
         {
-            items.Add(Item("project.menu.expand", null, () => actions.ExpandBranch(row)));
-            items.Add(Item("project.menu.collapse", null, () => actions.CollapseBranch(row)));
+            items.Add(Item("project.menu.expand", null, () => actions.ExpandBranch(branch)));
+            items.Add(Item("project.menu.collapse", null, () => actions.CollapseBranch(branch)));
         }
 
         return items;

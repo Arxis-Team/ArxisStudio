@@ -16,7 +16,8 @@
           { "id": "arxis.hello", "file": "lang/arxis.hello.de.json" },
           { "id": "arxis.terminal", "file": "lang/arxis.terminal.de.json" },
           { "id": "arxis.console", "file": "lang/arxis.console.de.json" },
-          { "id": "arxis.sample", "file": "lang/arxis.sample.de.json" }
+          { "id": "arxis.sample", "file": "lang/arxis.sample.de.json" },
+          { "id": "arxis.project", "file": "lang/arxis.project.de.json" }
         ]
       }
     ]

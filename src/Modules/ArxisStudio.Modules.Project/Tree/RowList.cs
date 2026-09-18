@@ -285,28 +285,6 @@ internal sealed class RowList
             next.Add(row);
         }
 
-        var prefix = 0;
-
-        while (prefix < Rows.Count && prefix < next.Count && ReferenceEquals(Rows[prefix], next[prefix]))
-            prefix++;
-
-        var suffix = 0;
-
-        while (suffix < Rows.Count - prefix
-               && suffix < next.Count - prefix
-               && ReferenceEquals(Rows[Rows.Count - 1 - suffix], next[next.Count - 1 - suffix]))
-        {
-            suffix++;
-        }
-
-        var removed = Rows.Count - prefix - suffix;
-
-        if (removed > 0)
-            Rows.RemoveRange(prefix, removed);
-
-        var inserted = next.Count - prefix - suffix;
-
-        if (inserted > 0)
-            Rows.InsertRange(prefix, next.GetRange(prefix, inserted));
+        Splice.Into(Rows, next);
     }
 }

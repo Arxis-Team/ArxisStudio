@@ -34,7 +34,7 @@ public class ProjectWindowPanelTests
 
         Assert.Equal(ProjectState.NoService, studio.Model.State);
         Assert.True(studio.Shown(studio.Strings["project.state.noService"]), "о том, что службы нет, окно промолчало");
-        Assert.False(studio.View.Tree.IsVisible);
+        Assert.False(studio.View.Tree.IsEffectivelyVisible, "службы нет, а дерево показано");
     }
 
     /// <summary>

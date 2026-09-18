@@ -1,8 +1,9 @@
 <!--
-    Окно проекта: полоса поиска и дерево решения.
+    Окно проекта: полоса поиска, дерево решения и — в две колонки — содержимое выбранного.
 
     Полоса стоит первой строкой содержимого, а не в шапке панели: шапка в доке студии принадлежит
-    группе вкладок. Поиск слева, действия над деревом справа — так собрана полоса Solution в Rider.
+    группе вкладок. Поиск слева, действия справа — так собрана полоса Solution в Rider; последней
+    стоит ⋮ с раскладкой окна.
 
     Дерево — список строк, а не дерево контролов: список виртуализован, и решение на тысячи файлов
     держит в памяти столько строк, сколько видно. Строка повторяет геометрию строки дерева темы:
@@ -11,13 +12,19 @@
     столбцом, как в Rider. Совпадение держит тест, а не глаз: ProjectWindowParityTests кладёт рядом
     дерево темы.
 
-    Состояния — решение не открыто, открывается, не открылось — лежат поверх дерева, а не подменяют
-    его: подмена значила бы собирать список заново на каждое открытие.
+    Две колонки — как Project в Unity: слева то же дерево, но только контейнеры, справа — что лежит
+    в выбранном, крупно, путь до него крошками, внизу строка выбранного и ползунок размера. Одна
+    колонка — дерево на всю ширину; правая колонка при этом не разбирается, а прячется: раскладку
+    меняют на ходу, и собирать её каждый раз заново незачем.
+
+    Состояния — решение не открыто, открывается, не открылось — лежат поверх содержимого, а не
+    подменяют его: подмена значила бы собирать списки заново на каждое открытие.
 -->
 <AxUserControl xmlns="https://github.com/Arxis-Team/ArxisStudio"
                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                xmlns:a="https://github.com/avaloniaui"
                xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
+               xmlns:b="using:ArxisStudio.Modules.Project.Browse"
                xmlns:p="using:ArxisStudio.Modules.Project.Panels"
                xmlns:t="using:ArxisStudio.Modules.Project.Tree"
                x:Class="ArxisStudio.Modules.Project.Panels.ProjectPanelView"
@@ -46,6 +53,12 @@
             <AxIcon Data="{x:Static ax:AxIcons.CollapseAll}"/>
           </AxButton>
 
+          <AxButton x:Name="Options" Appearance="Toolbar"
+                    a:ToolTip.Tip="{Text project.options}"
+                    a:AutomationProperties.Name="{Text project.options}">
+            <AxIcon Data="{x:Static ax:AxIcons.MoreVertical}"/>
+          </AxButton>
+
         </a:StackPanel>
 
         <AxSearchField x:Name="Query" Size="Compact"
@@ -69,83 +82,253 @@
 
     <a:Panel>
 
-      <AxListBox x:Name="Tree"
-                 ItemsSource="{a:Binding Tree.Rows}"
-                 IsVisible="{a:Binding IsReady}"
-                 Padding="{a:DynamicResource AxTreeViewPadding}">
-        <AxListBox.Styles>
+      <a:Grid x:Name="Columns" ColumnDefinitions="*,Auto,3*" IsVisible="{a:Binding IsReady}">
+
+        <a:Panel a:Grid.ColumnSpan="{a:Binding TreeSpan}">
+
+          <AxListBox x:Name="Tree"
+                     ItemsSource="{a:Binding Tree.Rows}"
+                     Padding="{a:DynamicResource AxTreeViewPadding}">
+            <AxListBox.Styles>
+              <!--
+                  Отбивка строки — строки дерева, а не списка: у дерева она идёт за плотностью (6, 8,
+                  10), у строки списка — нет, и в компактной и просторной плотности окно разъехалось
+                  бы с деревом темы на две точки.
+
+                  Диктор читает строку по имени узла, а путь от решения — подсказкой к ней: у строки
+                  нет своего текста, кроме подписей, и без имени она читалась бы названием типа.
+              -->
+              <a:Style Selector="AxListBoxItem" x:DataType="t:Row">
+                <a:Setter Property="Padding" Value="{a:DynamicResource AxSpaceLeadingThickness}"/>
+                <a:Setter Property="a:AutomationProperties.Name" Value="{a:Binding Name}"/>
+                <a:Setter Property="a:AutomationProperties.HelpText" Value="{a:Binding Hint}"/>
+              </a:Style>
+            </AxListBox.Styles>
+            <AxListBox.ItemTemplate>
+              <a:DataTemplate x:DataType="t:Row">
+                <a:DockPanel Background="Transparent">
+                  <a:DockPanel.Margin>
+                    <a:MultiBinding Converter="{x:Static p:Indent.Instance}">
+                      <a:Binding Path="Depth"/>
+                      <a:Binding ElementName="Chevron" Path="Width"/>
+                    </a:MultiBinding>
+                  </a:DockPanel.Margin>
+
+                  <!--
+                      Ячейка шеврона есть у каждой строки, и у листа она пустая: значки соседей стоят
+                      столбцом, как в Rider, — по нему глаз и бежит, отыскивая файл. Дерево темы у
+                      листа ячейку прячет; для списка файлов столбец дороже этих двадцати точек.
+                  -->
+                  <a:Border x:Name="Chevron" a:DockPanel.Dock="Left"
+                            Width="{a:DynamicResource AxTreeIndent}" Background="Transparent">
+                    <a:Panel IsVisible="{a:Binding HasChildren}">
+                      <AxIcon Size="Small" Data="{x:Static ax:AxIcons.ChevronRight}"
+                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                              IsVisible="{a:Binding !IsExpanded}"/>
+                      <AxIcon Size="Small" Data="{x:Static ax:AxIcons.ChevronDown}"
+                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                              IsVisible="{a:Binding IsExpanded}"/>
+                    </a:Panel>
+                  </a:Border>
+
+                  <AxIcon a:DockPanel.Dock="Left" VerticalAlignment="Center"
+                          Margin="{a:DynamicResource AxGapIconTextThickness}"
+                          p:Tint.Key="{a:Binding Node, Converter={x:Static p:TintKey.Instance}}">
+                    <AxIcon.Data>
+                      <a:MultiBinding Converter="{x:Static p:Glyph.Instance}">
+                        <a:Binding Path="Node"/>
+                        <a:Binding Path="IsExpanded"/>
+                      </a:MultiBinding>
+                    </AxIcon.Data>
+                  </AxIcon>
+
+                  <!--
+                      Сетка, прижатая влево, а не полоса: полоса меряет детей бесконечной шириной, и
+                      длинное имя в узком окне обрезалось бы краем без многоточия. Здесь имя
+                      сжимается первым, а вторая подпись — версия, платформа, «не загрузился» —
+                      остаётся целой.
+                  -->
+                  <a:Grid ColumnDefinitions="*,Auto" ColumnSpacing="{a:DynamicResource AxGapIconText}"
+                          HorizontalAlignment="Left" VerticalAlignment="Center"
+                          Margin="{a:DynamicResource AxTreeViewItemPadding}">
+                    <a:TextBlock Text="{a:Binding Name}" TextTrimming="CharacterEllipsis"/>
+                    <a:TextBlock a:Grid.Column="1" Text="{a:Binding Detail}" IsVisible="{a:Binding HasDetail}" AxText.Tone="Secondary"/>
+                    <a:TextBlock a:Grid.Column="1" Text="{a:Binding Detail}" IsVisible="{a:Binding IsBroken}" AxText.Tone="Error"
+                                 a:ToolTip.Tip="{a:Binding Hint}"/>
+                  </a:Grid>
+                </a:DockPanel>
+              </a:DataTemplate>
+            </AxListBox.ItemTemplate>
+          </AxListBox>
+
+          <a:TextBlock IsVisible="{a:Binding NothingFound}" Text="{Text project.search.none}"
+                       AxText.Tone="Secondary" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+        </a:Panel>
+
+        <AxSplitter x:Name="Splitter" a:Grid.Column="1" Orientation="Vertical" IsVisible="{a:Binding IsTwoColumns}"/>
+
+        <a:DockPanel x:Name="Browser" a:Grid.Column="2" IsVisible="{a:Binding IsTwoColumns}">
+
           <!--
-              Отбивка строки — строки дерева, а не списка: у дерева она идёт за плотностью (6, 8,
-              10), у строки списка — нет, и в компактной и просторной плотности окно разъехалось бы
-              с деревом темы на две точки.
-
-              Диктор читает строку по имени узла, а путь от решения — подсказкой к ней: у строки нет
-              своего текста, кроме подписей, и без имени она читалась бы названием типа.
+              Над колонкой — путь до выбранного крошками, а во время поиска — сколько нашлось: поиск
+              ищет по всему решению, и пути у найденного нет.
           -->
-          <a:Style Selector="AxListBoxItem" x:DataType="t:Row">
-            <a:Setter Property="Padding" Value="{a:DynamicResource AxSpaceLeadingThickness}"/>
-            <a:Setter Property="a:AutomationProperties.Name" Value="{a:Binding Name}"/>
-            <a:Setter Property="a:AutomationProperties.HelpText" Value="{a:Binding Hint}"/>
-          </a:Style>
-        </AxListBox.Styles>
-        <AxListBox.ItemTemplate>
-          <a:DataTemplate x:DataType="t:Row">
-            <a:DockPanel Background="Transparent">
-              <a:DockPanel.Margin>
-                <a:MultiBinding Converter="{x:Static p:Indent.Instance}">
-                  <a:Binding Path="Depth"/>
-                  <a:Binding ElementName="Chevron" Path="Width"/>
-                </a:MultiBinding>
-              </a:DockPanel.Margin>
+          <a:Border a:DockPanel.Dock="Top" Padding="{a:DynamicResource AxToolBarPadding}">
+            <a:Panel>
+              <AxBreadcrumb x:Name="Path" ItemsSource="{a:Binding Browser.Segments}" IsVisible="{a:Binding IsBrowsing}"
+                            a:AutomationProperties.Name="{Text project.browser.path}">
+                <AxBreadcrumb.Styles>
+                  <a:Style Selector="AxBreadcrumbItem" x:DataType="b:Segment">
+                    <a:Setter Property="Icon" Value="{a:Binding Node, Converter={x:Static p:NodeGlyph.Instance}}"/>
+                  </a:Style>
+                </AxBreadcrumb.Styles>
+              </AxBreadcrumb>
+              <a:TextBlock x:Name="Results" IsVisible="{a:Binding IsSearching}" Text="{a:Binding Results}"
+                           AxText.Tone="Secondary" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+            </a:Panel>
+          </a:Border>
 
-              <!--
-                  Ячейка шеврона есть у каждой строки, и у листа она пустая: значки соседей стоят
-                  столбцом, как в Rider, — по нему глаз и бежит, отыскивая файл. Дерево темы у листа
-                  ячейку прячет; для списка файлов столбец дороже этих двадцати точек.
-              -->
-              <a:Border x:Name="Chevron" a:DockPanel.Dock="Left"
-                        Width="{a:DynamicResource AxTreeIndent}" Background="Transparent">
-                <a:Panel IsVisible="{a:Binding HasChildren}">
-                  <AxIcon Size="Small" Data="{x:Static ax:AxIcons.ChevronRight}"
-                          HorizontalAlignment="Center" VerticalAlignment="Center"
-                          IsVisible="{a:Binding !IsExpanded}"/>
-                  <AxIcon Size="Small" Data="{x:Static ax:AxIcons.ChevronDown}"
-                          HorizontalAlignment="Center" VerticalAlignment="Center"
-                          IsVisible="{a:Binding IsExpanded}"/>
-                </a:Panel>
-              </a:Border>
+          <AxDivider a:DockPanel.Dock="Top"/>
 
-              <AxIcon a:DockPanel.Dock="Left" VerticalAlignment="Center"
-                      Margin="{a:DynamicResource AxGapIconTextThickness}"
-                      p:Tint.Key="{a:Binding Node, Converter={x:Static p:TintKey.Instance}}">
-                <AxIcon.Data>
-                  <a:MultiBinding Converter="{x:Static p:Glyph.Instance}">
-                    <a:Binding Path="Node"/>
-                    <a:Binding Path="IsExpanded"/>
-                  </a:MultiBinding>
-                </AxIcon.Data>
-              </AxIcon>
-
-              <!--
-                  Сетка, прижатая влево, а не полоса: полоса меряет детей бесконечной шириной, и
-                  длинное имя в узком окне обрезалось бы краем без многоточия. Здесь имя сжимается
-                  первым, а вторая подпись — версия, платформа, «не загрузился» — остаётся целой.
-              -->
-              <a:Grid ColumnDefinitions="*,Auto" ColumnSpacing="{a:DynamicResource AxGapIconText}"
-                      HorizontalAlignment="Left" VerticalAlignment="Center"
-                      Margin="{a:DynamicResource AxTreeViewItemPadding}">
-                <a:TextBlock Text="{a:Binding Name}" TextTrimming="CharacterEllipsis"/>
-                <a:TextBlock a:Grid.Column="1" Text="{a:Binding Detail}" IsVisible="{a:Binding HasDetail}" AxText.Tone="Secondary"/>
-                <a:TextBlock a:Grid.Column="1" Text="{a:Binding Detail}" IsVisible="{a:Binding IsBroken}" AxText.Tone="Error"
-                             a:ToolTip.Tip="{a:Binding Hint}"/>
-              </a:Grid>
+          <!--
+              Строка выбранного и ползунок — внизу, как у Unity: путь выбранного, а без выбора —
+              сколько в колонке предметов. Ступеней у ползунка три: список, плитки, крупные плитки;
+              размеры ступеней — ключи темы, а в настройках лежит только номер ступени.
+          -->
+          <a:Border a:DockPanel.Dock="Bottom" Padding="{a:DynamicResource AxToolBarPadding}">
+            <a:DockPanel>
+              <AxSlider x:Name="Size" a:DockPanel.Dock="Right" VerticalAlignment="Center"
+                        Minimum="0" Maximum="2" TickFrequency="1" IsSnapToTickEnabled="True"
+                        Width="{a:DynamicResource AxTileSliderWidth}"
+                        a:ToolTip.Tip="{Text project.browser.size}"
+                        a:AutomationProperties.Name="{Text project.browser.size}"/>
+              <a:TextBlock x:Name="Status" Text="{a:Binding Status}" AxText.Tone="Secondary"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
             </a:DockPanel>
-          </a:DataTemplate>
-        </AxListBox.ItemTemplate>
-      </AxListBox>
+          </a:Border>
 
-      <a:TextBlock IsVisible="{a:Binding NothingFound}" Text="{Text project.search.none}"
-                   AxText.Tone="Secondary" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          <AxDivider a:DockPanel.Dock="Bottom"/>
+
+          <a:Panel>
+
+            <!--
+                Плитки: что на диске — силуэтом, что в модели — подложкой со значком его вида. Размер
+                силуэта и ширина плитки — ключи темы двух ступеней, и крупную ступень включает класс
+                списка, а не число в плитке: число разошлось бы с темой при первой её правке.
+
+                Подложка на обеих ступенях одна — 64: значок на ней размера набора, и на 128 она
+                стояла бы пустым квадратом. Место под значок растёт со ступенью, и подложка встаёт
+                в нём по центру — подписи ряда остаются на одной линии.
+            -->
+            <AxListBox x:Name="Tiles" ItemsSource="{a:Binding Browser.Items}" IsVisible="{a:Binding ShowsTiles}"
+                       a:Classes.tile-large="{a:Binding LargeTiles}"
+                       Padding="{a:DynamicResource AxTilePadding}"
+                       a:ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+              <AxListBox.ItemsPanel>
+                <a:ItemsPanelTemplate>
+                  <a:WrapPanel ItemSpacing="{a:DynamicResource AxSpaceTight}" LineSpacing="{a:DynamicResource AxSpaceTight}"/>
+                </a:ItemsPanelTemplate>
+              </AxListBox.ItemsPanel>
+              <AxListBox.Styles>
+                <a:Style Selector="AxListBoxItem" x:DataType="b:Tile">
+                  <a:Setter Property="Padding" Value="{a:DynamicResource AxTilePadding}"/>
+                  <a:Setter Property="a:ToolTip.Tip" Value=""/>
+                  <a:Setter Property="AxTrimmedTip.IsEnabled" Value="True"/>
+                  <a:Setter Property="a:AutomationProperties.Name" Value="{a:Binding Name}"/>
+                  <a:Setter Property="a:AutomationProperties.HelpText" Value="{a:Binding Hint}"/>
+                </a:Style>
+                <a:Style Selector="a|StackPanel.tile">
+                  <a:Setter Property="Width" Value="{a:DynamicResource AxTileWidth}"/>
+                </a:Style>
+                <a:Style Selector="AxListBox.tile-large a|StackPanel.tile">
+                  <a:Setter Property="Width" Value="{a:DynamicResource AxTileWidthLarge}"/>
+                </a:Style>
+                <a:Style Selector="AxIcon.tile">
+                  <a:Setter Property="Width" Value="{a:DynamicResource AxTileGlyphSize}"/>
+                  <a:Setter Property="Height" Value="{a:DynamicResource AxTileGlyphSize}"/>
+                </a:Style>
+                <a:Style Selector="AxListBox.tile-large AxIcon.tile">
+                  <a:Setter Property="Width" Value="{a:DynamicResource AxTileGlyphSizeLarge}"/>
+                  <a:Setter Property="Height" Value="{a:DynamicResource AxTileGlyphSizeLarge}"/>
+                </a:Style>
+                <a:Style Selector="a|Panel.glyph">
+                  <a:Setter Property="Height" Value="{a:DynamicResource AxTileGlyphSize}"/>
+                </a:Style>
+                <a:Style Selector="AxListBox.tile-large a|Panel.glyph">
+                  <a:Setter Property="Height" Value="{a:DynamicResource AxTileGlyphSizeLarge}"/>
+                </a:Style>
+                <a:Style Selector="a|Border.plate">
+                  <a:Setter Property="Width" Value="{a:DynamicResource AxTileGlyphSize}"/>
+                  <a:Setter Property="Height" Value="{a:DynamicResource AxTileGlyphSize}"/>
+                  <a:Setter Property="Background" Value="{a:DynamicResource AxSurfaceRaisedBrush}"/>
+                  <a:Setter Property="CornerRadius" Value="{a:DynamicResource AxCornerRadiusLarge}"/>
+                </a:Style>
+              </AxListBox.Styles>
+              <AxListBox.ItemTemplate>
+                <a:DataTemplate x:DataType="b:Tile">
+                  <a:StackPanel Classes="tile" Spacing="{a:DynamicResource AxSpaceTight}">
+                    <a:Panel Classes="glyph" HorizontalAlignment="Center">
+                      <AxIcon Classes="tile" IsVisible="{a:Binding IsSilhouette}"
+                              Data="{a:Binding Node, Converter={x:Static p:Silhouette.Instance}}"
+                              p:Tint.Key="{a:Binding Node, Converter={x:Static p:TintKey.Instance}}"/>
+                      <a:Border Classes="plate" IsVisible="{a:Binding IsPlate}"
+                                HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <AxIcon HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Data="{a:Binding Node, Converter={x:Static p:NodeGlyph.Instance}}"
+                                p:Tint.Key="{a:Binding Node, Converter={x:Static p:TintKey.Instance}}"/>
+                      </a:Border>
+                    </a:Panel>
+                    <a:TextBlock Text="{a:Binding Name}" TextAlignment="Center" TextWrapping="Wrap"
+                                 MaxLines="2" TextTrimming="CharacterEllipsis"/>
+                  </a:StackPanel>
+                </a:DataTemplate>
+              </AxListBox.ItemTemplate>
+            </AxListBox>
+
+            <!--
+                Ступень «список» — строки, как у дерева, только без лестницы: вложенный файл отступает
+                на шаг за владельцем.
+            -->
+            <AxListBox x:Name="Files" ItemsSource="{a:Binding Browser.Items}" IsVisible="{a:Binding ShowsList}"
+                       Padding="{a:DynamicResource AxTreeViewPadding}">
+              <AxListBox.Styles>
+                <a:Style Selector="AxListBoxItem" x:DataType="b:Tile">
+                  <a:Setter Property="Padding" Value="{a:DynamicResource AxSpaceLeadingThickness}"/>
+                  <a:Setter Property="a:AutomationProperties.Name" Value="{a:Binding Name}"/>
+                  <a:Setter Property="a:AutomationProperties.HelpText" Value="{a:Binding Hint}"/>
+                </a:Style>
+              </AxListBox.Styles>
+              <AxListBox.ItemTemplate>
+                <a:DataTemplate x:DataType="b:Tile">
+                  <a:DockPanel Background="Transparent">
+                    <a:Border a:DockPanel.Dock="Left" Width="{a:DynamicResource AxTreeIndent}" IsVisible="{a:Binding IsNested}"/>
+                    <AxIcon a:DockPanel.Dock="Left" VerticalAlignment="Center"
+                            Margin="{a:DynamicResource AxGapIconTextThickness}"
+                            Data="{a:Binding Node, Converter={x:Static p:NodeGlyph.Instance}}"
+                            p:Tint.Key="{a:Binding Node, Converter={x:Static p:TintKey.Instance}}"/>
+                    <a:Grid ColumnDefinitions="*,Auto" ColumnSpacing="{a:DynamicResource AxGapIconText}"
+                            HorizontalAlignment="Left" VerticalAlignment="Center"
+                            Margin="{a:DynamicResource AxTreeViewItemPadding}">
+                      <a:TextBlock Text="{a:Binding Name}" TextTrimming="CharacterEllipsis"/>
+                      <a:TextBlock a:Grid.Column="1" Text="{a:Binding Detail}" IsVisible="{a:Binding HasDetail}" AxText.Tone="Secondary"/>
+                    </a:Grid>
+                  </a:DockPanel>
+                </a:DataTemplate>
+              </AxListBox.ItemTemplate>
+            </AxListBox>
+
+            <a:TextBlock IsVisible="{a:Binding BrowserEmpty}" Text="{Text project.browser.empty}"
+                         AxText.Tone="Secondary" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+            <a:TextBlock IsVisible="{a:Binding BrowserNothingFound}" Text="{Text project.search.none}"
+                         AxText.Tone="Secondary" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+          </a:Panel>
+
+        </a:DockPanel>
+
+      </a:Grid>
 
       <a:StackPanel IsVisible="{a:Binding IsClosed}" Spacing="{a:DynamicResource AxGapFormRow}"
                     HorizontalAlignment="Center" VerticalAlignment="Center"
