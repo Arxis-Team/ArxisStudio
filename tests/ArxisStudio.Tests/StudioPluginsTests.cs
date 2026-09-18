@@ -418,6 +418,40 @@ public class StudioPluginsTests : IDisposable
         Assert.Equal(2, Counter(panel, "Released"));
     }
 
+    /// <summary>
+    /// Перезапуск оставляет каретку в панели, хотя кнопка, державшая её, уходит вместе с заглушкой.
+    /// </summary>
+    /// <remarks>
+    /// Новая панель вставала на место заглушки, и каретка уходила вместе с нажатой кнопкой: человек,
+    /// перезапустивший панель с клавиатуры, оставался нигде.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Restarting_a_panel_keeps_the_caret_in_it()
+    {
+        var module = Farewell("Probe.CaretRestart", "arxis.caret-restart", broken: true, focusable: true);
+        var touchy = module.GetType("Probe.Touchy")!;
+
+        Start(modules: module);
+
+        (TopLevel.GetTopLevel(_view) as Window)!.UpdateLayout();
+        Pump();
+
+        var surface = Assert.IsType<PluginSurface>(_dock.Items.Find("arxis.caret-restart:farewell.panel")?.Content);
+
+        Assert.True(surface.IsBroken, "панель обязана упасть на замере — иначе проверять нечего");
+
+        var restart = surface.GetVisualDescendants().OfType<Button>().Single();
+
+        Assert.True(restart.Focus(), "кнопка перезапуска обязана брать каретку");
+
+        touchy.GetField("Broken")!.SetValue(null, false);
+        restart.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Pump();
+
+        Assert.False(surface.IsBroken);
+        Assert.True(DockFocus.Holds(surface), "перезапуск унёс каретку вместе с кнопкой");
+    }
+
     private static int Counter(Type type, string field) => (int)type.GetField(field)!.GetValue(null)!;
 
     /// <summary>Даёт отложенной работе студии дойти до конца: отключение идёт через очередь дважды.</summary>
@@ -433,7 +467,8 @@ public class StudioPluginsTests : IDisposable
     /// <param name="name">Имя сборки — своё на тест: тип со статическим счётом один на процесс.</param>
     /// <param name="id">Идентификатор модуля.</param>
     /// <param name="broken">Падает ли содержимое панели на замере.</param>
-    private static Assembly Farewell(string name, string id, bool broken) => TestAssembly.EmitModule(
+    /// <param name="focusable">Берёт ли панель каретку: содержимое тогда в рамке, которая её берёт.</param>
+    private static Assembly Farewell(string name, string id, bool broken, bool focusable = false) => TestAssembly.EmitModule(
         name,
         $$"""
             using ArxisStudio.Sdk;
@@ -467,7 +502,7 @@ public class StudioPluginsTests : IDisposable
                 {
                     Built++;
 
-                    return new Touchy();
+                    return {{(focusable ? "new Border { Focusable = true, Child = new Touchy() }" : "new Touchy()")}};
                 }
 
                 public override void Release() => Released++;

@@ -700,6 +700,41 @@ public class ProjectWindowPanelTests
         Assert.Same(program, Assert.IsAssignableFrom<Control>(studio.Window.FocusManager?.GetFocusedElement()).DataContext);
     }
 
+    /// <summary>
+    /// Каретка, ждавшая дерево на кнопке окна, переходит в дерево, когда решение открылось, а в
+    /// поиске остаётся.
+    /// </summary>
+    /// <remarks>
+    /// Студия отдаёт каретку окну при открытии, когда дерева ещё нет, и та вставала на «Свернуть
+    /// всё» и там и оставалась. Решение открывают и кнопкой «Открыть решение…», которая уходит с
+    /// экрана вместе с кареткой.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_caret_waiting_on_a_button_moves_into_the_tree_once_it_appears()
+    {
+        using (var studio = new ProjectWindowStudio())
+        {
+            Assert.True(studio.View.OpenSolution.Focus(), "кнопка обязана брать каретку");
+
+            await studio.Open();
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.IsType<TreeRow>(studio.Window.FocusManager?.GetFocusedElement());
+        }
+
+        using (var studio = new ProjectWindowStudio())
+        {
+            studio.Press(studio.View, Key.F, KeyModifiers.Control);
+
+            Assert.True(studio.View.Query.IsKeyboardFocusWithin, "Ctrl+F не поставил каретку в поиск");
+
+            await studio.Open();
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.True(studio.View.Query.IsKeyboardFocusWithin, "открытое решение отняло каретку у поиска");
+        }
+    }
+
     private static AutomationPeer Peer(ProjectWindowStudio studio, string name) =>
         ControlAutomationPeer.CreatePeerForElement(studio.Item(studio.Row(name)));
 

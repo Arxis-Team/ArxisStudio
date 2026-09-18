@@ -127,6 +127,7 @@ public sealed class ProjectPanel : ToolWindow
         tree.Expanding = OnExpanding;
         view.KeyDown += OnViewKeyDown;
         view.Query.PropertyChanged += OnQueryChanged;
+        view.Columns.PropertyChanged += OnColumnsChanged;
         view.CollapseAll.Click += OnCollapseAll;
         view.Options.Click += OnOptions;
         view.OpenSolution.Click += OnOpenSolution;
@@ -145,6 +146,7 @@ public sealed class ProjectPanel : ToolWindow
             tree.Expanding = null;
             view.KeyDown -= OnViewKeyDown;
             view.Query.PropertyChanged -= OnQueryChanged;
+            view.Columns.PropertyChanged -= OnColumnsChanged;
             view.CollapseAll.Click -= OnCollapseAll;
             view.Options.Click -= OnOptions;
             view.OpenSolution.Click -= OnOpenSolution;
@@ -353,6 +355,53 @@ public sealed class ProjectPanel : ToolWindow
     /// <summary>
     /// Запрос поиска сменился — дерево сужается на следующем кадре, один раз за все буквы кадра.
     /// </summary>
+    /// <summary>
+    /// Дерево встало на экран: каретка, ждавшая его на кнопке окна, переходит в дерево.
+    /// </summary>
+    /// <remarks>
+    /// Студия отдаёт каретку окну при открытии, когда решение ещё открывается и дерева нет, и та
+    /// встаёт на первую кнопку полосы — «Свернуть всё». Решение открывают и кнопкой «Открыть
+    /// решение…», которая уходит с экрана вместе с кареткой. Работают же в дереве, и каретка,
+    /// дождавшись его, идёт туда. Каретку в поиске дерево не трогает: там человек печатает.
+    /// </remarks>
+    private void OnColumnsChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property != Visual.IsVisibleProperty || _view is not { Columns.IsVisible: true } || Waiting() is not { } waiting)
+            return;
+
+        // Дерево строится вне потока интерфейса и встаёт на экран раньше своих строк: каретка ждёт
+        // постройки. Кнопка «Открыть решение…» за это время уходит с экрана и роняет каретку — её
+        // ведут в дерево; каретку, которую человек увёл сам, не трогают. Без кольца: клавишу никто
+        // не нажимал, каретку переносит окно.
+        Dispatcher.UIThread.Post(async () =>
+        {
+            if (_model is not { } model)
+                return;
+
+            await model.Settled.ConfigureAwait(true);
+
+            if (Caret() is { } now && !ReferenceEquals(now, waiting) && Waiting() is null)
+                return;
+
+            if (_view?.Tree is not { } tree || model.Tree.Rows is not { Count: > 0 } rows)
+                return;
+
+            var row = tree.SelectedItem as Row ?? rows[0];
+
+            tree.SelectedItem = row;
+            tree.ScrollIntoView(row);
+            (tree.ContainerFromItem(row) as Control)?.Focus();
+        }, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>Кнопка этого окна, на которой стоит каретка; <c>null</c> — каретка не на кнопке окна.</summary>
+    private Button? Waiting() =>
+        _view is { } view && Caret() is Button button && button.GetVisualAncestors().Contains(view) ? button : null;
+
+    /// <summary>Где сейчас каретка в окне студии; <c>null</c> — нигде.</summary>
+    private IInputElement? Caret() =>
+        _view is { } view ? TopLevel.GetTopLevel(view)?.FocusManager?.GetFocusedElement() : null;
+
     private void OnQueryChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
         if (e.Property != TextBox.TextProperty)

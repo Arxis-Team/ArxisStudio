@@ -3,6 +3,7 @@ using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk.Plugins;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
 
@@ -172,6 +173,15 @@ public sealed class StudioDock
     private string _active = DockLayout.DefaultName;
     private string _home = Documents;
     private bool _dirty;
+
+    /// <summary>
+    /// Панель, в которой каретка стояла в последний раз, как её помнит файл раскладки.
+    /// </summary>
+    /// <remarks>
+    /// Сеанс, в котором каретка ни разу не встала в раскладку, этой памяти не стирает: человек
+    /// открыл студию и закрыл, не тронув, — и в следующий раз она откроется там же, где раньше.
+    /// </remarks>
+    private string? _remembered;
 
     /// <summary>Заводит раскладку над видом.</summary>
     /// <param name="view">Вид, который её показывает.</param>
@@ -352,6 +362,7 @@ public sealed class StudioDock
 
         _saved = new Dictionary<string, DockWorkspace>(layout.Layouts, StringComparer.Ordinal);
         _active = _saved.ContainsKey(layout.Active) ? layout.Active : _saved.Keys.First();
+        _remembered = workspace.Focused;
 
         // Показанный набор в _saved не остаётся: правда о нём — дерево вида.
         _saved.Remove(_active);
@@ -512,6 +523,14 @@ public sealed class StudioDock
     /// </remarks>
     public void Farewell()
     {
+        // Где стоит каретка, раскладка помнит, хотя дерево от её хода не меняется: каретку водили
+        // между панелями, не трогая раскладки, и без этого файл помнил бы место давнего сеанса.
+        if (Focused is { } here && !string.Equals(here, _remembered, StringComparison.Ordinal))
+        {
+            _remembered = here;
+            _dirty = true;
+        }
+
         Flush();
 
         _farewell = true;
@@ -764,7 +783,11 @@ public sealed class StudioDock
     /// </remarks>
     public void RemoveOwnedBy(string owner)
     {
-        if (Items.RemoveOwnedBy(owner).Count == 0)
+        // Спрашивают до правки: после неё каретки нет ни у кого.
+        var working = Focused;
+        var gone = Items.RemoveOwnedBy(owner);
+
+        if (gone.Count == 0)
             return;
 
         _view.Refresh();
@@ -773,6 +796,12 @@ public sealed class StudioDock
             window.View.Refresh();
 
         Rehang();
+
+        // Выключенный плагин уносит свои панели, и каретка, стоявшая в одной из них, оставалась
+        // у контрола, которого больше нет, — то же закрытие, только не руками человека. Имя
+        // уходящей в дереве остаётся, и сосед по группе находится по нему.
+        if (working is not null && gone.Contains(working) && Successor(working) is { } next)
+            Focus(next);
     }
 
     /// <summary>
@@ -798,6 +827,10 @@ public sealed class StudioDock
     /// Передаёт каретку следующей показанной панели.
     /// </summary>
     /// <param name="back">Идти в обратную сторону.</param>
+    /// <param name="method">
+    /// Как пришли. F6 — клавиатура, и каретка приходит с кольцом, как после Tab: без него человек не
+    /// видел, в какой панели и на чём оказался.
+    /// </param>
     /// <returns>Нашлось ли куда.</returns>
     /// <remarks>
     /// Это вторая дорога по студии, и заведена она потому, что первой —
@@ -810,7 +843,7 @@ public sealed class StudioDock
     /// закрыли последнюю панель и наследника ей не нашлось.
     /// </para>
     /// </remarks>
-    public bool Cycle(bool back = false)
+    public bool Cycle(bool back = false, NavigationMethod method = NavigationMethod.Tab)
     {
         var stage = Onstage.ToList();
 
@@ -824,7 +857,29 @@ public sealed class StudioDock
             ? (back ? stage.Count - 1 : 0)
             : (at + (back ? stage.Count - 1 : 1)) % stage.Count;
 
-        return Focus(stage[next]);
+        return Focus(stage[next], method);
+    }
+
+    /// <summary>
+    /// Отдаёт каретку, когда окно студии открылось, а её нет нигде: той панели, где её оставили в
+    /// прошлый раз, а если такой нет на экране — первой показанной.
+    /// </summary>
+    /// <returns>Досталась ли каретка кому-нибудь.</returns>
+    /// <remarks>
+    /// Главное окно вставало без каретки вовсе: первая же клавиша уходила в никуда, F6 начинал
+    /// обход с начала, а диктор молчал. Rider открывается туда, где его закрыли, — так и здесь.
+    /// Каретку, которую уже кто-то взял, приветствие не трогает: человек успел щёлкнуть, пока
+    /// окно поднималось, — значит, он уже выбрал. Кольца нет: клавишу никто не нажимал.
+    /// </remarks>
+    public bool Greet()
+    {
+        if (TopLevel.GetTopLevel(_view)?.FocusManager?.GetFocusedElement() is not null)
+            return false;
+
+        if (_remembered is { } last && Onstage.Contains(last) && Focus(last))
+            return true;
+
+        return Cycle(method: NavigationMethod.Unspecified);
     }
 
     /// <summary>
@@ -834,23 +889,50 @@ public sealed class StudioDock
     /// Спрашивают об этом жесты: закрыть надо то, на чём человек стоит, а не
     /// то, что показано. Это разные вещи, когда каретка в боковой панели, а
     /// документ открыт в середине.
+    /// <para>
+    /// Стоять можно и на вкладке панели — в шапке её группы, а не внутри: с
+    /// вкладки закрывают Delete и Ctrl+W. Прежде такая каретка не принадлежала
+    /// никому: Ctrl+W закрывал показанный документ вместо панели под кареткой, а
+    /// закрытая с вкладки панель не находила себе наследника.
+    /// </para>
     /// </remarks>
     public string? Focused =>
         Items.Known().FirstOrDefault(
-            id => Items.Find(id)?.Content is Control content && DockFocus.Holds(content));
+            id => Items.Find(id)?.Content is Control content && DockFocus.Holds(content))
+        ?? Headed();
 
-    /// <summary>Все деревья студии: главное, потом оторванные окна.</summary>
-    private IEnumerable<DockNode> Trees()
+    /// <summary>Панель, в шапке чьей группы стоит каретка; <c>null</c> — ни в чьей.</summary>
+    private string? Headed()
     {
-        if (_view.Root is { } root)
-            yield return root;
+        foreach (var view in Screens())
+        {
+            if (view.Root is not { } root)
+                continue;
+
+            foreach (var group in root.Groups())
+            {
+                if (group.Selected is { } selected && Items.Find(selected) is not null
+                    && view.View(group.Id) is { } shown && DockFocus.Holds(shown))
+                {
+                    return selected;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Виды на экране: главное окно, потом оторванные окна, которые видно.</summary>
+    private IEnumerable<DockView> Screens()
+    {
+        yield return _view;
 
         foreach (var window in _floats.Where(window => window.IsVisible))
-        {
-            if (window.View.Root is { } torn)
-                yield return torn;
-        }
+            yield return window.View;
     }
+
+    /// <summary>Все деревья студии: главное, потом оторванные окна.</summary>
+    private IEnumerable<DockNode> Trees() => Screens().Select(view => view.Root).OfType<DockNode>();
 
     /// <summary>Каретка сейчас внутри этой панели или этого документа.</summary>
     /// <param name="id">Имя того, о ком спрашивают.</param>
@@ -873,11 +955,13 @@ public sealed class StudioDock
     /// теряет место работы так же верно, как не уведённая вовсе.
     /// </para>
     /// </remarks>
-    private string? Heir(string id)
-    {
-        if (Items.Find(id)?.Content is not Control content || !DockFocus.Holds(content))
-            return null;
+    private string? Heir(string id) =>
+        string.Equals(Focused, id, StringComparison.Ordinal) ? Successor(id) : null;
 
+    /// <summary>Кто встанет на место уходящего: сосед по группе, иначе показанный документ.</summary>
+    /// <param name="id">Имя уходящего.</param>
+    private string? Successor(string id)
+    {
         if (Tree(id)?.Root is { } root
             && DockTree.Holder(root, id) is { } holder
             && holder.Items.FirstOrDefault(Fit) is { } neighbour)
@@ -885,7 +969,7 @@ public sealed class StudioDock
             return neighbour;
         }
 
-        return Showing is { } shown && Onscreen(shown) ? shown : null;
+        return Showing is { } shown && Fit(shown) && Onscreen(shown) ? shown : null;
 
         bool Fit(string other) =>
             !string.Equals(other, id, StringComparison.Ordinal)
@@ -927,6 +1011,7 @@ public sealed class StudioDock
     /// Показывает панель и отдаёт ей клавиатуру.
     /// </summary>
     /// <param name="id">Имя того, что показываем.</param>
+    /// <param name="method">Как пришли: с клавиатуры каретка показывает кольцо, иначе — нет.</param>
     /// <returns>Досталась ли внутри панели каретка хоть кому-нибудь.</returns>
     /// <remarks>
     /// Отличие от <see cref="Show"/> одно и несущее: <c>Show</c> показывает,
@@ -942,19 +1027,24 @@ public sealed class StudioDock
     /// кого в дереве нет.
     /// </para>
     /// </remarks>
-    public bool Focus(string id)
+    public bool Focus(string id, NavigationMethod method = NavigationMethod.Unspecified)
     {
         Show(id);
 
         if (Items.Find(id)?.Content is not Control content)
             return false;
 
+        // Показ оторванное окно только достаёт на глаза, а каретку в нём просит человек: окно
+        // обязано стать активным, иначе клавиши ушли бы в то, что было активно до него.
+        if (Torn(id) is { IsVisible: true } torn)
+            torn.Activate();
+
         _view.UpdateLayout();
 
         foreach (var window in _floats)
             window.View.UpdateLayout();
 
-        return DockFocus.Restore(content);
+        return DockFocus.Restore(content, method);
     }
 
     /// <summary>
@@ -969,6 +1059,11 @@ public sealed class StudioDock
     /// Спрятанное окно не поднимается: его прячет <see cref="Rehang"/>, когда в
     /// нём не осталось живых вкладок, и показывать там по-прежнему нечего.
     /// </para>
+    /// <para>
+    /// Активным окно здесь не становится: показать просит и плагин, в том числе на
+    /// запуске, а показ каретку не трогает. Над студией окно и так стоит — оно при
+    /// ней; активирует его <see cref="Focus"/>, когда каретку просит человек.
+    /// </para>
     /// </remarks>
     private static void Reveal(DockFloat window)
     {
@@ -977,8 +1072,6 @@ public sealed class StudioDock
 
         if (window.WindowState == WindowState.Minimized)
             window.WindowState = WindowState.Normal;
-
-        window.Activate();
     }
 
     /// <summary>
@@ -1018,7 +1111,10 @@ public sealed class StudioDock
     /// <summary>Заводит оторванное окно и подписывается на всё, что в нём делают.</summary>
     private DockFloat Float()
     {
-        var window = new DockFloat();
+        // Окно встаёт, не отнимая активности у студии: показывает его и раскладка на запуске, и
+        // возврат панели, а показ каретку не трогает. Активным его делает Focus — когда каретку
+        // просит человек, как при отрыве вкладки.
+        var window = new DockFloat { ShowActivated = false };
 
         window.View.Items = Items;
 
@@ -1772,6 +1868,7 @@ public sealed class StudioDock
         DocumentHome = _home,
         Floating = [.. _floats.Select(window => window.Snapshot())],
         Hidden = [.. _hidden],
+        Focused = Focused ?? _remembered,
     };
 
     /// <summary>От какой группы отмерять место для новой.</summary>

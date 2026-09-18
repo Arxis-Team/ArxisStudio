@@ -323,6 +323,218 @@ public class StudioDockTests : IDisposable
         Assert.True(DockFocus.Holds(paper), "каретке некуда было деться, и её оставили в пустоте");
     }
 
+    /// <summary>
+    /// Панель, закрытая с вкладки, отдаёт каретку соседу, как закрытая изнутри.
+    /// </summary>
+    /// <remarks>
+    /// С вкладки закрывают Delete, и каретка стоит тогда в шапке группы, а не в панели. Прежде такая
+    /// каретка не принадлежала никому: наследника закрытой не искали, и она уходила в никуда.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_panel_closed_from_its_tab_hands_the_caret_to_the_neighbour()
+    {
+        var (dock, view) = Dock();
+        var tree = Focusable();
+        var outline = Focusable();
+        var window = Assert.IsAssignableFrom<Window>(TopLevel.GetTopLevel(view));
+
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, tree);
+        dock.Add("hello", "hello:outline", At("left"), "Структура", Strings, outline);
+        dock.Show("hello:outline");
+        Settle();
+
+        var tab = DockMouse.Tabs(view.View("left")!).GetRealizedContainers().OfType<AxTabItem>()
+            .Single(candidate => Equals(candidate.Content, "Структура"));
+
+        Assert.True(tab.Focus(), "вкладка обязана брать фокус");
+        Assert.Equal("hello:outline", dock.Focused);
+
+        window.KeyPress(Key.Delete, RawInputModifiers.None, PhysicalKey.Delete, string.Empty);
+        Settle();
+
+        Assert.True(DockFocus.Holds(tree), "каретка ушла вместе с вкладкой, и вернуть её нечем");
+    }
+
+    /// <summary>
+    /// Выключенный плагин уносит свои панели, а каретку, стоявшую в одной из них, оставляет соседу.
+    /// </summary>
+    [AvaloniaFact]
+    public void An_unloaded_plugin_hands_the_caret_to_a_neighbour_that_stays()
+    {
+        var (dock, _) = Dock();
+        var mine = Focusable();
+        var theirs = Focusable();
+
+        dock.Add("friend", "friend:tips", At("left"), "Советы", Strings, theirs);
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, mine);
+        Settle();
+
+        Assert.True(dock.Focus("hello:tree"));
+
+        dock.RemoveOwnedBy("hello");
+        Settle();
+
+        Assert.True(DockFocus.Holds(theirs), "выгрузка унесла каретку вместе с панелью");
+    }
+
+    /// <summary>
+    /// F6 приводит каретку с кольцом, а просьба программы — без него.
+    /// </summary>
+    /// <remarks>
+    /// F6 — клавиатура, и после него человек должен видеть, в какой панели и на чём оказался, как
+    /// после Tab. Каретка, которую поставила программа, кольца не зажигает: клавишу никто не нажимал.
+    /// </remarks>
+    [AvaloniaFact]
+    public void F6_brings_the_caret_with_its_ring_and_a_request_without_it()
+    {
+        var (dock, _) = Dock();
+        var tree = Focusable();
+        var tips = Focusable();
+
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, tree);
+        dock.Add("friend", "friend:tips", At("right"), "Советы", Strings, tips);
+        Settle();
+
+        Assert.True(dock.Focus("hello:tree"));
+        Assert.DoesNotContain(":focus-visible", Spot(tree).Classes);
+
+        Assert.True(dock.Cycle());
+        Assert.True(Spot(tips).IsFocused, "F6 не дошёл до соседней панели");
+        Assert.Contains(":focus-visible", Spot(tips).Classes);
+
+        // Обратно — к запомненному месту, и тоже с кольцом.
+        Assert.True(dock.Cycle());
+        Assert.True(Spot(tree).IsFocused, "F6 не вернул каретку туда, где её оставили");
+        Assert.Contains(":focus-visible", Spot(tree).Classes);
+    }
+
+    /// <summary>
+    /// Показ панели в оторванном окне это окно не активирует, а каретка, отданная панели, — активирует.
+    /// </summary>
+    /// <remarks>
+    /// Показать просит и плагин, в том числе на запуске, и показ каретку не трогает: активное окно
+    /// забирает клавиатуру у того, где человек печатал. Прежде показ окно активировал.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Showing_a_torn_panel_leaves_the_activity_alone_and_focusing_it_does_not()
+    {
+        var (dock, view, window) = Two();
+
+        Tear(view, window, "left");
+        Settle();
+
+        var torn = Assert.Single(dock.Floating);
+        var activated = 0;
+
+        window.Activate();
+        torn.Activated += (_, _) => activated++;
+
+        dock.Show("hello:tree");
+        Settle();
+
+        Assert.Equal(0, activated);
+
+        dock.Focus("hello:tree");
+        Settle();
+
+        Assert.True(activated > 0, "каретку в оторванное окно отдали, а окно осталось неактивным");
+    }
+
+    /// <summary>
+    /// Оторванное окно, восстановленное на запуске, встаёт, не отнимая активности у студии.
+    /// </summary>
+    /// <remarks>
+    /// Окно при студии показывает раскладка, а не человек, и каретку оно не просило: активным
+    /// вставало последнее из восстановленных, и первая клавиша уходила в него.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_torn_window_restored_at_start_does_not_take_the_activity()
+    {
+        var store = new DockLayoutStore(File);
+        var (first, view, window) = Two(store);
+
+        Tear(view, window, "left");
+        Settle();
+        first.Flush();
+
+        var again = new DockView();
+        var second = new StudioDock(again, new DockLayoutStore(File));
+
+        new Window { Content = again, Width = 1200, Height = 800 }.Show();
+        second.Restore();
+        second.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
+        second.Add("friend", "friend:tips", At("right"), "Советы", Strings, new Border());
+        Settle();
+
+        var torn = Assert.Single(second.Floating);
+        var activated = 0;
+
+        torn.Activated += (_, _) => activated++;
+
+        second.Shown();
+        Settle();
+
+        Assert.True(torn.IsVisible, "восстановленное окно не встало");
+        Assert.Equal(0, activated);
+    }
+
+    /// <summary>
+    /// Студия открывается с кареткой там, где её оставили, — через запись раскладки.
+    /// </summary>
+    /// <remarks>
+    /// Главное окно вставало без каретки вовсе: первая клавиша уходила в никуда. Каретку водят
+    /// между панелями, не трогая раскладки, поэтому место пишется и тогда, когда дерево не менялось.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_studio_opens_with_the_caret_where_it_was_left()
+    {
+        var store = new DockLayoutStore(File);
+        var (first, _) = Dock(store);
+
+        first.Add("hello", "hello:tree", At("left"), "Проект", Strings, Focusable());
+        first.Add("friend", "friend:tips", At("right"), "Советы", Strings, Focusable());
+        Settle();
+        first.Flush();
+
+        Assert.True(first.Focus("friend:tips"));
+
+        first.Farewell();
+
+        var (second, _) = Dock(new DockLayoutStore(File));
+        var tips = Focusable();
+
+        second.Restore();
+        second.Add("hello", "hello:tree", At("left"), "Проект", Strings, Focusable());
+        second.Add("friend", "friend:tips", At("right"), "Советы", Strings, tips);
+        Settle();
+
+        Assert.True(second.Greet(), "каретку при открытии отдать некому");
+        Assert.True(DockFocus.Holds(tips), "студия открылась не там, где её закрыли");
+    }
+
+    /// <summary>
+    /// Без памяти каретка при открытии идёт в первую показанную панель, а взятую кем-то не трогают.
+    /// </summary>
+    [AvaloniaFact]
+    public void Greeting_takes_the_first_panel_and_leaves_a_taken_caret_alone()
+    {
+        var (dock, _) = Dock();
+        var tree = Focusable();
+        var tips = Focusable();
+
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, tree);
+        dock.Add("friend", "friend:tips", At("right"), "Советы", Strings, tips);
+        Settle();
+
+        Assert.True(dock.Greet());
+        Assert.True(DockFocus.Holds(tree), "без памяти каретка не пришла в первую показанную панель");
+        Assert.DoesNotContain(":focus-visible", Spot(tree).Classes);
+
+        Assert.True(Spot(tips).Focus());
+        Assert.False(dock.Greet(), "приветствие отняло каретку, которую уже взяли");
+        Assert.True(DockFocus.Holds(tips));
+    }
+
     /// <summary>Панель встаёт в объявленную сторону, вторая — вкладкой рядом.</summary>
     [AvaloniaFact]
     public void A_panel_takes_the_side_it_asked_for()
@@ -3075,6 +3287,10 @@ public class StudioDockTests : IDisposable
     /// <summary>Панель, внутри которой есть куда встать каретке.</summary>
     private static Control Focusable() =>
         new StackPanel { Children = { new Border { Focusable = true, Height = 20 } } };
+
+    /// <summary>Место внутри панели из <see cref="Focusable"/>, куда встаёт каретка.</summary>
+    private static Control Spot(Control panel) =>
+        panel.GetVisualDescendants().OfType<Control>().First(control => control.Focusable);
 
     private static PluginPlacement At(string side) => new() { Side = side };
 

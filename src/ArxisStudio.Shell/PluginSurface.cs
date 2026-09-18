@@ -105,11 +105,24 @@ public sealed class PluginSurface : Decorator
 
         // Дерево сейчас считают: подменить ребёнка можно только следующим
         // проходом.
-        Dispatcher.UIThread.Post(() => Child = Stub(error), DispatcherPriority.Loaded);
+        Dispatcher.UIThread.Post(() =>
+        {
+            // Каретка, стоявшая в упавшей панели, переходит на кнопку перезапуска: подменённое
+            // содержимое уносило её с собой, и человек, работавший в панели с клавиатуры,
+            // оставался нигде — не видя ни заглушки, ни того, что её можно перезапустить.
+            var held = IsKeyboardFocusWithin;
+
+            Child = Stub(error, out var restart);
+
+            if (held)
+                restart?.Focus();
+        }, DispatcherPriority.Loaded);
     }
 
-    private Control Stub(Exception error)
+    private Control Stub(Exception error, out AxButton? restart)
     {
+        restart = null;
+
         var box = new StackPanel { VerticalAlignment = VerticalAlignment.Top };
 
         // Отступы — ключами темы: заглушка стоит на месте панели, и рядом с
@@ -144,6 +157,7 @@ public sealed class PluginSurface : Decorator
 
             button.Click += (_, _) => reload();
             box.Children.Add(button);
+            restart = button;
         }
 
         return box;

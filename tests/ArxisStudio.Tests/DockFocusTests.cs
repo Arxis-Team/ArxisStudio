@@ -2,6 +2,7 @@ using ArxisStudio.Controls;
 using ArxisStudio.Docking;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.Threading;
 using Xunit;
 
@@ -117,8 +118,12 @@ public class DockFocusTests
         DockFocus.SetTarget(panel, list);
         outside.Focus();
 
-        Assert.True(DockFocus.Restore(panel), "каретку в панель не отдать");
-        Assert.Same(list.ContainerFromIndex(150), window.FocusManager?.GetFocusedElement());
+        Assert.True(DockFocus.Restore(panel, NavigationMethod.Tab), "каретку в панель не отдать");
+
+        var row = Assert.IsAssignableFrom<Control>(list.ContainerFromIndex(150));
+
+        Assert.Same(row, window.FocusManager?.GetFocusedElement());
+        Assert.Contains(":focus-visible", row.Classes);
 
         window.Close();
     }

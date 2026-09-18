@@ -108,6 +108,61 @@ public class PluginSurfaceTests
         window.Close();
     }
 
+    /// <summary>
+    /// Каретка, стоявшая в упавшей панели, переходит на кнопку перезапуска, а стоявшая в другом месте
+    /// остаётся там.
+    /// </summary>
+    /// <remarks>
+    /// Подменённое содержимое уносило каретку с собой: человек, работавший в панели с клавиатуры,
+    /// оставался нигде и не видел ни заглушки, ни того, что её можно перезапустить. Чужую каретку
+    /// заглушка не берёт: падение соседней панели — не повод отнимать клавиатуру.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_panel_that_falls_with_the_caret_hands_it_to_the_restart()
+    {
+        var fragile = new Fragile();
+        var elsewhere = new Border { Focusable = true, Height = 20 };
+        var surface = new PluginSurface(fragile, reload: () => { });
+        var window = new Window { Width = 300, Height = 200, Content = new StackPanel { Children = { elsewhere, surface } } };
+
+        window.Show();
+        window.UpdateLayout();
+
+        Assert.True(fragile.Focus(), "панель обязана брать каретку");
+
+        Break(fragile, window);
+
+        Assert.True(surface.GetVisualDescendants().OfType<Button>().Single().IsFocused, "каретка ушла вместе с упавшей панелью");
+
+        var other = new Fragile();
+        var quiet = new PluginSurface(other, reload: () => { });
+
+        ((StackPanel)window.Content!).Children.Add(quiet);
+        window.UpdateLayout();
+
+        Assert.True(elsewhere.Focus());
+
+        Break(other, window);
+
+        Assert.True(elsewhere.IsFocused, "упавшая соседка отняла каретку");
+
+        window.Close();
+    }
+
+    /// <summary>Роняет панель на следующем замере и даёт заглушке встать.</summary>
+    /// <remarks>
+    /// Замер вызывает смена ширины окна, а не сброс замера самой панели: сброшенную панель
+    /// Avalonia меряет напрямую, мимо поверхности, — а проверяется здесь заглушка.
+    /// </remarks>
+    private static void Break(Fragile panel, Window window)
+    {
+        panel.Broken = true;
+        window.Width += 10;
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+    }
+
     private static Window Shown(Control content)
     {
         var window = new Window { Content = content, Width = 300, Height = 200 };
@@ -123,5 +178,16 @@ public class PluginSurfaceTests
     {
         protected override Size MeasureOverride(Size availableSize) =>
             throw new InvalidOperationException("панель сломана");
+    }
+
+    /// <summary>Панель, которая берёт каретку и падает на замере, когда велят.</summary>
+    private sealed class Fragile : Control
+    {
+        public Fragile() => Focusable = true;
+
+        public bool Broken { get; set; }
+
+        protected override Size MeasureOverride(Size availableSize) =>
+            Broken ? throw new InvalidOperationException("панель сломана") : new Size(40, 20);
     }
 }

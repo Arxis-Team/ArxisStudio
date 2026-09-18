@@ -1046,9 +1046,17 @@ public sealed class StudioPlugins
         if (Build(loaded, declared, type, studio) is not { } built)
             return null;
 
+        // Перезапуск просят из заглушки кнопкой, державшей каретку, а новая панель встаёт на её
+        // место и уносила каретку вместе с кнопкой. Она остаётся в панели — там, куда панель
+        // велит, как при возвращении в неё.
+        var held = surface.IsKeyboardFocusWithin;
+
         surface.Reset(built.Content);
 
         Keep(surface, built.Focus);
+
+        if (held)
+            Dispatcher.UIThread.Post(() => DockFocus.Restore(surface), DispatcherPriority.Loaded);
 
         return built.Panel;
     }

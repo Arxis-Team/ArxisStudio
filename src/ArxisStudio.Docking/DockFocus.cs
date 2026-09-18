@@ -93,6 +93,10 @@ public static class DockFocus
     /// Отдаёт фокус внутрь панели: хранителю, иначе цели панели, иначе первому, кто его возьмёт.
     /// </summary>
     /// <param name="panel">Панель.</param>
+    /// <param name="method">
+    /// Как пришли: с клавиатуры — и каретка показывает кольцо, как после Tab; мышью или просьбой
+    /// программы — без него.
+    /// </param>
     /// <returns>Нашлось ли кому.</returns>
     /// <remarks>
     /// Хранителя может не быть вовсе — панель показывают впервые, — или он мог
@@ -104,17 +108,17 @@ public static class DockFocus
     /// берёт первый, кто может; не может никто — значит панель нечем управлять с
     /// клавиатуры, и врать об этом не надо.
     /// </remarks>
-    public static bool Restore(Control panel)
+    public static bool Restore(Control panel, NavigationMethod method = NavigationMethod.Unspecified)
     {
         ArgumentNullException.ThrowIfNull(panel);
 
         foreach (var keeper in new[] { GetKeeper(panel), GetTarget(panel) })
         {
-            if (keeper is not null && Inside(keeper, panel) && Give(keeper))
+            if (keeper is not null && Inside(keeper, panel) && Give(keeper, method))
                 return true;
         }
 
-        return First(panel) is { } first && first.Focus();
+        return First(panel) is { } first && first.Focus(method);
     }
 
     /// <summary>
@@ -127,12 +131,12 @@ public static class DockFocus
     /// ней, а без выбора — к первому внутри хранителя. Хранитель, который взял каретку и сам
     /// передал её внутрь себя, отвечает «не взял», хотя она у него, — это тоже удача.
     /// </remarks>
-    private static bool Give(Control keeper)
+    private static bool Give(Control keeper, NavigationMethod method)
     {
-        if (keeper.Focus() || Holds(keeper))
+        if (keeper.Focus(method) || Holds(keeper))
             return true;
 
-        return (Chosen(keeper) ?? First(keeper)) is { } inside && !ReferenceEquals(inside, keeper) && inside.Focus();
+        return (Chosen(keeper) ?? First(keeper)) is { } inside && !ReferenceEquals(inside, keeper) && inside.Focus(method);
     }
 
     /// <summary>Строка, выбранная в списке, — рождённая, даже если она за краем окна.</summary>
