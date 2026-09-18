@@ -242,6 +242,55 @@ public class PaletteOverlayTests
         palette.Close();
     }
 
+    /// <summary>
+    /// Закрытая палитра возвращает каретку туда, где она стояла, — и команда из палитры застаёт её
+    /// уже там.
+    /// </summary>
+    /// <remarks>
+    /// Карточка уходила из дерева вместе с кареткой: после Esc печатать было некуда, а команда не
+    /// знала, в какой панели стоял человек, — «закрыть» закрывало показанный документ, а не его
+    /// панель.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Closing_the_palette_gives_the_caret_back()
+    {
+        var field = new AxTextBox();
+        var window = new Window { Width = 900, Height = 600, Content = field };
+
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        field.Focus();
+
+        object? focusedWhenRun = null;
+        var palette = new PaletteOverlay(_ =>
+        {
+            focusedWhenRun = window.FocusManager?.GetFocusedElement();
+
+            return true;
+        });
+        IReadOnlyList<PaletteEntry> entries = [new("Закрыть вкладку", "studio.close", "Ctrl+W")];
+
+        palette.Show(window, entries);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(field.IsFocused, "палитра не взяла каретку — проверять нечего");
+
+        window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, string.Empty);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(field.IsFocused, "Esc закрыл палитру, а каретка осталась нигде");
+
+        palette.Show(window, entries);
+        Dispatcher.UIThread.RunJobs();
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, "\r");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Same(field, focusedWhenRun);
+        Assert.True(field.IsFocused, "после команды из палитры каретка осталась нигде");
+
+        window.Close();
+    }
+
     /// <summary>Открытая палитра над показанным окном.</summary>
     private static (PaletteOverlay Palette, Window Window, IReadOnlyList<PaletteEntry> Entries) Shown(
         List<string>? called = null,

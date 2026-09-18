@@ -865,6 +865,80 @@ public class DockViewTests
     }
 
     /// <summary>Показывает дерево в окне, заведя живые панели с такими именами.</summary>
+    /// <summary>
+    /// Потянутая граница не уносит каретку из панели — ни тягой, ни простым щелчком.
+    /// </summary>
+    /// <remarks>
+    /// Граница фокусируемая, и нажатие мышью отдавало фокус ей. Отпущенная граница перестраивает
+    /// дерево, разделитель уходит вместе со старым, и каретка оставалась нигде: печатать в панели
+    /// дальше было нельзя, пока в неё не щёлкнешь снова.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Dragging_a_border_leaves_the_caret_in_its_panel()
+    {
+        var field = new AxTextBox();
+        var items = new DockItems();
+
+        items.Add("hello", new DockItem("solution", field) { Title = "solution" });
+        items.Add("hello", new DockItem("properties", new Border()) { Title = "properties" });
+
+        var view = new DockView
+        {
+            Items = items,
+            Root = new DockSplit
+            {
+                Orientation = DockOrientation.Horizontal,
+                Children =
+                [
+                    new DockGroup { Id = "left", Items = ["solution"], Selected = "solution" },
+                    new DockGroup { Id = "right", Items = ["properties"], Selected = "properties" },
+                ],
+                Weights = [0.5, 0.5],
+            },
+        };
+
+        view.Resized += (_, resize) => view.Root = DockTree.Resize(view.Root!, resize.Path, resize.Weights);
+
+        var window = new Window { Content = view, Width = 900, Height = 600 };
+
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        field.Focus();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(field.IsFocused, "поле не взяло фокус — проверять нечего");
+
+        var splitter = view.GetVisualDescendants().OfType<GridSplitter>().Single();
+        var grip = splitter.TranslatePoint(new Point(splitter.Bounds.Width / 2, splitter.Bounds.Height / 2), window);
+
+        Assert.NotNull(grip);
+
+        window.MouseMove(grip.Value);
+        window.MouseDown(grip.Value, MouseButton.Left);
+
+        for (var step = 1; step <= 4; step++)
+            window.MouseMove(grip.Value.WithX(grip.Value.X + (step * 50)));
+
+        window.MouseUp(grip.Value.WithX(grip.Value.X + 200), MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(Assert.IsType<DockSplit>(view.Root).Weights[0] > 0.6, "граница не поехала — проверять нечего");
+        Assert.True(field.IsFocused, "потянутая граница унесла каретку из панели");
+
+        var moved = view.GetVisualDescendants().OfType<GridSplitter>().Single();
+        var still = moved.TranslatePoint(new Point(moved.Bounds.Width / 2, moved.Bounds.Height / 2), window);
+
+        Assert.NotNull(still);
+
+        window.MouseDown(still.Value, MouseButton.Left);
+        window.MouseUp(still.Value, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(field.IsFocused, "щелчок по границе унёс каретку из панели");
+
+        window.Close();
+    }
+
     private static (DockView View, DockItems Items) Shown(DockNode root, params string[] ids)
     {
         var items = new DockItems();

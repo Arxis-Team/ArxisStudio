@@ -250,6 +250,27 @@ public sealed class StudioShortcuts(Func<string, bool> invoke)
     }
 
     /// <summary>
+    /// Слушает клавиши и в оторванных окнах раскладки — нынешних и тех, что заведут потом.
+    /// </summary>
+    /// <param name="dock">Раскладка студии.</param>
+    /// <remarks>
+    /// Оторванное окно — то же дерево в другом окне, и сочетания в нём обязаны работать те же. Но
+    /// клавиша, нажатая там, до главного окна не доходит — путь события у каждого окна свой, — и F6
+    /// уводил в оторванное окно, а обратно не выпускал: ни F6, ни Ctrl+W, ни палитра там не
+    /// работали. Окна, поднятые раскладкой ещё до этого вызова, получают клавиши здесь, новые — в
+    /// миг, когда раскладка их заводит.
+    /// </remarks>
+    public void Follow(StudioDock dock)
+    {
+        ArgumentNullException.ThrowIfNull(dock);
+
+        foreach (var window in dock.Floating)
+            Attach(window);
+
+        dock.Floated += (_, window) => Attach(window);
+    }
+
+    /// <summary>
     /// Разбирает сочетание, не бросая на неразобранном.
     /// </summary>
     /// <remarks>

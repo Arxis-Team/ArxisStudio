@@ -5,6 +5,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 
 namespace ArxisStudio.Docking;
@@ -109,6 +110,11 @@ public class DockView : Decorator
 
     /// <summary>Что тащат прямо сейчас.</summary>
     private string? _dragged;
+
+    /// <summary>
+    /// Кто держал клавиатуру, когда человек взялся за границу; отпускание вернёт её ему.
+    /// </summary>
+    private IInputElement? _beforeBorder;
 
     /// <summary>Подсказка: место, которое займёт брошенная вкладка.</summary>
     private Border? _hint;
@@ -435,10 +441,20 @@ public class DockView : Decorator
     // Масштаб сменился: пиксель устройства стал другой длины, и сетка деления собирается заново.
     private void OnScalingChanged(object? sender, EventArgs e) => Rebuild();
 
-    /// <summary>Запоминает вкладку, на которой нажали.</summary>
+    /// <summary>Запоминает вкладку, на которой нажали, — и того, кто держал клавиатуру, если взялись за границу.</summary>
+    /// <remarks>
+    /// Граница фокусируемая — иначе клавиатура не нашла бы её вовсе, — и нажатие мышью отдавало
+    /// фокус ей. Тянут же её не затем, чтобы увести каретку из панели: отпущенная граница
+    /// перестраивает дерево, разделитель уходит вместе со старым, и каретка оставалась нигде —
+    /// печатать дальше было некуда. В Rider и Visual Studio граница клавиатуру у панели не отнимает.
+    /// Нажатие ловится на спуске, раньше, чем фокус уйдёт к границе, поэтому помнится прежний.
+    /// </remarks>
     private void OnPressed(object? sender, PointerPressedEventArgs e)
     {
         _pressed = null;
+        _beforeBorder = (e.Source as Visual)?.FindAncestorOfType<GridSplitter>(includeSelf: true) is not null
+            ? TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement()
+            : null;
 
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
             return;
@@ -490,6 +506,20 @@ public class DockView : Decorator
     /// <summary>Сообщает, что вкладку отпустили и где.</summary>
     private void OnReleased(object? sender, PointerReleasedEventArgs e)
     {
+        // Клавиатура возвращается после того, как граница закончит тягу, а не сейчас: отпускание
+        // на спуске доходит сюда раньше, чем до неё, а сплиттер, потеряв фокус посреди тяги,
+        // отменяет её — граница не сдвинулась бы вовсе. Отложенный возврат застаёт тягу
+        // законченной и дерево перестроенным, и панель уже стоит на новом месте.
+        if (_beforeBorder is { } before)
+        {
+            _beforeBorder = null;
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (before is Visual visual && TopLevel.GetTopLevel(visual) is not null)
+                    before.Focus();
+            });
+        }
+
         var dragged = _dragged;
         var at = Screen(e.GetPosition(this));
 

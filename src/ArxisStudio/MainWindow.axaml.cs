@@ -581,6 +581,7 @@ public partial class MainWindow : AxWindow
         Bind("Ctrl+Shift+P", "studio.palette");
 
         _shortcuts.Attach(this);
+        _shortcuts.Follow(_dock);
 
         void Bind(string gesture, string command)
         {

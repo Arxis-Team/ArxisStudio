@@ -525,6 +525,73 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
+    /// Оторванная панель уносит клавиатуру с собой: каретка встаёт внутри неё в новом окне.
+    /// </summary>
+    /// <remarks>
+    /// Вкладка, за которую тянули, уходила из дерева вместе с фокусом, и новое окно выходило вперёд
+    /// глухим: печатать в нём было нельзя, пока в панель не щёлкнешь.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_torn_off_panel_takes_the_caret_with_it()
+    {
+        var (dock, view) = Dock();
+        var field = new AxTextBox();
+
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, field);
+        dock.Add("friend", "friend:tips", At("right"), "Советы", Strings, new Border());
+        Dispatcher.UIThread.RunJobs();
+
+        var window = Assert.IsAssignableFrom<Window>(TopLevel.GetTopLevel(view));
+
+        Tear(view, window, "left");
+
+        var torn = Assert.Single(dock.Floating);
+
+        Assert.Same(torn, TopLevel.GetTopLevel(field));
+        Assert.True(field.IsFocused, "оторванная панель вышла в своё окно без клавиатуры");
+    }
+
+    /// <summary>
+    /// Сочетания студии работают и в оторванном окне — и в том, что оторвали раньше подписки, и в
+    /// оторванном после неё.
+    /// </summary>
+    /// <remarks>
+    /// Клавиша, нажатая в оторванном окне, до главного не доходит, и F6 уводил туда, а обратно не
+    /// выпускал: ни F6, ни Ctrl+W, ни палитра в оторванном окне не работали.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_studio_keys_work_in_a_torn_off_window()
+    {
+        var (dock, view, window) = Two();
+        var called = new List<string>();
+        var keys = new StudioShortcuts(id =>
+        {
+            called.Add(id);
+
+            return true;
+        });
+
+        Assert.True(keys.Bind("F6", "studio.panel.next"));
+        keys.Attach(window);
+
+        Tear(view, window, "left");
+
+        keys.Follow(dock);
+
+        Tear(view, window, "right");
+
+        Assert.Equal(2, dock.Floating.Count);
+
+        foreach (var torn in dock.Floating)
+        {
+            torn.KeyPress(Key.F6, RawInputModifiers.None, PhysicalKey.F6, string.Empty);
+            Dispatcher.UIThread.RunJobs();
+        }
+
+        Assert.Equal(["studio.panel.next", "studio.panel.next"], called);
+    }
+
+    /// <summary>
     /// Брошенная на границу вкладка остаётся где была.
     /// </summary>
     /// <remarks>

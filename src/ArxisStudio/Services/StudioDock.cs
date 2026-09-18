@@ -212,6 +212,15 @@ public sealed class StudioDock
     public event EventHandler<string>? Complained;
 
     /// <summary>
+    /// Раскладка завела оторванное окно; в поле — оно.
+    /// </summary>
+    /// <remarks>
+    /// Окно ещё пустое и не показано: всё, что должно в нём работать, — сочетания студии прежде
+    /// всего, — цепляется раньше, чем в нём окажется каретка.
+    /// </remarks>
+    public event EventHandler<DockFloat>? Floated;
+
+    /// <summary>
     /// Человек попросил закрыть документ; в поле — имя.
     /// </summary>
     /// <remarks>
@@ -999,6 +1008,11 @@ public sealed class StudioDock
 
         window.Position = drag.At;
         Rehang();
+
+        // Вкладку унесли руками, и клавиатура едет вместе с панелью, как в Rider: новое окно
+        // выходит вперёд, и каретка встаёт внутри панели. Иначе она оставалась нигде — вкладка,
+        // за которую тянули, ушла из дерева вместе с фокусом, — а окно впереди было глухо к набору.
+        Focus(drag.Item);
     }
 
     /// <summary>Заводит оторванное окно и подписывается на всё, что в нём делают.</summary>
@@ -1049,6 +1063,7 @@ public sealed class StudioDock
         window.SizeChanged += (_, _) => Note();
 
         _floats.Add(window);
+        Floated?.Invoke(this, window);
 
         return window;
     }

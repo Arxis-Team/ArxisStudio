@@ -26,6 +26,12 @@ namespace ArxisStudio.Palette;
 /// Клавиатуру разбирает сама карточка поиска: стрелки водят выбор, Enter говорит «это», Esc —
 /// «передумал». Палитре остаётся ответить на два события — выполнить команду и закрыться.
 /// </para>
+/// <para>
+/// Каретку палитра берёт взаймы и возвращает тому, у кого взяла, — как всякое окно поверх. Прежде
+/// она уходила с карточкой в никуда: после Esc печатать было некуда, а команда, выбранная в
+/// палитре, не знала, в какой панели стоял человек, — «закрыть» закрывало показанный документ, а
+/// не панель, из которой палитру открыли.
+/// </para>
 /// </remarks>
 public sealed class PaletteOverlay
 {
@@ -36,6 +42,9 @@ public sealed class PaletteOverlay
     private AxQuickSearch? _card;
     private Panel? _scrim;
     private Window? _owner;
+
+    /// <summary>Кто держал клавиатуру, когда палитру открыли; ему её и вернуть.</summary>
+    private IInputElement? _before;
 
     /// <summary>Заводит палитру над реестром команд.</summary>
     /// <param name="invoke">Кому передать имя выбранной команды.</param>
@@ -66,7 +75,7 @@ public sealed class PaletteOverlay
 
         if (IsOpen)
         {
-            Close();
+            Close(NavigationMethod.Tab);
 
             return;
         }
@@ -76,6 +85,7 @@ public sealed class PaletteOverlay
 
         _owner = owner;
         _all = entries;
+        _before = owner.FocusManager?.GetFocusedElement();
 
         // Ширина карточки — ключ темы, а не число здесь: то же обещание, что у всякого другого
         // размера, и палитра не должна быть единственным местом, где оно нарушено.
@@ -125,8 +135,11 @@ public sealed class PaletteOverlay
         _card.GetVisualDescendants().OfType<AxTextBox>().FirstOrDefault()?.Focus();
     }
 
-    /// <summary>Убирает палитру с экрана.</summary>
-    public void Close()
+    /// <summary>Убирает палитру с экрана и возвращает клавиатуру тому, у кого её взяла.</summary>
+    /// <param name="method">
+    /// Чем закрыли: клавишей — возвращённая каретка получает и кольцо фокуса, мышью — нет.
+    /// </param>
+    public void Close(NavigationMethod method = NavigationMethod.Unspecified)
     {
         if (_scrim is null || _owner is null)
             return;
@@ -149,6 +162,13 @@ public sealed class PaletteOverlay
         _card = null;
         _owner = null;
         _shown = [];
+
+        // Карточка ушла из дерева вместе с кареткой, и та стоит нигде. Возвращается тому, кто её
+        // держал, если он ещё на экране.
+        if (_before is Visual before && TopLevel.GetTopLevel(before) is not null)
+            _before.Focus(method);
+
+        _before = null;
     }
 
     /// <summary>Строка списка: значок и название слева, сочетание справа.</summary>
@@ -206,12 +226,12 @@ public sealed class PaletteOverlay
     {
         // Щелчок по самой карточке палитру не закрывает: закрывает только мимо.
         if (ReferenceEquals(e.Source, _scrim))
-            Close();
+            Close(NavigationMethod.Pointer);
     }
 
     private void OnAccepted(object? sender, RoutedEventArgs e) => Run();
 
-    private void OnCancelled(object? sender, RoutedEventArgs e) => Close();
+    private void OnCancelled(object? sender, RoutedEventArgs e) => Close(NavigationMethod.Tab);
 
     /// <summary>
     /// Выполняет выбранное.
@@ -219,14 +239,16 @@ public sealed class PaletteOverlay
     /// <remarks>
     /// Палитра закрывается до вызова, а не после: команда может открыть своё
     /// окно или увести каретку, и карточка, оставшаяся поверх, оказалась бы
-    /// поверх её же результата.
+    /// поверх её же результата. Закрываясь, она возвращает каретку, и команда
+    /// застаёт её там, где человек стоял до палитры: «закрыть» закрывает его
+    /// панель, «следующая панель» идёт от неё.
     /// </remarks>
     private void Run()
     {
         if (_card?.SelectedItem is not PaletteEntry chosen)
             return;
 
-        Close();
+        Close(NavigationMethod.Tab);
 
         _invoke(chosen.CommandId);
     }

@@ -100,8 +100,13 @@ public static class DockFocus
     private static bool Inside(Control element, Control root) =>
         ReferenceEquals(element, root) || element.GetVisualAncestors().Contains(root);
 
+    /// <summary>Первый, кто может взять фокус, — начиная с самой панели.</summary>
+    /// <remarks>
+    /// Сама панель в счёт: у плагина окно инструментов бывает одним контролом — полем, списком, — и
+    /// поиск среди потомков его пропускал, а каретка не возвращалась никуда.
+    /// </remarks>
     private static Control? First(Control panel) =>
-        panel.GetVisualDescendants()
+        panel.GetSelfAndVisualDescendants()
             .OfType<Control>()
             .FirstOrDefault(candidate =>
                 candidate is { Focusable: true, IsEffectivelyVisible: true, IsEffectivelyEnabled: true });
