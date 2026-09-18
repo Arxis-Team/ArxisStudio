@@ -19,6 +19,17 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class ControlTextsTests : IDisposable
 {
+    /// <summary>
+    /// Ресурсы, которые студия кладёт в приложение, — все до одного.
+    /// </summary>
+    /// <remarks>
+    /// Убирать надо всё, что положено: приложение у тестов одно на процесс, и забытый ресурс
+    /// перекрывал бы тему у соседей. Прежде уборка знала три ключа из четырёх, и переполнение вкладок
+    /// оставалось в приложении русским после этого теста.
+    /// </remarks>
+    private static readonly string[] Resources =
+        ["AxTextSearchClear", "AxTextMessageClose", "AxTextDialogClose", "AxTextTabOverflow", "AxTextBreadcrumbOverflow"];
+
     private readonly List<string> _added = [];
 
     public void Dispose()
@@ -39,7 +50,7 @@ public class ControlTextsTests : IDisposable
 
         using var attached = ControlTexts.Attach(Application.Current!);
 
-        _added.AddRange(["AxTextSearchClear", "AxTextMessageClose", "AxTextDialogClose"]);
+        _added.AddRange(Resources);
 
         var field = new AxSearchField { Text = "запрос" };
         var window = new Window { Content = field };
@@ -55,6 +66,36 @@ public class ControlTextsTests : IDisposable
         Localizer.Instance.SetLanguage(Localizer.FallbackLanguage);
 
         Assert.Equal("Clear search", AutomationProperties.GetName(clear));
+
+        window.Close();
+    }
+
+    /// <summary>
+    /// Кнопка переполнения крошек называется словом студии.
+    /// </summary>
+    /// <remarks>
+    /// Крошки вернулись в 7.1 со своей иконочной кнопкой: ведущие уровни пути прячутся за неё в узкой
+    /// колонке, и без имени диктор прочёл бы её словом «кнопка».
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_overflow_button_of_a_breadcrumb_speaks_the_language_of_the_studio()
+    {
+        Localizer.Instance.SetLanguage("ru");
+
+        using var attached = ControlTexts.Attach(Application.Current!);
+
+        _added.AddRange(Resources);
+
+        var path = new AxBreadcrumb { ItemsSource = new[] { "TestApp", "TestApp", "ViewModels", "Generated" }, Width = 120 };
+        var window = new Window { Content = path };
+
+        window.Show();
+        window.UpdateLayout();
+
+        var overflow = path.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "PART_Overflow");
+
+        Assert.True(overflow.IsVisible, "узкий путь не спрятал ни одного уровня");
+        Assert.Equal("Начало пути", AutomationProperties.GetName(overflow));
 
         window.Close();
     }

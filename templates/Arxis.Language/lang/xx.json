@@ -98,6 +98,7 @@
   "controls.message.close": "Close message",
   "controls.dialog.close": "Close",
   "controls.tabs.overflow": "More tabs",
+  "controls.breadcrumb.overflow": "Earlier path segments",
   "common.error": "Error",
   "common.all": "All files",
   "editor.loading": "Loading document…",

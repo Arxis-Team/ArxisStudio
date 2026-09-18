@@ -98,6 +98,7 @@
   "controls.message.close": "Закрыть сообщение",
   "controls.dialog.close": "Закрыть",
   "controls.tabs.overflow": "Ещё вкладки",
+  "controls.breadcrumb.overflow": "Начало пути",
   "common.error": "Ошибка",
   "common.all": "Все файлы",
   "editor.loading": "Загружаю документ…",

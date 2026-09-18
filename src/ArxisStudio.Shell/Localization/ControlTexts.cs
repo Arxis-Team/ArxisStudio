@@ -21,6 +21,7 @@ public static class ControlTexts
         ("AxTextMessageClose", "controls.message.close"),
         ("AxTextDialogClose", "controls.dialog.close"),
         ("AxTextTabOverflow", "controls.tabs.overflow"),
+        ("AxTextBreadcrumbOverflow", "controls.breadcrumb.overflow"),
     ];
 
     /// <summary>Кладёт тексты в ресурсы приложения и переводит их вместе со студией.</summary>

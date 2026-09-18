@@ -30,9 +30,23 @@ public class IconPixelTests
         RegexOptions.Compiled);
 
     /// <summary>Стиль, чей селектор называет значок, вместе с телом.</summary>
+    /// <remarks>
+    /// Приставка у стиля бывает: в разметке модулей и плагинов адрес по умолчанию — адрес студии, и
+    /// Avalonia пишется через <c>a:</c>. Без приставки счётчик видел стиль значка, но не разбирал его.
+    /// </remarks>
     private static readonly Regex IconStyles = new(
-        """<Style\s+Selector="[^"]*\bAxIcon\b[^"]*"\s*>(.*?)</Style>""",
+        """<(?:\w+:)?Style\s+Selector="[^"]*\bAxIcon\b[^"]*"\s*>(.*?)</(?:\w+:)?Style>""",
         RegexOptions.Compiled | RegexOptions.Singleline);
+
+    /// <summary>Размер ключом ресурса: атрибутом или сеттером.</summary>
+    private static readonly Regex ResourceSizes = new(
+        """(?:\b(?:Min|Max)?(?:Width|Height)="(\{[^"]*\})")|(?:\bProperty="(?:Min|Max)?(?:Width|Height)"\s+Value="(\{[^"]*\})")""",
+        RegexOptions.Compiled);
+
+    /// <summary>Единственные ключи, которыми значку разрешено задать размер, — ключи силуэтов плиток.</summary>
+    private static readonly Regex TileSizes = new(
+        """^\{(?:\w+:)?DynamicResource\s+AxTileGlyphSize(?:Large)?\}$""",
+        RegexOptions.Compiled);
 
     /// <summary>Значок, заведённый кодом, вместе с инициализатором.</summary>
     private static readonly Regex CodeIcons = new(
@@ -124,6 +138,60 @@ public class IconPixelTests
             "мелкий значок не у шеврона — размер набора шестнадцать: " + string.Join("; ", found));
     }
 
+    /// <summary>
+    /// Растянуть значок можно только ключом плитки.
+    /// </summary>
+    /// <remarks>
+    /// Плитка окна проекта — второе названное исключение из «размер один»: силуэт в 64 и 128 точек,
+    /// где единица сетки занимает целое число пикселей на каждом масштабе. Любой другой ключ — хотя
+    /// бы подложка плагина в 32 точки — вернул бы размер мимо правила, только записанный словом, а
+    /// не числом, и прошёл бы мимо запрета на числа.
+    /// </remarks>
+    [Fact]
+    public void An_icon_is_sized_by_the_named_tile_keys_alone()
+    {
+        var found = MarkupSources.All()
+            .SelectMany(source => MarkupIcons.Matches(source.Text).Select(match => match.Groups[1].Value)
+                .Concat(IconStyles.Matches(source.Text).Select(match => match.Groups[1].Value))
+                .SelectMany(text => ResourceSizes.Matches(text))
+                .Select(size => size.Groups[1].Success ? size.Groups[1].Value : size.Groups[2].Value)
+                .Where(value => !TileSizes.IsMatch(value))
+                .Select(value => $"{source.Name}: {value}"))
+            .ToList();
+
+        Assert.True(
+            found.Count == 0,
+            "значок растянут не ключом плитки AxTileGlyphSize[Large]: " + string.Join(", ", found));
+    }
+
+    /// <summary>
+    /// Силуэт размером плитки ложится в пиксели на каждом масштабе с шагом в четверть.
+    /// </summary>
+    /// <remarks>
+    /// Квадрат остановки — силуэт в семь единиц сетки с краями на целых. В плитку 64 единица занимает
+    /// 4 пикселя при 100 %, 5 при 125 %, 6, 7 и 8 дальше; в 128 — вдвое больше. Край заливки тогда
+    /// стоит на границе пикселя, и чернил ровно <c>(7 · единица)²</c> без единого пикселя каймы.
+    /// Размер берётся у ключа темы: правило держит ключ, а не число, переписанное в тест.
+    /// </remarks>
+    [AvaloniaTheory]
+    [InlineData("AxTileGlyphSize", 4)]
+    [InlineData("AxTileGlyphSizeLarge", 8)]
+    public void A_tile_sized_silhouette_lands_on_whole_pixels_at_every_scale(string key, int unit)
+    {
+        Assert.True(Avalonia.Application.Current!.TryFindResource(key, out var value), $"в теме нет ключа {key}");
+
+        var size = Assert.IsType<double>(value);
+
+        foreach (var scaling in new[] { 1d, 1.25, 1.5, 1.75, 2 })
+        {
+            var (solid, fringe) = Ink(AxIcons.Stop, scaling, size);
+            var side = 7 * unit * scaling;
+
+            Assert.True(fringe == 0, $"{key} при {scaling * 100} %: {fringe} пикселей каймы по краю силуэта");
+            Assert.True(solid == side * side, $"{key} при {scaling * 100} %: чернил {solid} пикселей вместо {side * side}");
+        }
+    }
+
     /// <summary>Счётчик видит каждый значок, заведённый разметкой и кодом.</summary>
     /// <remarks>
     /// Запрет разбирает текст, и форма записи, которой он не знает, прошла бы мимо молча.
@@ -165,11 +233,16 @@ public class IconPixelTests
     /// <summary>
     /// Чернила плюса белым на чёрном: сколько пикселей закрашено целиком и сколько — долей.
     /// </summary>
-    private static (int Solid, int Fringe) Ink(double scaling, double size)
+    private static (int Solid, int Fringe) Ink(double scaling, double size) => Ink(AxIcons.Plus, scaling, size);
+
+    /// <summary>
+    /// Чернила значка белым на чёрном: сколько пикселей закрашено целиком и сколько — долей.
+    /// </summary>
+    private static (int Solid, int Fringe) Ink(Geometry data, double scaling, double size)
     {
         var icon = new AxIcon
         {
-            Data = AxIcons.Plus,
+            Data = data,
             Foreground = Brushes.White,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top,
@@ -177,7 +250,9 @@ public class IconPixelTests
 
         icon.Width = icon.Height = size;
 
-        var window = new Window { Width = 64, Height = 64, Background = Brushes.Black, Content = icon };
+        // Окно шире значка: крупная плитка в 128 точек иначе обрезалась бы рамкой окна.
+        var room = Math.Max(64, size);
+        var window = new Window { Width = room, Height = room, Background = Brushes.Black, Content = icon };
 
         window.Show();
         window.SetRenderScaling(scaling);

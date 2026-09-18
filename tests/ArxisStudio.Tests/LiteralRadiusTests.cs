@@ -16,7 +16,7 @@ public class LiteralRadiusTests
 {
     /// <summary>Объявления скругления: атрибутом и сеттером.</summary>
     private static readonly Regex Radii = new(
-        """(?:\bCornerRadius="([^"]*)")|(?:<Setter\s+Property="CornerRadius"\s+Value="([^"]*)")""",
+        """(?:\bCornerRadius="([^"]*)")|(?:<(?:\w+:)?Setter\s+Property="CornerRadius"\s+Value="([^"]*)")""",
         RegexOptions.Compiled);
 
     /// <summary>Место, где скругление вообще упомянуто: им меряется полнота счётчика.</summary>

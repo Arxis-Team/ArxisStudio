@@ -38,7 +38,7 @@ public class LiteralSizeTests
 
     /// <summary>Объявления длины: атрибутом и сеттером.</summary>
     private static readonly Regex Sizes = new(
-        $"""(?:\b(?:{Properties})="([^"]*)")|(?:<Setter\s+Property="(?:{Properties})"\s+Value="([^"]*)")""",
+        $"""(?:\b(?:{Properties})="([^"]*)")|(?:<(?:\w+:)?Setter\s+Property="(?:{Properties})"\s+Value="([^"]*)")""",
         RegexOptions.Compiled);
 
     /// <summary>Место, где длина вообще упомянута: им меряется полнота счётчика.</summary>

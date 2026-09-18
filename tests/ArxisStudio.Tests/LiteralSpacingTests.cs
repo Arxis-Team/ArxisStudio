@@ -43,7 +43,7 @@ public class LiteralSpacingTests
 
     /// <summary>Объявления отступа: атрибутом и сеттером.</summary>
     private static readonly Regex Spacings = new(
-        """(?:\b(?:Margin|Padding|Spacing)="([^"]*)")|(?:<Setter\s+Property="(?:Margin|Padding|Spacing)"\s+Value="([^"]*)")""",
+        """(?:\b(?:Margin|Padding|Spacing)="([^"]*)")|(?:<(?:\w+:)?Setter\s+Property="(?:Margin|Padding|Spacing)"\s+Value="([^"]*)")""",
         RegexOptions.Compiled);
 
     /// <summary>

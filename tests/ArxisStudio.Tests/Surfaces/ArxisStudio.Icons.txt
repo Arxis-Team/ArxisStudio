@@ -1,4 +1,4 @@
-# StudioSdk 6.5
+# StudioSdk 7.1
 ArxisStudio.Icons.AxIcon : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Icons.AxIcon :: .ctor()
 ArxisStudio.Icons.AxIcon :: ArxisStudio.Icons.AxIconSize Size { get; set; }
@@ -18,6 +18,8 @@ ArxisStudio.Icons.AxIconSize :: Normal = 0
 ArxisStudio.Icons.AxIconSize :: Small = 1
 ArxisStudio.Icons.AxIcons : static class
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry AlignLeft { get; }
+ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Analyzer { get; }
+ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Assembly { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Binding { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Branch { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Bubble { get; }
@@ -34,9 +36,11 @@ ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Copy { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Dashboard { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry DataGrid { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Debug { get; }
+ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Dependencies { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Docs { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Document { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry DocumentCode { get; }
+ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry DocumentTile { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Download { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Edit { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Error { get; }
@@ -46,6 +50,8 @@ ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Filter { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry FitToScreen { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Folder { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry FolderOpen { get; }
+ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry FolderTile { get; }
+ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Framework { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Gear { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Grid { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry GridSnap { get; }
@@ -70,11 +76,13 @@ ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Plus { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Pointer { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Preview { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry PreviewOff { get; }
+ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Project { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Question { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Redo { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Refresh { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Search { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Settings { get; }
+ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Solution { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Sort { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Split { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Star { get; }

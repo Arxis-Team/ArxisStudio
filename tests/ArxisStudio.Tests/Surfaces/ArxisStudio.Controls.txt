@@ -1,4 +1,4 @@
-# StudioSdk 6.4
+# StudioSdk 7.1
 ArxisStudio.Controls.AxAvatar : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Controls.AxAvatar :: .ctor()
 ArxisStudio.Controls.AxAvatar :: ArxisStudio.Controls.AxAvatarShape Shape { get; set; }
@@ -33,6 +33,22 @@ ArxisStudio.Controls.AxBannerSeverity :: Error = 3
 ArxisStudio.Controls.AxBannerSeverity :: Information = 0
 ArxisStudio.Controls.AxBannerSeverity :: Success = 1
 ArxisStudio.Controls.AxBannerSeverity :: Warning = 2
+ArxisStudio.Controls.AxBreadcrumb : class : Avalonia.Controls.ItemsControl
+ArxisStudio.Controls.AxBreadcrumb :: .ctor()
+ArxisStudio.Controls.AxBreadcrumb :: event System.EventHandler<ArxisStudio.Controls.AxBreadcrumbNavigatedEventArgs> Navigated
+ArxisStudio.Controls.AxBreadcrumb :: static readonly Avalonia.Interactivity.RoutedEvent<ArxisStudio.Controls.AxBreadcrumbNavigatedEventArgs> NavigatedEvent
+ArxisStudio.Controls.AxBreadcrumbItem : class : Avalonia.Controls.Button
+ArxisStudio.Controls.AxBreadcrumbItem :: .ctor()
+ArxisStudio.Controls.AxBreadcrumbItem :: Avalonia.Media.Geometry? Icon { get; set; }
+ArxisStudio.Controls.AxBreadcrumbItem :: Avalonia.Media.IBrush? IconBrush { get; set; }
+ArxisStudio.Controls.AxBreadcrumbItem :: System.Boolean IsCurrent { get; }
+ArxisStudio.Controls.AxBreadcrumbItem :: static readonly Avalonia.DirectProperty<ArxisStudio.Controls.AxBreadcrumbItem, System.Boolean> IsCurrentProperty
+ArxisStudio.Controls.AxBreadcrumbItem :: static readonly Avalonia.StyledProperty<Avalonia.Media.Geometry> IconProperty
+ArxisStudio.Controls.AxBreadcrumbItem :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> IconBrushProperty
+ArxisStudio.Controls.AxBreadcrumbNavigatedEventArgs : sealed class : Avalonia.Interactivity.RoutedEventArgs
+ArxisStudio.Controls.AxBreadcrumbNavigatedEventArgs :: .ctor(Avalonia.Interactivity.RoutedEvent routedEvent, System.Object? item, System.Int32 index)
+ArxisStudio.Controls.AxBreadcrumbNavigatedEventArgs :: System.Int32 Index { get; }
+ArxisStudio.Controls.AxBreadcrumbNavigatedEventArgs :: System.Object? Item { get; }
 ArxisStudio.Controls.AxButton : class : Avalonia.Controls.Button
 ArxisStudio.Controls.AxButton :: .ctor()
 ArxisStudio.Controls.AxButton :: ArxisStudio.Controls.AxButtonAppearance Appearance { get; set; }
