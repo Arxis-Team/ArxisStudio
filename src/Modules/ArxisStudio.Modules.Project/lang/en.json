@@ -45,7 +45,7 @@
   "project.picker.all": "All files",
 
   "settings.project.twoColumns": "Show the project window in two columns",
-  "settings.project.iconSize": "Project window icon size: 0 — list, 1 — tiles, 2 — large tiles",
+  "settings.project.iconSize": "Project window icon size in points: 0 — list, empty — default",
   "project.options": "Window Options",
   "project.layout.one": "One Column",
   "project.layout.two": "Two Columns",
@@ -55,5 +55,6 @@
   "project.browser.capped": "Search results: first {0} of {1}",
   "project.browser.items": "Items: {0}",
   "project.browser.size": "Icon Size",
+  "project.browser.size.tip": "Icon size: Ctrl+Mouse Wheel, Ctrl+Plus and Ctrl+Minus; Ctrl+0 — default size",
   "project.menu.showInFolder": "Show in Folder"
 }

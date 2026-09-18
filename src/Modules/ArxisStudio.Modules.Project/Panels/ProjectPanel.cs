@@ -501,8 +501,8 @@ public sealed class ProjectPanel : ToolWindow
             _view.Query.Text = string.Empty;
     }
 
-    /// <summary>Ползунок сдвинули — ступень уходит в настройки.</summary>
-    private void Resize(int size)
+    /// <summary>Ступень сменили — ползунком, колесом или с клавиатуры, — и её размер уходит в настройки.</summary>
+    private void Resize(double size)
     {
         if (ProjectSettings.Read(Context.Settings).IconSize != size)
             Context.Settings.Set(ProjectSettings.IconSizeKey, size);

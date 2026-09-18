@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 
 namespace ArxisStudio.Modules.Project.Panels;
@@ -20,6 +21,7 @@ namespace ArxisStudio.Modules.Project.Panels;
 /// <para>
 /// Ползунок ступени пишет её в настройки, а применяет окно — из настройки, одной дорогой с правкой в
 /// окне настроек студии: иначе ползунок и настройка разошлись бы при первой правке с другой стороны.
+/// Колесо с Ctrl и Ctrl с плюсом, минусом и нулём двигают тот же ползунок.
 /// </para>
 /// </remarks>
 internal sealed class BrowserPane : IDisposable
@@ -28,19 +30,30 @@ internal sealed class BrowserPane : IDisposable
     private readonly ProjectModel _model;
     private readonly ProjectMenu _menu;
     private readonly Action<Node> _located;
-    private readonly Action<int> _resized;
+    private readonly Action<double> _resized;
     private readonly Action<string> _copy;
     private bool _sizing;
+
+    /// <summary>Доля щелчка колеса, накопленная тачпадом.</summary>
+    private double _wheel;
+
+    /// <summary>Плитка, которую держать в виду, когда список переложится по новой ступени.</summary>
+    private Tile? _anchor;
+
+    /// <summary>
+    /// Как вернуть клавиатуру в колонку после смены ступени; пусто — её там не было.
+    /// </summary>
+    private NavigationMethod? _refocus;
 
     /// <summary>Связывает колонку с разметкой.</summary>
     /// <param name="view">Разметка окна.</param>
     /// <param name="model">Модель окна.</param>
     /// <param name="menu">Меню узла — то же, что у дерева.</param>
     /// <param name="located">Колонка ушла в контейнер — дерево слева встаёт на него.</param>
-    /// <param name="resized">Человек сдвинул ползунок — ступень уходит в настройки.</param>
+    /// <param name="resized">Человек сменил ступень — её размер уходит в настройки.</param>
     /// <param name="copy">Положить текст в буфер обмена.</param>
     public BrowserPane(
-        ProjectPanelView view, ProjectModel model, ProjectMenu menu, Action<Node> located, Action<int> resized, Action<string> copy)
+        ProjectPanelView view, ProjectModel model, ProjectMenu menu, Action<Node> located, Action<double> resized, Action<string> copy)
     {
         _view = view;
         _model = model;
@@ -59,6 +72,7 @@ internal sealed class BrowserPane : IDisposable
 
         view.Path.Navigated += OnNavigated;
         view.Size.PropertyChanged += OnSizeChanged;
+        view.Browser.AddHandler(InputElement.PointerWheelChangedEvent, OnWheel, RoutingStrategies.Tunnel);
     }
 
     /// <summary>Список, который сейчас показан: плитки или строки.</summary>
@@ -82,16 +96,36 @@ internal sealed class BrowserPane : IDisposable
 
         _view.Path.Navigated -= OnNavigated;
         _view.Size.PropertyChanged -= OnSizeChanged;
+        _view.Browser.RemoveHandler(InputElement.PointerWheelChangedEvent, OnWheel);
     }
 
-    /// <summary>Ставит ползунок на ступень, не записывая её обратно в настройки.</summary>
-    /// <param name="size">Ступень.</param>
-    public void Show(int size)
+    /// <summary>Ставит ползунок и плитки на размер из настроек, не записывая его обратно.</summary>
+    /// <param name="size">Размер силуэта в точках, ноль — список; пусто — обычная ступень.</param>
+    public void Show(double? size)
     {
+        var ladder = TileLadder.Of(_view);
+        var position = ladder.Position(size);
+
         _sizing = true;
-        _view.Size.Value = size;
+        _view.Size.Maximum = ladder.Last;
+        _view.Size.Value = position;
         _sizing = false;
+
+        if (position > 0)
+            TileMetrics.Apply(_view.Tiles, ladder, ladder.Size(position));
+
+        Keep();
     }
+
+    /// <summary>
+    /// Сдвигает ступень на <paramref name="steps"/>: вверх — крупнее, вниз — мельче, мельче малой —
+    /// список. Выбранная плитка, а без неё та, что под мышью, остаётся в виду.
+    /// </summary>
+    /// <param name="steps">Сколько ступеней и куда.</param>
+    /// <param name="under">Плитка под мышью; пусто — ступень сменили с клавиатуры.</param>
+    /// <param name="method">Чем сменили: клавиатурой колонка вернёт себе и кольцо фокуса.</param>
+    public void Step(int steps, Tile? under = null, NavigationMethod method = NavigationMethod.Directional) =>
+        Stand((int)Math.Round(_view.Size.Value) + steps, under, method);
 
     /// <summary>Выделяет плитку узла в показанном списке.</summary>
     /// <param name="node">Узел.</param>
@@ -187,11 +221,97 @@ internal sealed class BrowserPane : IDisposable
                             && list.SelectedItem is Tile { Node.Path.IsEmpty: false } picked:
                 _copy(picked.Node.Path.Value);
                 break;
+
+            // Плюс и минус — с Shift и без: «+» на основной клавиатуре — это Shift и «=».
+            case Key.OemPlus or Key.Add when (e.KeyModifiers & ~KeyModifiers.Shift) == KeyModifiers.Control:
+                Step(1);
+                break;
+            case Key.OemMinus or Key.Subtract when (e.KeyModifiers & ~KeyModifiers.Shift) == KeyModifiers.Control:
+                Step(-1);
+                break;
+            case Key.D0 or Key.NumPad0 when e.KeyModifiers == KeyModifiers.Control:
+                Stand(TileLadder.Of(_view).Position(null), null, NavigationMethod.Directional);
+                break;
             default:
                 return;
         }
 
         e.Handled = true;
+    }
+
+    /// <summary>
+    /// Колесо с Ctrl меняет ступень, как в проводнике и в Unity: от себя — крупнее, на себя — мельче.
+    /// </summary>
+    /// <remarks>
+    /// Колесо ловится на спуске, раньше списка: иначе список листал бы, пока человек меняет размер. У
+    /// тачпада щелчок приходит долями, и они копятся до целого — ступень за щелчок, сколько бы событий
+    /// его ни несло; смена направления копилку сбрасывает.
+    /// </remarks>
+    private void OnWheel(object? sender, PointerWheelEventArgs e)
+    {
+        if (e.KeyModifiers != KeyModifiers.Control || e.Delta.Y == 0)
+            return;
+
+        e.Handled = true;
+        _wheel = Math.Sign(_wheel) == Math.Sign(e.Delta.Y) ? _wheel + e.Delta.Y : e.Delta.Y;
+
+        var steps = (int)Math.Truncate(_wheel);
+
+        if (steps == 0)
+            return;
+
+        _wheel -= steps;
+        Step(steps, TileOf(e.Source), NavigationMethod.Pointer);
+    }
+
+    /// <summary>Ставит ползунок в положение — дальше ступень идёт обычной дорогой ползунка.</summary>
+    private void Stand(int position, Tile? under, NavigationMethod method)
+    {
+        var from = (int)Math.Round(_view.Size.Value);
+        var to = Math.Clamp(position, 0, (int)_view.Size.Maximum);
+
+        if (to == from)
+            return;
+
+        _anchor = Selected ?? under;
+        _refocus = Shown.IsKeyboardFocusWithin ? method : null;
+        _view.Size.Value = to;
+    }
+
+    /// <summary>
+    /// Держит в виду плитку, которую человек видел до смены ступени, и возвращает колонке клавиатуру.
+    /// </summary>
+    /// <remarks>
+    /// Список перекладывает плитки по новым размерам в следующем проходе раскладки, и прокрутка сразу
+    /// попала бы в прежние места — поэтому она ждёт этого прохода. Клавиатуру теряет смена списка:
+    /// ступень «список» прячет плитки, а с ними и плитку в фокусе, и Ctrl+минус оставлял бы каретку
+    /// нигде. Она возвращается на ту же плитку — строкой или плиткой, чем та стала.
+    /// </remarks>
+    private void Keep()
+    {
+        if (_anchor is null && _refocus is null)
+            return;
+
+        var (anchor, refocus) = (_anchor, _refocus);
+
+        _anchor = null;
+        _refocus = null;
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                var list = Shown;
+                var kept = anchor is not null && _model.Browser.Items.Contains(anchor) ? anchor : list.SelectedItem;
+
+                if (kept is not null)
+                    list.ScrollIntoView(kept);
+
+                if (refocus is { } method && !list.IsKeyboardFocusWithin
+                    && (kept is null ? list.ContainerFromIndex(0) : list.ContainerFromItem(kept)) is { } container)
+                {
+                    container.Focus(method);
+                }
+            },
+            DispatcherPriority.Background);
     }
 
     private void OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -227,7 +347,7 @@ internal sealed class BrowserPane : IDisposable
     private void OnSizeChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
         if (e.Property == RangeBase.ValueProperty && !_sizing)
-            _resized((int)Math.Round(_view.Size.Value));
+            _resized(TileLadder.Of(_view).Size((int)Math.Round(_view.Size.Value)));
     }
 
     /// <summary>Плитка, в которой пришлось событие.</summary>

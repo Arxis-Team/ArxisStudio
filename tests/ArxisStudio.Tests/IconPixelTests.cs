@@ -43,9 +43,12 @@ public class IconPixelTests
         """(?:\b(?:Min|Max)?(?:Width|Height)="(\{[^"]*\})")|(?:\bProperty="(?:Min|Max)?(?:Width|Height)"\s+Value="(\{[^"]*\})")""",
         RegexOptions.Compiled);
 
-    /// <summary>Единственные ключи, которыми значку разрешено задать размер, — ключи силуэтов плиток.</summary>
+    /// <summary>
+    /// Единственное, чем значку разрешено задать размер, — лестница плитки: ключ её ступени у темы или
+    /// ступень, которую колонка окна проекта поставила списку плиток.
+    /// </summary>
     private static readonly Regex TileSizes = new(
-        """^\{(?:\w+:)?DynamicResource\s+AxTileGlyphSize(?:Large)?\}$""",
+        """^\{(?:\w+:)?(?:DynamicResource\s+AxTileGlyphSize(?:Small|Large)?|Binding\s+\$parent\[AxListBox\]\.\((?:\w+:)?TileMetrics\.Glyph\))\}$""",
         RegexOptions.Compiled);
 
     /// <summary>Значок, заведённый кодом, вместе с инициализатором.</summary>
@@ -139,13 +142,14 @@ public class IconPixelTests
     }
 
     /// <summary>
-    /// Растянуть значок можно только ключом плитки.
+    /// Растянуть значок можно только лестницей плитки.
     /// </summary>
     /// <remarks>
-    /// Плитка окна проекта — второе названное исключение из «размер один»: силуэт в 64 и 128 точек,
-    /// где единица сетки занимает целое число пикселей на каждом масштабе. Любой другой ключ — хотя
-    /// бы подложка плагина в 32 точки — вернул бы размер мимо правила, только записанный словом, а
-    /// не числом, и прошёл бы мимо запрета на числа.
+    /// Плитка окна проекта — второе названное исключение из «размер один»: силуэт на ступенях
+    /// лестницы темы, которые ложатся в пиксели на каждом масштабе, — сами или посаженные на пиксели
+    /// значком. Размер значку даёт ключ ступени или ступень, поставленная списку плиток
+    /// (<c>TileMetrics.Glyph</c>). Любой другой ключ — хотя бы подложка плагина в 32 точки — вернул бы
+    /// размер мимо правила, только записанный словом, а не числом, и прошёл бы мимо запрета на числа.
     /// </remarks>
     [Fact]
     public void An_icon_is_sized_by_the_named_tile_keys_alone()
@@ -161,34 +165,50 @@ public class IconPixelTests
 
         Assert.True(
             found.Count == 0,
-            "значок растянут не ключом плитки AxTileGlyphSize[Large]: " + string.Join(", ", found));
+            "значок растянут не лестницей плитки — ни ключом её ступени, ни TileMetrics.Glyph: " + string.Join(", ", found));
     }
 
     /// <summary>
-    /// Силуэт размером плитки ложится в пиксели на каждом масштабе с шагом в четверть.
+    /// Силуэт на каждой ступени лестницы плитки ложится в пиксели на каждом масштабе с шагом в четверть.
     /// </summary>
     /// <remarks>
-    /// Квадрат остановки — силуэт в семь единиц сетки с краями на целых. В плитку 64 единица занимает
-    /// 4 пикселя при 100 %, 5 при 125 %, 6, 7 и 8 дальше; в 128 — вдвое больше. Край заливки тогда
-    /// стоит на границе пикселя, и чернил ровно <c>(7 · единица)²</c> без единого пикселя каймы.
-    /// Размер берётся у ключа темы: правило держит ключ, а не число, переписанное в тест.
+    /// Квадрат остановки — силуэт с краями на целых точках сетки, от 5 до 12. На обычной и крупной
+    /// ступенях единица сетки — целое число пикселей при любом масштабе, и край стоит на границе
+    /// пикселя сам; на промежуточных — у 48 при 125 % единица 3,75 пикселя — значок сажает силуэт
+    /// вершинами на пиксели. В обоих случаях каймы нет ни пикселя, а чернил — квадрат между краями,
+    /// поставленными на ближайшие к своему месту пиксели. Ступени берутся у ключей темы: правило держит
+    /// лестницу, а не числа, переписанные в тест.
     /// </remarks>
-    [AvaloniaTheory]
-    [InlineData("AxTileGlyphSize", 4)]
-    [InlineData("AxTileGlyphSizeLarge", 8)]
-    public void A_tile_sized_silhouette_lands_on_whole_pixels_at_every_scale(string key, int unit)
+    [AvaloniaFact]
+    public void Every_step_of_the_tile_ladder_lands_on_whole_pixels_at_every_scale()
     {
-        Assert.True(Avalonia.Application.Current!.TryFindResource(key, out var value), $"в теме нет ключа {key}");
+        var small = Theme("AxTileGlyphSizeSmall");
+        var large = Theme("AxTileGlyphSizeLarge");
+        var step = Theme("AxTileGlyphSizeStep");
+        var steps = 0;
 
-        var size = Assert.IsType<double>(value);
-
-        foreach (var scaling in new[] { 1d, 1.25, 1.5, 1.75, 2 })
+        for (var size = small; size <= large; size += step, steps++)
         {
-            var (solid, fringe) = Ink(AxIcons.Stop, scaling, size);
-            var side = 7 * unit * scaling;
+            foreach (var scaling in new[] { 1d, 1.25, 1.5, 1.75, 2 })
+            {
+                var (solid, fringe) = Ink(AxIcons.Stop, scaling, size);
+                var cell = size * scaling;
+                var side = Edge(12, cell) - Edge(5, cell);
 
-            Assert.True(fringe == 0, $"{key} при {scaling * 100} %: {fringe} пикселей каймы по краю силуэта");
-            Assert.True(solid == side * side, $"{key} при {scaling * 100} %: чернил {solid} пикселей вместо {side * side}");
+                Assert.True(fringe == 0, $"ступень {size} при {scaling * 100} %: {fringe} пикселей каймы по краю силуэта");
+                Assert.True(solid == side * side, $"ступень {size} при {scaling * 100} %: чернил {solid} пикселей вместо {side * side}");
+            }
+        }
+
+        Assert.True(steps > 2, "у лестницы плитки меньше трёх ступеней — проверять нечего");
+
+        static double Edge(int units, double cell) => Math.Round(units * cell / 16, MidpointRounding.AwayFromZero);
+
+        static double Theme(string key)
+        {
+            Assert.True(Avalonia.Application.Current!.TryFindResource(key, out var value), $"в теме нет ключа {key}");
+
+            return Assert.IsType<double>(value);
         }
     }
 

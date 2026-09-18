@@ -18,7 +18,7 @@
     ],
     "settings": [
       { "key": "project.twoColumns", "type": "bool", "scope": "user", "title": "%settings.project.twoColumns%", "default": true },
-      { "key": "project.iconSize", "type": "number", "scope": "user", "title": "%settings.project.iconSize%", "default": 1 }
+      { "key": "project.iconSize", "type": "number", "scope": "user", "title": "%settings.project.iconSize%" }
     ]
   },
   "activation": [ "onStartup" ]

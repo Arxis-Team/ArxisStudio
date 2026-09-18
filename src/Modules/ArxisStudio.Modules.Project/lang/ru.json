@@ -45,7 +45,7 @@
   "project.picker.all": "Все файлы",
 
   "settings.project.twoColumns": "Показывать окно проекта в две колонки",
-  "settings.project.iconSize": "Размер значков в окне проекта: 0 — список, 1 — плитки, 2 — крупные плитки",
+  "settings.project.iconSize": "Размер значков в окне проекта, в точках: 0 — список, пусто — обычный",
   "project.options": "Параметры окна",
   "project.layout.one": "Одна колонка",
   "project.layout.two": "Две колонки",
@@ -55,5 +55,6 @@
   "project.browser.capped": "Результаты поиска: первые {0} из {1}",
   "project.browser.items": "Элементов: {0}",
   "project.browser.size": "Размер значков",
+  "project.browser.size.tip": "Размер значков: Ctrl+колесо мыши, Ctrl+Плюс и Ctrl+Минус; Ctrl+0 — обычный размер",
   "project.menu.showInFolder": "Показать в папке"
 }

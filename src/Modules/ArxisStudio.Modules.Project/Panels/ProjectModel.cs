@@ -134,17 +134,11 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
     /// <summary>Сколько колонок сетки занимает дерево: в одну колонку — всю ширину.</summary>
     public int TreeSpan => IsTwoColumns ? 1 : 3;
 
-    /// <summary>Ступень правой колонки: список, плитки, крупные плитки.</summary>
-    public int IconSize { get; private set; } = ProjectSettings.Tiles;
-
     /// <summary>Правая колонка — плитками.</summary>
-    public bool ShowsTiles => IconSize != ProjectSettings.List;
+    public bool ShowsTiles => !ShowsList;
 
     /// <summary>Правая колонка — списком.</summary>
-    public bool ShowsList => IconSize == ProjectSettings.List;
-
-    /// <summary>Плитки — крупные.</summary>
-    public bool LargeTiles => IconSize == ProjectSettings.LargeTiles;
+    public bool ShowsList { get; private set; }
 
     /// <summary>Правая колонка показывает найденное, а не контейнер.</summary>
     public bool IsSearching => Browser.IsSearching;
@@ -197,7 +191,7 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
         var columns = settings.TwoColumns != IsTwoColumns;
 
         IsTwoColumns = settings.TwoColumns;
-        IconSize = settings.IconSize;
+        ShowsList = settings.ShowsList;
 
         if (columns)
         {

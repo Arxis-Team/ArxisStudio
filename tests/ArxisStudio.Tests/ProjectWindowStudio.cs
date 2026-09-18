@@ -225,6 +225,16 @@ internal sealed class ProjectWindowStudio : IDisposable
         Dispatcher.UIThread.RunJobs();
     }
 
+    /// <summary>Крутит колесо над серединой, держа клавиши, как их держит человек.</summary>
+    /// <param name="target">Над чем.</param>
+    /// <param name="notches">Щелчков колеса: от себя — больше нуля; тачпад шлёт доли.</param>
+    /// <param name="modifiers">Зажатые клавиши.</param>
+    public void Wheel(Visual target, double notches, RawInputModifiers modifiers = RawInputModifiers.None)
+    {
+        Window.MouseWheel(Middle(target), new Vector(0, notches), modifiers);
+        Dispatcher.UIThread.RunJobs();
+    }
+
     /// <summary>Щёлкает мышью дважды в середину.</summary>
     public void DoubleClick(Visual target)
     {

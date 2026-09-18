@@ -193,16 +193,18 @@
 
           <!--
               Строка выбранного и ползунок — внизу, как у Unity: путь выбранного, а без выбора —
-              сколько в колонке предметов. Ступеней у ползунка три: список, плитки, крупные плитки;
-              размеры ступеней — ключи темы, а в настройках лежит только номер ступени.
+              сколько в колонке предметов. Ползунок идёт по лестнице плитки: первое положение —
+              список, дальше ступени силуэта от малой до крупной. Сколько их, знает тема, и край
+              ползунка ставит колонка; колесо с Ctrl и Ctrl с плюсом и минусом двигают тот же ползунок.
           -->
           <a:Border a:DockPanel.Dock="Bottom" Padding="{a:DynamicResource AxToolBarPadding}">
             <a:DockPanel>
               <AxSlider x:Name="Size" a:DockPanel.Dock="Right" VerticalAlignment="Center"
-                        Minimum="0" Maximum="2" TickFrequency="1" IsSnapToTickEnabled="True"
+                        Minimum="0" TickFrequency="1" IsSnapToTickEnabled="True"
                         Width="{a:DynamicResource AxTileSliderWidth}"
-                        a:ToolTip.Tip="{Text project.browser.size}"
-                        a:AutomationProperties.Name="{Text project.browser.size}"/>
+                        a:ToolTip.Tip="{Text project.browser.size.tip}"
+                        a:AutomationProperties.Name="{Text project.browser.size}"
+                        a:AutomationProperties.HelpText="{Text project.browser.size.tip}"/>
               <a:TextBlock x:Name="Status" Text="{a:Binding Status}" AxText.Tone="Secondary"
                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
             </a:DockPanel>
@@ -213,16 +215,16 @@
           <a:Panel>
 
             <!--
-                Плитки: что на диске — силуэтом, что в модели — подложкой со значком его вида. Размер
-                силуэта и ширина плитки — ключи темы двух ступеней, и крупную ступень включает класс
-                списка, а не число в плитке: число разошлось бы с темой при первой её правке.
+                Плитки: что на диске — силуэтом, что в модели — подложкой со значком его вида. Размеры
+                плитки — силуэт, её ширина, подложка — колонка ставит списку по ступени лестницы
+                (p:TileMetrics), а плитка берёт их у списка: числа лестницы — ключи темы, и в разметке
+                их нет.
 
-                Подложка на обеих ступенях одна — 64: значок на ней размера набора, и на 128 она
+                Подложка не крупнее обычной ступени: значок на ней размера набора, и на крупных она
                 стояла бы пустым квадратом. Место под значок растёт со ступенью, и подложка встаёт
                 в нём по центру — подписи ряда остаются на одной линии.
             -->
             <AxListBox x:Name="Tiles" ItemsSource="{a:Binding Browser.Items}" IsVisible="{a:Binding ShowsTiles}"
-                       a:Classes.tile-large="{a:Binding LargeTiles}"
                        Padding="{a:DynamicResource AxTilePadding}"
                        a:ScrollViewer.HorizontalScrollBarVisibility="Disabled">
               <AxListBox.ItemsPanel>
@@ -245,28 +247,18 @@
                   <a:Setter Property="a:AutomationProperties.HelpText" Value="{a:Binding Hint}"/>
                 </a:Style>
                 <a:Style Selector="a|StackPanel.tile">
-                  <a:Setter Property="Width" Value="{a:DynamicResource AxTileWidth}"/>
-                </a:Style>
-                <a:Style Selector="AxListBox.tile-large a|StackPanel.tile">
-                  <a:Setter Property="Width" Value="{a:DynamicResource AxTileWidthLarge}"/>
+                  <a:Setter Property="Width" Value="{a:Binding $parent[AxListBox].(p:TileMetrics.Width)}"/>
                 </a:Style>
                 <a:Style Selector="AxIcon.tile">
-                  <a:Setter Property="Width" Value="{a:DynamicResource AxTileGlyphSize}"/>
-                  <a:Setter Property="Height" Value="{a:DynamicResource AxTileGlyphSize}"/>
-                </a:Style>
-                <a:Style Selector="AxListBox.tile-large AxIcon.tile">
-                  <a:Setter Property="Width" Value="{a:DynamicResource AxTileGlyphSizeLarge}"/>
-                  <a:Setter Property="Height" Value="{a:DynamicResource AxTileGlyphSizeLarge}"/>
+                  <a:Setter Property="Width" Value="{a:Binding $parent[AxListBox].(p:TileMetrics.Glyph)}"/>
+                  <a:Setter Property="Height" Value="{a:Binding $parent[AxListBox].(p:TileMetrics.Glyph)}"/>
                 </a:Style>
                 <a:Style Selector="a|Panel.glyph">
-                  <a:Setter Property="Height" Value="{a:DynamicResource AxTileGlyphSize}"/>
-                </a:Style>
-                <a:Style Selector="AxListBox.tile-large a|Panel.glyph">
-                  <a:Setter Property="Height" Value="{a:DynamicResource AxTileGlyphSizeLarge}"/>
+                  <a:Setter Property="Height" Value="{a:Binding $parent[AxListBox].(p:TileMetrics.Glyph)}"/>
                 </a:Style>
                 <a:Style Selector="a|Border.plate">
-                  <a:Setter Property="Width" Value="{a:DynamicResource AxTileGlyphSize}"/>
-                  <a:Setter Property="Height" Value="{a:DynamicResource AxTileGlyphSize}"/>
+                  <a:Setter Property="Width" Value="{a:Binding $parent[AxListBox].(p:TileMetrics.Plate)}"/>
+                  <a:Setter Property="Height" Value="{a:Binding $parent[AxListBox].(p:TileMetrics.Plate)}"/>
                   <a:Setter Property="Background" Value="{a:DynamicResource AxSurfaceRaisedBrush}"/>
                   <a:Setter Property="CornerRadius" Value="{a:DynamicResource AxCornerRadiusLarge}"/>
                 </a:Style>
@@ -330,7 +322,8 @@
                     </a:Border>
                     <p:Pill HorizontalAlignment="Center">
                       <a:TextBlock Text="{a:Binding Name}" TextAlignment="Center" TextWrapping="Wrap"
-                                   MaxLines="2" TextTrimming="CharacterEllipsis"/>
+                                   MaxLines="{a:Binding $parent[AxListBox].(p:TileMetrics.Lines)}"
+                                   TextTrimming="CharacterEllipsis"/>
                     </p:Pill>
                   </a:StackPanel>
                 </a:DataTemplate>

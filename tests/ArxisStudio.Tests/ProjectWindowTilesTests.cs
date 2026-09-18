@@ -144,38 +144,241 @@ public class ProjectWindowTilesTests
     }
 
     /// <summary>
-    /// Ползунок идёт по ступеням: список, плитки, крупные плитки — и ступень ложится в настройки.
+    /// Ползунок идёт по лестнице плитки: первое положение — список, дальше ступени темы от малой до
+    /// крупной, — и размер ступени ложится в настройки.
     /// </summary>
     [AvaloniaFact]
-    public async Task The_slider_steps_through_a_list_tiles_and_large_tiles()
+    public async Task The_slider_walks_the_tile_ladder()
     {
         using var studio = await TwoColumns();
 
         studio.Select("App");
 
+        var (small, normal, large, step) = Ladder(studio);
+
+        Assert.Equal(((large - small) / step) + 1, studio.View.Size.Maximum);
+        Assert.Equal(((normal - small) / step) + 1, studio.View.Size.Value);
+        Assert.Equal(normal, Silhouette(studio, "Program.cs").Bounds.Width);
+
         studio.View.Size.Value = 0;
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Equal(0d, studio.Settings.Get<double?>(ProjectSettings.IconSizeKey));
-        Assert.True(studio.View.Files.IsEffectivelyVisible, "на ступени «список» списка не видно");
+        Assert.Equal(ProjectSettings.List, studio.Settings.Get<double?>(ProjectSettings.IconSizeKey));
+        Assert.True(studio.View.Files.IsEffectivelyVisible, "в положении «список» списка не видно");
         Assert.False(studio.View.Tiles.IsEffectivelyVisible);
 
-        studio.View.Size.Value = 2;
+        studio.View.Size.Value = studio.View.Size.Maximum;
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Contains("tile-large", studio.View.Tiles.Classes);
-        Assert.Equal(studio.Resource("AxTileGlyphSizeLarge"), Silhouette(studio, "Program.cs").Bounds.Width);
+        Assert.Equal(large, studio.Settings.Get<double?>(ProjectSettings.IconSizeKey));
+        Assert.Equal(large, Silhouette(studio, "Program.cs").Bounds.Width);
+        Assert.Equal(studio.Resource("AxTileWidthLarge"), Body(studio, "Program.cs").Bounds.Width);
 
-        // Подложка на крупной ступени не растёт — значок на ней размера набора, — а подписи ряда
+        // Подложка крупнее обычной ступени не растёт — значок на ней размера набора, — а подписи ряда
         // стоят на одной линии: место под значок растёт со ступенью у всех плиток.
-        Assert.Equal(studio.Resource("AxTileGlyphSize"), Plate(studio, "Dependencies").Bounds.Width);
+        Assert.Equal(normal, Plate(studio, "Dependencies").Bounds.Width);
         Assert.Equal(Top(studio, Label(studio, "Assets")), Top(studio, Label(studio, "Dependencies")));
 
         studio.View.Size.Value = 1;
         Dispatcher.UIThread.RunJobs();
 
-        Assert.DoesNotContain("tile-large", studio.View.Tiles.Classes);
-        Assert.Equal(studio.Resource("AxTileGlyphSize"), Silhouette(studio, "Program.cs").Bounds.Width);
+        Assert.Equal(small, studio.Settings.Get<double?>(ProjectSettings.IconSizeKey));
+        Assert.Equal(small, Silhouette(studio, "Program.cs").Bounds.Width);
+
+        // Мельче обычной ступени подложка идёт за силуэтом: места под значок ей больше не дано.
+        Assert.Equal(small, Plate(studio, "Dependencies").Bounds.Width);
+
+        // И подпись там в строку с многоточием: две строки на узкой плитке переломили бы почти
+        // каждое имя посреди слова.
+        var line = Label(studio, "Views").Bounds.Height;
+
+        Assert.All(["Dependencies", "App.axaml.cs", "app.manifest"], name => Assert.Equal(line, Label(studio, name).Bounds.Height));
+    }
+
+    /// <summary>
+    /// Колесо с Ctrl меняет ступень по щелчку: от себя — крупнее, на себя — мельче, мельче малой —
+    /// список; у крупной лестница кончается. Без Ctrl колесо ступени не трогает.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Ctrl_and_the_wheel_step_through_the_ladder()
+    {
+        using var studio = await TwoColumns();
+
+        studio.Select("App");
+
+        var (_, normal, _, step) = Ladder(studio);
+        var start = studio.View.Size.Value;
+
+        studio.Wheel(TileItem(studio, "Views"), 1, RawInputModifiers.Control);
+
+        Assert.Equal(start + 1, studio.View.Size.Value);
+        Assert.Equal(normal + step, studio.Settings.Get<double?>(ProjectSettings.IconSizeKey));
+        Assert.Equal(normal + step, Silhouette(studio, "Program.cs").Bounds.Width);
+
+        studio.Wheel(TileItem(studio, "Views"), -2, RawInputModifiers.Control);
+
+        Assert.Equal(start - 1, studio.View.Size.Value);
+
+        studio.Wheel(TileItem(studio, "Views"), -1);
+
+        Assert.Equal(start - 1, studio.View.Size.Value);
+
+        studio.View.Size.Value = 1;
+        Dispatcher.UIThread.RunJobs();
+        studio.Wheel(TileItem(studio, "Views"), -1, RawInputModifiers.Control);
+
+        Assert.Equal(0d, studio.View.Size.Value);
+        Assert.True(studio.View.Files.IsEffectivelyVisible, "мельче малой ступени колонка не стала списком");
+
+        studio.Wheel(studio.View.Files, 1, RawInputModifiers.Control);
+
+        Assert.Equal(1d, studio.View.Size.Value);
+
+        studio.View.Size.Value = studio.View.Size.Maximum;
+        Dispatcher.UIThread.RunJobs();
+
+        // Колесо с Ctrl — ступень, а не прокрутка: у крупной ступени лестница кончилась, и список
+        // всё равно стоит на месте.
+        var viewer = studio.View.Tiles.GetVisualDescendants().OfType<ScrollViewer>().First();
+
+        viewer.Offset = new Vector(0, viewer.Extent.Height);
+        Dispatcher.UIThread.RunJobs();
+
+        var offset = viewer.Offset;
+
+        Assert.True(offset.Y > 0, "крупные плитки уместились без прокрутки — проверять нечего");
+
+        studio.Wheel(TileItem(studio, "Views"), 1, RawInputModifiers.Control);
+
+        Assert.Equal(studio.View.Size.Maximum, studio.View.Size.Value);
+        Assert.Equal(offset, viewer.Offset);
+    }
+
+    /// <summary>
+    /// Тачпад шлёт щелчок колеса долями, и ступень меняется, когда доли сложатся в целый щелчок, —
+    /// а не на каждое событие.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_touchpad_steps_once_per_whole_notch()
+    {
+        using var studio = await TwoColumns();
+
+        studio.Select("App");
+
+        var start = studio.View.Size.Value;
+
+        studio.Wheel(TileItem(studio, "Views"), 0.4, RawInputModifiers.Control);
+        studio.Wheel(TileItem(studio, "Views"), 0.4, RawInputModifiers.Control);
+
+        Assert.Equal(start, studio.View.Size.Value);
+
+        // Смена направления копилку сбрасывает: целый щелчок назад — целая ступень назад, и восемь
+        // десятых, накопленных вперёд, его не съедают.
+        studio.Wheel(TileItem(studio, "Views"), -1, RawInputModifiers.Control);
+
+        Assert.Equal(start - 1, studio.View.Size.Value);
+
+        studio.Wheel(TileItem(studio, "Views"), 0.4, RawInputModifiers.Control);
+        studio.Wheel(TileItem(studio, "Views"), 0.4, RawInputModifiers.Control);
+        studio.Wheel(TileItem(studio, "Views"), 0.4, RawInputModifiers.Control);
+
+        Assert.Equal(start, studio.View.Size.Value);
+    }
+
+    /// <summary>
+    /// С клавиатуры ступень меняют Ctrl с плюсом и минусом — основными и цифровыми, — а Ctrl+0
+    /// возвращает обычную.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Ctrl_plus_minus_and_zero_step_from_the_keyboard()
+    {
+        using var studio = await TwoColumns();
+
+        studio.Select("App");
+
+        var (_, normal, _, _) = Ladder(studio);
+        var start = studio.View.Size.Value;
+
+        studio.Press(studio.View.Tiles, Key.OemPlus, KeyModifiers.Control);
+        studio.Press(studio.View.Tiles, Key.Add, KeyModifiers.Control);
+
+        Assert.Equal(start + 2, studio.View.Size.Value);
+
+        studio.Press(studio.View.Tiles, Key.OemMinus, KeyModifiers.Control);
+
+        Assert.Equal(start + 1, studio.View.Size.Value);
+
+        studio.Press(studio.View.Tiles, Key.D0, KeyModifiers.Control);
+
+        Assert.Equal(start, studio.View.Size.Value);
+        Assert.Equal(normal, studio.Settings.Get<double?>(ProjectSettings.IconSizeKey));
+
+        // «+» на основной клавиатуре — это Shift и «=»: так его нажимает всякий, кто не знает о «=».
+        studio.Press(studio.View.Tiles, Key.OemPlus, KeyModifiers.Control | KeyModifiers.Shift);
+
+        Assert.Equal(start + 1, studio.View.Size.Value);
+    }
+
+    /// <summary>
+    /// Клавиатура остаётся в колонке, когда ступень превращает плитки в список и обратно — на том же
+    /// предмете.
+    /// </summary>
+    /// <remarks>
+    /// Ступень «список» прячет плитки вместе с плиткой в фокусе, и Ctrl+минус оставлял бы каретку
+    /// нигде: следующее нажатие шло бы в пустоту, а не в колонку.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task The_keyboard_stays_in_the_column_when_tiles_turn_into_a_list()
+    {
+        using var studio = await TwoColumns();
+
+        studio.Select("App");
+        studio.View.Size.Value = 1;
+        Dispatcher.UIThread.RunJobs();
+
+        var views = TileItem(studio, "Views");
+
+        studio.View.Tiles.SelectedItem = views.DataContext;
+        views.Focus();
+        Dispatcher.UIThread.RunJobs();
+
+        studio.Press(views, Key.OemMinus, KeyModifiers.Control);
+
+        Assert.Equal(0d, studio.View.Size.Value);
+        Assert.True(studio.View.Files.IsKeyboardFocusWithin, "плитки стали строками, а клавиатура осталась нигде");
+        Assert.Same(views.DataContext, Focused(studio).DataContext);
+
+        studio.Press(Focused(studio), Key.OemPlus, KeyModifiers.Control);
+
+        Assert.Equal(1d, studio.View.Size.Value);
+        Assert.True(studio.View.Tiles.IsKeyboardFocusWithin, "строки стали плитками, а клавиатура осталась нигде");
+        Assert.Same(views.DataContext, Focused(studio).DataContext);
+    }
+
+    /// <summary>
+    /// Выбранная плитка остаётся в виду, когда ступень растёт: список перекладывается, и колонка
+    /// прокручивается к ней, а не остаётся там, где стояла.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task The_picked_tile_stays_in_view_when_the_step_changes()
+    {
+        using var studio = await TwoColumns();
+
+        studio.Select("App");
+        studio.View.Size.Value = 1;
+        Dispatcher.UIThread.RunJobs();
+
+        var program = studio.Model.Browser.Items.Single(tile => tile.Name == "Program.cs");
+
+        studio.View.Tiles.SelectedItem = program;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(InView(studio.View.Tiles, program), "на малой ступени плитка не видна и без прокрутки");
+
+        studio.Wheel(TileItem(studio, "Dependencies"), studio.View.Size.Maximum - 1, RawInputModifiers.Control);
+
+        Assert.Equal(studio.View.Size.Maximum, studio.View.Size.Value);
+        Assert.True(InView(studio.View.Tiles, program), "выбранная плитка уехала из виду, когда плитки выросли");
     }
 
     /// <summary>
@@ -416,19 +619,66 @@ public class ProjectWindowTilesTests
         Assert.Equal("Program.cs", studio.Selected.Name);
     }
 
-    /// <summary>Ступень из чужих рук — файла, окна настроек — зажимается в три ступени.</summary>
+    /// <summary>
+    /// Размер из настроек встаёт на ближайшую ступень: прежние номера 1 и 2 — обычные и крупные
+    /// плитки, ноль и меньше — список, чужое число — ближайшая ступень, из двух равных — меньшая.
+    /// </summary>
+    /// <remarks>
+    /// Настройку правят руками и в окне настроек, а номера 1 и 2 лежат в ней с тех пор, как ступеней
+    /// было три: окно не имеет права понять их как 32 и 48 точек.
+    /// </remarks>
     [AvaloniaFact]
-    public void An_icon_size_out_of_range_is_clamped()
+    public void A_stored_size_lands_on_the_nearest_step()
     {
-        using var studio = new ProjectWindowStudio();
+        using var studio = new ProjectWindowStudio(twoColumns: true);
 
-        foreach (var (written, read) in new[] { (7d, 2), (-3d, 0), (1.4d, 1), (1.6d, 2) })
+        var (small, normal, large, step) = Ladder(studio);
+
+        Assert.Equal(((normal - small) / step) + 1, studio.View.Size.Value);
+
+        foreach (var (written, glyph) in new (double, double?)[]
+        {
+            (1, normal),
+            (2, large),
+            (0, null),
+            (-3, null),
+            (7, small),
+            (normal + (step / 2), normal),
+            (normal + (step * 0.6), normal + step),
+            (1000, large),
+        })
         {
             studio.Settings.Set(ProjectSettings.IconSizeKey, written);
+            Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal(read, ProjectSettings.Read(studio.Settings).IconSize);
+            Assert.Equal(glyph is { } size ? ((size - small) / step) + 1 : 0, studio.View.Size.Value);
         }
     }
+
+    /// <summary>Лестница плитки темы: малая, обычная и крупная ступени и шаг.</summary>
+    private static (double Small, double Normal, double Large, double Step) Ladder(ProjectWindowStudio studio) => (
+        Assert.IsType<double>(studio.Resource("AxTileGlyphSizeSmall")),
+        Assert.IsType<double>(studio.Resource("AxTileGlyphSize")),
+        Assert.IsType<double>(studio.Resource("AxTileGlyphSizeLarge")),
+        Assert.IsType<double>(studio.Resource("AxTileGlyphSizeStep")));
+
+    /// <summary>Виден ли контейнер плитки в окне прокрутки списка — целиком, без прокрутки к нему.</summary>
+    private static bool InView(AxListBox list, Tile tile)
+    {
+        var viewer = list.GetVisualDescendants().OfType<ScrollViewer>().First();
+        var container = Assert.IsAssignableFrom<Control>(list.ContainerFromItem(tile));
+        var top = container.TranslatePoint(default, viewer)!.Value.Y;
+
+        return top >= 0 && top + container.Bounds.Height <= viewer.Viewport.Height;
+    }
+
+    /// <summary>Контрол, у которого сейчас клавиатура.</summary>
+    private static Control Focused(ProjectWindowStudio studio) =>
+        Assert.IsAssignableFrom<Control>(studio.Window.FocusManager?.GetFocusedElement());
+
+    /// <summary>Тело плитки: силуэт и подпись, шириной плитки.</summary>
+    private static StackPanel Body(ProjectWindowStudio studio, string name) =>
+        TileItem(studio, name).GetVisualDescendants().OfType<StackPanel>().Single(panel => panel.Classes.Contains("tile"));
 
     /// <summary>Окно в две колонки с открытым обычным решением.</summary>
     private static async Task<ProjectWindowStudio> TwoColumns()
