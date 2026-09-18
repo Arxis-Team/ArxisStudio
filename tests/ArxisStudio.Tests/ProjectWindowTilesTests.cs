@@ -179,6 +179,13 @@ public class ProjectWindowTilesTests
         Assert.Equal(normal, Plate(studio, "Dependencies").Bounds.Width);
         Assert.Equal(Top(studio, Label(studio, "Assets")), Top(studio, Label(studio, "Dependencies")));
 
+        // Подложка наведения и выбора — квадрат места под значок у каждой плитки ряда: подложка
+        // предмета модели мельче места, но место от этого не сужается и не вытягивается.
+        var cell = Backdrop(TileItem(studio, "Program.cs")).Bounds.Size;
+
+        Assert.Equal(cell.Width, cell.Height);
+        Assert.Equal(cell, Backdrop(TileItem(studio, "Dependencies")).Bounds.Size);
+
         studio.View.Size.Value = 1;
         Dispatcher.UIThread.RunJobs();
 

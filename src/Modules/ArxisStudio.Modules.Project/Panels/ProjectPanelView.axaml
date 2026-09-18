@@ -253,7 +253,13 @@
                   <a:Setter Property="Width" Value="{a:Binding $parent[AxListBox].(p:TileMetrics.Glyph)}"/>
                   <a:Setter Property="Height" Value="{a:Binding $parent[AxListBox].(p:TileMetrics.Glyph)}"/>
                 </a:Style>
+                <!--
+                    Место под значок — квадрат ступени, и у силуэта, и у подложки: подложка не крупнее
+                    обычной ступени, и место шириной в неё на крупных ступенях вышло бы узким и высоким —
+                    подложка наведения и выбора вокруг него вытягивалась по вертикали.
+                -->
                 <a:Style Selector="a|Panel.glyph">
+                  <a:Setter Property="Width" Value="{a:Binding $parent[AxListBox].(p:TileMetrics.Glyph)}"/>
                   <a:Setter Property="Height" Value="{a:Binding $parent[AxListBox].(p:TileMetrics.Glyph)}"/>
                 </a:Style>
                 <a:Style Selector="a|Border.plate">
