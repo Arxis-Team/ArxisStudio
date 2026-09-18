@@ -99,6 +99,102 @@ public class DockFocusTests
         Assert.False(DockFocus.Holds(right));
     }
 
+    /// <summary>
+    /// Цель-список отдаёт каретку своей выбранной строке, прокрутив к ней, — а не кнопке над списком.
+    /// </summary>
+    /// <remarks>
+    /// Список в Avalonia 12 каретку сам не берёт — её держат строки, — и цель панели «вот мой
+    /// список» не срабатывала вовсе: каретка уходила к первому, кто может, — к кнопке над ним.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_list_named_as_the_target_gives_the_caret_to_its_chosen_row()
+    {
+        var list = new AxListBox { ItemsSource = Enumerable.Range(0, 200).Select(at => $"строка {at}").ToList(), Height = 100 };
+        var panel = new StackPanel { Children = { new AxButton { Content = "над списком" }, list } };
+        var window = Framed(panel, out var outside);
+
+        list.SelectedIndex = 150;
+        DockFocus.SetTarget(panel, list);
+        outside.Focus();
+
+        Assert.True(DockFocus.Restore(panel), "каретку в панель не отдать");
+        Assert.Same(list.ContainerFromIndex(150), window.FocusManager?.GetFocusedElement());
+
+        window.Close();
+    }
+
+    /// <summary>
+    /// Цель подхватывает каретку, когда запомненного хранителя больше нет, — сколько бы раз его ни
+    /// запоминали.
+    /// </summary>
+    /// <remarks>
+    /// Прежде цель служила только первым хранителем: первое же запоминание её стирало, и после
+    /// закрытого сеанса терминала или перестроенного списка каретка шла к первому попавшемуся.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_target_takes_the_caret_when_the_remembered_one_is_gone()
+    {
+        var first = new Border { Focusable = true, Height = 20 };
+        var aim = new Border { Focusable = true, Height = 20 };
+        var gone = new Border { Focusable = true, Height = 20 };
+        var panel = new StackPanel { Children = { first, aim, gone } };
+        var window = Framed(panel, out var outside);
+
+        DockFocus.SetTarget(panel, aim);
+        gone.Focus();
+        DockFocus.Remember(panel);
+        panel.Children.Remove(gone);
+        outside.Focus();
+
+        Assert.True(DockFocus.Restore(panel), "каретку в панель не отдать");
+        Assert.True(aim.IsFocused, "каретка ушла первому встречному, а не цели");
+
+        window.Close();
+    }
+
+    /// <summary>
+    /// Цель, которая взяла каретку и сама передала её внутрь себя, свою работу сделала.
+    /// </summary>
+    /// <remarks>
+    /// Такая цель отвечает «не взяла»: каретка у неё уже не на ней самой, а на том, кому она её
+    /// передала. Приняв ответ за отказ, раскладка отняла бы каретку и отдала первому встречному.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_target_that_hands_the_caret_inward_has_done_its_job()
+    {
+        var inner = new Border { Focusable = true, Height = 20 };
+        var target = new Border { Focusable = true, Child = inner };
+        var panel = new StackPanel { Children = { new Border { Focusable = true, Height = 20 }, target } };
+        var window = Framed(panel, out var outside);
+
+        target.GotFocus += (_, e) =>
+        {
+            if (ReferenceEquals(e.Source, target))
+                inner.Focus();
+        };
+
+        DockFocus.SetTarget(panel, target);
+        outside.Focus();
+
+        Assert.True(DockFocus.Restore(panel), "каретку в панель не отдать");
+        Assert.True(inner.IsFocused, "каретку отняли у того, кому её передала цель");
+
+        window.Close();
+    }
+
+    /// <summary>Окно с панелью и контролом вне её, куда каретку уводят перед возвратом.</summary>
+    private static Window Framed(Control panel, out Border outside)
+    {
+        outside = new Border { Focusable = true, Height = 20 };
+
+        var window = new Window { Width = 400, Height = 300, Content = new StackPanel { Children = { outside, panel } } };
+
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        return window;
+    }
+
     /// <summary>Полоса вкладок единственной группы.</summary>
     private static AxTabStrip Tabs(DockView view) =>
         DockMouse.Tabs(view.View("group") ?? throw new InvalidOperationException("группы нет на экране"));

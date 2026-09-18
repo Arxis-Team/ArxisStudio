@@ -9,6 +9,7 @@ using ArxisStudio.Shell.Settings;
 using ArxisStudio.ViewModels;
 using ArxisStudio.Welcome;
 using Avalonia;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
@@ -271,6 +272,63 @@ public class WelcomeProjectsTests : IDisposable
         window.KeyPress(Key.Delete, RawInputModifiers.None, PhysicalKey.Delete, string.Empty);
 
         Assert.Empty(model.RecentProjects);
+    }
+
+    /// <summary>Enter открывает проект строки, на которой стоит фокус, — как щелчок.</summary>
+    /// <remarks>
+    /// Строка брала фокус ради Delete, а открыть проект с клавиатуры было нельзя: Enter не делал
+    /// ничего, и оставалась дорога через меню строки.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Enter_on_the_focused_row_asks_the_studio_to_open_that_project()
+    {
+        var path = Solution("WaveChat.sln");
+        var window = Window(out _, path);
+
+        string? asked = null;
+        window.ProjectRequested += (_, requested) => asked = requested;
+
+        Assert.True(Assert.Single(Rows(window)).Focus(), "строка не берёт фокус — Enter будет некуда нажимать");
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, string.Empty);
+
+        Assert.Equal(path, asked);
+    }
+
+    /// <summary>
+    /// Экранному диктору строка — элемент списка с именем проекта и путём подсказкой.
+    /// </summary>
+    /// <remarks>
+    /// Строка — рамка с текстами внутри, и фокус на ней был для диктора нем: ни роли, ни имени.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_recent_row_reads_as_its_project()
+    {
+        var path = Solution("WaveChat.sln");
+        var window = Window(out _, path);
+        var row = ControlAutomationPeer.CreatePeerForElement(Assert.Single(Rows(window)));
+
+        Assert.Equal(AutomationControlType.ListItem, row.GetAutomationControlType());
+        Assert.Equal("WaveChat", row.GetName());
+        Assert.Equal(path, row.GetHelpText());
+        Assert.True(row.IsKeyboardFocusable(), "строку нельзя выбрать с клавиатуры");
+    }
+
+    /// <summary>
+    /// «Каркас студии» назван для диктора тем, что на нём написано, а пояснение — подсказкой.
+    /// </summary>
+    /// <remarks>
+    /// Имя было пояснением, и человек, который говорит программе голосом «нажми Каркас студии»,
+    /// кнопки с таким именем не находил: доступное имя обязано содержать видимую надпись.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_skeleton_button_is_named_by_what_it_says()
+    {
+        var window = Window(out _);
+        var button = ControlAutomationPeer.CreatePeerForElement(window.GetVisualDescendants().OfType<AxButton>()
+            .Single(candidate => Equals(candidate.Content, Localizer.Instance["projects.stub"])));
+
+        Assert.Equal(Localizer.Instance["projects.stub"], button.GetName());
+        Assert.Equal(Localizer.Instance["projects.stub.hint"], button.GetHelpText());
     }
 
     /// <summary>Пропавший проект не открывают: окно остаётся и объясняет.</summary>

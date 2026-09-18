@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.VisualTree;
 
@@ -47,6 +48,29 @@ public static class DockFocus
         return panel.GetValue(KeeperProperty);
     }
 
+    /// <summary>Место, с которого в панели начинают работу: к нему каретка идёт, когда помнить некого.</summary>
+    public static readonly AttachedProperty<Control?> TargetProperty =
+        AvaloniaProperty.RegisterAttached<Control, Control, Control?>("Target");
+
+    /// <summary>Называет цель каретки панели.</summary>
+    /// <param name="panel">Панель.</param>
+    /// <param name="target">Цель; <c>null</c> — первый, кто возьмёт.</param>
+    public static void SetTarget(Control panel, Control? target)
+    {
+        ArgumentNullException.ThrowIfNull(panel);
+
+        panel.SetValue(TargetProperty, target);
+    }
+
+    /// <summary>Цель каретки панели.</summary>
+    /// <param name="panel">Панель.</param>
+    public static Control? GetTarget(Control panel)
+    {
+        ArgumentNullException.ThrowIfNull(panel);
+
+        return panel.GetValue(TargetProperty);
+    }
+
     /// <summary>Фокус сейчас внутри этого контрола.</summary>
     /// <param name="control">Панель или группа.</param>
     public static bool Holds(Control control) => Focused(control) is not null;
@@ -66,24 +90,60 @@ public static class DockFocus
     }
 
     /// <summary>
-    /// Отдаёт фокус внутрь панели: хранителю, а иначе первому, кто его возьмёт.
+    /// Отдаёт фокус внутрь панели: хранителю, иначе цели панели, иначе первому, кто его возьмёт.
     /// </summary>
     /// <param name="panel">Панель.</param>
     /// <returns>Нашлось ли кому.</returns>
     /// <remarks>
     /// Хранителя может не быть вовсе — панель показывают впервые, — или он мог
     /// уйти из дерева: список перестроился, и строка, на которой стоял фокус,
-    /// теперь другой объект. Тогда берёт первый, кто может; не может никто —
-    /// значит панель нечем управлять с клавиатуры, и врать об этом не надо.
+    /// теперь другой объект; закрыли сеанс терминала, в котором печатали. Тогда
+    /// каретка идёт к цели — месту, которое панель назвала сама, — и цель не
+    /// теряется от того, что хранитель однажды был: прежде она служила только
+    /// первым хранителем, и первое же запоминание стирало её насовсем. Нет и цели —
+    /// берёт первый, кто может; не может никто — значит панель нечем управлять с
+    /// клавиатуры, и врать об этом не надо.
     /// </remarks>
     public static bool Restore(Control panel)
     {
         ArgumentNullException.ThrowIfNull(panel);
 
-        if (GetKeeper(panel) is { } keeper && Inside(keeper, panel) && keeper.Focus())
-            return true;
+        foreach (var keeper in new[] { GetKeeper(panel), GetTarget(panel) })
+        {
+            if (keeper is not null && Inside(keeper, panel) && Give(keeper))
+                return true;
+        }
 
         return First(panel) is { } first && first.Focus();
+    }
+
+    /// <summary>
+    /// Отдаёт каретку хранителю, а если сам он её не берёт — тому внутри него, кто может.
+    /// </summary>
+    /// <remarks>
+    /// Хранитель бывает местом, а не контролом. Список в Avalonia 12 каретку сам не берёт — её
+    /// держат строки, — и цель панели «вот мой список» не срабатывала вовсе: каретка уходила к
+    /// первому попавшемуся, к кнопке над списком. Теперь она идёт к выбранной строке, прокрутив к
+    /// ней, а без выбора — к первому внутри хранителя. Хранитель, который взял каретку и сам
+    /// передал её внутрь себя, отвечает «не взял», хотя она у него, — это тоже удача.
+    /// </remarks>
+    private static bool Give(Control keeper)
+    {
+        if (keeper.Focus() || Holds(keeper))
+            return true;
+
+        return (Chosen(keeper) ?? First(keeper)) is { } inside && !ReferenceEquals(inside, keeper) && inside.Focus();
+    }
+
+    /// <summary>Строка, выбранная в списке, — рождённая, даже если она за краем окна.</summary>
+    private static Control? Chosen(Control keeper)
+    {
+        if (keeper is not SelectingItemsControl { SelectedIndex: >= 0 and var index } list)
+            return null;
+
+        list.ScrollIntoView(index);
+
+        return list.ContainerFromIndex(index);
     }
 
     /// <summary>Кто держит фокус внутри контрола; <c>null</c> — фокус не здесь.</summary>

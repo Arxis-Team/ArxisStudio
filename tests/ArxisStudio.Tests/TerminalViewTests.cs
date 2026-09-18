@@ -1,4 +1,5 @@
 using ArxisStudio.Controls;
+using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Modules.Terminal;
 using ArxisStudio.Modules.Terminal.Dialogs;
@@ -348,6 +349,67 @@ public class TerminalViewTests
             var opened = window.GetLogicalDescendants().OfType<TerminalView>().Last();
 
             Assert.True(opened.IsFocused, "сеанс, открытый по требованию, курсор не взял");
+        }
+        finally
+        {
+            foreach (var session in panel.Sessions)
+                panel.Close(session);
+
+            TerminalHub.Reset();
+        }
+    }
+
+    /// <summary>
+    /// Каретка, которую студия отдаёт панели, приходит в экран выбранного сеанса, а без сеансов — на
+    /// кнопку, которая его открывает.
+    /// </summary>
+    /// <remarks>
+    /// Цели у панели не было, и студия отдавала каретку первому, кто её возьмёт, — «+» над полосой
+    /// сеансов: F6 приводил на кнопку, и набранное уходило в никуда.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_caret_given_to_the_panel_lands_in_the_session()
+    {
+        TerminalHub.Reset();
+
+        var panel = Panel();
+
+        try
+        {
+            var elsewhere = new AxButton { Content = "рядом" };
+            var window = new Window
+            {
+                Width = 900,
+                Height = 500,
+                Content = new StackPanel { Children = { elsewhere, panel.Content } },
+            };
+
+            window.Show();
+            Wait(() => panel.Sessions.Count > 0);
+            Dispatcher.UIThread.RunJobs();
+
+            // Той же дорогой, какой студия отдаёт каретку панели: цель — от панели, запоминание — от
+            // раскладки, когда каретка уходит.
+            var content = panel.Content;
+
+            DockFocus.SetTarget(content, panel.FocusTarget);
+            elsewhere.Focus();
+
+            Assert.True(DockFocus.Restore(content), "каретку в панель не отдать");
+            Assert.True(window.GetLogicalDescendants().OfType<TerminalView>().Single().IsFocused, "каретка не пришла в экран сеанса");
+
+            DockFocus.Remember(content);
+
+            foreach (var session in panel.Sessions)
+                panel.Close(session);
+
+            Dispatcher.UIThread.RunJobs();
+            elsewhere.Focus();
+            DockFocus.Restore(content);
+
+            var start = window.GetLogicalDescendants().OfType<AxButton>().Single(button => button.Name == "Start");
+
+            Assert.True(start.IsFocused, "без сеансов каретка не пришла на кнопку, открывающую сеанс");
         }
         finally
         {

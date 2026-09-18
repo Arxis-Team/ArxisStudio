@@ -1,3 +1,4 @@
+using ArxisStudio.Docking;
 using ArxisStudio.Modules.Project;
 using ArxisStudio.Modules.Project.Panels;
 using ArxisStudio.Projects;
@@ -673,6 +674,30 @@ public class ProjectWindowPanelTests
         leaf.Expand();
 
         Assert.Equal(ExpandCollapseState.LeafNode, leaf.ExpandCollapseState);
+    }
+
+    /// <summary>
+    /// Каретка, которую студия отдаёт окну, приходит в дерево — на выбранную строку.
+    /// </summary>
+    /// <remarks>
+    /// Окно называло целью дерево, но список в Avalonia 12 каретку сам не берёт, и цель молча не
+    /// срабатывала: F6 приводил к первой кнопке над деревом.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task The_caret_given_to_the_window_lands_on_the_chosen_row()
+    {
+        using var studio = new ProjectWindowStudio();
+
+        await studio.Open();
+
+        var program = studio.Row("Program.cs");
+        var content = studio.Panel.Content;
+
+        studio.View.Tree.SelectedItem = program;
+        DockFocus.SetTarget(content, studio.Panel.FocusTarget);
+
+        Assert.True(DockFocus.Restore(content), "каретку в окно не отдать");
+        Assert.Same(program, Assert.IsAssignableFrom<Control>(studio.Window.FocusManager?.GetFocusedElement()).DataContext);
     }
 
     private static AutomationPeer Peer(ProjectWindowStudio studio, string name) =>

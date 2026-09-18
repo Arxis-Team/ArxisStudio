@@ -182,8 +182,12 @@
                 <ax:AxButton Appearance="Primary" Content="{ax:Loc projects.new}" Click="OnNewProjectClick"/>
                 <ax:AxButton Content="{ax:Loc projects.open}" Click="OnOpenProjectClick"/>
                 <ax:AxButton Content="{ax:Loc projects.clone}" Click="OnCloneClick"/>
+                <!--
+                    Имя кнопки — её надпись, а пояснение — подсказкой: человек, говорящий программе
+                    голосом, называет то, что видит, и имя, подменённое пояснением, его не слышало.
+                -->
                 <ax:AxButton Appearance="Subtle" Content="{ax:Loc projects.stub}"
-                             AutomationProperties.Name="{ax:Loc projects.stub.hint}"
+                             AutomationProperties.HelpText="{ax:Loc projects.stub.hint}"
                              ToolTip.Tip="{ax:Loc projects.stub.hint}"
                              Click="OnStudioClick"/>
               </WrapPanel>
@@ -200,14 +204,18 @@
 
             <!--
                 Строка знает свой проект дважды: Tag="{Binding Path}" для щелчка и Tag="{Binding}"
-                у пунктов меню, которым нужна вся запись. Focusable — ради Delete: у клавиши должна
-                быть цель, и видно её делает стиль Border.row:focus.
+                у пунктов меню, которым нужна вся запись. Focusable — ради клавиш: Enter открывает
+                проект, Delete убирает строку, и видно цель делает стиль Border.row:focus. Диктору
+                строка — элемент списка с именем проекта и путём подсказкой: без этого фокус на ней
+                был нем.
             -->
-            <ItemsControl ItemsSource="{Binding RecentProjects}">
+            <ItemsControl ItemsSource="{Binding RecentProjects}" AutomationProperties.ControlTypeOverride="List">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="svc:RecentProject">
                   <Border Classes="row" MinHeight="{DynamicResource AxWelcomeRecentRowHeight}" CornerRadius="{DynamicResource AxCornerRadiusLarge}" Padding="{DynamicResource AxSpaceWideSidesThickness}"
                           Tag="{Binding Path}" Focusable="True"
+                          AutomationProperties.ControlTypeOverride="ListItem"
+                          AutomationProperties.Name="{Binding Name}" AutomationProperties.HelpText="{Binding Path}"
                           PointerPressed="OnRecentPressed" KeyDown="OnRecentKeyDown">
                     <Border.ContextFlyout>
                       <ax:AxMenuFlyout>

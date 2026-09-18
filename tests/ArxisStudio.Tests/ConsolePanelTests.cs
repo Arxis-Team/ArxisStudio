@@ -1,4 +1,5 @@
 using ArxisStudio.Controls;
+using ArxisStudio.Docking;
 using ArxisStudio.Icons;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Modules.Console;
@@ -79,6 +80,35 @@ public class ConsolePanelTests : IDisposable
         var panel = LogPanel(log);
 
         Assert.Equal(2, Records(panel).ItemCount);
+    }
+
+    /// <summary>
+    /// Каретка, которую студия отдаёт консоли, приходит в список записей, а не на первый отбор.
+    /// </summary>
+    /// <remarks>
+    /// Цели у панели не было, и студия отдавала каретку первому, кто её возьмёт, — переключателю
+    /// ошибок над списком: F6 приводил на кнопку, и стрелки по журналу не ходили.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_caret_given_to_the_console_lands_in_its_records()
+    {
+        var log = new StudioLog();
+
+        log.Write(StudioLogLevel.Info, "Startup", "запуск 1257 мс");
+
+        var panel = LogPanel(log);
+        var window = new Window { Width = 900, Height = 300, Content = panel.Content };
+
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        // Той же дорогой, какой студия отдаёт каретку панели.
+        DockFocus.SetTarget(panel.Content, panel.FocusTarget);
+
+        Assert.True(DockFocus.Restore(panel.Content), "каретку в панель не отдать");
+        Assert.Same(Records(panel), Assert.IsAssignableFrom<Control>(window.FocusManager?.GetFocusedElement()).FindAncestorOfType<AxListBox>());
+
+        window.Close();
     }
 
     /// <summary>Запись, сделанная после, доходит до списка.</summary>

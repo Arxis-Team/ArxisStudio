@@ -172,10 +172,26 @@ public partial class WelcomeWindow : AxWindow
             OpenProject(path);
     }
 
-    /// <summary>Delete убирает строку, на которой стоит фокус.</summary>
+    /// <summary>
+    /// Enter открывает проект строки, на которой стоит фокус, Delete убирает её из списка.
+    /// </summary>
+    /// <remarks>
+    /// Строка брала фокус, но открыть проект с клавиатуры было нельзя: Enter не делал ничего, и
+    /// оставалось идти через меню строки. В Rider и Visual Studio недавний проект открывает Enter.
+    /// </remarks>
     private void OnRecentKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Delete || sender is not Control { Tag: string path })
+        if (sender is not Control { Tag: string path })
+            return;
+
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            OpenProject(path);
+            return;
+        }
+
+        if (e.Key != Key.Delete)
             return;
 
         if (_model.RecentProjects.FirstOrDefault(project =>

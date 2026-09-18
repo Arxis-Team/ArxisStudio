@@ -93,6 +93,37 @@ public class PluginFocusTests : IDisposable
     }
 
     /// <summary>
+    /// Цель панели переживает запомненного хранителя: ушёл он — каретка идёт к цели, а не к первому
+    /// встречному.
+    /// </summary>
+    /// <remarks>
+    /// Раскладка запоминает, где стояла каретка, всякий раз, как та уходит из панели. Цель прежде
+    /// клалась первым хранителем и стиралась этим же запоминанием, а запомненный потом умирал —
+    /// закрытый сеанс терминала, перестроенная строка, — и каретка шла к первому, кто может.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_target_outlives_the_one_remembered_after_it()
+    {
+        var (dock, _) = Raised();
+
+        var panel = Named(dock, "arxis.aim:fickle");
+        var places = Places(panel);
+
+        Assert.Equal(3, places.Count);
+        Assert.True(dock.Focus("arxis.aim:fickle"));
+        Assert.True(places[2].IsFocused, "названная панелью цель каретки не получила");
+
+        places[1].Focus();
+        DockFocus.Remember(panel);
+        ((Panel)places[1].GetVisualParent()!).Children.Remove(places[1]);
+
+        Assert.True(dock.Focus("arxis.aim:panel"), "каретку из панели не увести");
+
+        Assert.True(dock.Focus("arxis.aim:fickle"), "внутри панели не нашлось, кому отдать каретку");
+        Assert.True(places[2].IsFocused, "запомненный ушёл, и каретка досталась первому встречному, а не цели");
+    }
+
+    /// <summary>
     /// Служба достаёт только свои панели.
     /// </summary>
     /// <remarks>
@@ -194,6 +225,30 @@ public class PluginFocusTests : IDisposable
             }
         }
 
+        // Три места: первое, проходное — его потом уберут, — и названное.
+        [ToolWindow("fickle")]
+        public sealed class FicklePanel : ToolWindow
+        {
+            private Control? _aim;
+
+            public override Control? FocusTarget => _aim;
+
+            protected override Control Build()
+            {
+                _aim = new Border { Focusable = true, Height = 20 };
+
+                return new StackPanel
+                {
+                    Children =
+                    {
+                        new Border { Focusable = true, Height = 20 },
+                        new Border { Focusable = true, Height = 20 },
+                        _aim,
+                    },
+                };
+            }
+        }
+
         [ToolWindow("stray")]
         public sealed class StrayPanel : ToolWindow
         {
@@ -221,7 +276,8 @@ public class PluginFocusTests : IDisposable
           "contributions": {
             "toolWindows": [
               { "id": "panel", "title": "Прицел", "placement": { "side": "left" } },
-              { "id": "stray", "title": "Мимо", "placement": { "side": "right" } }
+              { "id": "stray", "title": "Мимо", "placement": { "side": "right" } },
+              { "id": "fickle", "title": "Проход", "placement": { "side": "bottom" } }
             ]
           },
           "activation": [ "onStartup" ]

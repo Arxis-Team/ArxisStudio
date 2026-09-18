@@ -84,6 +84,13 @@ public sealed class LogPanel : ToolWindow
     internal IReadOnlyList<AxMenuItem> RowItems(LogRow? row) => _menu.Items(row);
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Консоль открывают, чтобы читать записи, а первым, кто берёт каретку, в панели стоит отбор
+    /// ошибок: F6 приводил на кнопку-переключатель, и стрелки по журналу не ходили.
+    /// </remarks>
+    public override Control? FocusTarget => _view.Records;
+
+    /// <inheritdoc/>
     protected override Control Build()
     {
         _view = new LogPanelView();

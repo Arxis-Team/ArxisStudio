@@ -37,6 +37,16 @@ public sealed class TerminalPanel : ToolWindow
         _entries.Select(entry => entry.Session).OfType<TerminalSession>().ToList();
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Терминал открывают, чтобы в нём печатать, а первым, кто берёт каретку, в панели стоит «+» над
+    /// полосой сеансов: F6 приводил на кнопку, и набранное уходило в никуда. Сеансов много, и
+    /// приходят они позже постройки, а цель спрашивается один раз, — поэтому цель — место экрана, а
+    /// не сам экран: каретку внутри него студия отдаёт первому, кто может, — выбранному сеансу, а без
+    /// сеансов — кнопке, которая его открывает.
+    /// </remarks>
+    public override Control? FocusTarget => _view.Screen;
+
+    /// <inheritdoc/>
     protected override Control Build()
     {
         var strings = Context.Strings;
