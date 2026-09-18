@@ -30,25 +30,46 @@ internal sealed class ThemeTokens
 {
     private const string Avalonia = "https://github.com/avaloniaui";
     private const string Xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+    private const string Folder = "theme/";
 
     private static readonly Lazy<ThemeTokens> Shared = new(Load);
+
+    /// <summary>
+    /// Имя из пространства темы: приставка <c>Ax</c>, заглавная буква и дальше буквы и цифры.
+    /// </summary>
+    /// <remarks>
+    /// Тем же образцом ключ темы в коде узнаёт проверка ключей самой студии: имена типов берут
+    /// через <c>nameof</c> и <c>typeof</c>, и строка такой формы — ключ.
+    /// </remarks>
+    private static readonly Regex Spaced = new("^Ax[A-Z][A-Za-z0-9]*$", RegexOptions.Compiled);
 
     private ThemeTokens(
         IReadOnlyList<Named> steps,
         IReadOnlyList<Shaped> gaps,
         IReadOnlyList<Named> fontSizes,
         IReadOnlyDictionary<string, List<string>> brushesByColour,
-        IReadOnlyDictionary<string, string> brushByColourKey)
+        IReadOnlyDictionary<string, string> brushByColourKey,
+        HashSet<string> keys)
     {
         Steps = steps;
         Gaps = gaps;
         FontSizes = fontSizes;
         BrushesByColour = brushesByColour;
         BrushByColourKey = brushByColourKey;
+        Keys = keys;
     }
 
     /// <summary>Таблица темы, разобранная один раз на загрузку анализатора.</summary>
     public static ThemeTokens Instance => Shared.Value;
+
+    /// <summary>
+    /// Каждый ключ, который тема объявляет: палитра, шкалы, метрики, строки и именованные шаблоны.
+    /// </summary>
+    /// <remarks>
+    /// Ступени плотности новых ключей не заводят, только переопределяют объявленные, — это держит
+    /// проверка плотности в теме, — поэтому список один на все ступени.
+    /// </remarks>
+    public HashSet<string> Keys { get; }
 
     /// <summary>Ступени шкалы расстояний снизу вверх: <c>AxSpace</c> — 8.</summary>
     public IReadOnlyList<Named> Steps { get; }
@@ -64,6 +85,9 @@ internal sealed class ThemeTokens
 
     /// <summary>Цвет роли — её кисть: <c>AxAccentColor</c> — <c>AxAccentBrush</c>.</summary>
     public IReadOnlyDictionary<string, string> BrushByColourKey { get; }
+
+    /// <summary>Похоже ли имя на ключ темы: <c>AxSurfacePanelBrush</c> — да, <c>ChartLine</c> — нет.</summary>
+    public static bool IsSpaced(string key) => Spaced.IsMatch(key);
 
     /// <summary>
     /// Приводит запись цвета к <c>#AARRGGBB</c> прописными; не цвет — <c>null</c>.
@@ -164,8 +188,20 @@ internal sealed class ThemeTokens
         foreach (var brushes in brushesByColour.Values)
             brushes.Sort(StringComparer.Ordinal);
 
-        return new ThemeTokens(steps, gaps, fontSizes, brushesByColour, brushByColourKey);
+        var keys = new HashSet<string>(
+            Files().Select(Read).SelectMany(document => document.Descendants()).Select(Key)
+                .OfType<string>()
+                .Where(key => !key.StartsWith("{", StringComparison.Ordinal)),
+            StringComparer.Ordinal);
+
+        return new ThemeTokens(steps, gaps, fontSizes, brushesByColour, brushByColourKey, keys);
     }
+
+    /// <summary>Имена всех словарей темы, вшитых в анализатор.</summary>
+    private static IEnumerable<string> Files() =>
+        typeof(ThemeTokens).GetTypeInfo().Assembly.GetManifestResourceNames()
+            .Where(name => name.StartsWith(Folder, StringComparison.Ordinal))
+            .Select(name => name.Substring(Folder.Length));
 
     private static List<Named> Doubles(XDocument document, Func<string, bool> wanted) =>
         document.Descendants(XName.Get("Double", Xaml))
@@ -183,7 +219,7 @@ internal sealed class ThemeTokens
     {
         var assembly = typeof(ThemeTokens).GetTypeInfo().Assembly;
 
-        using var stream = assembly.GetManifestResourceStream("theme/" + file)
+        using var stream = assembly.GetManifestResourceStream(Folder + file)
             ?? throw new InvalidOperationException($"В сборку анализатора не вшит словарь темы {file}.");
         using var reader = new StreamReader(stream);
 

@@ -309,11 +309,21 @@ AxSpaceWide 12 · AxSpaceLoose 16 · AxSpaceSection 24 · AxSpaceScreen 40`, у 
 - `ARX0008` — число в разметке: `Spacing="8"` → «8 — это AxSpace»; `Spacing="10"` → «10 — не
   ступень шкалы; ближайшие — AxSpace (8) и AxSpaceWide (12)»; `Foreground="#5A8FF3"` → «это цвет
   AxAccentBrush или AxFocusRingBrush». Цвет, которого в теме нет, правило не трогает: своя палитра графика законна.
-- `ARX0009` — ресурс назван не тем именем: цвет там, где свойству нужна кисть, или имя темы до
-  SDK 6.0. `{a:DynamicResource AxAccentColor}` в `Foreground` не разрешится в кисть и не нарисует
-  ничего, и узнать об этом без правила можно только глазами; `{a:DynamicResource AxFg3Brush}` →
-  «AxFg3Brush — имя темы до SDK 6.0; теперь это AxTextTertiaryBrush». Прежнее имя правило
-  находит и в коде, в любой строке: `GetResourceObservable("AxFg3Brush")` ломается так же молча.
+- `ARX0009` — ресурс назван не тем именем: цвет там, где свойству нужна кисть, имя темы до
+  SDK 6.0 или имя, которого в теме нет вовсе. `{a:DynamicResource AxAccentColor}` в `Foreground`
+  не разрешится в кисть и не нарисует ничего, и узнать об этом без правила можно только глазами;
+  `{a:DynamicResource AxFg3Brush}` → «AxFg3Brush — имя темы до SDK 6.0; теперь это
+  AxTextTertiaryBrush». Опечатка молчит так же, и правило называет похожий ключ:
+  `AxSurfacePanelBrsh` → «такого ключа в теме нет; похоже на AxSurfacePanelBrush», роль без
+  окончания `AxAccent` в `Foreground` → «похоже на AxAccentBrush». Спрашивается и ссылка внутри
+  привязки (`Converter={StaticResource …}`), и `<StaticResource ResourceKey="…"/>`. Прежнее и
+  незнакомое имя правило находит и в коде, в любой строке формы `AxИмя`:
+  `GetResourceObservable("AxFg3Brush")` ломается так же молча. Кусок строки, собранной на ходу
+  (`$"AxTint{name}Brush"`), ключом не считается.
+
+  Приставка `Ax` — пространство темы. Свой ресурс расширение называет без неё, и такой ключ
+  правило не спрашивает: объявлен он может быть где угодно, хоть в коде. Ключ, объявленный
+  разметкой самого расширения (`x:Key`), правило знает в любом его файле, с приставкой или без.
 - `ARX0010` — то же в коде: `new Thickness(…)` из чисел, число в `Spacing` и `FontSize`
   контролов Avalonia, `Color.Parse("#…")` и `Brush.Parse("#…")`.
 

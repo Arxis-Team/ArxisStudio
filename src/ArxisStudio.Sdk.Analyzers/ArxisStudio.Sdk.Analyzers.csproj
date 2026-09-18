@@ -23,14 +23,15 @@
         переписанной сюда руками, — копия разошлась бы с темой на первой правке
         палитры. Словари едут вместе с SDK, поэтому плагин проверяется против той
         темы, против которой собирается.
+
+        Вшиты все, звёздочкой, а не те три, где лежат значения: ARX0009 узнаёт
+        опечатку в ключе, и ему нужен каждый ключ темы — и метрики, и строки, и
+        именованные шаблоны кнопок. Новый словарь попадает под правило сам.
     -->
     <ItemGroup>
-        <EmbeddedResource Include="../../external/ArxisStudio.Themes.Arxis/src/Palette.axaml"
-                          LogicalName="theme/Palette.axaml"/>
-        <EmbeddedResource Include="../../external/ArxisStudio.Themes.Arxis/src/Typography.axaml"
-                          LogicalName="theme/Typography.axaml"/>
-        <EmbeddedResource Include="../../external/ArxisStudio.Themes.Arxis/src/Spacing.axaml"
-                          LogicalName="theme/Spacing.axaml"/>
+        <EmbeddedResource Include="../../external/ArxisStudio.Themes.Arxis/src/**/*.axaml"
+                          Exclude="../../external/ArxisStudio.Themes.Arxis/src/bin/**;../../external/ArxisStudio.Themes.Arxis/src/obj/**"
+                          LogicalName="theme/%(RecursiveDir)%(Filename)%(Extension)"/>
     </ItemGroup>
 
     <!-- Roslyn ведёт учёт правил по выпускам и требует эти два файла. -->

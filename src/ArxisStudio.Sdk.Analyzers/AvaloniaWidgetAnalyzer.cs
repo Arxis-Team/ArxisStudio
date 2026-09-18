@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -20,6 +21,14 @@ namespace ArxisStudio.Sdk.Analyzers;
 /// оформления не несут и разрешены. Контролы <c>Ax*</c> — тоже наследники
 /// <c>TemplatedControl</c>, но живут в библиотеке студии, и правило их не
 /// касается.
+/// </para>
+/// <para>
+/// Входов у правила в коде два: создание виджета и наследование от него. Без второго запрет
+/// обходился пустым классом — <c>class Box : TextBox { }</c> создаётся свободно, потому что
+/// живёт в сборке плагина, а не в Avalonia, и тему приносит ту же чужую. Замечание стоит у
+/// корня обхода — там, где базой назван виджет, — а не у каждого <c>new Box()</c>. Свой
+/// шаблонный контрол прямо от <c>TemplatedControl</c> разрешён: шаблон ему пишет само
+/// расширение, и чужой темы у него нет.
 /// </para>
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
@@ -65,7 +74,29 @@ public sealed class AvaloniaWidgetAnalyzer : DiagnosticAnalyzer
 
             start.RegisterSyntaxNodeAction(node => Check(node, templated), SyntaxKind.ObjectCreationExpression);
             start.RegisterSyntaxNodeAction(node => Check(node, templated), SyntaxKind.ImplicitObjectCreationExpression);
+            start.RegisterSyntaxNodeAction(node => Derived(node, templated), SyntaxKind.ClassDeclaration);
         });
+    }
+
+    private static void Derived(SyntaxNodeAnalysisContext context, INamedTypeSymbol templated)
+    {
+        // База класса, если она названа, стоит в списке первой.
+        if (((ClassDeclarationSyntax)context.Node).BaseList?.Types.FirstOrDefault()?.Type is not { } named ||
+            context.SemanticModel.GetTypeInfo(named, context.CancellationToken).Type is not INamedTypeSymbol { TypeKind: TypeKind.Class } parent)
+        {
+            return;
+        }
+
+        if (SymbolEqualityComparer.Default.Equals(parent, templated) || !StudioControls.IsForbidden(parent, templated))
+        {
+            return;
+        }
+
+        context.ReportDiagnostic(Diagnostic.Create(
+            Rule,
+            named.GetLocation(),
+            parent.Name,
+            StudioControls.Advice(context.Compilation, parent)));
     }
 
     private static void Check(SyntaxNodeAnalysisContext context, INamedTypeSymbol templated)

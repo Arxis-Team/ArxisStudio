@@ -168,7 +168,7 @@ public class ThemeValueAnalyzerTests
     {
         var found = Assert.Single(await AnalyzeAsync(
             "<Panel/>",
-            code: """public sealed class Probe { public object Key => "AxSelBrush"; public string Name => "AxSelection"; }"""));
+            code: """public sealed class Probe { public object Key => "AxSelBrush"; public string Name => "AxSelectionActiveBrush"; }"""));
 
         Assert.Equal(ThemeValueAnalyzer.FamilyId, found.Id);
         Assert.Contains("теперь это AxSelectionActiveBrush", found.GetMessage(), StringComparison.Ordinal);
@@ -210,6 +210,150 @@ public class ThemeValueAnalyzerTests
                     .Where(role => role != name && !Resolves(application, role))
                     .Select(role => $"{name}: совет называет {role}, которого в теме нет"));
         }
+
+        Assert.True(wrong.Count == 0, string.Join("; ", wrong));
+    }
+
+    /// <summary>
+    /// Ключ с приставкой темы, которого в ней нет, — опечатка, и замечание называет похожий.
+    /// </summary>
+    /// <remarks>
+    /// Такая ссылка не валит ни сборку, ни показ: кисть молча прозрачна, зазор — ноль. Похожим
+    /// считается ключ в букву-две от названного и роль без окончания — там, где нужна кисть,
+    /// называется кисть.
+    /// </remarks>
+    [Fact]
+    public async Task A_misspelt_key_names_the_key_it_looks_like()
+    {
+        var found = await AnalyzeAsync(
+            """
+            <Panel>
+              <Border Background="{DynamicResource AxSurfacePanelBrsh}"/>
+              <TextBlock Foreground="{DynamicResource AxAccent}"/>
+              <StackPanel Spacing="{DynamicResource AxGapFromRow}"/>
+              <Border Tag="{DynamicResource AxNothingLikeIt}"/>
+            </Panel>
+            """);
+
+        Assert.Equal(4, found.Length);
+        Assert.All(found, notice => Assert.Equal(ThemeValueAnalyzer.FamilyId, notice.Id));
+        Assert.Equal("AxSurfacePanelBrsh — такого ключа в теме нет; похоже на AxSurfacePanelBrush", Message(found, line: 1));
+        Assert.Equal("AxAccent — такого ключа в теме нет; похоже на AxAccentBrush", Message(found, line: 2));
+        Assert.Equal("AxGapFromRow — такого ключа в теме нет; похоже на AxGapFormRow", Message(found, line: 3));
+        Assert.Equal("AxNothingLikeIt — такого ключа в теме нет", Message(found, line: 4));
+    }
+
+    /// <summary>Ключ, названный элементом или внутри привязки, спрашивается так же.</summary>
+    [Fact]
+    public async Task A_key_named_by_an_element_or_inside_a_binding_is_asked_too()
+    {
+        var found = await AnalyzeAsync(
+            """
+            <Panel>
+              <StaticResource ResourceKey="AxAccentBrsh"/>
+              <Border Padding="{Binding Gap, FallbackValue={StaticResource AxSpaceThicknes}}"/>
+            </Panel>
+            """);
+
+        Assert.Equal(2, found.Length);
+        Assert.EndsWith("похоже на AxAccentBrush", Message(found, line: 1), StringComparison.Ordinal);
+        Assert.EndsWith("похоже на AxSpaceThickness", Message(found, line: 2), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ключ, который расширение объявило само — в любом своём файле, — и ключ не из пространства
+    /// темы правило не трогает.
+    /// </summary>
+    /// <remarks>
+    /// Словарь плагина с его кистями и экран, который их берёт, — разные файлы, и ссылка из одного
+    /// на ключ другого законна. Ключ без приставки <c>Ax</c> — ресурс самого расширения: объявлен он
+    /// может быть и в коде, и в чужой сборке, и спрашивать о нём правилу нечем.
+    /// </remarks>
+    [Fact]
+    public async Task Keys_the_extension_declares_and_keys_outside_the_theme_are_left_alone()
+    {
+        var found = await AnalyzeFilesAsync(
+        [
+            ("C:/probe/View.axaml",
+             """<Panel><Border Background="{DynamicResource AxChartLineBrush}"/><Border Background="{DynamicResource ChartGrid}"/></Panel>"""),
+            ("C:/probe/Chart.axaml",
+             """<ResourceDictionary xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"><SolidColorBrush x:Key="AxChartLineBrush" Color="#123456"/></ResourceDictionary>"""),
+        ]);
+
+        Assert.Empty(found);
+    }
+
+    /// <summary>
+    /// Незнакомый ключ замечен и в коде, в любой строке, — кроме куска строки, собранной на ходу.
+    /// </summary>
+    [Fact]
+    public async Task A_misspelt_key_is_noticed_in_code_but_not_a_piece_of_a_built_one()
+    {
+        var found = Assert.Single(await AnalyzeAsync(
+            "<Panel/>",
+            code: """
+                  public sealed class Probe
+                  {
+                      public object Gap => "AxGapFromRow";
+                      public object Row => "AxGapFormRow";
+                      public string Tint(string name) => $"AxTint{name}Brush";
+                      public string Glued(string name) => "AxTint" + name + "Brush";
+                      public string Word => "Axis";
+                  }
+                  """));
+
+        Assert.Equal(ThemeValueAnalyzer.FamilyId, found.Id);
+        Assert.Equal("AxGapFromRow — такого ключа в теме нет; похоже на AxGapFormRow", found.GetMessage());
+    }
+
+    /// <summary>
+    /// Ключи всех словарей темы правилу знакомы — метрики, строки и именованные шаблоны, а не только
+    /// палитра и шкалы, откуда правило берёт значения.
+    /// </summary>
+    [Fact]
+    public async Task Every_dictionary_of_the_theme_is_known()
+    {
+        Assert.Empty(await AnalyzeAsync(
+            """
+            <Panel>
+              <Border Width="{DynamicResource AxTileGlyphSizeStep}" Height="{DynamicResource AxRowMarkerHeight}"/>
+              <TextBlock Text="{DynamicResource AxTextBreadcrumbOverflow}"/>
+              <Button Theme="{StaticResource AxInlineIconButton}"/>
+            </Panel>
+            """));
+    }
+
+    /// <summary>
+    /// Каждый ключ, который называют разметка и код самой студии, модулей, плагинов и шаблона,
+    /// правило знает.
+    /// </summary>
+    /// <remarks>
+    /// Модули и плагины собираются с анализатором и промах уронили бы сами, а студия, оболочка,
+    /// докинг, контролы и значки его не подключают — ключи же у них те же, темы. С живой темой их
+    /// сверяют <see cref="MarkupResourceKeysTests"/> и <see cref="CodeResourceKeysTests"/>; здесь —
+    /// что анализатор с живой темой согласен: словарь, забытый при вшивании, дал бы автору плагина
+    /// замечание на честный ключ, и под <c>TreatWarningsAsErrors</c> — упавшую сборку.
+    /// </remarks>
+    [Fact]
+    public async Task Every_key_the_studio_names_is_known()
+    {
+        var markup = MarkupSources.All().Select(source => ("C:/probe/" + source.Name, source.Text)).ToList();
+        var named = CodeSources.Everywhere()
+            .SelectMany(source => source.Text.Split('\n'))
+            .Where(line => !line.TrimStart().StartsWith("//", StringComparison.Ordinal))
+            .SelectMany(line => Keyed.Matches(line).Select(match => match.Groups[1].Value))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.Contains("AxScrollThumbColor", named);
+        Assert.Contains(markup, source => source.Item1.EndsWith("ProjectPanelView.axaml", StringComparison.Ordinal));
+
+        var code = "public static class Probe { public static readonly string[] Keys = { " +
+                   string.Join(", ", named.Select(key => $"\"{key}\"")) + " }; }";
+        var wrong = (await AnalyzeFilesAsync(markup, code))
+            .Where(diagnostic => diagnostic.Id == ThemeValueAnalyzer.FamilyId)
+            .Select(diagnostic => $"{diagnostic.Location.GetLineSpan().Path}: {diagnostic.GetMessage()}")
+            .ToList();
 
         Assert.True(wrong.Count == 0, string.Join("; ", wrong));
     }
@@ -314,14 +458,21 @@ public class ThemeValueAnalyzerTests
 
     private static readonly Regex Roles = new(@"\bAx[A-Z]\w*", RegexOptions.Compiled);
 
+    /// <summary>Ключ темы строкой: кавычка, приставка <c>Ax</c> и имя — как у <see cref="CodeResourceKeysTests"/>.</summary>
+    private static readonly Regex Keyed = new(@"""(Ax[A-Z][A-Za-z0-9]*)""", RegexOptions.Compiled);
+
     private static bool Resolves(Application application, string key) =>
         application.TryFindResource(key, ThemeVariant.Dark, out _) && application.TryFindResource(key, ThemeVariant.Light, out _);
 
     private static string Message(ImmutableArray<Diagnostic> found, int line) =>
         Assert.Single(found, diagnostic => diagnostic.Location.GetLineSpan().StartLinePosition.Line == line).GetMessage();
 
-    private static async Task<ImmutableArray<Diagnostic>> AnalyzeAsync(
-        string markup, string path = "C:/probe/View.axaml", string code = "public sealed class Probe { }")
+    private static Task<ImmutableArray<Diagnostic>> AnalyzeAsync(
+        string markup, string path = "C:/probe/View.axaml", string code = "public sealed class Probe { }") =>
+        AnalyzeFilesAsync([(path, markup)], code);
+
+    private static async Task<ImmutableArray<Diagnostic>> AnalyzeFilesAsync(
+        IEnumerable<(string Path, string Text)> files, string code = "public sealed class Probe { }")
     {
         var compilation = CSharpCompilation.Create(
             "Probe",
@@ -331,7 +482,7 @@ public class ThemeValueAnalyzerTests
 
         var analyzed = compilation.WithAnalyzers(
             ImmutableArray.Create<DiagnosticAnalyzer>(new ThemeValueAnalyzer()),
-            new AnalyzerOptions([new Given(path, markup)]));
+            new AnalyzerOptions([.. files.Select(file => (AdditionalText)new Given(file.Path, file.Text))]));
 
         return await analyzed.GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
     }

@@ -62,6 +62,50 @@ public class AnalyzerTests
         Assert.Empty(found);
     }
 
+    /// <summary>
+    /// Пустой наследник виджета — тот же виджет: создавать его запрет не мешал, потому что живёт он
+    /// в сборке плагина, а тему приносит чужую. Замечание стоит у базы, названной виджетом, — один
+    /// раз, а не у каждого наследника и каждого <c>new</c>.
+    /// </summary>
+    [Fact]
+    public async Task A_class_derived_from_an_avalonia_widget_is_reported_where_it_names_the_widget()
+    {
+        var found = await AnalyzeAsync(
+            "var box = new Deeper();",
+            """
+            public class Box : Avalonia.Controls.TextBox { }
+            public sealed class Deeper : Box { }
+            """);
+
+        var diagnostic = Assert.Single(found);
+
+        Assert.Equal(AvaloniaWidgetAnalyzer.DiagnosticId, diagnostic.Id);
+        Assert.Contains("TextBox — виджет Avalonia; вместо него — AxTextBox", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Equal("Avalonia.Controls.TextBox", diagnostic.Location.SourceTree!.GetText(TestContext.Current.CancellationToken).ToString(diagnostic.Location.SourceSpan));
+    }
+
+    /// <summary>
+    /// Свой шаблонный контрол, своя панель раскладки и наследник контрола студии — законны.
+    /// </summary>
+    /// <remarks>
+    /// Контролу прямо от <c>TemplatedControl</c> шаблон пишет само расширение, и чужой темы у него
+    /// нет: это канва плагина, только с шаблоном.
+    /// </remarks>
+    [Fact]
+    public async Task The_plugins_own_templated_control_and_panels_are_allowed()
+    {
+        var found = await AnalyzeAsync(
+            "var gauge = new Gauge();",
+            """
+            public class Gauge : Avalonia.Controls.Primitives.TemplatedControl { }
+            public class Strip : Avalonia.Controls.StackPanel { }
+            public class Field : ArxisStudio.Controls.AxTextBox { }
+            public sealed class Plain : IDisposable { public void Dispose() { } }
+            """);
+
+        Assert.Empty(found);
+    }
+
     [Fact]
     public async Task Every_widget_in_the_file_is_reported()
     {
