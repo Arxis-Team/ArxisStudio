@@ -218,6 +218,13 @@ internal sealed class ProjectWindowStudio : IDisposable
         Dispatcher.UIThread.RunJobs();
     }
 
+    /// <summary>Наводит мышь на середину и оставляет её там.</summary>
+    public void Hover(Visual target)
+    {
+        Window.MouseMove(Middle(target));
+        Dispatcher.UIThread.RunJobs();
+    }
+
     /// <summary>Щёлкает мышью дважды в середину.</summary>
     public void DoubleClick(Visual target)
     {

@@ -231,8 +231,14 @@
                 </a:ItemsPanelTemplate>
               </AxListBox.ItemsPanel>
               <AxListBox.Styles>
+                <!--
+                    Плитка прижата к верху ряда. Подпись бывает в две строки, ряд берёт высоту самой
+                    высокой плитки, а содержимое строки тема ставит по центру — значок двухстрочной
+                    уезжал бы вверх от соседей.
+                -->
                 <a:Style Selector="AxListBoxItem" x:DataType="b:Tile">
                   <a:Setter Property="Padding" Value="{a:DynamicResource AxTilePadding}"/>
+                  <a:Setter Property="VerticalAlignment" Value="Top"/>
                   <a:Setter Property="a:ToolTip.Tip" Value=""/>
                   <a:Setter Property="AxTrimmedTip.IsEnabled" Value="True"/>
                   <a:Setter Property="a:AutomationProperties.Name" Value="{a:Binding Name}"/>
@@ -264,23 +270,68 @@
                   <a:Setter Property="Background" Value="{a:DynamicResource AxSurfaceRaisedBrush}"/>
                   <a:Setter Property="CornerRadius" Value="{a:DynamicResource AxCornerRadiusLarge}"/>
                 </a:Style>
+                <!--
+                    Состояния плитки — не заливкой во всю плитку, а там, куда смотрят, как в сетках
+                    Finder и Unity. Наведение — подложка под значком. Выбор — та же подложка погашенным
+                    цветом выделения и плашка под подписью: она горит полным цветом, пока клавиатура в
+                    колонке, и гаснет, когда фокус ушёл, — правило выделения студии, только место у него
+                    своё. Заливка во всю плитку
+                    путала бы состояния: наведённая и погашенно выбранная плитки в тёмной теме почти
+                    одного серого, а синий блок выбора ложился под сам силуэт и глушил его цвет.
+
+                    Заливку строки список рисует сам, и здесь она снята; подложка и плашка стоят всегда,
+                    прозрачными, — состояние меняет только цвет, и ничего в раскладке не сдвигается.
+                    Плашка при этом не рамка с полем: поле отняло бы ширину у подписи каждой плитки, и
+                    имя, которому колонки хватало, переломилось бы посреди слова. Её заливка выходит за
+                    края подписи в поле плитки (Pill).
+                -->
+                <a:Style Selector="AxListBoxItem:pointerover /template/ a|ContentPresenter#PART_ContentPresenter">
+                  <a:Setter Property="Background" Value="Transparent"/>
+                </a:Style>
+                <a:Style Selector="AxListBoxItem:selected /template/ a|ContentPresenter#PART_ContentPresenter">
+                  <a:Setter Property="Background" Value="Transparent"/>
+                </a:Style>
+                <a:Style Selector="a|Border.backdrop">
+                  <a:Setter Property="Padding" Value="{a:DynamicResource AxSpaceTightThickness}"/>
+                  <a:Setter Property="CornerRadius" Value="{a:DynamicResource AxCornerRadiusLarge}"/>
+                </a:Style>
+                <a:Style Selector="p|Pill">
+                  <a:Setter Property="Outset" Value="{a:DynamicResource AxSpaceTightSidesThickness}"/>
+                  <a:Setter Property="CornerRadius" Value="{a:DynamicResource AxCornerRadius}"/>
+                </a:Style>
+                <a:Style Selector="AxListBoxItem:pointerover a|Border.backdrop">
+                  <a:Setter Property="Background" Value="{a:DynamicResource AxHoverBrush}"/>
+                </a:Style>
+                <a:Style Selector="AxListBoxItem:selected a|Border.backdrop">
+                  <a:Setter Property="Background" Value="{a:DynamicResource AxSelectionInactiveBrush}"/>
+                </a:Style>
+                <a:Style Selector="AxListBoxItem:selected p|Pill">
+                  <a:Setter Property="Background" Value="{a:DynamicResource AxSelectionInactiveBrush}"/>
+                </a:Style>
+                <a:Style Selector="AxListBoxItem:selected:selection-active p|Pill">
+                  <a:Setter Property="Background" Value="{a:DynamicResource AxSelectionActiveBrush}"/>
+                </a:Style>
               </AxListBox.Styles>
               <AxListBox.ItemTemplate>
                 <a:DataTemplate x:DataType="b:Tile">
-                  <a:StackPanel Classes="tile" Spacing="{a:DynamicResource AxSpaceTight}">
-                    <a:Panel Classes="glyph" HorizontalAlignment="Center">
-                      <AxIcon Classes="tile" IsVisible="{a:Binding IsSilhouette}"
-                              Data="{a:Binding Node, Converter={x:Static p:Silhouette.Instance}}"
-                              p:Tint.Key="{a:Binding Node, Converter={x:Static p:TintKey.Instance}}"/>
-                      <a:Border Classes="plate" IsVisible="{a:Binding IsPlate}"
-                                HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <AxIcon HorizontalAlignment="Center" VerticalAlignment="Center"
-                                Data="{a:Binding Node, Converter={x:Static p:NodeGlyph.Instance}}"
+                  <a:StackPanel Classes="tile" Spacing="{a:DynamicResource AxSpaceHair}">
+                    <a:Border Classes="backdrop" HorizontalAlignment="Center">
+                      <a:Panel Classes="glyph">
+                        <AxIcon Classes="tile" IsVisible="{a:Binding IsSilhouette}"
+                                Data="{a:Binding Node, Converter={x:Static p:Silhouette.Instance}}"
                                 p:Tint.Key="{a:Binding Node, Converter={x:Static p:TintKey.Instance}}"/>
-                      </a:Border>
-                    </a:Panel>
-                    <a:TextBlock Text="{a:Binding Name}" TextAlignment="Center" TextWrapping="Wrap"
-                                 MaxLines="2" TextTrimming="CharacterEllipsis"/>
+                        <a:Border Classes="plate" IsVisible="{a:Binding IsPlate}"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center">
+                          <AxIcon HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  Data="{a:Binding Node, Converter={x:Static p:NodeGlyph.Instance}}"
+                                  p:Tint.Key="{a:Binding Node, Converter={x:Static p:TintKey.Instance}}"/>
+                        </a:Border>
+                      </a:Panel>
+                    </a:Border>
+                    <p:Pill HorizontalAlignment="Center">
+                      <a:TextBlock Text="{a:Binding Name}" TextAlignment="Center" TextWrapping="Wrap"
+                                   MaxLines="2" TextTrimming="CharacterEllipsis"/>
+                    </p:Pill>
                   </a:StackPanel>
                 </a:DataTemplate>
               </AxListBox.ItemTemplate>

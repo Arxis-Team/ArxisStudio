@@ -1,13 +1,20 @@
+using System.Runtime.InteropServices;
 using ArxisStudio.Controls;
 using ArxisStudio.Icons;
 using ArxisStudio.Modules.Project;
 using ArxisStudio.Modules.Project.Browse;
+using ArxisStudio.Modules.Project.Panels;
 using ArxisStudio.Modules.Project.Tree;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
+using Avalonia.Media;
+using Avalonia.Platform;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
@@ -224,6 +231,128 @@ public class ProjectWindowTilesTests
         Assert.Same(AxIcons.Dependencies, plate.GetVisualDescendants().OfType<AxIcon>().Single().Data);
     }
 
+    /// <summary>
+    /// Наведение — подложка под значком, выбор — ещё и плашка под подписью; заливки во всю плитку нет.
+    /// </summary>
+    /// <remarks>
+    /// Плашка горит полным цветом, пока клавиатура в колонке, и гаснет, когда фокус ушёл, — правило
+    /// выделения студии. Наведённую плитку от выбранной отличает плашка, а не оттенок серого: заливка
+    /// во всю плитку давала им в тёмной теме почти один цвет.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_tile_shows_hover_on_its_glyph_and_selection_on_its_caption()
+    {
+        using var studio = await TwoColumns();
+
+        studio.Select("App");
+
+        var item = TileItem(studio, "Views");
+        var backdrop = Backdrop(item);
+        var caption = Caption(item);
+        var chrome = item.GetVisualDescendants().OfType<ContentPresenter>().First(part => part.Name == "PART_ContentPresenter");
+
+        studio.Hover(item);
+
+        Assert.Same(studio.Resource("AxHoverBrush"), backdrop.Background);
+        Assert.True(Clear(caption.Background), "наведение зажгло плашку подписи, а она — знак выбора");
+        Assert.True(Clear(chrome.Background), "наведение залило плитку целиком");
+
+        // Мышь уходит: иначе снятая заливка наведения прятала бы заливку выбора.
+        studio.Hover(studio.View.Query);
+
+        Assert.True(Clear(backdrop.Background), "подложка горит и без мыши над плиткой");
+
+        studio.View.Tiles.SelectedItem = item.DataContext;
+        item.Focus(NavigationMethod.Directional);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Same(studio.Resource("AxSelectionActiveBrush"), caption.Background);
+        Assert.Same(studio.Resource("AxSelectionInactiveBrush"), backdrop.Background);
+        Assert.True(Clear(chrome.Background), "выбор залил плитку целиком");
+
+        studio.View.Query.Focus();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Same(studio.Resource("AxSelectionInactiveBrush"), caption.Background);
+    }
+
+    /// <summary>
+    /// Плашка не отнимает у подписи ширину: подписи отдана вся колонка плитки.
+    /// </summary>
+    /// <remarks>
+    /// Плашка стоит у каждой плитки, прозрачной, и поле рамки сузило бы подпись у всех: «ViewLocator.cs»,
+    /// которому колонки хватало, переломился посреди слова. Заливка плашки выходит за края подписи, а
+    /// не отнимает место у неё.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task The_caption_plate_leaves_the_label_the_whole_tile()
+    {
+        using var studio = await TwoColumns();
+
+        studio.Select("App");
+
+        var offered = LayoutInformation.GetPreviousMeasureConstraint(Label(studio, "Program.cs"));
+
+        Assert.NotNull(offered);
+        Assert.Equal(Assert.IsType<double>(studio.Resource("AxTileWidth")), offered.Value.Width);
+    }
+
+    /// <summary>
+    /// Выбранная плашка нарисована и шире подписи: заливка выходит за края букв, а не жмётся к ним.
+    /// </summary>
+    /// <remarks>
+    /// Цвет плашки проверен выше свойством; здесь — кадром, потому что свойство могло поменяться, а
+    /// картинка — нет: плашка рисует себя сама, за своими границами.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task The_selected_caption_plate_is_painted_past_the_label()
+    {
+        using var studio = await TwoColumns();
+
+        studio.Select("App");
+
+        var item = TileItem(studio, "Program.cs");
+        var caption = Caption(item);
+        var label = Label(studio, "Program.cs");
+
+        studio.View.Tiles.SelectedItem = item.DataContext;
+        item.Focus(NavigationMethod.Directional);
+        Dispatcher.UIThread.RunJobs();
+
+        var edge = label.TranslatePoint(new Point(0, label.Bounds.Height / 2), studio.Window);
+        var fill = Assert.IsAssignableFrom<ISolidColorBrush>(studio.Resource("AxSelectionActiveBrush")).Color;
+
+        Assert.NotNull(edge);
+        Assert.True(caption.Outset.Left >= 2, "плашка не выходит за края подписи");
+        Assert.Equal(fill, Pixel(studio.Window, edge.Value.X - (caption.Outset.Left / 2), edge.Value.Y));
+    }
+
+    /// <summary>
+    /// Подпись в две строки не поднимает значок над соседями: плитки стоят по верху ряда.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_two_line_caption_keeps_the_glyph_in_line_with_its_row()
+    {
+        using var studio = new ProjectWindowStudio(twoColumns: true);
+
+        await studio.Open(studio.Solution(extra: "MainWindowViewModelBase.cs"));
+
+        studio.Select("App");
+
+        var wrapped = TileItem(studio, "MainWindowViewModelBase.cs");
+        var row = studio.View.Tiles.GetRealizedContainers().OfType<AxListBoxItem>()
+            .Where(item => Top(studio, item) == Top(studio, wrapped))
+            .ToList();
+
+        Assert.True(row.Count > 1, "плитке с длинной подписью не нашлось соседей по ряду");
+        Assert.True(Label(studio, "MainWindowViewModelBase.cs").Bounds.Height > Label(studio, "Program.cs").Bounds.Height,
+            "длинная подпись уместилась в строку — проверять нечего");
+
+        var line = Top(studio, Backdrop(wrapped));
+
+        Assert.All(row, item => Assert.Equal(line, Top(studio, Backdrop(item))));
+    }
+
     /// <summary>Пустая папка говорит, что она пуста, а строка под колонкой — сколько в ней предметов.</summary>
     [AvaloniaFact]
     public async Task An_empty_folder_says_so()
@@ -328,6 +457,31 @@ public class ProjectWindowTilesTests
     /// <summary>Силуэт плитки.</summary>
     private static AxIcon Silhouette(ProjectWindowStudio studio, string name) =>
         TileItem(studio, name).GetVisualDescendants().OfType<AxIcon>().Single(icon => icon.Classes.Contains("tile"));
+
+    /// <summary>Подложка значка плитки.</summary>
+    private static Border Backdrop(AxListBoxItem item) =>
+        item.GetVisualDescendants().OfType<Border>().Single(border => border.Classes.Contains("backdrop"));
+
+    /// <summary>Плашка подписи плитки.</summary>
+    private static Pill Caption(AxListBoxItem item) => item.GetVisualDescendants().OfType<Pill>().Single();
+
+    /// <summary>Цвет пикселя окна в точке — в кадре, который окно только что нарисовало.</summary>
+    private static Color Pixel(Window window, double x, double y)
+    {
+        using var frame = window.CaptureRenderedFrame()!;
+        using var pixels = frame.Lock();
+
+        var at = ((int)Math.Floor(y) * pixels.RowBytes) + ((int)Math.Floor(x) * 4);
+        var (red, blue) = pixels.Format == PixelFormat.Rgba8888 ? (0, 2) : (2, 0);
+
+        return Color.FromRgb(
+            Marshal.ReadByte(pixels.Address, at + red),
+            Marshal.ReadByte(pixels.Address, at + 1),
+            Marshal.ReadByte(pixels.Address, at + blue));
+    }
+
+    /// <summary>Ничего не рисует: кисти нет или она прозрачна.</summary>
+    private static bool Clear(IBrush? brush) => brush is null or ISolidColorBrush { Color.A: 0 };
 
     /// <summary>Подложка плитки предмета модели.</summary>
     private static Border Plate(ProjectWindowStudio studio, string name) =>
