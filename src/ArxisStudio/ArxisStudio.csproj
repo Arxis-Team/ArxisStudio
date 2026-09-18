@@ -113,6 +113,8 @@
                           StudioModule="true" Private="false" ExcludeAssets="runtime"/>
         <ProjectReference Include="../Modules/ArxisStudio.Modules.Projects/ArxisStudio.Modules.Projects.csproj"
                           StudioModule="true" Private="false" ExcludeAssets="runtime"/>
+        <ProjectReference Include="../Modules/ArxisStudio.Modules.Project/ArxisStudio.Modules.Project.csproj"
+                          StudioModule="true" Private="false" ExcludeAssets="runtime"/>
     </ItemGroup>
 
     <Import Project="build/ArxisStudio.Library.targets"/>

@@ -134,7 +134,7 @@ public class ProjectsIntegrationTests : IDisposable
     private CanonicalPath Solution() => CanonicalPath.Create(Path.Combine(_root, "Hello.slnx"));
 
     /// <summary>Фикстура в репозитории: тесты бегут из bin, файлы лежат выше.</summary>
-    private static string Fixture()
+    internal static string Fixture()
     {
         var folder = new DirectoryInfo(AppContext.BaseDirectory);
 
@@ -151,7 +151,7 @@ public class ProjectsIntegrationTests : IDisposable
     private static string Why(IEnumerable<ProjectDiagnostic> diagnostics) =>
         string.Join("; ", diagnostics.Select(diagnostic => $"{diagnostic.Code} {diagnostic.Message}"));
 
-    private static void Copy(string from, string to)
+    internal static void Copy(string from, string to)
     {
         Directory.CreateDirectory(to);
 

@@ -1,0 +1,46 @@
+{
+  "module.project": "Окно проекта",
+  "module.project.description": "Открытое решение деревом, как Solution в Rider, в одну или две колонки, как Project в Unity",
+  "panel.project": "Проект",
+  "command.project.show": "Показать окно проекта",
+
+  "project.dependencies": "Зависимости",
+  "project.frameworks": "Платформы",
+  "project.packages": "Пакеты",
+  "project.projects": "Проекты",
+  "project.assemblies": "Сборки",
+  "project.analyzers": "Анализаторы",
+  "project.notLoaded": "не загрузился",
+  "project.count.one": "· 1 проект",
+  "project.count": "· проектов: {0}",
+
+  "project.state.closed": "Решение не открыто",
+  "project.state.closed.hint": "Откройте решение — здесь появятся его проекты и файлы.",
+  "project.state.open": "Открыть решение…",
+  "project.state.opening": "Открываю {0}…",
+  "project.state.failed": "Решение не открылось",
+  "project.state.retry": "Повторить",
+  "project.state.noService": "Служба проектов не поднята — показывать нечего.",
+  "project.state.stale": "Перезагрузка не удалась — дерево показывает последнее загруженное.",
+
+  "project.search": "Поиск по решению",
+  "project.search.none": "Ничего не найдено",
+  "project.collapse": "Свернуть всё",
+  "project.loading": "Решение перезагружается",
+
+  "project.menu.open": "Открыть",
+  "project.menu.reveal.windows": "Показать в проводнике",
+  "project.menu.reveal.mac": "Показать в Finder",
+  "project.menu.reveal.other": "Открыть папку",
+  "project.menu.copyPath": "Копировать путь",
+  "project.menu.copyRelative": "Копировать путь от решения",
+  "project.menu.copyName": "Копировать имя",
+  "project.menu.openProject": "Открыть файл проекта",
+  "project.menu.openSolution": "Открыть файл решения",
+  "project.menu.expand": "Раскрыть ветку",
+  "project.menu.collapse": "Свернуть ветку",
+
+  "project.picker.title": "Открыть решение",
+  "project.picker.solutions": "Решения и проекты",
+  "project.picker.all": "Все файлы"
+}

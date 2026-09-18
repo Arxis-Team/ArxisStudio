@@ -1,0 +1,46 @@
+{
+  "module.project": "Project Window",
+  "module.project.description": "The open solution as a tree, like the Solution view of Rider, in one or two columns, like the Project window of Unity",
+  "panel.project": "Project",
+  "command.project.show": "Show Project Window",
+
+  "project.dependencies": "Dependencies",
+  "project.frameworks": "Frameworks",
+  "project.packages": "Packages",
+  "project.projects": "Projects",
+  "project.assemblies": "Assemblies",
+  "project.analyzers": "Analyzers",
+  "project.notLoaded": "not loaded",
+  "project.count.one": "· 1 project",
+  "project.count": "· {0} projects",
+
+  "project.state.closed": "No solution is open",
+  "project.state.closed.hint": "Open a solution to see its projects and files here.",
+  "project.state.open": "Open Solution…",
+  "project.state.opening": "Opening {0}…",
+  "project.state.failed": "The solution did not open",
+  "project.state.retry": "Retry",
+  "project.state.noService": "The projects service is not running: there is nothing to show.",
+  "project.state.stale": "The reload failed: the tree shows what was loaded last.",
+
+  "project.search": "Search the solution",
+  "project.search.none": "Nothing matches",
+  "project.collapse": "Collapse All",
+  "project.loading": "Reloading the solution",
+
+  "project.menu.open": "Open",
+  "project.menu.reveal.windows": "Show in Explorer",
+  "project.menu.reveal.mac": "Reveal in Finder",
+  "project.menu.reveal.other": "Open Containing Folder",
+  "project.menu.copyPath": "Copy Path",
+  "project.menu.copyRelative": "Copy Path from Solution",
+  "project.menu.copyName": "Copy Name",
+  "project.menu.openProject": "Open Project File",
+  "project.menu.openSolution": "Open Solution File",
+  "project.menu.expand": "Expand Branch",
+  "project.menu.collapse": "Collapse Branch",
+
+  "project.picker.title": "Open Solution",
+  "project.picker.solutions": "Solutions and projects",
+  "project.picker.all": "All files"
+}

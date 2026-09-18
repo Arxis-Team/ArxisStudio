@@ -45,6 +45,7 @@ public class StudioModulesTests
         Assert.Contains("arxis.terminal", ids);
         Assert.Contains("arxis.console", ids);
         Assert.Contains("arxis.projects", ids);
+        Assert.Contains("arxis.project", ids);
     }
 
     /// <summary>На карточке зависимость от модуля выглядит присутствующей.</summary>

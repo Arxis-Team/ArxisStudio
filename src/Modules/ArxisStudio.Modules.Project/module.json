@@ -1,0 +1,21 @@
+{
+  "id": "arxis.project",
+  "name": "%module.project%",
+  "version": "1.0.0",
+  "publisher": "Arxis",
+  "description": "%module.project.description%",
+  "tags": [ "tools", "project" ],
+  "dependencies": [
+    { "id": "arxis.projects", "min": "1.0", "optional": true }
+  ],
+  "contributions": {
+    "commands": [
+      { "id": "project.show", "title": "%command.project.show%", "key": "Alt+1", "icon": "arxis:Solution" }
+    ],
+    "toolWindows": [
+      { "id": "project.window", "title": "%panel.project%", "icon": "arxis:Solution",
+        "placement": { "side": "bottom", "size": 0.3, "near": "arxis.console:console.log" } }
+    ]
+  },
+  "activation": [ "onStartup" ]
+}

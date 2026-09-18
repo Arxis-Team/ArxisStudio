@@ -187,7 +187,8 @@ public class CurrentProjectTests
 /// <summary>Служба проектов, которой управляет тест.</summary>
 /// <remarks>
 /// Отдаёт ровно то, что ей велели, и тем же событием, что настоящая. Методы, до которых студия не
-/// доходит, честно отказывают: позови их кто-нибудь — это будет видно, а не тихо сойдёт.
+/// доходит, честно отказывают: позови их кто-нибудь — это будет видно, а не тихо сойдёт. Открытие и
+/// перезагрузку тест может принять сам — тогда они записываются, а не отказывают.
 /// </remarks>
 internal sealed class ProjectsProbe : IStudioProjects
 {
@@ -200,6 +201,18 @@ internal sealed class ProjectsProbe : IStudioProjects
     /// <inheritdoc/>
     public event EventHandler<ProjectsChangedEventArgs>? Changed;
 
+    /// <summary>Сколько подписчиков слушает службу — прощание обязано их снимать.</summary>
+    public int Listeners => Changed?.GetInvocationList().Length ?? 0;
+
+    /// <summary>Принимать ли открытие и перезагрузку; иначе они отказывают.</summary>
+    public bool Accepts { get; init; }
+
+    /// <summary>Что просили открыть, по порядку.</summary>
+    public List<CanonicalPath> Opened { get; } = [];
+
+    /// <summary>Сколько раз просили перезагрузить.</summary>
+    public int Reloads { get; private set; }
+
     /// <summary>Отдаёт новое состояние, как отдала бы настоящая служба.</summary>
     /// <param name="status">Что стало.</param>
     public void Publish(ProjectsStatus status)
@@ -211,12 +224,26 @@ internal sealed class ProjectsProbe : IStudioProjects
     }
 
     /// <inheritdoc/>
-    public Task<WorkspaceLoadResult> OpenAsync(CanonicalPath entryPoint, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException();
+    public Task<WorkspaceLoadResult> OpenAsync(CanonicalPath entryPoint, CancellationToken cancellationToken = default)
+    {
+        if (!Accepts)
+            throw new NotSupportedException();
+
+        Opened.Add(entryPoint);
+
+        return Task.FromResult(Recorded("открытие записано, а не выполнено"));
+    }
 
     /// <inheritdoc/>
-    public Task<WorkspaceLoadResult> ReloadAsync(CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException();
+    public Task<WorkspaceLoadResult> ReloadAsync(CancellationToken cancellationToken = default)
+    {
+        if (!Accepts)
+            throw new NotSupportedException();
+
+        Reloads++;
+
+        return Task.FromResult(Recorded("перезагрузка записана, а не выполнена"));
+    }
 
     /// <inheritdoc/>
     public Task<WorkspaceLoadResult> SetConfigurationAsync(string? configuration, CancellationToken cancellationToken = default) =>
@@ -224,4 +251,8 @@ internal sealed class ProjectsProbe : IStudioProjects
 
     /// <inheritdoc/>
     public Task CloseAsync() => throw new NotSupportedException();
+
+    /// <summary>Ответ на записанную просьбу: снимка нет, и служба ничего не открыла.</summary>
+    private static WorkspaceLoadResult Recorded(string what) =>
+        WorkspaceLoadResult.Failure(new ProjectDiagnostic("TEST", what, ProjectDiagnosticSeverity.Error));
 }
