@@ -107,6 +107,11 @@ public static class DockFocus
     /// первым хранителем, и первое же запоминание стирало её насовсем. Нет и цели —
     /// берёт первый, кто может; не может никто — значит панель нечем управлять с
     /// клавиатуры, и врать об этом не надо.
+    /// <para>
+    /// Ответу верят: обход панелей по F6 идёт дальше, услышав «некому». Поэтому каретка, которую
+    /// взяли и передали внутрь себя, — удача на каждом шаге, а не только у хранителя: такой контрол
+    /// отвечает «не взял», хотя она уже в панели, и обход прежде уводил её к соседней панели.
+    /// </para>
     /// </remarks>
     public static bool Restore(Control panel, NavigationMethod method = NavigationMethod.Unspecified)
     {
@@ -118,7 +123,23 @@ public static class DockFocus
                 return true;
         }
 
-        return First(panel) is { } first && first.Focus(method);
+        return First(panel) is { } first && (first.Focus(method) || Holds(panel));
+    }
+
+    /// <summary>
+    /// Есть ли внутри панели кому взять каретку.
+    /// </summary>
+    /// <param name="panel">Панель.</param>
+    /// <remarks>
+    /// Спрашивают, не трогая каретку, — обход по F6, решая, идти ли в панель: попытка отдать её
+    /// показывает панель, будит её оторванное окно и объявляет её выбранной, и всё это досталось бы
+    /// панели, мимо которой прошли.
+    /// </remarks>
+    public static bool CanHold(Control panel)
+    {
+        ArgumentNullException.ThrowIfNull(panel);
+
+        return First(panel) is not null;
     }
 
     /// <summary>
@@ -136,7 +157,8 @@ public static class DockFocus
         if (keeper.Focus(method) || Holds(keeper))
             return true;
 
-        return (Chosen(keeper) ?? First(keeper)) is { } inside && !ReferenceEquals(inside, keeper) && inside.Focus(method);
+        return (Chosen(keeper) ?? First(keeper)) is { } inside && !ReferenceEquals(inside, keeper)
+            && (inside.Focus(method) || Holds(inside));
     }
 
     /// <summary>Строка, выбранная в списке, — рождённая, даже если она за краем окна.</summary>

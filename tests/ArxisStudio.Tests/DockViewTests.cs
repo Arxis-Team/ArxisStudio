@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using ArxisStudio.Controls;
 using ArxisStudio.Docking;
@@ -226,6 +227,138 @@ public class DockViewTests
 
         Assert.Equal(1, after.Weights.Sum(), 6);
         Assert.True(after.Weights[0] > 0.6, $"левая доля осталась {after.Weights[0]:0.000}");
+    }
+
+    /// <summary>
+    /// Граница, сдвинутая стрелкой, записывается в дерево так же, как потянутая мышью, — и каждым
+    /// шагом, а каретка остаётся на ней.
+    /// </summary>
+    /// <remarks>
+    /// Стрелки двигали сетку, но хозяин дерева об этом не узнавал: конец хода приходил только от
+    /// мыши. Когда узнал, запись перестраивала окно и уносила разделитель вместе с кареткой —
+    /// граница сдвигалась на один шаг, а следующие стрелки не доходили ни до чего.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_border_moved_by_the_arrows_is_written_into_the_tree()
+    {
+        var (view, window, splitter) = Bordered();
+        var grid = Assert.IsType<Grid>(view.Child);
+        var shares = new List<double>();
+
+        Assert.True(splitter.Focus(), "граница не берёт каретку");
+
+        for (var press = 0; press < 5; press++)
+        {
+            window.KeyPress(Key.Right, RawInputModifiers.None, PhysicalKey.ArrowRight, string.Empty);
+            Dispatcher.UIThread.RunJobs();
+
+            shares.Add(Assert.IsType<DockSplit>(view.Root).Weights[0]);
+
+            Assert.True(splitter.IsFocused, $"после {press + 1}-й стрелки каретка ушла с границы");
+        }
+
+        Assert.True(shares[0] > 0.5, $"стрелка сдвинула границу, а в дереве она на месте: {shares[0]:0.000}");
+
+        for (var press = 1; press < shares.Count; press++)
+        {
+            Assert.True(shares[press] > shares[press - 1],
+                $"{press + 1}-я стрелка не дошла до дерева: {string.Join(" → ", shares.Select(share => share.ToString("0.000", CultureInfo.InvariantCulture)))}");
+        }
+
+        Assert.Same(grid, view.Child);
+    }
+
+    /// <summary>
+    /// Стрелка поперёк границы и граница, упёршаяся в предел, дерево не трогают.
+    /// </summary>
+    /// <remarks>
+    /// Сплиттер отмечает обработанной и поперечную стрелку, и шаг за предел, и в обоих случаях
+    /// переписывает длины полос своими пикселями. Доли, снятые с них, расходятся с записанными на
+    /// долю пикселя округления: дерево переписывалось ради ничего, окно перестраивалось, каретка
+    /// пропадала, а в файл раскладки уходил дрейф.
+    /// </remarks>
+    [AvaloniaFact]
+    public void An_arrow_that_moves_nothing_leaves_the_tree_alone()
+    {
+        var (view, window, splitter) = Bordered();
+        var resized = 0;
+
+        view.Resized += (_, _) => resized++;
+
+        Assert.True(splitter.Focus(), "граница не берёт каретку");
+
+        var before = view.Root;
+
+        window.KeyPress(Key.Up, RawInputModifiers.None, PhysicalKey.ArrowUp, string.Empty);
+        window.KeyPress(Key.Down, RawInputModifiers.None, PhysicalKey.ArrowDown, string.Empty);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(0, resized);
+        Assert.Same(before, view.Root);
+        Assert.True(splitter.IsFocused, "поперечная стрелка увела каретку с границы");
+
+        // До предела — стрелками, пока доля движется; дальше каждый шаг мимо.
+        for (var press = 0; press < 200; press++)
+        {
+            if (!Moves())
+                break;
+        }
+
+        Assert.True(view.TryFindResource("AxDockPaneMinSize", out var found), "в теме нет наименьшего размера панели");
+        Assert.True(Assert.IsType<Grid>(view.Child).ColumnDefinitions[0].ActualWidth <= (double)found! + 1,
+            $"стрелки встали раньше предела: левая панель {Assert.IsType<Grid>(view.Child).ColumnDefinitions[0].ActualWidth:0.#}");
+
+        var limit = view.Root;
+        var counted = resized;
+
+        for (var press = 0; press < 3; press++)
+            Assert.False(Moves(), "граница у предела сдвинулась");
+
+        Assert.Equal(counted, resized);
+        Assert.Same(limit, view.Root);
+        Assert.True(splitter.IsFocused, "шаг за предел увёл каретку с границы");
+
+        bool Moves()
+        {
+            var was = view.Root;
+
+            window.KeyPress(Key.Left, RawInputModifiers.None, PhysicalKey.ArrowLeft, string.Empty);
+            Dispatcher.UIThread.RunJobs();
+            view.UpdateLayout();
+
+            return !ReferenceEquals(was, view.Root);
+        }
+    }
+
+    /// <summary>
+    /// Правка одних долей не перестраивает окно: панели остаются на своих местах, а полосы берут
+    /// новые доли.
+    /// </summary>
+    /// <remarks>
+    /// Перестройка снимала с экрана каждую панель и вешала обратно — ради одной потянутой границы.
+    /// </remarks>
+    [AvaloniaFact]
+    public void New_shares_take_their_place_without_a_rebuild()
+    {
+        var (view, window, splitter) = Bordered();
+        var panel = Assert.IsType<Border>(view.Items!.Find("solution")!.Content);
+        var grid = Assert.IsType<Grid>(view.Child);
+        var detached = 0;
+
+        panel.DetachedFromVisualTree += (_, _) => detached++;
+
+        view.Root = DockTree.Resize(view.Root!, [], [0.3, 0.7]);
+        Dispatcher.UIThread.RunJobs();
+        view.UpdateLayout();
+
+        var left = grid.ColumnDefinitions[0].ActualWidth;
+        var right = grid.ColumnDefinitions[2].ActualWidth;
+
+        Assert.Equal(0.3, left / (left + right), 2);
+        Assert.Same(grid, view.Child);
+        Assert.Same(splitter, grid.Children.OfType<GridSplitter>().Single());
+        Assert.Equal(0, detached);
+        Assert.Same(window, TopLevel.GetTopLevel(panel));
     }
 
     /// <summary>
@@ -744,6 +877,10 @@ public class DockViewTests
         // И пол не обнулён: вернув скрытую панель, документы не исчезнут.
         Assert.True(after.Weights[1] > 0, $"доля пола обратилась в {after.Weights[1]:0.0000}");
 
+        // Отклонённый ход дерево не правит, и граница на экране отскакивает к его доле, а не
+        // остаётся там, куда её дотянули.
+        Assert.Equal(after.Weights[0], Assert.IsType<Grid>(view.Child).ColumnDefinitions[0].Width.Value, 6);
+
         // Возвращаем скрытую и убеждаемся, что документам есть где стоять.
         var items = new DockItems();
 
@@ -994,6 +1131,33 @@ public class DockViewTests
         Assert.True(field.IsFocused, "щелчок по границе унёс каретку из панели");
 
         window.Close();
+    }
+
+    /// <summary>
+    /// Две группы рядом поровну и граница между ними; владелец дерева записывает в него потянутое.
+    /// </summary>
+    private static (DockView View, Window Window, GridSplitter Splitter) Bordered()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children =
+            [
+                new DockGroup { Id = "left", Items = ["solution"], Selected = "solution" },
+                new DockGroup { Id = "right", Items = ["properties"], Selected = "properties" },
+            ],
+            Weights = [0.5, 0.5],
+        };
+
+        var (view, _) = Shown(root, "solution", "properties");
+
+        // Вид о потянутой границе только сообщает: записывает её в дерево тот, кто деревом владеет.
+        view.Resized += (_, resize) => view.Root = DockTree.Resize(view.Root!, resize.Path, resize.Weights);
+
+        return (
+            view,
+            Assert.IsAssignableFrom<Window>(TopLevel.GetTopLevel(view)),
+            Assert.IsType<Grid>(view.Child).Children.OfType<GridSplitter>().Single());
     }
 
     private static (DockView View, DockItems Items) Shown(DockNode root, params string[] ids)

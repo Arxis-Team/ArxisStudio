@@ -1,4 +1,4 @@
-# StudioSdk 7.1
+# StudioSdk 7.3
 ArxisStudio.Controls.AxAvatar : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Controls.AxAvatar :: .ctor()
 ArxisStudio.Controls.AxAvatar :: ArxisStudio.Controls.AxAvatarShape Shape { get; set; }
@@ -187,6 +187,8 @@ ArxisStudio.Controls.AxSplitButton :: static readonly Avalonia.StyledProperty<Ar
 ArxisStudio.Controls.AxSplitter : class : Avalonia.Controls.GridSplitter
 ArxisStudio.Controls.AxSplitter :: .ctor()
 ArxisStudio.Controls.AxSplitter :: Avalonia.Layout.Orientation Orientation { get; set; }
+ArxisStudio.Controls.AxSplitter :: event System.EventHandler<Avalonia.Interactivity.RoutedEventArgs> Moved
+ArxisStudio.Controls.AxSplitter :: static readonly Avalonia.Interactivity.RoutedEvent<Avalonia.Interactivity.RoutedEventArgs> MovedEvent
 ArxisStudio.Controls.AxSplitter :: static readonly Avalonia.StyledProperty<Avalonia.Layout.Orientation> OrientationProperty
 ArxisStudio.Controls.AxTabItem : class : Avalonia.Controls.ListBoxItem
 ArxisStudio.Controls.AxTabItem :: .ctor()

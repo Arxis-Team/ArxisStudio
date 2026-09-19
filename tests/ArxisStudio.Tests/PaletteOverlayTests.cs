@@ -291,6 +291,45 @@ public class PaletteOverlayTests
         window.Close();
     }
 
+    /// <summary>
+    /// Tab ходит по карточке кругом и за её край каретку не выпускает.
+    /// </summary>
+    /// <remarks>
+    /// Палитра лежит поверх окна, и каретка, выпущенная Tab за её край, уходила в панель под ней:
+    /// палитра оставалась открытой, а набирать в неё было уже нельзя.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Tab_goes_round_the_card_and_never_leaves_it()
+    {
+        var field = new AxTextBox();
+        var window = new Window { Width = 900, Height = 600, Content = field };
+
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        field.Focus();
+
+        var palette = new PaletteOverlay(_ => true);
+
+        palette.Show(window, [new("Закрыть вкладку", "studio.close", "Ctrl+W"), new("Следующая панель", "studio.panel.next", "F6")]);
+        Dispatcher.UIThread.RunJobs();
+
+        var card = Assert.Single(window.GetVisualDescendants().OfType<AxQuickSearch>());
+
+        for (var press = 0; press < 6; press++)
+        {
+            window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, string.Empty);
+            Dispatcher.UIThread.RunJobs();
+
+            var focused = Assert.IsAssignableFrom<Visual>(window.FocusManager?.GetFocusedElement());
+
+            Assert.True(ReferenceEquals(focused, card) || focused.GetVisualAncestors().Contains(card),
+                $"после {press + 1}-го Tab каретка ушла из палитры: {focused.GetType().Name}");
+        }
+
+        palette.Close();
+        window.Close();
+    }
+
     /// <summary>Открытая палитра над показанным окном.</summary>
     private static (PaletteOverlay Palette, Window Window, IReadOnlyList<PaletteEntry> Entries) Shown(
         List<string>? called = null,

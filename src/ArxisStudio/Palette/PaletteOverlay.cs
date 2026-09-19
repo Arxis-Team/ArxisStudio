@@ -98,6 +98,11 @@ public sealed class PaletteOverlay
             VerticalAlignment = VerticalAlignment.Top,
             [!Layoutable.MarginProperty] = new DynamicResourceExtension("AxPaletteMargin"),
             [!Layoutable.WidthProperty] = new DynamicResourceExtension("AxPaletteWidth"),
+
+            // Tab ходит по карточке кругом: палитра лежит поверх окна, и каретка, выпущенная за
+            // её край, уходила в панель под ней — палитра оставалась открытой, а набирать в неё
+            // было уже нельзя.
+            [KeyboardNavigation.TabNavigationProperty] = KeyboardNavigationMode.Cycle,
         };
 
         _card.PropertyChanged += OnCardChanged;

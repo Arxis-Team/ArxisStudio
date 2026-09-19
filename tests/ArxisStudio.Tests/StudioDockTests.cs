@@ -441,6 +441,150 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
+    /// F6 проходит мимо панели, в которой каретке встать не на что, и в обе стороны.
+    /// </summary>
+    /// <remarks>
+    /// Прежде F6 упирался в такую панель: каретка оставалась на месте, и следующий F6 снова
+    /// спрашивал ту же панель — дальше неё обход не шёл вовсе.
+    /// </remarks>
+    [AvaloniaFact]
+    public void F6_passes_a_panel_with_nothing_to_hold_the_caret()
+    {
+        var (dock, _) = Dock();
+        var tree = Focusable();
+        var tips = Focusable();
+
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, tree);
+        dock.Add("hello", "hello:note", At("bottom"), "Надпись", Strings, new TextBlock { Text = "только надпись" });
+        dock.Add("friend", "friend:tips", At("right"), "Советы", Strings, tips);
+        Settle();
+
+        Assert.True(dock.Focus("hello:tree"));
+
+        var visited = new List<string?>();
+
+        for (var press = 0; press < 4; press++)
+        {
+            Assert.True(dock.Cycle(), "F6 упёрся в панель без места для каретки");
+            visited.Add(dock.Focused);
+        }
+
+        Assert.DoesNotContain("hello:note", visited);
+        Assert.Contains("friend:tips", visited);
+        Assert.Contains("hello:tree", visited);
+
+        // Обратно — с той панели, за которой по кругу назад стоит надпись: сцена идёт слева
+        // направо, и от дерева назад первыми были бы советы, мимо надписи не пройдя.
+        Assert.Equal(["hello:tree", "hello:note", "friend:tips"], dock.Onstage);
+        Assert.True(dock.Focus("friend:tips"));
+        Assert.True(dock.Cycle(back: true), "Shift+F6 упёрся в панель без места для каретки");
+        Assert.Equal("hello:tree", dock.Focused);
+    }
+
+    /// <summary>
+    /// F6 проходит мимо панели оторванного окна, не будя его, и каретка остаётся там, где встала.
+    /// </summary>
+    /// <remarks>
+    /// Попытка отдать каретку панели оторванного окна это окно активирует. F6 делал попытку и у той
+    /// панели, в которой каретке встать не на что: окно просыпалось, F6 шёл дальше и отдавал каретку
+    /// панели главного окна — а проснувшееся окно, став активным, тут же её отнимало. F6 отвечал
+    /// «нашёл», а каретки не было нигде.
+    /// </remarks>
+    [AvaloniaFact]
+    public void F6_passes_a_panel_in_a_torn_window_without_waking_the_window()
+    {
+        var (dock, view) = Dock();
+        var window = Assert.IsAssignableFrom<Window>(TopLevel.GetTopLevel(view));
+
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, Focusable());
+        dock.Add("hello", "hello:note", At("bottom"), "Надпись", Strings, new TextBlock { Text = "только надпись" });
+        dock.Add("friend", "friend:tips", At("right"), "Советы", Strings, Focusable());
+        Settle();
+
+        Tear(view, window, "bottom");
+        Settle();
+
+        var torn = Assert.Single(dock.Floating);
+        var woken = 0;
+
+        Assert.True(dock.Focus("friend:tips"));
+        window.Activate();
+        Settle();
+
+        torn.Activated += (_, _) => woken++;
+
+        Assert.Equal(["hello:tree", "friend:tips", "hello:note"], dock.Onstage);
+        Assert.True(dock.Cycle(), "F6 не нашёл панели за надписью");
+        Settle();
+
+        Assert.Equal(0, woken);
+        Assert.Equal("hello:tree", dock.Focused);
+    }
+
+    /// <summary>
+    /// F6 доходит до панели, которая пришла мгновение назад и раскладки ещё не видела.
+    /// </summary>
+    /// <remarks>
+    /// Содержимое такой панели ещё не одето шаблоном, и спроси обход о ней до прохода раскладки —
+    /// внутри не нашлось бы никого, кто возьмёт каретку, и F6 прошёл бы мимо.
+    /// </remarks>
+    [AvaloniaFact]
+    public void F6_reaches_a_panel_that_came_a_moment_ago()
+    {
+        var (dock, view) = Dock();
+
+        dock.Add("hello", "hello:tree", At("right"), "Проект", Strings, Focusable());
+        Settle();
+
+        // Каретки в раскладке нет: перестройка, вернувшая бы её панели, раскладку и прошла бы сама.
+        Assert.Null(TopLevel.GetTopLevel(view)?.FocusManager?.GetFocusedElement());
+
+        dock.Add(
+            "friend",
+            "friend:late",
+            At("left"),
+            "Поздняя",
+            Strings,
+            new ContentControl { Content = new Border { Focusable = true, Height = 20 } });
+
+        Assert.True(dock.Cycle(), "F6 не нашёл панели");
+        Assert.Equal("friend:late", dock.Focused);
+    }
+
+    /// <summary>
+    /// F6 остаётся в панели, где каретку взяли и передали внутрь, и не уводит её к соседней.
+    /// </summary>
+    /// <remarks>
+    /// Такой контрол отвечает «не взял», хотя каретка уже в панели. Обход верил ответу и шёл
+    /// дальше — к соседней панели, проскакивая ту, что каретку приняла.
+    /// </remarks>
+    [AvaloniaFact]
+    public void F6_stays_in_a_panel_that_hands_the_caret_inward()
+    {
+        var (dock, _) = Dock();
+        var inner = new Border { Focusable = true, Height = 20 };
+        var forwarding = new Border { Focusable = true, Child = inner };
+
+        forwarding.GotFocus += (_, e) =>
+        {
+            if (ReferenceEquals(e.Source, forwarding))
+                inner.Focus();
+        };
+
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, Focusable());
+        dock.Add("hello", "hello:inward", At("bottom"), "Внутрь", Strings, new StackPanel { Children = { forwarding } });
+        dock.Add("friend", "friend:tips", At("right"), "Советы", Strings, Focusable());
+        Settle();
+
+        Assert.True(dock.Focus("hello:tree"));
+        Assert.True(dock.Cycle(), "F6 не нашёл следующей панели");
+        Settle();
+
+        Assert.Equal("hello:inward", dock.Focused);
+        Assert.True(inner.IsFocused, "каретку увели от того, кому её передали");
+    }
+
+    /// <summary>
     /// Оторванное окно, восстановленное на запуске, встаёт, не отнимая активности у студии.
     /// </summary>
     /// <remarks>

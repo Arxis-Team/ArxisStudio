@@ -853,11 +853,43 @@ public sealed class StudioDock
         var at = Focused is { } here ? stage.IndexOf(here) : -1;
 
         // Не нашли себя — начинаем сначала: каретка была не в раскладке.
-        var next = at < 0
-            ? (back ? stage.Count - 1 : 0)
-            : (at + (back ? stage.Count - 1 : 1)) % stage.Count;
+        var from = at >= 0 ? at : back ? 0 : -1;
 
-        return Focus(stage[next], method);
+        // Панель, в которой каретке встать не на что — одна надпись, пустая заглушка, —
+        // пропускается: прежде F6 упирался в неё, каретка оставалась на месте, и следующий F6 снова
+        // спрашивал ту же панель. Спрашивают её, не трогая: попытка отдать каретку показывает панель,
+        // будит её оторванное окно и объявляет выбранной — всё это досталось бы той, мимо которой
+        // прошли, а разбуженное окно, став активным, отняло бы каретку у панели за ней.
+        Lay();
+
+        for (var step = 1; step <= stage.Count; step++)
+        {
+            var next = (((from + (back ? -step : step)) % stage.Count) + stage.Count) % stage.Count;
+
+            if (Holdable(stage[next]) && Focus(stage[next], method))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>Есть ли в панели кому взять каретку — спрошено без попытки её отдать.</summary>
+    /// <param name="id">Имя панели.</param>
+    private bool Holdable(string id) => Items.Find(id)?.Content is Control content && DockFocus.CanHold(content);
+
+    /// <summary>
+    /// Раскладывает вслух главное окно и оторванные.
+    /// </summary>
+    /// <remarks>
+    /// Дерево могло только что перестроиться, и контрол панели ещё не доехал до окна: ни отдать ему
+    /// каретку, ни спросить, есть ли в нём кому её взять, до прохода раскладки нельзя.
+    /// </remarks>
+    private void Lay()
+    {
+        _view.UpdateLayout();
+
+        foreach (var window in _floats)
+            window.View.UpdateLayout();
     }
 
     /// <summary>
@@ -1039,10 +1071,7 @@ public sealed class StudioDock
         if (Torn(id) is { IsVisible: true } torn)
             torn.Activate();
 
-        _view.UpdateLayout();
-
-        foreach (var window in _floats)
-            window.View.UpdateLayout();
+        Lay();
 
         return DockFocus.Restore(content, method);
     }

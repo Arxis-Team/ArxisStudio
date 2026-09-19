@@ -793,4 +793,73 @@ public class DockTreeTests
         Assert.Equal("left", DockTree.Corner(root, new HashSet<string>(["left"], StringComparer.Ordinal)));
         Assert.Null(DockTree.Corner(root, new HashSet<string>(StringComparer.Ordinal)));
     }
+
+    /// <summary>
+    /// Деревья, разошедшиеся одними долями, одинаковы; любая другая разница — нет.
+    /// </summary>
+    /// <remarks>
+    /// На этом вид решает, перестраивать ли окно: доли встают в те же полосы, а сменившаяся вкладка,
+    /// группа или сторона требуют нового экрана. Перестройка на долях уносила каретку с границы,
+    /// а пропущенная перестройка на вкладке оставила бы на экране прежнюю.
+    /// </remarks>
+    [Fact]
+    public void Trees_that_differ_in_shares_alone_are_alike()
+    {
+        var root = Pair([0.5, 0.5]);
+
+        Assert.True(DockTree.Alike(root, Pair([0.3, 0.7])));
+        Assert.True(DockTree.Alike(root, DockTree.Resize(root, [], [0.2, 0.8])));
+
+        var wide = Pair([0.5, 0.5], "outline");
+
+        Assert.False(DockTree.Alike(wide, DockTree.Select(wide, "outline")), "другая выбранная вкладка");
+        Assert.False(DockTree.Alike(root, wide), "другой состав вкладок");
+        Assert.False(DockTree.Alike(root, Pair([0.5, 0.5], orientation: DockOrientation.Vertical)), "другая сторона");
+        Assert.False(DockTree.Alike(root, Group("left", "solution")), "группа вместо деления");
+        Assert.False(
+            DockTree.Alike(root, new DockSplit
+            {
+                Orientation = DockOrientation.Horizontal,
+                Children = [Group("left", "solution"), Group("middle", "outline"), Group("right", "properties")],
+            }),
+            "третий ребёнок");
+
+        static DockSplit Pair(double[] weights, string? extra = null, DockOrientation orientation = DockOrientation.Horizontal) => new()
+        {
+            Orientation = orientation,
+            Children =
+            [
+                extra is null
+                    ? Group("left", "solution")
+                    : new DockGroup { Id = "left", Items = ["solution", extra], Selected = "solution" },
+                Group("right", "properties"),
+            ],
+            Weights = weights,
+        };
+    }
+
+    /// <summary>Узел находится по пути от корня; путь мимо дерева — это «нет узла», а не исключение.</summary>
+    [Fact]
+    public void A_path_leads_to_its_node()
+    {
+        var inner = new DockSplit
+        {
+            Orientation = DockOrientation.Vertical,
+            Children = [Group("top", "solution"), Group("bottom", "output")],
+        };
+
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children = [Group("left", "outline"), inner],
+        };
+
+        Assert.Same(root, DockTree.At(root, []));
+        Assert.Same(inner, DockTree.At(root, [1]));
+        Assert.Equal("bottom", Assert.IsType<DockGroup>(DockTree.At(root, [1, 1])).Id);
+
+        Assert.Null(DockTree.At(root, [2]));
+        Assert.Null(DockTree.At(root, [-1]));
+        Assert.Null(DockTree.At(root, [0, 0]));
+    }
 }

@@ -187,6 +187,83 @@ public class DockFocusTests
         window.Close();
     }
 
+    /// <summary>
+    /// Каретка, переданная внутрь, — удача и у того, кто нашёлся внутри цели, и у первого в панели.
+    /// </summary>
+    /// <remarks>
+    /// Такой контрол отвечает «не взял», хотя каретка уже в панели. Обход по F6 верит ответу и,
+    /// услышав «некому», шёл к соседней панели — уводя каретку оттуда, где она уже встала.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_caret_handed_inward_counts_as_taken_at_every_step()
+    {
+        var deep = Forwarding(out var deepest);
+        var before = new Border { Focusable = true, Height = 20 };
+        var target = new StackPanel { Children = { deep } };
+        var panel = new StackPanel { Children = { before, target } };
+        var window = Framed(panel, out var outside);
+
+        // Цель сама каретку не берёт, и её отдают первому внутри цели — а тот передаёт глубже.
+        DockFocus.SetTarget(panel, target);
+        outside.Focus();
+
+        Assert.True(DockFocus.Restore(panel), "каретку в панель не отдать");
+        Assert.True(deepest.IsFocused, "каретку отняли у того, кому её передали внутри цели");
+
+        window.Close();
+
+        // Ни хранителя, ни цели: первый в панели передаёт каретку внутрь себя.
+        var lone = new StackPanel { Children = { Forwarding(out var inner) } };
+
+        window = Framed(lone, out outside);
+        outside.Focus();
+
+        Assert.True(DockFocus.Restore(lone), "каретка встала в панель, а ответ — «некому»");
+        Assert.True(inner.IsFocused, "каретку отняли у того, кому её передал первый в панели");
+
+        window.Close();
+    }
+
+    /// <summary>
+    /// Есть ли в панели кому взять каретку, узнают, не трогая её.
+    /// </summary>
+    /// <remarks>
+    /// Так спрашивает обход по F6: попытка отдать каретку показывает панель и будит её окно, и всё
+    /// это доставалось панели, мимо которой проходили.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Whether_a_panel_can_hold_the_caret_is_asked_without_moving_it()
+    {
+        var note = new StackPanel { Children = { new TextBlock { Text = "только надпись" } } };
+        var field = Panel(out _, out _);
+        var window = Framed(new StackPanel { Children = { note, field } }, out var outside);
+
+        outside.Focus();
+
+        Assert.False(DockFocus.CanHold(note), "в панели из одной надписи нашлось кому взять каретку");
+        Assert.True(DockFocus.CanHold(field), "в панели с полем не нашлось кому взять каретку");
+        Assert.True(outside.IsFocused, "вопрос увёл каретку");
+
+        window.Close();
+    }
+
+    /// <summary>Контрол, который берёт каретку и тут же передаёт её ребёнку.</summary>
+    private static Border Forwarding(out Border inner)
+    {
+        var child = new Border { Focusable = true, Height = 20 };
+        var forwarding = new Border { Focusable = true, Child = child };
+
+        forwarding.GotFocus += (_, e) =>
+        {
+            if (ReferenceEquals(e.Source, forwarding))
+                child.Focus();
+        };
+
+        inner = child;
+
+        return forwarding;
+    }
+
     /// <summary>Окно с панелью и контролом вне её, куда каретку уводят перед возвратом.</summary>
     private static Window Framed(Control panel, out Border outside)
     {

@@ -105,6 +105,18 @@ public class DockView : Decorator
     /// </remarks>
     private readonly Dictionary<string, DockGroupView> _groups = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// Сетки делений на экране.
+    /// </summary>
+    /// <remarks>
+    /// По ним правка одних долей встаёт на место в тех же сетках, а граница, кончив ход, меряет
+    /// доли от нынешнего дерева, а не от того, по которому сетку когда-то построили.
+    /// </remarks>
+    private readonly List<Division> _divisions = [];
+
+    /// <summary>Дерево, по которому построен экран.</summary>
+    private DockNode? _built;
+
     /// <summary>Вкладка, на которой нажали, и где нажали.</summary>
     private (string Item, Point At)? _pressed;
 
@@ -218,7 +230,7 @@ public class DockView : Decorator
 
     static DockView()
     {
-        RootProperty.Changed.AddClassHandler<DockView>((view, _) => view.Rebuild());
+        RootProperty.Changed.AddClassHandler<DockView>((view, _) => view.Replant());
         HideableProperty.Changed.AddClassHandler<DockView>((view, _) => view.Rebuild());
         HiddenProperty.Changed.AddClassHandler<DockView>((view, _) => view.Rebuild());
         FixedProperty.Changed.AddClassHandler<DockView>((view, _) => view.Rebuild());
@@ -836,6 +848,33 @@ public class DockView : Decorator
             Stopped?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Показывает новое дерево: правку одних долей — в тех же сетках, остальное — перестройкой.
+    /// </summary>
+    /// <remarks>
+    /// Отпущенная граница и шаг стрелкой правят одни доли, а перестройка ради них снимала всё окно:
+    /// переподвешивала каждую панель и уносила вместе со старой сеткой разделитель, на котором стоит
+    /// каретка, — стрелка сдвигала границу один раз, и дальше клавиатуре держаться было не за что.
+    /// Теперь доли встают в те же полосы, и разделитель остаётся тем же контролом.
+    /// </remarks>
+    private void Replant()
+    {
+        if (_built is not { } before || Root is not { } after || !DockTree.Alike(before, after))
+        {
+            Rebuild();
+
+            return;
+        }
+
+        _built = after;
+
+        foreach (var division in _divisions)
+        {
+            if (DockTree.At(after, division.Path) is DockSplit split)
+                division.Show(DockTree.Shares(split));
+        }
+    }
+
     /// <summary>Строит экран заново по нынешнему дереву.</summary>
     private void Rebuild()
     {
@@ -859,6 +898,8 @@ public class DockView : Decorator
         }
 
         Child = null;
+        _divisions.Clear();
+        _built = Root;
 
         var alive = new HashSet<string>(StringComparer.Ordinal);
 
@@ -994,21 +1035,22 @@ public class DockView : Decorator
         // пол рабочей области — иначе звёздочные доли отдали бы его всем
         // показанным поровну, и боковая панель, которой никто не касался,
         // становилась бы шире.
-        var sized = new List<(int At, int Row)>();
-        var floor = Floor(split, shown);
-        var room = Onscreen(shares, [.. shown.Select(item => item.At)], floor);
+        var division = new Division(grid, down, path, Floor(split, shown), shares);
+        var room = Onscreen(shares, [.. shown.Select(item => item.At)], division.Floor);
+
+        _divisions.Add(division);
 
         for (var number = 0; number < shown.Count; number++)
         {
             var (control, at) = shown[number];
 
             if (number > 0)
-                Line(grid, down, path, shares, sized, floor);
+                Line(division);
 
             var row = Row(grid, down, new GridLength(room[number], GridUnitType.Star), this);
 
             Put(grid, down, control, row);
-            sized.Add((at, row));
+            division.Sized.Add((at, row));
         }
 
         return grid;
@@ -1017,25 +1059,14 @@ public class DockView : Decorator
     /// <summary>
     /// Ставит между соседями границу, за которую можно взяться.
     /// </summary>
-    /// <param name="grid">Сетка деления.</param>
-    /// <param name="down">Деление идёт сверху вниз.</param>
-    /// <param name="path">Путь к делению от корня.</param>
-    /// <param name="shares">Доли всех детей — и показанных, и нет.</param>
-    /// <param name="sized">Кто делит место: номер ребёнка и его полоса в сетке.</param>
-    /// <param name="floor">Кто из показанных несёт пол рабочей области; -1 — никто.</param>
+    /// <param name="division">Сетка деления, в которую граница встаёт.</param>
     /// <remarks>
     /// Замороженных границ здесь не бывает: на экране остаются только те, кто
     /// делит место долями. Группа, которой на экране нет, в сетку не попадает
     /// вовсе — иначе сплиттер, дотянувшись до неё, молча выдавал бы ей пиксели
     /// вместо доли.
     /// </remarks>
-    private void Line(
-        Grid grid,
-        bool down,
-        IReadOnlyList<int> path,
-        IReadOnlyList<double> shares,
-        IReadOnlyList<(int At, int Row)> sized,
-        int floor)
+    private void Line(Division division)
     {
         // Разделитель — контрол набора: линия в пиксель, полоса захвата вокруг
         // и подсветка под курсором приходят вместе с ним. Свой шаблон движок
@@ -1043,21 +1074,66 @@ public class DockView : Decorator
         // окне быть не должно.
         var splitter = new AxSplitter
         {
-            Orientation = down ? Orientation.Horizontal : Orientation.Vertical,
+            Orientation = division.Down ? Orientation.Horizontal : Orientation.Vertical,
         };
 
-        splitter.DragCompleted += (_, _) => Resized?.Invoke(this, new DockResize(
-            path,
-            Spread(
-                shares,
-                [.. sized.Select(item => item.At)],
-                Shares(grid, down, [.. sized.Select(item => item.Row)]),
-                floor)));
+        // Ход, а не конец тяги: границу двигают и стрелками, а о них тяга не сообщает.
+        splitter.Moved += (_, _) => Commit(division);
 
         // Полоса под границу — один пиксель устройства, как и сама линия: прибитая единица
         // раскладки при 150 % даёт два пикселя, и между панелями появляется щель, в которой
         // видно фон окна.
-        Put(grid, down, splitter, Row(grid, down, new GridLength(AxDivider.Hairline(this))));
+        Put(division.Grid, division.Down, splitter, Row(division.Grid, division.Down, new GridLength(AxDivider.Hairline(this))));
+    }
+
+    /// <summary>
+    /// Сообщает владельцу, какими стали доли деления, когда граница кончила ход.
+    /// </summary>
+    /// <param name="division">Сетка, в которой ходила граница.</param>
+    /// <remarks>
+    /// Ход, ничего не сдвинувший, правкой дерева не становится. Граница упёрлась в предел, щелчок
+    /// пришёлся на неё без тяги или раскладка отказала ходу — а сплиттер и тогда переписывает длины
+    /// полос своими пикселями, и доли, снятые с них, расходятся с записанными на долю пикселя
+    /// округления. Владелец переписал бы дерево ради ничего, а файл раскладки — ради дрейфа. Такой
+    /// ход возвращает полосам доли дерева, и дальше вида он не уходит.
+    /// </remarks>
+    private void Commit(Division division)
+    {
+        var visible = division.Visible;
+        var next = Spread(
+            division.Shares,
+            visible,
+            Shares(division.Grid, division.Down, [.. division.Sized.Select(item => item.Row)]),
+            division.Floor);
+
+        if (Still(division, next))
+        {
+            division.Show(division.Shares);
+
+            return;
+        }
+
+        Resized?.Invoke(this, new DockResize(division.Path, next));
+    }
+
+    /// <summary>Доли разошлись с дерева на экране меньше чем на пиксель устройства.</summary>
+    /// <param name="division">Сетка деления.</param>
+    /// <param name="next">Доли, которые граница оставила после хода.</param>
+    private bool Still(Division division, IReadOnlyList<double> next)
+    {
+        var visible = division.Visible;
+        var was = Onscreen(division.Shares, visible, division.Floor);
+        var now = Onscreen(next, visible, division.Floor);
+        var extent = division.Down ? division.Grid.Bounds.Height : division.Grid.Bounds.Width;
+        var pixel = AxDivider.Hairline(this);
+
+        for (var number = 0; number < was.Count; number++)
+        {
+            if (Math.Abs(was[number] - now[number]) * extent >= pixel)
+                return false;
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -1292,5 +1368,61 @@ public class DockView : Decorator
             .ToList();
 
         return DockTree.Normalize(sizes);
+    }
+
+    /// <summary>
+    /// Сетка деления на экране: кто в ней делит место и по каким долям.
+    /// </summary>
+    /// <param name="grid">Сетка.</param>
+    /// <param name="down">Деление идёт сверху вниз.</param>
+    /// <param name="path">Путь к делению от корня.</param>
+    /// <param name="floor">Номер ребёнка, несущего пол рабочей области, в дереве; -1 — никто.</param>
+    /// <param name="shares">Доли всех детей деления — и показанных, и нет.</param>
+    /// <remarks>
+    /// Всё, что сетка строилась помнить, кроме долей, от них не зависит: кто показан и кто несёт пол,
+    /// решают группы и вкладки. Поэтому правка одних долей обходится этой записью, а любая другая
+    /// перестраивает экран и заводит записи заново.
+    /// </remarks>
+    private sealed class Division(Grid grid, bool down, IReadOnlyList<int> path, int floor, IReadOnlyList<double> shares)
+    {
+        /// <summary>Сетка.</summary>
+        public Grid Grid { get; } = grid;
+
+        /// <summary>Деление идёт сверху вниз.</summary>
+        public bool Down { get; } = down;
+
+        /// <summary>Путь к делению от корня.</summary>
+        public IReadOnlyList<int> Path { get; } = path;
+
+        /// <summary>Номер ребёнка, несущего пол рабочей области, в дереве; -1 — никто.</summary>
+        public int Floor { get; } = floor;
+
+        /// <summary>Доли всех детей у дерева, которое сейчас на экране.</summary>
+        public IReadOnlyList<double> Shares { get; private set; } = shares;
+
+        /// <summary>Кто делит место: номер ребёнка в дереве и его полоса в сетке.</summary>
+        public List<(int At, int Row)> Sized { get; } = [];
+
+        /// <summary>Номера показанных детей, по порядку на экране.</summary>
+        public IReadOnlyList<int> Visible => [.. Sized.Select(item => item.At)];
+
+        /// <summary>Ставит доли дерева в полосы сетки.</summary>
+        /// <param name="shares">Доли всех детей деления.</param>
+        public void Show(IReadOnlyList<double> shares)
+        {
+            Shares = shares;
+
+            var room = Onscreen(shares, Visible, Floor);
+
+            for (var number = 0; number < Sized.Count; number++)
+            {
+                var length = new GridLength(room[number], GridUnitType.Star);
+
+                if (Down)
+                    Grid.RowDefinitions[Sized[number].Row].Height = length;
+                else
+                    Grid.ColumnDefinitions[Sized[number].Row].Width = length;
+            }
+        }
     }
 }

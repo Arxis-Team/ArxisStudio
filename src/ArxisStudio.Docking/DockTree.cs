@@ -292,6 +292,55 @@ public static class DockTree
         return root.Groups().FirstOrDefault(group => group.Items.Contains(item, StringComparer.Ordinal));
     }
 
+    /// <summary>Узел по пути от корня; null — такого пути в дереве нет.</summary>
+    /// <param name="root">Корень дерева.</param>
+    /// <param name="path">Номера детей сверху вниз; пустой путь — сам корень.</param>
+    public static DockNode? At(DockNode root, IReadOnlyList<int> path)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        ArgumentNullException.ThrowIfNull(path);
+
+        var node = root;
+
+        foreach (var at in path)
+        {
+            if (node is not DockSplit split || at < 0 || at >= split.Children.Count)
+                return null;
+
+            node = split.Children[at];
+        }
+
+        return node;
+    }
+
+    /// <summary>
+    /// Одинаковы ли два дерева всем, кроме долей.
+    /// </summary>
+    /// <param name="first">Одно дерево.</param>
+    /// <param name="second">Другое.</param>
+    /// <remarks>
+    /// Такая правка — потянутая граница — меняет на экране одни длины полос: группы, вкладки и
+    /// разделители остаются теми же, и перестраивать ради неё окно незачем.
+    /// </remarks>
+    public static bool Alike(DockNode first, DockNode second)
+    {
+        ArgumentNullException.ThrowIfNull(first);
+        ArgumentNullException.ThrowIfNull(second);
+
+        return (first, second) switch
+        {
+            (DockGroup one, DockGroup two) =>
+                string.Equals(one.Id, two.Id, StringComparison.Ordinal)
+                && string.Equals(one.Selected, two.Selected, StringComparison.Ordinal)
+                && one.Items.SequenceEqual(two.Items, StringComparer.Ordinal),
+            (DockSplit one, DockSplit two) =>
+                one.Orientation == two.Orientation
+                && one.Children.Count == two.Children.Count
+                && one.Children.Zip(two.Children).All(pair => Alike(pair.First, pair.Second)),
+            _ => false,
+        };
+    }
+
     /// <summary>Делает вкладку выбранной в её группе.</summary>
     /// <param name="root">Корень дерева.</param>
     /// <param name="item">Идентификатор панели.</param>
