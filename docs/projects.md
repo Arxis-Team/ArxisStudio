@@ -648,4 +648,4 @@ public static class Findings
   XML-комментариями: у каждого метода написано, что он обещает и чем отвечает на провал.
 - [external/ArxisStudio.ProjectSystem](../external/ArxisStudio.ProjectSystem) — сама модель:
   снимки, идентичности, диагностики, коды `APS*`.
-- [docs/plan.md](plan.md), записи 119–129 и 252–256 — как это строилось и почему устроено так.
+- [docs/plan.md](plan.md), записи 119–129 и 252–257 — как это строилось и почему устроено так.

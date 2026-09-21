@@ -1,5 +1,6 @@
 using System.Collections.Specialized;
 using ArxisStudio.Controls;
+using ArxisStudio.Modules.Project.History;
 using ArxisStudio.Modules.Project.Model;
 using ArxisStudio.Modules.Project.Tree;
 using ArxisStudio.Projects;
@@ -50,6 +51,7 @@ public sealed class ProjectPanel : ToolWindow
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(10);
 
     private readonly List<Action> _release = [];
+    private readonly Dictionary<CanonicalPath, HistoryWindow> _histories = [];
     private ProjectPanelView? _view;
     private ProjectModel? _model;
     private ProjectMenu? _menu;
@@ -98,7 +100,9 @@ public sealed class ProjectPanel : ToolWindow
             _editing is null ? null : CopyFiles,
             _editing is null ? null : Paste,
             _editing is null ? null : _editing.Uncut,
-            _editing is null || Context.History() is null ? null : Undo));
+            _editing is null || Context.History() is null ? null : Undo,
+            Context.History() is null ? null : ShowHistory,
+            _editing is null || Context.History() is null ? null : PutLabel));
         _pane = new BrowserPane(_view, _model, _menu, Located, Resize, Copy);
         _pane.Show(settings.IconSize);
 
@@ -112,6 +116,12 @@ public sealed class ProjectPanel : ToolWindow
     {
         foreach (var release in _release)
             release();
+
+        // Окна истории держат службу и словари модуля: прощаясь, панель закрывает их сама.
+        foreach (var window in _histories.Values.ToList())
+            window.Close();
+
+        _histories.Clear();
 
         _release.Clear();
         _pane?.Dispose();
@@ -412,6 +422,32 @@ public sealed class ProjectPanel : ToolWindow
         if (await editing.RenameAsync(selection.Roots[0]) is { } path)
             await StandOnAsync(path, origin);
     }
+
+    /// <summary>
+    /// Показывает локальную историю узла отдельным окном; окно этого пути уже открыто — выводит его.
+    /// </summary>
+    private void ShowHistory(Node node)
+    {
+        if (Context.History() is not { } history || Owner() is not { } owner || ProjectMenu.HistoryTarget(node) is not var (path, folder, name))
+            return;
+
+        if (_histories.TryGetValue(path, out var open))
+        {
+            open.Activate();
+            return;
+        }
+
+        var window = HistoryWindow.Open(owner, new HistoryModel(history, Context.Strings, path, folder, name), Context.Strings);
+
+        _histories[path] = window;
+        window.Closed += (_, _) => _histories.Remove(path);
+    }
+
+    /// <summary>Открытые окна истории — тестам.</summary>
+    internal IReadOnlyCollection<HistoryWindow> Histories => _histories.Values;
+
+    /// <summary>Ставит метку в локальной истории — спросив её текст.</summary>
+    private void PutLabel() => Guard(_editing?.LabelAsync() ?? Task.CompletedTask);
 
     /// <summary>Отменяет последнее действие над файлами — с вопросом — и встаёт на вернувшееся.</summary>
     private void Undo(EditOrigin origin) => Guard(UndoAsync(origin));

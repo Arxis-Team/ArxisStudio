@@ -32,6 +32,8 @@ internal enum EditOrigin
 /// <param name="Paste">Вставить в папку; пусто — так же.</param>
 /// <param name="Uncut">Снять вырезанное — Esc; ответ — было ли что снимать.</param>
 /// <param name="Undo">Отменить последнее действие над файлами — Ctrl+Z; пусто — службы истории нет.</param>
+/// <param name="ShowHistory">Показать локальную историю узла; пусто — службы истории нет.</param>
+/// <param name="PutLabel">Поставить метку в локальной истории; пусто — так же.</param>
 internal sealed record MenuActions(
     Action<Node> Open,
     Action<string> Reveal,
@@ -44,7 +46,9 @@ internal sealed record MenuActions(
     Action<EditSelection, EditOrigin>? CopyFiles = null,
     Action<CanonicalPath, EditOrigin>? Paste = null,
     Func<bool>? Uncut = null,
-    Action<EditOrigin>? Undo = null);
+    Action<EditOrigin>? Undo = null,
+    Action<Node>? ShowHistory = null,
+    Action? PutLabel = null);
 
 /// <summary>
 /// Контекстное меню строки дерева и плитки правой колонки: что можно сделать с тем, на чём стоят.
@@ -146,6 +150,9 @@ internal sealed class ProjectMenu(IStudioStrings strings, MenuActions actions)
         if (actions.Delete is not null && (edit is { IsEmpty: false } || Pasting.Folder(node) is not null))
             items.Add(Edit(edit ?? EditSelection.Empty, Pasting.Folder(node), origin));
 
+        if (actions.ShowHistory is { } show && HistoryTarget(node) is not null)
+            items.Add(History(node, show));
+
         if (path is not null)
         {
             items.Add(Item(Reveal.Words, null, () => actions.Reveal(path)));
@@ -208,6 +215,41 @@ internal sealed class ProjectMenu(IStudioStrings strings, MenuActions actions)
             item.IsEnabled = edit.CanRename;
             menu.Items.Add(item);
         }
+
+        return menu;
+    }
+
+    /// <summary>
+    /// Что показывает история узла: файл — свою, папка — всё, что в ней было; проект и решение — свою
+    /// папку. Зависимостям и узлам без пути истории нет.
+    /// </summary>
+    /// <param name="node">Узел.</param>
+    /// <returns>Путь, папка ли это и как назвать; пусто — истории нет.</returns>
+    internal static (CanonicalPath Path, bool Folder, string Name)? HistoryTarget(Node node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+
+        if (node.Path.IsEmpty)
+            return null;
+
+        return node.Kind switch
+        {
+            NodeKind.File => (node.Path, false, node.Name),
+            NodeKind.Folder => (node.Path, true, node.Name),
+            NodeKind.Project or NodeKind.Solution => (node.Path.Directory, true, node.Name),
+            _ => null,
+        };
+    }
+
+    /// <summary>«Локальная история ▸», как у Rider: показать историю и поставить метку.</summary>
+    private AxMenuItem History(Node node, Action<Node> show)
+    {
+        var menu = new AxMenuItem { Header = strings["project.menu.history"] };
+
+        menu.Items.Add(Item("project.menu.history.show", null, () => show(node)));
+
+        if (actions.PutLabel is { } label)
+            menu.Items.Add(Item("project.menu.history.label", null, label));
 
         return menu;
     }

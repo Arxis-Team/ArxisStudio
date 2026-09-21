@@ -1,0 +1,143 @@
+<!--
+    Локальная история файла или папки — отдельным окном, как «Show History» у Rider: слева строки
+    истории от новой к старой, справа разница выбранной.
+
+    У файла разница — «каким он был до этой строки» против «каким лежит сейчас»: «Вернуть» делает
+    правую сторону левой, и разница показывает ровно то, что он сделает. У папки справа сверху —
+    файлы, которые действие задело, снизу — что действие сделало с выбранным: было и стало.
+
+    Окно не модальное: историю смотрят, сверяясь с деревом, а не отвечают на вопрос. Разница — две
+    колонки с номерами строк в одном списке, поэтому строка слева всегда стоит напротив своей пары
+    справа и прокрутка у них одна. F7 и Shift+F7 ходят по изменениям, как в диффе IntelliJ; Esc
+    закрывает окно.
+
+    Фон строки разницы — роли темы AxDiff*: добавленное, удалённое, переписанное. Пустая сторона
+    строки — там, где строки нет, — остаётся фоном окна: пустота и есть ответ «здесь ничего».
+
+    Длинная строка кода, метка действия, подпись стороны сокращаются многоточием, а полный текст
+    всплывает подсказкой — только пока строка и правда сокращена (AxTrimmedTip).
+-->
+<AxWindow xmlns="https://github.com/Arxis-Team/ArxisStudio"
+          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+          xmlns:a="https://github.com/avaloniaui"
+          xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
+          xmlns:h="using:ArxisStudio.Modules.Project.History"
+          x:Class="ArxisStudio.Modules.Project.History.HistoryWindow"
+          x:DataType="h:HistoryModel"
+          Title="{a:Binding Title}"
+          Width="1040" Height="640" MinWidth="640" MinHeight="400"
+          WindowStartupLocation="CenterOwner">
+
+  <AxWindow.Styles>
+    <a:Style Selector="AxListBoxItem">
+      <a:Setter Property="a:ToolTip.Tip" Value=""/>
+      <a:Setter Property="AxTrimmedTip.IsEnabled" Value="True"/>
+    </a:Style>
+    <a:Style Selector="a|Border.removed">
+      <a:Setter Property="Background" Value="{a:DynamicResource AxDiffRemovedFillBrush}"/>
+    </a:Style>
+    <a:Style Selector="a|Border.added">
+      <a:Setter Property="Background" Value="{a:DynamicResource AxDiffAddedFillBrush}"/>
+    </a:Style>
+    <a:Style Selector="a|Border.changed">
+      <a:Setter Property="Background" Value="{a:DynamicResource AxDiffChangedFillBrush}"/>
+    </a:Style>
+  </AxWindow.Styles>
+
+  <a:DockPanel>
+
+    <AxTitleBar a:DockPanel.Dock="Top">
+      <a:TextBlock Text="{a:Binding Title}" VerticalAlignment="Center"
+                   Margin="{a:DynamicResource AxSpaceWideSidesThickness}"
+                   FontSize="{a:DynamicResource AxFontSizeSmall}" AxText.Tone="Secondary"/>
+    </AxTitleBar>
+
+    <a:Border a:DockPanel.Dock="Top" Padding="{a:DynamicResource AxToolBarPadding}">
+      <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxGapControls}">
+        <AxButton x:Name="Revert" Content="{a:Binding RevertText}" IsEnabled="{a:Binding CanRevert}"/>
+        <AxButton x:Name="Undo" Content="{Text project.history.undo}" IsEnabled="{a:Binding CanUndo}"/>
+        <AxButton x:Name="PutLabel" Content="{Text project.history.label}"/>
+        <AxButton x:Name="Previous" Appearance="Toolbar" IsEnabled="{a:Binding HasChanges}"
+                  a:ToolTip.Tip="{Text project.history.previous}"
+                  a:AutomationProperties.Name="{Text project.history.previous}">
+          <AxIcon Data="{x:Static ax:AxIcons.ChevronUp}"/>
+        </AxButton>
+        <AxButton x:Name="Next" Appearance="Toolbar" IsEnabled="{a:Binding HasChanges}"
+                  a:ToolTip.Tip="{Text project.history.next}"
+                  a:AutomationProperties.Name="{Text project.history.next}">
+          <AxIcon Data="{x:Static ax:AxIcons.ChevronDown}"/>
+        </AxButton>
+      </a:StackPanel>
+    </a:Border>
+
+    <a:Border a:DockPanel.Dock="Bottom" Padding="{a:DynamicResource AxToolBarPadding}">
+      <a:TextBlock x:Name="Status" Text="{a:Binding Status}" AxText.Tone="Secondary" TextTrimming="CharacterEllipsis"/>
+    </a:Border>
+
+    <a:Grid ColumnDefinitions="2*,Auto,5*">
+
+      <AxListBox x:Name="Revisions" ItemsSource="{a:Binding Rows}" SelectedItem="{a:Binding Selected}"
+                 a:AutomationProperties.Name="{Text project.history.rows}">
+        <AxListBox.ItemTemplate>
+          <a:DataTemplate x:DataType="h:HistoryRow">
+            <a:StackPanel>
+              <a:TextBlock Text="{a:Binding Title}" TextTrimming="CharacterEllipsis"/>
+              <a:TextBlock Text="{a:Binding Detail}" AxText.Tone="Tertiary" TextTrimming="CharacterEllipsis"/>
+            </a:StackPanel>
+          </a:DataTemplate>
+        </AxListBox.ItemTemplate>
+      </AxListBox>
+
+      <AxSplitter a:Grid.Column="1"/>
+
+      <a:Grid a:Grid.Column="2" RowDefinitions="Auto,Auto,Auto,*">
+
+        <AxListBox x:Name="Files" IsVisible="{a:Binding IsFolder}" ItemsSource="{a:Binding Files}"
+                   SelectedItem="{a:Binding File}" MaxHeight="180"
+                   a:AutomationProperties.Name="{Text project.history.files}">
+          <AxListBox.ItemTemplate>
+            <a:DataTemplate x:DataType="h:HistoryFile">
+              <a:TextBlock Text="{a:Binding Title}" TextTrimming="CharacterEllipsis"/>
+            </a:DataTemplate>
+          </AxListBox.ItemTemplate>
+        </AxListBox>
+
+        <AxDivider a:Grid.Row="1" IsVisible="{a:Binding IsFolder}"/>
+
+        <a:Grid a:Grid.Row="2" ColumnDefinitions="*,*" Margin="{a:DynamicResource AxSpaceTightThickness}">
+          <a:TextBlock x:Name="LeftCaption" Text="{a:Binding LeftCaption}" AxText.Tone="Secondary" TextTrimming="CharacterEllipsis"
+                       a:ToolTip.Tip="" AxTrimmedTip.IsEnabled="True"/>
+          <a:TextBlock x:Name="RightCaption" a:Grid.Column="1" Text="{a:Binding RightCaption}" AxText.Tone="Secondary"
+                       TextTrimming="CharacterEllipsis" a:ToolTip.Tip="" AxTrimmedTip.IsEnabled="True"/>
+        </a:Grid>
+
+        <AxListBox x:Name="Diff" a:Grid.Row="3" ItemsSource="{a:Binding Diff}"
+                   FontFamily="{a:DynamicResource AxFontFamilyMono}"
+                   a:AutomationProperties.Name="{Text project.history.diff}">
+          <AxListBox.ItemTemplate>
+            <a:DataTemplate x:DataType="h:DiffLine">
+              <a:Grid ColumnDefinitions="*,*">
+                <a:Border a:Classes.removed="{a:Binding IsRemoved}" a:Classes.changed="{a:Binding IsChanged}">
+                  <a:DockPanel>
+                    <a:TextBlock a:DockPanel.Dock="Left" Text="{a:Binding LeftNumber}" MinWidth="44" TextAlignment="Right"
+                                 Margin="{a:DynamicResource AxSpaceSidesThickness}" AxText.Tone="Tertiary"/>
+                    <a:TextBlock Text="{a:Binding LeftText}" TextTrimming="CharacterEllipsis"/>
+                  </a:DockPanel>
+                </a:Border>
+                <a:Border a:Grid.Column="1" a:Classes.added="{a:Binding IsAdded}" a:Classes.changed="{a:Binding IsChanged}">
+                  <a:DockPanel>
+                    <a:TextBlock a:DockPanel.Dock="Left" Text="{a:Binding RightNumber}" MinWidth="44" TextAlignment="Right"
+                                 Margin="{a:DynamicResource AxSpaceSidesThickness}" AxText.Tone="Tertiary"/>
+                    <a:TextBlock Text="{a:Binding RightText}" TextTrimming="CharacterEllipsis"/>
+                  </a:DockPanel>
+                </a:Border>
+              </a:Grid>
+            </a:DataTemplate>
+          </AxListBox.ItemTemplate>
+        </AxListBox>
+
+      </a:Grid>
+    </a:Grid>
+  </a:DockPanel>
+
+</AxWindow>

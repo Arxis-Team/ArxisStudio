@@ -509,13 +509,25 @@ internal sealed class HistoryProbe : IStudioHistory
     /// <summary>В истории прибавилось — говорит тест.</summary>
     public void Raise() => Changed?.Invoke(this, EventArgs.Empty);
 
+    /// <summary>Строки истории по пути — что служба ответит окну истории.</summary>
+    public Dictionary<CanonicalPath, IReadOnlyList<LocalHistoryRevision>> Revisions { get; } = [];
+
+    /// <summary>Содержимое по ручке.</summary>
+    public Dictionary<string, byte[]> Contents { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>Что просили вернуть, по порядку.</summary>
+    public List<(CanonicalPath Path, LocalHistoryContent Content, string Label)> Reverted { get; } = [];
+
+    /// <summary>Какие метки просили поставить.</summary>
+    public List<string> Labels { get; } = [];
+
     /// <inheritdoc/>
     public Task<IReadOnlyList<LocalHistoryRevision>> RevisionsAsync(CanonicalPath path, CancellationToken cancellationToken = default) =>
-        Task.FromResult<IReadOnlyList<LocalHistoryRevision>>([]);
+        Task.FromResult(Revisions.TryGetValue(path, out var rows) ? rows : []);
 
     /// <inheritdoc/>
     public Task<byte[]?> ReadAsync(LocalHistoryContent content, CancellationToken cancellationToken = default) =>
-        Task.FromResult<byte[]?>(null);
+        Task.FromResult(Contents.TryGetValue(content.Id ?? string.Empty, out var bytes) ? bytes : null);
 
     /// <inheritdoc/>
     public Task<ProjectOperationResult> UndoAsync(long actionId, CancellationToken cancellationToken = default)
@@ -535,12 +547,20 @@ internal sealed class HistoryProbe : IStudioHistory
         CanonicalPath path,
         LocalHistoryContent content,
         string label,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(ProjectOperationResult.Succeeded());
+        CancellationToken cancellationToken = default)
+    {
+        Reverted.Add((path, content, label));
+
+        return Task.FromResult(Answer?.Invoke() ?? ProjectOperationResult.Succeeded());
+    }
 
     /// <inheritdoc/>
-    public Task<ProjectOperationResult> PutLabelAsync(string label, CancellationToken cancellationToken = default) =>
-        Task.FromResult(ProjectOperationResult.Succeeded());
+    public Task<ProjectOperationResult> PutLabelAsync(string label, CancellationToken cancellationToken = default)
+    {
+        Labels.Add(label);
+
+        return Task.FromResult(ProjectOperationResult.Succeeded());
+    }
 }
 
 /// <summary>Редакторы студии, которые помнят, что их просили открыть.</summary>

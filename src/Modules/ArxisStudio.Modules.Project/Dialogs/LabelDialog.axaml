@@ -1,0 +1,27 @@
+<!--
+    Метка в локальной истории, как «Put Label» у IntelliJ: отметка на времени — «до переделки», —
+    к которой потом возвращаются. Метку видно в истории всего решения.
+
+    Поле открывается пустым и под клавиатурой; пустую метку ставить нечем — кнопка выключена, и
+    Enter с пустым полем не делает ничего.
+-->
+<AxDialog xmlns="https://github.com/Arxis-Team/ArxisStudio"
+          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+          xmlns:a="https://github.com/avaloniaui"
+          x:Class="ArxisStudio.Modules.Project.Dialogs.LabelDialog"
+          Title="{Text project.label.title}">
+
+  <a:StackPanel x:Name="Form" Spacing="{a:DynamicResource AxSpaceTight}" Width="320">
+    <a:TextBlock Text="{Text project.label.prompt}" TextWrapping="Wrap"/>
+    <AxTextBox x:Name="Chosen" a:AutomationProperties.Name="{Text project.label.name}"/>
+  </a:StackPanel>
+
+  <AxDialog.Buttons>
+    <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxGapControls}">
+      <AxButton x:Name="Cancel" Content="{Text common.cancel}" MinWidth="{a:DynamicResource AxDialogButtonMinWidth}"/>
+      <AxButton x:Name="Confirm" Appearance="Primary" Content="{Text project.label.confirm}"
+                MinWidth="{a:DynamicResource AxDialogButtonMinWidth}" IsEnabled="False"/>
+    </a:StackPanel>
+  </AxDialog.Buttons>
+
+</AxDialog>

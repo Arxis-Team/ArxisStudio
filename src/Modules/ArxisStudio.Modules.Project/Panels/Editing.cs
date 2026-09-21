@@ -272,6 +272,33 @@ internal sealed class Editing(IStudioContext context, IStudioFiles files, IStudi
         }
     }
 
+    /// <summary>Ставит метку в локальной истории — спросив её текст.</summary>
+    /// <returns>Поставлена ли метка.</returns>
+    public async Task<bool> LabelAsync()
+    {
+        if (history is null || _busy || owner() is not { } window)
+            return false;
+
+        _busy = true;
+
+        try
+        {
+            if (await LabelDialog.AskAsync(window).ConfigureAwait(true) is not { } text)
+                return false;
+
+            if (await Run(window, () => history.PutLabelAsync(text)).ConfigureAwait(true) is not { HasErrors: false })
+                return false;
+
+            Tell(Format("project.history.labelled", text));
+
+            return true;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
     /// <summary>
     /// Файлы больше предела истории среди удаляемого — их удаление не вернёт ничто.
     /// </summary>
