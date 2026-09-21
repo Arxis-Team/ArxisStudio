@@ -427,7 +427,7 @@ public class PluginCatalogTests : IDisposable
             var error = catalog.Uninstall(plugin!);
 
             Assert.NotNull(error);
-            Assert.Contains("занята", error);
+            Assert.Contains("Каталог плагина занят", error);
             Assert.True(Directory.Exists(Path.Combine(_root, "arxis.figma-import")));
         }
         finally

@@ -96,7 +96,7 @@ public static class PluginContracts
         checked_ = default;
 
         if (PluginPaths.Inside(plugin.Directory, declared) is not { } path)
-            return $"контракт уводит за пределы папки плагина: {declared}";
+            return $"контракт уводит за пределы каталога плагина: {declared}";
 
         if (!File.Exists(path))
             return $"объявленный контракт не найден: {declared}";

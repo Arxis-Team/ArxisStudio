@@ -96,7 +96,7 @@
         -->
         <Error Code="AXL1001"
                Condition="'@(_StudioModuleByPath)' != '' and $([System.String]::Copy('%(_StudioModuleByPath.Identity)').Replace('\', '/').StartsWith('runtimes/'))"
-               Text="Модуль %(_StudioModuleByPath.StudioModuleId) везёт сборку под конкретную платформу: %(_StudioModuleByPath.Identity). Раскладка папки modules таких не поддерживает — резолвер модулей ищет только в bin каждого модуля и в подпапках культур. Уберите пакет из модуля или научите раскладку и резолвер runtimes/."/>
+               Text="Модуль %(_StudioModuleByPath.StudioModuleId) везёт сборку под конкретную платформу: %(_StudioModuleByPath.Identity). Раскладка каталога modules таких не поддерживает — резолвер модулей ищет только в bin каждого модуля и в подкаталогах культур. Уберите пакет из модуля или научите раскладку и резолвер runtimes/."/>
 
         <ItemGroup>
             <!--
@@ -145,7 +145,7 @@
             Outputs="%(_StudioModuleName.Identity)">
         <Error Code="AXL1002"
                Condition="@(_StudioModuleName->Count()) &gt; 1"
-               Text="Файл %(_StudioModuleName.Identity) едет сразу в несколько модулей: @(_StudioModuleName->'%(StudioModuleId)', ', '). Загрузится одна копия из нескольких, и какая — решит порядок обхода папок. Общей сборке место в lib: назовите её проект прямо в ArxisStudio.csproj. Чужой контракт подключают с Private=&quot;false&quot; ExcludeAssets=&quot;runtime&quot; — возит его владелец."/>
+               Text="Файл %(_StudioModuleName.Identity) едет сразу в несколько модулей: @(_StudioModuleName->'%(StudioModuleId)', ', '). Загрузится одна копия из нескольких, и какая — решит порядок обхода каталогов. Общей сборке место в lib: назовите её проект прямо в ArxisStudio.csproj. Чужой контракт подключают с Private=&quot;false&quot; ExcludeAssets=&quot;runtime&quot; — возит его владелец."/>
     </Target>
 
     <Target Name="StudioCopyModules" AfterTargets="CopyFilesToOutputDirectory" DependsOnTargets="StudioCollectModuleFiles;StudioCheckModuleNames">

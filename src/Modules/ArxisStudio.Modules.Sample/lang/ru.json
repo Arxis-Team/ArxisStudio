@@ -8,7 +8,7 @@
   "module.verbose.on": "Пример: подробный журнал включён",
   "module.verbose.off": "Пример: подробный журнал выключен",
   "module.sample.heading": "Пример встроенного модуля",
-  "module.sample.manifest": "Манифест: module.json в папке модуля",
+  "module.sample.manifest": "Манифест: module.json в каталоге модуля",
   "module.sample.loadcontext": "Контекст загрузки: основной, выгрузке не подлежит",
   "module.sample.project.label": "Проект:",
   "module.sample.project.none": "не открыт",

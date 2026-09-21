@@ -105,7 +105,7 @@ public sealed class LocalHistoryStore : IDisposable
         }
         catch (IOException e)
         {
-            throw new LocalHistoryBusyException($"Папку истории {root} держит другой процесс", e);
+            throw new LocalHistoryBusyException($"Каталог истории {root} держит другой процесс", e);
         }
 
         try

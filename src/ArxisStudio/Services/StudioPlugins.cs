@@ -552,7 +552,7 @@ public sealed class StudioPlugins
 
         if (_installed.FirstOrDefault(plugin => plugin.Id == pluginId) is not { } installed)
         {
-            _log.Write(StudioLogLevel.Warning, "Plugins", $"Плагина {pluginId} больше нет в папке плагинов");
+            _log.Write(StudioLogLevel.Warning, "Plugins", $"Плагина {pluginId} больше нет в каталоге плагинов");
             return null;
         }
 

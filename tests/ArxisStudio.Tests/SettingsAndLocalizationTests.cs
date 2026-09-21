@@ -80,7 +80,7 @@ public class LocalizerTests
         Assert.Equal("Плагины", Localizer.Instance["welcome.nav.plugins"]);
         Assert.Equal("Настройки", Localizer.Instance["welcome.nav.settings"]);
         Assert.Equal("Перезапустить", Localizer.Instance["panel.reload"]);
-        Assert.Equal("Установить из папки…", Localizer.Instance["plugins.install"]);
+        Assert.Equal("Установить из каталога…", Localizer.Instance["plugins.install"]);
     }
 
     /// <summary>

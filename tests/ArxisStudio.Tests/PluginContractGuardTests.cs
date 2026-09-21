@@ -77,7 +77,7 @@ public class PluginContractGuardTests : IDisposable
         var failed = Assert.Single(Start());
 
         Assert.False(failed.IsLoaded);
-        Assert.Contains("за пределы папки плагина", failed.Error);
+        Assert.Contains("за пределы каталога плагина", failed.Error);
     }
 
     /// <summary>Путь с «..» уводит наружу так же, как абсолютный.</summary>
@@ -89,7 +89,7 @@ public class PluginContractGuardTests : IDisposable
         var failed = Assert.Single(Start());
 
         Assert.False(failed.IsLoaded);
-        Assert.Contains("за пределы папки плагина", failed.Error);
+        Assert.Contains("за пределы каталога плагина", failed.Error);
     }
 
     /// <summary>Имя общей сборки студии под контракт не отдаётся.</summary>

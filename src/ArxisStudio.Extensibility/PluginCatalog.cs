@@ -112,7 +112,7 @@ public sealed class PluginCatalog
     {
         var manifestPath = Path.Combine(sourceDirectory, "plugin.json");
         if (!File.Exists(manifestPath))
-            return (null, $"В папке нет plugin.json: {sourceDirectory}");
+            return (null, $"В каталоге нет plugin.json: {sourceDirectory}");
 
         var probe = Read(sourceDirectory, manifestPath);
         if (probe.Manifest is not { } manifest)
@@ -127,7 +127,7 @@ public sealed class PluginCatalog
         if (!PluginPaths.IsFolderName(manifest.Id) || PluginPaths.Inside(_root, manifest.Id) is not { } target)
         {
             return (null,
-                $"Идентификатор «{manifest.Id}» не годится именем папки плагина: " +
+                $"Идентификатор «{manifest.Id}» не годится именем каталога плагина: " +
                 "допустимы латинские буквы, цифры, точка, дефис и подчёркивание");
         }
 
@@ -279,7 +279,7 @@ public sealed class PluginCatalog
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            return $"Папка плагина занята: {e.Message}. Закройте студию, если она открыта, и повторите.";
+            return $"Каталог плагина занят: {e.Message}. Закройте студию, если она открыта, и повторите.";
         }
     }
 

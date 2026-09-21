@@ -110,7 +110,7 @@ public class PluginPathsTests : IDisposable
 
         Assert.Null(plugin);
         Assert.NotNull(error);
-        Assert.Contains("не годится именем папки", error, StringComparison.Ordinal);
+        Assert.Contains("не годится именем каталога", error, StringComparison.Ordinal);
 
         Assert.True(File.Exists(outside), "файл над папкой плагинов обязан уцелеть");
         Assert.True(File.Exists(Path.Combine(rooted, "precious.txt")), "чужая папка обязана уцелеть");
@@ -132,7 +132,7 @@ public class PluginPathsTests : IDisposable
         var (plugin, error) = new PluginCatalog(_plugins).InstallFromArchive(archive, replace: true);
 
         Assert.Null(plugin);
-        Assert.Contains("не годится именем папки", error, StringComparison.Ordinal);
+        Assert.Contains("не годится именем каталога", error, StringComparison.Ordinal);
         Assert.True(File.Exists(outside), "файл над папкой плагинов обязан уцелеть");
     }
 

@@ -17,7 +17,7 @@
       "type": "parameter",
       "datatype": "text",
       "defaultValue": "arxis.my-plugin",
-      "description": "Идентификатор плагина вида vendor.name, строчными: по нему студия зовёт его папку",
+      "description": "Идентификатор плагина вида vendor.name, строчными: по нему студия называет его каталог",
       "replaces": "arxis.my-plugin"
     },
     "display": {

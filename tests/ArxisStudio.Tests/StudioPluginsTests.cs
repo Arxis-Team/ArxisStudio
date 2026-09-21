@@ -761,7 +761,7 @@ public class StudioPluginsTests : IDisposable
         await plugins.ReloadAsync("arxis.hello");
 
         Assert.Contains(_log.Records, record =>
-            record.Level == StudioLogLevel.Warning && record.Message.Contains("папке плагинов"));
+            record.Level == StudioLogLevel.Warning && record.Message.Contains("каталоге плагинов"));
     }
 
     /// <summary>

@@ -55,7 +55,7 @@ public sealed class SampleModule : StudioPlugin
                 : "Встроенный модуль, проект не открыт");
 
         if (_verbose)
-            _context.Log.Write(StudioLogLevel.Debug, "Пример", $"Папка модуля: {_context.PluginDirectory}");
+            _context.Log.Write(StudioLogLevel.Debug, "Пример", $"Каталог модуля: {_context.PluginDirectory}");
     }
 
     /// <summary>

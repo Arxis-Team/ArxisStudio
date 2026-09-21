@@ -697,7 +697,7 @@ public sealed class PluginHost : IDisposable
         }
 
         if (PluginPaths.Inside(installed.Directory, entry) is not { } assemblyPath)
-            return LoadedPlugin.Failed(installed, $"Сборка плагина уводит за пределы его папки: {entry}");
+            return LoadedPlugin.Failed(installed, $"Сборка плагина уводит за пределы его каталога: {entry}");
 
         if (!File.Exists(assemblyPath))
             return LoadedPlugin.Failed(installed, $"Сборка плагина не найдена: {entry}");
