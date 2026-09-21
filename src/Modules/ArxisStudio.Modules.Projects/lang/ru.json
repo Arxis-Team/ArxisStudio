@@ -42,12 +42,12 @@
   "module.projects.history.corrupted": "Содержимое {0} в истории испорчено",
   "module.projects.history.references": "Файл проекта {0} менялся с тех пор: ссылки, которые сняло удаление, не возвращены — верните их вручную",
   "module.projects.history.currentTooLarge": "{0} сейчас больше предела истории: после возврата его нынешнее содержимое было бы не вернуть",
-  "module.projects.history.folder": "{0} — папка: вернуть в неё содержимое файла нельзя",
+  "module.projects.history.folder": "{0} — каталог: вернуть в него содержимое файла нельзя",
   "module.projects.history.busy": "{0} не прочесть: его держит другая программа",
-  "module.projects.files.outside": "{0} — вне папок проектов открытого решения",
-  "module.projects.files.protected": "{0} — файл или папка проекта, решение или выход сборки: так их не правят",
+  "module.projects.files.outside": "{0} — вне каталогов проектов открытого решения",
+  "module.projects.files.protected": "{0} — файл или каталог проекта, решение или выход сборки: так их не правят",
   "module.projects.files.exists": "{0} уже существует",
-  "module.projects.files.intoItself": "Папку {0} нельзя перенести в неё саму",
+  "module.projects.files.intoItself": "Каталог {0} нельзя перенести в него самого",
   "module.projects.files.missing": "{0} не найден",
   "module.projects.files.failed": "Диск отказал: {0}"
 }
