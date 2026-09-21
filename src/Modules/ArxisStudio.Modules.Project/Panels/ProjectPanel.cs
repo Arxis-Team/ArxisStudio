@@ -85,9 +85,23 @@ public sealed class ProjectPanel : ToolWindow
 
         _model = new ProjectModel(Context, WordsOf(Context.Strings), settings);
         _view = new ProjectPanelView { DataContext = _model };
+
+        // Создавать окно может, когда у студии есть обе службы: собирает пункт служба создания, а
+        // кладёт на диск служба файлов — мимо неё окно диска не трогает.
+        var newItems = Context.GetService<IStudioNewItems>();
+
         _editing = Context.Files() is { } files
-            ? new Editing(Context, files, Context.History(), Owner, SystemFiles.For(() => _view is { } view ? TopLevel.GetTopLevel(view) : null))
+            ? new Editing(
+                Context,
+                files,
+                Context.History(),
+                Owner,
+                SystemFiles.For(() => _view is { } view ? TopLevel.GetTopLevel(view) : null),
+                newItems)
             : null;
+
+        var creating = _editing is not null && newItems is not null;
+
         _menu = new ProjectMenu(Context.Strings, new MenuActions(
             _model.Open,
             Reveal.Show,
@@ -102,7 +116,9 @@ public sealed class ProjectPanel : ToolWindow
             _editing is null ? null : _editing.Uncut,
             _editing is null || Context.History() is null ? null : Undo,
             Context.History() is null ? null : ShowHistory,
-            _editing is null || Context.History() is null ? null : PutLabel));
+            _editing is null || Context.History() is null ? null : PutLabel,
+            creating ? node => Creatable(newItems!, node) : null,
+            creating ? Create : null));
         _pane = new BrowserPane(_view, _model, _menu, Located, Resize, Copy);
         _pane.Show(settings.IconSize);
 
@@ -272,6 +288,10 @@ public sealed class ProjectPanel : ToolWindow
                 break;
             case Key.Z when e.KeyModifiers == KeyModifiers.Control && _menu?.Actions.Undo is { } undo:
                 undo(EditOrigin.Tree);
+                break;
+            case Key.Insert when e.KeyModifiers == KeyModifiers.Alt
+                                 && _view is { } view
+                                 && ShowAdd(row.Node, view.Tree.ContainerFromItem(row) ?? view.Tree, EditOrigin.Tree):
                 break;
             case Key.Right when plain:
                 if (row.HasChildren && !row.IsExpanded)
@@ -532,6 +552,91 @@ public sealed class ProjectPanel : ToolWindow
         if (_editing is { } editing && await editing.PasteAsync(folder) is [var first, ..])
             await StandOnAsync(first, origin);
     }
+
+    /// <summary>
+    /// Пункты «Добавить ▸» для проекта узла: те, чьё условие <c>when</c> проект проходит.
+    /// </summary>
+    /// <remarks>
+    /// Язык и пакеты — из снимка проекта, которому узел принадлежит. Пакеты — объявленные самим
+    /// проектом: пункт «для Avalonia» ждёт проекта, который на неё ссылается, а не того, кому она
+    /// приехала чужой зависимостью, — так же отбирают шаблоны Rider и Visual Studio. Проекта в снимке
+    /// нет — остаются пункты без условий.
+    /// </remarks>
+    private IReadOnlyList<StudioNewItem> Creatable(IStudioNewItems newItems, Node node)
+    {
+        var project = ProjectOf(node);
+        var packages = project?.PackageReferences.Select(reference => reference.PackageId).ToList() ?? [];
+
+        return [.. newItems.Items.Where(item => item.Fits(project?.Language, packages))];
+    }
+
+    /// <summary>Снимок проекта, которому узел принадлежит; пусто — не известен.</summary>
+    private ProjectSnapshot? ProjectOf(Node node) =>
+        !node.Project.IsEmpty && Context.Projects()?.Current is { } snapshot && snapshot.TryGetProject(node.Project, out var project)
+            ? project
+            : null;
+
+    /// <summary>Создаёт по пункту «Добавить ▸» в каталоге узла и встаёт на созданное.</summary>
+    private void Create(StudioNewItem item, Node node, EditOrigin origin) => Guard(CreateAsync(item, node, origin));
+
+    /// <remarks>
+    /// Встать можно только на то, что дерево покажет: файл, которого проект не включает, — классический
+    /// проект без масок, — в дереве не появится, и ждать его десять секунд незачем: окно говорит это
+    /// строкой и остаётся где было. Каталог дерево показывает с диска, включён он в проект или нет.
+    /// Открывается созданное после того, как на него встали: клавиатура уходит в редактор, как у Rider.
+    /// <para>
+    /// Строка состояния — последней. Открытие говорит своё — «загружаю», «открыть некому», — и
+    /// сказанное раньше него заслонилось бы: живая проверка нашла, что после «Заметки» строка
+    /// сообщала только, что файл открыть некому, и не говорила, что он создан.
+    /// </para>
+    /// </remarks>
+    private async Task CreateAsync(StudioNewItem item, Node node, EditOrigin origin)
+    {
+        if (_editing is not { } editing || Pasting.Folder(node) is not { } folder)
+            return;
+
+        if (await editing.CreateAsync(item, folder, ProjectOf(node)) is not { } created)
+            return;
+
+        var shown = created.IsDirectory || Included(created.First);
+
+        if (shown)
+            await StandOnAsync(created.First, origin);
+
+        if (Context.GetService<IStudioDocuments>() is { } documents)
+        {
+            foreach (var file in created.Open)
+                await documents.OpenAsync(file.Value);
+        }
+
+        Tell(Format(shown ? "project.added" : "project.added.outside", created.Name));
+    }
+
+    /// <summary>Включает ли файл хоть один проект — по снимку, который служба перечитала, прежде чем вернуться.</summary>
+    private bool Included(CanonicalPath path) =>
+        Context.Projects()?.Current?.Projects.Any(project => project.Items.Any(item => item.FullPath == path)) == true;
+
+    /// <summary>
+    /// Alt+Insert, как «New…» у Rider: пункты «Добавить ▸» отдельным меню у строки или плитки.
+    /// </summary>
+    /// <param name="node">На чём стоят.</param>
+    /// <param name="anchor">К чему привязать меню.</param>
+    /// <param name="origin">Откуда просили: туда потом и встанет выделение.</param>
+    /// <returns>Показано ли меню: у решения и зависимостей создавать некуда.</returns>
+    internal bool ShowAdd(Node node, Control anchor, EditOrigin origin)
+    {
+        if (_menu?.AddItems(node, origin) is not { Count: > 0 } items)
+            return false;
+
+        ProjectMenu.ShowAt(anchor, items, atPointer: false);
+
+        return true;
+    }
+
+    private void Tell(string message) => Context.GetService<IStudioStatus>()?.Show(message);
+
+    private string Format(string key, params object[] values) =>
+        string.Format(System.Globalization.CultureInfo.CurrentCulture, Context.Strings[key], values);
 
     /// <summary>
     /// Приглушает вырезанное — строки и плитки, чьи пути лежат в буфере правки вырезанными.

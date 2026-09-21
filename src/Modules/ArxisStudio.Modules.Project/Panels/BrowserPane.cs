@@ -185,6 +185,34 @@ internal sealed class BrowserPane : IDisposable
     internal IReadOnlyList<AxMenuItem> FolderItems() =>
         !_model.IsSearching && _model.Browser.Current is { } container ? _menu.Items(container) : [];
 
+    /// <summary>
+    /// Alt+Insert, как «New…» у Rider: пункты «Добавить ▸» отдельным меню — у выбранной плитки в её
+    /// каталоге, без выбора — в каталоге, который колонка показывает.
+    /// </summary>
+    /// <param name="list">Список колонки.</param>
+    /// <returns>Показано ли меню: у найденного поиском без выбора каталога нет, у зависимостей создавать некуда.</returns>
+    internal bool ShowAdd(AxListBox list)
+    {
+        ArgumentNullException.ThrowIfNull(list);
+
+        if (AddTarget(list) is not { } node || _menu.AddItems(node, EditOrigin.Pane) is not { Count: > 0 } items)
+            return false;
+
+        ProjectMenu.ShowAt(list.SelectedItem is Tile tile ? list.ContainerFromItem(tile) ?? list : list, items, atPointer: false);
+
+        return true;
+    }
+
+    /// <summary>На чём создаёт Alt+Insert колонки: на выбранной плитке, без неё — на каталоге колонки.</summary>
+    /// <param name="list">Список колонки.</param>
+    /// <returns>Узел; пусто — идёт поиск, и без выбора каталога нет.</returns>
+    internal Node? AddTarget(AxListBox list)
+    {
+        ArgumentNullException.ThrowIfNull(list);
+
+        return (list.SelectedItem as Tile)?.Node ?? (_model.IsSearching ? null : _model.Browser.Current);
+    }
+
     /// <summary>Контейнер открывается в колонке, файл — в редакторе.</summary>
     /// <param name="tile">Плитка.</param>
     public void Act(Tile tile)
@@ -267,6 +295,8 @@ internal sealed class BrowserPane : IDisposable
                 break;
             case Key.Z when e.KeyModifiers == KeyModifiers.Control && _menu.Actions.Undo is { } undo:
                 undo(EditOrigin.Pane);
+                break;
+            case Key.Insert when e.KeyModifiers == KeyModifiers.Alt && ShowAdd(list):
                 break;
             case Key.Back when e.KeyModifiers == KeyModifiers.None:
                 Up();

@@ -179,5 +179,18 @@
   "project.history.folder.created": "Created folder {0}",
   "project.history.folder.modified": "Modified folder {0}",
   "project.history.folder.deleted": "Deleted folder {0}",
-  "project.history.folder.moved": "Moved folder {0} ← {1}"
+  "project.history.folder.moved": "Moved folder {0} ← {1}",
+  "add.directory": "Directory",
+  "add.file": "File",
+  "project.add": "Add",
+  "project.add.title": "Create: {0}",
+  "project.add.name": "Name:",
+  "project.add.nested": "A “/” in the name lays down directories on the way",
+  "project.add.variants": "Kind",
+  "project.add.confirm": "Create",
+  "project.add.label": "Creating {0}",
+  "project.added": "Created: {0}",
+  "project.added.outside": "Created: {0} — the project does not include it",
+  "project.add.identifier": "The name must work as a C# type name: letters, digits and “_”, not starting with a digit",
+  "project.add.keyword": "“{0}” is a C# keyword"
 }

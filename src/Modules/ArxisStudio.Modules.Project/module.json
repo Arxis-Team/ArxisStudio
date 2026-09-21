@@ -1,12 +1,12 @@
 {
   "id": "arxis.project",
   "name": "%module.project%",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "publisher": "Arxis",
   "description": "%module.project.description%",
   "tags": [ "tools", "project" ],
   "dependencies": [
-    { "id": "arxis.projects", "min": "1.4", "optional": true }
+    { "id": "arxis.projects", "min": "1.6", "optional": true }
   ],
   "contributions": {
     "commands": [
@@ -19,6 +19,12 @@
     "settings": [
       { "key": "project.twoColumns", "type": "bool", "scope": "user", "title": "%settings.project.twoColumns%", "default": true },
       { "key": "project.iconSize", "type": "number", "scope": "user", "title": "%settings.project.iconSize%" }
+    ],
+    "newItems": [
+      { "id": "project.directory", "kind": "directory", "title": "%add.directory%", "icon": "arxis:Folder",
+        "name": "NewDirectory$n$", "nested": true },
+      { "id": "project.file", "kind": "file", "title": "%add.file%", "icon": "arxis:Document",
+        "name": "NewFile$n$.txt", "nested": true }
     ]
   },
   "activation": [ "onStartup" ]

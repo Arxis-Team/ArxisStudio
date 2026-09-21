@@ -1,4 +1,5 @@
 using ArxisStudio.Controls;
+using ArxisStudio.Icons;
 using ArxisStudio.Modules.Project.Browse;
 using ArxisStudio.Modules.Project.Model;
 using ArxisStudio.Modules.Project.Tree;
@@ -34,6 +35,8 @@ internal enum EditOrigin
 /// <param name="Undo">Отменить последнее действие над файлами — Ctrl+Z; пусто — службы истории нет.</param>
 /// <param name="ShowHistory">Показать локальную историю узла; пусто — службы истории нет.</param>
 /// <param name="PutLabel">Поставить метку в локальной истории; пусто — так же.</param>
+/// <param name="Creatable">Что можно создать на узле — пункты «Добавить ▸» для его проекта; пусто — создавать нечем.</param>
+/// <param name="Create">Создать по пункту на узле; пусто — так же.</param>
 internal sealed record MenuActions(
     Action<Node> Open,
     Action<string> Reveal,
@@ -48,7 +51,9 @@ internal sealed record MenuActions(
     Func<bool>? Uncut = null,
     Action<EditOrigin>? Undo = null,
     Action<Node>? ShowHistory = null,
-    Action? PutLabel = null);
+    Action? PutLabel = null,
+    Func<Node, IReadOnlyList<StudioNewItem>>? Creatable = null,
+    Action<StudioNewItem, Node, EditOrigin>? Create = null);
 
 /// <summary>
 /// Контекстное меню строки дерева и плитки правой колонки: что можно сделать с тем, на чём стоят.
@@ -67,6 +72,14 @@ internal sealed record MenuActions(
 /// видно, почему его нельзя нажать.
 /// </para>
 /// <para>
+/// Первым стоит «Добавить ▸», как Add у Rider: у проекта, каталога и файла — всё, что умеют создавать
+/// расширения, в каталоге узла; у решения и зависимостей создавать некуда, и пункта нет. Своих
+/// пунктов у меню нет — «Каталог» и «Файл» окно объявляет манифестом, как любой плагин, и получает
+/// их от службы создания вместе с чужими. Пункты идут группами расширений через черту, а ветки
+/// сходятся по тексту (<see cref="Adding.Menu"/>). Те же пункты Alt+Insert показывает отдельным
+/// меню у строки или плитки (<see cref="AddItems"/>).
+/// </para>
+/// <para>
 /// Меню собирается на каждый показ: пункты зависят от узла, и держать их между показами значило
 /// бы пересобирать их на каждый щелчок в дереве.
 /// </para>
@@ -80,9 +93,9 @@ internal sealed class ProjectMenu(IStudioStrings strings, MenuActions actions)
 
     /// <summary>Показывает меню там, где его попросили.</summary>
     /// <param name="anchor">К чему привязать: у мыши — список, у клавиатуры — строка.</param>
-    /// <param name="items">Пункты.</param>
+    /// <param name="items">Пункты — и черты между группами.</param>
     /// <param name="atPointer">Просили мышью: меню встаёт под указателем.</param>
-    public static void ShowAt(Control anchor, IReadOnlyList<AxMenuItem> items, bool atPointer)
+    public static void ShowAt(Control anchor, IReadOnlyList<Control> items, bool atPointer)
     {
         ArgumentNullException.ThrowIfNull(anchor);
         ArgumentNullException.ThrowIfNull(items);
@@ -144,10 +157,44 @@ internal sealed class ProjectMenu(IStudioStrings strings, MenuActions actions)
         return Items(container, branch: null, showInFolder: null, EditSelection.Empty, EditOrigin.Pane);
     }
 
+    /// <summary>
+    /// Пункты «Добавить ▸» узла — черты между группами расширений на месте; пусто — создавать тут нечего.
+    /// </summary>
+    /// <param name="node">Узел строки, плитки или папка пустого места.</param>
+    /// <param name="origin">Откуда правка: там потом и встанет выделение.</param>
+    /// <returns>Строки меню в порядке показа — для подменю и для Alt+Insert.</returns>
+    public IReadOnlyList<Control> AddItems(Node node, EditOrigin origin)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+
+        if (actions.Creatable is not { } creatable || actions.Create is not { } create || Pasting.Folder(node) is null)
+            return [];
+
+        var rows = new List<Control>();
+
+        Fill(rows, Adding.Menu(creatable(node)), node, origin, create);
+
+        return rows;
+    }
+
     private List<AxMenuItem> Items(Node node, Row? branch, Action? showInFolder, EditSelection? edit, EditOrigin origin)
     {
         var items = new List<AxMenuItem>();
         var path = node.Path.IsEmpty ? null : node.Path.Value;
+
+        if (AddItems(node, origin) is { Count: > 0 } add)
+        {
+            var menu = new AxMenuItem
+            {
+                Header = strings["project.add"],
+                InputGesture = new KeyGesture(Key.Insert, KeyModifiers.Alt),
+            };
+
+            foreach (var row in add)
+                menu.Items.Add(row);
+
+            items.Add(menu);
+        }
 
         switch (node.Kind)
         {
@@ -270,6 +317,51 @@ internal sealed class ProjectMenu(IStudioStrings strings, MenuActions actions)
             menu.Items.Add(Item("project.menu.history.label", null, label));
 
         return menu;
+    }
+
+    /// <summary>
+    /// Раскладывает ветку «Добавить ▸» в строки: черта — между соседями от разных расширений.
+    /// </summary>
+    private static void Fill(
+        List<Control> into, AddBranch branch, Node node, EditOrigin origin, Action<StudioNewItem, Node, EditOrigin> create)
+    {
+        string? previous = null;
+
+        foreach (var entry in branch.Entries)
+        {
+            var owner = AddBranch.OwnerOf(entry);
+
+            if (previous is not null && !string.Equals(previous, owner, StringComparison.Ordinal))
+                into.Add(new AxSeparator());
+
+            previous = owner;
+
+            switch (entry)
+            {
+                case StudioNewItem item:
+                    var row = new AxMenuItem
+                    {
+                        Header = item.Title,
+                        Icon = item.Icon is { } glyph ? new AxIcon { Data = glyph } : null,
+                    };
+
+                    row.Click += (_, _) => create(item, node, origin);
+                    into.Add(row);
+                    break;
+
+                case AddBranch nested:
+                    var sub = new AxMenuItem { Header = nested.Title };
+                    var children = new List<Control>();
+
+                    Fill(children, nested, node, origin, create);
+
+                    foreach (var child in children)
+                        sub.Items.Add(child);
+
+                    into.Add(sub);
+                    break;
+            }
+        }
     }
 
     private AxMenuItem Item(string key, KeyGesture? gesture, Action act)

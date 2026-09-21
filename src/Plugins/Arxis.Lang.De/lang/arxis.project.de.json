@@ -179,5 +179,18 @@
   "project.history.folder.created": "Ordner erstellt {0}",
   "project.history.folder.modified": "Ordner geändert {0}",
   "project.history.folder.deleted": "Ordner gelöscht {0}",
-  "project.history.folder.moved": "Ordner verschoben {0} ← {1}"
+  "project.history.folder.moved": "Ordner verschoben {0} ← {1}",
+  "add.directory": "Verzeichnis",
+  "add.file": "Datei",
+  "project.add": "Hinzufügen",
+  "project.add.title": "Erstellen: {0}",
+  "project.add.name": "Name:",
+  "project.add.nested": "Ein „/“ im Namen legt Unterverzeichnisse an",
+  "project.add.variants": "Art",
+  "project.add.confirm": "Erstellen",
+  "project.add.label": "{0} erstellen",
+  "project.added": "Erstellt: {0}",
+  "project.added.outside": "Erstellt: {0} — das Projekt schließt die Datei nicht ein",
+  "project.add.identifier": "Der Name muss ein C#-Typname sein: Buchstaben, Ziffern und „_“, nicht mit einer Ziffer beginnend",
+  "project.add.keyword": "„{0}“ ist ein C#-Schlüsselwort"
 }

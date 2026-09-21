@@ -1,39 +1,5 @@
 namespace ArxisStudio.Modules.Project.Model;
 
-/// <summary>Что не так с новым именем.</summary>
-internal enum NameProblem
-{
-    /// <summary>Имя годится.</summary>
-    None,
-
-    /// <summary>Имя то же, что было: переименовывать нечего.</summary>
-    Unchanged,
-
-    /// <summary>Имени нет.</summary>
-    Empty,
-
-    /// <summary>В имени знак, которого в имени файла быть не может.</summary>
-    Invalid,
-
-    /// <summary>Имя кончается точкой или пробелом — Windows их молча отрезает.</summary>
-    Trailing,
-
-    /// <summary>Имя устройства Windows: <c>CON</c>, <c>NUL</c>, <c>COM1</c> и соседи.</summary>
-    Reserved,
-
-    /// <summary>Такое имя в папке уже есть.</summary>
-    Taken,
-}
-
-/// <summary>Ответ проверки имени.</summary>
-/// <param name="Problem">Что не так.</param>
-/// <param name="Subject">О чём сказать: знак, зарезервированное слово, занятое имя.</param>
-internal readonly record struct NameCheck(NameProblem Problem, string? Subject = null)
-{
-    /// <summary>Имя годится.</summary>
-    public bool IsFine => Problem == NameProblem.None;
-}
-
 /// <summary>
 /// Переименование, как у Rider: новое имя вложенных, выделение в поле и проверка имени.
 /// </summary>
@@ -47,19 +13,13 @@ internal readonly record struct NameCheck(NameProblem Problem, string? Subject =
 /// </para>
 /// <para>
 /// Проверка отвечает раньше, чем имя уйдёт службе: занятое имя, знак, недопустимый в имени файла, и
-/// имя устройства Windows человек видит под полем, пока печатает, а не отказом после. Имена
-/// устройств запрещены на любой системе — решение, в котором лежит <c>con.cs</c>, не откроется у
-/// соседа с Windows.
+/// имя устройства Windows человек видит под полем, пока печатает, а не отказом после. Правила имени
+/// — общие с созданием (<see cref="FileNames"/>): что нельзя назвать переименованием, нельзя и
+/// создать.
 /// </para>
 /// </remarks>
 internal static class Renaming
 {
-    private static readonly char[] Forbidden = [.. Path.GetInvalidFileNameChars().Union(['/', '\\', ':', '*', '?', '"', '<', '>', '|'])];
-
-    private static readonly HashSet<string> Devices = new(
-        ["CON", "PRN", "AUX", "NUL", .. Enumerable.Range(1, 9).SelectMany(n => new[] { $"COM{n}", $"LPT{n}" })],
-        StringComparer.OrdinalIgnoreCase);
-
     /// <summary>Имя без последнего расширения; у имени, начинающегося с точки, — всё имя.</summary>
     /// <param name="name">Имя.</param>
     public static string Stem(string name)
@@ -142,17 +102,8 @@ internal static class Renaming
         if (string.Equals(typed, root.Name, StringComparison.Ordinal))
             return new NameCheck(NameProblem.Unchanged);
 
-        if (typed.IndexOfAny(Forbidden) is var at and >= 0)
-            return new NameCheck(NameProblem.Invalid, typed[at].ToString());
-
-        if (typed is "." or "..")
-            return new NameCheck(NameProblem.Invalid, typed);
-
-        if (typed[^1] is '.' or ' ')
-            return new NameCheck(NameProblem.Trailing);
-
-        if (typed.Split('.')[0].TrimEnd() is var device && Devices.Contains(device))
-            return new NameCheck(NameProblem.Reserved, device);
+        if (FileNames.Check(typed) is { IsFine: false } wrong)
+            return wrong;
 
         var plan = Plan(root, typed);
         var leaving = plan.Select(step => step.Node.Path.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);

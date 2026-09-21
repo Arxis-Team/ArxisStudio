@@ -1,4 +1,4 @@
-# StudioSdk 7.3
+# StudioSdk 7.6
 ArxisStudio.Controls.AxAvatar : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Controls.AxAvatar :: .ctor()
 ArxisStudio.Controls.AxAvatar :: ArxisStudio.Controls.AxAvatarShape Shape { get; set; }
@@ -171,6 +171,8 @@ ArxisStudio.Controls.AxSegmentItem : class : Avalonia.Controls.ListBoxItem
 ArxisStudio.Controls.AxSegmentItem :: .ctor()
 ArxisStudio.Controls.AxSegmentedControl : class : Avalonia.Controls.ListBox
 ArxisStudio.Controls.AxSegmentedControl :: .ctor()
+ArxisStudio.Controls.AxSeparator : class : Avalonia.Controls.Separator
+ArxisStudio.Controls.AxSeparator :: .ctor()
 ArxisStudio.Controls.AxSlider : class : Avalonia.Controls.Slider
 ArxisStudio.Controls.AxSlider :: .ctor()
 ArxisStudio.Controls.AxSpinner : class : Avalonia.Controls.Primitives.TemplatedControl

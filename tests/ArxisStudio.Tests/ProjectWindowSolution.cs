@@ -63,6 +63,7 @@ internal sealed class ProjectWindowSolution
             Identity = ProjectIdentity.Create(Request.Workspace, file),
             ProjectFilePath = file,
             Name = name,
+            Language = "C#",
             ActiveTargetFramework = "net10.0",
         };
 

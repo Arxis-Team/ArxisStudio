@@ -1,0 +1,50 @@
+<!--
+    Создание по пункту «Добавить ▸», как «New File» у Rider: подпись «Имя», поле с предложенным
+    именем — у файла выделена основа, у каталога всё, — и под полем, пока его печатают, что не так с
+    именем. Пункт, который разрешает путь, говорит, что через «/» ложатся каталоги; пункт с
+    разновидностями показывает их списком под полем, как попап «New Class/Interface», и стрелки в поле
+    ходят по списку, не уводя каретку из имени.
+
+    Ширина поля — та же, что у переименования. Предел высоты списка — тот же, что у быстрого поиска:
+    это тот же образ — поле и список выбора под ним, по которому ходят стрелками из поля.
+-->
+<AxDialog xmlns="https://github.com/Arxis-Team/ArxisStudio"
+          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+          xmlns:a="https://github.com/avaloniaui"
+          xmlns:d="using:ArxisStudio.Modules.Project.Dialogs"
+          x:Class="ArxisStudio.Modules.Project.Dialogs.CreateDialog">
+
+  <a:StackPanel x:Name="Form" Spacing="{a:DynamicResource AxSpaceTight}" Width="320">
+    <a:TextBlock x:Name="Label" Text="{Text project.add.name}"/>
+
+    <AxTextBox x:Name="Chosen" a:AutomationProperties.Name="{Text project.add.name}"/>
+
+    <a:TextBlock x:Name="Problem" TextWrapping="Wrap" AxText.Tone="Error" IsVisible="False"/>
+
+    <a:TextBlock x:Name="Hint" TextWrapping="Wrap" AxText.Tone="Secondary" IsVisible="False"
+                 Text="{Text project.add.nested}"/>
+
+    <AxListBox x:Name="Variants" IsVisible="False" MaxHeight="{a:DynamicResource AxQuickSearchMaxHeight}"
+               a:AutomationProperties.Name="{Text project.add.variants}">
+      <AxListBox.ItemTemplate>
+        <a:DataTemplate x:DataType="d:CreateVariant">
+          <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceTight}">
+            <AxIcon Data="{a:Binding Icon}"/>
+            <a:TextBlock Text="{a:Binding Title}" VerticalAlignment="Center"/>
+          </a:StackPanel>
+        </a:DataTemplate>
+      </AxListBox.ItemTemplate>
+    </AxListBox>
+  </a:StackPanel>
+
+  <AxDialog.Buttons>
+    <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxGapControls}">
+      <AxButton x:Name="Cancel" Content="{Text common.cancel}" MinWidth="{a:DynamicResource AxDialogButtonMinWidth}"/>
+
+      <!-- Имя, которое не годится, создать нечем: кнопка выключена. -->
+      <AxButton x:Name="Confirm" Appearance="Primary" Content="{Text project.add.confirm}"
+                MinWidth="{a:DynamicResource AxDialogButtonMinWidth}" IsEnabled="False"/>
+    </a:StackPanel>
+  </AxDialog.Buttons>
+
+</AxDialog>

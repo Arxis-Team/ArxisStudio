@@ -33,7 +33,14 @@ namespace ArxisStudio.Modules.Project.Panels;
 /// <param name="history">Служба истории; пусто — её нет, и отменять нечем.</param>
 /// <param name="owner">Окно, которому принадлежат вопросы; пусто — спросить негде.</param>
 /// <param name="system">Буфер обмена системы.</param>
-internal sealed class Editing(IStudioContext context, IStudioFiles files, IStudioHistory? history, Func<Window?> owner, ISystemFiles system)
+/// <param name="newItems">Служба создания студии; пусто — её нет, и создавать нечем.</param>
+internal sealed class Editing(
+    IStudioContext context,
+    IStudioFiles files,
+    IStudioHistory? history,
+    Func<Window?> owner,
+    ISystemFiles system,
+    IStudioNewItems? newItems = null)
 {
     /// <summary>Сколько файлов папки считать для вопроса: дальше — «больше».</summary>
     internal const int CountLimit = 1000;
@@ -210,6 +217,100 @@ internal sealed class Editing(IStudioContext context, IStudioFiles files, IStudi
             Tell(Format("project.renamed", node.Name, name));
 
             return moves[0].To;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>
+    /// Спрашивает имя и создаёт по пункту «Добавить ▸»: собирает службой создания, кладёт службой файлов.
+    /// </summary>
+    /// <param name="item">Пункт.</param>
+    /// <param name="folder">Каталог, на котором позвали меню.</param>
+    /// <param name="project">Проект этого каталога — имя и пространство имён для шаблона; пусто — не известен.</param>
+    /// <returns>Созданное — на что встать и что открыть; пусто — создания не было.</returns>
+    /// <remarks>
+    /// <para>
+    /// Путь, набранный в имени, окно раскладывает само: каталоги по дороге — цели, последнее — имени.
+    /// Пространство имён считается от каталога, куда ляжет пункт, а не от того, где позвали меню:
+    /// <c>Models/Person</c> — это класс в <c>…Models</c>.
+    /// </para>
+    /// <para>
+    /// Отказ пункта — диалогом с причиной, как отказ службы файлов; «передумал» в окне расширения —
+    /// молча. Создание идёт одним действием истории с меткой «Создание имя», и Ctrl+Z уносит его целиком.
+    /// </para>
+    /// </remarks>
+    public async Task<Created?> CreateAsync(StudioNewItem item, CanonicalPath folder, ProjectSnapshot? project)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        if (newItems is null || _busy || owner() is not { } window)
+            return null;
+
+        _busy = true;
+
+        try
+        {
+            var answer = await CreateDialog.AskAsync(
+                window,
+                item,
+                newItems.Suggest(item, folder.Value),
+                context.Strings,
+                (typed, variant) => Adding.Check(typed, item, folder, name => newItems.Paths(item, name, variant), File.Exists, Exists));
+
+            if (answer is null)
+                return null;
+
+            var typed = Adding.Split(answer.Typed);
+            var target = typed.In(folder);
+            var root = project is null ? null : Adding.RootNamespace(project);
+
+            var request = new NewItemRequest(typed.Name, target.Value)
+            {
+                Variant = answer.Variant,
+                ProjectFile = project?.ProjectFilePath.Value,
+                Project = project?.Name,
+                RootNamespace = root,
+                Namespace = project is null || root is null ? null : Adding.Namespace(root, project.ProjectDirectory, target),
+            };
+
+            NewItemResult made;
+
+            try
+            {
+                made = await newItems.MakeAsync(item, request);
+            }
+            catch (Exception e) when (e is not OutOfMemoryException)
+            {
+                context.Log.Write(StudioLogLevel.Error, ProjectModule.LogSource, $"Пункт «{item.Title}» не собрался: {e.Message}");
+                await FailureDialog.ShowAsync(window, e.Message);
+
+                return null;
+            }
+
+            if (made.Error is { } error)
+            {
+                await FailureDialog.ShowAsync(window, error);
+                return null;
+            }
+
+            if (made.Files.Count == 0)
+                return null;
+
+            var creations = made.Files
+                .Select(file => new FileCreation(target.Combine(file.Path)) { Content = file.Content, IsDirectory = file.IsDirectory })
+                .ToList();
+
+            if (await Run(window, () => files.CreateAsync(creations, Format("project.add.label", typed.Name))) is not { HasErrors: false })
+                return null;
+
+            return new Created(
+                typed.Name,
+                creations[0].Path,
+                creations[0].IsDirectory,
+                [.. made.Files.Zip(creations).Where(pair => pair.First.Open && !pair.First.IsDirectory).Select(pair => pair.Second.Path)]);
         }
         finally
         {
@@ -543,6 +644,13 @@ internal sealed class Editing(IStudioContext context, IStudioFiles files, IStudi
         Clip = clip;
         ClipChanged?.Invoke();
     }
+
+    /// <summary>Что создано: как назвать, на что встать и что открыть.</summary>
+    /// <param name="Name">Имя, как его набрали, — для строки состояния.</param>
+    /// <param name="First">Первое созданное — на него встаёт выделение.</param>
+    /// <param name="IsDirectory">Первое созданное — каталог: файлом проекта он не бывает.</param>
+    /// <param name="Open">Файлы, которые пункт просил открыть.</param>
+    internal sealed record Created(string Name, CanonicalPath First, bool IsDirectory, IReadOnlyList<CanonicalPath> Open);
 
     /// <summary>Разложенная вставка.</summary>
     /// <param name="Pairs">Что куда.</param>

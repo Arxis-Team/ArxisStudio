@@ -106,6 +106,22 @@ public class AnalyzerTests
         Assert.Empty(found);
     }
 
+    /// <summary>
+    /// Разделитель меню у расширения — <c>AxSeparator</c>, и правило называет его само.
+    /// </summary>
+    /// <remarks>
+    /// Замену правило ищет в наборе по имени, и пока её не было, говорило «замены пока нет» — меню
+    /// расширения делило группы разве что цветом пункта.
+    /// </remarks>
+    [Fact]
+    public async Task A_separator_is_reported_with_its_studio_replacement()
+    {
+        var diagnostic = Assert.Single(await AnalyzeAsync("var line = new Avalonia.Controls.Separator();"));
+
+        Assert.Contains("вместо него — AxSeparator", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Empty(await AnalyzeAsync("var line = new ArxisStudio.Controls.AxSeparator();"));
+    }
+
     [Fact]
     public async Task Every_widget_in_the_file_is_reported()
     {

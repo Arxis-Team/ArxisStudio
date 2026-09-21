@@ -179,5 +179,18 @@
   "project.history.folder.created": "Появился каталог {0}",
   "project.history.folder.modified": "Изменён каталог {0}",
   "project.history.folder.deleted": "Удалён каталог {0}",
-  "project.history.folder.moved": "Переехал каталог {0} ← {1}"
+  "project.history.folder.moved": "Переехал каталог {0} ← {1}",
+  "add.directory": "Каталог",
+  "add.file": "Файл",
+  "project.add": "Добавить",
+  "project.add.title": "Создание: {0}",
+  "project.add.name": "Имя:",
+  "project.add.nested": "Через «/» — вложенные каталоги",
+  "project.add.variants": "Вид",
+  "project.add.confirm": "Создать",
+  "project.add.label": "Создание {0}",
+  "project.added": "Создано: {0}",
+  "project.added.outside": "Создано: {0} — проект его не включает",
+  "project.add.identifier": "Имя должно годиться именем типа C#: буквы, цифры и «_», не с цифры",
+  "project.add.keyword": "«{0}» — ключевое слово C#"
 }

@@ -48,13 +48,15 @@ internal sealed class ProjectWindowStudio : IDisposable
     /// </param>
     /// <param name="files">Служба файлов; пусто — её нет, как у студии без службы проектов 1.3.</param>
     /// <param name="history">Служба истории; пусто — её нет, как у студии без службы проектов 1.5.</param>
+    /// <param name="newItems">Служба создания студии; пусто — её нет, и «Добавить ▸» окну не собрать.</param>
     public ProjectWindowStudio(
         bool service = true,
         double width = 520,
         ProjectsProbe? projects = null,
         bool? twoColumns = false,
         FilesProbe? files = null,
-        HistoryProbe? history = null)
+        HistoryProbe? history = null,
+        IStudioNewItems? newItems = null)
     {
         Directory.CreateDirectory(_root);
 
@@ -75,6 +77,9 @@ internal sealed class ProjectWindowStudio : IDisposable
             exports.Publish(typeof(IStudioHistory), history, "arxis.projects", "Проекты");
 
         var services = new Dictionary<Type, object> { [typeof(IStudioDocuments)] = Documents, [typeof(IStudioStatus)] = Status };
+
+        if (newItems is not null)
+            services[typeof(IStudioNewItems)] = newItems;
         var store = new PluginSettingsStore(null, Path.Combine(_root, "plugin-settings.json"));
 
         _host = new PluginHost(new StudioContextFactory(Log, new StudioCommands(), null, services, settings: store, exports: exports));
@@ -580,10 +585,14 @@ internal sealed class DocumentsProbe : IStudioDocuments
     /// <summary>Пути, по порядку.</summary>
     public List<string> Opened { get; } = [];
 
+    /// <summary>Что студия делает, открывая, — например говорит строкой состояния; пусто — ничего.</summary>
+    public Action<string>? Opening { get; set; }
+
     /// <inheritdoc/>
     public Task OpenAsync(string filePath)
     {
         Opened.Add(filePath);
+        Opening?.Invoke(filePath);
 
         return Task.CompletedTask;
     }

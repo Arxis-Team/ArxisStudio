@@ -90,9 +90,8 @@ internal sealed class LogRowMenu(
 
         items.Add(Sources());
 
-        // Очистка помечена необратимой: тема красит такой пункт цветом ошибки. Разделителя перед
-        // ним нет — Separator это виджет Avalonia, а расширению их заводить нельзя (ARX0001);
-        // цвет отделяет пункт надёжнее линии.
+        // Очистка помечена необратимой: тема красит такой пункт цветом ошибки, и цвет отделяет
+        // пункт надёжнее линии — черты (AxSeparator) перед ним нет.
         items.Add(Item(strings["console.clear"], null, clear, destructive: true));
 
         return items;
