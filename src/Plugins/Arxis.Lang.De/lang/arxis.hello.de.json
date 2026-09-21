@@ -10,5 +10,7 @@
   "panel.cancelled": "Durchlauf abgebrochen",
   "panel.counted": "Dateien im Projekt",
   "setting.greeting": "Begrüßungstext",
-  "task.walk": "Projekt wird durchlaufen"
+  "task.walk": "Projekt wird durchlaufen",
+  "add.samples": "Beispiele",
+  "add.greeting": "Gruß"
 }

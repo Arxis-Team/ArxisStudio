@@ -115,6 +115,18 @@ public class DeclaredIconsTests : IDisposable
             record.Level == StudioLogLevel.Warning
             && (record.Message.Contains("glyphs.run", StringComparison.Ordinal)
                 || record.Message.Contains("glyphs.plain", StringComparison.Ordinal)));
+
+        // Пункт «Добавить ▸» — та же запись и то же правило: сказано один раз, при чтении, вместе с
+        // пунктом, которого студия не покажет вовсе.
+        Assert.Single(_log.Records, record =>
+            record.Level == StudioLogLevel.Warning
+            && record.Message.Contains("glyphs.add", StringComparison.Ordinal)
+            && record.Message.Contains("arxis:Nada", StringComparison.Ordinal));
+
+        Assert.Single(_log.Records, record =>
+            record.Level == StudioLogLevel.Warning
+            && record.Message.Contains("glyphs.odd.kind", StringComparison.Ordinal)
+            && record.Message.Contains("«folder»", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -183,7 +195,10 @@ public class DeclaredIconsTests : IDisposable
         var records = manifests
             .SelectMany(each => each.Manifest.Contributions.Commands.Select(command => (each.Name, What: command.Id, command.Icon))
                 .Concat(each.Manifest.Contributions.ToolWindows.Select(panel => (each.Name, What: panel.Id, panel.Icon)))
-                .Concat(each.Manifest.Contributions.ToolBar.Select(item => (each.Name, What: item.Id, item.Icon))))
+                .Concat(each.Manifest.Contributions.ToolBar.Select(item => (each.Name, What: item.Id, item.Icon)))
+                .Concat(each.Manifest.Contributions.NewItems.Select(item => (each.Name, What: item.Id, item.Icon)))
+                .Concat(each.Manifest.Contributions.NewItems.SelectMany(item => item.Variants
+                    .Select(variant => (each.Name, What: $"{item.Id}/{variant.Id}", variant.Icon)))))
             .Where(record => record.Icon is { Length: > 0 })
             .ToList();
 
@@ -317,6 +332,10 @@ public class DeclaredIconsTests : IDisposable
               { "id": "glyphs.plain", "title": "Простая" }
             ],
             "menus": [ { "path": "Значки/Запустить", "command": "glyphs.run" } ],
+            "newItems": [
+              { "id": "glyphs.add", "title": "Добавить", "icon": "arxis:Nada" },
+              { "id": "glyphs.odd.kind", "kind": "folder", "title": "Странный" }
+            ],
             "toolWindows": [
               { "id": "panel", "title": "Проба", "icon": "arxis:Terminal", "placement": { "side": "left" } },
               { "id": "blank", "title": "Пустая", "icon": "M8 8", "placement": { "side": "right" } }

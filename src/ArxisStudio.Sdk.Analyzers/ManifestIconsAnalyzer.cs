@@ -13,8 +13,8 @@ namespace ArxisStudio.Sdk.Analyzers;
 /// ARX0011: запись значка в манифесте студия не разберёт.
 /// </summary>
 /// <remarks>
-/// Значок кнопки полосы, панели и команды — имя из набора студии
-/// (<c>arxis:Play</c>) или контур в сетке 16. Запись, которая не разобралась,
+/// Значок кнопки полосы, панели, команды и пункта создания — имя из набора
+/// студии (<c>arxis:Play</c>) или контур в сетке 16. Запись, которая не разобралась,
 /// ничего не отменяет: элемент встаёт без значка, а студия пишет о записи в
 /// журнал — но журнал читает уже пользователь, а не автор. Опечатку в имени
 /// дешевле поймать здесь, и назвать заодно то имя, которое имелось в виду.
@@ -47,9 +47,11 @@ public sealed class ManifestIconsAnalyzer : DiagnosticAnalyzer
 
     private static readonly string[] Images = { ".png", ".svg", ".ico", ".jpg", ".jpeg", ".gif", ".bmp", ".webp" };
 
-    /// <summary>Значок в одной из трёх секций вкладов — и больше нигде.</summary>
+    /// <summary>
+    /// Значок в одной из четырёх секций вкладов или у варианта пункта создания — и больше нигде.
+    /// </summary>
     private static readonly Regex Icon = new(
-        @"^contributions\.(?<section>toolBar|toolWindows|commands)\[(?<index>\d+)\]\.icon$",
+        @"^contributions\.(?:(?<section>toolBar|toolWindows|commands|newItems)\[(?<index>\d+)\]|(?<section>newItems)\[(?<index>\d+)\]\.variants\[(?<variant>\d+)\])\.icon$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     /// <summary>Слово: буквы без чисел. Контуром оно не бывает — у контура есть координаты.</summary>
@@ -62,7 +64,7 @@ public sealed class ManifestIconsAnalyzer : DiagnosticAnalyzer
         "ArxisStudio",
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "Значок кнопки полосы, панели и команды — имя из набора студии (arxis:Play) или контур в сетке 16. " +
+        description: "Значок кнопки полосы, панели, команды и пункта создания — имя из набора студии (arxis:Play) или контур в сетке 16. " +
                      "Запись, которая не разобралась, ничего не отменяет: элемент встаёт без значка, а студия пишет о ней " +
                      "в журнал — уже у пользователя, а не у автора.");
 
@@ -193,10 +195,21 @@ public sealed class ManifestIconsAnalyzer : DiagnosticAnalyzer
         {
             "toolbar" => "элемент полосы",
             "toolwindows" => "панель",
+            "newitems" => "пункт создания",
             _ => "команда",
         };
 
-        return id is { Length: > 0 } ? what + " " + id : what + " без id";
+        var owner = id is { Length: > 0 } ? what + " " + id : what + " без id";
+
+        if (!icon.Groups["variant"].Success)
+        {
+            return owner;
+        }
+
+        var path = item.Substring(0, item.Length - ".id".Length) + ".variants[" + icon.Groups["variant"].Value + "].id";
+        var variant = fields.FirstOrDefault(field => string.Equals(field.Path, path, StringComparison.OrdinalIgnoreCase)).Value;
+
+        return owner + ", вариант " + (variant is { Length: > 0 } ? variant : "без id");
     }
 
     /// <summary>

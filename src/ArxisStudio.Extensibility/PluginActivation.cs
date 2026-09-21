@@ -38,6 +38,16 @@ public static class PluginActivation
     public const string OnToolWindow = "onToolWindow:";
 
     /// <summary>
+    /// Плагин поднимается, когда выбрали его пункт создания с кодом.
+    /// </summary>
+    /// <remarks>
+    /// Пункт вида <c>code</c> в меню «Добавить ▸» стоит по манифесту, а файлы собирает класс с
+    /// <c>[NewItem]</c> — ради него и поднимают. Каталог и файл по шаблону плагин не будят: их студия
+    /// собирает сама.
+    /// </remarks>
+    public const string OnNewItem = "onNewItem:";
+
+    /// <summary>
     /// Нужно ли поднимать плагин сразу.
     /// </summary>
     /// <param name="manifest">Манифест плагина.</param>
@@ -64,6 +74,12 @@ public static class PluginActivation
     /// <param name="extension">Расширение с точкой, например <c>.fig</c>.</param>
     public static bool WaitsForFileType(PluginManifest? manifest, string extension) =>
         Waits(manifest, OnFileType, extension, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Ждёт ли плагин выбора своего пункта создания.</summary>
+    /// <param name="manifest">Манифест плагина.</param>
+    /// <param name="itemId">Идентификатор пункта.</param>
+    public static bool WaitsForNewItem(PluginManifest? manifest, string itemId) =>
+        Waits(manifest, OnNewItem, itemId, StringComparer.Ordinal);
 
     private static bool Waits(PluginManifest? manifest, string prefix, string value, StringComparer comparer)
     {

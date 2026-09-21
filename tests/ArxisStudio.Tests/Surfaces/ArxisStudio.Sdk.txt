@@ -1,4 +1,4 @@
-# StudioSdk 6.0
+# StudioSdk 7.5
 ArxisStudio.Sdk.CommandAttribute : sealed class : System.Attribute
 ArxisStudio.Sdk.CommandAttribute :: .ctor(System.String id)
 ArxisStudio.Sdk.CommandAttribute :: System.String Id { get; }
@@ -41,6 +41,11 @@ ArxisStudio.Sdk.IStudioLogFeed : interface
 ArxisStudio.Sdk.IStudioLogFeed :: System.Collections.Generic.IReadOnlyList<ArxisStudio.Sdk.StudioLogRecord> Records { get; }
 ArxisStudio.Sdk.IStudioLogFeed :: System.Void Clear()
 ArxisStudio.Sdk.IStudioLogFeed :: event System.EventHandler Changed
+ArxisStudio.Sdk.IStudioNewItems : interface
+ArxisStudio.Sdk.IStudioNewItems :: System.Collections.Generic.IReadOnlyList<ArxisStudio.Sdk.StudioNewItem> Items { get; }
+ArxisStudio.Sdk.IStudioNewItems :: System.Collections.Generic.IReadOnlyList<System.String> Paths(ArxisStudio.Sdk.StudioNewItem item, System.String name, System.String? variant = null)
+ArxisStudio.Sdk.IStudioNewItems :: System.String Suggest(ArxisStudio.Sdk.StudioNewItem item, System.String directory, System.String? variant = null)
+ArxisStudio.Sdk.IStudioNewItems :: System.Threading.Tasks.Task<ArxisStudio.Sdk.NewItemResult> MakeAsync(ArxisStudio.Sdk.StudioNewItem item, ArxisStudio.Sdk.NewItemRequest request, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Sdk.IStudioPlugins : interface
 ArxisStudio.Sdk.IStudioPlugins :: System.Boolean IsActive(System.String pluginId)
 ArxisStudio.Sdk.IStudioPlugins :: System.String? Version(System.String pluginId)
@@ -65,6 +70,53 @@ ArxisStudio.Sdk.IStudioToolBar : interface
 ArxisStudio.Sdk.IStudioToolBar :: System.Void Update(System.String itemId, System.Boolean? isEnabled = null, System.Boolean? isVisible = null, System.Boolean? isChecked = null)
 ArxisStudio.Sdk.IStudioToolWindows : interface
 ArxisStudio.Sdk.IStudioToolWindows :: System.Void Show(System.String toolWindowId)
+ArxisStudio.Sdk.NewItemAttribute : sealed class : System.Attribute
+ArxisStudio.Sdk.NewItemAttribute :: .ctor(System.String id)
+ArxisStudio.Sdk.NewItemAttribute :: System.String Id { get; }
+ArxisStudio.Sdk.NewItemFile : sealed record : System.IEquatable<ArxisStudio.Sdk.NewItemFile>
+ArxisStudio.Sdk.NewItemFile :: .ctor(System.String Path)
+ArxisStudio.Sdk.NewItemFile :: System.Boolean Equals(ArxisStudio.Sdk.NewItemFile? other)
+ArxisStudio.Sdk.NewItemFile :: System.Boolean IsDirectory { get; init; }
+ArxisStudio.Sdk.NewItemFile :: System.Boolean Open { get; init; }
+ArxisStudio.Sdk.NewItemFile :: System.ReadOnlyMemory<System.Byte> Content { get; init; }
+ArxisStudio.Sdk.NewItemFile :: System.String Path { get; init; }
+ArxisStudio.Sdk.NewItemFile :: System.Void Deconstruct(out System.String Path)
+ArxisStudio.Sdk.NewItemFile :: static System.Boolean op_Equality(ArxisStudio.Sdk.NewItemFile? left, ArxisStudio.Sdk.NewItemFile? right)
+ArxisStudio.Sdk.NewItemFile :: static System.Boolean op_Inequality(ArxisStudio.Sdk.NewItemFile? left, ArxisStudio.Sdk.NewItemFile? right)
+ArxisStudio.Sdk.NewItemKind : enum
+ArxisStudio.Sdk.NewItemKind :: Code = 2
+ArxisStudio.Sdk.NewItemKind :: Directory = 1
+ArxisStudio.Sdk.NewItemKind :: File = 0
+ArxisStudio.Sdk.NewItemMaker : abstract class
+ArxisStudio.Sdk.NewItemMaker :: .ctor()
+ArxisStudio.Sdk.NewItemMaker :: ArxisStudio.Sdk.IStudioContext Context { get; }
+ArxisStudio.Sdk.NewItemMaker :: System.Void Attach(ArxisStudio.Sdk.IStudioContext context)
+ArxisStudio.Sdk.NewItemMaker :: abstract System.Threading.Tasks.Task<ArxisStudio.Sdk.NewItemResult> MakeAsync(ArxisStudio.Sdk.NewItemRequest request, System.Threading.CancellationToken cancellationToken)
+ArxisStudio.Sdk.NewItemNameRule : enum
+ArxisStudio.Sdk.NewItemNameRule :: File = 0
+ArxisStudio.Sdk.NewItemNameRule :: Identifier = 1
+ArxisStudio.Sdk.NewItemRequest : sealed record : System.IEquatable<ArxisStudio.Sdk.NewItemRequest>
+ArxisStudio.Sdk.NewItemRequest :: .ctor(System.String Name, System.String Directory)
+ArxisStudio.Sdk.NewItemRequest :: System.Boolean Equals(ArxisStudio.Sdk.NewItemRequest? other)
+ArxisStudio.Sdk.NewItemRequest :: System.String Directory { get; init; }
+ArxisStudio.Sdk.NewItemRequest :: System.String Name { get; init; }
+ArxisStudio.Sdk.NewItemRequest :: System.String? Namespace { get; init; }
+ArxisStudio.Sdk.NewItemRequest :: System.String? Project { get; init; }
+ArxisStudio.Sdk.NewItemRequest :: System.String? ProjectFile { get; init; }
+ArxisStudio.Sdk.NewItemRequest :: System.String? RootNamespace { get; init; }
+ArxisStudio.Sdk.NewItemRequest :: System.String? Variant { get; init; }
+ArxisStudio.Sdk.NewItemRequest :: System.Void Deconstruct(out System.String Name, out System.String Directory)
+ArxisStudio.Sdk.NewItemRequest :: static System.Boolean op_Equality(ArxisStudio.Sdk.NewItemRequest? left, ArxisStudio.Sdk.NewItemRequest? right)
+ArxisStudio.Sdk.NewItemRequest :: static System.Boolean op_Inequality(ArxisStudio.Sdk.NewItemRequest? left, ArxisStudio.Sdk.NewItemRequest? right)
+ArxisStudio.Sdk.NewItemResult : sealed class
+ArxisStudio.Sdk.NewItemResult :: System.Collections.Generic.IReadOnlyList<ArxisStudio.Sdk.NewItemFile> Files { get; }
+ArxisStudio.Sdk.NewItemResult :: System.String? Error { get; }
+ArxisStudio.Sdk.NewItemResult :: static ArxisStudio.Sdk.NewItemResult Declined { get; }
+ArxisStudio.Sdk.NewItemResult :: static ArxisStudio.Sdk.NewItemResult Failed(System.String error)
+ArxisStudio.Sdk.NewItemResult :: static ArxisStudio.Sdk.NewItemResult Made(System.Collections.Generic.IReadOnlyList<ArxisStudio.Sdk.NewItemFile> files)
+ArxisStudio.Sdk.NewItemTemplate : static class
+ArxisStudio.Sdk.NewItemTemplate :: static System.Collections.Generic.IReadOnlyList<System.String> Variables { get; }
+ArxisStudio.Sdk.NewItemTemplate :: static System.String Expand(System.String text, ArxisStudio.Sdk.NewItemRequest request)
 ArxisStudio.Sdk.Plugins.PluginCommand : sealed record : System.IEquatable<ArxisStudio.Sdk.Plugins.PluginCommand>
 ArxisStudio.Sdk.Plugins.PluginCommand :: .ctor(System.String Id)
 ArxisStudio.Sdk.Plugins.PluginCommand :: System.Boolean Equals(ArxisStudio.Sdk.Plugins.PluginCommand? other)
@@ -80,6 +132,7 @@ ArxisStudio.Sdk.Plugins.PluginContributions :: .ctor()
 ArxisStudio.Sdk.Plugins.PluginContributions :: System.Collections.Generic.IList<ArxisStudio.Sdk.Plugins.PluginCommand> Commands { get; set; }
 ArxisStudio.Sdk.Plugins.PluginContributions :: System.Collections.Generic.IList<ArxisStudio.Sdk.Plugins.PluginLanguage> Languages { get; set; }
 ArxisStudio.Sdk.Plugins.PluginContributions :: System.Collections.Generic.IList<ArxisStudio.Sdk.Plugins.PluginMenuItem> Menus { get; set; }
+ArxisStudio.Sdk.Plugins.PluginContributions :: System.Collections.Generic.IList<ArxisStudio.Sdk.Plugins.PluginNewItem> NewItems { get; set; }
 ArxisStudio.Sdk.Plugins.PluginContributions :: System.Collections.Generic.IList<ArxisStudio.Sdk.Plugins.PluginSetting> Settings { get; set; }
 ArxisStudio.Sdk.Plugins.PluginContributions :: System.Collections.Generic.IList<ArxisStudio.Sdk.Plugins.PluginToolBarItem> ToolBar { get; set; }
 ArxisStudio.Sdk.Plugins.PluginContributions :: System.Collections.Generic.IList<ArxisStudio.Sdk.Plugins.PluginToolWindow> ToolWindows { get; set; }
@@ -121,6 +174,38 @@ ArxisStudio.Sdk.Plugins.PluginMenuItem :: System.String Path { get; init; }
 ArxisStudio.Sdk.Plugins.PluginMenuItem :: System.Void Deconstruct(out System.String Path, out System.String Command)
 ArxisStudio.Sdk.Plugins.PluginMenuItem :: static System.Boolean op_Equality(ArxisStudio.Sdk.Plugins.PluginMenuItem? left, ArxisStudio.Sdk.Plugins.PluginMenuItem? right)
 ArxisStudio.Sdk.Plugins.PluginMenuItem :: static System.Boolean op_Inequality(ArxisStudio.Sdk.Plugins.PluginMenuItem? left, ArxisStudio.Sdk.Plugins.PluginMenuItem? right)
+ArxisStudio.Sdk.Plugins.PluginNewItem : sealed class
+ArxisStudio.Sdk.Plugins.PluginNewItem :: .ctor()
+ArxisStudio.Sdk.Plugins.PluginNewItem :: ArxisStudio.Sdk.Plugins.PluginNewItemCondition? When { get; set; }
+ArxisStudio.Sdk.Plugins.PluginNewItem :: System.Boolean IsCode { get; }
+ArxisStudio.Sdk.Plugins.PluginNewItem :: System.Boolean IsDirectory { get; }
+ArxisStudio.Sdk.Plugins.PluginNewItem :: System.Boolean IsFile { get; }
+ArxisStudio.Sdk.Plugins.PluginNewItem :: System.Boolean IsIdentifier { get; }
+ArxisStudio.Sdk.Plugins.PluginNewItem :: System.Boolean Nested { get; set; }
+ArxisStudio.Sdk.Plugins.PluginNewItem :: System.Collections.Generic.IList<ArxisStudio.Sdk.Plugins.PluginNewItemFile> Files { get; set; }
+ArxisStudio.Sdk.Plugins.PluginNewItem :: System.Collections.Generic.IList<ArxisStudio.Sdk.Plugins.PluginNewItemVariant> Variants { get; set; }
+ArxisStudio.Sdk.Plugins.PluginNewItem :: System.String Id { get; set; }
+ArxisStudio.Sdk.Plugins.PluginNewItem :: System.String Kind { get; set; }
+ArxisStudio.Sdk.Plugins.PluginNewItem :: System.String NameRule { get; set; }
+ArxisStudio.Sdk.Plugins.PluginNewItem :: System.String Title { get; set; }
+ArxisStudio.Sdk.Plugins.PluginNewItem :: System.String? Icon { get; set; }
+ArxisStudio.Sdk.Plugins.PluginNewItem :: System.String? Menu { get; set; }
+ArxisStudio.Sdk.Plugins.PluginNewItem :: System.String? Name { get; set; }
+ArxisStudio.Sdk.Plugins.PluginNewItemCondition : sealed class
+ArxisStudio.Sdk.Plugins.PluginNewItemCondition :: .ctor()
+ArxisStudio.Sdk.Plugins.PluginNewItemCondition :: System.Collections.Generic.IList<System.String> Languages { get; set; }
+ArxisStudio.Sdk.Plugins.PluginNewItemCondition :: System.Collections.Generic.IList<System.String> Packages { get; set; }
+ArxisStudio.Sdk.Plugins.PluginNewItemFile : sealed class
+ArxisStudio.Sdk.Plugins.PluginNewItemFile :: .ctor()
+ArxisStudio.Sdk.Plugins.PluginNewItemFile :: System.Boolean Open { get; set; }
+ArxisStudio.Sdk.Plugins.PluginNewItemFile :: System.String Path { get; set; }
+ArxisStudio.Sdk.Plugins.PluginNewItemFile :: System.String? Template { get; set; }
+ArxisStudio.Sdk.Plugins.PluginNewItemVariant : sealed class
+ArxisStudio.Sdk.Plugins.PluginNewItemVariant :: .ctor()
+ArxisStudio.Sdk.Plugins.PluginNewItemVariant :: System.Collections.Generic.IList<ArxisStudio.Sdk.Plugins.PluginNewItemFile> Files { get; set; }
+ArxisStudio.Sdk.Plugins.PluginNewItemVariant :: System.String Id { get; set; }
+ArxisStudio.Sdk.Plugins.PluginNewItemVariant :: System.String Title { get; set; }
+ArxisStudio.Sdk.Plugins.PluginNewItemVariant :: System.String? Icon { get; set; }
 ArxisStudio.Sdk.Plugins.PluginPlacement : sealed class
 ArxisStudio.Sdk.Plugins.PluginPlacement :: .ctor()
 ArxisStudio.Sdk.Plugins.PluginPlacement :: System.Double Size { get; set; }
@@ -194,6 +279,26 @@ ArxisStudio.Sdk.StudioLogRecord :: System.String Stamp { get; }
 ArxisStudio.Sdk.StudioLogRecord :: System.Void Deconstruct(out System.DateTimeOffset Time, out ArxisStudio.Sdk.StudioLogLevel Level, out System.String Source, out System.String Message)
 ArxisStudio.Sdk.StudioLogRecord :: static System.Boolean op_Equality(ArxisStudio.Sdk.StudioLogRecord? left, ArxisStudio.Sdk.StudioLogRecord? right)
 ArxisStudio.Sdk.StudioLogRecord :: static System.Boolean op_Inequality(ArxisStudio.Sdk.StudioLogRecord? left, ArxisStudio.Sdk.StudioLogRecord? right)
+ArxisStudio.Sdk.StudioNewItem : sealed class
+ArxisStudio.Sdk.StudioNewItem :: .ctor()
+ArxisStudio.Sdk.StudioNewItem :: ArxisStudio.Sdk.NewItemNameRule NameRule { get; init; }
+ArxisStudio.Sdk.StudioNewItem :: Avalonia.Media.Geometry? Icon { get; init; }
+ArxisStudio.Sdk.StudioNewItem :: System.Boolean Fits(System.String? language, System.Collections.Generic.IEnumerable<System.String> packages)
+ArxisStudio.Sdk.StudioNewItem :: System.Boolean Nested { get; init; }
+ArxisStudio.Sdk.StudioNewItem :: System.Collections.Generic.IReadOnlyList<ArxisStudio.Sdk.StudioNewItemVariant> Variants { get; init; }
+ArxisStudio.Sdk.StudioNewItem :: System.Collections.Generic.IReadOnlyList<System.String> Languages { get; init; }
+ArxisStudio.Sdk.StudioNewItem :: System.Collections.Generic.IReadOnlyList<System.String> Menu { get; init; }
+ArxisStudio.Sdk.StudioNewItem :: System.Collections.Generic.IReadOnlyList<System.String> Packages { get; init; }
+ArxisStudio.Sdk.StudioNewItem :: System.String Name { get; init; }
+ArxisStudio.Sdk.StudioNewItem :: required ArxisStudio.Sdk.NewItemKind Kind { get; init; }
+ArxisStudio.Sdk.StudioNewItem :: required System.String Id { get; init; }
+ArxisStudio.Sdk.StudioNewItem :: required System.String Owner { get; init; }
+ArxisStudio.Sdk.StudioNewItem :: required System.String Title { get; init; }
+ArxisStudio.Sdk.StudioNewItemVariant : sealed class
+ArxisStudio.Sdk.StudioNewItemVariant :: .ctor()
+ArxisStudio.Sdk.StudioNewItemVariant :: Avalonia.Media.Geometry? Icon { get; init; }
+ArxisStudio.Sdk.StudioNewItemVariant :: required System.String Id { get; init; }
+ArxisStudio.Sdk.StudioNewItemVariant :: required System.String Title { get; init; }
 ArxisStudio.Sdk.StudioPlugin : abstract class
 ArxisStudio.Sdk.StudioPlugin :: .ctor()
 ArxisStudio.Sdk.StudioPlugin :: virtual System.Void Activate(ArxisStudio.Sdk.IStudioContext context)

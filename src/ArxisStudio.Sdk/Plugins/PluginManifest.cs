@@ -152,6 +152,16 @@ public sealed class PluginContributions
 
     /// <summary>Языки интерфейса, которые плагин приносит студии.</summary>
     public IList<PluginLanguage> Languages { get; set; } = [];
+
+    /// <summary>
+    /// Что расширение умеет создавать: пункты меню «Добавить ▸» окна проекта.
+    /// </summary>
+    /// <remarks>
+    /// Появилось в SDK 7.5. Тот же приём, что у File Templates Rider и <c>CreateAssetMenu</c> Unity:
+    /// пункт объявлен манифестом и показан без загрузки сборки, а файлы кладёт шаблон из папки
+    /// расширения или его код.
+    /// </remarks>
+    public IList<PluginNewItem> NewItems { get; set; } = [];
 }
 
 /// <summary>
@@ -401,6 +411,197 @@ public sealed class PluginToolBarItem
     public bool IsCustom => Is("custom");
 
     private bool Is(string kind) => string.Equals(Kind, kind, StringComparison.OrdinalIgnoreCase);
+}
+
+/// <summary>
+/// Пункт создания: строка меню «Добавить ▸» и то, что она кладёт на диск.
+/// </summary>
+/// <remarks>
+/// Класс, а не позиционная запись — по той же причине, что у панели: поле, пропущенное в JSON, не
+/// должно молча становиться <c>null</c> там, где обещана строка.
+/// <para>
+/// Вид назван словом, а не выводится из того, какие поля заполнены, — по тем же соображениям, что у
+/// элемента полосы. Каталог (<c>directory</c>) — один каталог с набранным именем. Файл (<c>file</c>) —
+/// файлы из <see cref="Files"/> по шаблонам из папки расширения, а без них один пустой файл с
+/// набранным именем. Код (<c>code</c>) — файлы собирает класс расширения с атрибутом
+/// <see cref="NewItemAttribute"/>. Каталог и файл студия создаёт по манифесту, не загружая сборку:
+/// плагин с ними спит и тогда, когда его пункт выбирают. Пункт с кодом будит хозяина событием
+/// <c>onNewItem:</c> — как команда будит своего событием <c>onCommand:</c>.
+/// </para>
+/// <para>
+/// Порядка числом здесь нет — по тем же соображениям, что у <see cref="PluginPlacement"/>: внутри
+/// расширения он равен порядку в манифесте, а между расширениями его решает студия — модули первыми,
+/// затем по идентификатору, и группы расширений разделены чертой.
+/// </para>
+/// </remarks>
+public sealed class PluginNewItem
+{
+    /// <summary>
+    /// Идентификатор пункта — с приставкой расширения, как у команды: <c>hello.greeting</c>.
+    /// </summary>
+    /// <remarks>
+    /// По нему пункт с кодом находит свой класс (<c>[NewItem("hello.greeting")]</c>) и своё событие
+    /// подъёма (<c>onNewItem:hello.greeting</c>).
+    /// </remarks>
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Вид пункта: <c>file</c> (по умолчанию), <c>directory</c> или <c>code</c>.</summary>
+    /// <remarks>Незнакомое слово пункт снимает: студия говорит об этом в журнал, автору — <c>ARX0015</c>.</remarks>
+    public string Kind { get; set; } = "file";
+
+    /// <summary>Строка меню; ключ вида <c>%add.note%</c> переводится.</summary>
+    /// <remarks>Пункт без неё не показывается: строку, которой нечего сказать, не выбрать.</remarks>
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Значок: имя из набора студии — <c>arxis:Document</c> — или свой контур в сетке 16×16; пусто — без
+    /// значка.
+    /// </summary>
+    /// <remarks>
+    /// Правила записи — те же, что у значка команды; запись, которую студия не разберёт, называет
+    /// <c>ARX0011</c> при сборке расширения.
+    /// </remarks>
+    public string? Icon { get; set; }
+
+    /// <summary>
+    /// Ветка внутри «Добавить ▸», где стоит пункт: <c>%add.avalonia%</c>, <c>Web/Razor</c>; пусто — сам
+    /// «Добавить ▸».
+    /// </summary>
+    /// <remarks>
+    /// Сегменты переводятся порознь, как у <c>menus</c>, и ветки сходятся по переведённому тексту:
+    /// два расширения, назвавшие одну ветку, стоят в ней вместе.
+    /// </remarks>
+    public string? Menu { get; set; }
+
+    /// <summary>
+    /// Имя, которое диалог предлагает: <c>NewFile$n$.txt</c>, <c>UserControl$n$</c>; пусто — поле
+    /// пустое.
+    /// </summary>
+    /// <remarks>
+    /// <c>$n$</c> студия заменяет первым числом от единицы, при котором всё, что создаст пункт, в
+    /// целевом каталоге свободно, — как <c>NewFile1.txt</c> у Rider и <c>New Folder 1</c> у Unity.
+    /// Другой переменной в имени нет. <c>%ключ%</c> переводится.
+    /// </remarks>
+    public string? Name { get; set; }
+
+    /// <summary>
+    /// Каким должно быть набранное имя: <c>file</c> (по умолчанию) — имя файла, <c>identifier</c> —
+    /// ещё и имя типа C#.
+    /// </summary>
+    /// <remarks>
+    /// Второе нужно шаблону, который ставит имя в код: <c>class $name$</c> с точкой или пробелом в
+    /// имени не собрался бы. Незнакомое слово читается как <c>file</c>, а автору его называет
+    /// <c>ARX0015</c>.
+    /// </remarks>
+    public string NameRule { get; set; } = "file";
+
+    /// <summary>
+    /// Можно ли набрать путь: <c>Models/Person</c> кладёт пункт в каталог <c>Models</c>, заводя его, если
+    /// нужно.
+    /// </summary>
+    /// <remarks>Как у IntelliJ, где <c>/</c> в имени нового файла создаёт каталоги по дороге.</remarks>
+    public bool Nested { get; set; }
+
+    /// <summary>Каким должен быть проект, чтобы пункт в нём показывался; нет — показывается везде.</summary>
+    public PluginNewItemCondition? When { get; set; }
+
+    /// <summary>
+    /// Что кладёт пункт вида <c>file</c>: пути от целевого каталога и шаблоны.
+    /// </summary>
+    /// <remarks>
+    /// У пункта с вариантами файлы объявляет каждый вариант, у каталога и кода их нет вовсе — такие
+    /// записи студия не читает, а автору о них говорит <c>ARX0015</c>.
+    /// </remarks>
+    public IList<PluginNewItemFile> Files { get; set; } = [];
+
+    /// <summary>
+    /// Разновидности пункта, из которых выбирают в диалоге: класс, интерфейс, запись.
+    /// </summary>
+    /// <remarks>
+    /// Как попап «New Class/Interface» у Rider: одна строка меню и список под полем имени, а не пять
+    /// строк рядом. Первый вариант выбран, пока человек не выбрал другой.
+    /// </remarks>
+    public IList<PluginNewItemVariant> Variants { get; set; } = [];
+
+    /// <summary>Каталог.</summary>
+    [JsonIgnore]
+    public bool IsDirectory => Is("directory");
+
+    /// <summary>Файлы: вид по умолчанию, когда <see cref="Kind"/> пуст.</summary>
+    [JsonIgnore]
+    public bool IsFile => Kind is not { Length: > 0 } || Is("file");
+
+    /// <summary>Файлы собирает код расширения.</summary>
+    [JsonIgnore]
+    public bool IsCode => Is("code");
+
+    /// <summary>Имя набирают именем типа C#.</summary>
+    [JsonIgnore]
+    public bool IsIdentifier => string.Equals(NameRule, "identifier", StringComparison.OrdinalIgnoreCase);
+
+    private bool Is(string kind) => string.Equals(Kind, kind, StringComparison.OrdinalIgnoreCase);
+}
+
+/// <summary>Файл, который кладёт пункт создания.</summary>
+/// <remarks>Класс, а не позиционная запись — по той же причине, что у пункта.</remarks>
+public sealed class PluginNewItemFile
+{
+    /// <summary>
+    /// Путь от целевого каталога: <c>$name$.axaml</c>, <c>$name$/index.md</c>.
+    /// </summary>
+    /// <remarks>
+    /// Переменная здесь одна — <c>$name$</c>. Путь, уводящий из целевого каталога, студия не
+    /// создаёт, и об этом говорит.
+    /// </remarks>
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Шаблон: путь к файлу в папке расширения, <c>templates/Control.axaml</c>; пусто — файл пустой.
+    /// </summary>
+    /// <remarks>
+    /// Шаблон читается байтами: отметка порядка байт и переводы строк доезжают как были, а в тексте
+    /// заменяются переменные <c>$name$</c>, <c>$namespace$</c>, <c>$rootnamespace$</c>,
+    /// <c>$project$</c> и <c>$year$</c>. Файл, который текстом не читается, кладётся как есть.
+    /// Шаблоны лежат в <c>templates/</c>: сборка не компилирует их и везёт в пакет, а файла, которого
+    /// нет, не пропустит (<c>AXP1007</c> у плагина, <c>AXL1004</c> у модуля).
+    /// </remarks>
+    public string? Template { get; set; }
+
+    /// <summary>Открыть созданный файл, когда пункт отработал.</summary>
+    public bool Open { get; set; }
+}
+
+/// <summary>Разновидность пункта создания: строка списка в диалоге имени.</summary>
+public sealed class PluginNewItemVariant
+{
+    /// <summary>Идентификатор — уникальный внутри пункта; его получает код пункта.</summary>
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Строка списка; ключ вида <c>%add.class%</c> переводится.</summary>
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>Значок — той же записью, что у пункта; пусто — значок пункта.</summary>
+    public string? Icon { get; set; }
+
+    /// <summary>Что кладёт вариант пункта вида <c>file</c>.</summary>
+    public IList<PluginNewItemFile> Files { get; set; } = [];
+}
+
+/// <summary>
+/// Каким должен быть проект, чтобы пункт создания в нём показывался.
+/// </summary>
+/// <remarks>
+/// Внутри списка — «любое из», между списками — «все сразу»: <c>languages: [C#], packages: [Avalonia]</c>
+/// значит «проект на C#, который ссылается на Avalonia». Пустой список не ограничивает ничего.
+/// Сравнение без учёта регистра.
+/// </remarks>
+public sealed class PluginNewItemCondition
+{
+    /// <summary>Языки проекта: <c>C#</c>, <c>F#</c>, <c>Visual Basic</c>.</summary>
+    public IList<string> Languages { get; set; } = [];
+
+    /// <summary>Пакеты, на которые проект ссылается сам: <c>Avalonia</c>.</summary>
+    public IList<string> Packages { get; set; } = [];
 }
 
 /// <summary>

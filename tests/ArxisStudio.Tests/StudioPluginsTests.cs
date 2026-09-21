@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text;
 using ArxisStudio.Controls;
 using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
@@ -266,6 +267,87 @@ public class StudioPluginsTests : IDisposable
         Assert.Contains("arxis.hello:hello.panel", _dock.Items.Known());
         Assert.Contains("hello.greet", _commands.Registered);
     }
+
+    /// <summary>
+    /// Пункт «Добавить ▸» спящего плагина стоит в меню, а его выбор будит плагин, и код пункта
+    /// собирает файл.
+    /// </summary>
+    /// <remarks>
+    /// Дорога та же, что у команды: пункт объявлен манифестом и виден без сборки, а событие
+    /// <c>onNewItem:</c> поднимает хозяина ровно тогда, когда его код понадобился. Приветствие — из
+    /// настройки плагина: ради неё пункт и объявлен кодом, а не шаблоном.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_code_item_wakes_its_sleeping_owner_and_makes_the_file()
+    {
+        Install();
+
+        var plugins = Start(sleeping: true);
+        var items = NewItems(plugins);
+
+        Assert.Empty(plugins.Reloadable);
+
+        var greeting = Assert.Single(items.Items, item => item.Owner == "arxis.hello" && item.Id == "hello.greeting");
+
+        Assert.Equal(NewItemKind.Code, greeting.Kind);
+
+        var target = Directory.CreateDirectory(Path.Combine(_root, "target")).FullName;
+
+        Assert.Equal("Greeting1.txt", items.Suggest(greeting, target));
+
+        var made = await items.MakeAsync(
+            greeting,
+            new NewItemRequest("Hi.txt", target) { Project = "Проба" },
+            TestContext.Current.CancellationToken);
+
+        Assert.Null(made.Error);
+        Assert.Equal("arxis.hello", Assert.Single(plugins.Reloadable).Id);
+
+        var file = Assert.Single(made.Files);
+        var year = DateTime.Now.Year.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        Assert.Equal("Hi.txt", file.Path);
+        Assert.True(file.Open);
+        Assert.Equal($"Здравствуйте!\n\nПроба · {year}\n", Encoding.UTF8.GetString(file.Content.Span));
+    }
+
+    /// <summary>
+    /// Выключенный спящий плагин уносит свои пункты «Добавить ▸», и прежний пункт его не будит.
+    /// </summary>
+    /// <remarks>
+    /// Меню, открытое до выключения, держит пункт на руках; выбор его после — не повод поднимать
+    /// плагин, который человек только что выключил.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_sleeping_plugin_switched_off_takes_its_items_away()
+    {
+        Install();
+
+        var plugins = Start(sleeping: true);
+        var items = NewItems(plugins);
+        var greeting = Assert.Single(items.Items, item => item.Id == "hello.greeting");
+
+        Assert.Null(new PluginCatalog(_root).SetEnabled("arxis.hello", false));
+        Assert.Null(await plugins.ApplyAsync(["arxis.hello"], []));
+
+        Assert.DoesNotContain(items.Items, item => item.Owner == "arxis.hello");
+
+        var made = await items.MakeAsync(
+            greeting,
+            new NewItemRequest("Hi.txt", Path.Combine(_root, "target")),
+            TestContext.Current.CancellationToken);
+
+        Assert.NotNull(made.Error);
+        Assert.Empty(plugins.Reloadable);
+    }
+
+    /// <summary>Служба создания над службой расширений — так её связывает окно.</summary>
+    private StudioNewItems NewItems(StudioPlugins plugins) =>
+        new(_log, _guard, _contributions)
+        {
+            Contributing = () => plugins.Contributing,
+            Activate = plugins.Activate,
+        };
 
     /// <summary>
     /// Перезагрузка отдаёт реестры свежей копии, а прежнюю снимает.
@@ -932,8 +1014,8 @@ public class StudioPluginsTests : IDisposable
     /// Записи каталога о поставленном.
     /// </summary>
     /// <param name="sleeping">
-    /// Оставить плагину одно событие активации — вызов команды, — сняв то, из-за
-    /// чего он поднимается сразу.
+    /// Оставить плагину события, которых он ждёт, — вызов команды и выбор его
+    /// пункта создания, — сняв то, из-за чего он поднимается сразу.
     /// </param>
     /// <remarks>
     /// Плагин на диске один и настоящий; меняется только объявленное им условие
@@ -956,7 +1038,7 @@ public class StudioPluginsTests : IDisposable
             if (!sleeping)
                 continue;
 
-            manifest.Activation = ["onCommand:hello.greet"];
+            manifest.Activation = ["onCommand:hello.greet", "onNewItem:hello.greeting"];
             manifest.Contributions.ToolBar = [.. manifest.Contributions.ToolBar.Where(item => !item.IsCustom)];
         }
 
@@ -1057,8 +1139,11 @@ public class StudioPluginsTests : IDisposable
             },
 
             // Папка плагинов — своя на тест: настоящая принадлежит человеку, и
-            // прогон, читающий её, отвечал бы по-разному на разных машинах.
+            // прогон, читающий её, отвечал бы по-разному на разных машинах. По той
+            // же причине своё и хранилище настроек: приветствие примера человек
+            // вправе поменять у себя.
             Catalog = () => Scan(sleeping),
+            Settings = new PluginSettingsStore(userFile: Path.Combine(_root, "plugin-settings.json")),
             Assemblies = modules,
         };
 

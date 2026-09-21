@@ -771,6 +771,11 @@ public sealed class StudioPlugins
 
             foreach (var declared in plugin.Manifest.Contributions.ToolWindows)
                 Glyph(plugin, $"панель {declared.Id}", declared.Icon);
+
+            // Пункты «Добавить ▸» собираются на каждом открытии меню, и о том, что в них не
+            // читается, говорится здесь — тем же правилом, что о значках.
+            foreach (var complaint in StudioNewItems.Complaints(plugin))
+                _log.Write(StudioLogLevel.Warning, "Plugins", $"{plugin.DisplayName}: {complaint}");
         }
     }
 

@@ -12,5 +12,7 @@
   "panel.cancelled": "Обход отменён",
   "panel.counted": "Файлов в проекте",
   "setting.greeting": "Чем здороваться",
-  "task.walk": "Обход проекта"
+  "task.walk": "Обход проекта",
+  "add.samples": "Образцы",
+  "add.greeting": "Приветствие"
 }

@@ -170,6 +170,10 @@ public partial class MainWindow : AxWindow
 
         _toolbar.Complained += (_, message) => _log.Write(StudioLogLevel.Warning, "ToolBar", message);
 
+        // Служба создания раздаётся расширениям с их контекстом, а состав вкладывающихся узнаёт
+        // у службы расширений — её заводят следом, поэтому дороги к ней ставятся ниже.
+        var newItems = new StudioNewItems(_log, _guard, _contributions);
+
         _plugins = new StudioPlugins(_log, _guard, _tasks, _contributions)
         {
             Commands = _commands,
@@ -185,6 +189,7 @@ public partial class MainWindow : AxWindow
                 [typeof(IStudioLogFeed)] = _log,
                 [typeof(IStudioDocuments)] = new DocumentSink(_documents),
                 [typeof(IStudioStatus)] = _status,
+                [typeof(IStudioNewItems)] = newItems,
                 [typeof(PluginContributionRegistry)] = _contributions,
                 [typeof(PluginGuard)] = _guard,
             },
@@ -192,8 +197,11 @@ public partial class MainWindow : AxWindow
 
         // Дерево меню собирается по манифестам, а спрашивают его при каждом
         // открытии: список вкладывающихся меняется от подъёма к подъёму. Ставится
-        // после службы — до неё спрашивать было бы не у кого.
+        // после службы — до неё спрашивать было бы не у кого. Пункты «Добавить ▸»
+        // собираются тем же правилом.
         _toolbar.Menu = () => StudioMenu.Build(_plugins.Contributing);
+        newItems.Contributing = () => _plugins.Contributing;
+        newItems.Activate = _plugins.Activate;
 
         Keys();
 

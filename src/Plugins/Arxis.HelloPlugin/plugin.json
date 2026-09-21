@@ -1,13 +1,13 @@
 {
   "id": "arxis.hello",
   "name": "Hello",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "Arxis Labs",
   "description": "%plugin.description%",
   "icon": "assets/icon.png",
   "tags": [ "sample" ],
   "sdk": {
-    "min": "7.0"
+    "min": "7.5"
   },
   "entry": "bin/Arxis.HelloPlugin.dll",
   "provides": {
@@ -66,10 +66,21 @@
         "title": "%setting.greeting%",
         "default": "Здравствуйте!"
       }
+    ],
+    "newItems": [
+      {
+        "id": "hello.greeting",
+        "kind": "code",
+        "title": "%add.greeting%",
+        "icon": "arxis:Bubble",
+        "menu": "%add.samples%",
+        "name": "Greeting$n$.txt"
+      }
     ]
   },
   "activation": [
     "onCommand:hello.greet",
-    "onToolWindow:hello.panel"
+    "onToolWindow:hello.panel",
+    "onNewItem:hello.greeting"
   ]
 }

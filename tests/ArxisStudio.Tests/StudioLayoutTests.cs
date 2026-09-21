@@ -131,6 +131,59 @@ public class StudioLayoutTests
     }
 
     /// <summary>
+    /// Шаблон, названный манифестом модуля, лежит в его папке — там, откуда служба создания его читает.
+    /// </summary>
+    /// <remarks>
+    /// Зеркало <c>AXL1004</c>, спрошенное у готового выхода: сборка проверяет, что шаблон есть в
+    /// исходниках и лежит в <c>templates/</c>, а довезла ли его раскладка — только выход. Шаблоны не
+    /// компилируются и в <c>bin</c> не попадают: они данные, и их место — рядом с манифестом.
+    /// </remarks>
+    [Fact]
+    public void Every_template_a_module_names_lies_in_its_folder()
+    {
+        var named = 0;
+
+        foreach (var folder in ModuleFolders())
+        {
+            var manifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(folder, "module.json"))).RootElement;
+
+            if (!manifest.TryGetProperty("contributions", out var contributions) ||
+                !contributions.TryGetProperty("newItems", out var items))
+            {
+                continue;
+            }
+
+            foreach (var item in items.EnumerateArray())
+            {
+                var files = Files(item).Concat(item.TryGetProperty("variants", out var variants)
+                    ? variants.EnumerateArray().SelectMany(Files)
+                    : []);
+
+                foreach (var file in files)
+                {
+                    if (!file.TryGetProperty("template", out var template))
+                        continue;
+
+                    named++;
+
+                    Assert.True(
+                        File.Exists(Path.Combine(folder, template.GetString()!)),
+                        $"{Path.GetFileName(folder)}: шаблона {template.GetString()} нет в папке модуля");
+                }
+            }
+
+            Assert.DoesNotContain(
+                Directory.EnumerateFiles(Path.Combine(folder, "bin"), "*", SearchOption.AllDirectories),
+                path => path.Contains($"{Path.DirectorySeparatorChar}templates{Path.DirectorySeparatorChar}", StringComparison.Ordinal));
+        }
+
+        Assert.True(named > 0, "ни один модуль не назвал шаблона — искали не там");
+
+        static IEnumerable<JsonElement> Files(JsonElement owner) =>
+            owner.TryGetProperty("files", out var files) ? files.EnumerateArray() : [];
+    }
+
+    /// <summary>
     /// Одна и та же сборка не лежит в двух папках модулей.
     /// </summary>
     /// <remarks>

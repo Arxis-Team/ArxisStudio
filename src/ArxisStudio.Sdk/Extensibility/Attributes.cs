@@ -34,6 +34,23 @@ public sealed class ToolBarItemAttribute(string id) : Attribute
 }
 
 /// <summary>
+/// Помечает код пункта создания: пункт манифеста вида <c>code</c>.
+/// </summary>
+/// <remarks>
+/// Как и у панели, идентификатор должен совпадать с объявленным в манифесте: пункт в меню «Добавить ▸»
+/// студия ставит по манифесту, не загружая сборку, а класс находит по атрибуту, когда расширение
+/// поднято. Класс наследует <see cref="NewItemMaker"/>. Разойтись манифесту с кодом не даст сборка:
+/// <c>ARX0016</c> называет пункт без класса, <c>ARX0017</c> — класс без пункта.
+/// </remarks>
+/// <param name="id">Идентификатор пункта, как в манифесте.</param>
+[AttributeUsage(AttributeTargets.Class, Inherited = false)]
+public sealed class NewItemAttribute(string id) : Attribute
+{
+    /// <summary>Идентификатор пункта.</summary>
+    public string Id { get; } = id;
+}
+
+/// <summary>
 /// Помечает метод обработчиком команды, объявленной в манифесте.
 /// </summary>
 /// <remarks>

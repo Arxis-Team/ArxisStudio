@@ -12,5 +12,7 @@
   "panel.cancelled": "The walk was cancelled",
   "panel.counted": "Files in the project",
   "setting.greeting": "Greeting to use",
-  "task.walk": "Walking the project"
+  "task.walk": "Walking the project",
+  "add.samples": "Samples",
+  "add.greeting": "Greeting"
 }

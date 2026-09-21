@@ -62,6 +62,41 @@
         <AxModuleId></AxModuleId>
     </PropertyGroup>
 
+    <!--
+        Шаблоны пунктов создания — данные, а не код: исключаются из масок компиляции тем же правилом,
+        что у плагина (src/ArxisStudio.Sdk/build/ArxisStudio.Sdk.targets), и едут в каталог модуля
+        рядом с манифестом.
+    -->
+    <PropertyGroup>
+        <DefaultItemExcludes>$(DefaultItemExcludes);templates/**</DefaultItemExcludes>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(_AxModuleManifestText)' != ''">
+        <_AxModuleTemplatePaths>$([System.Text.RegularExpressions.Regex]::Replace($(_AxModuleManifestText), '[\s\S]*?"template"\s*:\s*"([^"]*)"|[\s\S]+$', '$1;'))</_AxModuleTemplatePaths>
+        <_AxModuleTemplatePaths>$(_AxModuleTemplatePaths.Trim(';'))</_AxModuleTemplatePaths>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(_AxModuleTemplatePaths)' != ''">
+        <_AxModuleDeclaredTemplate Include="$(_AxModuleTemplatePaths)"/>
+    </ItemGroup>
+
+    <!--
+        Шаблон, названный манифестом, обязан доехать до каталога модуля — иначе пункт встанет в меню, а
+        выбор кончится отказом. Модуль везёт шаблоны только из templates/, поэтому и проверяется
+        именно это: файл есть и лежит там.
+    -->
+    <Target Name="AxModuleCheckTemplates" BeforeTargets="Build" Condition="'@(_AxModuleDeclaredTemplate)' != ''">
+        <ItemGroup>
+            <_AxModuleMissingTemplate Include="@(_AxModuleDeclaredTemplate)"
+                                      Condition="!Exists('$(MSBuildProjectDirectory)/%(Identity)') Or
+                                                 !$([System.String]::Copy('%(Identity)').Replace('\', '/').StartsWith('templates/'))"/>
+        </ItemGroup>
+
+        <Error Code="AXL1004"
+               Condition="'@(_AxModuleMissingTemplate)' != ''"
+               Text="Шаблон пункта создания назван в $(AxModuleManifest), но в каталог модуля не поедет: @(_AxModuleMissingTemplate, ', '). Модуль везёт шаблоны из templates/ рядом с манифестом — положите файл туда или поправьте путь. Иначе пункт встанет в меню «Добавить», а его выбор кончится отказом."/>
+    </Target>
+
     <Target Name="StudioModuleFiles" DependsOnTargets="ResolveReferences" Returns="@(_StudioModuleFile)">
 
         <Error Code="AXL1003"
@@ -88,6 +123,12 @@
             <_StudioModuleLang Include="$(MSBuildProjectDirectory)/lang/*.json"/>
             <_StudioModuleFile Include="@(_StudioModuleLang)"
                                StudioRelativePath="lang\%(_StudioModuleLang.Filename)%(_StudioModuleLang.Extension)"
+                               StudioModuleRoot="true"/>
+
+            <!-- Шаблоны пунктов создания — в templates/, с подкаталогами, тем же правилом корня. -->
+            <_StudioModuleTemplate Include="$(MSBuildProjectDirectory)/templates/**/*"/>
+            <_StudioModuleFile Include="@(_StudioModuleTemplate)"
+                               StudioRelativePath="templates\%(_StudioModuleTemplate.RecursiveDir)%(_StudioModuleTemplate.Filename)%(_StudioModuleTemplate.Extension)"
                                StudioModuleRoot="true"/>
 
             <_StudioModuleFile Include="$(TargetPath)" StudioRelativePath="$(TargetFileName)"/>

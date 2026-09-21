@@ -2,5 +2,7 @@
   "menu.tools": "Erweiterungsbefehle",
   "panel.sample": "Beispielmodul",
   "menu.sample": "Beispielmodul",
-  "menu.sample.about": "Über das Modul"
+  "menu.sample.about": "Über das Modul",
+  "add.samples": "Beispiele",
+  "add.note": "Notiz"
 }

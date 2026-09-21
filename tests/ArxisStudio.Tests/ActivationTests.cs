@@ -69,6 +69,29 @@ public class ActivationTests
         Assert.False(PluginActivation.WaitsForCommand(manifest, "hello.other"));
     }
 
+    /// <summary>
+    /// Пункт создания с кодом плагин не поднимает сразу: его будит событие <c>onNewItem:</c>, и только
+    /// своего пункта.
+    /// </summary>
+    /// <remarks>
+    /// Пункт стоит в меню «Добавить ▸» по манифесту, как кнопка полосы, — сборка для показа не нужна,
+    /// а нужна она, когда пункт выбрали. Сравнение точное, как у команды: идентификатор пункта —
+    /// имя, а не расширение файла.
+    /// </remarks>
+    [Fact]
+    public void A_code_item_waits_for_its_own_event()
+    {
+        var manifest = Manifest("onNewItem:hello.greeting");
+
+        manifest.Contributions.NewItems.Add(new PluginNewItem { Id = "hello.greeting", Kind = "code", Title = "Приветствие" });
+
+        Assert.False(PluginActivation.IsEager(manifest));
+        Assert.True(PluginActivation.WaitsForNewItem(manifest, "hello.greeting"));
+        Assert.False(PluginActivation.WaitsForNewItem(manifest, "Hello.Greeting"));
+        Assert.False(PluginActivation.WaitsForNewItem(manifest, "hello.other"));
+        Assert.False(PluginActivation.WaitsForCommand(manifest, "hello.greeting"));
+    }
+
     [Fact]
     public void A_file_type_is_matched_regardless_of_case()
     {

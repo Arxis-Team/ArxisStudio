@@ -224,6 +224,38 @@ public class ManifestIconsAnalyzerTests
     }
 
     /// <summary>
+    /// Значок пункта «Добавить ▸» и его варианта проверяется так же, и находка называет обоих.
+    /// </summary>
+    /// <remarks>
+    /// Пункт создания рисуется по манифесту, как команда, и его значок — та же запись. Вариант стоит
+    /// строкой списка под полем имени, и опечатку в его значке автор ищет по паре «пункт, вариант»:
+    /// одного имени пункта мало, вариантов у него несколько.
+    /// </remarks>
+    [Fact]
+    public async Task The_icons_of_a_new_item_and_its_variants_are_checked()
+    {
+        const string manifest = """
+            { "contributions": { "newItems": [
+              { "id": "probe.type", "title": "Тип", "icon": "arxis:Documnt",
+                "variants": [
+                  { "id": "class", "title": "Класс", "icon": "arxis:Document" },
+                  { "id": "record", "title": "Запись", "icon": "arxis:Nope" }
+                ] }
+            ] } }
+            """;
+
+        var found = await AnalyzeAsync(manifest);
+
+        Assert.Equal(2, found.Length);
+        Assert.Contains(found, diagnostic =>
+            diagnostic.GetMessage().Contains("пункт создания probe.type:", StringComparison.Ordinal) &&
+            Recorded(manifest, diagnostic) == "arxis:Documnt");
+        Assert.Contains(found, diagnostic =>
+            diagnostic.GetMessage().Contains("пункт создания probe.type, вариант record", StringComparison.Ordinal) &&
+            Recorded(manifest, diagnostic) == "arxis:Nope");
+    }
+
+    /// <summary>
     /// Комментарии, висячие запятые и экранированные кавычки записи не прячут.
     /// </summary>
     /// <remarks>

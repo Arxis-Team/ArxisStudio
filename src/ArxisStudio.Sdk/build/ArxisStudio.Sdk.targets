@@ -85,6 +85,36 @@
     </ItemGroup>
 
     <!--
+        Шаблоны пунктов создания (contributions.newItems, files[].template) — тем же способом: поле
+        template в манифесте больше нигде не встречается. Выражение заменяет каждый кусок текста до
+        очередного шаблона его путём с точкой с запятой, а хвост без шаблонов — пустотой; из того,
+        что осталось, выходит список.
+    -->
+    <PropertyGroup Condition="'$(_AxPluginManifestText)' != ''">
+        <_AxTemplatePaths>$([System.Text.RegularExpressions.Regex]::Replace($(_AxPluginManifestText), '[\s\S]*?"template"\s*:\s*"([^"]*)"|[\s\S]+$', '$1;'))</_AxTemplatePaths>
+        <_AxTemplatePaths>$(_AxTemplatePaths.Trim(';'))</_AxTemplatePaths>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(_AxTemplatePaths)' != ''">
+        <_AxDeclaredTemplate Include="$(_AxTemplatePaths)" />
+    </ItemGroup>
+
+    <!--
+        Шаблоны лежат в templates/ и собираются как данные, а не как код: Class.cs с $name$ в имени
+        класса не компилируется, а Control.axaml с $namespace$ в x:Class сорвал бы компиляцию разметки.
+        Исключение — через DefaultItemExcludes, а не Remove: маски Avalonia стоят в props пакета,
+        раньше этого файла, а маски SDK — в его targets, позже; значение свойства к разбору элементов
+        окончательное у обоих.
+
+        Раскладка исключается тем же списком: она лежит в каталоге проекта, и с шаблонами в ней
+        появляются исходники — копия templates/Class.cs из прошлой сборки попадала под маску **/*.cs,
+        и следующая сборка падала на собственном выходе.
+    -->
+    <PropertyGroup>
+        <DefaultItemExcludes>$(DefaultItemExcludes);templates/**;$(AxPluginPackageDir)**</DefaultItemExcludes>
+    </PropertyGroup>
+
+    <!--
         Догадка помечается: имя архива она ещё спасёт, а имя папки установки —
         уже нет. Папка установленного плагина зовётся его идентификатором, и,
         назвав её иначе, мы получим второй экземпляр того же плагина, когда его
@@ -232,11 +262,13 @@
 
             <_AxPluginAsset Include="$(MSBuildProjectDirectory)/assets/**/*" />
             <_AxPluginLang Include="$(MSBuildProjectDirectory)/lang/**/*" />
+            <_AxPluginTemplate Include="$(MSBuildProjectDirectory)/templates/**/*" />
         </ItemGroup>
 
         <Copy SourceFiles="@(_AxPluginRoot)" DestinationFolder="$(AxPluginPackageDir)" SkipUnchangedFiles="true" />
         <Copy SourceFiles="@(_AxPluginAsset)" DestinationFiles="@(_AxPluginAsset->'$(AxPluginPackageDir)assets/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
         <Copy SourceFiles="@(_AxPluginLang)" DestinationFiles="@(_AxPluginLang->'$(AxPluginPackageDir)lang/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+        <Copy SourceFiles="@(_AxPluginTemplate)" DestinationFiles="@(_AxPluginTemplate->'$(AxPluginPackageDir)templates/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
 
         <!--
             Ссылка на пакет Avalonia плагину разрешена: панели раскладки он
@@ -302,6 +334,19 @@
 
         <Error Code="AXP1006" Condition="'@(_AxMissingContract)' != ''"
                Text="Контракт объявлен, но в раскладку не попал: @(_AxMissingContract, ', '). Студия откажет такому плагину при загрузке — это обещание манифеста, на типы контракта рассчитывают соседи. Проверьте, что проект контракта подключён без Private=false: возить контракт обязан его владелец." />
+
+        <!--
+            Шаблон пункта создания — такое же обещание манифеста: без него пункт стоит в меню, а выбор
+            кончается отказом у человека, который ничего не может поправить. Проверяется раскладка —
+            то, что уедет в архив.
+        -->
+        <ItemGroup>
+            <_AxMissingTemplate Include="@(_AxDeclaredTemplate)"
+                                Condition="!Exists('$(AxPluginPackageDir)%(Identity)')" />
+        </ItemGroup>
+
+        <Error Code="AXP1007" Condition="'@(_AxMissingTemplate)' != ''"
+               Text="Шаблон пункта создания назван в манифесте, но в раскладку не попал: @(_AxMissingTemplate, ', '). Пункт встанет в меню «Добавить», а его выбор кончится отказом у человека, который поправить ничего не может. Шаблоны кладут в templates/ рядом с манифестом: сборка их не компилирует и везёт в пакет." />
     </Target>
 
     <Target Name="AxPluginPackage" AfterTargets="AxPluginLayout" Condition="'$(AxPluginPack)' == 'true'">

@@ -12,5 +12,7 @@
   "module.sample.loadcontext": "Load context: the main one, never unloaded",
   "module.sample.project.label": "Project:",
   "module.sample.project.none": "none open",
-  "module.sample.log": "Write to the log"
+  "module.sample.log": "Write to the log",
+  "add.samples": "Samples",
+  "add.note": "Note"
 }

@@ -12,5 +12,7 @@
   "module.sample.loadcontext": "Контекст загрузки: основной, выгрузке не подлежит",
   "module.sample.project.label": "Проект:",
   "module.sample.project.none": "не открыт",
-  "module.sample.log": "Записать в журнал"
+  "module.sample.log": "Записать в журнал",
+  "add.samples": "Образцы",
+  "add.note": "Заметка"
 }
