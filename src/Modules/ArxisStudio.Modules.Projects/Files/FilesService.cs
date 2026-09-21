@@ -7,7 +7,7 @@ using ArxisStudio.Sdk;
 namespace ArxisStudio.Modules.Projects.Files;
 
 /// <summary>
-/// Служба файлов: перенос, копия и удаление файлов решения.
+/// Служба файлов: создание, перенос, копия и удаление файлов решения.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -41,6 +41,27 @@ internal sealed class FilesService : IStudioFiles
 
     /// <inheritdoc/>
     public event EventHandler<FilesChangedEventArgs>? Changed;
+
+    /// <inheritdoc/>
+    public Task<ProjectOperationResult> CreateAsync(
+        IReadOnlyList<FileCreation> items,
+        string label,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
+        if (items.Count == 0 || items.Any(item => item is null || item.Path.IsEmpty))
+            throw new ArgumentException("Создавать нечего: пачка пуста или в ней пустой путь", nameof(items));
+
+        if (items.Any(item => item.IsDirectory && !item.Content.IsEmpty))
+            throw new ArgumentException("У каталога нет содержимого", nameof(items));
+
+        // Пачка снимается сейчас: список зовущего может поменяться, пока правка ждёт очереди.
+        List<FileCreation> batch = [.. items];
+        var text = Label(label);
+
+        return EditAsync((snapshot, store) => FileWorker.Create(batch, text, snapshot, store, _words), cancellationToken);
+    }
 
     /// <inheritdoc/>
     public Task<ProjectOperationResult> MoveAsync(

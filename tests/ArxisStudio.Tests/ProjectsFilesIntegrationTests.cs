@@ -104,6 +104,29 @@ public class ProjectsFilesIntegrationTests : IDisposable
         Assert.Empty(studio.Strikes);
     }
 
+    /// <summary>
+    /// Созданный файл уже в модели, когда служба вернулась: SDK-проект взял его своей маской, и
+    /// каталог, который он завёл, лежит на диске.
+    /// </summary>
+    [Fact]
+    public async Task A_created_file_is_in_the_model_when_the_call_returns()
+    {
+        using var studio = new ProjectsStudio(workspace: static () => new ProjectWorkspace(new MSBuildProjectProvider()));
+
+        var opened = await studio.Projects.OpenAsync(CanonicalPath.Create(Path.Combine(_root, "Hello.slnx")), Token)
+            .WaitAsync(Patience, Token);
+
+        Assert.True(opened.HasSnapshot, Why(opened.Diagnostics));
+
+        await Succeeds(studio.Files.CreateAsync(
+            [new FileCreation(At("Models/Person.cs")) { Content = "namespace Hello.Models;\n\nclass Person;\n"u8.ToArray() }],
+            "Создание Person.cs", Token));
+
+        Assert.Single(App(studio).Items, item => item.ItemType == ProjectItemTypes.Compile && item.FullPath == At("Models/Person.cs"));
+        Assert.Equal(ProjectsLoadReason.Files, studio.Projects.Status.LastLoad?.Reason);
+        Assert.Empty(studio.Strikes);
+    }
+
     private static ProjectSnapshot App(ProjectsStudio studio) =>
         Assert.Single(studio.Projects.Status.Snapshot?.Projects ?? [], project => project.Name == "App");
 

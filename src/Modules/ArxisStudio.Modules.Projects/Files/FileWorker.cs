@@ -16,14 +16,124 @@ namespace ArxisStudio.Modules.Projects.Files;
 /// приходит после правки и находит в истории уже записанное.
 /// </para>
 /// <para>
-/// <b>Откат.</b> Перенос и копия откатываются целиком: сделанное возвращается в обратном порядке,
-/// если диск отказал посередине или не записался файл проекта. Удаление не откатывается — удалённого
-/// не вернуть, — и поэтому до первого удаления содержимое снимается в историю, а отказ посередине
-/// записывает в неё то, что успело уйти.
+/// <b>Откат.</b> Создание, перенос и копия откатываются целиком: сделанное возвращается в обратном
+/// порядке, если диск отказал посередине или не записался файл проекта. Удаление не откатывается —
+/// удалённого не вернуть, — и поэтому до первого удаления содержимое снимается в историю, а отказ
+/// посередине записывает в неё то, что успело уйти.
 /// </para>
 /// </remarks>
 internal static class FileWorker
 {
+    /// <summary>
+    /// Создаёт файлы и каталоги: каталоги на пути — первыми, от мелких к глубоким, потом файлы.
+    /// </summary>
+    /// <param name="items">Что создать.</param>
+    /// <param name="label">Метка действия для человека.</param>
+    /// <param name="snapshot">Снимок открытого решения.</param>
+    /// <param name="store">История; null — не ведётся.</param>
+    /// <param name="words">Слова отказов.</param>
+    /// <remarks>
+    /// Файл пишется с <see cref="FileMode.CreateNew"/>: появись он на месте между проверкой и
+    /// записью — правка откажет, а не затрёт чужое. Отказ диска посередине снимает созданное с
+    /// последнего, и каталог — только пустым. В историю файл пишется появлением с содержимым, а каталоги
+    /// на пути — появлением каталога: так отмена убирает и их. Ссылок в файлах проектов создание не
+    /// пишет — новое SDK-проект берёт своими масками сам.
+    /// </remarks>
+    public static FileWorkResult Create(
+        IReadOnlyList<FileCreation> items,
+        string label,
+        SolutionSnapshot snapshot,
+        LocalHistoryStore? store,
+        FileWords words)
+    {
+        if (FileChecks.Check(items, snapshot, words) is { } refused)
+            return new FileWorkResult(ProjectOperationResult.Failed(refused), null);
+
+        var folders = Folders(items);
+        var made = new List<(string Path, bool Folder)>();
+
+        try
+        {
+            foreach (var folder in folders)
+            {
+                Directory.CreateDirectory(folder);
+                made.Add((folder, true));
+            }
+
+            foreach (var item in items.Where(item => !item.IsDirectory))
+            {
+                using (var stream = new FileStream(item.Path.Value, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                    stream.Write(item.Content.Span);
+
+                made.Add((item.Path.Value, false));
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            for (var at = made.Count - 1; at >= 0; at--)
+            {
+                var (path, folder) = made[at];
+
+                Quietly(() =>
+                {
+                    if (folder)
+                        Directory.Delete(path);
+                    else
+                        File.Delete(path);
+                });
+            }
+
+            return Failed(words, e);
+        }
+
+        if (store is not null)
+        {
+            var changes = folders
+                .Select(folder => new HistoryChange { Kind = HistoryChangeKind.Created, Path = folder, IsDirectory = true })
+                .ToList();
+
+            foreach (var item in items.Where(item => !item.IsDirectory))
+            {
+                if (store.Capture(item.Path.Value) is not { } state)
+                    continue;
+
+                store.Learn(item.Path.Value, state);
+                changes.Add(new HistoryChange
+                {
+                    Kind = HistoryChangeKind.Created,
+                    Path = item.Path.Value,
+                    After = state.Content,
+                    TooLarge = state.TooLarge,
+                });
+            }
+
+            if (changes.Count > 0)
+            {
+                store.Record(label, HistoryOrigin.Studio, changes);
+                store.Flush();
+            }
+        }
+
+        return Done(new FilesChangedEventArgs([], [], [], [.. items.Select(item => item.Path)]));
+    }
+
+    /// <summary>Каталоги, которые заведёт создание: просимые и недостающие на пути — от мелких к глубоким.</summary>
+    private static List<string> Folders(IReadOnlyList<FileCreation> items)
+    {
+        var folders = new HashSet<CanonicalPath>();
+
+        foreach (var item in items)
+        {
+            if (item.IsDirectory)
+                folders.Add(item.Path);
+
+            for (var parent = item.Path.Directory; !parent.IsEmpty && !Directory.Exists(parent.Value); parent = parent.Directory)
+                folders.Add(parent);
+        }
+
+        return [.. folders.Select(folder => folder.Value).OrderBy(folder => folder.Length)];
+    }
+
     /// <summary>Делает правку.</summary>
     /// <param name="work">Просьба.</param>
     /// <param name="snapshot">Снимок открытого решения.</param>

@@ -1,3 +1,12 @@
+ArxisStudio.Projects.FileCreation : sealed record : System.IEquatable<ArxisStudio.Projects.FileCreation>
+ArxisStudio.Projects.FileCreation :: .ctor(ArxisStudio.ProjectSystem.CanonicalPath Path)
+ArxisStudio.Projects.FileCreation :: ArxisStudio.ProjectSystem.CanonicalPath Path { get; init; }
+ArxisStudio.Projects.FileCreation :: System.Boolean Equals(ArxisStudio.Projects.FileCreation? other)
+ArxisStudio.Projects.FileCreation :: System.Boolean IsDirectory { get; init; }
+ArxisStudio.Projects.FileCreation :: System.ReadOnlyMemory<System.Byte> Content { get; init; }
+ArxisStudio.Projects.FileCreation :: System.Void Deconstruct(out ArxisStudio.ProjectSystem.CanonicalPath Path)
+ArxisStudio.Projects.FileCreation :: static System.Boolean op_Equality(ArxisStudio.Projects.FileCreation? left, ArxisStudio.Projects.FileCreation? right)
+ArxisStudio.Projects.FileCreation :: static System.Boolean op_Inequality(ArxisStudio.Projects.FileCreation? left, ArxisStudio.Projects.FileCreation? right)
 ArxisStudio.Projects.FileMove : sealed record : System.IEquatable<ArxisStudio.Projects.FileMove>
 ArxisStudio.Projects.FileMove :: .ctor(ArxisStudio.ProjectSystem.CanonicalPath From, ArxisStudio.ProjectSystem.CanonicalPath To)
 ArxisStudio.Projects.FileMove :: ArxisStudio.ProjectSystem.CanonicalPath From { get; init; }
@@ -9,6 +18,8 @@ ArxisStudio.Projects.FileMove :: static System.Boolean op_Equality(ArxisStudio.P
 ArxisStudio.Projects.FileMove :: static System.Boolean op_Inequality(ArxisStudio.Projects.FileMove? left, ArxisStudio.Projects.FileMove? right)
 ArxisStudio.Projects.FilesChangedEventArgs : sealed class : System.EventArgs
 ArxisStudio.Projects.FilesChangedEventArgs :: .ctor(System.Collections.Immutable.ImmutableArray<ArxisStudio.Projects.FileMove> moved, System.Collections.Immutable.ImmutableArray<ArxisStudio.Projects.FileMove> copied, System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath> deleted)
+ArxisStudio.Projects.FilesChangedEventArgs :: .ctor(System.Collections.Immutable.ImmutableArray<ArxisStudio.Projects.FileMove> moved, System.Collections.Immutable.ImmutableArray<ArxisStudio.Projects.FileMove> copied, System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath> deleted, System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath> created)
+ArxisStudio.Projects.FilesChangedEventArgs :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath> Created { get; }
 ArxisStudio.Projects.FilesChangedEventArgs :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath> Deleted { get; }
 ArxisStudio.Projects.FilesChangedEventArgs :: System.Collections.Immutable.ImmutableArray<ArxisStudio.Projects.FileMove> Copied { get; }
 ArxisStudio.Projects.FilesChangedEventArgs :: System.Collections.Immutable.ImmutableArray<ArxisStudio.Projects.FileMove> Moved { get; }
@@ -19,6 +30,7 @@ ArxisStudio.Projects.IStudioBuild :: event System.EventHandler<ArxisStudio.Proje
 ArxisStudio.Projects.IStudioBuild :: event System.EventHandler<ArxisStudio.Projects.ProjectOperationEventArgs> Started
 ArxisStudio.Projects.IStudioFiles : interface
 ArxisStudio.Projects.IStudioFiles :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> CopyAsync(System.Collections.Generic.IReadOnlyList<ArxisStudio.Projects.FileMove> copies, System.String label, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Projects.IStudioFiles :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> CreateAsync(System.Collections.Generic.IReadOnlyList<ArxisStudio.Projects.FileCreation> items, System.String label, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Projects.IStudioFiles :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> DeleteAsync(System.Collections.Generic.IReadOnlyList<ArxisStudio.ProjectSystem.CanonicalPath> paths, System.String label, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Projects.IStudioFiles :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> MoveAsync(System.Collections.Generic.IReadOnlyList<ArxisStudio.Projects.FileMove> moves, System.String label, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Projects.IStudioFiles :: event System.EventHandler<ArxisStudio.Projects.FilesChangedEventArgs> Changed

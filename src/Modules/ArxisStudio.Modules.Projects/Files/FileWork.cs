@@ -122,6 +122,43 @@ internal static class FileChecks
         return null;
     }
 
+    /// <summary>Проверяет создание по снимку и диску.</summary>
+    /// <param name="items">Что создать.</param>
+    /// <param name="snapshot">Снимок открытого решения.</param>
+    /// <param name="words">Слова отказов.</param>
+    /// <returns>Отказ; null — можно.</returns>
+    /// <remarks>
+    /// Созданное не затирает ничего: ни файла, ни каталога на своём месте, ни соседа по пачке. Каталог
+    /// на пути, занятый файлом — на диске или в той же пачке, — тоже «занято»: создать под файлом
+    /// нечего.
+    /// </remarks>
+    public static ProjectDiagnostic? Check(IReadOnlyList<FileCreation> items, SolutionSnapshot snapshot, FileWords words)
+    {
+        var targets = new HashSet<CanonicalPath>();
+        var files = items.Where(item => !item.IsDirectory).Select(item => item.Path).ToHashSet();
+
+        foreach (var item in items)
+        {
+            var path = item.Path;
+
+            if (Guard(snapshot, path, words, holdsProjects: false) is { } refused)
+                return refused;
+
+            if (File.Exists(path.Value) || Directory.Exists(path.Value) || !targets.Add(path))
+                return Refused(ProjectsDiagnosticCodes.TargetExists, words.Exists(path.Value), path);
+
+            var home = MembershipFilter.Owner(snapshot, path)!.ProjectDirectory;
+
+            for (var parent = path.Directory; parent.StartsWith(home) && parent != home; parent = parent.Directory)
+            {
+                if (File.Exists(parent.Value) || files.Contains(parent))
+                    return Refused(ProjectsDiagnosticCodes.TargetExists, words.Exists(parent.Value), parent);
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Путь внутри правки: в папке проекта, не выход сборки, не сам проект и не решение.
     /// </summary>

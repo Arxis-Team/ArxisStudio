@@ -20,6 +20,21 @@ public sealed record FileMove(CanonicalPath From, CanonicalPath To)
     public bool Replace { get; init; }
 }
 
+/// <summary>Что создать: файл с содержимым или каталог — полным путём.</summary>
+/// <param name="Path">Где: полный путь, включая имя.</param>
+/// <remarks>
+/// Недостающие каталоги на пути создаются сами: <c>Views/Dialogs/About.axaml</c> в проекте без
+/// <c>Views</c> заводит оба каталога, и отмена уберёт их вместе с файлом. Появилось в версии 1.6.
+/// </remarks>
+public sealed record FileCreation(CanonicalPath Path)
+{
+    /// <summary>Содержимое файла — байты как есть, с отметкой порядка байт, если она нужна; у каталога пусто.</summary>
+    public ReadOnlyMemory<byte> Content { get; init; }
+
+    /// <summary>Создать каталог, а не файл.</summary>
+    public bool IsDirectory { get; init; }
+}
+
 /// <summary>Что сделала правка файлов.</summary>
 /// <remarks>
 /// Приходит тем, кто держит файлы открытыми: редактор, у которого документ переехал, должен
@@ -35,10 +50,26 @@ public sealed class FilesChangedEventArgs : EventArgs
         ImmutableArray<FileMove> moved,
         ImmutableArray<FileMove> copied,
         ImmutableArray<CanonicalPath> deleted)
+        : this(moved, copied, deleted, ImmutableArray<CanonicalPath>.Empty)
+    {
+    }
+
+    /// <summary>Заводит перемену вместе с созданным.</summary>
+    /// <param name="moved">Что куда переехало.</param>
+    /// <param name="copied">Что откуда скопировано.</param>
+    /// <param name="deleted">Что удалено.</param>
+    /// <param name="created">Что создано.</param>
+    /// <remarks>Появилось в версии 1.6.</remarks>
+    public FilesChangedEventArgs(
+        ImmutableArray<FileMove> moved,
+        ImmutableArray<FileMove> copied,
+        ImmutableArray<CanonicalPath> deleted,
+        ImmutableArray<CanonicalPath> created)
     {
         Moved = moved.IsDefault ? [] : moved;
         Copied = copied.IsDefault ? [] : copied;
         Deleted = deleted.IsDefault ? [] : deleted;
+        Created = created.IsDefault ? [] : created;
     }
 
     /// <summary>Что куда переехало — файлы и папки, как их просили.</summary>
@@ -49,17 +80,21 @@ public sealed class FilesChangedEventArgs : EventArgs
 
     /// <summary>Что удалено — файлы и папки, как их просили.</summary>
     public ImmutableArray<CanonicalPath> Deleted { get; }
+
+    /// <summary>Что создано — файлы и каталоги, как их просили; каталогов на пути здесь нет.</summary>
+    /// <remarks>Появилось в версии 1.6.</remarks>
+    public ImmutableArray<CanonicalPath> Created { get; }
 }
 
 /// <summary>
-/// Файлы открытого решения: переместить, скопировать, удалить.
+/// Файлы открытого решения: создать, переместить, скопировать, удалить.
 /// </summary>
 /// <remarks>
 /// <para>
 /// Служба одна на студию, живёт в модуле <c>arxis.projects</c> и берётся
-/// <see cref="StudioProjectsAccess.Files"/>; появилась в версии 1.3. Правит файлы та же служба,
-/// что держит модель, — иначе окно, правящее диск в обход неё, расходилось бы с её снимком, а
-/// файл проекта, называющий переименованный файл по имени, остался бы со старым именем.
+/// <see cref="StudioProjectsAccess.Files"/>; появилась в версии 1.3, создание — в 1.6. Правит файлы
+/// та же служба, что держит модель, — иначе окно, правящее диск в обход неё, расходилось бы с её
+/// снимком, а файл проекта, называющий переименованный файл по имени, остался бы со старым именем.
 /// </para>
 /// <para>
 /// <b>Что делает правка.</b> Проверяет всё до первого байта; делает на диске и откатывает сделанное,
@@ -94,6 +129,28 @@ public sealed class FilesChangedEventArgs : EventArgs
 /// </remarks>
 public interface IStudioFiles
 {
+    /// <summary>Создаёт файлы и каталоги — пачкой, одним действием истории.</summary>
+    /// <param name="items">Что создать; недостающие каталоги на пути создаются сами.</param>
+    /// <param name="label">Метка действия для человека: «Создание NewFile1.txt».</param>
+    /// <param name="cancellationToken">Отмена — пока правка не началась.</param>
+    /// <returns>Итог; провал приходит с диагностиками.</returns>
+    /// <remarks>
+    /// Созданное не затирает ничего: занятое место — отказ
+    /// <see cref="ProjectsDiagnosticCodes.TargetExists"/>, и повтор в пачке тоже. Ссылок в файле
+    /// проекта создание не пишет: SDK-проект берёт новый файл своими масками сам, а проект без масок
+    /// его не увидит, пока его туда не добавят. Отмена действия стирает созданное, если его не
+    /// меняли, и каталоги, которые остались пустыми. Появилось в версии 1.6.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Пачка пуста, в ней пустой путь, у каталога есть содержимое или метка пуста.
+    /// </exception>
+    /// <exception cref="OperationCanceledException">Отменено до начала.</exception>
+    /// <exception cref="ObjectDisposedException">Служба остановлена.</exception>
+    Task<ProjectOperationResult> CreateAsync(
+        IReadOnlyList<FileCreation> items,
+        string label,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Перемещает или переименовывает файлы и папки — пачкой, одним действием истории.</summary>
     /// <param name="moves">Что куда.</param>
     /// <param name="label">Метка действия для человека: «Переименование MainWindow.axaml».</param>
@@ -133,7 +190,7 @@ public interface IStudioFiles
         string label,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Правка прошла: что куда уехало, что скопировано, что удалено.</summary>
+    /// <summary>Правка прошла: что создано, что куда уехало, что скопировано, что удалено.</summary>
     /// <remarks>Приходит в поток интерфейса после того, как модель перечитана.</remarks>
     event EventHandler<FilesChangedEventArgs>? Changed;
 }

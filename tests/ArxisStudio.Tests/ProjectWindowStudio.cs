@@ -415,6 +415,9 @@ internal sealed class SystemFilesProbe : ISystemFiles
 /// </remarks>
 internal sealed class FilesProbe : IStudioFiles
 {
+    /// <summary>Создания, по порядку.</summary>
+    public List<IReadOnlyList<FileCreation>> Created { get; } = [];
+
     /// <summary>Переносы, по порядку.</summary>
     public List<IReadOnlyList<FileMove>> Moved { get; } = [];
 
@@ -435,6 +438,14 @@ internal sealed class FilesProbe : IStudioFiles
 
     /// <inheritdoc/>
     public event EventHandler<FilesChangedEventArgs>? Changed;
+
+    /// <inheritdoc/>
+    public Task<ProjectOperationResult> CreateAsync(IReadOnlyList<FileCreation> items, string label, CancellationToken cancellationToken = default)
+    {
+        Created.Add(items);
+
+        return Done(label, new FilesChangedEventArgs([], [], [], [.. items.Select(item => item.Path)]));
+    }
 
     /// <inheritdoc/>
     public Task<ProjectOperationResult> MoveAsync(IReadOnlyList<FileMove> moves, string label, CancellationToken cancellationToken = default)

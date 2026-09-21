@@ -18,7 +18,7 @@
 | `IStudioProjects` | `context.Projects()` | что открыто, снимок, перемены, открыть/перечитать/закрыть |
 | `IStudioBuild` | `context.Build()` | восстановить, собрать, пересобрать, очистить |
 | `IStudioPackages` | `context.Packages()` | поставить и убрать пакет NuGet |
-| `IStudioFiles` | `context.Files()` | переместить, скопировать, удалить файлы решения |
+| `IStudioFiles` | `context.Files()` | создать, переместить, скопировать, удалить файлы решения |
 | `IStudioHistory` | `context.History()` | что было с файлами, вернуть файл, отменить действие |
 
 Разведены они по тому, чем занят берущий: подписчику снимков события сборки не нужны, а тому, кто
@@ -33,7 +33,7 @@
   "id": "arxis.outline",
   "sdk": { "min": "5.0" },
   "dependencies": [
-    { "id": "arxis.projects", "min": "1.5" }
+    { "id": "arxis.projects", "min": "1.6" }
   ]
 }
 ```
@@ -46,7 +46,8 @@
 - **1.2** — пакеты: `IStudioPackages`;
 - **1.3** — файлы: `IStudioFiles`;
 - **1.4** — вставка: копия извне решения и замена занятого (`FileMove.Replace`);
-- **1.5** — локальная история: `IStudioHistory`.
+- **1.5** — локальная история: `IStudioHistory`;
+- **1.6** — создание: `IStudioFiles.CreateAsync`.
 
 Просите ту, которой вам хватает: плагин, читающий снимки, с границей `1.0` поднимется и в студии,
 где сборки ещё не было.
@@ -396,6 +397,56 @@ public static class Packages
 восстанавливает пакеты. Провалившееся восстановление отменяет правку: проект возвращается байт в
 байт. Удачная правка сама перечитывает модель причиной `ProjectsLoadReason.Packages`, так что
 подписчику снимков делать ничего не нужно.
+
+## Создать
+
+```csharp
+using System;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using ArxisStudio.Projects;
+using ArxisStudio.ProjectSystem;
+using ArxisStudio.Sdk;
+
+namespace Guide.Creating;
+
+/// <summary>Создание файлов решения из плагина.</summary>
+public static class Creating
+{
+    /// <summary>Заводит класс в каталоге проекта; недостающие каталоги на пути появятся сами.</summary>
+    /// <returns>Что сказать человеку.</returns>
+    public static async Task<string> CreateClassAsync(IStudioContext context, CanonicalPath folder, string name)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        if (context.Files() is not { } files)
+            return "службы файлов нет";
+
+        var text = $"namespace Guide;\n\npublic sealed class {name};\n";
+
+        // Каталог создают так же — пунктом с IsDirectory = true, и в той же пачке с его файлами.
+        FileCreation[] items = [new(folder.Combine(name + ".cs")) { Content = Encoding.UTF8.GetBytes(text) }];
+
+        var result = await files.CreateAsync(items, $"Создание {name}.cs");
+
+        return result.HasErrors
+            ? string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message))
+            : $"Создано: {name}.cs";
+    }
+}
+```
+
+Создание ничего не затирает: занятое место — `PRJ1005`, и повтор в пачке тоже, а каталог на пути,
+занятый файлом, — тоже `PRJ1005`: под файлом создать нечего. Вне правки — `PRJ1004`, как у переноса.
+Недостающие каталоги на пути заводятся сами и пишутся в историю вместе с файлом, так что отмена
+уносит и их, если они остались пустыми. Отказ диска посередине — `PRJ1008`, и созданное до него
+снимается.
+
+Ссылок в файле проекта создание не пишет: SDK-проект берёт новый файл своими масками, а проект без
+масок его не увидит, пока файл туда не добавят. Удачное создание перечитывает модель причиной
+`ProjectsLoadReason.Files` раньше, чем вернуться, — новый файл уже в снимке, — и говорит
+`IStudioFiles.Changed` списком `Created`: что создано так, как его просили, без каталогов на пути.
 
 ## Переместить, скопировать, удалить
 
