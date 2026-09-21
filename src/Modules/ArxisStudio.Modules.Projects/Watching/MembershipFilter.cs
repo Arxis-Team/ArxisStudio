@@ -129,7 +129,20 @@ internal static class MembershipFilter
     /// <c>node_modules</c>, ради объёма, и временные файлы редакторов: проект, в котором такой файл
     /// лежит всерьёз, узнает о нём со следующей перезагрузкой.
     /// </remarks>
-    internal static bool IsExcluded(ProjectSnapshot project, CanonicalPath path)
+    internal static bool IsExcluded(ProjectSnapshot project, CanonicalPath path) =>
+        IsOutsideSources(project, path) || IsNeverListed(path.FileName) || IsTransient(path.FileName);
+
+    /// <summary>
+    /// Путь там, где исходников не бывает: в выходе сборки, в служебной папке или сама папка проекта.
+    /// </summary>
+    /// <param name="project">Проект, которому путь принадлежит.</param>
+    /// <param name="path">Путь.</param>
+    /// <remarks>
+    /// Общая часть двух отборов. Составу проекта сверх неё не нужны файлы проектов и решений — их
+    /// проект не перечисляет, — а локальной истории они нужны: правка файла проекта — такая же
+    /// правка, как всякая другая.
+    /// </remarks>
+    internal static bool IsOutsideSources(ProjectSnapshot project, CanonicalPath path)
     {
         var directory = project.ProjectDirectory;
 
@@ -168,9 +181,7 @@ internal static class MembershipFilter
             }
         }
 
-        var name = segments[^1];
-
-        return IsNeverListed(name) || IsTransient(name);
+        return false;
     }
 
     /// <summary>Временный файл редактора или атомарного сохранения.</summary>

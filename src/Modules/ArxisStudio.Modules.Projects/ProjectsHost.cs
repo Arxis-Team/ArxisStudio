@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Runtime.ExceptionServices;
 using ArxisStudio.Modules.Projects.Delivery;
 using ArxisStudio.Modules.Projects.Engine;
+using ArxisStudio.Modules.Projects.History;
 using ArxisStudio.Modules.Projects.Reporting;
 using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
@@ -44,6 +45,7 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
     private readonly ChangePublisher _publisher;
     private readonly OperationPublisher _operations;
     private readonly Lane _lane;
+    private readonly HistoryRecorder _history;
     private readonly Lock _gate = new();
 
     private ProjectsStatus _status = ProjectsStatus.Closed;
@@ -80,7 +82,21 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
             StudioLogLevel.Error, ProjectsModule.LogSource, $"Очередь службы проектов: {error}"));
 
         _watching = ProjectsSettings.Read(context.Settings).WatchFiles ? 1 : 0;
+        _history = new HistoryRecorder(context, HistoryRecorder.Root(options.HistoryRoot), options.HistoryCoalescing);
         context.Settings.Changed += OnSettingsChanged;
+    }
+
+    /// <summary>Локальная история службы.</summary>
+    internal HistoryRecorder History => _history;
+
+    /// <summary>Открытая сессия; null — ничего не открыто. Тестам — чтобы дотянуться до её истории.</summary>
+    internal ProjectsSession? Session
+    {
+        get
+        {
+            lock (_gate)
+                return _session;
+        }
     }
 
     /// <inheritdoc/>
@@ -241,6 +257,7 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
             _ = Retire(retired);
 
         _lane.Complete();
+        _history.Dispose();
     }
 
     /// <inheritdoc/>
@@ -932,11 +949,22 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
         }
     }
 
-    private void Watch(ProjectsSession session) =>
+    private void Watch(ProjectsSession session)
+    {
         session.Watch(Volatile.Read(ref _watching) == 1 ? _options.Watch : null, causes => Stale(session, causes));
+        session.Remember(_history.IsOn ? _history.Watch : null);
+    }
 
     private void OnSettingsChanged(object? sender, string key)
     {
+        if (ProjectsSettings.HistoryKeys.Contains(key, StringComparer.Ordinal))
+        {
+            if (_history.Configure(ProjectsSettings.Read(_context.Settings)) && Session is { } current)
+                current.Remember(_history.IsOn ? _history.Watch : null);
+
+            return;
+        }
+
         if (!string.Equals(key, ProjectsSettings.WatchFilesKey, StringComparison.Ordinal))
             return;
 

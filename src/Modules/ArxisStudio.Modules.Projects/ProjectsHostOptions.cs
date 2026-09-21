@@ -39,6 +39,16 @@ internal sealed class ProjectsHostOptions
         static stale => new ProjectsWatch(stale, FileChangeCoalescingOptions.Default);
 
     /// <summary>
+    /// Папка локальной истории; null — по среде (<see cref="History.HistoryRecorder.EnvironmentVariable"/>),
+    /// а без неё — машинная папка пользователя.
+    /// </summary>
+    /// <remarks>Тест истории называет свою временную папку: историю человека он трогать не вправе.</remarks>
+    public string? HistoryRoot { get; init; }
+
+    /// <summary>Склейка событий локальной истории.</summary>
+    public FileChangeCoalescingOptions HistoryCoalescing { get; init; } = FileChangeCoalescingOptions.Default;
+
+    /// <summary>
     /// Куда девать исключение подписчика; null — бросить заново в потоке интерфейса.
     /// </summary>
     /// <remarks>

@@ -54,8 +54,8 @@
         Ядро модели проектов — общая сборка студии: тест сверяет его поверхность с
         записанной и видит его типы так же, как их видит плагин.
 
-        Движки названы следом и только ради того, чтобы их выход остался в папке модуля
-        «Проекты», который их и везёт. Транзитивные ссылки у тестового проекта включены — ими
+        Движки и локальная история названы следом и только ради того, чтобы их выход остался в
+        папке модуля «Проекты», который их и везёт. Транзитивные ссылки у тестового проекта включены — ими
         сюда приезжает всё, на что ссылается модуль, — и пометка ExcludeAssets на ссылке самого
         модуля соседей по цепочке не касается: без этих двух строк движки легли бы у корня, а
         раскладка тестов разошлась бы с боевой ровно на них.
@@ -66,6 +66,8 @@
         <ProjectReference Include="../../external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem.MSBuild/ArxisStudio.ProjectSystem.MSBuild.csproj"
                           Private="false" ExcludeAssets="runtime"/>
         <ProjectReference Include="../../external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem.NuGet/ArxisStudio.ProjectSystem.NuGet.csproj"
+                          Private="false" ExcludeAssets="runtime"/>
+        <ProjectReference Include="../../src/ArxisStudio.LocalHistory/ArxisStudio.LocalHistory.csproj"
                           Private="false" ExcludeAssets="runtime"/>
     </ItemGroup>
 

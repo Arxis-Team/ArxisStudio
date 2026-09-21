@@ -31,10 +31,14 @@ internal sealed class ProjectsStudio : IDisposable
     /// Бросать ли исключение подписчика заново в потоке, как в студии; иначе оно копится в
     /// <see cref="Failures"/>.
     /// </param>
+    /// <param name="historyRoot">
+    /// Папка локальной истории; null — истории нет, как у всех тестов по умолчанию (<see cref="TestLocalHistory"/>).
+    /// </param>
     public ProjectsStudio(
         Func<ProjectWorkspace>? workspace = null,
         Func<Action<ImmutableArray<CanonicalPath>>, IProjectsWatch?>? watch = null,
-        bool rethrow = false)
+        bool rethrow = false,
+        string? historyRoot = null)
     {
         var options = new ProjectsHostOptions
         {
@@ -42,6 +46,12 @@ internal sealed class ProjectsStudio : IDisposable
             Thread = Thread,
             Watch = watch ?? (_ => null),
             SubscriberFailed = rethrow ? null : Failures.Enqueue,
+            HistoryRoot = historyRoot,
+            HistoryCoalescing = new FileChangeCoalescingOptions
+            {
+                QuietPeriod = TimeSpan.FromMilliseconds(50),
+                MaximumDelay = TimeSpan.FromMilliseconds(500),
+            },
         };
 
         var services = new Dictionary<Type, object>

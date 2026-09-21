@@ -21,5 +21,11 @@
   "menu.build.clean": "Clean",
   "menu.build.restore": "Restore packages",
   "settings.projects.watchFiles": "Reload the project when its files change on disk",
-  "settings.projects.restoreOnOpen": "Restore packages when a project opens"
+  "settings.projects.restoreOnOpen": "Restore packages when a project opens",
+  "settings.projects.history": "Keep a local history of project files",
+  "settings.projects.history.days": "Days to keep the local history",
+  "settings.projects.history.maxFileMb": "Largest file the local history keeps, MB",
+  "settings.projects.history.maxTotalMb": "Space the local history may take, MB",
+  "module.projects.history.external": "External change",
+  "module.projects.history.offline": "Changes outside the studio"
 }

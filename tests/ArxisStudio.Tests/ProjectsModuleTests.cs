@@ -59,18 +59,32 @@ public class ProjectsModuleTests
             type => typeof(Avalonia.Controls.Control).IsAssignableFrom(type));
     }
 
-    /// <summary>Манифест объявляет ровно те настройки, которые модуль читает.</summary>
+    /// <summary>Манифест объявляет ровно те настройки, которые модуль читает, и тех видов, какими читает.</summary>
+    /// <remarks>
+    /// Срок и пределы локальной истории — числа, остальное — переключатели. Все они — выбор человека,
+    /// а не проекта: история и слежение живут на его машине, и чужое решение не вправе их менять.
+    /// </remarks>
     [Fact]
     public void The_manifest_declares_exactly_the_settings_the_module_reads()
     {
         var declared = Manifest().Contributions.Settings;
+        string[] numbers =
+        [
+            ProjectsSettings.HistoryDaysKey,
+            ProjectsSettings.HistoryMaxFileMbKey,
+            ProjectsSettings.HistoryMaxTotalMbKey,
+        ];
 
         Assert.Equal(ProjectsSettings.Keys.Order(), declared.Select(setting => setting.Key).Order());
 
         foreach (var setting in declared)
         {
-            Assert.True(setting.IsBool, $"{setting.Key} объявлена не переключателем");
-            Assert.False(setting.IsProject, $"{setting.Key} объявлена проектной: слежение — выбор человека, а не проекта");
+            if (numbers.Contains(setting.Key))
+                Assert.True(setting.IsNumber, $"{setting.Key} объявлена не числом");
+            else
+                Assert.True(setting.IsBool, $"{setting.Key} объявлена не переключателем");
+
+            Assert.False(setting.IsProject, $"{setting.Key} объявлена проектной: это выбор человека, а не проекта");
             Assert.False(string.IsNullOrWhiteSpace(setting.Title), $"у настройки {setting.Key} нет подписи");
         }
     }

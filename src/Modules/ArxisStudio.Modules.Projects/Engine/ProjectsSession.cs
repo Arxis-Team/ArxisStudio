@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using ArxisStudio.Modules.Projects.History;
 using ArxisStudio.Modules.Projects.Watching;
 using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
@@ -20,6 +21,7 @@ internal sealed class ProjectsSession
     private readonly CancellationTokenSource _lifetime = new();
     private readonly Lock _watchGate = new();
     private IProjectsWatch? _watch;
+    private HistoryWatcher? _history;
     private SolutionSnapshot? _snapshot;
     private int _retired;
 
@@ -112,6 +114,43 @@ internal sealed class ProjectsSession
     }
 
     /// <summary>
+    /// Ведёт локальную историю по текущему снимку, меняет набор папок или гасит её.
+    /// </summary>
+    /// <param name="factory">Как завести историю сессии; null — не вести.</param>
+    /// <remarks>
+    /// Отдельно от слежения за составом и по отдельному выключателю: человек, остановивший
+    /// перечитывание модели на переключении ветки, историю правок терять не просил.
+    /// </remarks>
+    public void Remember(Func<HistoryWatcher?>? factory)
+    {
+        lock (_watchGate)
+        {
+            if (IsRetired)
+                return;
+
+            if (factory is null || Snapshot is not { } snapshot)
+            {
+                _history?.Dispose();
+                _history = null;
+                return;
+            }
+
+            _history ??= factory();
+            _history?.Follow(snapshot);
+        }
+    }
+
+    /// <summary>История сессии; null — не ведётся. Тестам — чтобы отдать накопленное сразу.</summary>
+    internal HistoryWatcher? History
+    {
+        get
+        {
+            lock (_watchGate)
+                return _history;
+        }
+    }
+
+    /// <summary>
     /// Кончает сессию: гасит слежение и отменяет её работу.
     /// </summary>
     /// <returns><c>false</c> — сессия уже кончилась раньше.</returns>
@@ -125,6 +164,8 @@ internal sealed class ProjectsSession
         {
             _watch?.Dispose();
             _watch = null;
+            _history?.Dispose();
+            _history = null;
         }
 
         _lifetime.Cancel();

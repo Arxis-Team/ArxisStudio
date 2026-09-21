@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+        Локальная история: содержимое файлов по адресу из хэша, журнал действий по дням, последнее
+        известное состояние каждого файла и срок хранения. Читает и пишет только свою папку — чей
+        это диск, что считать файлом проекта и когда снимать, решает хозяин, служба проектов.
+
+        Ссылок у библиотеки нет вовсе, и это граница, а не бедность. История переживает студию:
+        журнал, записанный сегодня, читают завтра, другой версией, возможно — другим процессом. Её
+        формат не должен зависеть ни от Avalonia, ни от движка MSBuild, ни от модели проектов, и
+        проверить это проще всего так: не дать сослаться ни на что. Нарушение роняет сборку с
+        AXH1001, а LocalHistoryBoundaryTests смотрит на готовую сборку.
+    -->
+    <PropertyGroup>
+        <RootNamespace>ArxisStudio.LocalHistory</RootNamespace>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <!-- Тестам открыты внутренности: хранилище содержимого и журнал проверяются и по отдельности. -->
+    <ItemGroup>
+        <InternalsVisibleTo Include="ArxisStudio.Tests"/>
+    </ItemGroup>
+
+    <Target Name="AxHistoryBoundary" BeforeTargets="Build">
+        <Error Code="AXH1001" Condition="'@(ProjectReference)' != '' Or '@(PackageReference)' != ''"
+               Text="Локальной истории нельзя ссылаться ни на что, кроме платформы .NET, а здесь объявлено: @(ProjectReference->'%(Filename)', ', ') @(PackageReference->'%(Identity)', ', '). Журнал и хранилище переживают студию и читаются другой её версией, поэтому их формат не должен зависеть ни от интерфейса, ни от движка, ни от модели проектов."/>
+    </Target>
+
+</Project>

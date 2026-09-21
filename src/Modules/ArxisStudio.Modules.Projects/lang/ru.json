@@ -21,5 +21,11 @@
   "menu.build.clean": "Очистить",
   "menu.build.restore": "Восстановить пакеты",
   "settings.projects.watchFiles": "Перезагружать проект, когда его файлы меняются на диске",
-  "settings.projects.restoreOnOpen": "Восстанавливать пакеты при открытии проекта"
+  "settings.projects.restoreOnOpen": "Восстанавливать пакеты при открытии проекта",
+  "settings.projects.history": "Вести локальную историю файлов проекта",
+  "settings.projects.history.days": "Сколько дней хранить локальную историю",
+  "settings.projects.history.maxFileMb": "Самый большой файл в локальной истории, МБ",
+  "settings.projects.history.maxTotalMb": "Сколько может занимать локальная история, МБ",
+  "module.projects.history.external": "Внешнее изменение",
+  "module.projects.history.offline": "Изменения вне студии"
 }

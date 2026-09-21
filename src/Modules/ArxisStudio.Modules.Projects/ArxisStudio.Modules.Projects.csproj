@@ -15,10 +15,12 @@
 
           Delivery/   поток интерфейса и доставка перемен: склейка, разность, чей сбой
           Watching/   диск: где следить и что считать переменой состава проекта
+          History/    локальная история: что записывать с диска, опорный снимок, очередь записи
           Reporting/  находки загрузки в панель «Проблемы»
           Engine/     очередь работы над движком, загрузка, сессия, сравнение снимков
 
-        Delivery, Watching и Reporting не знают никого; Engine знает Delivery и Watching.
+        Delivery, Watching и Reporting не знают никого; History знает Watching; Engine знает Delivery,
+        Watching и History.
         В корне — граница модуля: манифест, точка входа, сама служба, её шов для тестов и
         ключи настроек.
     -->
@@ -40,12 +42,16 @@
         Пакеты правит ArxisStudio.ProjectSystem.NuGet — правка XML и ничего больше: движка у него
         нет, восстановление он просит у того же провайдера. Он приводит с собой NuGet.Versioning, и
         тот едет в папку модулей вместе с остальным, что везёт только этот модуль.
+
+        Локальную историю хранит ArxisStudio.LocalHistory: ни интерфейса, ни движка у неё нет, а
+        что снимать и когда, решает служба — она и следит за диском.
     -->
     <ItemGroup>
         <ProjectReference Include="../../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
         <ProjectReference Include="../ArxisStudio.Projects.Contracts/ArxisStudio.Projects.Contracts.csproj"/>
         <ProjectReference Include="../../../external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem.MSBuild/ArxisStudio.ProjectSystem.MSBuild.csproj"/>
         <ProjectReference Include="../../../external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem.NuGet/ArxisStudio.ProjectSystem.NuGet.csproj"/>
+        <ProjectReference Include="../../ArxisStudio.LocalHistory/ArxisStudio.LocalHistory.csproj"/>
     </ItemGroup>
 
     <!--

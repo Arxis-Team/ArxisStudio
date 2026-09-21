@@ -25,7 +25,11 @@
     ],
     "settings": [
       { "key": "projects.watchFiles", "type": "bool", "scope": "user", "title": "%settings.projects.watchFiles%", "default": true },
-      { "key": "projects.restoreOnOpen", "type": "bool", "scope": "user", "title": "%settings.projects.restoreOnOpen%", "default": true }
+      { "key": "projects.restoreOnOpen", "type": "bool", "scope": "user", "title": "%settings.projects.restoreOnOpen%", "default": true },
+      { "key": "projects.history", "type": "bool", "scope": "user", "title": "%settings.projects.history%", "default": true },
+      { "key": "projects.history.days", "type": "number", "scope": "user", "title": "%settings.projects.history.days%", "default": 5 },
+      { "key": "projects.history.maxFileMb", "type": "number", "scope": "user", "title": "%settings.projects.history.maxFileMb%", "default": 5 },
+      { "key": "projects.history.maxTotalMb", "type": "number", "scope": "user", "title": "%settings.projects.history.maxTotalMb%", "default": 1024 }
     ]
   },
   "activation": [ "onStartup" ]
