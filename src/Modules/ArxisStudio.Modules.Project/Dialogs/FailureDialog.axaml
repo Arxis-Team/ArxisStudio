@@ -1,0 +1,23 @@
+<!--
+    Правка не удалась: почему — словами службы файлов, которая знает причину, а не словами окна,
+    которое её только передаёт. Кнопка одна: решать тут нечего.
+-->
+<AxDialog xmlns="https://github.com/Arxis-Team/ArxisStudio"
+          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+          xmlns:a="https://github.com/avaloniaui"
+          xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
+          x:Class="ArxisStudio.Modules.Project.Dialogs.FailureDialog"
+          Title="{Text project.failed.title}">
+
+  <AxDialog.AlertIcon>
+    <AxIcon Data="{x:Static ax:AxIcons.Error}" Foreground="{a:DynamicResource AxErrorBrush}"/>
+  </AxDialog.AlertIcon>
+
+  <a:TextBlock x:Name="Message" TextWrapping="Wrap" MaxWidth="420"/>
+
+  <AxDialog.Buttons>
+    <AxButton x:Name="Dismiss" Appearance="Primary" Content="{Text project.failed.close}"
+              MinWidth="{a:DynamicResource AxDialogButtonMinWidth}"/>
+  </AxDialog.Buttons>
+
+</AxDialog>

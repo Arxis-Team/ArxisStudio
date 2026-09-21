@@ -1,0 +1,38 @@
+<!--
+    Переименование, как у Rider: поле с нынешним именем, у файла выделена основа — имя без
+    последнего расширения, — у папки всё. Под полем, пока его печатают, — что не так с именем, и
+    вложенные файлы, которые переименуются вместе с ним: человек видит, что уедет, раньше, чем
+    нажмёт.
+
+    Ширина поля — та же, что у переименования сеанса в терминале.
+-->
+<AxDialog xmlns="https://github.com/Arxis-Team/ArxisStudio"
+          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+          xmlns:a="https://github.com/avaloniaui"
+          x:Class="ArxisStudio.Modules.Project.Dialogs.RenameDialog"
+          Title="{Text project.rename.title}">
+
+  <a:StackPanel x:Name="Form" Spacing="{a:DynamicResource AxSpaceTight}" Width="320">
+    <a:TextBlock x:Name="Prompt" TextWrapping="Wrap"/>
+
+    <AxTextBox x:Name="Chosen" a:AutomationProperties.Name="{Text project.rename.name}"/>
+
+    <a:TextBlock x:Name="Problem" TextWrapping="Wrap" AxText.Tone="Error" IsVisible="False"/>
+
+    <a:StackPanel x:Name="Along" Spacing="{a:DynamicResource AxSpaceHair}" IsVisible="False">
+      <a:TextBlock Text="{Text project.rename.nested}" AxText.Tone="Secondary"/>
+      <a:StackPanel x:Name="Pairs" Spacing="{a:DynamicResource AxSpaceHair}"/>
+    </a:StackPanel>
+  </a:StackPanel>
+
+  <AxDialog.Buttons>
+    <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxGapControls}">
+      <AxButton x:Name="Cancel" Content="{Text common.cancel}" MinWidth="{a:DynamicResource AxDialogButtonMinWidth}"/>
+
+      <!-- Имя, которое не годится или не сменилось, переименовать нечем: кнопка выключена. -->
+      <AxButton x:Name="Confirm" Appearance="Primary" Content="{Text project.rename.confirm}"
+                MinWidth="{a:DynamicResource AxDialogButtonMinWidth}" IsEnabled="False"/>
+    </a:StackPanel>
+  </AxDialog.Buttons>
+
+</AxDialog>

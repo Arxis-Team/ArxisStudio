@@ -2,6 +2,7 @@ using System.Collections.Specialized;
 using ArxisStudio.Controls;
 using ArxisStudio.Modules.Project.Model;
 using ArxisStudio.Modules.Project.Tree;
+using ArxisStudio.Projects;
 using ArxisStudio.Sdk;
 using Avalonia;
 using Avalonia.Controls;
@@ -34,15 +35,25 @@ namespace ArxisStudio.Modules.Project.Panels;
 /// из настройки — одной дорогой, откуда бы ни пришла. Смена раскладки оставляет человека там, где
 /// он стоял: файл, выделенный в дереве, в две колонки выделен плиткой в своей папке, и наоборот.
 /// </para>
+/// <para>
+/// Выбор — множественный, как в Rider и Unity: Ctrl и Shift со щелчком и Shift со стрелками. Правка
+/// берёт весь выбор (<see cref="Editing"/>): Delete удаляет, F2 переименовывает, как в проводнике
+/// и VS Code, — Shift+F6 Rider у студии занят обходом панелей. После правки выделение встаёт на то,
+/// что получилось: переименованное — на новое имя, удалённое — на соседа, занявшего его место.
+/// </para>
 /// </remarks>
 [ToolWindow(ProjectModule.PanelId)]
 public sealed class ProjectPanel : ToolWindow
 {
+    /// <summary>Сколько ждать, пока дерево покажет итог правки, прежде чем встать на него.</summary>
+    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(10);
+
     private readonly List<Action> _release = [];
     private ProjectPanelView? _view;
     private ProjectModel? _model;
     private ProjectMenu? _menu;
     private BrowserPane? _pane;
+    private Editing? _editing;
     private LanguageProbe? _language;
     private Node? _selected;
     private string? _query;
@@ -71,12 +82,15 @@ public sealed class ProjectPanel : ToolWindow
 
         _model = new ProjectModel(Context, WordsOf(Context.Strings), settings);
         _view = new ProjectPanelView { DataContext = _model };
+        _editing = Context.Files() is { } files ? new Editing(Context, files, Owner) : null;
         _menu = new ProjectMenu(Context.Strings, new MenuActions(
             _model.Open,
             Reveal.Show,
             Copy,
             row => Keep(() => _model.Tree.ExpandBranch(row)),
-            row => Keep(() => _model.Tree.CollapseBranch(row))));
+            row => Keep(() => _model.Tree.CollapseBranch(row)),
+            _editing is null ? null : Delete,
+            _editing is null ? null : Rename));
         _pane = new BrowserPane(_view, _model, _menu, Located, Resize, Copy);
         _pane.Show(settings.IconSize);
 
@@ -99,6 +113,7 @@ public sealed class ProjectPanel : ToolWindow
         _model?.Dispose();
         _model = null;
         _menu = null;
+        _editing = null;
         _view = null;
     }
 
@@ -200,7 +215,7 @@ public sealed class ProjectPanel : ToolWindow
 
     private void OnTreeKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_model is null || _view?.Tree.SelectedItem is not Row row)
+        if (_model is null || Current() is not { } row)
             return;
 
         var tree = _model.Tree;
@@ -208,6 +223,12 @@ public sealed class ProjectPanel : ToolWindow
 
         switch (e.Key)
         {
+            case Key.Delete when plain && _editing is not null:
+                Delete(TreeSelection(), EditOrigin.Tree);
+                break;
+            case Key.F2 when plain && _editing is not null:
+                Rename(TreeSelection(), EditOrigin.Tree);
+                break;
             case Key.Right when plain:
                 if (row.HasChildren && !row.IsExpanded)
                     Keep(() => tree.Expand(row));
@@ -242,24 +263,155 @@ public sealed class ProjectPanel : ToolWindow
         e.Handled = true;
     }
 
+    /// <remarks>
+    /// Правый щелчок по выбранной строке оставляет выбор как есть — меню о нём, как в Rider и в
+    /// проводнике; по невыбранной — выбирает её одну.
+    /// </remarks>
     private void OnContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         if (_menu is null || _view is null)
             return;
 
         var atPointer = e.TryGetPosition(_view.Tree, out _);
-        var row = atPointer ? RowOf(e.Source) : _view.Tree.SelectedItem as Row;
+        var row = atPointer ? RowOf(e.Source) : Current();
 
         if (row is null)
             return;
 
-        _view.Tree.SelectedItem = row;
+        if (_view.Tree.SelectedItems?.Contains(row) != true)
+            _view.Tree.SelectedItem = row;
 
         var anchor = atPointer ? (Control)_view.Tree : _view.Tree.ContainerFromItem(row) ?? _view.Tree;
 
-        ProjectMenu.ShowAt(anchor, _menu.Items(row), atPointer);
+        ProjectMenu.ShowAt(anchor, Items(row), atPointer);
         e.Handled = true;
     }
+
+    /// <summary>Пункты меню строки — с правкой того, что выбрано в дереве. Тестам — тем же путём, что меню.</summary>
+    /// <param name="row">Строка, по которой щёлкнули.</param>
+    internal IReadOnlyList<AxMenuItem> Items(Row row) => _menu?.Items(row, TreeSelection()) ?? [];
+
+    /// <summary>Что выбрано в дереве — так, как его возьмёт правка.</summary>
+    internal EditSelection TreeSelection() =>
+        EditSelection.Of(_view?.Tree.SelectedItems?.OfType<Row>().Select(row => row.Node) ?? []);
+
+    /// <summary>
+    /// Строка, на которой стоит человек: та, где клавиатура, а без неё — выделенная.
+    /// </summary>
+    /// <remarks>
+    /// При множественном выборе выделенных строк много, а клавиши говорят об одной — о той, где
+    /// кольцо фокуса: Ctrl со стрелкой ведёт его, не трогая выбора.
+    /// </remarks>
+    private Row? Current()
+    {
+        if (_view?.Tree is not { } tree)
+            return null;
+
+        if (tree.IsKeyboardFocusWithin
+            && (Caret() as Visual)?.FindAncestorOfType<TreeRow>(includeSelf: true)?.DataContext is Row focused)
+        {
+            return focused;
+        }
+
+        return tree.SelectedItem as Row;
+    }
+
+    /// <summary>Окно, которому принадлежат вопросы правки.</summary>
+    private Window? Owner() => _view is { } view ? TopLevel.GetTopLevel(view) as Window : null;
+
+    /// <summary>Удаляет выбранное — с вопросом — и ставит выделение на соседа удалённого.</summary>
+    private void Delete(EditSelection selection, EditOrigin origin) => Guard(DeleteAsync(selection, origin));
+
+    /// <summary>Переименовывает выбранное — с вопросом — и ставит выделение на новое имя.</summary>
+    private void Rename(EditSelection selection, EditOrigin origin) => Guard(RenameAsync(selection, origin));
+
+    private async Task DeleteAsync(EditSelection selection, EditOrigin origin)
+    {
+        if (_editing is not { } editing || _model is not { } model || selection.IsEmpty)
+            return;
+
+        // Место удалённого — до удаления: после него строк, по которым его можно найти, уже нет.
+        var at = origin == EditOrigin.Pane ? _pane?.FirstSelected() ?? -1 : FirstSelected();
+        var container = model.Browser.Current;
+
+        if (!await editing.DeleteAsync(selection))
+            return;
+
+        var gone = selection.Paths.ToHashSet();
+
+        if (await model.WhenAsync(root => !root.Descendants().Any(node => gone.Contains(node.Path)), Patience) is null || at < 0)
+            return;
+
+        if (origin == EditOrigin.Pane)
+            _pane?.SelectAt(Vanished(container, model.Browser.Current) ?? at);
+        else if (_model?.Tree.Rows is { Count: > 0 } rows)
+            Select(rows[Math.Min(at, rows.Count - 1)]);
+    }
+
+    /// <summary>
+    /// Колонка ушла вверх, потому что её папка опустела и пропала из дерева: место пропавшей среди
+    /// плиток того, куда колонка поднялась.
+    /// </summary>
+    /// <param name="was">Где колонка стояла до удаления — узел прежнего дерева.</param>
+    /// <param name="now">Где стоит теперь.</param>
+    /// <returns>Место; пусто — колонка осталась, где была.</returns>
+    /// <remarks>
+    /// Сосед встаёт на место пропавшей папки так же, как на место удалённой плитки: колонка не
+    /// выделяет первую попавшуюся, а продолжает там, где человек был.
+    /// </remarks>
+    private static int? Vanished(Node? was, Node? now)
+    {
+        if (was is null || now is null || string.Equals(was.Key, now.Key, StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        return was.Ancestors().Prepend(was)
+            .FirstOrDefault(node => string.Equals(node.Parent?.Key, now.Key, StringComparison.OrdinalIgnoreCase)) is { } gone
+            ? Browse.Browser.Place(gone)
+            : null;
+    }
+
+    private async Task RenameAsync(EditSelection selection, EditOrigin origin)
+    {
+        if (_editing is not { } editing || _model is not { } model || !selection.CanRename)
+            return;
+
+        if (await editing.RenameAsync(selection.Roots[0]) is not { } path)
+            return;
+
+        if (await model.WhenAsync(root => ProjectModel.Find(root, path) is not null, Patience) is not { } root
+            || ProjectModel.Find(root, path) is not { } node)
+        {
+            return;
+        }
+
+        if (origin == EditOrigin.Pane)
+        {
+            _pane?.Select(node, focus: true);
+            return;
+        }
+
+        model.Tree.Reveal(node);
+
+        if (model.Tree.Find(node.Key) is { } row)
+            Select(row);
+    }
+
+    /// <summary>Место первой выделенной строки дерева; −1 — выделения нет.</summary>
+    private int FirstSelected() =>
+        _view?.Tree.SelectedItems is { Count: > 0 } selected && _model is { } model
+            ? selected.OfType<Row>().Select(row => model.Tree.Rows.IndexOf(row)).Where(at => at >= 0).DefaultIfEmpty(-1).Min()
+            : -1;
+
+    /// <summary>
+    /// Дожидается правки, начатой клавишей или пунктом меню: обработчик события ждать не может, а
+    /// сбой в ней должен остаться в журнале, а не уйти необработанным в поток интерфейса.
+    /// </summary>
+    private void Guard(Task work) => _ = work.ContinueWith(
+        failed => Context.Log.Write(
+            StudioLogLevel.Error, ProjectModule.LogSource, $"Правка файлов оборвалась: {failed.Exception?.GetBaseException().Message}"),
+        CancellationToken.None,
+        TaskContinuationOptions.OnlyOnFaulted,
+        TaskScheduler.Default);
 
     /// <summary>
     /// Выделение в дереве сменилось; в две колонки выбранный контейнер открывается справа.

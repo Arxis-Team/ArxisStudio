@@ -45,18 +45,24 @@ internal sealed class ProjectWindowStudio : IDisposable
     /// Раскладка окна. По умолчанию — одна колонка: большинство тестов проверяет дерево, и файлы в нём
     /// есть только в одну колонку. Пусто — не трогать настройку и получить умолчание самого окна.
     /// </param>
-    public ProjectWindowStudio(bool service = true, double width = 520, ProjectsProbe? projects = null, bool? twoColumns = false)
+    /// <param name="files">Служба файлов; пусто — её нет, как у студии без службы проектов 1.3.</param>
+    public ProjectWindowStudio(
+        bool service = true, double width = 520, ProjectsProbe? projects = null, bool? twoColumns = false, FilesProbe? files = null)
     {
         Directory.CreateDirectory(_root);
 
         Projects = projects ?? new ProjectsProbe { Accepts = true };
+        Files = files;
 
         var exports = new StudioExportRegistry();
 
         if (service)
             exports.Publish(typeof(IStudioProjects), Projects, "arxis.projects", "Проекты");
 
-        var services = new Dictionary<Type, object> { [typeof(IStudioDocuments)] = Documents };
+        if (files is not null)
+            exports.Publish(typeof(IStudioFiles), files, "arxis.projects", "Проекты");
+
+        var services = new Dictionary<Type, object> { [typeof(IStudioDocuments)] = Documents, [typeof(IStudioStatus)] = Status };
         var store = new PluginSettingsStore(null, Path.Combine(_root, "plugin-settings.json"));
 
         _host = new PluginHost(new StudioContextFactory(Log, new StudioCommands(), null, services, settings: store, exports: exports));
@@ -85,6 +91,12 @@ internal sealed class ProjectWindowStudio : IDisposable
 
     /// <summary>Редакторы студии: что попросили открыть.</summary>
     public DocumentsProbe Documents { get; } = new();
+
+    /// <summary>Служба файлов, если она есть.</summary>
+    public FilesProbe? Files { get; }
+
+    /// <summary>Строка состояния: что окно сказало.</summary>
+    public StatusProbe Status { get; } = new();
 
     /// <summary>Журнал студии.</summary>
     public StudioLog Log { get; } = new();
@@ -116,8 +128,11 @@ internal sealed class ProjectWindowStudio : IDisposable
     /// <summary>Обычное решение, положенное на диск во временную папку теста.</summary>
     /// <param name="name">Имя решения.</param>
     /// <param name="extra">Ещё один файл приложения.</param>
-    public SolutionSnapshot Solution(string name = "Hello", string? extra = null) =>
-        ProjectWindowSolution.Avalonia(name, extra: extra, root: _root).OnDisk().ToSnapshot();
+    /// <param name="window">Имя главного окна.</param>
+    /// <param name="without">Файлы приложения, которых нет.</param>
+    public SolutionSnapshot Solution(
+        string name = "Hello", string? extra = null, string window = "MainWindow", IReadOnlyCollection<string>? without = null) =>
+        ProjectWindowSolution.Avalonia(name, extra: extra, root: _root, window: window, without: without).OnDisk().ToSnapshot();
 
     /// <summary>То же решение как построитель — когда тесту нужны его пути.</summary>
     public ProjectWindowSolution Avalonia() => ProjectWindowSolution.Avalonia(root: _root).OnDisk();
@@ -218,6 +233,16 @@ internal sealed class ProjectWindowStudio : IDisposable
         Dispatcher.UIThread.RunJobs();
     }
 
+    /// <summary>Щёлкает правой кнопкой в середину — так просят меню мышью.</summary>
+    public void RightClick(Visual target)
+    {
+        var at = Middle(target);
+
+        Window.MouseDown(at, MouseButton.Right);
+        Window.MouseUp(at, MouseButton.Right);
+        Dispatcher.UIThread.RunJobs();
+    }
+
     /// <summary>Наводит мышь на середину и оставляет её там.</summary>
     public void Hover(Visual target)
     {
@@ -311,6 +336,69 @@ internal sealed class ProjectWindowStudio : IDisposable
         Assert.NotNull(at);
 
         return at.Value;
+    }
+}
+
+/// <summary>
+/// Служба файлов, которая помнит, что её просили, и отвечает, как велит тест.
+/// </summary>
+/// <remarks>
+/// Диска служба теста не трогает: что стало после правки, тест говорит сам — новым снимком службы
+/// проектов в <see cref="After"/>, как настоящая служба перечитывает модель раньше, чем вернуться.
+/// </remarks>
+internal sealed class FilesProbe : IStudioFiles
+{
+    /// <summary>Переносы, по порядку.</summary>
+    public List<IReadOnlyList<FileMove>> Moved { get; } = [];
+
+    /// <summary>Удаления, по порядку.</summary>
+    public List<IReadOnlyList<CanonicalPath>> Deleted { get; } = [];
+
+    /// <summary>Метки действий, по порядку.</summary>
+    public List<string> Labels { get; } = [];
+
+    /// <summary>Что ответить; пусто — удача без диагностик.</summary>
+    public Func<ProjectOperationResult>? Answer { get; set; }
+
+    /// <summary>Что случилось на диске и в модели, пока служба работала; зовётся до ответа.</summary>
+    public Action? After { get; set; }
+
+    /// <inheritdoc/>
+    public event EventHandler<FilesChangedEventArgs>? Changed;
+
+    /// <inheritdoc/>
+    public Task<ProjectOperationResult> MoveAsync(IReadOnlyList<FileMove> moves, string label, CancellationToken cancellationToken = default)
+    {
+        Moved.Add(moves);
+
+        return Done(label, new FilesChangedEventArgs([.. moves], [], []));
+    }
+
+    /// <inheritdoc/>
+    public Task<ProjectOperationResult> CopyAsync(IReadOnlyList<FileMove> copies, string label, CancellationToken cancellationToken = default) =>
+        Done(label, new FilesChangedEventArgs([], [.. copies], []));
+
+    /// <inheritdoc/>
+    public Task<ProjectOperationResult> DeleteAsync(IReadOnlyList<CanonicalPath> paths, string label, CancellationToken cancellationToken = default)
+    {
+        Deleted.Add(paths);
+
+        return Done(label, new FilesChangedEventArgs([], [], [.. paths]));
+    }
+
+    private Task<ProjectOperationResult> Done(string label, FilesChangedEventArgs change)
+    {
+        Labels.Add(label);
+
+        var result = Answer?.Invoke() ?? ProjectOperationResult.Succeeded();
+
+        if (!result.HasErrors)
+        {
+            After?.Invoke();
+            Changed?.Invoke(this, change);
+        }
+
+        return Task.FromResult(result);
     }
 }
 

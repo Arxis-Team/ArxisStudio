@@ -1,0 +1,36 @@
+<!--
+    Вопрос перед удалением, как у Rider: что уйдёт — по имени, сколько — числом, и что удаление
+    насовсем.
+
+    Клавиатура открывается на «Удалить», как в Rider, в проводнике и в VS Code: вопрос стережёт от
+    случайной клавиши, а не спорит с решением, и Enter отвечает тем, о чём человек попросил, нажав
+    Delete. Esc и «Отмена» оставляют всё как было.
+
+    Ширина текста — та же, что у вопросов самой студии: модульный диалог не должен читаться иначе
+    соседнего.
+-->
+<AxDialog xmlns="https://github.com/Arxis-Team/ArxisStudio"
+          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+          xmlns:a="https://github.com/avaloniaui"
+          xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
+          x:Class="ArxisStudio.Modules.Project.Dialogs.DeleteDialog"
+          Title="{Text project.delete.title}">
+
+  <AxDialog.AlertIcon>
+    <AxIcon Data="{x:Static ax:AxIcons.Warning}" Foreground="{a:DynamicResource AxWarningBrush}"/>
+  </AxDialog.AlertIcon>
+
+  <a:StackPanel Spacing="{a:DynamicResource AxSpaceTight}" MaxWidth="420">
+    <a:TextBlock x:Name="Question" TextWrapping="Wrap"/>
+    <a:TextBlock Text="{Text project.delete.note}" TextWrapping="Wrap" AxText.Tone="Secondary"/>
+  </a:StackPanel>
+
+  <AxDialog.Buttons>
+    <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxGapControls}">
+      <AxButton x:Name="Cancel" Content="{Text common.cancel}" MinWidth="{a:DynamicResource AxDialogButtonMinWidth}"/>
+      <AxButton x:Name="Confirm" Appearance="Danger" Content="{Text project.delete.confirm}"
+                MinWidth="{a:DynamicResource AxDialogButtonMinWidth}"/>
+    </a:StackPanel>
+  </AxDialog.Buttons>
+
+</AxDialog>

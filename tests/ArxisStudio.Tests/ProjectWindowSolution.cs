@@ -170,8 +170,15 @@ internal sealed class ProjectWindowSolution
     /// <param name="workspace">Сеанс; пусто — новый.</param>
     /// <param name="extra">Ещё один файл приложения — так приходит перезагрузка «файл добавили».</param>
     /// <param name="root">Папка, в которой лежит папка решения; пусто — общая временная, без файлов.</param>
+    /// <param name="window">Имя главного окна — так приходит перезагрузка «окно переименовали».</param>
+    /// <param name="without">Файлы приложения, которых нет, путём от проекта, — «файлы удалили».</param>
     public static ProjectWindowSolution Avalonia(
-        string name = "Hello", WorkspaceIdentity? workspace = null, string? extra = null, string? root = null)
+        string name = "Hello",
+        WorkspaceIdentity? workspace = null,
+        string? extra = null,
+        string? root = null,
+        string window = "MainWindow",
+        IReadOnlyCollection<string>? without = null)
     {
         var solution = new ProjectWindowSolution(name, workspace, root);
         var app = solution.Project("App");
@@ -182,13 +189,19 @@ internal sealed class ProjectWindowSolution
         app.PackageReferences.Add(new PackageReferenceInfo { PackageId = "Avalonia", VersionText = "12.1.2" });
         app.ProjectReferences.Add(new ProjectReferenceInfo { ProjectFilePath = lib.ProjectFilePath, Project = lib.Identity });
 
-        solution.File(app, "Program.cs");
-        solution.File(app, "App.axaml", "AvaloniaXaml");
-        solution.File(app, "App.axaml.cs", dependentUpon: "App.axaml");
-        solution.File(app, "app.manifest", ProjectItemTypes.None);
-        solution.File(app, "Assets/avalonia-logo.ico", "AvaloniaResource");
-        solution.File(app, "Views/MainWindow.axaml", "AvaloniaXaml");
-        solution.File(app, "Views/MainWindow.axaml.cs", dependentUpon: "MainWindow.axaml");
+        void Add(string include, string type = ProjectItemTypes.Compile, string? dependentUpon = null)
+        {
+            if (without?.Contains(include) != true)
+                solution.File(app, include, type, dependentUpon);
+        }
+
+        Add("Program.cs");
+        Add("App.axaml", "AvaloniaXaml");
+        Add("App.axaml.cs", dependentUpon: "App.axaml");
+        Add("app.manifest", ProjectItemTypes.None);
+        Add("Assets/avalonia-logo.ico", "AvaloniaResource");
+        Add($"Views/{window}.axaml", "AvaloniaXaml");
+        Add($"Views/{window}.axaml.cs", dependentUpon: $"{window}.axaml");
         solution.Folder(app, "Models/");
 
         if (extra is not null)

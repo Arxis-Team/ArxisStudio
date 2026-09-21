@@ -89,6 +89,30 @@ internal sealed class Browser
         Refresh();
     }
 
+    /// <summary>Место узла среди плиток его родителя — так, как их разложила бы колонка.</summary>
+    /// <param name="node">Узел.</param>
+    /// <returns>Место; −1 — у узла нет родителя.</returns>
+    /// <remarks>Файл занимает место вместе с вложенными: они стоят следом за ним.</remarks>
+    public static int Place(Node node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+
+        if (node.Parent is not { } parent)
+            return -1;
+
+        var at = 0;
+
+        foreach (var child in parent.Children)
+        {
+            if (ReferenceEquals(child, node))
+                return at;
+
+            at += child.Kind == NodeKind.File ? child.Descendants().Count() : 1;
+        }
+
+        return -1;
+    }
+
     /// <summary>Узел с таким ключом в показанном дереве.</summary>
     /// <param name="key">Ключ.</param>
     public Node? Locate(string key) =>

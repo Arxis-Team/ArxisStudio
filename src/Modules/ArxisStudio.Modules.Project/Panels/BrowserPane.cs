@@ -129,8 +129,9 @@ internal sealed class BrowserPane : IDisposable
 
     /// <summary>Выделяет плитку узла в показанном списке.</summary>
     /// <param name="node">Узел.</param>
+    /// <param name="focus">Отдать плитке и клавиатуру — после правки, начатой в колонке.</param>
     /// <returns>Была ли плитка в колонке.</returns>
-    public bool Select(Node node)
+    public bool Select(Node node, bool focus = false)
     {
         ArgumentNullException.ThrowIfNull(node);
 
@@ -139,18 +140,34 @@ internal sealed class BrowserPane : IDisposable
         if (tile is null)
             return false;
 
-        var list = Shown;
-
-        list.SelectedItem = tile;
-        list.ScrollIntoView(tile);
+        Stand(tile, focus);
 
         return true;
     }
 
+    /// <summary>Место первой выделенной плитки; −1 — выделения нет.</summary>
+    public int FirstSelected() =>
+        Shown.SelectedItems is { Count: > 0 } selected
+            ? selected.OfType<Tile>().Select(tile => _model.Browser.Items.IndexOf(tile)).Where(at => at >= 0).DefaultIfEmpty(-1).Min()
+            : -1;
+
+    /// <summary>Выделяет плитку на месте — ту, что заняла место удалённой, — и отдаёт ей клавиатуру.</summary>
+    /// <param name="at">Место; за концом — последняя плитка.</param>
+    public void SelectAt(int at)
+    {
+        var items = _model.Browser.Items;
+
+        if (items.Count > 0 && at >= 0)
+            Stand(items[Math.Min(at, items.Count - 1)], focus: true);
+    }
+
+    /// <summary>Что выбрано в колонке — так, как его возьмёт правка.</summary>
+    internal EditSelection Selection() => EditSelection.Of(Shown.SelectedItems?.OfType<Tile>().Select(tile => tile.Node) ?? []);
+
     /// <summary>Пункты меню плитки — тестам: попап — отдельное окно, которого у безголового прогона нет.</summary>
     /// <param name="tile">Плитка.</param>
     internal IReadOnlyList<AxMenuItem> Items(Tile tile) =>
-        _menu.Items(tile, _model.IsSearching ? () => ShowInFolder(tile.Node) : null);
+        _menu.Items(tile, _model.IsSearching ? () => ShowInFolder(tile.Node) : null, Selection());
 
     /// <summary>Контейнер открывается в колонке, файл — в редакторе.</summary>
     /// <param name="tile">Плитка.</param>
@@ -210,6 +227,12 @@ internal sealed class BrowserPane : IDisposable
         {
             case Key.Enter when e.KeyModifiers == KeyModifiers.None && list.SelectedItem is Tile tile:
                 Act(tile);
+                break;
+            case Key.Delete when e.KeyModifiers == KeyModifiers.None && _menu.Actions.Delete is { } delete:
+                delete(Selection(), EditOrigin.Pane);
+                break;
+            case Key.F2 when e.KeyModifiers == KeyModifiers.None && _menu.Actions.Rename is { } rename:
+                rename(Selection(), EditOrigin.Pane);
                 break;
             case Key.Back when e.KeyModifiers == KeyModifiers.None:
                 Up();
@@ -331,7 +354,9 @@ internal sealed class BrowserPane : IDisposable
         if ((atPointer ? TileOf(e.Source) : list.SelectedItem as Tile) is not { } tile)
             return;
 
-        list.SelectedItem = tile;
+        // Как в дереве: по выбранной плитке меню о всём выборе, по невыбранной — выбирает её одну.
+        if (list.SelectedItems?.Contains(tile) != true)
+            list.SelectedItem = tile;
 
         var anchor = atPointer ? list : list.ContainerFromItem(tile) ?? list;
 
@@ -349,6 +374,18 @@ internal sealed class BrowserPane : IDisposable
     {
         if (e.Property == RangeBase.ValueProperty && !_sizing)
             _resized(TileLadder.Of(_view).Size((int)Math.Round(_view.Size.Value)));
+    }
+
+    /// <summary>Выделяет плитку в показанном списке и, если просят, отдаёт ей клавиатуру.</summary>
+    private void Stand(Tile tile, bool focus)
+    {
+        var list = Shown;
+
+        list.SelectedItem = tile;
+        list.ScrollIntoView(tile);
+
+        if (focus)
+            (list.ContainerFromItem(tile) as Control)?.Focus(NavigationMethod.Directional);
     }
 
     /// <summary>Плитка, в которой пришлось событие.</summary>

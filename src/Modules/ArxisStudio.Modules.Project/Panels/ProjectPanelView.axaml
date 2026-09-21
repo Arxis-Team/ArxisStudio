@@ -86,8 +86,13 @@
 
         <a:Panel a:Grid.ColumnSpan="{a:Binding TreeSpan}">
 
+          <!--
+              Выбор множественный, как в Rider: Ctrl и Shift со щелчком, Shift со стрелками. Правка
+              файлов берёт весь выбор, а клавиши дерева — строку, на которой стоит кольцо фокуса.
+          -->
           <p:TreeRows x:Name="Tree"
                      ItemsSource="{a:Binding Tree.Rows}"
+                     SelectionMode="Multiple"
                      Padding="{a:DynamicResource AxTreeViewPadding}">
             <p:TreeRows.Styles>
               <!--
@@ -225,6 +230,7 @@
                 в нём по центру — подписи ряда остаются на одной линии.
             -->
             <AxListBox x:Name="Tiles" ItemsSource="{a:Binding Browser.Items}" IsVisible="{a:Binding ShowsTiles}"
+                       SelectionMode="Multiple"
                        Padding="{a:DynamicResource AxTilePadding}"
                        a:ScrollViewer.HorizontalScrollBarVisibility="Disabled">
               <AxListBox.ItemsPanel>
@@ -345,6 +351,7 @@
                 на шаг за владельцем.
             -->
             <AxListBox x:Name="Files" ItemsSource="{a:Binding Browser.Items}" IsVisible="{a:Binding ShowsList}"
+                       SelectionMode="Multiple"
                        Padding="{a:DynamicResource AxTreeViewPadding}">
               <AxListBox.Styles>
                 <a:Style Selector="AxListBoxItem" x:DataType="b:Tile">

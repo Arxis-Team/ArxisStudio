@@ -163,8 +163,64 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
     /// <summary>Последняя постройка дерева — тесты ждут её, а не времени.</summary>
     internal Task Settled { get; private set; } = Task.CompletedTask;
 
+    /// <summary>Новое дерево показано — всякий раз, когда это случилось.</summary>
+    internal event Action? Shown;
+
+    /// <summary>
+    /// Ждёт дерева, отвечающего условию: уже показанного или одного из следующих.
+    /// </summary>
+    /// <param name="condition">Условие на корень дерева.</param>
+    /// <param name="timeout">Сколько ждать.</param>
+    /// <returns>Корень такого дерева; пусто — не дождались.</returns>
+    /// <remarks>
+    /// Правка файлов возвращается, когда служба уже перечитала модель, а дерево окна строится
+    /// после: событие службы приходит в поток интерфейса, постройка идёт вне его. Встать на
+    /// переименованный файл можно, только когда он в дереве, — это ожидание и есть.
+    /// </remarks>
+    internal async Task<Node?> WhenAsync(Func<Node, bool> condition, TimeSpan timeout)
+    {
+        ArgumentNullException.ThrowIfNull(condition);
+
+        if (Tree.Root is { } root && condition(root))
+            return root;
+
+        var reached = new TaskCompletionSource<Node?>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        void OnShown()
+        {
+            if (Tree.Root is { } now && condition(now))
+                reached.TrySetResult(now);
+        }
+
+        Shown += OnShown;
+
+        try
+        {
+            return await reached.Task.WaitAsync(timeout).ConfigureAwait(true);
+        }
+        catch (TimeoutException)
+        {
+            return null;
+        }
+        finally
+        {
+            Shown -= OnShown;
+        }
+    }
+
     /// <summary>Подписи дерева на языке студии.</summary>
     internal Words Words { get; private set; } = Words.English;
+
+    /// <summary>Узел с таким путём в показанном дереве; пусто — его нет.</summary>
+    /// <param name="root">Корень.</param>
+    /// <param name="path">Путь файла или папки.</param>
+    internal static Node? Find(Node root, CanonicalPath path)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+
+        return root.Descendants().FirstOrDefault(node =>
+            node.Kind is NodeKind.File or NodeKind.Folder && node.Path == path);
+    }
 
     /// <summary>Строит дерево заново с новыми словами — язык студии сменился.</summary>
     /// <param name="words">Подписи на новом языке.</param>
@@ -404,6 +460,7 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
                     Tree.Show(built.Result, forget);
                     Browser.Show(built.Result);
                     Browsed();
+                    Shown?.Invoke();
                 },
                 CancellationToken.None,
                 TaskContinuationOptions.None,
