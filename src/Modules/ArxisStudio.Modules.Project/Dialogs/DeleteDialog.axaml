@@ -8,6 +8,10 @@
 
     Ширина текста — та же, что у вопросов самой студии: модульный диалог не должен читаться иначе
     соседнего.
+
+    Под вопросом — чем удаление страхуется: отменой и локальной историей, а если история не ведётся,
+    то тем, что страховки нет. Файлы больше предела истории названы отдельно и тоном предупреждения:
+    их не вернёт ничто, и узнать об этом после удаления было бы поздно.
 -->
 <AxDialog xmlns="https://github.com/Arxis-Team/ArxisStudio"
           xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -22,7 +26,8 @@
 
   <a:StackPanel Spacing="{a:DynamicResource AxSpaceTight}" MaxWidth="420">
     <a:TextBlock x:Name="Question" TextWrapping="Wrap"/>
-    <a:TextBlock Text="{Text project.delete.note}" TextWrapping="Wrap" AxText.Tone="Secondary"/>
+    <a:TextBlock x:Name="Note" TextWrapping="Wrap" AxText.Tone="Secondary"/>
+    <a:TextBlock x:Name="Large" TextWrapping="Wrap" AxText.Tone="Warning" IsVisible="False"/>
   </a:StackPanel>
 
   <AxDialog.Buttons>

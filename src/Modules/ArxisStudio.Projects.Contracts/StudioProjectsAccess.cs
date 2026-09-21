@@ -82,4 +82,24 @@ public static class StudioProjectsAccess
 
         return context.GetService<IStudioExports>()?.Get<IStudioFiles>();
     }
+
+    /// <summary>
+    /// Служба локальной истории.
+    /// </summary>
+    /// <param name="context">Контекст плагина.</param>
+    /// <returns>
+    /// Служба или null — по тем же причинам, что и у <see cref="Projects"/>. Плагину, которому
+    /// нужна история, стоит объявить модулю нижнюю границу <c>1.5</c>: раньше её не было.
+    /// </returns>
+    /// <remarks>
+    /// Пятая служба того же модуля: показывает, что было с файлами решения, возвращает файл к
+    /// прежнему содержимому и отменяет действия целиком. Выключенная человеком история служба не
+    /// снимает — она отвечает, что не ведётся (<see cref="IStudioHistory.IsOn"/>).
+    /// </remarks>
+    public static IStudioHistory? History(this IStudioContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        return context.GetService<IStudioExports>()?.Get<IStudioHistory>();
+    }
 }

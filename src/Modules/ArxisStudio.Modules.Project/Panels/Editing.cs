@@ -22,12 +22,18 @@ namespace ArxisStudio.Modules.Project.Panels;
 /// Правка идёт одна: пока служба занята, второе удаление или переименование не начинается — выбор
 /// под ним мог уже уехать.
 /// </para>
+/// <para>
+/// <b>Отмена</b> — Ctrl+Z, как в Rider: последнее действие студии над файлами этого решения, с
+/// вопросом, что именно отменится. Отменяет служба истории целиком — оба переименованных файла,
+/// всю удалённую папку, ссылки в файле проекта, — а без неё отмены нет вовсе.
+/// </para>
 /// </remarks>
 /// <param name="context">Контекст модуля: словари, строка состояния, журнал.</param>
 /// <param name="files">Служба файлов.</param>
+/// <param name="history">Служба истории; пусто — её нет, и отменять нечем.</param>
 /// <param name="owner">Окно, которому принадлежат вопросы; пусто — спросить негде.</param>
 /// <param name="system">Буфер обмена системы.</param>
-internal sealed class Editing(IStudioContext context, IStudioFiles files, Func<Window?> owner, ISystemFiles system)
+internal sealed class Editing(IStudioContext context, IStudioFiles files, IStudioHistory? history, Func<Window?> owner, ISystemFiles system)
 {
     /// <summary>Сколько файлов папки считать для вопроса: дальше — «больше».</summary>
     internal const int CountLimit = 1000;
@@ -146,8 +152,17 @@ internal sealed class Editing(IStudioContext context, IStudioFiles files, Func<W
 
         try
         {
-            if (!await DeleteDialog.AskAsync(window, Question(selection, context.Strings, CountFiles)))
+            var kept = history?.IsOn == true;
+            var large = kept ? Large(selection, history!.MaxFileBytes) : [];
+
+            if (!await DeleteDialog.AskAsync(
+                    window,
+                    Question(selection, context.Strings, CountFiles),
+                    context.Strings[kept ? "project.delete.note" : "project.delete.note.off"],
+                    Warning(large, history?.MaxFileBytes ?? 0, context.Strings)))
+            {
                 return false;
+            }
 
             var first = selection.Roots[0].Name;
             var more = selection.Roots.Count - 1;
@@ -200,6 +215,111 @@ internal sealed class Editing(IStudioContext context, IStudioFiles files, Func<W
         {
             _busy = false;
         }
+    }
+
+    /// <summary>
+    /// Отменяет последнее действие студии над файлами — спросив, как Rider.
+    /// </summary>
+    /// <returns>Отменённое действие; пусто — отмены не было.</returns>
+    /// <remarks>
+    /// Отказ службы — файл с тех пор изменился, действие уже отменено — говорит диалог ошибки.
+    /// Удача, вернувшая не всё, говорит тем же диалогом, что именно не вернулось: файл больше предела
+    /// истории, ссылки в файле проекта, правленом с тех пор. Промолчать об этом значило бы оставить
+    /// человека думать, что всё на месте.
+    /// </remarks>
+    public async Task<LocalHistoryAction?> UndoAsync()
+    {
+        if (history is null || _busy || owner() is not { } window)
+            return null;
+
+        _busy = true;
+
+        try
+        {
+            if (!history.IsOn)
+            {
+                Tell(Format("project.undo.off"));
+                return null;
+            }
+
+            if (history.LastStudioAction is not { } last)
+            {
+                Tell(Format("project.undo.nothing"));
+                return null;
+            }
+
+            if (!await UndoDialog.AskAsync(window, context.Strings, last.Label))
+                return null;
+
+            if (await Run(window, () => history.UndoAsync(last.Id)) is not { HasErrors: false } result)
+                return null;
+
+            var skipped = result.Diagnostics
+                .Where(diagnostic => diagnostic.Severity == ProjectDiagnosticSeverity.Warning)
+                .Select(diagnostic => diagnostic.Message)
+                .ToList();
+
+            if (skipped.Count > 0)
+                await FailureDialog.ShowAsync(window, string.Join(Environment.NewLine, skipped), Format("project.undo.partial"));
+
+            Tell(Format("project.undone", last.Label));
+
+            return last;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>
+    /// Файлы больше предела истории среди удаляемого — их удаление не вернёт ничто.
+    /// </summary>
+    /// <param name="selection">Что удаляют.</param>
+    /// <param name="limit">Предел истории, в байтах.</param>
+    /// <remarks>В папке смотрится столько же файлов, сколько считает вопрос: ему нужно «есть такие», а не опись.</remarks>
+    internal static IReadOnlyList<string> Large(EditSelection selection, long limit)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+
+        var large = new List<string>();
+
+        foreach (var path in selection.Paths)
+        {
+            try
+            {
+                var files = Directory.Exists(path.Value)
+                    ? new DirectoryInfo(path.Value).EnumerateFiles("*", SearchOption.AllDirectories).Take(CountLimit)
+                    : [new FileInfo(path.Value)];
+
+                large.AddRange(files.Where(file => file.Exists && file.Length > limit).Select(file => file.Name));
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // Не прочиталось — промолчим о нём: вопрос и так скажет, что удаление насовсем.
+            }
+        }
+
+        return large;
+    }
+
+    /// <summary>Предупреждение о том, чего история не вернёт; пусто — такого нет.</summary>
+    /// <param name="large">Файлы больше предела.</param>
+    /// <param name="limit">Предел, в байтах.</param>
+    /// <param name="strings">Словари модуля.</param>
+    internal static string? Warning(IReadOnlyList<string> large, long limit, IStudioStrings strings)
+    {
+        ArgumentNullException.ThrowIfNull(large);
+        ArgumentNullException.ThrowIfNull(strings);
+
+        var megabytes = Math.Max(1, limit / (1024 * 1024));
+
+        return large switch
+        {
+            [] => null,
+            [var one] => string.Format(CultureInfo.CurrentCulture, strings["project.delete.large"], one, megabytes),
+            _ => string.Format(CultureInfo.CurrentCulture, strings["project.delete.large.many"], large.Count, megabytes),
+        };
     }
 
     /// <summary>

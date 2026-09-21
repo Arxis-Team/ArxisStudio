@@ -196,6 +196,92 @@ public sealed class LocalHistoryStoreTests : IDisposable
     }
 
     /// <summary>
+    /// Метка и отмена переживают хранилище: метка — со своей папкой, отмена — с номером отменённого.
+    /// </summary>
+    /// <remarks>
+    /// У метки правок нет, и прежний читатель журнала принял бы её пустой список за порчу строки —
+    /// а метка, пропавшая при перезапуске, не дожила бы до того, ради чего её ставили.
+    /// </remarks>
+    [Fact]
+    public void Labels_and_undo_links_outlive_the_store()
+    {
+        var folder = Path.Combine(_root, "solution");
+        long undone;
+
+        using (var store = LocalHistoryStore.Open(History))
+        {
+            undone = store.Record("Создан", HistoryOrigin.Studio, [Created(Path.Combine(folder, "a.cs"))]).Id;
+            store.Record("Отмена: Создан", HistoryOrigin.Studio, [Created(Path.Combine(folder, "b.cs"))], undoes: undone);
+            store.PutLabel("до переделки", folder);
+        }
+
+        using var reopened = LocalHistoryStore.Open(History);
+        var actions = reopened.Actions;
+
+        Assert.Equal(3, actions.Length);
+        Assert.Equal(undone, actions[1].Undoes);
+        Assert.True(actions[2].IsLabel, "метка прочиталась правкой");
+        Assert.Equal(folder, actions[2].Scope);
+        Assert.Equal(actions[1], reopened.Find(actions[1].Id));
+        Assert.Null(reopened.Find(actions[2].Id + 1));
+    }
+
+    /// <summary>
+    /// Отменённым считается то, чью отмену не отменили: отмена отмены возвращает действие в силу.
+    /// </summary>
+    [Fact]
+    public void An_action_is_undone_only_while_its_undo_stands()
+    {
+        using var store = LocalHistoryStore.Open(History);
+
+        var action = store.Record("Переименование", HistoryOrigin.Studio, [Created("a.cs")]);
+        var undo = store.Record("Отмена: Переименование", HistoryOrigin.Studio, [Created("b.cs")], undoes: action.Id);
+
+        Assert.Equal([action.Id], store.Undone());
+
+        var redo = store.Record("Отмена: Отмена: Переименование", HistoryOrigin.Studio, [Created("c.cs")], undoes: undo.Id);
+
+        Assert.Equal([undo.Id], store.Undone());
+
+        store.Record("Отмена: Отмена: Отмена: Переименование", HistoryOrigin.Studio, [Created("d.cs")], undoes: redo.Id);
+
+        Assert.Equal([action.Id, redo.Id], store.Undone().Order());
+    }
+
+    /// <summary>
+    /// История папки — всё, что в ней было, сквозь переезд самой папки; метку видно под её папкой.
+    /// </summary>
+    [Fact]
+    public void The_history_of_a_folder_follows_the_folder_and_shows_labels_put_above_it()
+    {
+        var a = Path.Combine(_root, "a");
+        var b = Path.Combine(_root, "b");
+
+        using var store = LocalHistoryStore.Open(History);
+
+        store.Record("Создан", HistoryOrigin.Studio, [Created(Path.Combine(a, "x.cs"))]);
+        store.Record("Вложенный", HistoryOrigin.Studio, [Created(Path.Combine(a, "sub", "w.cs"))]);
+        store.Record("Рядом", HistoryOrigin.Studio, [Created(Path.Combine(_root, "c", "y.cs"))]);
+        store.Record("Приехал", HistoryOrigin.Studio,
+            [new HistoryChange { Kind = HistoryChangeKind.Moved, Path = Path.Combine(a, "z.cs"), From = Path.Combine(_root, "z.cs") }]);
+        store.PutLabel("метка решения", _root);
+        store.PutLabel("метка соседа", Path.Combine(_root, "c"));
+        store.Record("Перенос папки", HistoryOrigin.Studio,
+            [new HistoryChange { Kind = HistoryChangeKind.Moved, Path = b, From = a, IsDirectory = true }]);
+        store.Record("Удалён", HistoryOrigin.External, [new HistoryChange { Kind = HistoryChangeKind.Deleted, Path = Path.Combine(b, "x.cs") }]);
+
+        Assert.Equal(
+            ["Удалён", "Перенос папки", "Приехал", "Вложенный", "Создан"],
+            store.RevisionsUnder(b).Select(revision => revision.Action.Label));
+
+        // Переехала не сама папка, а та, в которой она лежит: и это переезд вложенной.
+        Assert.Equal(
+            ["Перенос папки", "Вложенный"],
+            store.RevisionsUnder(Path.Combine(b, "sub")).Select(revision => revision.Action.Label));
+        Assert.Equal(["метка решения"], store.Labels(Path.Combine(b, "x.cs")).Select(label => label.Label));
+    }
+
+    /// <summary>
     /// Файл больше предела снимается без содержимого, в хранилище не ложится и не читается вовсе.
     /// </summary>
     /// <remarks>

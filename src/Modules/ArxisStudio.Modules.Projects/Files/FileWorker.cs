@@ -311,7 +311,7 @@ internal static class FileWorker
     /// <param name="projects">Правки файлов проектов для истории.</param>
     /// <param name="failure">Почему не записалось.</param>
     /// <returns><c>false</c> — диск отказал, и файлы проектов возвращены как были.</returns>
-    private static bool Rewrite(
+    internal static bool Rewrite(
         SolutionSnapshot snapshot,
         IReadOnlyList<PathChange> changes,
         LocalHistoryStore? store,
@@ -517,7 +517,7 @@ internal static class FileWorker
     /// Переносит путь; смену одного регистра .NET делает сам — и у файла, и у папки, — и
     /// временного имени ей не нужно.
     /// </summary>
-    private static void Relocate(string from, string to, bool folder)
+    internal static void Relocate(string from, string to, bool folder)
     {
         if (folder)
             Directory.Move(from, to);
@@ -559,7 +559,7 @@ internal static class FileWorker
     }
 
     /// <summary>Удаляет насовсем, сняв «только чтение»: его ставят системы контроля версий, а спрашивали уже.</summary>
-    private static void Erase(string path)
+    internal static void Erase(string path)
     {
         if (Directory.Exists(path))
         {
@@ -578,7 +578,7 @@ internal static class FileWorker
     }
 
     /// <summary>Файлы под папкой на любой глубине.</summary>
-    private static IEnumerable<string> Under(string folder)
+    internal static IEnumerable<string> Under(string folder)
     {
         try
         {
@@ -590,10 +590,10 @@ internal static class FileWorker
         }
     }
 
-    private static bool Inside(string path, string folder) =>
+    internal static bool Inside(string path, string folder) =>
         path.StartsWith(folder.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
 
-    private static void Quietly(Action action)
+    internal static void Quietly(Action action)
     {
         try
         {

@@ -1,3 +1,4 @@
+using ArxisStudio.LocalHistory;
 using ArxisStudio.Modules.Projects.Delivery;
 using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
@@ -69,7 +70,21 @@ internal sealed class FilesService : IStudioFiles
         return RunAsync(new FileWork(FileWorkKind.Delete, [], [.. paths], Label(label)), cancellationToken);
     }
 
-    private async Task<ProjectOperationResult> RunAsync(FileWork work, CancellationToken cancellationToken)
+    private Task<ProjectOperationResult> RunAsync(FileWork work, CancellationToken cancellationToken) =>
+        EditAsync((snapshot, store) => FileWorker.Run(work, snapshot, store, _words), cancellationToken);
+
+    /// <summary>
+    /// Правка диска очередью записи: служба файлов и отмена из истории ходят одной дорогой.
+    /// </summary>
+    /// <param name="work">Правка — в очереди записи, над снимком открытого и историей (null — не ведётся).</param>
+    /// <param name="cancellationToken">Отмена — пока правка не началась.</param>
+    /// <remarks>
+    /// Удачная правка, которая могла поменять модель, перечитывает её раньше, чем вернуться, а о том,
+    /// что переехало и что удалено, сообщает <see cref="Changed"/> — кто бы правку ни сделал.
+    /// </remarks>
+    internal async Task<ProjectOperationResult> EditAsync(
+        Func<SolutionSnapshot, LocalHistoryStore?, FileWorkResult> work,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ObjectDisposedException.ThrowIf(_host.IsStopped, this);
@@ -101,7 +116,7 @@ internal sealed class FilesService : IStudioFiles
 
             try
             {
-                outcome.TrySetResult(FileWorker.Run(work, snapshot, _host.History.Store, _words));
+                outcome.TrySetResult(work(snapshot, _host.History.Store));
             }
             catch (Exception e) when (e is not OutOfMemoryException)
             {
@@ -115,11 +130,11 @@ internal sealed class FilesService : IStudioFiles
 
         var done = await outcome.Task.ConfigureAwait(false);
 
-        if (done.Change is { } change)
-        {
+        if (done.Rereads)
             await _host.RereadAsync(session, ProjectsLoadReason.Files).ConfigureAwait(false);
+
+        if (done.Change is { } change)
             _thread.Post(() => Changed?.Invoke(this, change));
-        }
 
         return done.Result;
     }

@@ -88,6 +88,10 @@ internal sealed class ContentStore
         return id;
     }
 
+    /// <summary>Лежит ли объект — без чтения и проверки: проверит чтение.</summary>
+    /// <param name="id">Адрес.</param>
+    public bool Has(ContentId id) => id.Value is not null && File.Exists(PathOf(id));
+
     /// <summary>Читает объект; null — его нет или он испорчен.</summary>
     /// <param name="id">Адрес.</param>
     public byte[]? Read(ContentId id)

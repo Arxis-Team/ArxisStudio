@@ -6,9 +6,15 @@ namespace ArxisStudio.LocalHistory;
 /// Действие: одна или несколько правок, случившихся вместе и под одной меткой.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Переименование файла вместе с вложенным в него — одно действие, а не два: отменяют его тоже
 /// целиком. Так же и пачка внешних перемен, пришедшая одним сохранением или одним переключением
 /// ветки.
+/// </para>
+/// <para>
+/// Действие без правок — метка, как «Put Label» у IntelliJ: отметка на времени, к которой потом
+/// возвращаются («до переделки»). Правок у неё нет, а место есть — папка, на которой её поставили.
+/// </para>
 /// </remarks>
 public sealed record HistoryAction
 {
@@ -24,8 +30,22 @@ public sealed record HistoryAction
     /// <summary>Кто сделал.</summary>
     public required HistoryOrigin Origin { get; init; }
 
-    /// <summary>Правки по порядку.</summary>
+    /// <summary>Правки по порядку; у метки — пусто.</summary>
     public required ImmutableArray<HistoryChange> Changes { get; init; }
+
+    /// <summary>Какое действие это отменяет; null — это не отмена.</summary>
+    /// <remarks>
+    /// Отмена — такое же действие, со своими правками и своим содержимым: отменённое можно вернуть,
+    /// отменив отмену. Номер нужен, чтобы знать, что уже отменено (<see cref="LocalHistoryStore.Undone"/>).
+    /// </remarks>
+    public long? Undoes { get; init; }
+
+    /// <summary>У метки — папка, на которой её поставили: метку видно в истории всего, что под ней.</summary>
+    /// <remarks>У правок — null. Метка без папки видна везде.</remarks>
+    public string? Scope { get; init; }
+
+    /// <summary>Это метка, а не правка.</summary>
+    public bool IsLabel => Changes.IsDefaultOrEmpty;
 }
 
 /// <summary>Правка пути вместе с действием, которому она принадлежит.</summary>

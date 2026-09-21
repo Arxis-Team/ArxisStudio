@@ -1,0 +1,33 @@
+<!--
+    Отмена последнего действия над файлами — вопросом, как у Rider: «Отменить «Переименование…»?».
+    Отмена трогает диск, иногда многими файлами сразу, и человек, нажавший Ctrl+Z не в том окне,
+    должен успеть увидеть, что именно отменится.
+
+    Клавиатура открывается на «Отменить»: Ctrl+Z и есть просьба отменить, и Enter её подтверждает.
+    «Не отменять», а не «Отмена»: рядом с «Отменить» слово «Отмена» читалось бы тем же самым.
+-->
+<AxDialog xmlns="https://github.com/Arxis-Team/ArxisStudio"
+          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+          xmlns:a="https://github.com/avaloniaui"
+          xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
+          x:Class="ArxisStudio.Modules.Project.Dialogs.UndoDialog"
+          Title="{Text project.undo.title}">
+
+  <AxDialog.AlertIcon>
+    <AxIcon Data="{x:Static ax:AxIcons.Undo}" Foreground="{a:DynamicResource AxAccentBrush}"/>
+  </AxDialog.AlertIcon>
+
+  <a:StackPanel Spacing="{a:DynamicResource AxSpaceTight}" MaxWidth="420">
+    <a:TextBlock x:Name="Question" TextWrapping="Wrap"/>
+    <a:TextBlock Text="{Text project.undo.note}" TextWrapping="Wrap" AxText.Tone="Secondary"/>
+  </a:StackPanel>
+
+  <AxDialog.Buttons>
+    <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxGapControls}">
+      <AxButton x:Name="Keep" Content="{Text project.undo.keep}" MinWidth="{a:DynamicResource AxDialogButtonMinWidth}"/>
+      <AxButton x:Name="Confirm" Appearance="Primary" Content="{Text project.undo.confirm}"
+                MinWidth="{a:DynamicResource AxDialogButtonMinWidth}"/>
+    </a:StackPanel>
+  </AxDialog.Buttons>
+
+</AxDialog>

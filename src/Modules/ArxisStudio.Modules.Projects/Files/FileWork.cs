@@ -48,8 +48,18 @@ internal sealed record FileWork(FileWorkKind Kind, ImmutableArray<FileMove> Pair
 
 /// <summary>Итог правки: ответ просившему и перемена для тех, кто держит файлы открытыми.</summary>
 /// <param name="Result">Ответ.</param>
-/// <param name="Change">Перемена; null — на диске ничего не поменялось.</param>
-internal sealed record FileWorkResult(ProjectOperationResult Result, FilesChangedEventArgs? Change);
+/// <param name="Change">
+/// Что переехало и что удалено; null — такого не было. Правка содержимого переменой не считается:
+/// следить редактору не за чем.
+/// </param>
+internal sealed record FileWorkResult(ProjectOperationResult Result, FilesChangedEventArgs? Change)
+{
+    /// <summary>
+    /// Правка могла поменять модель: путь появился, пропал или переехал, или переписан файл,
+    /// который читает MSBuild. У переноса, копии и удаления — всегда, когда диск поменялся.
+    /// </summary>
+    public bool Rereads { get; init; } = Change is not null;
+}
 
 /// <summary>
 /// Проверки до первого байта: всё, что можно узнать, не трогая диск, узнаётся раньше, чем что-то

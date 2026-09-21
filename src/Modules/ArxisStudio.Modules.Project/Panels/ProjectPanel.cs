@@ -84,7 +84,7 @@ public sealed class ProjectPanel : ToolWindow
         _model = new ProjectModel(Context, WordsOf(Context.Strings), settings);
         _view = new ProjectPanelView { DataContext = _model };
         _editing = Context.Files() is { } files
-            ? new Editing(Context, files, Owner, SystemFiles.For(() => _view is { } view ? TopLevel.GetTopLevel(view) : null))
+            ? new Editing(Context, files, Context.History(), Owner, SystemFiles.For(() => _view is { } view ? TopLevel.GetTopLevel(view) : null))
             : null;
         _menu = new ProjectMenu(Context.Strings, new MenuActions(
             _model.Open,
@@ -97,7 +97,8 @@ public sealed class ProjectPanel : ToolWindow
             _editing is null ? null : Cut,
             _editing is null ? null : CopyFiles,
             _editing is null ? null : Paste,
-            _editing is null ? null : _editing.Uncut));
+            _editing is null ? null : _editing.Uncut,
+            _editing is null || Context.History() is null ? null : Undo));
         _pane = new BrowserPane(_view, _model, _menu, Located, Resize, Copy);
         _pane.Show(settings.IconSize);
 
@@ -259,6 +260,9 @@ public sealed class ProjectPanel : ToolWindow
                 break;
             case Key.Escape when plain && _editing?.Uncut() == true:
                 break;
+            case Key.Z when e.KeyModifiers == KeyModifiers.Control && _menu?.Actions.Undo is { } undo:
+                undo(EditOrigin.Tree);
+                break;
             case Key.Right when plain:
                 if (row.HasChildren && !row.IsExpanded)
                     Keep(() => tree.Expand(row));
@@ -402,10 +406,55 @@ public sealed class ProjectPanel : ToolWindow
 
     private async Task RenameAsync(EditSelection selection, EditOrigin origin)
     {
-        if (_editing is not { } editing || _model is not { } model || !selection.CanRename)
+        if (_editing is not { } editing || !selection.CanRename)
             return;
 
-        if (await editing.RenameAsync(selection.Roots[0]) is not { } path)
+        if (await editing.RenameAsync(selection.Roots[0]) is { } path)
+            await StandOnAsync(path, origin);
+    }
+
+    /// <summary>Отменяет последнее действие над файлами — с вопросом — и встаёт на вернувшееся.</summary>
+    private void Undo(EditOrigin origin) => Guard(UndoAsync(origin));
+
+    private async Task UndoAsync(EditOrigin origin)
+    {
+        if (_editing is not { } editing || await editing.UndoAsync() is not { } undone)
+            return;
+
+        if (Returned(undone) is { } path)
+            await StandOnAsync(path, origin);
+    }
+
+    /// <summary>
+    /// Что вернула отмена — туда встаёт выделение: переехавшее — на прежнее имя, удалённое — на самое
+    /// верхнее из вернувшихся. Отмена копии ничего не возвращает: скопированное просто пропадает.
+    /// </summary>
+    internal static CanonicalPath? Returned(LocalHistoryAction undone)
+    {
+        ArgumentNullException.ThrowIfNull(undone);
+
+        if (undone.Changes.FirstOrDefault(change => change.Kind == LocalHistoryChangeKind.Moved) is { From.IsEmpty: false } moved)
+            return moved.From;
+
+        return undone.Changes
+            .Where(change => change.Kind == LocalHistoryChangeKind.Deleted)
+            .OrderBy(change => change.Path.Value.Length)
+            .Select(change => (CanonicalPath?)change.Path)
+            .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Дожидается, пока дерево покажет путь, и встаёт на него там, откуда пришла правка.
+    /// </summary>
+    /// <remarks>
+    /// Правка из дерева встаёт на строку дерева — с клавиатурой, чтобы следующая клавиша пришлась
+    /// туда же. Строки нет — в две колонки у файла её нет, — и тогда, как у правки из колонки, узел
+    /// выделяется плиткой в своей папке: колонка идёт в неё, где бы ни стояла. Вернувшееся отменой
+    /// лежит в папке, которая могла пропасть вместе с удалённым, и колонка тогда поднялась выше.
+    /// </remarks>
+    private async Task StandOnAsync(CanonicalPath path, EditOrigin origin)
+    {
+        if (_model is not { } model)
             return;
 
         if (await model.WhenAsync(root => ProjectModel.Find(root, path) is not null, Patience) is not { } root
@@ -414,16 +463,21 @@ public sealed class ProjectPanel : ToolWindow
             return;
         }
 
-        if (origin == EditOrigin.Pane)
+        if (origin == EditOrigin.Tree)
         {
-            _pane?.Select(node, focus: true);
-            return;
+            model.Tree.Reveal(node);
+
+            if (model.Tree.Find(node.Key) is { } row)
+            {
+                Select(row);
+                return;
+            }
         }
 
-        model.Tree.Reveal(node);
+        Stand(node);
 
-        if (model.Tree.Find(node.Key) is { } row)
-            Select(row);
+        if (model.IsTwoColumns && origin == EditOrigin.Pane)
+            _pane?.Select(node, focus: true);
     }
 
     /// <summary>Вырезает выбранное: вставка его перенесёт, а до неё оно приглушено.</summary>
@@ -437,23 +491,8 @@ public sealed class ProjectPanel : ToolWindow
 
     private async Task PasteAsync(CanonicalPath folder, EditOrigin origin)
     {
-        if (_editing is not { } editing || _model is not { } model)
-            return;
-
-        if (await editing.PasteAsync(folder) is not [var first, ..])
-            return;
-
-        if (await model.WhenAsync(root => ProjectModel.Find(root, first) is not null, Patience) is not { } root
-            || ProjectModel.Find(root, first) is not { } node)
-        {
-            return;
-        }
-
-        // В две колонки файла в дереве нет: вставленное выделяется плиткой в своей папке.
-        Stand(node);
-
-        if (model.IsTwoColumns && origin == EditOrigin.Pane)
-            _pane?.Select(node, focus: true);
+        if (_editing is { } editing && await editing.PasteAsync(folder) is [var first, ..])
+            await StandOnAsync(first, origin);
     }
 
     /// <summary>

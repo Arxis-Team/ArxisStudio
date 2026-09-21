@@ -31,6 +31,7 @@ internal enum EditOrigin
 /// <param name="CopyFiles">Скопировать выбранное; пусто — так же.</param>
 /// <param name="Paste">Вставить в папку; пусто — так же.</param>
 /// <param name="Uncut">Снять вырезанное — Esc; ответ — было ли что снимать.</param>
+/// <param name="Undo">Отменить последнее действие над файлами — Ctrl+Z; пусто — службы истории нет.</param>
 internal sealed record MenuActions(
     Action<Node> Open,
     Action<string> Reveal,
@@ -42,7 +43,8 @@ internal sealed record MenuActions(
     Action<EditSelection, EditOrigin>? CutFiles = null,
     Action<EditSelection, EditOrigin>? CopyFiles = null,
     Action<CanonicalPath, EditOrigin>? Paste = null,
-    Func<bool>? Uncut = null);
+    Func<bool>? Uncut = null,
+    Action<EditOrigin>? Undo = null);
 
 /// <summary>
 /// Контекстное меню строки дерева и плитки правой колонки: что можно сделать с тем, на чём стоят.

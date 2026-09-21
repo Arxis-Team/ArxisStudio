@@ -22,6 +22,16 @@ ArxisStudio.Projects.IStudioFiles :: System.Threading.Tasks.Task<ArxisStudio.Pro
 ArxisStudio.Projects.IStudioFiles :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> DeleteAsync(System.Collections.Generic.IReadOnlyList<ArxisStudio.ProjectSystem.CanonicalPath> paths, System.String label, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Projects.IStudioFiles :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> MoveAsync(System.Collections.Generic.IReadOnlyList<ArxisStudio.Projects.FileMove> moves, System.String label, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Projects.IStudioFiles :: event System.EventHandler<ArxisStudio.Projects.FilesChangedEventArgs> Changed
+ArxisStudio.Projects.IStudioHistory : interface
+ArxisStudio.Projects.IStudioHistory :: ArxisStudio.Projects.LocalHistoryAction? LastStudioAction { get; }
+ArxisStudio.Projects.IStudioHistory :: System.Boolean IsOn { get; }
+ArxisStudio.Projects.IStudioHistory :: System.Int64 MaxFileBytes { get; }
+ArxisStudio.Projects.IStudioHistory :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> PutLabelAsync(System.String label, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Projects.IStudioHistory :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> RevertAsync(ArxisStudio.ProjectSystem.CanonicalPath path, ArxisStudio.Projects.LocalHistoryContent content, System.String label, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Projects.IStudioHistory :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> UndoAsync(System.Int64 actionId, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Projects.IStudioHistory :: System.Threading.Tasks.Task<System.Byte[]> ReadAsync(ArxisStudio.Projects.LocalHistoryContent content, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Projects.IStudioHistory :: System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<ArxisStudio.Projects.LocalHistoryRevision>> RevisionsAsync(ArxisStudio.ProjectSystem.CanonicalPath path, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Projects.IStudioHistory :: event System.EventHandler Changed
 ArxisStudio.Projects.IStudioPackages : interface
 ArxisStudio.Projects.IStudioPackages :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> InstallAsync(ArxisStudio.ProjectSystem.ProjectIdentity project, System.String packageId, System.String version, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Projects.IStudioPackages :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> UninstallAsync(ArxisStudio.ProjectSystem.ProjectIdentity project, System.String packageId, System.Threading.CancellationToken cancellationToken = null)
@@ -33,6 +43,55 @@ ArxisStudio.Projects.IStudioProjects :: System.Threading.Tasks.Task<ArxisStudio.
 ArxisStudio.Projects.IStudioProjects :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.WorkspaceLoadResult> ReloadAsync(System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Projects.IStudioProjects :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.WorkspaceLoadResult> SetConfigurationAsync(System.String? configuration, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Projects.IStudioProjects :: event System.EventHandler<ArxisStudio.Projects.ProjectsChangedEventArgs> Changed
+ArxisStudio.Projects.LocalHistoryAction : sealed record : System.IEquatable<ArxisStudio.Projects.LocalHistoryAction>
+ArxisStudio.Projects.LocalHistoryAction :: .ctor()
+ArxisStudio.Projects.LocalHistoryAction :: System.Boolean Equals(ArxisStudio.Projects.LocalHistoryAction? other)
+ArxisStudio.Projects.LocalHistoryAction :: System.Boolean IsLabel { get; }
+ArxisStudio.Projects.LocalHistoryAction :: System.Boolean IsUndone { get; init; }
+ArxisStudio.Projects.LocalHistoryAction :: System.Collections.Immutable.ImmutableArray<ArxisStudio.Projects.LocalHistoryChange> Changes { get; init; }
+ArxisStudio.Projects.LocalHistoryAction :: System.Int64? Undoes { get; init; }
+ArxisStudio.Projects.LocalHistoryAction :: required ArxisStudio.Projects.LocalHistoryOrigin Origin { get; init; }
+ArxisStudio.Projects.LocalHistoryAction :: required System.DateTimeOffset Time { get; init; }
+ArxisStudio.Projects.LocalHistoryAction :: required System.Int64 Id { get; init; }
+ArxisStudio.Projects.LocalHistoryAction :: required System.String Label { get; init; }
+ArxisStudio.Projects.LocalHistoryAction :: static System.Boolean op_Equality(ArxisStudio.Projects.LocalHistoryAction? left, ArxisStudio.Projects.LocalHistoryAction? right)
+ArxisStudio.Projects.LocalHistoryAction :: static System.Boolean op_Inequality(ArxisStudio.Projects.LocalHistoryAction? left, ArxisStudio.Projects.LocalHistoryAction? right)
+ArxisStudio.Projects.LocalHistoryChange : sealed record : System.IEquatable<ArxisStudio.Projects.LocalHistoryChange>
+ArxisStudio.Projects.LocalHistoryChange :: .ctor()
+ArxisStudio.Projects.LocalHistoryChange :: ArxisStudio.ProjectSystem.CanonicalPath From { get; init; }
+ArxisStudio.Projects.LocalHistoryChange :: ArxisStudio.Projects.LocalHistoryContent After { get; init; }
+ArxisStudio.Projects.LocalHistoryChange :: ArxisStudio.Projects.LocalHistoryContent Before { get; init; }
+ArxisStudio.Projects.LocalHistoryChange :: System.Boolean Equals(ArxisStudio.Projects.LocalHistoryChange? other)
+ArxisStudio.Projects.LocalHistoryChange :: System.Boolean IsDirectory { get; init; }
+ArxisStudio.Projects.LocalHistoryChange :: System.Boolean TooLarge { get; init; }
+ArxisStudio.Projects.LocalHistoryChange :: required ArxisStudio.ProjectSystem.CanonicalPath Path { get; init; }
+ArxisStudio.Projects.LocalHistoryChange :: required ArxisStudio.Projects.LocalHistoryChangeKind Kind { get; init; }
+ArxisStudio.Projects.LocalHistoryChange :: static System.Boolean op_Equality(ArxisStudio.Projects.LocalHistoryChange? left, ArxisStudio.Projects.LocalHistoryChange? right)
+ArxisStudio.Projects.LocalHistoryChange :: static System.Boolean op_Inequality(ArxisStudio.Projects.LocalHistoryChange? left, ArxisStudio.Projects.LocalHistoryChange? right)
+ArxisStudio.Projects.LocalHistoryChangeKind : enum
+ArxisStudio.Projects.LocalHistoryChangeKind :: Created = 0
+ArxisStudio.Projects.LocalHistoryChangeKind :: Deleted = 2
+ArxisStudio.Projects.LocalHistoryChangeKind :: Modified = 1
+ArxisStudio.Projects.LocalHistoryChangeKind :: Moved = 3
+ArxisStudio.Projects.LocalHistoryContent : readonly record struct : System.IEquatable<ArxisStudio.Projects.LocalHistoryContent>
+ArxisStudio.Projects.LocalHistoryContent :: .ctor(System.String Id)
+ArxisStudio.Projects.LocalHistoryContent :: System.Boolean Equals(ArxisStudio.Projects.LocalHistoryContent other)
+ArxisStudio.Projects.LocalHistoryContent :: System.Boolean IsEmpty { get; }
+ArxisStudio.Projects.LocalHistoryContent :: System.String Id { get; init; }
+ArxisStudio.Projects.LocalHistoryContent :: System.Void Deconstruct(out System.String Id)
+ArxisStudio.Projects.LocalHistoryContent :: static ArxisStudio.Projects.LocalHistoryContent None { get; }
+ArxisStudio.Projects.LocalHistoryContent :: static System.Boolean op_Equality(ArxisStudio.Projects.LocalHistoryContent left, ArxisStudio.Projects.LocalHistoryContent right)
+ArxisStudio.Projects.LocalHistoryContent :: static System.Boolean op_Inequality(ArxisStudio.Projects.LocalHistoryContent left, ArxisStudio.Projects.LocalHistoryContent right)
+ArxisStudio.Projects.LocalHistoryOrigin : enum
+ArxisStudio.Projects.LocalHistoryOrigin :: External = 1
+ArxisStudio.Projects.LocalHistoryOrigin :: Studio = 0
+ArxisStudio.Projects.LocalHistoryRevision : sealed record : System.IEquatable<ArxisStudio.Projects.LocalHistoryRevision>
+ArxisStudio.Projects.LocalHistoryRevision :: .ctor()
+ArxisStudio.Projects.LocalHistoryRevision :: System.Boolean Equals(ArxisStudio.Projects.LocalHistoryRevision? other)
+ArxisStudio.Projects.LocalHistoryRevision :: System.Collections.Immutable.ImmutableArray<ArxisStudio.Projects.LocalHistoryChange> Changes { get; init; }
+ArxisStudio.Projects.LocalHistoryRevision :: required ArxisStudio.Projects.LocalHistoryAction Action { get; init; }
+ArxisStudio.Projects.LocalHistoryRevision :: static System.Boolean op_Equality(ArxisStudio.Projects.LocalHistoryRevision? left, ArxisStudio.Projects.LocalHistoryRevision? right)
+ArxisStudio.Projects.LocalHistoryRevision :: static System.Boolean op_Inequality(ArxisStudio.Projects.LocalHistoryRevision? left, ArxisStudio.Projects.LocalHistoryRevision? right)
 ArxisStudio.Projects.ProjectOperation : sealed record : System.IEquatable<ArxisStudio.Projects.ProjectOperation>
 ArxisStudio.Projects.ProjectOperation :: .ctor()
 ArxisStudio.Projects.ProjectOperation :: System.Boolean Equals(ArxisStudio.Projects.ProjectOperation? other)
@@ -66,9 +125,12 @@ ArxisStudio.Projects.ProjectsChanges :: Session = 1
 ArxisStudio.Projects.ProjectsChanges :: Snapshot = 4
 ArxisStudio.Projects.ProjectsChanges :: State = 2
 ArxisStudio.Projects.ProjectsDiagnosticCodes : static class
+ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String ChangedSince = "PRJ1010"
 ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String FileOperationFailed = "PRJ1008"
+ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String HistoryUnavailable = "PRJ1009"
 ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String IntoItself = "PRJ1006"
 ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String Missing = "PRJ1007"
+ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String NotStored = "PRJ1011"
 ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String NothingOpen = "PRJ1001"
 ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String OutsideProjects = "PRJ1004"
 ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String ProjectNotOpen = "PRJ1002"
@@ -112,5 +174,6 @@ ArxisStudio.Projects.ProjectsStatus :: static System.Boolean op_Inequality(Arxis
 ArxisStudio.Projects.StudioProjectsAccess : static class
 ArxisStudio.Projects.StudioProjectsAccess :: static ArxisStudio.Projects.IStudioBuild? Build(ArxisStudio.Sdk.IStudioContext context)
 ArxisStudio.Projects.StudioProjectsAccess :: static ArxisStudio.Projects.IStudioFiles? Files(ArxisStudio.Sdk.IStudioContext context)
+ArxisStudio.Projects.StudioProjectsAccess :: static ArxisStudio.Projects.IStudioHistory? History(ArxisStudio.Sdk.IStudioContext context)
 ArxisStudio.Projects.StudioProjectsAccess :: static ArxisStudio.Projects.IStudioPackages? Packages(ArxisStudio.Sdk.IStudioContext context)
 ArxisStudio.Projects.StudioProjectsAccess :: static ArxisStudio.Projects.IStudioProjects? Projects(ArxisStudio.Sdk.IStudioContext context)

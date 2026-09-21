@@ -249,6 +249,9 @@ internal sealed class BrowserPane : IDisposable
                 break;
             case Key.Escape when e.KeyModifiers == KeyModifiers.None && _menu.Actions.Uncut?.Invoke() == true:
                 break;
+            case Key.Z when e.KeyModifiers == KeyModifiers.Control && _menu.Actions.Undo is { } undo:
+                undo(EditOrigin.Pane);
+                break;
             case Key.Back when e.KeyModifiers == KeyModifiers.None:
                 Up();
                 break;

@@ -5,17 +5,6 @@ using ArxisStudio.Sdk;
 
 namespace ArxisStudio.Modules.Projects.History;
 
-/// <summary>Метки действий, которые история пишет сама.</summary>
-/// <param name="strings">Словари модуля.</param>
-internal sealed class HistoryWords(IStudioStrings strings)
-{
-    /// <summary>Правка мимо студии, увиденная на ходу.</summary>
-    public string External => strings["module.projects.history.external"];
-
-    /// <summary>Правки, сделанные, пока студия не смотрела, — найденные опорным снимком.</summary>
-    public string Offline => strings["module.projects.history.offline"];
-}
-
 /// <summary>
 /// Локальная история службы проектов: хранилище, очередь записи и история каждой сессии.
 /// </summary>
@@ -55,6 +44,7 @@ internal sealed class HistoryRecorder : IDisposable
     private readonly Lane _lane;
     private LocalHistoryStore? _store;
     private ProjectsSettings _settings;
+    private long _since = long.MaxValue;
     private DateTimeOffset _flushed;
     private DateTimeOffset _pruned;
     private bool _disposed;
@@ -89,6 +79,21 @@ internal sealed class HistoryRecorder : IDisposable
     /// <summary>Завершится, когда очередь закрыта и последнее дело кончилось.</summary>
     public Task Completion => _lane.Completion;
 
+    /// <summary>
+    /// Первый номер действия этого запуска студии; <see cref="long.MaxValue"/> — история ещё не
+    /// открывалась.
+    /// </summary>
+    /// <remarks>
+    /// Ctrl+Z отменяет сделанное в этом запуске, как стек отмены Rider: вчерашнее переименование,
+    /// пережившее перезапуск, отменяют из окна истории, выбрав его, а не случайным нажатием.
+    /// </remarks>
+    public long Since => Volatile.Read(ref _since);
+
+    /// <summary>
+    /// В истории прибавилось: дело очереди записало действие. Зовётся из очереди записи.
+    /// </summary>
+    public event Action? Recorded;
+
     /// <summary>Где вести историю: явная папка, иначе переменная среды, иначе машинная папка пользователя.</summary>
     /// <param name="explicitRoot">Папка, названная шовом службы; null — по среде.</param>
     /// <returns>Папка; null — история не ведётся.</returns>
@@ -117,7 +122,25 @@ internal sealed class HistoryRecorder : IDisposable
     /// <summary>Ставит дело в очередь записи.</summary>
     /// <param name="work">Дело.</param>
     /// <returns><c>false</c> — очередь закрыта.</returns>
-    public bool Enqueue(Func<Task> work) => _lane.Enqueue(work);
+    /// <remarks>
+    /// Записало ли дело действие, видно по номеру последнего: номера только растут. Так
+    /// <see cref="Recorded"/> говорит о каждом записанном, кто бы его ни записал — служба файлов,
+    /// наблюдатель или отмена, — и никому из них не нужно помнить о событии.
+    /// </remarks>
+    public bool Enqueue(Func<Task> work) => _lane.Enqueue(async () =>
+    {
+        var before = Store?.Last ?? 0;
+
+        try
+        {
+            await work();
+        }
+        finally
+        {
+            if ((Store?.Last ?? 0) != before)
+                Recorded?.Invoke();
+        }
+    });
 
     /// <summary>
     /// Принимает новые настройки: включает, выключает, меняет срок и пределы.
@@ -206,6 +229,11 @@ internal sealed class HistoryRecorder : IDisposable
         try
         {
             var store = LocalHistoryStore.Open(_root, Options(Volatile.Read(ref _settings)));
+
+            // Номер — до очистки: она может снять все прежние дни, а номера следующих от этого не
+            // начнутся заново.
+            if (Since == long.MaxValue)
+                Volatile.Write(ref _since, store.Last + 1);
 
             Volatile.Write(ref _store, store);
             _flushed = DateTimeOffset.UtcNow;

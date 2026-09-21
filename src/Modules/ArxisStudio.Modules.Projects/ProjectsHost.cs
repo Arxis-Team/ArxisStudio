@@ -85,6 +85,7 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
         _watching = ProjectsSettings.Read(context.Settings).WatchFiles ? 1 : 0;
         _history = new HistoryRecorder(context, HistoryRecorder.Root(options.HistoryRoot), options.HistoryCoalescing);
         Files = new FilesService(this, context, _thread);
+        HistoryService = new HistoryService(this, context, _thread);
         context.Settings.Changed += OnSettingsChanged;
     }
 
@@ -93,6 +94,9 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
 
     /// <summary>Служба файлов — отдельным лицом: своё событие перемен у неё своё.</summary>
     internal FilesService Files { get; }
+
+    /// <summary>Служба локальной истории — тоже отдельным лицом и по той же причине.</summary>
+    internal HistoryService HistoryService { get; }
 
     /// <summary>Служба остановлена.</summary>
     internal bool IsStopped

@@ -96,6 +96,9 @@ internal sealed class ProjectsStudio : IDisposable
 
         Files = Exports.Get(typeof(IStudioFiles)) as IStudioFiles
             ?? throw new InvalidOperationException("модуль поднялся, а службу файлов не опубликовал");
+
+        History = Exports.Get(typeof(IStudioHistory)) as IStudioHistory
+            ?? throw new InvalidOperationException("модуль поднялся, а службу истории не опубликовал");
     }
 
     /// <summary>Поток интерфейса.</summary>
@@ -146,6 +149,9 @@ internal sealed class ProjectsStudio : IDisposable
 
     /// <summary>Служба файлов — тем же путём.</summary>
     public IStudioFiles Files { get; }
+
+    /// <summary>Служба истории — тем же путём.</summary>
+    public IStudioHistory History { get; }
 
     /// <summary>Исключения подписчиков, когда их не бросают заново.</summary>
     public ConcurrentQueue<Exception> Failures { get; } = new();

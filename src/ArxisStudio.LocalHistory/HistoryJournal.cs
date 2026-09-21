@@ -151,6 +151,10 @@ internal sealed class HistoryJournal
 
         public List<Line>? Changes { get; set; }
 
+        public long? Undoes { get; set; }
+
+        public string? Scope { get; set; }
+
         public static Entry Of(HistoryAction action) => new()
         {
             Id = action.Id,
@@ -158,11 +162,17 @@ internal sealed class HistoryJournal
             Label = action.Label,
             Origin = action.Origin,
             Changes = [.. action.Changes.Select(Line.Of)],
+            Undoes = action.Undoes,
+            Scope = action.Scope,
         };
 
+        /// <remarks>
+        /// Пустой список правок — метка, а не порча: у метки правок нет. Строка без списка вовсе —
+        /// порча, и она пропускается.
+        /// </remarks>
         public HistoryAction? ToAction()
         {
-            if (Id <= 0 || Label is null || Changes is not { Count: > 0 })
+            if (Id <= 0 || Label is null || Changes is null)
                 return null;
 
             var changes = Changes.Select(line => line.ToChange()).ToList();
@@ -177,6 +187,8 @@ internal sealed class HistoryJournal
                 Label = Label,
                 Origin = Origin,
                 Changes = [.. changes.OfType<HistoryChange>()],
+                Undoes = Undoes,
+                Scope = Scope,
             };
         }
     }

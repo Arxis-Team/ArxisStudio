@@ -47,13 +47,20 @@ internal sealed class ProjectWindowStudio : IDisposable
     /// есть только в одну колонку. Пусто — не трогать настройку и получить умолчание самого окна.
     /// </param>
     /// <param name="files">Служба файлов; пусто — её нет, как у студии без службы проектов 1.3.</param>
+    /// <param name="history">Служба истории; пусто — её нет, как у студии без службы проектов 1.5.</param>
     public ProjectWindowStudio(
-        bool service = true, double width = 520, ProjectsProbe? projects = null, bool? twoColumns = false, FilesProbe? files = null)
+        bool service = true,
+        double width = 520,
+        ProjectsProbe? projects = null,
+        bool? twoColumns = false,
+        FilesProbe? files = null,
+        HistoryProbe? history = null)
     {
         Directory.CreateDirectory(_root);
 
         Projects = projects ?? new ProjectsProbe { Accepts = true };
         Files = files;
+        History = history;
         SystemFiles.Override = () => Clipboard;
 
         var exports = new StudioExportRegistry();
@@ -63,6 +70,9 @@ internal sealed class ProjectWindowStudio : IDisposable
 
         if (files is not null)
             exports.Publish(typeof(IStudioFiles), files, "arxis.projects", "Проекты");
+
+        if (history is not null)
+            exports.Publish(typeof(IStudioHistory), history, "arxis.projects", "Проекты");
 
         var services = new Dictionary<Type, object> { [typeof(IStudioDocuments)] = Documents, [typeof(IStudioStatus)] = Status };
         var store = new PluginSettingsStore(null, Path.Combine(_root, "plugin-settings.json"));
@@ -96,6 +106,9 @@ internal sealed class ProjectWindowStudio : IDisposable
 
     /// <summary>Служба файлов, если она есть.</summary>
     public FilesProbe? Files { get; }
+
+    /// <summary>Служба истории, если она есть.</summary>
+    public HistoryProbe? History { get; }
 
     /// <summary>Буфер обмена системы окна.</summary>
     public SystemFilesProbe Clipboard { get; } = new();
@@ -461,6 +474,73 @@ internal sealed class FilesProbe : IStudioFiles
 
         return Task.FromResult(result);
     }
+}
+
+/// <summary>
+/// Служба истории, которая помнит, что её просили отменить, и отвечает, как велит тест.
+/// </summary>
+/// <remarks>
+/// Как и служба файлов теста, диска она не трогает: что стало после отмены, тест говорит сам — новым
+/// снимком службы проектов в <see cref="After"/>.
+/// </remarks>
+internal sealed class HistoryProbe : IStudioHistory
+{
+    /// <inheritdoc/>
+    public bool IsOn { get; set; } = true;
+
+    /// <inheritdoc/>
+    public long MaxFileBytes { get; set; } = 5L * 1024 * 1024;
+
+    /// <inheritdoc/>
+    public LocalHistoryAction? LastStudioAction { get; set; }
+
+    /// <summary>Что просили отменить, по порядку.</summary>
+    public List<long> Undone { get; } = [];
+
+    /// <summary>Что ответить; пусто — удача без диагностик.</summary>
+    public Func<ProjectOperationResult>? Answer { get; set; }
+
+    /// <summary>Что случилось на диске и в модели, пока служба отменяла; зовётся до ответа.</summary>
+    public Action? After { get; set; }
+
+    /// <inheritdoc/>
+    public event EventHandler? Changed;
+
+    /// <summary>В истории прибавилось — говорит тест.</summary>
+    public void Raise() => Changed?.Invoke(this, EventArgs.Empty);
+
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<LocalHistoryRevision>> RevisionsAsync(CanonicalPath path, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<LocalHistoryRevision>>([]);
+
+    /// <inheritdoc/>
+    public Task<byte[]?> ReadAsync(LocalHistoryContent content, CancellationToken cancellationToken = default) =>
+        Task.FromResult<byte[]?>(null);
+
+    /// <inheritdoc/>
+    public Task<ProjectOperationResult> UndoAsync(long actionId, CancellationToken cancellationToken = default)
+    {
+        Undone.Add(actionId);
+
+        var result = Answer?.Invoke() ?? ProjectOperationResult.Succeeded();
+
+        if (!result.HasErrors)
+            After?.Invoke();
+
+        return Task.FromResult(result);
+    }
+
+    /// <inheritdoc/>
+    public Task<ProjectOperationResult> RevertAsync(
+        CanonicalPath path,
+        LocalHistoryContent content,
+        string label,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(ProjectOperationResult.Succeeded());
+
+    /// <inheritdoc/>
+    public Task<ProjectOperationResult> PutLabelAsync(string label, CancellationToken cancellationToken = default) =>
+        Task.FromResult(ProjectOperationResult.Succeeded());
 }
 
 /// <summary>Редакторы студии, которые помнят, что их просили открыть.</summary>

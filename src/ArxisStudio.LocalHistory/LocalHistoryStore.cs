@@ -203,13 +203,28 @@ public sealed class LocalHistoryStore : IDisposable
             _known.Remove(path);
     }
 
+    /// <summary>Номер последнего записанного действия; 0 — действий нет.</summary>
+    /// <remarks>
+    /// По нему видно, записалось ли что-то за время дела, не копируя всех действий: номера только
+    /// растут.
+    /// </remarks>
+    public long Last
+    {
+        get
+        {
+            lock (_gate)
+                return _actions.Count == 0 ? 0 : _actions[^1].Id;
+        }
+    }
+
     /// <summary>Записывает действие.</summary>
     /// <param name="label">Метка для человека.</param>
     /// <param name="origin">Кто сделал.</param>
     /// <param name="changes">Правки по порядку.</param>
+    /// <param name="undoes">Какое действие это отменяет; null — это не отмена.</param>
     /// <returns>Записанное действие — с номером и временем.</returns>
     /// <exception cref="ArgumentException">Метка пуста или правок нет.</exception>
-    public HistoryAction Record(string label, HistoryOrigin origin, IEnumerable<HistoryChange> changes)
+    public HistoryAction Record(string label, HistoryOrigin origin, IEnumerable<HistoryChange> changes, long? undoes = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(label);
         ArgumentNullException.ThrowIfNull(changes);
@@ -219,6 +234,76 @@ public sealed class LocalHistoryStore : IDisposable
         if (list.IsEmpty)
             throw new ArgumentException("Действие без правок записывать незачем", nameof(changes));
 
+        return Append(label, origin, list, undoes, scope: null);
+    }
+
+    /// <summary>Ставит метку: отметку на времени без правок.</summary>
+    /// <param name="label">Текст метки.</param>
+    /// <param name="scope">Папка, в истории которой метку видно, — со всем, что под ней.</param>
+    /// <returns>Записанная метка.</returns>
+    /// <exception cref="ArgumentException">Текст или папка пусты.</exception>
+    public HistoryAction PutLabel(string label, string scope)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(label);
+        ArgumentException.ThrowIfNullOrEmpty(scope);
+
+        return Append(label, HistoryOrigin.Studio, [], undoes: null, scope);
+    }
+
+    /// <summary>Действие по номеру; null — его нет или оно пережило срок.</summary>
+    /// <param name="id">Номер.</param>
+    public HistoryAction? Find(long id)
+    {
+        lock (_gate)
+        {
+            // Действия лежат по номеру: журнал читается отсортированным, а новые только дописываются.
+            var (low, high) = (0, _actions.Count - 1);
+
+            while (low <= high)
+            {
+                var middle = low + ((high - low) / 2);
+                var found = _actions[middle];
+
+                if (found.Id == id)
+                    return found;
+
+                if (found.Id < id)
+                    low = middle + 1;
+                else
+                    high = middle - 1;
+            }
+
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Номера действий, которые отменены и не возвращены.
+    /// </summary>
+    /// <remarks>
+    /// Отмену тоже можно отменить — тогда действие снова в силе. Поэтому идём от нового к старому:
+    /// отмена, которую саму отменили, уже не в счёт, и её действие отменённым не считается.
+    /// </remarks>
+    public IReadOnlySet<long> Undone()
+    {
+        HistoryAction[] actions;
+
+        lock (_gate)
+            actions = [.. _actions];
+
+        var undone = new HashSet<long>();
+
+        for (var at = actions.Length - 1; at >= 0; at--)
+        {
+            if (!undone.Contains(actions[at].Id) && actions[at].Undoes is { } id)
+                undone.Add(id);
+        }
+
+        return undone;
+    }
+
+    private HistoryAction Append(string label, HistoryOrigin origin, ImmutableArray<HistoryChange> changes, long? undoes, string? scope)
+    {
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -229,7 +314,9 @@ public sealed class LocalHistoryStore : IDisposable
                 Time = _options.Time.GetUtcNow(),
                 Label = label,
                 Origin = origin,
-                Changes = list,
+                Changes = changes,
+                Undoes = undoes,
+                Scope = scope,
             };
 
             _journal.Append(action);
@@ -288,6 +375,83 @@ public sealed class LocalHistoryStore : IDisposable
 
         return found.ToImmutable();
     }
+
+    /// <summary>
+    /// Правки в папке и самой папки от новой к старой — сквозь её переименования и переезды.
+    /// </summary>
+    /// <param name="folder">Нынешний полный путь папки.</param>
+    /// <remarks>
+    /// В счёт идёт всё, что задело путь в папке: появилось в ней, пропало, поменялось, приехало в неё
+    /// или уехало из неё. Как у файла, переезд самой папки или той, в которой она лежит, меняет имя,
+    /// под которым ищутся правки постарше.
+    /// </remarks>
+    public ImmutableArray<HistoryRevision> RevisionsUnder(string folder)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(folder);
+
+        HistoryAction[] actions;
+
+        lock (_gate)
+            actions = [.. _actions];
+
+        var found = ImmutableArray.CreateBuilder<HistoryRevision>();
+        var current = folder;
+
+        for (var at = actions.Length - 1; at >= 0; at--)
+        {
+            var action = actions[at];
+            string? earlier = null;
+
+            foreach (var change in action.Changes)
+            {
+                var within = Same(change.Path, current) || Inside(change.Path, current)
+                    || (change.From is { } from && (Same(from, current) || Inside(from, current)));
+
+                if (change is { IsDirectory: true, Kind: HistoryChangeKind.Moved, From: { } moved })
+                {
+                    if (Same(change.Path, current))
+                    {
+                        earlier = moved;
+                    }
+                    else if (Inside(current, change.Path))
+                    {
+                        earlier = moved + current[change.Path.Length..];
+                        within = true;
+                    }
+                }
+
+                if (within)
+                    found.Add(new HistoryRevision(action, change));
+            }
+
+            if (earlier is not null)
+                current = earlier;
+        }
+
+        return found.ToImmutable();
+    }
+
+    /// <summary>Метки, которые видно в истории пути, от новой к старой.</summary>
+    /// <param name="path">Полный путь файла или папки.</param>
+    /// <remarks>Видно метку, поставленную на самом пути или на папке, в которой он лежит.</remarks>
+    public ImmutableArray<HistoryAction> Labels(string path)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+
+        lock (_gate)
+        {
+            return [.. _actions
+                .Where(action => action.IsLabel && (action.Scope is not { } scope || Same(path, scope) || Inside(path, scope)))
+                .Reverse()];
+        }
+    }
+
+    /// <summary>
+    /// Лежит ли содержимое в хранилище — без чтения: отмена спрашивает об этом до первого байта, а
+    /// испорченное назовёт само чтение.
+    /// </summary>
+    /// <param name="id">Адрес.</param>
+    public bool Has(ContentId id) => _content.Has(id);
 
     /// <summary>Читает содержимое по адресу; null — его нет или оно испорчено.</summary>
     /// <param name="id">Адрес.</param>
