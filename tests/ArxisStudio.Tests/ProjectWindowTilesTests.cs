@@ -623,6 +623,49 @@ public class ProjectWindowTilesTests
     }
 
     /// <summary>
+    /// Правый щелчок мимо плиток снимает выбор и открывает меню папки, которую колонка показывает, —
+    /// как в проводнике и в Unity.
+    /// </summary>
+    /// <remarks>
+    /// Меню говорит о папке, и выбранное не должно казаться его предметом. Щелчок приходится в угол
+    /// колонки, далеко от плиток.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_right_click_past_the_tiles_clears_the_choice_and_opens_the_folder_menu()
+    {
+        using var studio = await TwoColumns();
+
+        var tiles = studio.View.Tiles;
+
+        studio.Select("App");
+        tiles.SelectedItem = studio.Model.Browser.Items.Single(tile => tile.Name == "Views");
+
+        var corner = tiles.TranslatePoint(new Point(tiles.Bounds.Width - 4, tiles.Bounds.Height - 4), studio.Window)!.Value;
+
+        studio.Window.MouseDown(corner, MouseButton.Right);
+        studio.Window.MouseUp(corner, MouseButton.Right);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Empty(tiles.SelectedItems!);
+        Assert.Equal(studio.Panel.Pane!.FolderItems().Select(item => item.Header), Menu(studio));
+    }
+
+    /// <summary>Клавиша меню в пустой папке открывает меню папки: выбранного нет, и меню — её.</summary>
+    [AvaloniaFact]
+    public async Task The_menu_key_in_an_empty_folder_opens_its_menu()
+    {
+        using var studio = await TwoColumns();
+
+        var tiles = studio.View.Tiles;
+
+        studio.Select("Models");
+        studio.Press(tiles);
+        studio.Press(tiles, Key.Apps);
+
+        Assert.Equal(studio.Panel.Pane!.FolderItems().Select(item => item.Header), Menu(studio));
+    }
+
+    /// <summary>
     /// Щелчок по невыбранной плитке оставляет клавиатуру на ней: к выбранной прежде её уводит только
     /// приход в сам список, а не в плитку.
     /// </summary>
@@ -754,6 +797,10 @@ public class ProjectWindowTilesTests
 
         return top >= 0 && top + container.Bounds.Height <= viewer.Viewport.Height;
     }
+
+    /// <summary>Подписи открытого меню; меню нет — пусто.</summary>
+    private static List<object?> Menu(ProjectWindowStudio studio) =>
+        [.. studio.Window.GetVisualDescendants().OfType<MenuFlyoutPresenter>().SingleOrDefault()?.Items.OfType<AxMenuItem>().Select(item => item.Header) ?? []];
 
     /// <summary>Контрол, у которого сейчас клавиатура.</summary>
     private static Control Focused(ProjectWindowStudio studio) =>

@@ -178,6 +178,13 @@ internal sealed class BrowserPane : IDisposable
     internal IReadOnlyList<AxMenuItem> Items(Tile tile) =>
         _menu.Items(tile, _model.IsSearching ? () => ShowInFolder(tile.Node) : null, Selection());
 
+    /// <summary>
+    /// Пункты меню пустого места — меню папки, которую колонка показывает; пусто — меню нет: идёт поиск
+    /// или колонке нечего показывать.
+    /// </summary>
+    internal IReadOnlyList<AxMenuItem> FolderItems() =>
+        !_model.IsSearching && _model.Browser.Current is { } container ? _menu.Items(container) : [];
+
     /// <summary>Контейнер открывается в колонке, файл — в редакторе.</summary>
     /// <param name="tile">Плитка.</param>
     public void Act(Tile tile)
@@ -379,7 +386,12 @@ internal sealed class BrowserPane : IDisposable
         var atPointer = e.TryGetPosition(list, out _);
 
         if ((atPointer ? TileOf(e.Source) : list.SelectedItem as Tile) is not { } tile)
+        {
+            if (ShowFolderMenu(list, atPointer))
+                e.Handled = true;
+
             return;
+        }
 
         // Как в дереве: по выбранной плитке меню о всём выборе, по невыбранной — выбирает её одну.
         if (list.SelectedItems?.Contains(tile) != true)
@@ -389,6 +401,31 @@ internal sealed class BrowserPane : IDisposable
 
         ProjectMenu.ShowAt(anchor, Items(tile), atPointer);
         e.Handled = true;
+    }
+
+    /// <summary>
+    /// Меню пустого места — меню папки, которую колонка показывает, как у проводника и Unity: вставить
+    /// в неё, её история, показать в проводнике, скопировать путь.
+    /// </summary>
+    /// <param name="list">Список, у которого попросили.</param>
+    /// <param name="atPointer">Попросили мышью.</param>
+    /// <returns>Показано ли меню: у найденного поиском папки нет, и меню пустого места тоже.</returns>
+    /// <remarks>
+    /// Правый щелчок по пустому месту снимает выбор, как в проводнике и в Unity: меню говорит о папке,
+    /// и выбранное не должно казаться его предметом, — вставка и так идёт в папку, а не в выбранное.
+    /// Клавишей меню без выбора приходит то же меню — у списка, а не под указателем.
+    /// </remarks>
+    private bool ShowFolderMenu(AxListBox list, bool atPointer)
+    {
+        if (FolderItems() is not { Count: > 0 } items)
+            return false;
+
+        if (atPointer)
+            list.UnselectAll();
+
+        ProjectMenu.ShowAt(list, items, atPointer);
+
+        return true;
     }
 
     private void OnNavigated(object? sender, AxBreadcrumbNavigatedEventArgs e)

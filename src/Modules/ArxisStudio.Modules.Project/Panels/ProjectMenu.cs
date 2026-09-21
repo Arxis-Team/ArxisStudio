@@ -57,7 +57,8 @@ internal sealed record MenuActions(
 /// Пункты зависят от вида узла. Файл открывают, показывают в проводнике и копируют его путь —
 /// полный и от решения, как в Rider; проект и решение открывают своим файлом; у зависимости
 /// копируют имя, а путь — только если он у неё есть. Раскрыть и свернуть ветку можно у строки
-/// дерева, у которой есть дети; у найденного поиском есть «Показать в папке».
+/// дерева, у которой есть дети; у найденного поиском есть «Показать в папке». У пустого места правой
+/// колонки меню — её папки, как у проводника и Unity: то же меню узла, только без выбора.
 /// <para>
 /// У файлов и папок — «Правка», как в Rider: удалить и переименовать. Правка берёт весь выбор, а не
 /// одну строку под мышью, и вложенные файлы идут с владельцем (<see cref="EditSelection"/>). Есть она,
@@ -124,6 +125,23 @@ internal sealed class ProjectMenu(IStudioStrings strings, MenuActions actions)
         ArgumentNullException.ThrowIfNull(tile);
 
         return Items(tile.Node, branch: null, showInFolder, edit, EditOrigin.Pane);
+    }
+
+    /// <summary>
+    /// Собирает пункты меню пустого места правой колонки — меню папки, которую колонка показывает.
+    /// </summary>
+    /// <param name="container">Контейнер колонки.</param>
+    /// <returns>Пункты в порядке показа; пусто — у контейнера меню нет.</returns>
+    /// <remarks>
+    /// Меню того же узла, что у строки дерева, только без выбора: у пустого места выбранного нет, и
+    /// из правки остаётся одна вставка — в эту папку, той же дорогой, что Ctrl+V в колонке. Вырезать,
+    /// удалить и переименовать здесь нечего, и этих пунктов нет вовсе, как у проекта в дереве.
+    /// </remarks>
+    public IReadOnlyList<AxMenuItem> Items(Node container)
+    {
+        ArgumentNullException.ThrowIfNull(container);
+
+        return Items(container, branch: null, showInFolder: null, EditSelection.Empty, EditOrigin.Pane);
     }
 
     private List<AxMenuItem> Items(Node node, Row? branch, Action? showInFolder, EditSelection? edit, EditOrigin origin)

@@ -1,6 +1,7 @@
 using ArxisStudio.Controls;
 using ArxisStudio.Modules.Project.Dialogs;
 using ArxisStudio.Modules.Project.Model;
+using ArxisStudio.Modules.Project.Panels;
 using ArxisStudio.Modules.Project.Tree;
 using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
@@ -343,6 +344,68 @@ public class ProjectWindowClipboardTests
 
         Assert.Equal(studio.Model.Browser.Current!.Path.Combine("notes.md"), Assert.Single(files.Copied[0]).To);
     }
+
+    /// <summary>
+    /// Меню пустого места колонки — меню её папки без выбора: из правки одна вставка, у решения, куда
+    /// вставлять некуда, правки нет, а у найденного поиском меню пустого места нет вовсе.
+    /// </summary>
+    /// <remarks>
+    /// Как у проводника и Unity: правый щелчок мимо плиток говорит о папке, которую колонка
+    /// показывает. Вырезать, удалить и переименовать у пустого места нечего, и этих пунктов нет.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task The_empty_place_menu_is_the_menu_of_the_folder_without_the_choice()
+    {
+        using var studio = await Opened(new FilesProbe(), twoColumns: true);
+
+        var pane = studio.Panel.Pane!;
+
+        studio.Select("Models");
+
+        Assert.Equal(
+            [studio.Strings["project.edit"], studio.Strings[Reveal.Words], studio.Strings["project.menu.copyPath"], studio.Strings["project.menu.copyRelative"]],
+            pane.FolderItems().Select(item => item.Header));
+        Assert.Equal([studio.Strings["project.edit.paste"]], Edit(studio, pane.FolderItems()).Items.OfType<AxMenuItem>().Select(item => item.Header));
+
+        studio.Select("App");
+
+        Assert.Equal(studio.Strings["project.menu.openProject"], pane.FolderItems()[0].Header);
+        Assert.Equal([studio.Strings["project.edit.paste"]], Edit(studio, pane.FolderItems()).Items.OfType<AxMenuItem>().Select(item => item.Header));
+
+        studio.Select("Hello");
+
+        Assert.Equal(studio.Strings["project.menu.openSolution"], pane.FolderItems()[0].Header);
+        Assert.DoesNotContain(pane.FolderItems(), item => Equals(item.Header, studio.Strings["project.edit"]));
+
+        studio.View.Query.Text = "axaml";
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Empty(pane.FolderItems());
+    }
+
+    /// <summary>«Вставить» из меню пустого места идёт в папку, которую колонка показывает, — и в пустую.</summary>
+    [AvaloniaFact]
+    public async Task Paste_from_the_empty_place_menu_goes_into_the_folder_it_shows()
+    {
+        var files = new FilesProbe();
+
+        using var studio = await Opened(files, twoColumns: true);
+
+        var outside = CanonicalPath.Create(Path.Combine(Path.GetTempPath(), $"arxis-explorer-{Guid.NewGuid():N}", "notes.md"));
+
+        studio.Select("Models");
+        studio.Clipboard.Foreign = new FileClip(ClipMode.Copy, [new ClipItem(outside, IsFolder: false, [])]);
+        studio.Click(Edit(studio, studio.Panel.Pane!.FolderItems()).Items.OfType<AxMenuItem>(), studio.Strings["project.edit.paste"]);
+
+        await Settled(studio, () => files.Copied.Count == 1);
+
+        Assert.Equal("Models", studio.Model.Browser.Current!.Name);
+        Assert.Equal(studio.Model.Browser.Current.Path.Combine("notes.md"), Assert.Single(files.Copied[0]).To);
+    }
+
+    /// <summary>«Правка» среди пунктов меню.</summary>
+    private static AxMenuItem Edit(ProjectWindowStudio studio, IEnumerable<AxMenuItem> items) =>
+        items.Single(item => Equals(item.Header, studio.Strings["project.edit"]));
 
     private static async Task<ProjectWindowStudio> Opened(FilesProbe? files = null, bool twoColumns = false)
     {
