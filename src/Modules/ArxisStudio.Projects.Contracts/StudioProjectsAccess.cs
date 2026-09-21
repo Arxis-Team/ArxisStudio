@@ -63,4 +63,23 @@ public static class StudioProjectsAccess
 
         return context.GetService<IStudioExports>()?.Get<IStudioPackages>();
     }
+
+    /// <summary>
+    /// Служба файлов.
+    /// </summary>
+    /// <param name="context">Контекст плагина.</param>
+    /// <returns>
+    /// Служба или null — по тем же причинам, что и у <see cref="Projects"/>. Плагину, которому
+    /// нужно править файлы решения, стоит объявить модулю нижнюю границу <c>1.3</c>: раньше её не было.
+    /// </returns>
+    /// <remarks>
+    /// Четвёртая служба того же модуля: перемещает, копирует и удаляет файлы решения, переписывая
+    /// ссылки на них в файлах проектов и записывая каждое действие в локальную историю.
+    /// </remarks>
+    public static IStudioFiles? Files(this IStudioContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        return context.GetService<IStudioExports>()?.Get<IStudioFiles>();
+    }
 }

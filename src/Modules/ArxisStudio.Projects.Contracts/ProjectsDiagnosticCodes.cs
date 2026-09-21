@@ -18,4 +18,22 @@ public static class ProjectsDiagnosticCodes
 
     /// <summary>Ссылка на пакет пришла импортом, и в файле проекта её нет: править нечего.</summary>
     public const string ReferenceNotInProjectFile = "PRJ1003";
+
+    /// <summary>
+    /// Путь вне правки файлов: за пределами папок проектов открытого решения, в выходе сборки, или
+    /// это сам файл проекта, решение или папка проекта — их правят вместе с решением.
+    /// </summary>
+    public const string OutsideProjects = "PRJ1004";
+
+    /// <summary>По пути назначения уже что-то лежит.</summary>
+    public const string TargetExists = "PRJ1005";
+
+    /// <summary>Папку просят перенести или скопировать в неё саму.</summary>
+    public const string IntoItself = "PRJ1006";
+
+    /// <summary>Того, что просят переместить, скопировать или удалить, нет — или нет папки назначения.</summary>
+    public const string Missing = "PRJ1007";
+
+    /// <summary>Диск отказал посреди правки: файл занят, прав нет. Сделанное откатывается, где это возможно.</summary>
+    public const string FileOperationFailed = "PRJ1008";
 }

@@ -120,14 +120,7 @@ internal static class Solutions
         IEnumerable<(string Name, string[] Items)> projects,
         params ProjectDiagnostic[] diagnostics)
     {
-        var solution = new SolutionSnapshotBuilder
-        {
-            Workspace = request.Workspace,
-            Solution = SolutionIdentity.Create(request.Workspace, request.EntryPointPath),
-            Name = Path.GetFileNameWithoutExtension(request.EntryPointPath.Value),
-            ProviderName = "Scripted",
-            Request = request,
-        };
+        var solution = Builder(request);
 
         foreach (var (name, items) in projects)
             solution.Projects.Add(Project(request, name, items));
@@ -138,11 +131,34 @@ internal static class Solutions
         return WorkspaceLoadResult.Success(solution.ToSnapshot());
     }
 
-    /// <summary>Проект <c>имя/имя.csproj</c> рядом с точкой входа.</summary>
-    public static ProjectSnapshot Project(WorkspaceLoadRequest request, string name, params string[] items)
+    /// <summary>
+    /// Решение из одного проекта, чей файл лежит в папке самого решения, — так их кладёт шаблон
+    /// приложения.
+    /// </summary>
+    public static WorkspaceLoadResult Beside(WorkspaceLoadRequest request, string name, params string[] items)
     {
-        var file = request.EntryPointPath.Directory.Combine(Path.Combine(name, name + ".csproj"));
+        var solution = Builder(request);
 
+        solution.Projects.Add(Project(request, request.EntryPointPath.Directory.Combine(name + ".csproj"), name, items));
+
+        return WorkspaceLoadResult.Success(solution.ToSnapshot());
+    }
+
+    /// <summary>Проект <c>имя/имя.csproj</c> рядом с точкой входа.</summary>
+    public static ProjectSnapshot Project(WorkspaceLoadRequest request, string name, params string[] items) =>
+        Project(request, request.EntryPointPath.Directory.Combine(Path.Combine(name, name + ".csproj")), name, items);
+
+    private static SolutionSnapshotBuilder Builder(WorkspaceLoadRequest request) => new()
+    {
+        Workspace = request.Workspace,
+        Solution = SolutionIdentity.Create(request.Workspace, request.EntryPointPath),
+        Name = Path.GetFileNameWithoutExtension(request.EntryPointPath.Value),
+        ProviderName = "Scripted",
+        Request = request,
+    };
+
+    private static ProjectSnapshot Project(WorkspaceLoadRequest request, CanonicalPath file, string name, string[] items)
+    {
         var project = new ProjectSnapshotBuilder
         {
             Identity = ProjectIdentity.Create(request.Workspace, file),

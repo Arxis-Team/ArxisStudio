@@ -1,0 +1,133 @@
+using System.Collections.Immutable;
+using ArxisStudio.Modules.Projects.Watching;
+using ArxisStudio.Projects;
+using ArxisStudio.ProjectSystem;
+
+namespace ArxisStudio.Modules.Projects.Files;
+
+/// <summary>Что просят сделать с файлами.</summary>
+internal enum FileWorkKind
+{
+    /// <summary>Переместить или переименовать.</summary>
+    Move,
+
+    /// <summary>Скопировать.</summary>
+    Copy,
+
+    /// <summary>Удалить насовсем.</summary>
+    Delete,
+}
+
+/// <summary>Просьба к службе файлов.</summary>
+/// <param name="Kind">Что сделать.</param>
+/// <param name="Pairs">Что куда — у переноса и копии.</param>
+/// <param name="Paths">Что удалить.</param>
+/// <param name="Label">Метка действия для человека.</param>
+internal sealed record FileWork(FileWorkKind Kind, ImmutableArray<FileMove> Pairs, ImmutableArray<CanonicalPath> Paths, string Label)
+{
+    /// <summary>Откуда: у переноса и копии — источники пар, у удаления — сами пути.</summary>
+    public IEnumerable<CanonicalPath> Sources => Kind == FileWorkKind.Delete ? Paths : Pairs.Select(pair => pair.From);
+
+    /// <summary>
+    /// Та же просьба без лишнего: путь, лежащий в папке, которую уже просят, уедет, скопируется или
+    /// удалится вместе с ней, и второй раз его искать было бы негде.
+    /// </summary>
+    public FileWork Normalize()
+    {
+        var folders = Sources.Where(source => Directory.Exists(source.Value)).ToList();
+
+        bool Covered(CanonicalPath path) => folders.Any(folder => folder != path && path.StartsWith(folder));
+
+        return this with
+        {
+            Pairs = [.. Pairs.Where(pair => !Covered(pair.From)).Distinct()],
+            Paths = [.. Paths.Where(path => !Covered(path)).Distinct()],
+        };
+    }
+}
+
+/// <summary>Итог правки: ответ просившему и перемена для тех, кто держит файлы открытыми.</summary>
+/// <param name="Result">Ответ.</param>
+/// <param name="Change">Перемена; null — на диске ничего не поменялось.</param>
+internal sealed record FileWorkResult(ProjectOperationResult Result, FilesChangedEventArgs? Change);
+
+/// <summary>
+/// Проверки до первого байта: всё, что можно узнать, не трогая диск, узнаётся раньше, чем что-то
+/// сдвинется.
+/// </summary>
+/// <remarks>
+/// Правка, отказавшая посередине, откатывается, но не всякая откатывается целиком: удалённое не
+/// вернуть без истории. Поэтому всё, что проверяемо заранее, — существование, место, занятость
+/// назначения, папка в самой себе — проверяется заранее, а до диска доходят только его собственные
+/// отказы: файл занят, прав нет.
+/// </remarks>
+internal static class FileChecks
+{
+    /// <summary>Проверяет просьбу по снимку и диску.</summary>
+    /// <param name="work">Просьба.</param>
+    /// <param name="snapshot">Снимок открытого решения.</param>
+    /// <param name="words">Слова отказов.</param>
+    /// <returns>Отказ; null — можно.</returns>
+    public static ProjectDiagnostic? Check(FileWork work, SolutionSnapshot snapshot, FileWords words)
+    {
+        foreach (var source in work.Sources)
+        {
+            if (!File.Exists(source.Value) && !Directory.Exists(source.Value))
+                return Refused(ProjectsDiagnosticCodes.Missing, words.Missing(source.Value), source);
+
+            if (Guard(snapshot, source, words, holdsProjects: true) is { } refused)
+                return refused;
+        }
+
+        if (work.Kind == FileWorkKind.Delete)
+            return null;
+
+        var targets = new HashSet<CanonicalPath>();
+
+        foreach (var (from, to) in work.Pairs)
+        {
+            var caseOnly = work.Kind == FileWorkKind.Move && from == to && !string.Equals(from.Value, to.Value, StringComparison.Ordinal);
+
+            if (Path.GetDirectoryName(to.Value) is not { Length: > 0 } parent || !Directory.Exists(parent))
+                return Refused(ProjectsDiagnosticCodes.Missing, words.Missing(Path.GetDirectoryName(to.Value) ?? to.Value), to);
+
+            if (Guard(snapshot, to, words, holdsProjects: false) is { } refused)
+                return refused;
+
+            if (!caseOnly && (from == to || File.Exists(to.Value) || Directory.Exists(to.Value) || !targets.Add(to)))
+                return Refused(ProjectsDiagnosticCodes.TargetExists, words.Exists(to.Value), to);
+
+            if (Directory.Exists(from.Value) && to != from && to.StartsWith(from))
+                return Refused(ProjectsDiagnosticCodes.IntoItself, words.IntoItself(from.Value), from);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Путь внутри правки: в папке проекта, не выход сборки, не сам проект и не решение.
+    /// </summary>
+    /// <param name="snapshot">Снимок.</param>
+    /// <param name="path">Путь.</param>
+    /// <param name="words">Слова отказов.</param>
+    /// <param name="holdsProjects">
+    /// Путь — источник: папка, в которой лежит чужой файл проекта, унесла бы проект мимо решения.
+    /// </param>
+    private static ProjectDiagnostic? Guard(SolutionSnapshot snapshot, CanonicalPath path, FileWords words, bool holdsProjects)
+    {
+        if (MembershipFilter.Owner(snapshot, path) is not { } owner)
+            return Refused(ProjectsDiagnosticCodes.OutsideProjects, words.Outside(path.Value), path);
+
+        var protectedPath = MembershipFilter.IsOutsideSources(owner, path)
+            || path == snapshot.EntryPoint.Path
+            || snapshot.Projects.Any(project => project.ProjectFilePath == path)
+            || (holdsProjects && snapshot.Projects.Any(project => project.ProjectFilePath.StartsWith(path)));
+
+        return protectedPath
+            ? Refused(ProjectsDiagnosticCodes.OutsideProjects, words.Protected(path.Value), path)
+            : null;
+    }
+
+    private static ProjectDiagnostic Refused(string code, string message, CanonicalPath path) =>
+        new(code, message, ProjectDiagnosticSeverity.Error) { FilePath = path };
+}

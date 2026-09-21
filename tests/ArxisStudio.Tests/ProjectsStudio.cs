@@ -93,6 +93,9 @@ internal sealed class ProjectsStudio : IDisposable
 
         Packages = Exports.Get(typeof(IStudioPackages)) as IStudioPackages
             ?? throw new InvalidOperationException("модуль поднялся, а службу пакетов не опубликовал");
+
+        Files = Exports.Get(typeof(IStudioFiles)) as IStudioFiles
+            ?? throw new InvalidOperationException("модуль поднялся, а службу файлов не опубликовал");
     }
 
     /// <summary>Поток интерфейса.</summary>
@@ -140,6 +143,9 @@ internal sealed class ProjectsStudio : IDisposable
 
     /// <summary>Служба пакетов — тем же путём.</summary>
     public IStudioPackages Packages { get; }
+
+    /// <summary>Служба файлов — тем же путём.</summary>
+    public IStudioFiles Files { get; }
 
     /// <summary>Исключения подписчиков, когда их не бросают заново.</summary>
     public ConcurrentQueue<Exception> Failures { get; } = new();

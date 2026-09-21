@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Runtime.ExceptionServices;
 using ArxisStudio.Modules.Projects.Delivery;
 using ArxisStudio.Modules.Projects.Engine;
+using ArxisStudio.Modules.Projects.Files;
 using ArxisStudio.Modules.Projects.History;
 using ArxisStudio.Modules.Projects.Reporting;
 using ArxisStudio.Projects;
@@ -83,11 +84,75 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
 
         _watching = ProjectsSettings.Read(context.Settings).WatchFiles ? 1 : 0;
         _history = new HistoryRecorder(context, HistoryRecorder.Root(options.HistoryRoot), options.HistoryCoalescing);
+        Files = new FilesService(this, context, _thread);
         context.Settings.Changed += OnSettingsChanged;
     }
 
     /// <summary>Локальная история службы.</summary>
     internal HistoryRecorder History => _history;
+
+    /// <summary>Служба файлов — отдельным лицом: своё событие перемен у неё своё.</summary>
+    internal FilesService Files { get; }
+
+    /// <summary>Служба остановлена.</summary>
+    internal bool IsStopped
+    {
+        get
+        {
+            lock (_gate)
+                return _stopped;
+        }
+    }
+
+    /// <summary>
+    /// Перечитывает модель после правки файлов — полосой движка — и ждёт, пока перечитает.
+    /// </summary>
+    /// <param name="session">Чья модель.</param>
+    /// <param name="reason">Почему.</param>
+    /// <remarks>
+    /// Загрузка, уже стоящая в очереди, — её поставило слежение, увидев правку, — ждётся вместо
+    /// своей: она прочтёт тот же диск. Ждать её приходится вне полосы: изнутри полосы ожидание дела,
+    /// стоящего в ней следом, не кончилось бы никогда.
+    /// </remarks>
+    internal async Task RereadAsync(ProjectsSession session, ProjectsLoadReason reason)
+    {
+        var queued = new TaskCompletionSource<LoadItem?>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var accepted = _lane.Enqueue(async () =>
+        {
+            LoadItem? pending;
+
+            lock (_gate)
+                pending = _session == session ? session.Pending : null;
+
+            if (pending is not null)
+            {
+                queued.TrySetResult(pending);
+                return;
+            }
+
+            try
+            {
+                await Reread(session, reason);
+            }
+            finally
+            {
+                queued.TrySetResult(null);
+            }
+        });
+
+        if (!accepted || await queued.Task.ConfigureAwait(false) is not { } waiting)
+            return;
+
+        try
+        {
+            await waiting.Result.ConfigureAwait(false);
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            // Провал загрузки служба уже записала в LastLoad; правке файлов он не отказ.
+        }
+    }
 
     /// <summary>Открытая сессия; null — ничего не открыто. Тестам — чтобы дотянуться до её истории.</summary>
     internal ProjectsSession? Session

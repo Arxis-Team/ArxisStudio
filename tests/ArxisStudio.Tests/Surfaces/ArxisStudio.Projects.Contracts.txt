@@ -1,8 +1,26 @@
+ArxisStudio.Projects.FileMove : sealed record : System.IEquatable<ArxisStudio.Projects.FileMove>
+ArxisStudio.Projects.FileMove :: .ctor(ArxisStudio.ProjectSystem.CanonicalPath From, ArxisStudio.ProjectSystem.CanonicalPath To)
+ArxisStudio.Projects.FileMove :: ArxisStudio.ProjectSystem.CanonicalPath From { get; init; }
+ArxisStudio.Projects.FileMove :: ArxisStudio.ProjectSystem.CanonicalPath To { get; init; }
+ArxisStudio.Projects.FileMove :: System.Boolean Equals(ArxisStudio.Projects.FileMove? other)
+ArxisStudio.Projects.FileMove :: System.Void Deconstruct(out ArxisStudio.ProjectSystem.CanonicalPath From, out ArxisStudio.ProjectSystem.CanonicalPath To)
+ArxisStudio.Projects.FileMove :: static System.Boolean op_Equality(ArxisStudio.Projects.FileMove? left, ArxisStudio.Projects.FileMove? right)
+ArxisStudio.Projects.FileMove :: static System.Boolean op_Inequality(ArxisStudio.Projects.FileMove? left, ArxisStudio.Projects.FileMove? right)
+ArxisStudio.Projects.FilesChangedEventArgs : sealed class : System.EventArgs
+ArxisStudio.Projects.FilesChangedEventArgs :: .ctor(System.Collections.Immutable.ImmutableArray<ArxisStudio.Projects.FileMove> moved, System.Collections.Immutable.ImmutableArray<ArxisStudio.Projects.FileMove> copied, System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath> deleted)
+ArxisStudio.Projects.FilesChangedEventArgs :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath> Deleted { get; }
+ArxisStudio.Projects.FilesChangedEventArgs :: System.Collections.Immutable.ImmutableArray<ArxisStudio.Projects.FileMove> Copied { get; }
+ArxisStudio.Projects.FilesChangedEventArgs :: System.Collections.Immutable.ImmutableArray<ArxisStudio.Projects.FileMove> Moved { get; }
 ArxisStudio.Projects.IStudioBuild : interface
 ArxisStudio.Projects.IStudioBuild :: ArxisStudio.Projects.ProjectOperation? Running { get; }
 ArxisStudio.Projects.IStudioBuild :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> RunAsync(ArxisStudio.ProjectSystem.ProjectOperationKind kind, System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectIdentity> projects = null, System.IProgress<ArxisStudio.ProjectSystem.ProjectOperationProgress>? progress = null, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Projects.IStudioBuild :: event System.EventHandler<ArxisStudio.Projects.ProjectOperationEventArgs> Completed
 ArxisStudio.Projects.IStudioBuild :: event System.EventHandler<ArxisStudio.Projects.ProjectOperationEventArgs> Started
+ArxisStudio.Projects.IStudioFiles : interface
+ArxisStudio.Projects.IStudioFiles :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> CopyAsync(System.Collections.Generic.IReadOnlyList<ArxisStudio.Projects.FileMove> copies, System.String label, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Projects.IStudioFiles :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> DeleteAsync(System.Collections.Generic.IReadOnlyList<ArxisStudio.ProjectSystem.CanonicalPath> paths, System.String label, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Projects.IStudioFiles :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> MoveAsync(System.Collections.Generic.IReadOnlyList<ArxisStudio.Projects.FileMove> moves, System.String label, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Projects.IStudioFiles :: event System.EventHandler<ArxisStudio.Projects.FilesChangedEventArgs> Changed
 ArxisStudio.Projects.IStudioPackages : interface
 ArxisStudio.Projects.IStudioPackages :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> InstallAsync(ArxisStudio.ProjectSystem.ProjectIdentity project, System.String packageId, System.String version, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Projects.IStudioPackages :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> UninstallAsync(ArxisStudio.ProjectSystem.ProjectIdentity project, System.String packageId, System.Threading.CancellationToken cancellationToken = null)
@@ -47,9 +65,14 @@ ArxisStudio.Projects.ProjectsChanges :: Session = 1
 ArxisStudio.Projects.ProjectsChanges :: Snapshot = 4
 ArxisStudio.Projects.ProjectsChanges :: State = 2
 ArxisStudio.Projects.ProjectsDiagnosticCodes : static class
+ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String FileOperationFailed = "PRJ1008"
+ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String IntoItself = "PRJ1006"
+ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String Missing = "PRJ1007"
 ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String NothingOpen = "PRJ1001"
+ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String OutsideProjects = "PRJ1004"
 ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String ProjectNotOpen = "PRJ1002"
 ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String ReferenceNotInProjectFile = "PRJ1003"
+ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String TargetExists = "PRJ1005"
 ArxisStudio.Projects.ProjectsLoad : sealed record : System.IEquatable<ArxisStudio.Projects.ProjectsLoad>
 ArxisStudio.Projects.ProjectsLoad :: .ctor()
 ArxisStudio.Projects.ProjectsLoad :: System.Boolean Equals(ArxisStudio.Projects.ProjectsLoad? other)
@@ -61,6 +84,7 @@ ArxisStudio.Projects.ProjectsLoad :: static System.Boolean op_Inequality(ArxisSt
 ArxisStudio.Projects.ProjectsLoadReason : enum
 ArxisStudio.Projects.ProjectsLoadReason :: Configuration = 2
 ArxisStudio.Projects.ProjectsLoadReason :: FileSystem = 3
+ArxisStudio.Projects.ProjectsLoadReason :: Files = 6
 ArxisStudio.Projects.ProjectsLoadReason :: Open = 0
 ArxisStudio.Projects.ProjectsLoadReason :: Packages = 5
 ArxisStudio.Projects.ProjectsLoadReason :: Reload = 1
@@ -86,5 +110,6 @@ ArxisStudio.Projects.ProjectsStatus :: static System.Boolean op_Equality(ArxisSt
 ArxisStudio.Projects.ProjectsStatus :: static System.Boolean op_Inequality(ArxisStudio.Projects.ProjectsStatus? left, ArxisStudio.Projects.ProjectsStatus? right)
 ArxisStudio.Projects.StudioProjectsAccess : static class
 ArxisStudio.Projects.StudioProjectsAccess :: static ArxisStudio.Projects.IStudioBuild? Build(ArxisStudio.Sdk.IStudioContext context)
+ArxisStudio.Projects.StudioProjectsAccess :: static ArxisStudio.Projects.IStudioFiles? Files(ArxisStudio.Sdk.IStudioContext context)
 ArxisStudio.Projects.StudioProjectsAccess :: static ArxisStudio.Projects.IStudioPackages? Packages(ArxisStudio.Sdk.IStudioContext context)
 ArxisStudio.Projects.StudioProjectsAccess :: static ArxisStudio.Projects.IStudioProjects? Projects(ArxisStudio.Sdk.IStudioContext context)

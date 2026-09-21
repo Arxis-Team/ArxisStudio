@@ -3,7 +3,7 @@
 Открытое решение студия держит одна — встроенный модуль `arxis.projects`. Он читает `.sln`,
 `.slnx` и `*proj` настоящим MSBuild, следит за диском, перечитывает модель, когда она устарела, и
 отдаёт соседям **снимок**: неизменяемое описание решения и каждого его проекта. Плагину движок не
-нужен и не достанется — ему достаётся снимок и три службы.
+нужен и не достанется — ему достаётся снимок и четыре службы.
 
 Всё, что здесь написано, закреплено тестами: примеры компилируются
 ([ProjectsGuideTests](../tests/ArxisStudio.Tests/ProjectsGuideTests.cs)), а числа и коды сверяются с
@@ -11,16 +11,17 @@
 ([ArxisStudio.Projects.Contracts](../src/Modules/ArxisStudio.Projects.Contracts)); здесь — то, чего
 в них нет: порядок действий и причины.
 
-## Три службы, одна на своё дело
+## Четыре службы, одна на своё дело
 
 | Служба | Берётся | О чём она |
 |---|---|---|
 | `IStudioProjects` | `context.Projects()` | что открыто, снимок, перемены, открыть/перечитать/закрыть |
 | `IStudioBuild` | `context.Build()` | восстановить, собрать, пересобрать, очистить |
 | `IStudioPackages` | `context.Packages()` | поставить и убрать пакет NuGet |
+| `IStudioFiles` | `context.Files()` | переместить, скопировать, удалить файлы решения |
 
 Разведены они по тому, чем занят берущий: подписчику снимков события сборки не нужны, а тому, кто
-рисует окно сборки, не нужен снимок. Все три живут в одном модуле и берутся одной дорогой —
+рисует окно сборки, не нужен снимок. Все четыре живут в одном модуле и берутся одной дорогой —
 экспортом, и каждая может ответить `null`: модуля нет, он не поднялся или его версия ниже той, что
 объявил ваш манифест.
 
@@ -31,7 +32,7 @@
   "id": "arxis.outline",
   "sdk": { "min": "5.0" },
   "dependencies": [
-    { "id": "arxis.projects", "min": "1.2" }
+    { "id": "arxis.projects", "min": "1.3" }
   ]
 }
 ```
@@ -41,7 +42,8 @@
 
 - **1.0** — модель: `IStudioProjects`, снимки, перемены;
 - **1.1** — сборка: `IStudioBuild`;
-- **1.2** — пакеты: `IStudioPackages`.
+- **1.2** — пакеты: `IStudioPackages`;
+- **1.3** — файлы: `IStudioFiles`.
 
 Просите ту, которой вам хватает: плагин, читающий снимки, с границей `1.0` поднимется и в студии,
 где сборки ещё не было.
@@ -392,6 +394,73 @@ public static class Packages
 байт. Удачная правка сама перечитывает модель причиной `ProjectsLoadReason.Packages`, так что
 подписчику снимков делать ничего не нужно.
 
+## Переместить, скопировать, удалить
+
+```csharp
+using System;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using ArxisStudio.Projects;
+using ArxisStudio.ProjectSystem;
+using ArxisStudio.Sdk;
+
+namespace Guide.Files;
+
+/// <summary>Правка файлов решения из плагина.</summary>
+public static class Renaming
+{
+    /// <summary>Переименовывает файл вместе с тем, что вложено в него по имени.</summary>
+    /// <returns>Что сказать человеку.</returns>
+    public static async Task<string> RenameAsync(IStudioContext context, CanonicalPath file, string name)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        if (context.Files() is not { } files)
+            return "службы файлов нет";
+
+        var folder = CanonicalPath.Create(Path.GetDirectoryName(file.Value)!);
+
+        // Вложенные служба не угадывает: MainWindow.axaml.cs называют в той же пачке, что и
+        // MainWindow.axaml, — и переименование, и его отмена будут одним действием.
+        FileMove[] moves =
+        [
+            new(file, folder.Combine(name)),
+            .. Directory.EnumerateFiles(folder.Value, file.FileName + ".*")
+                .Select(CanonicalPath.Create)
+                .Select(companion => new FileMove(
+                    companion,
+                    folder.Combine(name + companion.FileName[file.FileName.Length..]))),
+        ];
+
+        var result = await files.MoveAsync(moves, $"Переименование {file.FileName}");
+
+        return result.HasErrors
+            ? string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message))
+            : $"{file.FileName} → {name}";
+    }
+}
+```
+
+Правка проверяет всё, что можно проверить, до первого байта: путь есть, лежит в папке проекта и не
+в выходе сборки, назначение свободно, папку не просят положить в неё саму. Отказы свои:
+`PRJ1004` — путь вне правки (за пределами проектов, сам файл проекта, решение, папка проекта, выход
+сборки: проект переименовывают вместе с решением), `PRJ1005` — назначение занято, `PRJ1006` — папка в
+саму себя, `PRJ1007` — пути нет. Отказ диска посередине — `PRJ1008`, и перенос с копией
+откатываются целиком.
+
+Файл проекта правка переписывает сама: ссылки, которые называют путь буквально, —
+`<None Update="appsettings.json">` с его `CopyToOutputDirectory`, маска папки
+`<AvaloniaResource Include="Assets\**"/>`, `DependentUpon` — идут за переименованным, а у удалённого
+снимаются. Правится только собственный файл проекта: ссылку из `Directory.Build.props` служба не
+трогает, как и у пакетов.
+
+**Удаление — насовсем**, как в Rider: корзины нет. Страхует его локальная история — каждое действие
+службы записывается в неё с содержимым удалённого, — а спросить человека до удаления — дело того,
+кто зовёт. Удачная правка перечитывает модель причиной `ProjectsLoadReason.Files` раньше, чем
+вернётся, а потом говорит `IStudioFiles.Changed`: что куда уехало и что удалено. Держите документ
+открытым — слушайте это событие, иначе ваш документ останется у имени, которого больше нет.
+
 ## Открыть и закрыть
 
 `OpenAsync`, `ReloadAsync`, `SetConfigurationAsync` и `CloseAsync` плагину нужны редко: решение
@@ -451,6 +520,10 @@ public static class Findings
 настроек. Перечитывать их самому не нужно — нужно слушать.
 
 ## Чего не делать
+
+**Не править файлы решения мимо службы файлов.** Переименованный вами файл служба увидит со
+слежением, но ссылку на него в файле проекта не перепишет и в историю как своё действие не запишет:
+вернуть его будет нечем, а `CopyToOutputDirectory` у него молча пропадёт.
 
 **Не звать MSBuild самому.** `ArxisStudio.ProjectSystem.MSBuild` и `.NuGet` общими сборками не
 объявлены и плагину не достанутся: движок на процесс один, и держит его служба проектов. Второй

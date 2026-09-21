@@ -99,5 +99,8 @@ public sealed class ProjectsModule : StudioPlugin
 
         if (!exports.Publish<IStudioPackages>(host))
             context.Log.Write(StudioLogLevel.Error, LogSource, "Служба пакетов не опубликована: её тип уже занят");
+
+        if (!exports.Publish<IStudioFiles>(host.Files))
+            context.Log.Write(StudioLogLevel.Error, LogSource, "Служба файлов не опубликована: её тип уже занят");
     }
 }

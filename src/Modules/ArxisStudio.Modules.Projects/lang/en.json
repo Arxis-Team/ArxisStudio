@@ -27,5 +27,11 @@
   "settings.projects.history.maxFileMb": "Largest file the local history keeps, MB",
   "settings.projects.history.maxTotalMb": "Space the local history may take, MB",
   "module.projects.history.external": "External change",
-  "module.projects.history.offline": "Changes outside the studio"
+  "module.projects.history.offline": "Changes outside the studio",
+  "module.projects.files.outside": "{0} is outside the projects of the open solution",
+  "module.projects.files.protected": "{0} is a project file or folder, the solution or build output, and is not edited this way",
+  "module.projects.files.exists": "{0} already exists",
+  "module.projects.files.intoItself": "{0} cannot be moved into itself",
+  "module.projects.files.missing": "{0} was not found",
+  "module.projects.files.failed": "The disk refused: {0}"
 }

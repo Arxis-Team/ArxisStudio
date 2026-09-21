@@ -27,5 +27,11 @@
   "settings.projects.history.maxFileMb": "Самый большой файл в локальной истории, МБ",
   "settings.projects.history.maxTotalMb": "Сколько может занимать локальная история, МБ",
   "module.projects.history.external": "Внешнее изменение",
-  "module.projects.history.offline": "Изменения вне студии"
+  "module.projects.history.offline": "Изменения вне студии",
+  "module.projects.files.outside": "{0} — вне папок проектов открытого решения",
+  "module.projects.files.protected": "{0} — файл или папка проекта, решение или выход сборки: так их не правят",
+  "module.projects.files.exists": "{0} уже существует",
+  "module.projects.files.intoItself": "Папку {0} нельзя перенести в неё саму",
+  "module.projects.files.missing": "{0} не найден",
+  "module.projects.files.failed": "Диск отказал: {0}"
 }
