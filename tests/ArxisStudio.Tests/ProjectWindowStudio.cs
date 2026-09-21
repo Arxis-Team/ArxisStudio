@@ -2,6 +2,7 @@ using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Icons;
 using ArxisStudio.Modules.Project;
+using ArxisStudio.Modules.Project.Model;
 using ArxisStudio.Modules.Project.Panels;
 using ArxisStudio.Modules.Project.Tree;
 using ArxisStudio.Projects;
@@ -53,6 +54,7 @@ internal sealed class ProjectWindowStudio : IDisposable
 
         Projects = projects ?? new ProjectsProbe { Accepts = true };
         Files = files;
+        SystemFiles.Override = () => Clipboard;
 
         var exports = new StudioExportRegistry();
 
@@ -95,6 +97,9 @@ internal sealed class ProjectWindowStudio : IDisposable
     /// <summary>Служба файлов, если она есть.</summary>
     public FilesProbe? Files { get; }
 
+    /// <summary>Буфер обмена системы окна.</summary>
+    public SystemFilesProbe Clipboard { get; } = new();
+
     /// <summary>Строка состояния: что окно сказало.</summary>
     public StatusProbe Status { get; } = new();
 
@@ -130,9 +135,14 @@ internal sealed class ProjectWindowStudio : IDisposable
     /// <param name="extra">Ещё один файл приложения.</param>
     /// <param name="window">Имя главного окна.</param>
     /// <param name="without">Файлы приложения, которых нет.</param>
+    /// <param name="more">Ещё файлы приложения — путём от проекта.</param>
     public SolutionSnapshot Solution(
-        string name = "Hello", string? extra = null, string window = "MainWindow", IReadOnlyCollection<string>? without = null) =>
-        ProjectWindowSolution.Avalonia(name, extra: extra, root: _root, window: window, without: without).OnDisk().ToSnapshot();
+        string name = "Hello",
+        string? extra = null,
+        string window = "MainWindow",
+        IReadOnlyCollection<string>? without = null,
+        IReadOnlyCollection<string>? more = null) =>
+        ProjectWindowSolution.Avalonia(name, extra: extra, root: _root, window: window, without: without, more: more).OnDisk().ToSnapshot();
 
     /// <summary>То же решение как построитель — когда тесту нужны его пути.</summary>
     public ProjectWindowSolution Avalonia() => ProjectWindowSolution.Avalonia(root: _root).OnDisk();
@@ -306,6 +316,7 @@ internal sealed class ProjectWindowStudio : IDisposable
     {
         Reveal.Override = null;
         SolutionPicker.Override = null;
+        SystemFiles.Override = null;
         Panel.Release();
         Window.Close();
         _host.Dispose();
@@ -340,6 +351,49 @@ internal sealed class ProjectWindowStudio : IDisposable
 }
 
 /// <summary>
+/// Буфер обмена системы, которым тест управляет: что окно положило и что «положил проводник».
+/// </summary>
+/// <remarks>
+/// У безголового прогона буфера системы может не быть, а проверять надо обе дороги вставки: своё
+/// вырезанное и чужие файлы.
+/// </remarks>
+internal sealed class SystemFilesProbe : ISystemFiles
+{
+    /// <summary>Что лежит в буфере от окна; пусто — ничего или чужое.</summary>
+    public FileClip? Held { get; private set; }
+
+    /// <summary>Файлы, которые положила чужая программа; ставит тест.</summary>
+    public FileClip? Foreign { get; set; }
+
+    /// <summary>Сколько раз окно убирало своё.</summary>
+    public int Forgotten { get; private set; }
+
+    /// <inheritdoc/>
+    public Task PutAsync(FileClip clip)
+    {
+        Held = clip;
+        Foreign = null;
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc/>
+    public Task<FileClip?> TakeAsync(FileClip? own) => Task.FromResult(Foreign ?? Held);
+
+    /// <inheritdoc/>
+    public Task ForgetAsync(FileClip clip)
+    {
+        if (ReferenceEquals(Held, clip))
+        {
+            Held = null;
+            Forgotten++;
+        }
+
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
 /// Служба файлов, которая помнит, что её просили, и отвечает, как велит тест.
 /// </summary>
 /// <remarks>
@@ -350,6 +404,9 @@ internal sealed class FilesProbe : IStudioFiles
 {
     /// <summary>Переносы, по порядку.</summary>
     public List<IReadOnlyList<FileMove>> Moved { get; } = [];
+
+    /// <summary>Копии, по порядку.</summary>
+    public List<IReadOnlyList<FileMove>> Copied { get; } = [];
 
     /// <summary>Удаления, по порядку.</summary>
     public List<IReadOnlyList<CanonicalPath>> Deleted { get; } = [];
@@ -375,8 +432,12 @@ internal sealed class FilesProbe : IStudioFiles
     }
 
     /// <inheritdoc/>
-    public Task<ProjectOperationResult> CopyAsync(IReadOnlyList<FileMove> copies, string label, CancellationToken cancellationToken = default) =>
-        Done(label, new FilesChangedEventArgs([], [.. copies], []));
+    public Task<ProjectOperationResult> CopyAsync(IReadOnlyList<FileMove> copies, string label, CancellationToken cancellationToken = default)
+    {
+        Copied.Add(copies);
+
+        return Done(label, new FilesChangedEventArgs([], [.. copies], []));
+    }
 
     /// <inheritdoc/>
     public Task<ProjectOperationResult> DeleteAsync(IReadOnlyList<CanonicalPath> paths, string label, CancellationToken cancellationToken = default)

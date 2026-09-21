@@ -153,5 +153,68 @@ public class ProjectEditRulesTests
         Assert.True(Renaming.Check("mainwindow.axaml", owner, taken.Contains).IsFine, "смену регистра приняли за занятое имя");
     }
 
+    /// <summary>
+    /// Вставляют в папку строки: папка — в неё саму, файл и проект — в свою папку; решению,
+    /// папке решения и зависимостям вставлять некуда.
+    /// </summary>
+    [Fact]
+    public void Paste_goes_into_the_folder_of_the_row()
+    {
+        var tree = ProjectWindowSolution.Avalonia().Tree();
+        var views = Named(tree, "Views");
+
+        Assert.Equal(views.Path, Pasting.Folder(views));
+        Assert.Equal(views.Path, Pasting.Folder(Named(tree, "MainWindow.axaml")));
+        Assert.Equal(Named(tree, "App").Path.Directory, Pasting.Folder(Named(tree, "App")));
+        Assert.Null(Pasting.Folder(tree));
+        Assert.Null(Pasting.Folder(Named(tree, "src")));
+        Assert.Null(Pasting.Folder(Named(tree, "Avalonia")));
+    }
+
+    /// <summary>
+    /// Копия в ту же папку получает номер — у файла перед расширением, у папки в конце, — и вложенный
+    /// идёт за ним; номер берётся первый свободный и для корня, и для вложенного.
+    /// </summary>
+    [Fact]
+    public void A_copy_into_the_same_folder_is_numbered_with_its_nested_file()
+    {
+        Assert.Equal("MainWindow (2).axaml", Pasting.Numbered("MainWindow.axaml", folder: false, 2));
+        Assert.Equal("Views (3)", Pasting.Numbered("Views", folder: true, 3));
+        Assert.Equal(".gitignore (2)", Pasting.Numbered(".gitignore", folder: false, 2));
+
+        var tree = ProjectWindowSolution.Avalonia().Tree();
+        var item = Assert.Single(FileClip.Of(ClipMode.Copy, EditSelection.Of([Named(tree, "MainWindow.axaml")])).Items);
+        var folder = item.Root.Directory;
+
+        Assert.Equal(
+            ["MainWindow (2).axaml", "MainWindow (2).axaml.cs"],
+            Pasting.Pairs(item, folder, "MainWindow (2).axaml").Select(pair => pair.To.FileName));
+
+        // Свободно имя владельца со вторым номером, но занято имя его вложенного — берётся третий.
+        var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            item.Root.Value,
+            item.Nested[0].Value,
+            folder.Combine("MainWindow (2).axaml.cs").Value,
+        };
+
+        Assert.True(Pasting.SameFolder(item, folder));
+        Assert.True(Pasting.Taken(item, folder, taken.Contains));
+        Assert.Equal("MainWindow (3).axaml", Pasting.Free(item, folder, taken.Contains));
+    }
+
+    /// <summary>Папку не вставить в неё саму и глубже — ни переносом, ни копией.</summary>
+    [Fact]
+    public void A_folder_does_not_go_into_itself()
+    {
+        var tree = ProjectWindowSolution.Avalonia().Tree();
+        var views = Assert.Single(FileClip.Of(ClipMode.Cut, EditSelection.Of([Named(tree, "Views")])).Items);
+
+        Assert.True(views.IsFolder);
+        Assert.True(Pasting.IntoItself(views, views.Root));
+        Assert.True(Pasting.IntoItself(views, views.Root.Combine("Inner")));
+        Assert.False(Pasting.IntoItself(views, views.Root.Directory));
+    }
+
     private static Node Named(Node tree, string name) => tree.Descendants().Single(node => node.Name == name);
 }

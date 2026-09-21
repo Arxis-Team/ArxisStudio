@@ -3,6 +3,7 @@ ArxisStudio.Projects.FileMove :: .ctor(ArxisStudio.ProjectSystem.CanonicalPath F
 ArxisStudio.Projects.FileMove :: ArxisStudio.ProjectSystem.CanonicalPath From { get; init; }
 ArxisStudio.Projects.FileMove :: ArxisStudio.ProjectSystem.CanonicalPath To { get; init; }
 ArxisStudio.Projects.FileMove :: System.Boolean Equals(ArxisStudio.Projects.FileMove? other)
+ArxisStudio.Projects.FileMove :: System.Boolean Replace { get; init; }
 ArxisStudio.Projects.FileMove :: System.Void Deconstruct(out ArxisStudio.ProjectSystem.CanonicalPath From, out ArxisStudio.ProjectSystem.CanonicalPath To)
 ArxisStudio.Projects.FileMove :: static System.Boolean op_Equality(ArxisStudio.Projects.FileMove? left, ArxisStudio.Projects.FileMove? right)
 ArxisStudio.Projects.FileMove :: static System.Boolean op_Inequality(ArxisStudio.Projects.FileMove? left, ArxisStudio.Projects.FileMove? right)

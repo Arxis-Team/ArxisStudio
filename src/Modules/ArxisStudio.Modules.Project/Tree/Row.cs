@@ -55,6 +55,20 @@ internal sealed class Row : INotifyPropertyChanged
     /// <summary>Подсказка: путь от решения или причина, по которой проект не загрузился.</summary>
     public string? Hint => Node.Problem ?? Node.Relative;
 
+    /// <summary>Вырезан и ждёт вставки — строка приглушена.</summary>
+    public bool IsCut
+    {
+        get;
+        set
+        {
+            if (field == value)
+                return;
+
+            field = value;
+            Raise(nameof(IsCut));
+        }
+    }
+
     /// <summary>Имя строки — по нему ищет набор букв в списке, и его же читает диктор.</summary>
     public override string ToString() => Node.Name;
 

@@ -2,6 +2,7 @@ using ArxisStudio.Controls;
 using ArxisStudio.Modules.Project.Browse;
 using ArxisStudio.Modules.Project.Model;
 using ArxisStudio.Modules.Project.Tree;
+using ArxisStudio.ProjectSystem;
 using ArxisStudio.Sdk;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -26,6 +27,10 @@ internal enum EditOrigin
 /// <param name="CollapseBranch">Свернуть ветку строки.</param>
 /// <param name="Delete">Удалить выбранное; пусто — службы файлов нет, и правки в меню нет.</param>
 /// <param name="Rename">Переименовать выбранное; пусто — так же.</param>
+/// <param name="CutFiles">Вырезать выбранное; пусто — так же.</param>
+/// <param name="CopyFiles">Скопировать выбранное; пусто — так же.</param>
+/// <param name="Paste">Вставить в папку; пусто — так же.</param>
+/// <param name="Uncut">Снять вырезанное — Esc; ответ — было ли что снимать.</param>
 internal sealed record MenuActions(
     Action<Node> Open,
     Action<string> Reveal,
@@ -33,7 +38,11 @@ internal sealed record MenuActions(
     Action<Row> ExpandBranch,
     Action<Row> CollapseBranch,
     Action<EditSelection, EditOrigin>? Delete = null,
-    Action<EditSelection, EditOrigin>? Rename = null);
+    Action<EditSelection, EditOrigin>? Rename = null,
+    Action<EditSelection, EditOrigin>? CutFiles = null,
+    Action<EditSelection, EditOrigin>? CopyFiles = null,
+    Action<CanonicalPath, EditOrigin>? Paste = null,
+    Func<bool>? Uncut = null);
 
 /// <summary>
 /// Контекстное меню строки дерева и плитки правой колонки: что можно сделать с тем, на чём стоят.
@@ -132,8 +141,8 @@ internal sealed class ProjectMenu(IStudioStrings strings, MenuActions actions)
         if (showInFolder is not null)
             items.Add(Item("project.menu.showInFolder", null, showInFolder));
 
-        if (edit is { IsEmpty: false } && (actions.Delete is not null || actions.Rename is not null))
-            items.Add(Edit(edit, origin));
+        if (actions.Delete is not null && (edit is { IsEmpty: false } || Pasting.Folder(node) is not null))
+            items.Add(Edit(edit ?? EditSelection.Empty, Pasting.Folder(node), origin));
 
         if (path is not null)
         {
@@ -156,10 +165,36 @@ internal sealed class ProjectMenu(IStudioStrings strings, MenuActions actions)
         return items;
     }
 
-    /// <summary>«Правка ▸»: удалить и переименовать то, что выбрано.</summary>
-    private AxMenuItem Edit(EditSelection edit, EditOrigin origin)
+    /// <summary>
+    /// «Правка ▸», как у Rider: вырезать, копировать, вставить, удалить, переименовать.
+    /// </summary>
+    /// <param name="edit">Что выбрано; у проекта — пусто, и из правки у него только вставка.</param>
+    /// <param name="folder">Куда вставлять на этом узле; пусто — вставлять некуда.</param>
+    /// <param name="origin">Откуда правка.</param>
+    /// <remarks>
+    /// Пункты, которым нечего делать, выключены, а не спрятаны, — кроме тех, что к узлу не относятся
+    /// вовсе: у проекта нечего вырезать, и пунктов выбора у него нет. «Вставить» включена всегда, где
+    /// есть куда: что лежит в буфере системы, меню узнать не успевает, а пустая вставка скажет об этом
+    /// строкой состояния.
+    /// </remarks>
+    private AxMenuItem Edit(EditSelection edit, CanonicalPath? folder, EditOrigin origin)
     {
         var menu = new AxMenuItem { Header = strings["project.edit"] };
+
+        if (!edit.IsEmpty)
+        {
+            if (actions.CutFiles is { } cut)
+                menu.Items.Add(Item("project.edit.cut", new KeyGesture(Key.X, KeyModifiers.Control), () => cut(edit, origin)));
+
+            if (actions.CopyFiles is { } copy)
+                menu.Items.Add(Item("project.edit.copy", new KeyGesture(Key.C, KeyModifiers.Control), () => copy(edit, origin)));
+        }
+
+        if (folder is { } target && actions.Paste is { } paste)
+            menu.Items.Add(Item("project.edit.paste", new KeyGesture(Key.V, KeyModifiers.Control), () => paste(target, origin)));
+
+        if (edit.IsEmpty)
+            return menu;
 
         if (actions.Delete is { } delete)
             menu.Items.Add(Item("project.edit.delete", new KeyGesture(Key.Delete), () => delete(edit, origin)));

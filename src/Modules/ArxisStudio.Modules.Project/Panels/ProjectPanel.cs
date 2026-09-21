@@ -3,6 +3,7 @@ using ArxisStudio.Controls;
 using ArxisStudio.Modules.Project.Model;
 using ArxisStudio.Modules.Project.Tree;
 using ArxisStudio.Projects;
+using ArxisStudio.ProjectSystem;
 using ArxisStudio.Sdk;
 using Avalonia;
 using Avalonia.Controls;
@@ -82,7 +83,9 @@ public sealed class ProjectPanel : ToolWindow
 
         _model = new ProjectModel(Context, WordsOf(Context.Strings), settings);
         _view = new ProjectPanelView { DataContext = _model };
-        _editing = Context.Files() is { } files ? new Editing(Context, files, Owner) : null;
+        _editing = Context.Files() is { } files
+            ? new Editing(Context, files, Owner, SystemFiles.For(() => _view is { } view ? TopLevel.GetTopLevel(view) : null))
+            : null;
         _menu = new ProjectMenu(Context.Strings, new MenuActions(
             _model.Open,
             Reveal.Show,
@@ -90,7 +93,11 @@ public sealed class ProjectPanel : ToolWindow
             row => Keep(() => _model.Tree.ExpandBranch(row)),
             row => Keep(() => _model.Tree.CollapseBranch(row)),
             _editing is null ? null : Delete,
-            _editing is null ? null : Rename));
+            _editing is null ? null : Rename,
+            _editing is null ? null : Cut,
+            _editing is null ? null : CopyFiles,
+            _editing is null ? null : Paste,
+            _editing is null ? null : _editing.Uncut));
         _pane = new BrowserPane(_view, _model, _menu, Located, Resize, Copy);
         _pane.Show(settings.IconSize);
 
@@ -149,7 +156,13 @@ public sealed class ProjectPanel : ToolWindow
         view.Retry.Click += OnRetry;
         view.Stale.Closed += OnStaleClosed;
         model.Tree.Rows.CollectionChanged += OnRowsChanged;
+        model.Tree.Rows.CollectionChanged += OnMarksChanged;
+        model.Browser.Items.CollectionChanged += OnMarksChanged;
+        model.Shown += Mark;
         Context.Settings.Changed += OnSettingsChanged;
+
+        if (_editing is not null)
+            _editing.ClipChanged += Mark;
 
         _release.Add(() =>
         {
@@ -168,7 +181,13 @@ public sealed class ProjectPanel : ToolWindow
             view.Retry.Click -= OnRetry;
             view.Stale.Closed -= OnStaleClosed;
             model.Tree.Rows.CollectionChanged -= OnRowsChanged;
+            model.Tree.Rows.CollectionChanged -= OnMarksChanged;
+            model.Browser.Items.CollectionChanged -= OnMarksChanged;
+            model.Shown -= Mark;
             Context.Settings.Changed -= OnSettingsChanged;
+
+            if (_editing is not null)
+                _editing.ClipChanged -= Mark;
         });
 
         // Подписи дерева — «Зависимости», «Пакеты», счёт проектов — строятся вместе с деревом, и
@@ -228,6 +247,17 @@ public sealed class ProjectPanel : ToolWindow
                 break;
             case Key.F2 when plain && _editing is not null:
                 Rename(TreeSelection(), EditOrigin.Tree);
+                break;
+            case Key.X when e.KeyModifiers == KeyModifiers.Control && _editing is not null:
+                Cut(TreeSelection(), EditOrigin.Tree);
+                break;
+            case Key.C when e.KeyModifiers == KeyModifiers.Control && _editing is not null:
+                CopyFiles(TreeSelection(), EditOrigin.Tree);
+                break;
+            case Key.V when e.KeyModifiers == KeyModifiers.Control && _editing is not null && Pasting.Folder(row.Node) is { } folder:
+                Paste(folder, EditOrigin.Tree);
+                break;
+            case Key.Escape when plain && _editing?.Uncut() == true:
                 break;
             case Key.Right when plain:
                 if (row.HasChildren && !row.IsExpanded)
@@ -395,6 +425,59 @@ public sealed class ProjectPanel : ToolWindow
         if (model.Tree.Find(node.Key) is { } row)
             Select(row);
     }
+
+    /// <summary>Вырезает выбранное: вставка его перенесёт, а до неё оно приглушено.</summary>
+    private void Cut(EditSelection selection, EditOrigin origin) => Guard(_editing?.CutAsync(selection) ?? Task.CompletedTask);
+
+    /// <summary>Копирует выбранное — и в буфер системы, для проводника.</summary>
+    private void CopyFiles(EditSelection selection, EditOrigin origin) => Guard(_editing?.CopyAsync(selection) ?? Task.CompletedTask);
+
+    /// <summary>Вставляет в папку и ставит выделение на вставленное.</summary>
+    private void Paste(CanonicalPath folder, EditOrigin origin) => Guard(PasteAsync(folder, origin));
+
+    private async Task PasteAsync(CanonicalPath folder, EditOrigin origin)
+    {
+        if (_editing is not { } editing || _model is not { } model)
+            return;
+
+        if (await editing.PasteAsync(folder) is not [var first, ..])
+            return;
+
+        if (await model.WhenAsync(root => ProjectModel.Find(root, first) is not null, Patience) is not { } root
+            || ProjectModel.Find(root, first) is not { } node)
+        {
+            return;
+        }
+
+        // В две колонки файла в дереве нет: вставленное выделяется плиткой в своей папке.
+        Stand(node);
+
+        if (model.IsTwoColumns && origin == EditOrigin.Pane)
+            _pane?.Select(node, focus: true);
+    }
+
+    /// <summary>
+    /// Приглушает вырезанное — строки и плитки, чьи пути лежат в буфере правки вырезанными.
+    /// </summary>
+    /// <remarks>
+    /// Зовётся на смену буфера и на каждую перемену строк и плиток: раскрытая ветка приносит новые
+    /// строки, и вырезанное в ней должно прийти приглушённым.
+    /// </remarks>
+    private void Mark()
+    {
+        if (_model is not { } model)
+            return;
+
+        var cut = _editing?.Clip is { Mode: ClipMode.Cut } clip ? clip.Paths.ToHashSet() : null;
+
+        foreach (var row in model.Tree.Rows)
+            row.IsCut = cut?.Contains(row.Node.Path) == true;
+
+        foreach (var tile in model.Browser.Items)
+            tile.IsCut = cut?.Contains(tile.Node.Path) == true;
+    }
+
+    private void OnMarksChanged(object? sender, NotifyCollectionChangedEventArgs e) => Mark();
 
     /// <summary>Место первой выделенной строки дерева; −1 — выделения нет.</summary>
     private int FirstSelected() =>

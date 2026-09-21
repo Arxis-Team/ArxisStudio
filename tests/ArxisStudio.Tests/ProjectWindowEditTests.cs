@@ -1,4 +1,3 @@
-using System.Globalization;
 using ArxisStudio.Controls;
 using ArxisStudio.Modules.Project.Browse;
 using ArxisStudio.Modules.Project.Dialogs;
@@ -13,6 +12,7 @@ using Avalonia.Input;
 using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Xunit;
+using static ArxisStudio.Tests.ProjectWindowDialogs;
 
 namespace ArxisStudio.Tests;
 
@@ -28,7 +28,8 @@ namespace ArxisStudio.Tests;
 public class ProjectWindowEditTests
 {
     /// <summary>
-    /// «Правка» есть у файлов и папок и только при службе файлов; у проекта, решения и зависимостей — нет.
+    /// «Правка» есть у файлов и папок и только при службе файлов; у проекта из неё — одна вставка, у
+    /// решения и зависимостей её нет.
     /// </summary>
     [AvaloniaFact]
     public async Task Files_and_folders_offer_edit_and_nothing_else_does()
@@ -44,12 +45,21 @@ public class ProjectWindowEditTests
 
             Assert.True(edit is not null, $"у {name} нет «Правки»");
             Assert.Equal(
-                [studio.Strings["project.edit.delete"], studio.Strings["project.edit.rename"]],
+                [
+                    studio.Strings["project.edit.cut"], studio.Strings["project.edit.copy"], studio.Strings["project.edit.paste"],
+                    studio.Strings["project.edit.delete"], studio.Strings["project.edit.rename"],
+                ],
                 edit!.Items.OfType<AxMenuItem>().Select(item => item.Header));
             Assert.All(edit.Items.OfType<AxMenuItem>(), item => Assert.True(item.IsEnabled, $"{item.Header} у {name} выключен"));
         }
 
-        foreach (var row in new[] { studio.Row("Hello"), studio.Row("App"), studio.Rows.First(row => row.Node.Kind == NodeKind.Dependencies) })
+        studio.View.Tree.SelectedItem = studio.Row("App");
+
+        Assert.Equal(
+            [studio.Strings["project.edit.paste"]],
+            EditOf(studio, studio.Panel.Items(studio.Row("App")))!.Items.OfType<AxMenuItem>().Select(item => item.Header));
+
+        foreach (var row in new[] { studio.Row("Hello"), studio.Rows.First(row => row.Node.Kind == NodeKind.Dependencies) })
         {
             studio.View.Tree.SelectedItem = row;
 
@@ -69,7 +79,8 @@ public class ProjectWindowEditTests
     }
 
     /// <summary>
-    /// Выбор из нескольких удаляется вместе, а переименовать его нельзя; Ctrl+A правке не отдаётся.
+    /// Выбор из нескольких удаляется вместе, а переименовать его нельзя; Ctrl+A правке не отдаётся —
+    /// остаётся только вставка.
     /// </summary>
     /// <remarks>Пункт выключен, а не спрятан: так видно, почему его нельзя нажать.</remarks>
     [AvaloniaFact]
@@ -83,14 +94,20 @@ public class ProjectWindowEditTests
         Assert.Equal(["app.manifest", "Program.cs"], studio.View.Tree.SelectedItems!.OfType<Row>().Select(row => row.Name));
 
         var edit = Assert.IsType<AxMenuItem>(EditOf(studio, studio.Panel.Items(studio.Row("Program.cs"))));
-        var items = edit.Items.OfType<AxMenuItem>().ToList();
 
-        Assert.True(items[0].IsEnabled, "удалить выбор из нескольких нельзя");
-        Assert.False(items[1].IsEnabled, "переименовать выбор из нескольких можно");
+        AxMenuItem Item(string key) => edit.Items.OfType<AxMenuItem>().Single(item => Equals(item.Header, studio.Strings[key]));
 
+        Assert.True(Item("project.edit.delete").IsEnabled, "удалить выбор из нескольких нельзя");
+        Assert.True(Item("project.edit.cut").IsEnabled, "вырезать выбор из нескольких нельзя");
+        Assert.False(Item("project.edit.rename").IsEnabled, "переименовать выбор из нескольких можно");
+
+        // Ctrl+A выделяет и решение с проектами: правке выбор не отдаётся, и из «Правки» остаётся
+        // только вставка в папку строки.
         studio.View.Tree.SelectAll();
 
-        Assert.Null(EditOf(studio, studio.Panel.Items(studio.Row("Program.cs"))));
+        Assert.Equal(
+            [studio.Strings["project.edit.paste"]],
+            EditOf(studio, studio.Panel.Items(studio.Row("Program.cs")))!.Items.OfType<AxMenuItem>().Select(item => item.Header));
     }
 
     /// <summary>
@@ -460,47 +477,4 @@ public class ProjectWindowEditTests
 
     private static Tile Tile(ProjectWindowStudio studio, string name) =>
         studio.Model.Browser.Items.Single(tile => tile.Name == name);
-
-    /// <summary>Диалог, который окно показало, — один.</summary>
-    private static T Dialog<T>(ProjectWindowStudio studio) where T : Window
-    {
-        Dispatcher.UIThread.RunJobs();
-
-        return Assert.Single(studio.Window.OwnedWindows.OfType<T>());
-    }
-
-    /// <summary>
-    /// Ждёт, пока окно дойдёт до ожидаемого: правка идёт через службу, постройку дерева вне потока
-    /// интерфейса и возврат в него — несколько переходов, а не один.
-    /// </summary>
-    private static async Task Settled(ProjectWindowStudio studio, Func<bool> reached)
-    {
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
-
-        while (true)
-        {
-            Dispatcher.UIThread.RunJobs();
-
-            if (reached())
-                return;
-
-            Assert.True(DateTime.UtcNow < deadline, "окно не дошло до ожидаемого за десять секунд");
-
-            await studio.Model.Settled.WaitAsync(TimeSpan.FromSeconds(1));
-            await Task.Yield();
-        }
-    }
-
-    private static void Enter(AxDialog dialog) =>
-        Part<StackPanel>(dialog, "Form").RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
-
-    /// <summary>Названная часть разметки диалога — и в содержимом, и среди кнопок.</summary>
-    private static T Part<T>(AxDialog dialog, string name) where T : Control =>
-        Assert.IsType<T>(dialog.GetLogicalDescendants()
-            .Concat(dialog.Buttons is Control buttons ? buttons.GetSelfAndLogicalDescendants() : [])
-            .OfType<Control>()
-            .Single(control => control.Name == name));
-
-    private static string Format(ProjectWindowStudio studio, string key, params object[] values) =>
-        string.Format(CultureInfo.CurrentCulture, studio.Strings[key], values);
 }

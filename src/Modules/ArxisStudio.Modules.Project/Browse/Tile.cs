@@ -74,6 +74,20 @@ internal sealed class Tile : INotifyPropertyChanged
     /// <summary>Подложка ли у плитки.</summary>
     public bool IsPlate => Look == TileLook.Plate;
 
+    /// <summary>Вырезан и ждёт вставки — плитка приглушена.</summary>
+    public bool IsCut
+    {
+        get;
+        set
+        {
+            if (field == value)
+                return;
+
+            field = value;
+            Raise(nameof(IsCut));
+        }
+    }
+
     /// <summary>Подсказка и строка под колонкой: путь от решения, а у предмета модели — имя с версией.</summary>
     public string Hint => Node.Relative ?? (HasDetail ? $"{Node.Name} {Node.Detail}" : Node.Name);
 

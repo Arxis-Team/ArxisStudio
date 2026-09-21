@@ -6,7 +6,19 @@ namespace ArxisStudio.Projects;
 /// <summary>Путь и то, куда он переезжает или копируется, — оба полными путями.</summary>
 /// <param name="From">Откуда.</param>
 /// <param name="To">Куда: полный путь, включая имя; переименование — это переезд в той же папке.</param>
-public sealed record FileMove(CanonicalPath From, CanonicalPath To);
+public sealed record FileMove(CanonicalPath From, CanonicalPath To)
+{
+    /// <summary>
+    /// Файл на месте назначения заменить, а не отказать: прежнее содержимое уходит в локальную
+    /// историю, и вернуть его можно оттуда.
+    /// </summary>
+    /// <remarks>
+    /// Так отвечают на вопрос «Заменить?» при вставке. Заменяется только файл файлом: папку на месте
+    /// назначения служба не сливает и не стирает — занятая папка остаётся отказом
+    /// <see cref="ProjectsDiagnosticCodes.TargetExists"/>. Появилось в версии 1.4.
+    /// </remarks>
+    public bool Replace { get; init; }
+}
 
 /// <summary>Что сделала правка файлов.</summary>
 /// <remarks>
@@ -65,7 +77,9 @@ public sealed class FilesChangedEventArgs : EventArgs
 /// <para>
 /// <b>Правится только то, что внутри папок проектов.</b> Файл проекта, решение, сама папка проекта
 /// и выход сборки — отказ <see cref="ProjectsDiagnosticCodes.OutsideProjects"/>: проект
-/// переименовывают вместе с решением, а не как файл.
+/// переименовывают вместе с решением, а не как файл. Копия читает источник откуда угодно — так файлы
+/// из проводника вставляются в проект, — а внутри папок проектов должно быть только назначение
+/// (с версии 1.4).
 /// </para>
 /// <para>
 /// <b>Вложенные файлы служба не угадывает.</b> <c>MainWindow.axaml.cs</c> переезжает вместе с
@@ -94,7 +108,7 @@ public interface IStudioFiles
         CancellationToken cancellationToken = default);
 
     /// <summary>Копирует файлы и папки — пачкой, одним действием истории.</summary>
-    /// <param name="copies">Что куда.</param>
+    /// <param name="copies">Что куда; источник может лежать и вне решения.</param>
     /// <param name="label">Метка действия для человека.</param>
     /// <param name="cancellationToken">Отмена — пока правка не началась.</param>
     /// <returns>Итог; провал приходит с диагностиками.</returns>

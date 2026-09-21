@@ -172,13 +172,15 @@ internal sealed class ProjectWindowSolution
     /// <param name="root">Папка, в которой лежит папка решения; пусто — общая временная, без файлов.</param>
     /// <param name="window">Имя главного окна — так приходит перезагрузка «окно переименовали».</param>
     /// <param name="without">Файлы приложения, которых нет, путём от проекта, — «файлы удалили».</param>
+    /// <param name="more">Ещё файлы приложения путём от проекта — «файлы вставили».</param>
     public static ProjectWindowSolution Avalonia(
         string name = "Hello",
         WorkspaceIdentity? workspace = null,
         string? extra = null,
         string? root = null,
         string window = "MainWindow",
-        IReadOnlyCollection<string>? without = null)
+        IReadOnlyCollection<string>? without = null,
+        IReadOnlyCollection<string>? more = null)
     {
         var solution = new ProjectWindowSolution(name, workspace, root);
         var app = solution.Project("App");
@@ -206,6 +208,9 @@ internal sealed class ProjectWindowSolution
 
         if (extra is not null)
             solution.File(app, extra);
+
+        foreach (var file in more ?? [])
+            solution.File(app, file);
 
         solution.File(lib, "Class1.cs");
         solution.SolutionFolder("/src/", app, lib);

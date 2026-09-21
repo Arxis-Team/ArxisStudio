@@ -68,6 +68,10 @@ internal static class FileChecks
     /// <param name="snapshot">Снимок открытого решения.</param>
     /// <param name="words">Слова отказов.</param>
     /// <returns>Отказ; null — можно.</returns>
+    /// <remarks>
+    /// Источник копии не сторожится: копия его не трогает, и файл из проводника или из выхода сборки
+    /// вставить в проект законно. Сторожится назначение — у всех трёх правок.
+    /// </remarks>
     public static ProjectDiagnostic? Check(FileWork work, SolutionSnapshot snapshot, FileWords words)
     {
         foreach (var source in work.Sources)
@@ -75,7 +79,7 @@ internal static class FileChecks
             if (!File.Exists(source.Value) && !Directory.Exists(source.Value))
                 return Refused(ProjectsDiagnosticCodes.Missing, words.Missing(source.Value), source);
 
-            if (Guard(snapshot, source, words, holdsProjects: true) is { } refused)
+            if (work.Kind != FileWorkKind.Copy && Guard(snapshot, source, words, holdsProjects: true) is { } refused)
                 return refused;
         }
 
@@ -84,8 +88,9 @@ internal static class FileChecks
 
         var targets = new HashSet<CanonicalPath>();
 
-        foreach (var (from, to) in work.Pairs)
+        foreach (var pair in work.Pairs)
         {
+            var (from, to) = pair;
             var caseOnly = work.Kind == FileWorkKind.Move && from == to && !string.Equals(from.Value, to.Value, StringComparison.Ordinal);
 
             if (Path.GetDirectoryName(to.Value) is not { Length: > 0 } parent || !Directory.Exists(parent))
@@ -94,7 +99,10 @@ internal static class FileChecks
             if (Guard(snapshot, to, words, holdsProjects: false) is { } refused)
                 return refused;
 
-            if (!caseOnly && (from == to || File.Exists(to.Value) || Directory.Exists(to.Value) || !targets.Add(to)))
+            // Заменяется только файл файлом: папку на месте назначения служба не сливает и не стирает.
+            var replaced = pair.Replace && from != to && File.Exists(to.Value) && File.Exists(from.Value);
+
+            if (!caseOnly && (from == to || (File.Exists(to.Value) && !replaced) || Directory.Exists(to.Value) || !targets.Add(to)))
                 return Refused(ProjectsDiagnosticCodes.TargetExists, words.Exists(to.Value), to);
 
             if (Directory.Exists(from.Value) && to != from && to.StartsWith(from))

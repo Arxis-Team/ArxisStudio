@@ -138,7 +138,7 @@
 
                   <AxIcon a:DockPanel.Dock="Left" VerticalAlignment="Center"
                           Margin="{a:DynamicResource AxGapIconTextThickness}"
-                          p:Tint.Key="{a:Binding Node, Converter={x:Static p:TintKey.Instance}}">
+                          p:Tint.Key="{a:Binding Node, Converter={x:Static p:TintKey.Instance}}" p:Tint.Muted="{a:Binding IsCut}">
                     <AxIcon.Data>
                       <a:MultiBinding Converter="{x:Static p:Glyph.Instance}">
                         <a:Binding Path="Node"/>
@@ -156,7 +156,8 @@
                   <a:Grid ColumnDefinitions="*,Auto" ColumnSpacing="{a:DynamicResource AxGapIconText}"
                           HorizontalAlignment="Left" VerticalAlignment="Center"
                           Margin="{a:DynamicResource AxTreeViewItemPadding}">
-                    <a:TextBlock Text="{a:Binding Name}" TextTrimming="CharacterEllipsis"/>
+                    <a:TextBlock Text="{a:Binding Name}" TextTrimming="CharacterEllipsis"
+                                 AxText.Tone="{a:Binding IsCut, Converter={x:Static p:CutTone.Instance}}"/>
                     <a:TextBlock a:Grid.Column="1" Text="{a:Binding Detail}" IsVisible="{a:Binding HasDetail}" AxText.Tone="Secondary"/>
                     <a:TextBlock a:Grid.Column="1" Text="{a:Binding Detail}" IsVisible="{a:Binding IsBroken}" AxText.Tone="Error"
                                  a:ToolTip.Tip="{a:Binding Hint}"/>
@@ -327,19 +328,20 @@
                       <a:Panel Classes="glyph">
                         <AxIcon Classes="tile" IsVisible="{a:Binding IsSilhouette}"
                                 Data="{a:Binding Node, Converter={x:Static p:Silhouette.Instance}}"
-                                p:Tint.Key="{a:Binding Node, Converter={x:Static p:TintKey.Instance}}"/>
+                                p:Tint.Key="{a:Binding Node, Converter={x:Static p:TintKey.Instance}}" p:Tint.Muted="{a:Binding IsCut}"/>
                         <a:Border Classes="plate" IsVisible="{a:Binding IsPlate}"
                                   HorizontalAlignment="Center" VerticalAlignment="Center">
                           <AxIcon HorizontalAlignment="Center" VerticalAlignment="Center"
                                   Data="{a:Binding Node, Converter={x:Static p:NodeGlyph.Instance}}"
-                                  p:Tint.Key="{a:Binding Node, Converter={x:Static p:TintKey.Instance}}"/>
+                                  p:Tint.Key="{a:Binding Node, Converter={x:Static p:TintKey.Instance}}" p:Tint.Muted="{a:Binding IsCut}"/>
                         </a:Border>
                       </a:Panel>
                     </a:Border>
                     <p:Pill HorizontalAlignment="Center">
                       <a:TextBlock Text="{a:Binding Name}" TextAlignment="Center" TextWrapping="Wrap"
                                    MaxLines="{a:Binding $parent[AxListBox].(p:TileMetrics.Lines)}"
-                                   TextTrimming="CharacterEllipsis"/>
+                                   TextTrimming="CharacterEllipsis"
+                                   AxText.Tone="{a:Binding IsCut, Converter={x:Static p:CutTone.Instance}}"/>
                     </p:Pill>
                   </a:StackPanel>
                 </a:DataTemplate>
@@ -367,11 +369,12 @@
                     <AxIcon a:DockPanel.Dock="Left" VerticalAlignment="Center"
                             Margin="{a:DynamicResource AxGapIconTextThickness}"
                             Data="{a:Binding Node, Converter={x:Static p:NodeGlyph.Instance}}"
-                            p:Tint.Key="{a:Binding Node, Converter={x:Static p:TintKey.Instance}}"/>
+                            p:Tint.Key="{a:Binding Node, Converter={x:Static p:TintKey.Instance}}" p:Tint.Muted="{a:Binding IsCut}"/>
                     <a:Grid ColumnDefinitions="*,Auto" ColumnSpacing="{a:DynamicResource AxGapIconText}"
                             HorizontalAlignment="Left" VerticalAlignment="Center"
                             Margin="{a:DynamicResource AxTreeViewItemPadding}">
-                      <a:TextBlock Text="{a:Binding Name}" TextTrimming="CharacterEllipsis"/>
+                      <a:TextBlock Text="{a:Binding Name}" TextTrimming="CharacterEllipsis"
+                                 AxText.Tone="{a:Binding IsCut, Converter={x:Static p:CutTone.Instance}}"/>
                       <a:TextBlock a:Grid.Column="1" Text="{a:Binding Detail}" IsVisible="{a:Binding HasDetail}" AxText.Tone="Secondary"/>
                     </a:Grid>
                   </a:DockPanel>

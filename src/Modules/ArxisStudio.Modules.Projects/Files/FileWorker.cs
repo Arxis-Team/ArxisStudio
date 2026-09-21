@@ -51,6 +51,16 @@ internal static class FileWorker
         // Что история знает о переезжающем — до переезда: после него под старым именем пусто.
         var known = store is null ? [] : Known(store, work.Pairs.Select(pair => (pair.From.Value, folders[pair])));
         var done = new List<FileMove>();
+        List<Aside> aside;
+
+        try
+        {
+            aside = SetAside(work.Pairs);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return Failed(words, e);
+        }
 
         try
         {
@@ -63,6 +73,7 @@ internal static class FileWorker
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             Undo(done, folders);
+            Restore(aside);
             return Failed(words, e);
         }
 
@@ -71,8 +82,11 @@ internal static class FileWorker
         if (!Rewrite(snapshot, changes, store, out var projects, out var failure))
         {
             Undo(done, folders);
+            Restore(aside);
             return Failed(words, failure!);
         }
+
+        var replaced = Keep(store, aside);
 
         if (store is not null)
         {
@@ -100,6 +114,13 @@ internal static class FileWorker
 
             store.Record(work.Label, HistoryOrigin.Studio,
             [
+                .. replaced.Select(item => new HistoryChange
+                {
+                    Kind = HistoryChangeKind.Deleted,
+                    Path = item.Key,
+                    Before = item.Value.Content,
+                    TooLarge = item.Value.TooLarge,
+                }),
                 .. work.Pairs.Select(pair => new HistoryChange
                 {
                     Kind = HistoryChangeKind.Moved,
@@ -119,6 +140,16 @@ internal static class FileWorker
     private static FileWorkResult Copy(FileWork work, LocalHistoryStore? store, FileWords words)
     {
         var created = new List<string>();
+        List<Aside> aside;
+
+        try
+        {
+            aside = SetAside(work.Pairs);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return Failed(words, e);
+        }
 
         try
         {
@@ -141,8 +172,11 @@ internal static class FileWorker
             for (var at = created.Count - 1; at >= 0; at--)
                 Quietly(() => Erase(created[at]));
 
+            Restore(aside);
             return Failed(words, e);
         }
+
+        var replaced = Keep(store, aside);
 
         if (store is not null)
         {
@@ -154,13 +188,24 @@ internal static class FileWorker
                     continue;
 
                 store.Learn(file, state);
-                changes.Add(new HistoryChange
-                {
-                    Kind = HistoryChangeKind.Created,
-                    Path = file,
-                    After = state.Content,
-                    TooLarge = state.TooLarge,
-                });
+
+                // Заменённый файл — правка, а не появление: у него было прежнее содержимое.
+                changes.Add(replaced.TryGetValue(file, out var before)
+                    ? new HistoryChange
+                    {
+                        Kind = HistoryChangeKind.Modified,
+                        Path = file,
+                        Before = before.Content,
+                        After = state.Content,
+                        TooLarge = state.TooLarge,
+                    }
+                    : new HistoryChange
+                    {
+                        Kind = HistoryChangeKind.Created,
+                        Path = file,
+                        After = state.Content,
+                        TooLarge = state.TooLarge,
+                    });
             }
 
             foreach (var folder in created.Where(Directory.Exists))
@@ -392,6 +437,83 @@ internal static class FileWorker
     }
 
     /// <summary>
+    /// Откладывает файлы, которые просят заменить, под временное имя: пока правка не прошла, их можно
+    /// вернуть, а стёртое на месте уже не вернуть ничем.
+    /// </summary>
+    /// <remarks>
+    /// Имя кончается на <c>.tmp</c> — его не видят ни слежение за составом, ни локальная история. Не
+    /// отложился один — возвращаются отложенные раньше, и правка отказывает до первого переноса.
+    /// </remarks>
+    private static List<Aside> SetAside(IEnumerable<FileMove> pairs)
+    {
+        var aside = new List<Aside>();
+
+        try
+        {
+            foreach (var pair in pairs.Where(pair => pair.Replace && File.Exists(pair.To.Value)))
+            {
+                var temporary = $"{pair.To.Value}.arxis-{Guid.NewGuid():N}.tmp";
+
+                File.Move(pair.To.Value, temporary);
+                aside.Add(new Aside(pair.To.Value, temporary));
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Restore(aside);
+            throw;
+        }
+
+        return aside;
+    }
+
+    /// <summary>
+    /// Возвращает отложенное на место — если место свободно: занятое значит, что откат не вернул
+    /// новое, и стереть его значило бы потерять единственную его копию.
+    /// </summary>
+    private static void Restore(List<Aside> aside)
+    {
+        for (var at = aside.Count - 1; at >= 0; at--)
+        {
+            var item = aside[at];
+
+            if (!File.Exists(item.Target))
+                Quietly(() => File.Move(item.Temporary, item.Target));
+        }
+    }
+
+    /// <summary>
+    /// Правка прошла: прежнее содержимое заменённых — в историю, а отложенные файлы — прочь.
+    /// </summary>
+    /// <returns>Что было на месте каждого заменённого; без истории — пусто.</returns>
+    private static Dictionary<string, HistoryFileState> Keep(LocalHistoryStore? store, List<Aside> aside)
+    {
+        var replaced = new Dictionary<string, HistoryFileState>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var item in aside)
+        {
+            if (store is not null)
+            {
+                var info = new FileInfo(item.Temporary);
+                var state = store.Known(item.Target) is { } known && known.Looks(info.Length, info.LastWriteTimeUtc)
+                    ? known
+                    : store.Capture(item.Temporary);
+
+                // Прежнее состояние места забывается: на нём теперь другой файл, и узнавать его
+                // будут заново.
+                store.Forget(item.Target);
+
+                if (state is not null)
+                    replaced[item.Target] = state;
+            }
+
+            Quietly(() => Erase(item.Temporary));
+        }
+
+        return replaced;
+    }
+
+    /// <summary>
     /// Переносит путь; смену одного регистра .NET делает сам — и у файла, и у папки, — и
     /// временного имени ей не нужно.
     /// </summary>
@@ -482,6 +604,11 @@ internal static class FileWorker
             // Откат — лучшее, что можно сделать; отказ отката человек увидит в самом итоге правки.
         }
     }
+
+    /// <summary>Файл, отложенный под временное имя, пока на его место встаёт новый.</summary>
+    /// <param name="Target">Где он лежал.</param>
+    /// <param name="Temporary">Где он лежит сейчас.</param>
+    private sealed record Aside(string Target, string Temporary);
 
     private static FileWorkResult Done(FilesChangedEventArgs change) =>
         new(ProjectOperationResult.Succeeded(), change);

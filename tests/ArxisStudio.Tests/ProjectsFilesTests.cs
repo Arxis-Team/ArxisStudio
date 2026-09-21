@@ -423,6 +423,151 @@ public sealed class ProjectsFilesTests : IDisposable
         Assert.DoesNotContain("Readme", File.ReadAllText(Path.Combine(App, "App.csproj")), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Копия берёт источник и вне решения — так файлы из проводника вставляются в проект, — а
+    /// назначение по-прежнему сторожится.
+    /// </summary>
+    [Fact]
+    public async Task A_file_from_outside_the_solution_is_copied_in()
+    {
+        using var studio = await OpenAsync();
+
+        var outside = Directory.CreateDirectory(Path.Combine(_root, "outside")).FullName;
+        var logo = CanonicalPath.Create(Path.Combine(outside, "logo.png"));
+
+        File.WriteAllText(logo.Value, "картинка");
+
+        var result = await studio.Files.CopyAsync([new FileMove(logo, Canon("logo.png"))], "Вставка logo.png", Token);
+
+        Assert.False(result.HasErrors, Said(result));
+        Assert.Equal("картинка", File.ReadAllText(At("logo.png")));
+        Assert.True(File.Exists(logo.Value), "копия унесла источник");
+        Assert.Equal(HistoryChangeKind.Created, Assert.Single(Store(studio).Actions[^1].Changes).Kind);
+
+        Assert.Equal(ProjectsDiagnosticCodes.OutsideProjects,
+            Code(await studio.Files.CopyAsync([new FileMove(logo, CanonicalPath.Create(Path.Combine(outside, "copy.png")))], "Копия", Token)));
+    }
+
+    /// <summary>
+    /// Занятый файл заменяется, когда просят, — и при копии, и при переносе, — а прежнее содержимое
+    /// остаётся в истории тем же действием.
+    /// </summary>
+    [Fact]
+    public async Task A_taken_file_is_replaced_and_its_content_stays_in_the_history()
+    {
+        using var studio = await OpenAsync();
+
+        var settings = File.ReadAllBytes(At("appsettings.json"));
+        var greeter = File.ReadAllBytes(At("Greeter.cs"));
+        var store = Store(studio);
+
+        var copied = await studio.Files.CopyAsync(
+            [new FileMove(Canon("Greeter.cs"), Canon("appsettings.json")) { Replace = true }], "Вставка Greeter.cs", Token);
+
+        Assert.False(copied.HasErrors, Said(copied));
+        Assert.Equal(greeter, File.ReadAllBytes(At("appsettings.json")));
+
+        var modified = Assert.Single(store.Actions[^1].Changes);
+
+        Assert.Equal(HistoryChangeKind.Modified, modified.Kind);
+        Assert.Equal(settings, store.Read(modified.Before!.Value));
+
+        var moved = await studio.Files.MoveAsync(
+            [new FileMove(Canon("Views/Readme.txt"), Canon("Greeter.cs")) { Replace = true }], "Перенос Readme.txt", Token);
+
+        Assert.False(moved.HasErrors, Said(moved));
+        Assert.Equal("прочти", File.ReadAllText(At("Greeter.cs")));
+        Assert.False(File.Exists(At("Views/Readme.txt")), "перенос оставил источник");
+
+        var changes = store.Actions[^1].Changes;
+        var gone = Assert.Single(changes, change => change.Kind == HistoryChangeKind.Deleted);
+
+        Assert.Equal(At("Greeter.cs"), gone.Path);
+        Assert.Equal(greeter, store.Read(gone.Before!.Value));
+        Assert.Contains(changes, change => change is { Kind: HistoryChangeKind.Moved } && change.Path == At("Greeter.cs"));
+        Assert.Equal(store.Capture(At("Greeter.cs"))!.Content, store.Known(At("Greeter.cs"))?.Content);
+        Assert.Empty(Directory.GetFiles(Lib, "*.tmp", SearchOption.AllDirectories));
+    }
+
+    /// <summary>
+    /// Замена, которой диск отказал, возвращает заменяемый файл на место — тем, чем он был.
+    /// </summary>
+    [Fact]
+    public async Task A_replace_the_disk_refused_puts_the_replaced_file_back()
+    {
+        using var studio = await OpenAsync();
+
+        var settings = File.ReadAllBytes(At("appsettings.json"));
+
+        Result result;
+
+        using (new FileStream(At("Greeter.cs"), FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+            result = new Result(await studio.Files.MoveAsync(
+                [new FileMove(Canon("Greeter.cs"), Canon("appsettings.json")) { Replace = true }], "Перенос", Token));
+        }
+
+        Assert.Equal(ProjectsDiagnosticCodes.FileOperationFailed, result.Code);
+        Assert.Equal(settings, File.ReadAllBytes(At("appsettings.json")));
+        Assert.True(File.Exists(At("Greeter.cs")), "источник пропал");
+        Assert.Empty(Directory.GetFiles(Lib, "*.tmp", SearchOption.AllDirectories));
+        Assert.Empty(Store(studio).Actions);
+    }
+
+    /// <summary>Папку на месте назначения служба не сливает и не стирает — занятая папка остаётся отказом.</summary>
+    [Fact]
+    public async Task A_taken_folder_is_not_replaced()
+    {
+        using var studio = await OpenAsync();
+
+        Directory.CreateDirectory(At("Screens"));
+
+        Assert.Equal(ProjectsDiagnosticCodes.TargetExists,
+            Code(await studio.Files.CopyAsync([new FileMove(Canon("Views"), Canon("Screens")) { Replace = true }], "Копия", Token)));
+        Assert.Equal(ProjectsDiagnosticCodes.TargetExists,
+            Code(await studio.Files.MoveAsync([new FileMove(Canon("Greeter.cs"), Canon("Views")) { Replace = true }], "Перенос", Token)));
+        Assert.Equal(ProjectsDiagnosticCodes.TargetExists,
+            Code(await studio.Files.MoveAsync([new FileMove(Canon("Views"), Canon("Greeter.cs")) { Replace = true }], "Перенос", Token)));
+        Assert.True(Directory.Exists(At("Views")) && File.Exists(At("Greeter.cs")), "отказ тронул диск");
+    }
+
+    /// <summary>
+    /// Замена файлом, которого история ещё не видела, оставляет ей знание о новом содержимом места, а
+    /// не о прежнем: иначе пачка наблюдателя записала бы правку, которой не было.
+    /// </summary>
+    /// <remarks>
+    /// Проверяется само последствие — лишнее внешнее действие: знание о месте наблюдатель поправил бы и
+    /// сам, записав при этом чужую правку поверх своей.
+    /// </remarks>
+    [Fact]
+    public async Task A_replace_by_an_unknown_file_leaves_the_history_knowing_the_new_content()
+    {
+        using var studio = await OpenAsync();
+
+        File.WriteAllText(At("Fresh.cs"), "class Fresh { }");
+
+        var result = await studio.Files.MoveAsync(
+            [new FileMove(Canon("Fresh.cs"), Canon("Greeter.cs")) { Replace = true }], "Перенос Fresh.cs", Token);
+
+        Assert.False(result.HasErrors, Said(result));
+        Assert.Equal("class Fresh { }", File.ReadAllText(At("Greeter.cs")));
+
+        var host = Host(studio);
+        var watcher = host.Session?.History ?? throw new InvalidOperationException("история сессии не ведётся");
+
+        watcher.Report(At("Fresh.cs"));
+        watcher.Report(At("Greeter.cs"));
+        watcher.Flush();
+        await Settle(host.History);
+
+        var store = Store(studio);
+
+        Assert.DoesNotContain(
+            store.Actions.Where(action => action.Origin == HistoryOrigin.External).SelectMany(action => action.Changes),
+            change => change.Path == At("Greeter.cs"));
+        Assert.Equal(store.Capture(At("Greeter.cs"))!.Content, store.Known(At("Greeter.cs"))?.Content);
+    }
+
     private string History => Path.Combine(_root, "history");
 
     private string App => Path.Combine(Solution, "App");

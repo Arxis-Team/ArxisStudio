@@ -26,7 +26,8 @@ namespace ArxisStudio.Modules.Project.Panels;
 /// <param name="context">Контекст модуля: словари, строка состояния, журнал.</param>
 /// <param name="files">Служба файлов.</param>
 /// <param name="owner">Окно, которому принадлежат вопросы; пусто — спросить негде.</param>
-internal sealed class Editing(IStudioContext context, IStudioFiles files, Func<Window?> owner)
+/// <param name="system">Буфер обмена системы.</param>
+internal sealed class Editing(IStudioContext context, IStudioFiles files, Func<Window?> owner, ISystemFiles system)
 {
     /// <summary>Сколько файлов папки считать для вопроса: дальше — «больше».</summary>
     internal const int CountLimit = 1000;
@@ -35,6 +36,96 @@ internal sealed class Editing(IStudioContext context, IStudioFiles files, Func<W
 
     /// <summary>Идёт ли правка.</summary>
     public bool IsBusy => _busy;
+
+    /// <summary>Что вырезано или скопировано в окне; пусто — ничего.</summary>
+    public FileClip? Clip { get; private set; }
+
+    /// <summary>Буфер правки сменился: вырезанное приглушается и снимает приглушение по нему.</summary>
+    public event Action? ClipChanged;
+
+    /// <summary>Вырезает выбранное: вставка его перенесёт.</summary>
+    /// <param name="selection">Выбор.</param>
+    public Task CutAsync(EditSelection selection) => PutAsync(ClipMode.Cut, selection);
+
+    /// <summary>Копирует выбранное: вставка его скопирует, а проводник вставит файлы.</summary>
+    /// <param name="selection">Выбор.</param>
+    public Task CopyAsync(EditSelection selection) => PutAsync(ClipMode.Copy, selection);
+
+    /// <summary>Снимает вырезанное — Esc, как в проводнике: приглушение уходит, вставлять нечего.</summary>
+    /// <returns>Было ли что снимать.</returns>
+    public bool Uncut()
+    {
+        if (Clip is not { Mode: ClipMode.Cut } clip)
+            return false;
+
+        Take(null);
+        _ = Forget(clip);
+
+        return true;
+    }
+
+    /// <summary>
+    /// Вставляет в папку то, что лежит в буфере: своё вырезанное переносит, своё скопированное и
+    /// чужие файлы копирует; занятое имя спрашивает.
+    /// </summary>
+    /// <param name="folder">Папка назначения.</param>
+    /// <returns>Где теперь лежат вставленные корни; пусто — вставки не было.</returns>
+    public async Task<IReadOnlyList<CanonicalPath>?> PasteAsync(CanonicalPath folder)
+    {
+        if (_busy || owner() is not { } window)
+            return null;
+
+        _busy = true;
+
+        try
+        {
+            var clip = await Buffered().ConfigureAwait(true);
+
+            if (clip is null)
+            {
+                Tell(Format("project.paste.nothing"));
+                return null;
+            }
+
+            if (clip.Items.FirstOrDefault(item => Pasting.IntoItself(item, folder)) is { } inside)
+            {
+                await FailureDialog.ShowAsync(window, Format("project.paste.intoItself", inside.Root.FileName)).ConfigureAwait(true);
+                return null;
+            }
+
+            if (await Plan(window, clip, folder).ConfigureAwait(true) is not { Pairs.Count: > 0 } plan)
+                return null;
+
+            var first = plan.Roots[0].FileName;
+            var more = plan.Roots.Count - 1;
+            var cut = clip.Mode == ClipMode.Cut;
+            var label = Format(
+                (cut ? "project.paste.moved" : "project.paste.copied") + (more == 0 ? ".label" : ".label.many"),
+                first,
+                more);
+
+            var result = await Run(window, () => cut ? files.MoveAsync(plan.Pairs, label) : files.CopyAsync(plan.Pairs, label))
+                .ConfigureAwait(true);
+
+            if (result is not { HasErrors: false })
+                return null;
+
+            // Вырезанное вставляется один раз: после переноса по старым путям ничего нет.
+            if (cut)
+            {
+                Take(null);
+                await Forget(clip).ConfigureAwait(true);
+            }
+
+            Tell(Format((cut ? "project.paste.moved" : "project.paste.copied") + (more == 0 ? string.Empty : ".many"), first, more));
+
+            return plan.Roots;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
 
     /// <summary>
     /// Спрашивает и удаляет выбранное.
@@ -171,6 +262,145 @@ internal sealed class Editing(IStudioContext context, IStudioFiles files, Func<W
     }
 
     private static bool Exists(string path) => File.Exists(path) || Directory.Exists(path);
+
+    /// <summary>
+    /// Заменить можно файл файлом: у папки и у файла, место которого заняла папка, — нельзя.
+    /// </summary>
+    private static bool CanReplace(ClipItem item, CanonicalPath folder) =>
+        !item.IsFolder && Pasting.Pairs(item, folder, item.Root.FileName)
+            .Where(pair => Exists(pair.To.Value))
+            .All(pair => File.Exists(pair.To.Value));
+
+    /// <summary>
+    /// Раскладывает буфер по папке: своё место, номер при копии туда же, вопрос о занятом.
+    /// </summary>
+    /// <returns>Пары и корни на новых местах; пусто — человек бросил вставку.</returns>
+    private async Task<PastePlan?> Plan(Window window, FileClip clip, CanonicalPath folder)
+    {
+        var taken = clip.Items.Where(item => !Pasting.SameFolder(item, folder) && Pasting.Taken(item, folder, Exists)).ToList();
+        var pairs = new List<FileMove>();
+        var roots = new List<CanonicalPath>();
+        ConflictAnswer? all = null;
+        var asked = 0;
+
+        foreach (var item in clip.Items)
+        {
+            var name = item.Root.FileName;
+            var replace = false;
+
+            if (Pasting.SameFolder(item, folder))
+            {
+                // Вырезанное, вставленное туда же, остаётся где лежало; скопированное получает номер.
+                if (clip.Mode == ClipMode.Cut)
+                    continue;
+
+                name = Pasting.Free(item, folder, Exists);
+            }
+            else if (taken.Contains(item))
+            {
+                var answer = all ?? await ConflictDialog.AskAsync(
+                    window, context.Strings, folder.FileName, name, CanReplace(item, folder), taken.Count - asked - 1).ConfigureAwait(true);
+
+                asked++;
+
+                if (answer.Choice == ConflictChoice.Cancel)
+                    return null;
+
+                if (answer.ForAll)
+                    all = answer;
+
+                if (answer.Choice == ConflictChoice.Skip)
+                    continue;
+
+                // «Заменить все» у папки — оставить обе: слить папки служба не берётся, а потерять
+                // вставку человек не просил.
+                replace = answer.Choice == ConflictChoice.Replace && CanReplace(item, folder);
+
+                if (!replace)
+                    name = Pasting.Free(item, folder, Exists);
+            }
+
+            var steps = Pasting.Pairs(item, folder, name);
+
+            pairs.AddRange(replace ? steps.Select(pair => pair with { Replace = Exists(pair.To.Value) }) : steps);
+            roots.Add(steps[0].To);
+        }
+
+        return new PastePlan(pairs, roots);
+    }
+
+    /// <summary>Что вставлять: своё, если оно ещё в буфере системы, иначе чужие файлы.</summary>
+    /// <remarks>Буфер системы заняли чужим — своё вырезанное кончилось, и приглушение снимается.</remarks>
+    private async Task<FileClip?> Buffered()
+    {
+        FileClip? clip;
+
+        try
+        {
+            clip = await system.TakeAsync(Clip).ConfigureAwait(true);
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            context.Log.Write(StudioLogLevel.Warning, ProjectModule.LogSource, $"Буфер обмена не прочитался: {e.Message}");
+            clip = Clip;
+        }
+
+        if (Clip is not null && !ReferenceEquals(clip, Clip))
+            Take(null);
+
+        return clip;
+    }
+
+    private async Task PutAsync(ClipMode mode, EditSelection selection)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+
+        if (selection.IsEmpty)
+            return;
+
+        var clip = FileClip.Of(mode, selection);
+        var first = selection.Roots[0].Name;
+        var more = selection.Roots.Count - 1;
+
+        Take(clip);
+        Tell(Format((mode == ClipMode.Cut ? "project.clip.cut" : "project.clip.copied") + (more == 0 ? string.Empty : ".many"), first, more));
+
+        try
+        {
+            await system.PutAsync(clip).ConfigureAwait(true);
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            // Проводник вставить не сможет, а окно — сможет: своё состояние уже стоит.
+            context.Log.Write(StudioLogLevel.Warning, ProjectModule.LogSource, $"Файлы не легли в буфер обмена: {e.Message}");
+        }
+    }
+
+    private async Task Forget(FileClip clip)
+    {
+        try
+        {
+            await system.ForgetAsync(clip).ConfigureAwait(true);
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            context.Log.Write(StudioLogLevel.Warning, ProjectModule.LogSource, $"Буфер обмена не очистился: {e.Message}");
+        }
+    }
+
+    private void Take(FileClip? clip)
+    {
+        if (ReferenceEquals(Clip, clip))
+            return;
+
+        Clip = clip;
+        ClipChanged?.Invoke();
+    }
+
+    /// <summary>Разложенная вставка.</summary>
+    /// <param name="Pairs">Что куда.</param>
+    /// <param name="Roots">Где теперь лежат корни — на них встанет выделение.</param>
+    private sealed record PastePlan(IReadOnlyList<FileMove> Pairs, IReadOnlyList<CanonicalPath> Roots);
 
     /// <summary>Зовёт службу и говорит об отказе; исключение службы — тоже отказ, а не падение окна.</summary>
     /// <returns>Итог службы; пусто — служба бросила.</returns>

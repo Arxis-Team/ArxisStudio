@@ -234,6 +234,21 @@ internal sealed class BrowserPane : IDisposable
             case Key.F2 when e.KeyModifiers == KeyModifiers.None && _menu.Actions.Rename is { } rename:
                 rename(Selection(), EditOrigin.Pane);
                 break;
+            case Key.X when e.KeyModifiers == KeyModifiers.Control && _menu.Actions.CutFiles is { } cut:
+                cut(Selection(), EditOrigin.Pane);
+                break;
+            case Key.C when e.KeyModifiers == KeyModifiers.Control && _menu.Actions.CopyFiles is { } copy:
+                copy(Selection(), EditOrigin.Pane);
+                break;
+
+            // Вставка с клавиатуры идёт в папку, которую колонка показывает, — как в проводнике и в
+            // Unity; в найденном поиском папки нет.
+            case Key.V when e.KeyModifiers == KeyModifiers.Control && _menu.Actions.Paste is { } paste
+                            && !_model.IsSearching && _model.Browser.Current is { } here && Pasting.Folder(here) is { } folder:
+                paste(folder, EditOrigin.Pane);
+                break;
+            case Key.Escape when e.KeyModifiers == KeyModifiers.None && _menu.Actions.Uncut?.Invoke() == true:
+                break;
             case Key.Back when e.KeyModifiers == KeyModifiers.None:
                 Up();
                 break;

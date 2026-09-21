@@ -1,4 +1,5 @@
 using System.Globalization;
+using ArxisStudio.Controls;
 using ArxisStudio.Modules.Project.Looks;
 using ArxisStudio.Modules.Project.Model;
 using Avalonia;
@@ -75,6 +76,21 @@ internal sealed class TintKey : IValueConverter
     /// <inheritdoc/>
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         value is Node node ? Glyphs.TintOf(node) : null;
+
+    /// <inheritdoc/>
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>Тон подписи с поправкой на вырезанное: вырезанное, ждущее вставки, — тоном недоступного.</summary>
+internal sealed class CutTone : IValueConverter
+{
+    /// <summary>Единственный экземпляр — состояния у преобразователя нет.</summary>
+    public static CutTone Instance { get; } = new();
+
+    /// <inheritdoc/>
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is true ? AxTextTone.Disabled : AxTextTone.Primary;
 
     /// <inheritdoc/>
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>

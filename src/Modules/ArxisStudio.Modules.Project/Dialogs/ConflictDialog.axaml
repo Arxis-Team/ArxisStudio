@@ -1,0 +1,37 @@
+<!--
+    Вставка встретила занятое имя — как в проводнике и Rider: заменить, оставить оба, пропустить.
+
+    «Оставить оба» — главная и стоит под клавиатурой: она ничего не теряет. «Заменить» ставит прежний
+    файл в локальную историю, а у папки выключена — папки служба не сливает. Флажок отвечает так же
+    на остальные конфликты этой вставки и виден, только когда они есть. Esc и «Отмена» бросают всю
+    вставку: ответить за человека на половину вопросов было бы хуже, чем не вставить ничего.
+-->
+<AxDialog xmlns="https://github.com/Arxis-Team/ArxisStudio"
+          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+          xmlns:a="https://github.com/avaloniaui"
+          xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
+          x:Class="ArxisStudio.Modules.Project.Dialogs.ConflictDialog"
+          Title="{Text project.conflict.title}">
+
+  <AxDialog.AlertIcon>
+    <AxIcon Data="{x:Static ax:AxIcons.Warning}" Foreground="{a:DynamicResource AxWarningBrush}"/>
+  </AxDialog.AlertIcon>
+
+  <a:StackPanel Spacing="{a:DynamicResource AxSpaceTight}" MaxWidth="420">
+    <a:TextBlock x:Name="Question" TextWrapping="Wrap"/>
+    <a:TextBlock x:Name="Folders" Text="{Text project.conflict.folder}" TextWrapping="Wrap"
+                 AxText.Tone="Secondary" IsVisible="False"/>
+    <AxCheckBox x:Name="ForAll" IsVisible="False"/>
+  </a:StackPanel>
+
+  <AxDialog.Buttons>
+    <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxGapControls}">
+      <AxButton x:Name="Cancel" Content="{Text common.cancel}" MinWidth="{a:DynamicResource AxDialogButtonMinWidth}"/>
+      <AxButton x:Name="Skip" Content="{Text project.conflict.skip}" MinWidth="{a:DynamicResource AxDialogButtonMinWidth}"/>
+      <AxButton x:Name="Replace" Content="{Text project.conflict.replace}" MinWidth="{a:DynamicResource AxDialogButtonMinWidth}"/>
+      <AxButton x:Name="Both" Appearance="Primary" Content="{Text project.conflict.both}"
+                MinWidth="{a:DynamicResource AxDialogButtonMinWidth}"/>
+    </a:StackPanel>
+  </AxDialog.Buttons>
+
+</AxDialog>
