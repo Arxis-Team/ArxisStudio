@@ -12,9 +12,10 @@ namespace ArxisStudio.Modules.Project.Model;
 /// анализаторы, пустые группы опущены, — затем папки и файлы. Файл, зависимый от другого, стоит под
 /// ним: <c>App.axaml.cs</c> под <c>App.axaml</c>.
 /// <para>
-/// Дерево строится целиком из снимка и множества путей, которые есть на диске, и больше ничего не
-/// спрашивает: ни диска — это сделал <see cref="DiskProbe"/>, — ни словаря — подписи пришли в
-/// <see cref="Words"/>. Поэтому строить его можно вне потока интерфейса, а проверять — без окна.
+/// Дерево строится целиком из снимка и ответа диска — какие пути есть и какие папки лежат пустыми, —
+/// и больше ничего не спрашивает: ни диска — это сделал <see cref="DiskProbe"/>, — ни словаря —
+/// подписи пришли в <see cref="Words"/>. Поэтому строить его можно вне потока интерфейса, а
+/// проверять — без окна.
 /// </para>
 /// </remarks>
 public static class SolutionTree
@@ -24,12 +25,12 @@ public static class SolutionTree
 
     /// <summary>Строит дерево.</summary>
     /// <param name="snapshot">Снимок решения.</param>
-    /// <param name="present">Пути, которые есть на диске, — ответ <see cref="DiskProbe"/>.</param>
+    /// <param name="disk">Что есть на диске — ответ <see cref="DiskProbe"/>.</param>
     /// <param name="words">Подписи на языке студии.</param>
-    public static Node Build(SolutionSnapshot snapshot, IReadOnlySet<CanonicalPath> present, Words words)
+    public static Node Build(SolutionSnapshot snapshot, DiskAnswer disk, Words words)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        ArgumentNullException.ThrowIfNull(present);
+        ArgumentNullException.ThrowIfNull(disk);
         ArgumentNullException.ThrowIfNull(words);
 
         var entry = snapshot.EntryPoint.Path;
@@ -66,7 +67,7 @@ public static class SolutionTree
         {
             var parent = owners.TryGetValue(project.Identity, out var folder) ? folder : root;
 
-            parent.Add(ProjectNode(snapshot, project, present, words, home));
+            parent.Add(ProjectNode(snapshot, project, disk, words, home));
         }
 
         Sort(root);
@@ -86,7 +87,7 @@ public static class SolutionTree
     }
 
     private static Node ProjectNode(
-        SolutionSnapshot snapshot, ProjectSnapshot project, IReadOnlySet<CanonicalPath> present, Words words, CanonicalPath home)
+        SolutionSnapshot snapshot, ProjectSnapshot project, DiskAnswer disk, Words words, CanonicalPath home)
     {
         var file = project.ProjectFilePath;
         var key = "p:" + file.Value;
@@ -115,7 +116,7 @@ public static class SolutionTree
         if (Dependencies(snapshot, project, words, key) is { } dependencies)
             node.Add(dependencies);
 
-        Items(project, present, node, key, home);
+        Items(project, disk, node, key, home);
 
         return node;
     }
@@ -188,7 +189,7 @@ public static class SolutionTree
             Path.GetFileNameWithoutExtension(reference.AssemblyPath.FileName), (string?)null, reference.AssemblyPath)),
     };
 
-    private static void Items(ProjectSnapshot project, IReadOnlySet<CanonicalPath> present, Node node, string key, CanonicalPath home)
+    private static void Items(ProjectSnapshot project, DiskAnswer disk, Node node, string key, CanonicalPath home)
     {
         var filter = new ItemFilter(project);
         var folders = new Dictionary<string, Node>(StringComparer.OrdinalIgnoreCase) { [string.Empty] = node };
@@ -197,7 +198,7 @@ public static class SolutionTree
 
         foreach (var item in project.Items)
         {
-            if (!filter.Shows(item, out var relative) || !present.Contains(item.FullPath) || !placed.Add(item.FullPath))
+            if (!filter.Shows(item, out var relative) || !disk.Present.Contains(item.FullPath) || !placed.Add(item.FullPath))
                 continue;
 
             // Явная папка стоит и пустой: её объявили, чтобы она была видна, и лист без шеврона —
@@ -227,7 +228,32 @@ public static class SolutionTree
             files.Add((file, directory, item));
         }
 
+        Empty(project, disk, filter, folders, node, key, home);
         Nest(files);
+    }
+
+    /// <summary>
+    /// Ставит пустые папки с диска — как Rider: папка SDK-проекта — то, что лежит на диске, и
+    /// опустевшая после удаления последнего файла не пропадает, а остаётся листом без шеврона.
+    /// </summary>
+    /// <remarks>
+    /// Папка встаёт только под тем, что дерево уже показало, — под проектом, папкой его файлов или
+    /// другой пустой: короткие пути идут первыми, поэтому пустой родитель заведён раньше. Папку чужого
+    /// проекта, лежащего внутри этого, дерево так и не покажет: её родителя этот проект не показывает.
+    /// </remarks>
+    private static void Empty(
+        ProjectSnapshot project, DiskAnswer disk, ItemFilter filter, Dictionary<string, Node> folders, Node node, string key, CanonicalPath home)
+    {
+        foreach (var path in disk.Empty.Where(path => path.StartsWith(project.ProjectDirectory)).OrderBy(path => path.Value.Length))
+        {
+            if (!filter.ShowsFolder(path, out var relative))
+                continue;
+
+            var slash = relative.LastIndexOf('/');
+
+            if (folders.ContainsKey(slash < 0 ? string.Empty : relative[..slash]))
+                Folder(folders, node, key, relative, path, home);
+        }
     }
 
     /// <summary>Находит или заводит цепочку папок до относительного пути.</summary>

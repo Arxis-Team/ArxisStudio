@@ -54,7 +54,7 @@ public class ProjectWindowIntegrationTests : IDisposable
         Assert.True(result.HasSnapshot, string.Join("; ", result.Diagnostics.Select(diagnostic => $"{diagnostic.Code} {diagnostic.Message}")));
 
         var snapshot = result.Snapshot!;
-        var tree = SolutionTree.Build(snapshot, DiskProbe.Present(snapshot, token), Words.English);
+        var tree = SolutionTree.Build(snapshot, DiskProbe.Probe(snapshot, token), Words.English);
 
         // Зависимости — дело SDK: состав анализаторов меняется от версии к версии, и форма дерева
         // сверяется без их содержимого.

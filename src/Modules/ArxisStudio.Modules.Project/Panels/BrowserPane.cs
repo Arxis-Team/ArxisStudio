@@ -64,6 +64,8 @@ internal sealed class BrowserPane : IDisposable
 
         foreach (var list in Lists)
         {
+            list.Focusable = true;
+            list.GotFocus += OnListFocused;
             list.DoubleTapped += OnDoubleTapped;
             list.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
             list.SelectionChanged += OnSelectionChanged;
@@ -88,6 +90,7 @@ internal sealed class BrowserPane : IDisposable
     {
         foreach (var list in Lists)
         {
+            list.GotFocus -= OnListFocused;
             list.DoubleTapped -= OnDoubleTapped;
             list.RemoveHandler(InputElement.KeyDownEvent, OnKeyDown);
             list.SelectionChanged -= OnSelectionChanged;
@@ -153,11 +156,17 @@ internal sealed class BrowserPane : IDisposable
 
     /// <summary>Выделяет плитку на месте — ту, что заняла место удалённой, — и отдаёт ей клавиатуру.</summary>
     /// <param name="at">Место; за концом — последняя плитка.</param>
+    /// <remarks>
+    /// Плиток не осталось — папка опустела и стоит пустой, — и клавиатура остаётся в колонке: плитка,
+    /// на которой она была, ушла вместе с удалённым, а Ctrl+Z и Backspace ждут её здесь.
+    /// </remarks>
     public void SelectAt(int at)
     {
         var items = _model.Browser.Items;
 
-        if (items.Count > 0 && at >= 0)
+        if (items.Count == 0)
+            Shown.Focus(NavigationMethod.Directional);
+        else if (at >= 0)
             Stand(items[Math.Min(at, items.Count - 1)], focus: true);
     }
 
@@ -404,6 +413,28 @@ internal sealed class BrowserPane : IDisposable
 
         if (focus)
             (list.ContainerFromItem(tile) as Control)?.Focus(NavigationMethod.Directional);
+    }
+
+    /// <summary>
+    /// Клавиатура пришла в сам список, а не в плитку: в пустой папке она там и остаётся, а при плитках
+    /// уходит на выбранную, без выбора — на первую: стрелки ходят от плитки, а не от списка.
+    /// </summary>
+    /// <remarks>
+    /// Клавиатуру список принимает ради пустой папки. Удалив последний файл, человек остаётся в
+    /// опустевшей папке, и Ctrl+Z, Ctrl+V и Backspace ждут его здесь; а щелчок по пустому месту
+    /// колонки уводит в неё клавиатуру, как в проводнике и в Unity, — вставить в пустую папку иначе
+    /// было бы нечем.
+    /// </remarks>
+    private void OnListFocused(object? sender, FocusChangedEventArgs e)
+    {
+        if (sender is not AxListBox list || !ReferenceEquals(e.Source, list)
+            || (list.SelectedItem as Tile ?? _model.Browser.Items.FirstOrDefault()) is not { } tile)
+        {
+            return;
+        }
+
+        list.ScrollIntoView(tile);
+        (list.ContainerFromItem(tile) as Control)?.Focus(e.NavigationMethod);
     }
 
     /// <summary>Плитка, в которой пришлось событие.</summary>

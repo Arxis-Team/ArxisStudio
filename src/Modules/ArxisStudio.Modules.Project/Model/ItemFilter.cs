@@ -11,7 +11,9 @@ namespace ArxisStudio.Modules.Project.Model;
 /// исходниками — их MSBuild и перечисляет затем, чтобы проверить, есть ли они, — выход сборки,
 /// один и тот же файл под двумя типами элементов. Здесь отсекается всё, что показывать нельзя
 /// независимо от диска; что файла на самом деле нет, говорит <see cref="DiskProbe"/>, и обе стороны
-/// спрашивают одно и то же правило — иначе одна показывала бы то, о чём другая не спросила.
+/// спрашивают одно и то же правило — иначе одна показывала бы то, о чём другая не спросила. Пустая
+/// папка, которой в снимке нет вовсе, спрашивает своё правило — <see cref="ShowsFolder"/>, — и его же
+/// спрашивает слежение окна за папками.
 /// <para>
 /// Заводится один раз на проект: пути выхода сборки у проекта одни, а элементов у него тысячи.
 /// </para>
@@ -114,6 +116,42 @@ public sealed class ItemFilter
         }
 
         if (_output.Contains(segments[0]))
+            return false;
+
+        relative = place;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Может ли папка с диска стоять в дереве проекта, и где.
+    /// </summary>
+    /// <param name="path">Папка.</param>
+    /// <param name="relative">Путь в проекте через прямую черту; пусто, если не показывается.</param>
+    /// <returns>Может ли папка стоять в дереве.</returns>
+    /// <remarks>
+    /// Правила элемента, и одно строже: папка с точкой не показывается и последним сегментом. Файл
+    /// <c>.editorconfig</c> — обычный файл проекта, а пустые <c>.vs</c> и <c>.idea</c> — служебные
+    /// папки среды, и места в проекте у них нет. Ссылок <c>Link</c> у папки с диска не бывает: её
+    /// место — путь от папки проекта.
+    /// </remarks>
+    public bool ShowsFolder(CanonicalPath path, out string relative)
+    {
+        relative = string.Empty;
+
+        var home = _project.ProjectDirectory;
+
+        if (path.IsEmpty || path == home || !path.StartsWith(home))
+            return false;
+
+        var place = path.Value[home.Value.Length..].Replace('\\', '/').Trim('/');
+
+        if (place.Length == 0)
+            return false;
+
+        var segments = place.Split('/');
+
+        if (segments.Any(segment => segment.Length == 0 || segment[0] == '.') || _output.Contains(segments[0]))
             return false;
 
         relative = place;

@@ -41,6 +41,12 @@ internal enum ProjectState
 /// снимок, пришедший, пока диск отвечал о прежнем, делает прежний ответ ненужным.
 /// </para>
 /// <para>
+/// Пустые папки дерево берёт с диска, и о них служба не скажет: состав проекта от них не меняется.
+/// Поэтому за папками окно следит само (<see cref="FolderWatch"/>) и, когда они сменились, строит
+/// дерево из того же снимка заново — пока служба не перечитывает модель: её снимок и так придёт с
+/// новым ответом диска.
+/// </para>
+/// <para>
 /// Раскладка — одна колонка или две — решает, куда идёт поиск: в одну колонку сужается дерево, в
 /// две ищет правая колонка по всему решению, как «Search: All» у Unity, а дерево слева остаётся
 /// картой. Смена раскладки переносит запрос, а не теряет его.
@@ -50,6 +56,7 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
 {
     private readonly IStudioContext _context;
     private readonly IStudioProjects? _projects;
+    private readonly FolderWatch? _folders;
     private CancellationTokenSource? _building;
     private SolutionSnapshot? _snapshot;
     private ProjectsLoad? _load;
@@ -59,6 +66,7 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
     private string? _query;
     private long _sequence = -1;
     private long _ticket;
+    private bool _moved;
     private bool _disposed;
 
     /// <summary>Заводит окно и подписывает его на службу проектов.</summary>
@@ -81,6 +89,11 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
             State = ProjectState.NoService;
             return;
         }
+
+        // Слежение отвечает в потоке системы, а дерево живёт в потоке интерфейса — туда вопрос и
+        // переносится. Модель, заведённая вне него, за папками не следит: переносить некуда.
+        if (SynchronizationContext.Current is { } ui)
+            _folders = new FolderWatch(() => ui.Post(_ => FoldersMoved(), null));
 
         _projects.Changed += OnChanged;
         Apply(_projects.Status, rebuild: true);
@@ -363,6 +376,7 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
         if (_projects is not null)
             _projects.Changed -= OnChanged;
 
+        _folders?.Dispose();
         _building?.Cancel();
         _building?.Dispose();
         _building = null;
@@ -403,6 +417,7 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
             _snapshot = null;
             _ticket++;
             _building?.Cancel();
+            _folders?.Follow(null);
             Tree.Show(null, forget: false);
             Browser.Show(null);
             Browsed();
@@ -414,15 +429,42 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
             var forget = !_entry.IsEmpty && _entry != status.EntryPoint;
 
             _entry = status.EntryPoint;
+            _folders?.Follow(snapshot);
             Build(snapshot, forget);
+        }
+        else if (_moved && !IsLoading)
+        {
+            // Папки сменились, пока служба перечитывала модель, а перечитывание нового снимка не
+            // дало — неудачная загрузка оставляет прежний. Диск спрашивается о нём.
+            Build(snapshot, forget: false);
         }
 
         Raise(null);
     }
 
+    /// <summary>
+    /// Папки на диске сменились: дерево строится из того же снимка с новым ответом диска.
+    /// </summary>
+    /// <remarks>
+    /// Пока служба перечитывает модель, постройка ждёт её снимка: он придёт с новым ответом диска и
+    /// так, а прежний, спрошенный посреди правки, показал бы переименованную папку пропавшей. Зовёт
+    /// слежение, а тест — вместо него, когда проверяет не диск, а то, что окно с сигналом делает.
+    /// </remarks>
+    internal void FoldersMoved()
+    {
+        if (_disposed || _snapshot is not { } snapshot)
+            return;
+
+        if (IsLoading)
+            _moved = true;
+        else
+            Build(snapshot, forget: false);
+    }
+
     private void Build(SolutionSnapshot snapshot, bool forget)
     {
         _snapshot = snapshot;
+        _moved = false;
 
         var ticket = ++_ticket;
         var words = Words;
@@ -436,7 +478,7 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
             ? TaskScheduler.Current
             : TaskScheduler.FromCurrentSynchronizationContext();
 
-        Settled = Task.Run(() => SolutionTree.Build(snapshot, DiskProbe.Present(snapshot, cancellation), words), cancellation)
+        Settled = Task.Run(() => SolutionTree.Build(snapshot, DiskProbe.Probe(snapshot, cancellation), words), cancellation)
             .ContinueWith(
                 built =>
                 {

@@ -422,12 +422,16 @@ public class ProjectWindowEditTests
     }
 
     /// <summary>
-    /// Папка, опустевшая после удаления, пропадает из дерева, колонка поднимается к родителю, и
+    /// Папка колонки пропала из дерева вместе с удалённым — колонка поднимается к родителю, и
     /// выделение встаёт на плитку, занявшую место пропавшей папки, — а не на первую попавшуюся.
     /// </summary>
-    /// <remarks>Так нашла живая проверка: удалив последние файлы Views, колонка выделяла «Зависимости».</remarks>
+    /// <remarks>
+    /// Опустевшая папка не пропадает: она стоит на диске, и дерево показывает её пустой. Здесь файлы
+    /// остаются на диске, а проект их больше не называет, — так папка пропадает, как пропадает папка,
+    /// которую убрали мимо окна. Так нашла живая проверка: колонка, поднявшись, выделяла «Зависимости».
+    /// </remarks>
     [AvaloniaFact]
-    public async Task When_the_folder_empties_its_neighbour_takes_its_place_one_level_up()
+    public async Task When_the_folder_vanishes_its_neighbour_takes_its_place_one_level_up()
     {
         var files = new FilesProbe();
 
@@ -451,6 +455,81 @@ public class ProjectWindowEditTests
 
         Assert.True(place > 0, "папка стояла первой — проверка не отличила бы соседа от первой плитки");
         Assert.Equal(studio.Model.Browser.Items[place].Name, pane.Selected!.Name);
+    }
+
+    /// <summary>
+    /// Удалив последний файл папки, колонка остаётся в опустевшей папке — она стоит на диске и в
+    /// дереве, как у Rider и Unity, — и клавиатура остаётся в колонке.
+    /// </summary>
+    /// <remarks>
+    /// Так нашёл человек: удалив <c>avalonia-logo.ico</c>, он терял <c>Assets</c> и в дереве, и в
+    /// колонке — окно брало папки только из элементов проекта. Плитки, на которой стояла клавиатура,
+    /// больше нет, а <c>Ctrl+Z</c> и <c>Backspace</c> ждут её в колонке.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task Deleting_the_last_file_leaves_its_folder_standing_empty()
+    {
+        var files = new FilesProbe();
+
+        using var studio = await Opened(files, twoColumns: true);
+
+        var pane = studio.Panel.Pane!;
+
+        studio.Select("Assets");
+
+        var logo = Tile(studio, "avalonia-logo.ico").Node;
+
+        pane.Select(logo, focus: true);
+        files.After = () =>
+        {
+            File.Delete(logo.Path.Value);
+            studio.Projects.Publish(ProjectWindowStudio.Ready(2, studio.Solution(without: ["Assets/avalonia-logo.ico"])));
+        };
+
+        studio.Press(pane.Shown, Key.Delete);
+        studio.Click(Part<AxButton>(Dialog<DeleteDialog>(studio), "Confirm"));
+
+        await Settled(studio, () => studio.Model.Browser.Items.Count == 0 && pane.Shown.IsKeyboardFocusWithin);
+
+        Assert.Equal("Assets", studio.Model.Browser.Current!.Name);
+        Assert.True(studio.Model.BrowserEmpty, "колонка не сказала, что папка пуста");
+        Assert.Contains(studio.Rows, row => row.Name == "Assets");
+    }
+
+    /// <summary>
+    /// Удалив последний файл папки из дерева, папка остаётся строкой без шеврона, а выделение встаёт
+    /// на строку, занявшую место удалённого.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Deleting_the_last_file_from_the_tree_keeps_its_folder_as_a_leaf()
+    {
+        var files = new FilesProbe();
+
+        using var studio = await Opened(files);
+
+        Expand(studio, "Assets");
+
+        var logo = studio.Row("avalonia-logo.ico");
+        var at = studio.Rows.IndexOf(logo);
+
+        files.After = () =>
+        {
+            File.Delete(logo.Node.Path.Value);
+            studio.Projects.Publish(ProjectWindowStudio.Ready(2, studio.Solution(without: ["Assets/avalonia-logo.ico"])));
+        };
+
+        studio.Select("avalonia-logo.ico");
+        studio.Press(studio.Item(logo), Key.Delete);
+        studio.Click(Part<AxButton>(Dialog<DeleteDialog>(studio), "Confirm"));
+
+        await Settled(studio, () => studio.Rows.All(row => row.Name != "avalonia-logo.ico") && studio.View.Tree.SelectedItem is Row);
+
+        var assets = studio.Row("Assets");
+
+        Assert.False(assets.HasChildren, "у опустевшей папки остался шеврон");
+        Assert.Equal(at - 1, studio.Rows.IndexOf(assets));
+        Assert.Equal("Models", studio.Selected.Name);
+        Assert.Equal(studio.Rows[at].Name, studio.Selected.Name);
     }
 
     private static async Task<ProjectWindowStudio> Opened(FilesProbe? files = null, bool twoColumns = false)

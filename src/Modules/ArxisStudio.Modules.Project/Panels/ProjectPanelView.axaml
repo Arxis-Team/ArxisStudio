@@ -382,10 +382,14 @@
               </AxListBox.ItemTemplate>
             </AxListBox>
 
-            <a:TextBlock IsVisible="{a:Binding BrowserEmpty}" Text="{Text project.browser.empty}"
+            <!--
+                Надписи пустой колонки мышь пропускают: щелчок по пустой папке должен прийти в список
+                под ними — он уводит в колонку клавиатуру, и вставить в пустую папку можно сразу.
+            -->
+            <a:TextBlock IsVisible="{a:Binding BrowserEmpty}" Text="{Text project.browser.empty}" IsHitTestVisible="False"
                          AxText.Tone="Secondary" HorizontalAlignment="Center" VerticalAlignment="Center"/>
 
-            <a:TextBlock IsVisible="{a:Binding BrowserNothingFound}" Text="{Text project.search.none}"
+            <a:TextBlock IsVisible="{a:Binding BrowserNothingFound}" Text="{Text project.search.none}" IsHitTestVisible="False"
                          AxText.Tone="Secondary" HorizontalAlignment="Center" VerticalAlignment="Center"/>
 
           </a:Panel>

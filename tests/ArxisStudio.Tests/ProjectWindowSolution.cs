@@ -48,6 +48,9 @@ internal sealed class ProjectWindowSolution
     /// <summary>Что есть на диске — ответ, который дала бы проверка диска.</summary>
     public HashSet<CanonicalPath> Present { get; } = [];
 
+    /// <summary>Пустые папки на диске — их проверка диска находит сама, в снимке их нет.</summary>
+    public HashSet<CanonicalPath> Empty { get; } = [];
+
     /// <summary>Проект <c>папка/имя/имя.csproj</c> от папки решения.</summary>
     /// <param name="name">Имя проекта.</param>
     /// <param name="under">Папка на диске между решением и проектом.</param>
@@ -104,6 +107,18 @@ internal sealed class ProjectWindowSolution
         return path;
     }
 
+    /// <summary>Пустая папка на диске: проект её не называет, а дерево показывает, как Rider.</summary>
+    /// <param name="project">Проект.</param>
+    /// <param name="path">Путь папки от проекта, через прямую черту.</param>
+    public CanonicalPath Bare(ProjectSnapshotBuilder project, string path)
+    {
+        var folder = project.ProjectFilePath.Directory.Combine(path);
+
+        Empty.Add(folder);
+
+        return folder;
+    }
+
     /// <summary>Папка решения со своими проектами.</summary>
     /// <param name="path">Путь папки: «/src/Libs/».</param>
     /// <param name="projects">Проекты в ней.</param>
@@ -136,11 +151,16 @@ internal sealed class ProjectWindowSolution
     }
 
     /// <summary>Дерево, каким его строит окно, с английскими подписями.</summary>
-    public Node Tree() => SolutionTree.Build(ToSnapshot(), Present, Words.English);
+    public Node Tree() => SolutionTree.Build(ToSnapshot(), new DiskAnswer(Present, Empty), Words.English);
 
-    /// <summary>Кладёт на диск всё, что «есть на диске»: файлы пустыми, объявленные папки папками.</summary>
+    /// <summary>
+    /// Кладёт на диск всё, что «есть на диске»: файлы пустыми, объявленные и пустые папки папками.
+    /// </summary>
     public ProjectWindowSolution OnDisk()
     {
+        foreach (var path in Empty)
+            Directory.CreateDirectory(path.Value);
+
         foreach (var path in Present)
         {
             if (_directories.Contains(path))

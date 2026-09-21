@@ -588,6 +588,70 @@ public class ProjectWindowTilesTests
     }
 
     /// <summary>
+    /// Клавиатура, пришедшая в саму колонку, в пустой папке остаётся в ней, а при плитках уходит на
+    /// выбранную, без выбора — на первую.
+    /// </summary>
+    /// <remarks>
+    /// Пустой папке больше некуда отдать клавиатуру, а вставить в неё хотят. При плитках же стрелки
+    /// ходят от плитки, и список, забравший клавиатуру себе, их бы не пустил. Щелчок приходится в
+    /// середину колонки — туда, где лежит надпись «Папка пуста»: живая проверка нашла, что надпись
+    /// ловила его сама, и клавиатура в колонку не шла.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task The_column_keeps_the_keyboard_itself_only_in_an_empty_folder()
+    {
+        using var studio = await TwoColumns();
+
+        var tiles = studio.View.Tiles;
+
+        studio.Select("Models");
+        studio.Press(tiles);
+
+        Assert.Same(tiles, Focused(studio));
+
+        studio.Select("App");
+        tiles.Focus(NavigationMethod.Tab);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Same(studio.Model.Browser.Items[0], Focused(studio).DataContext);
+
+        tiles.SelectedItem = studio.Model.Browser.Items.Single(tile => tile.Name == "Views");
+        tiles.Focus(NavigationMethod.Tab);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Same(tiles.SelectedItem, Focused(studio).DataContext);
+    }
+
+    /// <summary>
+    /// Щелчок по невыбранной плитке оставляет клавиатуру на ней: к выбранной прежде её уводит только
+    /// приход в сам список, а не в плитку.
+    /// </summary>
+    /// <remarks>
+    /// Клавиатура приходит в плитку раньше, чем щелчок её выбирает, и колонка, отдававшая выбранной
+    /// всякий приход, увела бы её на прежнюю: выбор на одной плитке, стрелки — от другой.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_click_on_a_tile_keeps_the_keyboard_on_that_tile()
+    {
+        using var studio = await TwoColumns();
+
+        var tiles = studio.View.Tiles;
+
+        studio.Select("App");
+
+        var views = TileItem(studio, "Views");
+
+        tiles.SelectedItem = views.DataContext;
+        views.Focus();
+        Dispatcher.UIThread.RunJobs();
+
+        studio.Press(TileItem(studio, "App.axaml"));
+
+        Assert.Equal("App.axaml", Assert.IsType<Tile>(tiles.SelectedItem).Name);
+        Assert.Same(tiles.SelectedItem, Focused(studio).DataContext);
+    }
+
+    /// <summary>
     /// Поиск в две колонки заполняет правую колонку, а найденное ведёт в свою папку.
     /// </summary>
     [AvaloniaFact]

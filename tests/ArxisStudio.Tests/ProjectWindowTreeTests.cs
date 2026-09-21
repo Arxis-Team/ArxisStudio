@@ -9,8 +9,8 @@ namespace ArxisStudio.Tests;
 /// Дерево решения окна проекта: из снимка — так, как решение показывает Rider.
 /// </summary>
 /// <remarks>
-/// Построитель чистый — снимок, множество путей на диске и подписи на входе, дерево на выходе, — и
-/// проверяется без окна. Снимок — вычисление MSBuild, а не содержимое папки: элементов в нём больше,
+/// Построитель чистый — снимок, ответ диска и подписи на входе, дерево на выходе, — и проверяется
+/// без окна. Снимок — вычисление MSBuild, а не содержимое папки: элементов в нём больше,
 /// чем файлов, и главная работа построителя — не показать лишнего.
 /// </remarks>
 public class ProjectWindowTreeTests
@@ -414,7 +414,7 @@ public class ProjectWindowTreeTests
 
             snapshot.Projects.Add(app.ToSnapshot());
 
-            var present = DiskProbe.Present(snapshot.ToSnapshot(), TestContext.Current.CancellationToken);
+            var present = DiskProbe.Probe(snapshot.ToSnapshot(), TestContext.Current.CancellationToken).Present;
 
             Assert.Equal(
                 new[] { "Models", "Program.cs" },
@@ -432,6 +432,186 @@ public class ProjectWindowTreeTests
     {
         var snapshot = ProjectWindowSolution.Avalonia().ToSnapshot();
 
-        Assert.Throws<OperationCanceledException>(() => DiskProbe.Present(snapshot, new CancellationToken(canceled: true)));
+        Assert.Throws<OperationCanceledException>(() => DiskProbe.Probe(snapshot, new CancellationToken(canceled: true)));
+    }
+
+    /// <summary>
+    /// Папка, опустевшая после удаления последнего файла, стоит в дереве листом — как у Rider.
+    /// </summary>
+    /// <remarks>
+    /// Так нашёл человек: удалив <c>avalonia-logo.ico</c>, он терял и <c>Assets</c> — дерево брало
+    /// папки только из элементов проекта, а у опустевшей их нет. Папка стоит среди папок, по имени, и
+    /// путь у неё настоящий: её можно удалить, переименовать и вставить в неё.
+    /// </remarks>
+    [Fact]
+    public void A_folder_emptied_of_its_last_file_stays_as_a_leaf()
+    {
+        var solution = ProjectWindowSolution.Avalonia(without: ["Assets/avalonia-logo.ico"]);
+        var assets = solution.Home.Combine(Path.Combine("src", "App", "Assets"));
+
+        solution.Empty.Add(assets);
+
+        var tree = solution.Tree();
+
+        Assert.Equal(
+            """
+            Hello · 2 projects
+              src
+                App
+                  Dependencies net10.0
+                  Assets
+                  Models
+                  Views
+                    MainWindow.axaml
+                      MainWindow.axaml.cs
+                  App.axaml
+                    App.axaml.cs
+                  app.manifest
+                  Program.cs
+                Lib
+                  Class1.cs
+            """.ReplaceLineEndings("\n"),
+            ProjectWindowSolution.Shape(tree, dependencies: false));
+
+        var folder = tree.Descendants().Single(node => node.Name == "Assets");
+
+        Assert.Equal(NodeKind.Folder, folder.Kind);
+        Assert.Equal(assets, folder.Path);
+        Assert.Empty(folder.Children);
+    }
+
+    /// <summary>
+    /// Пустая папка встаёт только под тем, что дерево показывает, — служебная и выход сборки не
+    /// встают и пустыми.
+    /// </summary>
+    /// <remarks>
+    /// Пустая в показанной папке встаёт в неё, пустая в пустой — цепочкой. Пустая внутри папки,
+    /// которую проект прячет, не встаёт: иначе она вытащила бы спрятанную на свет.
+    /// </remarks>
+    [Fact]
+    public void An_empty_folder_stands_only_under_what_the_tree_shows()
+    {
+        var solution = new ProjectWindowSolution();
+        var app = solution.Project("App");
+
+        app.Properties["OutputPath"] = "build\\Debug\\";
+
+        solution.File(app, "Program.cs");
+        solution.File(app, "Views/Main.axaml", "AvaloniaXaml");
+
+        // Вложенная идёт раньше родителя: в каком порядке ответил диск, дереву всё равно.
+        foreach (var folder in (string[])["Fonts/Mono", "Fonts", "Views/Empty", "Hidden/Empty", ".idea", "Views/.cache", "bin", "build"])
+            solution.Bare(app, folder);
+
+        Assert.Equal(
+            """
+            Hello · 1 project
+              App
+                Fonts
+                  Mono
+                Views
+                  Empty
+                  Main.axaml
+                Program.cs
+            """.ReplaceLineEndings("\n"),
+            ProjectWindowSolution.Shape(solution.Tree()));
+    }
+
+    /// <summary>
+    /// Проверка диска находит пустые папки там, где дерево их показало бы, — и только пустые.
+    /// </summary>
+    /// <remarks>
+    /// Пустая — без единого файла ни в ней, ни глубже: папка с одними папками пуста, и её папки тоже,
+    /// кроме служебных. Папка с файлом, которого проект не называет, не пуста — проект его исключил, и
+    /// она спрятана со всем, что в ней. Служебная папка и выход сборки не ищутся вовсе.
+    /// </remarks>
+    [Fact]
+    public void The_disk_probe_finds_empty_folders_where_the_tree_would_show_them()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"arxis-project-window-empty-{Guid.NewGuid():N}");
+
+        try
+        {
+            var solution = new ProjectWindowSolution(root: root);
+            var app = solution.Project("App");
+
+            app.Properties["OutputPath"] = "build\\Debug\\";
+
+            solution.File(app, "Program.cs");
+            solution.File(app, "Views/Main.axaml", "AvaloniaXaml");
+            solution.File(app, "Pages/Admin/Panel.axaml", "AvaloniaXaml");
+            solution.OnDisk();
+
+            var home = app.ProjectFilePath.Directory;
+
+            foreach (var folder in (string[])
+                     [
+                         "Assets/Fonts", "Views/Empty", "Pages/Empty", "Hollow/Deep/.cache", "Secret/Empty", "Stuffed/Inner",
+                         ".idea", "bin", "obj", "build",
+                     ])
+            {
+                Directory.CreateDirectory(home.Combine(folder).Value);
+            }
+
+            File.WriteAllText(home.Combine("Secret/key.txt").Value, "проект его исключил");
+            File.WriteAllText(home.Combine("Stuffed/Inner/note.txt").Value, "глубже, но файл");
+
+            var empty = DiskProbe.Probe(solution.ToSnapshot(), TestContext.Current.CancellationToken).Empty;
+
+            // Pages показана одной вложенной папкой, а её пустая соседка всё равно находится.
+            Assert.Equal(
+                ["Assets", "Assets/Fonts", "Hollow", "Hollow/Deep", "Pages/Empty", "Views/Empty"],
+                empty.Select(path => SolutionTree.RelativeTo(home, path).Replace('\\', '/')).Order(StringComparer.Ordinal));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Пустая папка вложенного проекта стоит в нём, а не во внешнем: папку вложенного внешний не
+    /// показывает.
+    /// </summary>
+    /// <remarks>
+    /// Так лежат тесты внутри папки приложения. Их файлы приложение не называет, и папка тестов в нём
+    /// спрятана — пустая папка в ней не вытаскивает её на свет, а стоит там, где её проект.
+    /// </remarks>
+    [Fact]
+    public void An_empty_folder_of_a_nested_project_stands_in_that_project()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"arxis-project-window-nested-{Guid.NewGuid():N}");
+
+        try
+        {
+            var solution = new ProjectWindowSolution(root: root);
+            var app = solution.Project("App");
+            var tests = solution.Project("Tests", "src/App");
+
+            solution.File(app, "Program.cs");
+            solution.File(tests, "Checks.cs");
+            solution.OnDisk();
+
+            File.WriteAllText(tests.ProjectFilePath.Value, "<Project />");
+            Directory.CreateDirectory(tests.ProjectFilePath.Directory.Combine("Empty").Value);
+
+            var snapshot = solution.ToSnapshot();
+            var tree = SolutionTree.Build(snapshot, DiskProbe.Probe(snapshot, TestContext.Current.CancellationToken), Words.English);
+
+            Assert.Equal(
+                """
+                Hello · 2 projects
+                  App
+                    Program.cs
+                  Tests
+                    Empty
+                    Checks.cs
+                """.ReplaceLineEndings("\n"),
+                ProjectWindowSolution.Shape(tree));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 }
