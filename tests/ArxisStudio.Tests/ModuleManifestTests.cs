@@ -10,7 +10,8 @@ namespace ArxisStudio.Tests;
 /// <remarks>
 /// Манифест стал файлом в папке модуля, и вопросов у него прибавилось: где именно искать, что
 /// ответить на пустое тело и на неразобранное. Проверяется каждый — на своём дереве, а не на
-/// выходе студии: выход собран правильно, и неправильных случаев в нём нет.
+/// выходе студии: выход собран правильно, и неправильных случаев в нём нет. Правильный — папку
+/// над <c>bin</c> — держит <c>ModuleContractsTests</c>, поднимая модуль из неё хостом.
 /// </remarks>
 [Collection(StudioStateCollection.Name)]
 public class ModuleManifestTests : IDisposable
@@ -32,30 +33,6 @@ public class ModuleManifestTests : IDisposable
         }
 
         GC.SuppressFinalize(this);
-    }
-
-    /// <summary>
-    /// Манифест читается из папки над <c>bin</c>.
-    /// </summary>
-    /// <remarks>
-    /// Форма папки модуля — форма установленного плагина: сборки в <c>bin</c>, манифест в корне.
-    /// Значит и папкой модуля считается та, что над <c>bin</c>, а не та, где лежит сборка.
-    /// </remarks>
-    [Fact]
-    public void The_manifest_is_read_from_the_folder_above_the_bin()
-    {
-        var folder = Directory.CreateDirectory(Path.Combine(_root, "arxis.probe")).FullName;
-        var assembly = Emit(folder, "bin");
-
-        File.WriteAllText(Path.Combine(folder, "module.json"), """
-            { "id": "arxis.probe", "name": "probe", "version": "1.0.0" }
-            """);
-
-        var (manifest, error) = ModuleManifest.Load(assembly);
-
-        Assert.Null(error);
-        Assert.Equal("arxis.probe", manifest?.Id);
-        Assert.Equal(folder, ModuleManifest.FolderOf(assembly), ignoreCase: true);
     }
 
     /// <summary>Сборке не в <c>bin</c> папкой модуля остаётся её собственная.</summary>
@@ -107,12 +84,11 @@ public class ModuleManifestTests : IDisposable
         Assert.Contains(Path.Combine(folder, "module.json"), error);
     }
 
-    /// <summary>Собирает сборку в названную подпапку и загружает её оттуда.</summary>
-    private static Assembly Emit(string folder, string? inside = null)
+    /// <summary>Собирает сборку прямо в названную папку и загружает её оттуда.</summary>
+    private static Assembly Emit(string folder)
     {
-        var where = inside is null ? folder : Directory.CreateDirectory(Path.Combine(folder, inside)).FullName;
         var name = $"Probe.Manifest{Guid.NewGuid():N}";
-        var path = Path.Combine(where, name + ".dll");
+        var path = Path.Combine(folder, name + ".dll");
 
         TestAssembly.EmitFile(path, name, Source);
 

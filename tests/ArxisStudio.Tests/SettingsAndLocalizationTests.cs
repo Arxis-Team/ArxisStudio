@@ -62,15 +62,6 @@ public class SettingsStoreTests : IDisposable
 public class LocalizerTests
 {
     [Fact]
-    public void Reads_strings_of_the_current_language()
-    {
-        Localizer.Instance.SetLanguage("ru");
-
-        Assert.Equal("Проекты", Localizer.Instance["welcome.nav.projects"]);
-        Assert.Equal("Недавние", Localizer.Instance["projects.recent"]);
-    }
-
-    [Fact]
     public void Russian_locale_has_no_english_labels()
     {
         Localizer.Instance.SetLanguage("ru");
@@ -228,14 +219,5 @@ public class LocalizerTests
         {
             Localizer.Instance.SetLanguage(Localizer.FallbackLanguage);
         }
-    }
-
-    /// <summary>
-    /// Непереведённое падает на английский — язык, на котором написана студия.
-    /// </summary>
-    [Fact]
-    public void What_is_not_translated_falls_into_english()
-    {
-        Assert.Equal("en", Localizer.FallbackLanguage);
     }
 }

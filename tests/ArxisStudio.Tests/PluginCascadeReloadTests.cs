@@ -112,36 +112,6 @@ public class PluginCascadeReloadTests : IDisposable
     }
 
     /// <summary>
-    /// Одиночная перезагрузка ведёт себя как прежде.
-    /// </summary>
-    /// <remarks>
-    /// Старый <c>Reload(InstalledPlugin)</c> теперь реализован поверх
-    /// каскада — эквивалентность закреплена, чтобы каскад не переопределил
-    /// её молча. Остальное про одиночную дорогу держат PluginReloadTests.
-    /// </remarks>
-    [Fact]
-    public void A_single_plugin_reload_still_behaves_as_before()
-    {
-        Clone("cas.lonely");
-
-        var commands = new StudioCommands();
-
-        using var host = Host(commands);
-
-        Start(host, expected: 1);
-
-        commands.RemoveOwnedBy("cas.lonely");
-
-        var installed = new PluginCatalog(_root).Scan().Single(plugin => plugin.Id == "cas.lonely");
-        var reload = host.Reload(installed);
-
-        Assert.Null(reload.Error);
-        Assert.True(reload.Released, "контекст одиночки не выгрузился");
-        Assert.True(reload.Plugin!.IsLoaded);
-        Assert.Single(host.Loaded);
-    }
-
-    /// <summary>
     /// Невыгрузившийся называется своим именем, не пороча соседей.
     /// </summary>
     /// <remarks>

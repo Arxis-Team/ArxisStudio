@@ -1,5 +1,4 @@
-﻿using System.Runtime.CompilerServices;
-using ArxisStudio.Extensibility;
+﻿using ArxisStudio.Extensibility;
 using ArxisStudio.Modules.Sample;
 using ArxisStudio.Services;
 using Xunit;
@@ -45,6 +44,11 @@ public class PluginReloadTests : IDisposable
     /// такая же помеха выгрузке, как забытая подписка, и утверждение «новая
     /// копия отличается от старой», купленное такой ценой, обошлось бы дороже
     /// самой проверки.
+    /// <para>
+    /// Умер ли прежний контекст, хост узнаёт слабой ссылкой и сборщиком мусора, и
+    /// выдумкой его ответ быть не может: здесь он «да», а у соседа, где обработчик
+    /// оставлен, — «нет». Своя слабая ссылка в тесте повторяла бы ту же проверку.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Reloading_raises_a_fresh_copy()
@@ -71,31 +75,6 @@ public class PluginReloadTests : IDisposable
         Assert.Same(reload.Plugin, Assert.Single(host.Loaded));
         Assert.Contains("hello.greet", commands.Registered);
         Assert.True(reload.Released, "прежний контекст не выгрузился");
-    }
-
-    /// <summary>
-    /// Прежний контекст загрузки действительно умирает.
-    /// </summary>
-    /// <remarks>
-    /// Выгрузка в .NET кооперативная: <c>Unload</c> её только начинает.
-    /// Проверяется здесь то же, что проверяет хост, — но своей слабой ссылкой:
-    /// ответ хоста мог бы быть и выдумкой.
-    /// </remarks>
-    [Fact]
-    public void The_old_context_is_really_unloaded()
-    {
-        var commands = new StudioCommands();
-
-        using var host = Raise(commands);
-        var old = Forget(host, commands);
-
-        for (var attempt = 0; attempt < 10 && old.IsAlive; attempt++)
-        {
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-        }
-
-        Assert.False(old.IsAlive, "контекст загрузки не выгрузился: на его типы кто-то ещё ссылается");
     }
 
     /// <summary>
@@ -182,26 +161,6 @@ public class PluginReloadTests : IDisposable
 
         Assert.Null(reload.Plugin);
         Assert.Contains("arxis.nobody", reload.Error);
-    }
-
-    /// <summary>
-    /// Перезагружает плагин и отпускает всё, что держало прежнюю копию.
-    /// </summary>
-    /// <remarks>
-    /// Отдельный метод не для красоты: пока ссылка на прежний
-    /// <c>LoadedPlugin</c> лежит в переменной вызывающего, контекст не умрёт
-    /// никогда, и проверка выгрузки проверяла бы только это.
-    /// </remarks>
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static WeakReference Forget(PluginHost host, StudioCommands commands)
-    {
-        var context = new WeakReference(host.Loaded.Single().Context);
-
-        commands.Remove(["hello.greet"]);
-        host.Reload(host.Loaded.Single().Installed);
-
-
-        return context;
     }
 
     /// <summary>Запись каталога о поставленном примере.</summary>

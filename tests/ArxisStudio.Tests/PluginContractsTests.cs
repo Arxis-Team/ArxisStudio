@@ -151,47 +151,20 @@ public class PluginContractsTests : IDisposable
     }
 
     /// <summary>
-    /// Изменившийся на диске контракт — заметка, а не молчание.
-    /// </summary>
-    /// <remarks>
-    /// Выгрузить прежнюю копию из общего контекста нечем: новые типы студия
-    /// увидит после перезапуска, и человек должен узнать об этом из
-    /// перезагрузки, а не догадаться по странностям.
-    /// </remarks>
-    [Fact]
-    public void A_changed_contract_is_noted_and_the_old_one_stays()
-    {
-        var catalog = new PluginCatalog(_root);
-
-        Assert.Null(catalog.InstallFromArchive(HelloArchive.Path).Error);
-
-        var commands = new StudioCommands();
-
-        using var host = new PluginHost(new StudioContextFactory(new StudioLog(), commands, null));
-
-        Start(host, catalog);
-
-        // «Пересборка» контракта: содержимое то же, но файл на диске новее.
-        var contract = Path.Combine(_root, "arxis.hello", "bin", "Arxis.Hello.Contracts.dll");
-
-        File.SetLastWriteTimeUtc(contract, DateTime.UtcNow.AddMinutes(1));
-
-        var installed = catalog.Scan().Single(plugin => plugin.Id == "arxis.hello");
-        var cascade = host.Reload(["arxis.hello"], [installed]);
-
-        Assert.Contains(cascade.Notes, note => note.Contains("перезапуска", StringComparison.Ordinal));
-        Assert.All(cascade.Raised, loaded => Assert.True(loaded.IsLoaded, loaded.Error));
-    }
-
-    /// <summary>
     /// Одиночная перезагрузка доносит и заметку, и настоящую ошибку.
     /// </summary>
     /// <remarks>
+    /// Изменившийся на диске контракт — заметка, а не молчание: выгрузить прежнюю
+    /// копию из общего контекста нечем, новые типы студия увидит после перезапуска,
+    /// и человек должен узнать об этом из перезагрузки, а не догадаться по
+    /// странностям. Заметку пишет каскад, а одиночная перезагрузка идёт через него.
+    /// <para>
     /// Её ответ собирался из каскада вручную и ронял по дороге обе вещи:
     /// заметку про изменившийся контракт — ради которой перезагрузка его и
     /// перечитывает, — и ошибку поднятой копии, вместо которой подставлялся
     /// null. Вызывающий, спрашивающий «Error is null?», отчитывался об
     /// успешной перезагрузке того, что не поднялось.
+    /// </para>
     /// </remarks>
     [Fact]
     public void A_single_reload_carries_the_note_and_the_real_error()

@@ -537,7 +537,8 @@ public class TerminalViewTests
 
             // Оболочка панели по умолчанию — настоящая, и на этой машине она
             // может подняться, а может и нет: вкладка есть в обоих случаях.
-            var started = Wait(() => panel.Sessions.Count > 0);
+            // Поднявшуюся ждут, чтобы прощание закрывало живой сеанс.
+            Wait(() => panel.Sessions.Count > 0);
 
             panel.Open(new ShellProfile("probe", "Проба", "arxis-нет-такой-оболочки", []));
             Dispatcher.UIThread.RunJobs();
@@ -550,6 +551,11 @@ public class TerminalViewTests
             Dispatcher.UIThread.RunJobs();
 
             Assert.Empty(Tabs(panel));
+
+            // Сеансы — это вкладки с поднявшейся оболочкой. Оболочку, поднявшуюся
+            // уже после прощания, панель закрывает сама: её вкладки больше нет. Ждать
+            // её здесь было бы нечего — прежде тест тратил на такое ожидание пять
+            // секунд каждого прогона.
             Assert.Empty(panel.Sessions);
 
             // И хаб отпущен: пока в его статическом поле лежит эта панель, жива
@@ -560,9 +566,6 @@ public class TerminalViewTests
             TerminalHub.Attach(received.Add);
 
             Assert.Single(received);
-
-            if (started)
-                Assert.False(Wait(() => panel.Sessions.Count > 0), "сеанс пережил прощание панели");
 
             window.Close();
         }

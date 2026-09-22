@@ -334,39 +334,6 @@ public class PluginContractGuardTests : IDisposable
     }
 
     /// <summary>
-    /// Своя же пересборка контракта с новой версией говорит про перезапуск,
-    /// а не про чужого захватчика.
-    /// </summary>
-    /// <remarks>
-    /// Отказ тот же самый — общий контекст обновить нечем, — но причина
-    /// совсем другая, и слова обязаны это различать. «Имя занято контрактом
-    /// плагина arxis.foo», где arxis.foo и есть спрашивающий, отправляет
-    /// автора искать несуществующего соседа.
-    /// </remarks>
-    [Fact]
-    public void Rebuilding_ones_own_contract_asks_for_a_restart()
-    {
-        var plugin = Clone("con.bump", "bin/Bump.Contracts.dll");
-        var contract = Path.Combine(plugin, "bin", "Bump.Contracts.dll");
-
-        Emit("Bump.Contracts", new Version(1, 0, 0, 0), contract);
-
-        using var studio = new TestHost();
-        var catalog = new PluginCatalog(_root);
-
-        Assert.Single(studio.Host.LoadStartup(catalog.Scan()), loaded => loaded.IsLoaded);
-
-        // Автор пересобрал контракт и поднял версию сборки.
-        Emit("Bump.Contracts", new Version(2, 0, 0, 0), contract);
-
-        var again = studio.Host.Reload(catalog.Scan().Single(candidate => candidate.Id == "con.bump"));
-
-        Assert.NotNull(again.Error);
-        Assert.Contains("нужен перезапуск студии", again.Error);
-        Assert.DoesNotContain("уже занято контрактом плагина", again.Error);
-    }
-
-    /// <summary>
     /// При перезагрузке отказ расходится по зависимым так же, как при старте.
     /// </summary>
     /// <remarks>
@@ -376,6 +343,12 @@ public class PluginContractGuardTests : IDisposable
     /// одного, а остальных поднимал как ни в чём не бывало. Зависимый
     /// возвращался без соседа — не падая, потому что службы отвечают правду,
     /// но и не работая, — а человек видел один отказ вместо цепочки причин.
+    /// <para>
+    /// Отказ провайдеру — своя же пересборка контракта с новой версией, и слова
+    /// обязаны говорить про перезапуск, а не про чужого захватчика: «имя занято
+    /// контрактом плагина con.host», где con.host и есть спрашивающий, отправляло
+    /// автора искать несуществующего соседа.
+    /// </para>
     /// </remarks>
     [Fact]
     public void On_reload_a_contract_refusal_spreads_to_dependents_too()
@@ -405,6 +378,7 @@ public class PluginContractGuardTests : IDisposable
 
         Assert.False(host.IsLoaded);
         Assert.Contains("нужен перезапуск студии", host.Error);
+        Assert.DoesNotContain("уже занято контрактом плагина", host.Error);
 
         // Главное: зависимый не поднялся и знает, из-за кого.
         Assert.False(guest.IsLoaded);

@@ -21,65 +21,17 @@ namespace ArxisStudio.Tests;
 /// внешний плагин, и отличается только тем, откуда взялся манифест и в каком
 /// контексте живут сборки.
 /// <para>
-/// Проверяется это дважды и по разным причинам. Сам контракт — на сборке,
-/// собранной прямо здесь, в память: она отвечает за случаи, которых у примера
-/// нет, вроде забытого манифеста. Поставляемый модуль
-/// <c>ArxisStudio.Modules.Sample</c> — на том, что его манифест и его код
-/// говорят одно и то же: разойтись они могут молча, и человек увидит пустое
-/// место в зоне вместо панели.
+/// Проверяется это на поставляемом модуле <c>ArxisStudio.Modules.Sample</c>: его
+/// манифест и его код должны говорить одно и то же — разойтись они могут молча,
+/// и человек увидит пустое место в зоне вместо панели. Случаи, которых у примера
+/// нет, держат соседи: упавший на подъёме модуль —
+/// <c>StudioPluginsTests.A_module_that_falls_costs_the_others_nothing</c>, папка
+/// над <c>bin</c> — <c>ModuleContractsTests</c>, забытый манифест — тест ниже.
 /// </para>
 /// </remarks>
 [Collection(StudioStateCollection.Name)]
 public class BuiltInModuleTests
 {
-    private const string Manifest = """
-        {
-          "id": "arxis.probe",
-          "name": "Проба",
-          "version": "1.0.0",
-          "contributions": {
-            "toolWindows": [ { "id": "probe.panel", "title": "Проба" } ]
-          },
-          "activation": [ "onStartup" ]
-        }
-        """;
-
-    /// <summary>
-    /// Модуль, упавший на подъёме, становится записью, а не падением студии.
-    /// </summary>
-    /// <remarks>
-    /// <c>Activate</c> и <c>Start</c> — чужой код, и зовутся они напрямую:
-    /// <c>PluginGuard</c>, через который идут остальные вызовы плагина, на
-    /// загрузке ни при чём. Швом загрузки работает фильтр <c>catch</c> в хосте,
-    /// и пока он перечислял беды по именам, любая неназванная уносила студию.
-    /// <see cref="NullReferenceException"/> названа не была — самая обычная
-    /// беда в чужом коде и самая незаметная в этом списке.
-    /// </remarks>
-    [Fact]
-    public void A_module_that_falls_while_rising_becomes_a_record()
-    {
-        using var host = new PluginHost(
-            new StudioContextFactory(new StudioLog(), new StudioCommands(), null));
-
-        var loaded = host.LoadBuiltIn(Falling());
-
-        Assert.False(loaded.IsLoaded, "упавший модуль не может считаться поднятым");
-        Assert.NotNull(loaded.Error);
-        Assert.Equal("arxis.probe", loaded.Installed.Id);
-    }
-
-    /// <summary>Манифест модуля читается из его папки.</summary>
-    [Fact]
-    public void The_manifest_of_a_built_in_module_is_read_from_its_folder()
-    {
-        var (manifest, error) = ModuleManifest.Load(Module());
-
-        Assert.Null(error);
-        Assert.NotNull(manifest);
-        Assert.Equal("arxis.probe", manifest!.Id);
-        Assert.Equal("probe.panel", Assert.Single(manifest.Contributions.ToolWindows).Id);
-    }
-
     /// <summary>
     /// Сборка без манифеста объясняет, почему не поднялась.
     /// </summary>
@@ -98,28 +50,6 @@ public class BuiltInModuleTests
         Assert.NotNull(error);
         Assert.Contains("module.json", error);
         Assert.Contains(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar), error);
-    }
-
-    /// <summary>
-    /// Модуль поднимается тем же хостом и остаётся в основном контексте.
-    /// </summary>
-    /// <remarks>
-    /// Своего выгружаемого контекста у встроенного модуля нет и быть не должно:
-    /// он приезжает со студией, выключать его отдельно нечем, а лишний контекст
-    /// раздвоил бы типы, которые он делит с оболочкой.
-    /// </remarks>
-    [Fact]
-    public void A_built_in_module_rises_in_the_main_context()
-    {
-        using var host = new PluginHost(
-            new StudioContextFactory(new StudioLog(), new StudioCommands(), null));
-
-        var loaded = host.LoadBuiltIn(Module());
-
-        Assert.True(loaded.IsLoaded, loaded.Error);
-        Assert.Null(loaded.Context);
-        Assert.NotEmpty(loaded.Entries);
-        Assert.Equal("arxis.probe", loaded.Installed.Id);
     }
 
     /// <summary>
@@ -156,9 +86,12 @@ public class BuiltInModuleTests
     /// Пример поднимается как встроенный модуль и заявляет свою команду.
     /// </summary>
     /// <remarks>
-    /// Это тот же путь, которым его поднимает студия: манифест из ресурса,
-    /// сборка из основного контекста, команда — через контекст. Панель здесь
-    /// не строится: её строит оболочка, когда ставит в зону.
+    /// Это тот же путь, которым его поднимает студия: манифест из папки модуля,
+    /// сборка из основного контекста, команда — через контекст. Своего
+    /// выгружаемого контекста у встроенного модуля нет и быть не должно:
+    /// выключать его отдельно нечем, а лишний контекст раздвоил бы типы, которые
+    /// он делит с оболочкой. Панель здесь не строится: её строит оболочка, когда
+    /// ставит в зону.
     /// </remarks>
     [Fact]
     public void The_sample_module_rises_and_registers_its_command()
@@ -427,37 +360,4 @@ public class BuiltInModuleTests
 
         throw new InvalidOperationException("Не найдена папка src/Modules");
     }
-
-    /// <summary>Сборка модуля со встроенным манифестом.</summary>
-    /// <summary>Модуль, который падает ровно там, где студия зовёт чужой код.</summary>
-    private static Assembly Falling() => TestAssembly.EmitModule(
-        "Arxis.FallingModule",
-        """
-            using ArxisStudio.Sdk;
-
-            namespace Falling;
-
-            public sealed class FallingModule : StudioPlugin
-            {
-                public override void Activate(IStudioContext context) =>
-                    throw new System.NullReferenceException("модуль уронил студию");
-            }
-            """,
-        Manifest);
-
-    private static Assembly Module() => TestAssembly.EmitModule(
-        "Arxis.ProbeModule",
-        """
-            using ArxisStudio.Sdk;
-
-            namespace Probe;
-
-            public sealed class ProbeModule : StudioPlugin
-            {
-                public override void Activate(IStudioContext context)
-                {
-                }
-            }
-            """,
-        Manifest);
 }
