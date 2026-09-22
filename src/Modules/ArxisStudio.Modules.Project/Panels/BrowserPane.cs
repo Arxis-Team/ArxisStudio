@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using ArxisStudio.Controls;
 using ArxisStudio.Modules.Project.Browse;
 using ArxisStudio.Modules.Project.Model;
@@ -74,6 +75,9 @@ internal sealed class BrowserPane : IDisposable
             list.ContextRequested += OnContextRequested;
         }
 
+        _model.Browser.Items.CollectionChanged += OnItemsChanged;
+        Stops();
+
         view.Path.Navigated += OnNavigated;
         view.Size.PropertyChanged += OnSizeChanged;
         view.Browser.AddHandler(InputElement.PointerWheelChangedEvent, OnWheel, RoutingStrategies.Tunnel);
@@ -99,6 +103,7 @@ internal sealed class BrowserPane : IDisposable
             list.ContextRequested -= OnContextRequested;
         }
 
+        _model.Browser.Items.CollectionChanged -= OnItemsChanged;
         _view.Path.Navigated -= OnNavigated;
         _view.Size.PropertyChanged -= OnSizeChanged;
         _view.Browser.RemoveHandler(InputElement.PointerWheelChangedEvent, OnWheel);
@@ -548,12 +553,30 @@ internal sealed class BrowserPane : IDisposable
     /// Клавиатуру список принимает ради пустой папки. Удалив последний файл, человек остаётся в
     /// опустевшей папке, и Ctrl+Z, Ctrl+V и Backspace ждут его здесь; а щелчок по пустому месту
     /// колонки уводит в неё клавиатуру, как в проводнике и в Unity, — вставить в пустую папку иначе
-    /// было бы нечем.
+    /// было бы нечем. Остановкой Tab список бывает только тогда же (<see cref="Stops"/>).
     /// </remarks>
     private void OnListFocused(object? sender, FocusChangedEventArgs e)
     {
         if (sender is AxListBox list && ReferenceEquals(e.Source, list))
             Forward(list, e.NavigationMethod);
+    }
+
+    private void OnItemsChanged(object? sender, NotifyCollectionChangedEventArgs e) => Stops();
+
+    /// <summary>Список — остановка Tab, только пока плиток в нём нет.</summary>
+    /// <remarks>
+    /// Tab назад из плитки Avalonia ведёт на сам список, раз он берёт клавиатуру, — контейнер стоит
+    /// в обходе раньше своих детей, — а список тут же отдавал её плитке обратно: Shift+Tab из колонки
+    /// не уходил никуда. С плитками Tab в обе стороны ходит мимо списка — входит на выбранную плитку
+    /// и выходит к соседу колонки, — а в пустой папке остановка — сам список: больше клавиатуре
+    /// встать негде.
+    /// </remarks>
+    private void Stops()
+    {
+        var empty = _model.Browser.Items.Count == 0;
+
+        foreach (var list in Lists)
+            KeyboardNavigation.SetIsTabStop(list, empty);
     }
 
     /// <summary>Отдаёт клавиатуру плитке списка: выделенной, без выделения — первой.</summary>

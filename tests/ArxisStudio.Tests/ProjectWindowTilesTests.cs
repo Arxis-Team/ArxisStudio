@@ -153,6 +153,62 @@ public class ProjectWindowTilesTests
     }
 
     /// <summary>
+    /// Tab ходит мимо списка в обе стороны: назад из плитки — к ползунку, вперёд — на выбранную
+    /// плитку; в пустой папке остановка — сам список. Стрелка ведёт каретку с кольцом фокуса — и в
+    /// плитках, и в дереве.
+    /// </summary>
+    /// <remarks>
+    /// Список берёт клавиатуру ради пустой папки, и Shift+Tab из плитки вставал на него, а он отдавал
+    /// её плитке обратно: назад из колонки было не выйти. Кольцо гасло на первой стрелке: база списка
+    /// Avalonia 12 отдавала каретку соседу без способа.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task Tab_walks_past_the_list_both_ways_and_arrows_keep_the_ring()
+    {
+        using var studio = await TwoColumns();
+
+        var pane = studio.Panel.Pane!;
+
+        studio.Select("App");
+        pane.Select(Tile(studio, "Assets").Node, focus: true);
+        Keystroke(studio, Key.Right);
+
+        var next = studio.Model.Browser.Items[studio.Model.Browser.Items.IndexOf(Tile(studio, "Assets")) + 1];
+
+        Assert.Same(next, pane.Selected);
+        Assert.Same(TileItem(studio, next.Name), Focused(studio));
+        Assert.Contains(":focus-visible", Focused(studio).Classes);
+
+        Keystroke(studio, Key.Tab, RawInputModifiers.Shift);
+
+        Assert.Same(studio.View.Size, Focused(studio));
+
+        Keystroke(studio, Key.Tab);
+
+        Assert.Same(TileItem(studio, next.Name), Focused(studio));
+
+        pane.Select(Tile(studio, "Models").Node, focus: true);
+        Keystroke(studio, Key.Enter);
+        Keystroke(studio, Key.Tab, RawInputModifiers.Shift);
+
+        Assert.Same(studio.View.Size, Focused(studio));
+
+        Keystroke(studio, Key.Tab);
+
+        Assert.Same(studio.View.Tiles, Focused(studio));
+
+        var tree = studio.Item(studio.Select("App"));
+
+        tree.Focus(NavigationMethod.Directional);
+        Keystroke(studio, Key.Down);
+
+        var row = Assert.IsType<TreeRow>(Focused(studio));
+
+        Assert.NotSame(tree, row);
+        Assert.Contains(":focus-visible", row.Classes);
+    }
+
+    /// <summary>
     /// ⋮ пишет раскладку в настройки, и новое окно читает её оттуда.
     /// </summary>
     [AvaloniaFact]
