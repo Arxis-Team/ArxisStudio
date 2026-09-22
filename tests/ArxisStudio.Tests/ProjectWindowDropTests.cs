@@ -235,6 +235,56 @@ public sealed class ProjectWindowDropTests : IDisposable
     }
 
     /// <summary>
+    /// Принесённое из проводника и задержанное над «…» раскрывает меню спрятанных уровней, и пункт
+    /// меню принимает копию, как сам уровень; сброс меню закрывает.
+    /// </summary>
+    /// <remarks>
+    /// Над меню тяга из проводника приходит к его окну, а не к окну колонки, — крошки передают её
+    /// себе, и ответ окна слышен так же, как над сегментом.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task Files_held_over_the_crumbs_overflow_land_on_a_hidden_level()
+    {
+        var files = new FilesProbe();
+
+        using var studio = new ProjectWindowStudio(twoColumns: true, files: files, width: 360);
+
+        await studio.Open(studio.Solution(more: ["Views/Deep/Note.cs"]));
+
+        studio.Select("Views");
+        studio.DoubleClick(TileItem(studio, "Deep"));
+
+        // Не файлы положить некуда, и меню ради них не раскрывается.
+        var text = new DataTransfer();
+
+        text.Add(DataTransferItem.Create(DataFormat.Text, "не файл"));
+        studio.Drag(studio.Overflow(), text);
+        studio.Unfold();
+
+        Assert.False(studio.View.Path.IsOverflowOpen, "текст, которого не положить, раскрыл меню");
+
+        studio.Leave(text);
+
+        var carried = await Carry(studio, File("notes.md"));
+
+        Assert.Equal(DragDropEffects.None, studio.Drag(studio.Overflow(), carried));
+        Assert.False(studio.View.Path.IsOverflowOpen, "меню раскрылось сразу, без задержки");
+
+        studio.Unfold();
+
+        Assert.True(studio.View.Path.IsOverflowOpen, "меню спрятанных уровней не раскрылось");
+        Assert.Equal(DragDropEffects.Copy, studio.Drag(studio.Hidden("App"), carried));
+        Assert.True(studio.Hidden("App").IsDropTarget, "пункт спрятанного уровня не отмечен целью");
+
+        studio.Drag(studio.Hidden("App"), carried, drop: true);
+
+        await Settled(studio, () => files.Copied.Count == 1);
+
+        Assert.Equal(studio.Row("App").Node.Path.Directory.Combine("notes.md"), Assert.Single(files.Copied[0]).To);
+        Assert.False(studio.View.Path.IsOverflowOpen, "меню пережило сброс");
+    }
+
+    /// <summary>
     /// Свёрнутый каталог, над которым держат файлы, раскрывается; унесли раньше — нет.
     /// </summary>
     [AvaloniaFact]

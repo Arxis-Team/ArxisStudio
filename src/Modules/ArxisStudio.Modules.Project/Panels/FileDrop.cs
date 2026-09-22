@@ -35,7 +35,11 @@ namespace ArxisStudio.Modules.Project.Panels;
 /// <b>Дорога к цели.</b> Свёрнутый каталог, над которым держат файлы <see cref="ExpandDelay"/>,
 /// раскрывается, как в дереве Rider и в проводнике. У верхнего и нижнего края списка он
 /// прокручивается на строку каждые <see cref="ScrollEvery"/>, пока курсор у края: колесо мыши, пока
-/// несут файлы, не работает, и без этого до каталога за краем было бы не добраться.
+/// несут файлы, не работает, и без этого до каталога за краем было бы не добраться. «…» крошек, над
+/// которой держат столько же, раскрывает меню спрятанных уровней, как выпадающий список адресной
+/// строки проводника, и его пункты — такие же цели, как сегменты. Закрывается меню, когда несут в
+/// другое место или отпустили; тяга из проводника, ушедшая за край окна, оставляет его до щелчка:
+/// уход из окна в меню — тоже уход, и отличить одно от другого нечем.
 /// </para>
 /// <para>
 /// Мышь — не единственная дорога: скопированное в проводнике вставляется в окно Ctrl+V той же
@@ -64,10 +68,12 @@ internal sealed class FileDrop : IDisposable
     private readonly Action<Row> _expand;
     private readonly DispatcherTimer _expanding;
     private readonly DispatcherTimer _scrolling;
+    private readonly DispatcherTimer _unfolding;
 
     private IDataTransfer? _data;
     private IReadOnlyList<ClipItem> _items = [];
     private Row? _waiting;
+    private bool _lingering;
     private AxListBox? _edgeList;
     private int _edge;
     private int _generation;
@@ -98,6 +104,8 @@ internal sealed class FileDrop : IDisposable
         _expanding.Tick += OnExpandingTick;
         _scrolling = new DispatcherTimer { Interval = ScrollEvery };
         _scrolling.Tick += OnScrollingTick;
+        _unfolding = new DispatcherTimer { Interval = ExpandDelay };
+        _unfolding.Tick += OnUnfoldingTick;
 
         foreach (var surface in Surfaces)
         {
@@ -125,9 +133,11 @@ internal sealed class FileDrop : IDisposable
         }
 
         Stop();
+        _view.Path.CloseOverflow();
 
         _expanding.Tick -= OnExpandingTick;
         _scrolling.Tick -= OnScrollingTick;
+        _unfolding.Tick -= OnUnfoldingTick;
     }
 
     /// <summary>
@@ -142,6 +152,21 @@ internal sealed class FileDrop : IDisposable
         {
             _waiting = null;
             _expand(row);
+        }
+    }
+
+    /// <summary>
+    /// Раскрывает меню спрятанных уровней крошек, над «…» которых держат несомое, — то, что делает
+    /// таймер по истечении <see cref="ExpandDelay"/>; тестам — вместо ожидания.
+    /// </summary>
+    internal void Unfold()
+    {
+        _unfolding.Stop();
+
+        if (_lingering)
+        {
+            _lingering = false;
+            _view.Path.OpenOverflow();
         }
     }
 
@@ -177,17 +202,28 @@ internal sealed class FileDrop : IDisposable
         // Уход, отложенный до конца события, отменён: курсор перешёл на соседний элемент того же окна.
         _generation++;
 
+        var crumbs = ReferenceEquals(surface, _view.Path);
+
+        // Меню спрятанных уровней — часть крошек: понесли в другое место — оно закрывается.
+        if (!crumbs)
+        {
+            Linger(false);
+            _view.Path.CloseOverflow();
+        }
+
         var item = ItemAt(surface, point);
         var folder = Target(surface, item, items, mode);
 
         _mark(folder);
 
         // Нести нечего — ни раскрывать, ни прокручивать незачем: над деревом тащат текст, а не файлы.
-        // Крошкам и то и другое не нужно: каталоги пути раскрыты, и ряд не листается.
+        // Крошкам и то и другое не нужно: каталоги пути раскрыты, и ряд не листается, — зато «…»
+        // раскрывает меню спрятанных уровней.
         if (items.Count == 0 || surface is not AxListBox list)
         {
             Wait(null);
             Edge(null, 0);
+            Linger(items.Count > 0 && _view.Path.IsOverflowAt(surface.PointToScreen(point)));
         }
         else
         {
@@ -211,12 +247,20 @@ internal sealed class FileDrop : IDisposable
         var folder = Target(surface, ItemAt(surface, point), items, mode);
 
         Stop();
+        _view.Path.CloseOverflow();
 
         return folder;
     }
 
-    /// <summary>Несомое ушло с окна или его бросили: отметка, раскрытие и прокрутка снимаются.</summary>
-    internal void Clear() => Stop();
+    /// <summary>
+    /// Тягу изнутри окна бросили или отпустили мимо: отметка, раскрытие и прокрутка снимаются, меню
+    /// спрятанных уровней закрывается.
+    /// </summary>
+    internal void Clear()
+    {
+        Stop();
+        _view.Path.CloseOverflow();
+    }
 
     /// <summary>Откуда пришёл сброс — туда встанет выделение после правки.</summary>
     /// <param name="surface">Список или крошки, над которыми отпустили: крошки — это колонка.</param>
@@ -310,12 +354,13 @@ internal sealed class FileDrop : IDisposable
 
     /// <summary>Строка, плитка или сегмент крошек под точкой поверхности; пусто — под точкой пустое место.</summary>
     /// <remarks>
-    /// Сегмент — кнопка, а не строка списка, и данные у него свои; кнопка переполнения крошек сегментом
-    /// не бывает — спрятанные в меню уровни целью не становятся.
+    /// Сегмент крошки называют сами, по точке экрана: он бывает и спрятанным, и тогда под курсором —
+    /// его пункт в раскрытом меню, отдельном окне. Кнопка переполнения сегментом не бывает.
     /// </remarks>
-    private static object? ItemAt(Control surface, Point point) =>
-        (surface.InputHitTest(point) as Visual)?.GetSelfAndVisualAncestors()
-            .FirstOrDefault(visual => visual is ListBoxItem or AxBreadcrumbItem) is StyledElement { DataContext: var data } ? data : null;
+    private static object? ItemAt(Control surface, Point point) => surface is AxBreadcrumb crumbs
+        ? crumbs.SegmentAt(crumbs.PointToScreen(point))?.DataContext
+        : (surface.InputHitTest(point) as Visual)?.GetSelfAndVisualAncestors()
+            .FirstOrDefault(visual => visual is ListBoxItem) is StyledElement { DataContext: var data } ? data : null;
 
     /// <summary>Заводит ожидание раскрытия для свёрнутой строки с детьми; другая строка — ожидание заново.</summary>
     private void Wait(Row? row)
@@ -344,11 +389,26 @@ internal sealed class FileDrop : IDisposable
             _scrolling.Start();
     }
 
+    /// <summary>Заводит раскрытие меню спрятанных уровней над «…» или снимает его.</summary>
+    private void Linger(bool over)
+    {
+        if (over == _lingering)
+            return;
+
+        _lingering = over;
+        _unfolding.Stop();
+
+        if (over)
+            _unfolding.Start();
+    }
+
     /// <summary>Снимает отметку, ожидание и прокрутку и забывает принесённое.</summary>
+    /// <remarks>Меню спрятанных уровней остаётся: уход из окна в него — тоже уход.</remarks>
     private void Stop()
     {
         _expanding.Stop();
         _scrolling.Stop();
+        Linger(false);
         _waiting = null;
         _edgeList = null;
         _edge = 0;
@@ -360,6 +420,8 @@ internal sealed class FileDrop : IDisposable
     private void OnExpandingTick(object? sender, EventArgs e) => Expand();
 
     private void OnScrollingTick(object? sender, EventArgs e) => Scroll();
+
+    private void OnUnfoldingTick(object? sender, EventArgs e) => Unfold();
 
     /// <summary>
     /// Полоса у края, где держат файлы, чтобы список ехал, — она же шаг прокрутки: высота строки

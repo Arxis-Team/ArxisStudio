@@ -234,6 +234,36 @@ internal sealed class ProjectWindowStudio : IDisposable
         return crumb;
     }
 
+    /// <summary>Кнопка «…» крошек правой колонки — за ней спрятанные уровни пути.</summary>
+    public AxButton Overflow() =>
+        View.Path.GetVisualDescendants().OfType<AxButton>().Single(button => button.Name == "PART_Overflow");
+
+    /// <summary>
+    /// Раскрывает меню спрятанных уровней так, как его раскрывает задержка над «…», и даёт ему встать
+    /// на место: в сцену меню кладёт кадр отрисовки, и без него курсор над пунктом пришёлся бы на
+    /// пустое место.
+    /// </summary>
+    public void Unfold()
+    {
+        Panel.Drop!.Unfold();
+        Dispatcher.UIThread.RunJobs();
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>Пункт раскрытого меню спрятанных уровней по имени каталога.</summary>
+    public AxMenuItem Hidden(string name)
+    {
+        var found = Window.GetVisualDescendants().OfType<MenuFlyoutPresenter>()
+            .SelectMany(menu => menu.GetVisualDescendants().OfType<AxMenuItem>())
+            .Where(item => item.Header is Segment segment && segment.Node.Name == name)
+            .ToList();
+
+        Assert.True(found.Count == 1, $"уровень «{name}» не спрятан в раскрытое меню");
+
+        return found[0];
+    }
+
     /// <summary>Контейнер строки — прокрутив до неё.</summary>
     public TreeRow Item(Row row)
     {

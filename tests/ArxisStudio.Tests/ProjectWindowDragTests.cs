@@ -343,6 +343,91 @@ public class ProjectWindowDragTests
         Assert.True(pane.Shown.IsKeyboardFocusWithin, "клавиатура не пришла к перенесённому");
     }
 
+    /// <summary>
+    /// Несомое, задержанное над «…» крошек, раскрывает меню спрятанных уровней — не сразу и не забирая
+    /// клавиатуры, — и пункт меню принимает перенос, как сам уровень; решение в меню целью не бывает.
+    /// Понесли в другое место — меню закрылось; отпустили на пункте — тоже.
+    /// </summary>
+    /// <remarks>
+    /// Меню — отдельное окно поверх колонки, и тяга, которая несёт на захвате указателя, спрашивает
+    /// крошки о нём по точке экрана. Клавиатура остаётся там, где тягу начали: Esc и Ctrl посреди неё
+    /// должны прийти туда.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_tile_held_over_the_crumbs_overflow_opens_the_hidden_levels()
+    {
+        var files = new FilesProbe();
+
+        using var studio = new ProjectWindowStudio(twoColumns: true, files: files, width: 360);
+
+        await studio.Open(studio.Solution(more: ["Views/Deep/Note.cs"]));
+
+        var pane = studio.Panel.Pane!;
+        var drag = studio.Panel.Drag!;
+        var crumbs = studio.View.Path;
+
+        studio.Select("Views");
+        studio.DoubleClick(TileItem(studio, "Deep"));
+
+        Assert.True(studio.Overflow().IsEffectivelyVisible, "крошки уместились — прятать нечего");
+
+        studio.Grab(TileItem(studio, "Note.cs"));
+
+        var held = studio.Window.FocusManager?.GetFocusedElement();
+
+        studio.Carry(studio.Overflow());
+
+        Assert.Equal(DragDropEffects.None, drag.Effect);
+        Assert.False(crumbs.IsOverflowOpen, "меню раскрылось сразу, без задержки");
+
+        studio.Unfold();
+
+        Assert.True(crumbs.IsOverflowOpen, "меню спрятанных уровней не раскрылось");
+        Assert.Same(held, studio.Window.FocusManager?.GetFocusedElement());
+
+        studio.Carry(studio.Hidden("App"));
+
+        Assert.Equal(DragDropEffects.Move, drag.Effect);
+        Assert.True(studio.Hidden("App").IsDropTarget, "пункт спрятанного уровня не отмечен целью");
+        Assert.True(studio.Row("App").IsDropTarget, "строка каталога в дереве не отмечена");
+
+        studio.Carry(studio.Hidden("Hello"));
+
+        Assert.Equal(DragDropEffects.None, drag.Effect);
+        Assert.False(studio.Hidden("Hello").IsDropTarget, "решение отмечено целью");
+        Assert.False(studio.Hidden("App").IsDropTarget, "отметка осталась на прежнем пункте");
+
+        studio.Carry(studio.Item(studio.Row("App")));
+
+        Assert.False(crumbs.IsOverflowOpen, "меню осталось, когда понесли в дерево");
+        Assert.Equal(DragDropEffects.Move, drag.Effect);
+        Assert.True(studio.Row("App").IsDropTarget, "строка дерева под раскрытым меню не стала целью");
+
+        // Esc бросает тягу — и меню уходит вместе с ней.
+        studio.Carry(studio.Overflow());
+        studio.Unfold();
+        studio.Window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, string.Empty);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(drag.Ghost);
+        Assert.False(crumbs.IsOverflowOpen, "брошенная тяга оставила меню открытым");
+
+        // Щелчок в стороне: время в безголовом прогоне стоит, и следующее нажатие иначе сочлось бы двойным.
+        studio.Release(studio.Item(studio.Row("App")));
+        studio.Press(studio.View.Query);
+        studio.Grab(TileItem(studio, "Note.cs"));
+        studio.Carry(studio.Overflow());
+        studio.Unfold();
+
+        files.After = () => studio.Projects.Publish(ProjectWindowStudio.Ready(2, studio.Solution(more: ["Note.cs"])));
+        studio.Release(studio.Hidden("App"));
+
+        await Settled(studio, () => studio.Model.Browser.Current?.Name == "App" && pane.Selected?.Name == "Note.cs");
+
+        Assert.Equal(studio.Row("App").Node.Path.Directory.Combine("Note.cs"), Assert.Single(files.Moved.Single()).To);
+        Assert.False(crumbs.IsOverflowOpen, "меню пережило сброс");
+    }
+
     private static async Task<ProjectWindowStudio> Opened(FilesProbe files, bool twoColumns = false)
     {
         var studio = new ProjectWindowStudio(twoColumns: twoColumns, files: files);

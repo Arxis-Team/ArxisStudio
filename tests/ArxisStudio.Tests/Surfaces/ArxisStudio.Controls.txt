@@ -1,4 +1,4 @@
-# StudioSdk 7.8
+# StudioSdk 7.9
 ArxisStudio.Controls.AxAvatar : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Controls.AxAvatar :: .ctor()
 ArxisStudio.Controls.AxAvatar :: ArxisStudio.Controls.AxAvatarShape Shape { get; set; }
@@ -35,6 +35,11 @@ ArxisStudio.Controls.AxBannerSeverity :: Success = 1
 ArxisStudio.Controls.AxBannerSeverity :: Warning = 2
 ArxisStudio.Controls.AxBreadcrumb : class : Avalonia.Controls.ItemsControl
 ArxisStudio.Controls.AxBreadcrumb :: .ctor()
+ArxisStudio.Controls.AxBreadcrumb :: ArxisStudio.Controls.AxBreadcrumbItem? SegmentAt(Avalonia.PixelPoint screen)
+ArxisStudio.Controls.AxBreadcrumb :: System.Boolean IsOverflowAt(Avalonia.PixelPoint screen)
+ArxisStudio.Controls.AxBreadcrumb :: System.Boolean IsOverflowOpen { get; }
+ArxisStudio.Controls.AxBreadcrumb :: System.Boolean OpenOverflow()
+ArxisStudio.Controls.AxBreadcrumb :: System.Void CloseOverflow()
 ArxisStudio.Controls.AxBreadcrumb :: event System.EventHandler<ArxisStudio.Controls.AxBreadcrumbNavigatedEventArgs> Navigated
 ArxisStudio.Controls.AxBreadcrumb :: static readonly Avalonia.Interactivity.RoutedEvent<ArxisStudio.Controls.AxBreadcrumbNavigatedEventArgs> NavigatedEvent
 ArxisStudio.Controls.AxBreadcrumbItem : class : Avalonia.Controls.Button
@@ -146,7 +151,9 @@ ArxisStudio.Controls.AxMenuFlyout :: static System.ValueTuple<System.Double, Sys
 ArxisStudio.Controls.AxMenuItem : class : Avalonia.Controls.MenuItem
 ArxisStudio.Controls.AxMenuItem :: .ctor()
 ArxisStudio.Controls.AxMenuItem :: System.Boolean IsDestructive { get; set; }
+ArxisStudio.Controls.AxMenuItem :: System.Boolean IsDropTarget { get; set; }
 ArxisStudio.Controls.AxMenuItem :: static readonly Avalonia.StyledProperty<System.Boolean> IsDestructiveProperty
+ArxisStudio.Controls.AxMenuItem :: static readonly Avalonia.StyledProperty<System.Boolean> IsDropTargetProperty
 ArxisStudio.Controls.AxProgressBar : class : Avalonia.Controls.ProgressBar
 ArxisStudio.Controls.AxProgressBar :: .ctor()
 ArxisStudio.Controls.AxQuickSearch : class : Avalonia.Controls.Primitives.TemplatedControl
