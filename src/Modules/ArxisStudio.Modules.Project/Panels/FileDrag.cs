@@ -353,12 +353,8 @@ internal sealed class FileDrag : IDisposable
     /// <remarks>
     /// Раскрытое меню спрятанных уровней крошек — отдельное окно поверх колонки: над ним несут к
     /// крошкам, а не к тому, что под ним, и попадание окна источника его не видит. Поэтому меню
-    /// спрашивается первым, по точке экрана.
-    /// <para>
-    /// Там, где всплывающее живёт в слое самого окна, открытое меню кладёт поверх окна прозрачный слой
-    /// лёгкого закрытия, и верхний элемент под точкой — он, а не дерево под ним. Поверхность поэтому
-    /// ищется по всем элементам под точкой, сверху вниз.
-    /// </para>
+    /// спрашивается первым, по точке экрана. Дальше попадание обычное, верхним элементом: меню,
+    /// раскрытое тягой, пропускает ввод к окну и того, что под ним, не заслоняет.
     /// </remarks>
     private (Control? Surface, Point At) SurfaceAt(Visual source, Point at)
     {
@@ -373,9 +369,8 @@ internal sealed class FileDrag : IDisposable
         if (crumbs.IsOverflowOpen && crumbs.IsOverflowAt(screen))
             return (crumbs, crumbs.PointToClient(screen));
 
-        if (top.GetInputElementsAt(at).OfType<Visual>()
-                .Select(hit => hit.GetSelfAndVisualAncestors().OfType<Control>().FirstOrDefault(control => Array.IndexOf(surfaces, control) >= 0))
-                .FirstOrDefault(found => found is not null) is not { } surface
+        if ((top.InputHitTest(at) as Visual)?.GetSelfAndVisualAncestors().OfType<Control>()
+                .FirstOrDefault(control => Array.IndexOf(surfaces, control) >= 0) is not { } surface
             || top.TranslatePoint(at, surface) is not { } point)
         {
             return (null, default);

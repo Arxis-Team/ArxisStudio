@@ -38,8 +38,8 @@ namespace ArxisStudio.Modules.Project.Panels;
 /// несут файлы, не работает, и без этого до каталога за краем было бы не добраться. «…» крошек, над
 /// которой держат столько же, раскрывает меню спрятанных уровней, как выпадающий список адресной
 /// строки проводника, и его пункты — такие же цели, как сегменты. Закрывается меню, когда несут в
-/// другое место или отпустили; тяга из проводника, ушедшая за край окна, оставляет его до щелчка:
-/// уход из окна в меню — тоже уход, и отличить одно от другого нечем.
+/// другое место, при сбросе и когда несомое ушло из окна и не вернулось: уход из окна в само меню —
+/// тоже уход, и настоящий от него отличает возвращение, которое приходит следом (<see cref="FoldDelay"/>).
 /// </para>
 /// <para>
 /// Мышь — не единственная дорога: скопированное в проводнике вставляется в окно Ctrl+V той же
@@ -60,6 +60,14 @@ internal sealed class FileDrop : IDisposable
     /// <summary>Как часто список прокручивается на строку, пока файлы держат у его края.</summary>
     internal static readonly TimeSpan ScrollEvery = TimeSpan.FromMilliseconds(60);
 
+    /// <summary>Сколько ждать несомое, ушедшее из окна, прежде чем закрыть меню спрятанных уровней.</summary>
+    /// <remarks>
+    /// Уход из окна в само меню — тоже уход: меню лежит в своём окне, и событие от него приходит
+    /// следом, через считаные миллисекунды. Закрывать сразу значило бы закрывать меню под курсором;
+    /// не закрывать вовсе — оставлять его висеть за брошенной тягой.
+    /// </remarks>
+    internal static readonly TimeSpan FoldDelay = TimeSpan.FromMilliseconds(250);
+
     private readonly ProjectPanelView _view;
     private readonly ProjectModel _model;
     private readonly Func<bool> _ready;
@@ -69,6 +77,7 @@ internal sealed class FileDrop : IDisposable
     private readonly DispatcherTimer _expanding;
     private readonly DispatcherTimer _scrolling;
     private readonly DispatcherTimer _unfolding;
+    private readonly DispatcherTimer _folding;
 
     private IDataTransfer? _data;
     private IReadOnlyList<ClipItem> _items = [];
@@ -106,6 +115,8 @@ internal sealed class FileDrop : IDisposable
         _scrolling.Tick += OnScrollingTick;
         _unfolding = new DispatcherTimer { Interval = ExpandDelay };
         _unfolding.Tick += OnUnfoldingTick;
+        _folding = new DispatcherTimer { Interval = FoldDelay };
+        _folding.Tick += OnFoldingTick;
 
         foreach (var surface in Surfaces)
         {
@@ -133,11 +144,12 @@ internal sealed class FileDrop : IDisposable
         }
 
         Stop();
-        _view.Path.CloseOverflow();
+        Shut();
 
         _expanding.Tick -= OnExpandingTick;
         _scrolling.Tick -= OnScrollingTick;
         _unfolding.Tick -= OnUnfoldingTick;
+        _folding.Tick -= OnFoldingTick;
     }
 
     /// <summary>
@@ -171,6 +183,17 @@ internal sealed class FileDrop : IDisposable
     }
 
     /// <summary>
+    /// Закрывает меню спрятанных уровней за несомым, ушедшим из окна, — то, что делает таймер по
+    /// истечении <see cref="FoldDelay"/>; тестам — вместо ожидания.
+    /// </summary>
+    /// <remarks>Несомое вернулось — закрывать нечего: подлёт таймер снял.</remarks>
+    internal void Fold()
+    {
+        if (_folding.IsEnabled)
+            Shut();
+    }
+
+    /// <summary>
     /// Прокручивает список на строку к краю, у которого держат файлы, — шаг таймера; тестам — вместо
     /// ожидания.
     /// </summary>
@@ -200,7 +223,9 @@ internal sealed class FileDrop : IDisposable
     internal DragDropEffects Hover(Control surface, Point point, IReadOnlyList<ClipItem> items, ClipMode mode)
     {
         // Уход, отложенный до конца события, отменён: курсор перешёл на соседний элемент того же окна.
+        // Несомое здесь же, и ожидание закрытия меню снято: уход был не из окна, а в само меню.
         _generation++;
+        _folding.Stop();
 
         var crumbs = ReferenceEquals(surface, _view.Path);
 
@@ -208,7 +233,7 @@ internal sealed class FileDrop : IDisposable
         if (!crumbs)
         {
             Linger(false);
-            _view.Path.CloseOverflow();
+            Shut();
         }
 
         var item = ItemAt(surface, point);
@@ -223,7 +248,7 @@ internal sealed class FileDrop : IDisposable
         {
             Wait(null);
             Edge(null, 0);
-            Linger(items.Count > 0 && _view.Path.IsOverflowAt(surface.PointToScreen(point)));
+            Linger(items.Count > 0 && !_view.Path.IsOverflowOpen && _view.Path.IsOverflowAt(surface.PointToScreen(point)));
         }
         else
         {
@@ -247,7 +272,7 @@ internal sealed class FileDrop : IDisposable
         var folder = Target(surface, ItemAt(surface, point), items, mode);
 
         Stop();
-        _view.Path.CloseOverflow();
+        Shut();
 
         return folder;
     }
@@ -259,7 +284,7 @@ internal sealed class FileDrop : IDisposable
     internal void Clear()
     {
         Stop();
-        _view.Path.CloseOverflow();
+        Shut();
     }
 
     /// <summary>Откуда пришёл сброс — туда встанет выделение после правки.</summary>
@@ -295,6 +320,11 @@ internal sealed class FileDrop : IDisposable
                     Stop();
             },
             DispatcherPriority.Background);
+
+        // Меню живёт в своём окне, и уход к нему приходит сюда же: его закрывает не уборка, а
+        // ожидание — несомое, которое не вернулось.
+        if (_view.Path.IsOverflowOpen && !_folding.IsEnabled)
+            _folding.Start();
     }
 
     private void OnDrop(object? sender, DragEventArgs e)
@@ -402,8 +432,18 @@ internal sealed class FileDrop : IDisposable
             _unfolding.Start();
     }
 
+    /// <summary>Закрывает меню спрятанных уровней и снимает ожидание его закрытия.</summary>
+    private void Shut()
+    {
+        _folding.Stop();
+        _view.Path.CloseOverflow();
+    }
+
     /// <summary>Снимает отметку, ожидание и прокрутку и забывает принесённое.</summary>
-    /// <remarks>Меню спрятанных уровней остаётся: уход из окна в него — тоже уход.</remarks>
+    /// <remarks>
+    /// Меню спрятанных уровней остаётся: уход из окна в него — тоже уход, и закрывает меню ожидание
+    /// (<see cref="Fold"/>), а не уборка.
+    /// </remarks>
     private void Stop()
     {
         _expanding.Stop();
@@ -422,6 +462,8 @@ internal sealed class FileDrop : IDisposable
     private void OnScrollingTick(object? sender, EventArgs e) => Scroll();
 
     private void OnUnfoldingTick(object? sender, EventArgs e) => Unfold();
+
+    private void OnFoldingTick(object? sender, EventArgs e) => Fold();
 
     /// <summary>
     /// Полоса у края, где держат файлы, чтобы список ехал, — она же шаг прокрутки: высота строки

@@ -285,6 +285,52 @@ public sealed class ProjectWindowDropTests : IDisposable
     }
 
     /// <summary>
+    /// Раскрытое меню спрятанных уровней окна не заслоняет: принесённое из проводника ложится и в
+    /// дерево под ним, а ушедшее из окна и не вернувшееся закрывает меню за собой.
+    /// </summary>
+    /// <remarks>
+    /// Под всплывающее с лёгким закрытием Avalonia стелет поверх окна прозрачный слой, и попадание
+    /// системной тяги тонуло бы в нём: целью не стало бы ничто — ни дерево, ни плитки, ни показанные
+    /// сегменты, — и меню было бы уже не закрыть, понеся в другое место. Уход же из окна в само меню
+    /// от настоящего отличает подлёт, который приходит следом.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task The_open_overflow_does_not_take_the_window_away_from_the_drag()
+    {
+        using var studio = new ProjectWindowStudio(twoColumns: true, files: new FilesProbe(), width: 360);
+
+        await studio.Open(studio.Solution(more: ["Views/Deep/Note.cs"]));
+
+        studio.Select("Views");
+        studio.DoubleClick(TileItem(studio, "Deep"));
+
+        var carried = await Carry(studio, File("notes.md"));
+
+        studio.Drag(studio.Overflow(), carried);
+        studio.Unfold();
+
+        Assert.True(studio.View.Path.IsOverflowOpen, "меню спрятанных уровней не раскрылось");
+        Assert.Equal(DragDropEffects.Copy, studio.Drag(studio.Item(studio.Row("App")), carried));
+        Assert.True(studio.Row("App").IsDropTarget, "строка дерева под раскрытым меню не стала целью");
+        Assert.False(studio.View.Path.IsOverflowOpen, "меню осталось, когда понесли в дерево");
+
+        // Ушли не из окна, а в само меню: подлёт пришёл следом, и закрывать нечего.
+        studio.Drag(studio.Overflow(), carried);
+        studio.Unfold();
+        studio.Leave(carried);
+        studio.Drag(studio.Hidden("App"), carried);
+        studio.Fold();
+
+        Assert.True(studio.View.Path.IsOverflowOpen, "меню закрылось под курсором");
+
+        // Ушли из окна и не вернулись — меню закрылось за брошенной тягой.
+        studio.Leave(carried);
+        studio.Fold();
+
+        Assert.False(studio.View.Path.IsOverflowOpen, "брошенная тяга оставила меню открытым");
+    }
+
+    /// <summary>
     /// Свёрнутый каталог, над которым держат файлы, раскрывается; унесли раньше — нет.
     /// </summary>
     [AvaloniaFact]

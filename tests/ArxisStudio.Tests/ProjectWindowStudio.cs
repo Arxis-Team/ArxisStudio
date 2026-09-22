@@ -251,6 +251,15 @@ internal sealed class ProjectWindowStudio : IDisposable
         Dispatcher.UIThread.RunJobs();
     }
 
+    /// <summary>
+    /// Закрывает меню спрятанных уровней так, как его закрывает ожидание несомого, ушедшего из окна.
+    /// </summary>
+    public void Fold()
+    {
+        Panel.Drop!.Fold();
+        Dispatcher.UIThread.RunJobs();
+    }
+
     /// <summary>Пункт раскрытого меню спрятанных уровней по имени каталога.</summary>
     public AxMenuItem Hidden(string name)
     {
