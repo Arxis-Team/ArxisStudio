@@ -355,6 +355,51 @@ internal sealed class ProjectWindowStudio : IDisposable
         return answer;
     }
 
+    /// <summary>
+    /// Берётся мышью за середину элемента и ведёт её дальше порога тяги — так начинают переносить.
+    /// </summary>
+    /// <param name="source">За что берутся.</param>
+    /// <param name="keys">Зажатые клавиши.</param>
+    /// <remarks>
+    /// Движения идут с нажатой левой кнопкой в признаках, как у настоящей мыши: безголовая платформа
+    /// кнопку сама не помнит, а тяга без нажатой кнопки — не тяга.
+    /// </remarks>
+    public void Grab(Visual source, RawInputModifiers keys = RawInputModifiers.None)
+    {
+        var at = Middle(source);
+
+        Window.MouseMove(at, keys);
+        Window.MouseDown(at, MouseButton.Left, keys);
+        Window.MouseMove(at + new Vector(FileDrag.Threshold * 2, 0), keys | RawInputModifiers.LeftMouseButton);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>Ведёт взятое к середине элемента, не отпуская.</summary>
+    /// <param name="target">Куда.</param>
+    /// <param name="keys">Зажатые клавиши.</param>
+    public void Carry(Visual target, RawInputModifiers keys = RawInputModifiers.None) => Carry(Middle(target), keys);
+
+    /// <summary>Ведёт взятое к точке окна, не отпуская.</summary>
+    /// <param name="at">Точка окна.</param>
+    /// <param name="keys">Зажатые клавиши.</param>
+    public void Carry(Point at, RawInputModifiers keys = RawInputModifiers.None)
+    {
+        Window.MouseMove(at, keys | RawInputModifiers.LeftMouseButton);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>Доводит взятое до середины элемента и отпускает.</summary>
+    /// <param name="target">Куда.</param>
+    /// <param name="keys">Зажатые клавиши.</param>
+    public void Release(Visual target, RawInputModifiers keys = RawInputModifiers.None)
+    {
+        var at = Middle(target);
+
+        Window.MouseMove(at, keys | RawInputModifiers.LeftMouseButton);
+        Window.MouseUp(at, MouseButton.Left, keys);
+        Dispatcher.UIThread.RunJobs();
+    }
+
     /// <summary>Уносит файлы из окна, не отпустив: курсор ушёл за край или несущий нажал Esc.</summary>
     /// <param name="data">Что несли.</param>
     public void Leave(IDataTransfer data)

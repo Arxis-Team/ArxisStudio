@@ -45,7 +45,8 @@ namespace ArxisStudio.Modules.Project.Panels;
 /// </para>
 /// <para>
 /// Файлы из проводника приносят перетаскиванием (<see cref="FileDrop"/>), как в Rider и Unity: на
-/// каталог — в него, на файл — в его каталог, копией и той же правкой, что Ctrl+V.
+/// каталог — в него, на файл — в его каталог, копией и той же правкой, что Ctrl+V. Внутри окна файлы
+/// и каталоги носят мышью (<see cref="FileDrag"/>): отпущенное переносится, с Ctrl — копируется.
 /// </para>
 /// </remarks>
 [ToolWindow(ProjectModule.PanelId)]
@@ -62,6 +63,7 @@ public sealed class ProjectPanel : ToolWindow
     private BrowserPane? _pane;
     private Editing? _editing;
     private FileDrop? _fileDrop;
+    private FileDrag? _fileDrag;
     private CanonicalPath? _dropFolder;
     private LanguageProbe? _language;
     private Node? _selected;
@@ -82,6 +84,9 @@ public sealed class ProjectPanel : ToolWindow
 
     /// <summary>Перетаскивание из проводника — тестам: его таймеры они зовут, а не ждут.</summary>
     internal FileDrop? Drop => _fileDrop;
+
+    /// <summary>Тяга файлов внутри окна — тестам: что сделает отпускание и что написано у курсора.</summary>
+    internal FileDrag? Drag => _fileDrag;
 
     /// <inheritdoc/>
     /// <remarks>Клавиатура окна — у дерева: с него начинают, и в него возвращаются из поиска.</remarks>
@@ -226,19 +231,19 @@ public sealed class ProjectPanel : ToolWindow
                 _editing.ClipChanged -= Mark;
         });
 
-        // Принесённое из проводника кладёт служба файлов, как вставку: без неё окно файлов не берёт.
+        // Принесённое из проводника и перенесённое внутри окна кладёт служба файлов, как вставку: без
+        // неё окно файлов не берёт и не носит.
         if (_editing is not null)
         {
-            _fileDrop = new FileDrop(
-                view,
-                model,
-                () => _editing is { IsBusy: false } && _model?.IsReady == true,
-                MarkDrop,
-                DropFiles,
-                row => Keep(() => model.Tree.Expand(row)));
+            bool Ready() => _editing is { IsBusy: false } && _model?.IsReady == true;
+
+            _fileDrop = new FileDrop(view, model, Ready, MarkDrop, DropFiles, row => Keep(() => model.Tree.Expand(row)));
+            _fileDrag = new FileDrag(view, _fileDrop, Context.Strings, CarryFiles);
 
             _release.Add(() =>
             {
+                _fileDrag?.Dispose();
+                _fileDrag = null;
                 _fileDrop?.Dispose();
                 _fileDrop = null;
             });
@@ -536,8 +541,14 @@ public sealed class ProjectPanel : ToolWindow
     /// туда же. Строки нет — в две колонки у файла её нет, — и тогда, как у правки из колонки, узел
     /// выделяется плиткой в своей папке: колонка идёт в неё, где бы ни стояла. Вернувшееся отменой
     /// лежит в папке, которая могла пропасть вместе с удалённым, и колонка тогда поднялась выше.
+    /// <para>
+    /// Сброс мышью ставит клавиатуру туда, где положенное показано (<paramref name="follow"/>): тяга
+    /// уносит с собой плитку, на которой стояла клавиатура, и после переноса на строку дерева в две
+    /// колонки она осталась бы нигде — файла в дереве нет, а плитка ушла вместе с колонкой. Каталог
+    /// колонка открывает, и своей плитки у него в ней нет: клавиатура тогда уходит в саму колонку.
+    /// </para>
     /// </remarks>
-    private async Task StandOnAsync(CanonicalPath path, EditOrigin origin)
+    private async Task StandOnAsync(CanonicalPath path, EditOrigin origin, bool follow = false)
     {
         if (_model is not { } model)
             return;
@@ -561,8 +572,8 @@ public sealed class ProjectPanel : ToolWindow
 
         Stand(node);
 
-        if (model.IsTwoColumns && origin == EditOrigin.Pane)
-            _pane?.Select(node, focus: true);
+        if (model.IsTwoColumns && (origin == EditOrigin.Pane || follow) && _pane is { } pane && !pane.Select(node, focus: true))
+            pane.Shown.Focus(NavigationMethod.Directional);
     }
 
     /// <summary>Вырезает выбранное: вставка его перенесёт, а до неё оно приглушено.</summary>
@@ -586,10 +597,19 @@ public sealed class ProjectPanel : ToolWindow
     private async Task DropFilesAsync(IReadOnlyList<ClipItem> items, CanonicalPath folder, EditOrigin origin)
     {
         if (_editing is { } editing && await editing.DropAsync(items, folder) is [var first, ..])
-            await StandOnAsync(first, origin);
+            await StandOnAsync(first, origin, follow: true);
     }
 
-    /// <summary>Отмечает каталог, в который ляжет принесённое из проводника; пусто — снимает отметку.</summary>
+    /// <summary>Переносит или копирует несомое мышью внутри окна и ставит выделение на результат.</summary>
+    private void CarryFiles(FileClip clip, CanonicalPath folder, EditOrigin origin) => Guard(CarryFilesAsync(clip, folder, origin));
+
+    private async Task CarryFilesAsync(FileClip clip, CanonicalPath folder, EditOrigin origin)
+    {
+        if (_editing is { } editing && await editing.CarryAsync(clip, folder) is [var first, ..])
+            await StandOnAsync(first, origin, follow: true);
+    }
+
+    /// <summary>Отмечает каталог, в который ляжет несомое — из проводника или внутри окна; пусто — снимает отметку.</summary>
     private void MarkDrop(CanonicalPath? folder)
     {
         if (_dropFolder == folder)

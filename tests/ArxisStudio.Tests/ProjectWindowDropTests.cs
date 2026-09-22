@@ -142,6 +142,7 @@ public sealed class ProjectWindowDropTests : IDisposable
     /// <summary>
     /// В две колонки пустое место и файл колонки кладут в каталог, который она показывает, — обведена
     /// вся колонка, — а плитка каталога — в сам каталог, отмеченный и плиткой, и строкой дерева.
+    /// Сброшенное на строку дерева колонка показывает плиткой, и клавиатура уходит к ней.
     /// </summary>
     [AvaloniaFact]
     public async Task The_column_takes_files_into_the_folder_it_shows()
@@ -152,7 +153,8 @@ public sealed class ProjectWindowDropTests : IDisposable
 
         studio.Select("App");
 
-        var list = studio.Panel.Pane!.Shown;
+        var pane = studio.Panel.Pane!;
+        var list = pane.Shown;
         var carried = await Carry(studio, File("notes.md"));
         var empty = list.TranslatePoint(new Point(list.Bounds.Width - 4, list.Bounds.Height - 4), studio.Window)!.Value;
 
@@ -167,12 +169,19 @@ public sealed class ProjectWindowDropTests : IDisposable
         Assert.True(Tile(studio, "Models").IsDropTarget, "плитка каталога не отмечена");
         Assert.True(studio.Row("Models").IsDropTarget, "строка каталога в дереве не отмечена");
 
+        files.After = () => studio.Projects.Publish(ProjectWindowStudio.Ready(2, studio.Solution(more: ["Models/notes.md"])));
         studio.Drag(TileItem(studio, "Models"), carried, drop: true);
 
-        await Settled(studio, () => files.Copied.Count == 1);
+        await Settled(studio, () => pane.Selected?.Name == "notes.md");
 
         Assert.Equal(studio.Row("Models").Node.Path.Combine("notes.md"), Assert.Single(files.Copied[0]).To);
         Assert.False(studio.Model.IsColumnDropTarget);
+
+        studio.Select("App");
+        files.After = () => studio.Projects.Publish(ProjectWindowStudio.Ready(3, studio.Solution(more: ["Models/notes.md", "Views/notes.md"])));
+        studio.Drag(studio.Item(studio.Row("Views")), carried, drop: true);
+
+        await Settled(studio, () => studio.Model.Browser.Current?.Name == "Views" && pane.Selected?.Name == "notes.md" && pane.Shown.IsKeyboardFocusWithin);
     }
 
     /// <summary>

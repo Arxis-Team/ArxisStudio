@@ -534,6 +534,46 @@ internal sealed class Editing(
             .All(pair => File.Exists(pair.To.Value));
 
     /// <summary>
+    /// Переносит или копирует в каталог то, что несли мышью внутри окна: занятое имя спрашивает, как
+    /// вставка.
+    /// </summary>
+    /// <param name="clip">Несомое: вырезанным — перенос, скопированным — копия.</param>
+    /// <param name="folder">Каталог назначения.</param>
+    /// <returns>Где теперь лежат корни; пусто — ничего не сдвинулось.</returns>
+    /// <remarks>
+    /// Перенос — та же правка, что вырезать и вставить: ссылки файлов проекта едут следом, и отменяет
+    /// её Ctrl+Z. Вырезанное, которое унесли мышью, по старым путям больше не лежит, и буфер правки с
+    /// ним кончается, как после вставки.
+    /// </remarks>
+    public async Task<IReadOnlyList<CanonicalPath>?> CarryAsync(FileClip clip, CanonicalPath folder)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+
+        if (_busy || owner() is not { } window || !Dropping.Fits(clip.Items, folder, clip.Mode))
+            return null;
+
+        _busy = true;
+
+        try
+        {
+            var moved = clip.Mode == ClipMode.Cut;
+            var roots = await PlaceAsync(window, clip, folder, moved ? "project.paste.moved" : "project.drop.copied").ConfigureAwait(true);
+
+            if (roots is not null && moved && Clip is { Mode: ClipMode.Cut } cut && cut.Paths.Intersect(clip.Paths).Any())
+            {
+                Take(null);
+                await Forget(cut).ConfigureAwait(true);
+            }
+
+            return roots;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>
     /// Кладёт в каталог вставку или сброс: раскладка с вопросом о занятом, служба файлов одним
     /// действием истории и строка состояния.
     /// </summary>

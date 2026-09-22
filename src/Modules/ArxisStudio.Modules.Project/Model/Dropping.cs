@@ -17,8 +17,10 @@ namespace ArxisStudio.Modules.Project.Model;
 /// некуда. Каталог нельзя положить в него самого или глубже — ни копией, ни переносом.
 /// </para>
 /// <para>
-/// <b>Чем.</b> Только копией, как у Rider и Unity. Принесённое лежит вне решения, и перенос
-/// удалял бы его там, куда история студии не дотягивается: отменить такое было бы нечем.
+/// <b>Чем.</b> Принесённое из проводника — только копией, как у Rider и Unity: оно лежит вне
+/// решения, и перенос удалял бы его там, куда история студии не дотягивается, — отменить такое было
+/// бы нечем. Перенесённое внутри окна переносится, а с Ctrl копируется: и то и другое история знает.
+/// Перенос туда, где всё несомое уже лежит, — не цель: переносить нечего.
 /// </para>
 /// </remarks>
 internal static class Dropping
@@ -46,14 +48,20 @@ internal static class Dropping
         return items;
     }
 
-    /// <summary>Ляжет ли принесённое в каталог: ни один принесённый каталог не он сам и не его предок.</summary>
-    /// <param name="items">Принесённое.</param>
+    /// <summary>
+    /// Ляжет ли несомое в каталог: ни один несомый каталог не он сам и не его предок, а перенос
+    /// сдвинет хоть что-то.
+    /// </summary>
+    /// <param name="items">Несомое.</param>
     /// <param name="folder">Каталог назначения.</param>
-    public static bool Fits(IReadOnlyList<ClipItem> items, CanonicalPath folder)
+    /// <param name="mode">Перенос или копия.</param>
+    public static bool Fits(IReadOnlyList<ClipItem> items, CanonicalPath folder, ClipMode mode = ClipMode.Copy)
     {
         ArgumentNullException.ThrowIfNull(items);
 
-        return items.Count > 0 && !items.Any(item => Pasting.IntoItself(item, folder));
+        return items.Count > 0
+            && !items.Any(item => Pasting.IntoItself(item, folder))
+            && (mode == ClipMode.Copy || items.Any(item => !Pasting.SameFolder(item, folder)));
     }
 
     /// <summary>Изображает ли узел каталог назначения: строка каталога или проекта, чей каталог — он.</summary>

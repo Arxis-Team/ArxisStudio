@@ -39,6 +39,11 @@ namespace ArxisStudio.Modules.Project.Panels;
 /// Мышь — не единственная дорога: скопированное в проводнике вставляется в окно Ctrl+V той же
 /// правкой (WCAG 2.5.7).
 /// </para>
+/// <para>
+/// <b>Изнутри окна</b> несёт <see cref="FileDrag"/> и спрашивает здесь же — <see cref="Hover"/> и
+/// <see cref="Place"/>: цель, отметка, раскрытие и прокрутка у обоих источников одни. Разница только в
+/// том, чем кладут: принесённое из проводника копируется, перенесённое внутри окна переносится.
+/// </para>
 /// </remarks>
 internal sealed class FileDrop : IDisposable
 {
@@ -155,35 +160,73 @@ internal sealed class FileDrop : IDisposable
         viewer.Offset = viewer.Offset.WithY(y);
     }
 
+    /// <summary>
+    /// Несомое над точкой списка: отмечает, куда оно ляжет, заводит раскрытие и прокрутку и говорит,
+    /// что сделает отпускание.
+    /// </summary>
+    /// <param name="list">Список под курсором.</param>
+    /// <param name="point">Точка в координатах списка.</param>
+    /// <param name="items">Несомое; пусто — нести нечего.</param>
+    /// <param name="mode">Перенос или копия.</param>
+    /// <returns>Перенос, копия или ничего — чем ответить курсору.</returns>
+    internal DragDropEffects Hover(AxListBox list, Point point, IReadOnlyList<ClipItem> items, ClipMode mode)
+    {
+        // Уход, отложенный до конца события, отменён: курсор перешёл на соседний элемент того же окна.
+        _generation++;
+
+        var item = ItemAt(list, point);
+        var folder = Target(list, item, items, mode);
+
+        _mark(folder);
+
+        // Нести нечего — ни раскрывать, ни прокручивать незачем: над деревом тащат текст, а не файлы.
+        if (items.Count == 0)
+        {
+            Wait(null);
+            Edge(null, 0);
+            return DragDropEffects.None;
+        }
+
+        Wait(ReferenceEquals(list, _view.Tree) ? item as Row : null);
+        Edge(list, point.Y < Band(list) ? -1 : point.Y > list.Bounds.Height - Band(list) ? 1 : 0);
+
+        return folder is null ? DragDropEffects.None : mode == ClipMode.Cut ? DragDropEffects.Move : DragDropEffects.Copy;
+    }
+
+    /// <summary>Отпускание несомого над точкой списка: куда оно ляжет; отметка и таймеры снимаются.</summary>
+    /// <param name="list">Список под курсором.</param>
+    /// <param name="point">Точка в координатах списка.</param>
+    /// <param name="items">Несомое.</param>
+    /// <param name="mode">Перенос или копия.</param>
+    /// <returns>Каталог назначения; пусто — отпустили там, где класть некуда.</returns>
+    internal CanonicalPath? Place(AxListBox list, Point point, IReadOnlyList<ClipItem> items, ClipMode mode)
+    {
+        _generation++;
+
+        var folder = Target(list, ItemAt(list, point), items, mode);
+
+        Stop();
+
+        return folder;
+    }
+
+    /// <summary>Несомое ушло с окна или его бросили: отметка, раскрытие и прокрутка снимаются.</summary>
+    internal void Clear() => Stop();
+
+    /// <summary>Откуда пришёл сброс — туда встанет выделение после правки.</summary>
+    /// <param name="list">Список, над которым отпустили.</param>
+    internal EditOrigin Origin(AxListBox list) => ReferenceEquals(list, _view.Tree) ? EditOrigin.Tree : EditOrigin.Pane;
+
     private void OnDragOver(object? sender, DragEventArgs e)
     {
         if (sender is not AxListBox list)
             return;
 
-        // Уход, отложенный до конца события, отменён: курсор перешёл на соседний элемент того же окна.
-        _generation++;
-
         Carried(e.DataTransfer);
 
-        var point = e.GetPosition(list);
-        var item = ItemAt(list, point);
-        var folder = Target(list, item);
-
-        e.DragEffects = folder is not null && (e.DragEffects & DragDropEffects.Copy) != 0 ? DragDropEffects.Copy : DragDropEffects.None;
+        // Из проводника окно только копирует: источник, копии не разрешивший, не несёт ничего.
+        e.DragEffects = Hover(list, e.GetPosition(list), Offered(e), ClipMode.Copy);
         e.Handled = true;
-
-        _mark(e.DragEffects == DragDropEffects.Copy ? folder : null);
-
-        // Нести нечего — ни раскрывать, ни прокручивать незачем: над деревом тащат текст, а не файлы.
-        if (_items.Count == 0)
-        {
-            Wait(null);
-            Edge(null, 0);
-            return;
-        }
-
-        Wait(ReferenceEquals(list, _view.Tree) ? item as Row : null);
-        Edge(list, point.Y < Band(list) ? -1 : point.Y > list.Bounds.Height - Band(list) ? 1 : 0);
     }
 
     /// <remarks>
@@ -210,27 +253,25 @@ internal sealed class FileDrop : IDisposable
         if (sender is not AxListBox list)
             return;
 
-        _generation++;
-
         Carried(e.DataTransfer);
 
-        var items = _items;
-        var folder = Target(list, ItemAt(list, e.GetPosition(list)));
-        var copy = (e.DragEffects & DragDropEffects.Copy) != 0;
+        var items = Offered(e);
+        var folder = Place(list, e.GetPosition(list), items, ClipMode.Copy);
 
-        e.DragEffects = copy && folder is not null ? DragDropEffects.Copy : DragDropEffects.None;
+        e.DragEffects = folder is null ? DragDropEffects.None : DragDropEffects.Copy;
         e.Handled = true;
 
-        Stop();
-
-        if (copy && folder is { } target)
-            _drop(items, target, ReferenceEquals(list, _view.Tree) ? EditOrigin.Tree : EditOrigin.Pane);
+        if (folder is { } target)
+            _drop(items, target, Origin(list));
     }
 
-    /// <summary>Каталог, в который ляжет принесённое, если отпустить над этим; пусто — некуда.</summary>
-    private CanonicalPath? Target(AxListBox list, object? item)
+    /// <summary>Принесённое, если источник разрешил копию; иначе — ничего.</summary>
+    private IReadOnlyList<ClipItem> Offered(DragEventArgs e) => (e.DragEffects & DragDropEffects.Copy) != 0 ? _items : [];
+
+    /// <summary>Каталог, в который ляжет несомое, если отпустить над этим; пусто — некуда.</summary>
+    private CanonicalPath? Target(AxListBox list, object? item, IReadOnlyList<ClipItem> items, ClipMode mode)
     {
-        if (!_ready() || _items.Count == 0)
+        if (!_ready() || items.Count == 0)
             return null;
 
         var folder = item switch
@@ -241,7 +282,7 @@ internal sealed class FileDrop : IDisposable
             _ => null,
         };
 
-        return folder is { } target && Dropping.Fits(_items, target) ? target : null;
+        return folder is { } target && Dropping.Fits(items, target, mode) ? target : null;
     }
 
     /// <summary>Читает принесённое один раз на перетаскивание: подлёт приходит на каждое движение мыши.</summary>

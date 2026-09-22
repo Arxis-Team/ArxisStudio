@@ -1,0 +1,32 @@
+<!--
+    Что несут мышью по окну проекта — значок и имя первого, а за ним число остальных, — рядом с
+    курсором, как у Rider и Unity. Одета подсказка как всплывающая подсказка темы: тот же фон,
+    обводка и тень, — она и есть подсказка, только едет за курсором. Мышь она не ловит: поймай она её —
+    под курсором всегда была бы она сама, и цель перестала бы меняться.
+
+    Стиль окна проекта сюда не доходит: подсказка лежит в слое поверх окна, а не в разметке панели, —
+    поэтому ключи темы названы прямо здесь.
+-->
+<AxUserControl xmlns="https://github.com/Arxis-Team/ArxisStudio"
+               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+               xmlns:a="https://github.com/avaloniaui"
+               xmlns:p="using:ArxisStudio.Modules.Project.Panels"
+               x:Class="ArxisStudio.Modules.Project.Panels.DragGhost"
+               x:DataType="p:Carried"
+               IsHitTestVisible="False">
+
+  <a:Border Background="{a:DynamicResource AxToolTipFillBrush}"
+            BorderBrush="{a:DynamicResource AxToolTipStrokeBrush}"
+            BorderThickness="{a:DynamicResource AxHairlineThickness}"
+            CornerRadius="{a:DynamicResource AxCornerRadius}"
+            BoxShadow="{a:DynamicResource AxShadowPopup}"
+            Padding="{a:DynamicResource AxTooltipPadding}">
+    <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxGapIconText}">
+      <AxIcon VerticalAlignment="Center"
+              Data="{a:Binding Node, Converter={x:Static p:NodeGlyph.Instance}}"
+              p:Tint.Key="{a:Binding Node, Converter={x:Static p:TintKey.Instance}}"/>
+      <a:TextBlock Text="{a:Binding Label}" VerticalAlignment="Center"/>
+    </a:StackPanel>
+  </a:Border>
+
+</AxUserControl>
