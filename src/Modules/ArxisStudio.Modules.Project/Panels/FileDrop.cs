@@ -20,14 +20,16 @@ namespace ArxisStudio.Modules.Project.Panels;
 /// <para>
 /// <b>Куда.</b> Как у Rider и Unity: на каталог и проект — в них, на файл — в его каталог, в правой
 /// колонке на плитку каталога — в него, на файл и на пустое место — в каталог, который колонка
-/// показывает. Решение, папка решения, зависимости и пустое место под строками дерева целью не
-/// бывают — курсор говорит «нельзя». Правила — <see cref="Dropping"/>; класть — дорогой вставки
-/// (<see cref="Editing.DropAsync"/>): копией, с вопросом о занятом имени, одним действием истории.
+/// показывает. Сегмент крошек над колонкой — такой же каталог: отпущенное на нём ложится на этот
+/// уровень пути, как на адресную строку проводника и Finder. Решение, папка решения, зависимости,
+/// пустое место под строками дерева и между крошками целью не бывают — курсор говорит «нельзя».
+/// Правила — <see cref="Dropping"/>; класть — дорогой вставки (<see cref="Editing.DropAsync"/>):
+/// копией, с вопросом о занятом имени, одним действием истории.
 /// </para>
 /// <para>
-/// <b>Как видно.</b> Отмечается цель, а не то, над чем курсор: строка каталога в дереве, его плитка и
-/// вся колонка, если она его показывает. Над файлом загорается строка его каталога — так видно, куда
-/// ляжет принесённое.
+/// <b>Как видно.</b> Отмечается цель, а не то, над чем курсор: строка каталога в дереве, его плитка,
+/// его сегмент крошек и вся колонка, если она его показывает. Над файлом загорается строка его
+/// каталога — так видно, куда ляжет принесённое.
 /// </para>
 /// <para>
 /// <b>Дорога к цели.</b> Свёрнутый каталог, над которым держат файлы <see cref="ExpandDelay"/>,
@@ -70,7 +72,7 @@ internal sealed class FileDrop : IDisposable
     private int _edge;
     private int _generation;
 
-    /// <summary>Подключает перетаскивание к дереву и к обоим видам правой колонки.</summary>
+    /// <summary>Подключает перетаскивание к дереву, к обоим видам правой колонки и к её крошкам.</summary>
     /// <param name="view">Разметка окна.</param>
     /// <param name="model">Модель окна.</param>
     /// <param name="ready">Можно ли класть сейчас: решение открыто и правка не занята.</param>
@@ -97,28 +99,29 @@ internal sealed class FileDrop : IDisposable
         _scrolling = new DispatcherTimer { Interval = ScrollEvery };
         _scrolling.Tick += OnScrollingTick;
 
-        foreach (var list in Lists)
+        foreach (var surface in Surfaces)
         {
-            DragDrop.SetAllowDrop(list, true);
-            list.AddHandler(DragDrop.DragEnterEvent, OnDragOver);
-            list.AddHandler(DragDrop.DragOverEvent, OnDragOver);
-            list.AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
-            list.AddHandler(DragDrop.DropEvent, OnDrop);
+            DragDrop.SetAllowDrop(surface, true);
+            surface.AddHandler(DragDrop.DragEnterEvent, OnDragOver);
+            surface.AddHandler(DragDrop.DragOverEvent, OnDragOver);
+            surface.AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
+            surface.AddHandler(DragDrop.DropEvent, OnDrop);
         }
     }
 
-    private AxListBox[] Lists => [_view.Tree, _view.Tiles, _view.Files];
+    /// <summary>Куда несут: дерево, оба вида правой колонки и крошки над ней.</summary>
+    internal Control[] Surfaces => [_view.Tree, _view.Tiles, _view.Files, _view.Path];
 
     /// <inheritdoc/>
     public void Dispose()
     {
-        foreach (var list in Lists)
+        foreach (var surface in Surfaces)
         {
-            DragDrop.SetAllowDrop(list, false);
-            list.RemoveHandler(DragDrop.DragEnterEvent, OnDragOver);
-            list.RemoveHandler(DragDrop.DragOverEvent, OnDragOver);
-            list.RemoveHandler(DragDrop.DragLeaveEvent, OnDragLeave);
-            list.RemoveHandler(DragDrop.DropEvent, OnDrop);
+            DragDrop.SetAllowDrop(surface, false);
+            surface.RemoveHandler(DragDrop.DragEnterEvent, OnDragOver);
+            surface.RemoveHandler(DragDrop.DragOverEvent, OnDragOver);
+            surface.RemoveHandler(DragDrop.DragLeaveEvent, OnDragLeave);
+            surface.RemoveHandler(DragDrop.DropEvent, OnDrop);
         }
 
         Stop();
@@ -161,49 +164,51 @@ internal sealed class FileDrop : IDisposable
     }
 
     /// <summary>
-    /// Несомое над точкой списка: отмечает, куда оно ляжет, заводит раскрытие и прокрутку и говорит,
-    /// что сделает отпускание.
+    /// Несомое над точкой поверхности: отмечает, куда оно ляжет, заводит раскрытие и прокрутку и
+    /// говорит, что сделает отпускание.
     /// </summary>
-    /// <param name="list">Список под курсором.</param>
-    /// <param name="point">Точка в координатах списка.</param>
+    /// <param name="surface">Список или крошки под курсором — одна из <see cref="Surfaces"/>.</param>
+    /// <param name="point">Точка в координатах поверхности.</param>
     /// <param name="items">Несомое; пусто — нести нечего.</param>
     /// <param name="mode">Перенос или копия.</param>
     /// <returns>Перенос, копия или ничего — чем ответить курсору.</returns>
-    internal DragDropEffects Hover(AxListBox list, Point point, IReadOnlyList<ClipItem> items, ClipMode mode)
+    internal DragDropEffects Hover(Control surface, Point point, IReadOnlyList<ClipItem> items, ClipMode mode)
     {
         // Уход, отложенный до конца события, отменён: курсор перешёл на соседний элемент того же окна.
         _generation++;
 
-        var item = ItemAt(list, point);
-        var folder = Target(list, item, items, mode);
+        var item = ItemAt(surface, point);
+        var folder = Target(surface, item, items, mode);
 
         _mark(folder);
 
         // Нести нечего — ни раскрывать, ни прокручивать незачем: над деревом тащат текст, а не файлы.
-        if (items.Count == 0)
+        // Крошкам и то и другое не нужно: каталоги пути раскрыты, и ряд не листается.
+        if (items.Count == 0 || surface is not AxListBox list)
         {
             Wait(null);
             Edge(null, 0);
-            return DragDropEffects.None;
         }
-
-        Wait(ReferenceEquals(list, _view.Tree) ? item as Row : null);
-        Edge(list, point.Y < Band(list) ? -1 : point.Y > list.Bounds.Height - Band(list) ? 1 : 0);
+        else
+        {
+            Wait(ReferenceEquals(list, _view.Tree) ? item as Row : null);
+            Edge(list, point.Y < Band(list) ? -1 : point.Y > list.Bounds.Height - Band(list) ? 1 : 0);
+        }
 
         return folder is null ? DragDropEffects.None : mode == ClipMode.Cut ? DragDropEffects.Move : DragDropEffects.Copy;
     }
 
-    /// <summary>Отпускание несомого над точкой списка: куда оно ляжет; отметка и таймеры снимаются.</summary>
-    /// <param name="list">Список под курсором.</param>
-    /// <param name="point">Точка в координатах списка.</param>
+    /// <summary>Отпускание несомого над точкой поверхности: куда оно ляжет; отметка и таймеры снимаются.</summary>
+    /// <param name="surface">Список или крошки под курсором.</param>
+    /// <param name="point">Точка в координатах поверхности.</param>
     /// <param name="items">Несомое.</param>
     /// <param name="mode">Перенос или копия.</param>
     /// <returns>Каталог назначения; пусто — отпустили там, где класть некуда.</returns>
-    internal CanonicalPath? Place(AxListBox list, Point point, IReadOnlyList<ClipItem> items, ClipMode mode)
+    internal CanonicalPath? Place(Control surface, Point point, IReadOnlyList<ClipItem> items, ClipMode mode)
     {
         _generation++;
 
-        var folder = Target(list, ItemAt(list, point), items, mode);
+        var folder = Target(surface, ItemAt(surface, point), items, mode);
 
         Stop();
 
@@ -214,18 +219,18 @@ internal sealed class FileDrop : IDisposable
     internal void Clear() => Stop();
 
     /// <summary>Откуда пришёл сброс — туда встанет выделение после правки.</summary>
-    /// <param name="list">Список, над которым отпустили.</param>
-    internal EditOrigin Origin(AxListBox list) => ReferenceEquals(list, _view.Tree) ? EditOrigin.Tree : EditOrigin.Pane;
+    /// <param name="surface">Список или крошки, над которыми отпустили: крошки — это колонка.</param>
+    internal EditOrigin Origin(Control surface) => ReferenceEquals(surface, _view.Tree) ? EditOrigin.Tree : EditOrigin.Pane;
 
     private void OnDragOver(object? sender, DragEventArgs e)
     {
-        if (sender is not AxListBox list)
+        if (sender is not Control surface)
             return;
 
         Carried(e.DataTransfer);
 
         // Из проводника окно только копирует: источник, копии не разрешивший, не несёт ничего.
-        e.DragEffects = Hover(list, e.GetPosition(list), Offered(e), ClipMode.Copy);
+        e.DragEffects = Hover(surface, e.GetPosition(surface), Offered(e), ClipMode.Copy);
         e.Handled = true;
     }
 
@@ -250,35 +255,41 @@ internal sealed class FileDrop : IDisposable
 
     private void OnDrop(object? sender, DragEventArgs e)
     {
-        if (sender is not AxListBox list)
+        if (sender is not Control surface)
             return;
 
         Carried(e.DataTransfer);
 
         var items = Offered(e);
-        var folder = Place(list, e.GetPosition(list), items, ClipMode.Copy);
+        var folder = Place(surface, e.GetPosition(surface), items, ClipMode.Copy);
 
         e.DragEffects = folder is null ? DragDropEffects.None : DragDropEffects.Copy;
         e.Handled = true;
 
         if (folder is { } target)
-            _drop(items, target, Origin(list));
+            _drop(items, target, Origin(surface));
     }
 
     /// <summary>Принесённое, если источник разрешил копию; иначе — ничего.</summary>
     private IReadOnlyList<ClipItem> Offered(DragEventArgs e) => (e.DragEffects & DragDropEffects.Copy) != 0 ? _items : [];
 
     /// <summary>Каталог, в который ляжет несомое, если отпустить над этим; пусто — некуда.</summary>
-    private CanonicalPath? Target(AxListBox list, object? item, IReadOnlyList<ClipItem> items, ClipMode mode)
+    /// <remarks>
+    /// Пустое место колонки — её каталог; пустое место дерева и ряда крошек — ничей: между сегментами
+    /// пути каталога нет.
+    /// </remarks>
+    private CanonicalPath? Target(Control surface, object? item, IReadOnlyList<ClipItem> items, ClipMode mode)
     {
         if (!_ready() || items.Count == 0)
             return null;
 
+        var column = ReferenceEquals(surface, _view.Tiles) || ReferenceEquals(surface, _view.Files);
         var folder = item switch
         {
             Row row => Pasting.Folder(row.Node),
             Tile tile => Pasting.Folder(tile.Node),
-            null when !ReferenceEquals(list, _view.Tree) && _model.IsBrowsing && _model.Browser.Current is { } current => Pasting.Folder(current),
+            Segment segment => Pasting.Folder(segment.Node),
+            null when column && _model.IsBrowsing && _model.Browser.Current is { } current => Pasting.Folder(current),
             _ => null,
         };
 
@@ -297,9 +308,14 @@ internal sealed class FileDrop : IDisposable
             : [];
     }
 
-    /// <summary>Строка или плитка под точкой списка; пусто — под точкой пустое место.</summary>
-    private static object? ItemAt(AxListBox list, Point point) =>
-        (list.InputHitTest(point) as Visual)?.FindAncestorOfType<ListBoxItem>(includeSelf: true)?.DataContext;
+    /// <summary>Строка, плитка или сегмент крошек под точкой поверхности; пусто — под точкой пустое место.</summary>
+    /// <remarks>
+    /// Сегмент — кнопка, а не строка списка, и данные у него свои; кнопка переполнения крошек сегментом
+    /// не бывает — спрятанные в меню уровни целью не становятся.
+    /// </remarks>
+    private static object? ItemAt(Control surface, Point point) =>
+        (surface.InputHitTest(point) as Visual)?.GetSelfAndVisualAncestors()
+            .FirstOrDefault(visual => visual is ListBoxItem or AxBreadcrumbItem) is StyledElement { DataContext: var data } ? data : null;
 
     /// <summary>Заводит ожидание раскрытия для свёрнутой строки с детьми; другая строка — ожидание заново.</summary>
     private void Wait(Row? row)

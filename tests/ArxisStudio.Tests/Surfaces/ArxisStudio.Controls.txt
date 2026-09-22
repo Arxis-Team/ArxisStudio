@@ -1,4 +1,4 @@
-# StudioSdk 7.7
+# StudioSdk 7.8
 ArxisStudio.Controls.AxAvatar : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Controls.AxAvatar :: .ctor()
 ArxisStudio.Controls.AxAvatar :: ArxisStudio.Controls.AxAvatarShape Shape { get; set; }
@@ -42,9 +42,11 @@ ArxisStudio.Controls.AxBreadcrumbItem :: .ctor()
 ArxisStudio.Controls.AxBreadcrumbItem :: Avalonia.Media.Geometry? Icon { get; set; }
 ArxisStudio.Controls.AxBreadcrumbItem :: Avalonia.Media.IBrush? IconBrush { get; set; }
 ArxisStudio.Controls.AxBreadcrumbItem :: System.Boolean IsCurrent { get; }
+ArxisStudio.Controls.AxBreadcrumbItem :: System.Boolean IsDropTarget { get; set; }
 ArxisStudio.Controls.AxBreadcrumbItem :: static readonly Avalonia.DirectProperty<ArxisStudio.Controls.AxBreadcrumbItem, System.Boolean> IsCurrentProperty
 ArxisStudio.Controls.AxBreadcrumbItem :: static readonly Avalonia.StyledProperty<Avalonia.Media.Geometry> IconProperty
 ArxisStudio.Controls.AxBreadcrumbItem :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> IconBrushProperty
+ArxisStudio.Controls.AxBreadcrumbItem :: static readonly Avalonia.StyledProperty<System.Boolean> IsDropTargetProperty
 ArxisStudio.Controls.AxBreadcrumbNavigatedEventArgs : sealed class : Avalonia.Interactivity.RoutedEventArgs
 ArxisStudio.Controls.AxBreadcrumbNavigatedEventArgs :: .ctor(Avalonia.Interactivity.RoutedEvent routedEvent, System.Object? item, System.Int32 index)
 ArxisStudio.Controls.AxBreadcrumbNavigatedEventArgs :: System.Int32 Index { get; }

@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Globalization;
 using ArxisStudio.Modules.Project.Model;
 using ArxisStudio.Modules.Project.Tree;
@@ -192,10 +193,27 @@ internal sealed class Browser
 
 /// <summary>Сегмент крошек: контейнер на пути от корня до текущего.</summary>
 /// <param name="node">Контейнер.</param>
-internal sealed class Segment(Node node)
+internal sealed class Segment(Node node) : INotifyPropertyChanged
 {
+    /// <inheritdoc/>
+    public event PropertyChangedEventHandler? PropertyChanged;
+
     /// <summary>Контейнер.</summary>
     public Node Node { get; } = node;
+
+    /// <summary>Сюда ляжет то, что несут, — сегмент отмечен целью.</summary>
+    public bool IsDropTarget
+    {
+        get;
+        set
+        {
+            if (field == value)
+                return;
+
+            field = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsDropTarget)));
+        }
+    }
 
     /// <summary>Подпись сегмента — её показывает крошка и читает диктор.</summary>
     public override string ToString() => Node.Name;

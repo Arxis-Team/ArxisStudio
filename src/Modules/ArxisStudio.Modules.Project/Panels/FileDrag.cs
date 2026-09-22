@@ -32,9 +32,10 @@ namespace ArxisStudio.Modules.Project.Panels;
 /// </para>
 /// <para>
 /// <b>Куда и чем.</b> Цель, отметку, раскрытие и прокрутку считает <see cref="FileDrop"/> — те же, что у
-/// файлов из проводника. Отпущенное переносится, с Ctrl — копируется, как в проводнике и Rider; Ctrl,
-/// нажатый или отпущенный на месте, меняет это сразу. Курсор говорит, что будет: перенос, копия или
-/// «нельзя». Esc и потеря захвата тягу бросают.
+/// файлов из проводника: строки, плитки и сегменты крошек над колонкой — плитку несут и на уровень
+/// выше, как на адресную строку проводника. Отпущенное переносится, с Ctrl — копируется, как в
+/// проводнике и Rider; Ctrl, нажатый или отпущенный на месте, меняет это сразу. Курсор говорит, что
+/// будет: перенос, копия или «нельзя». Esc и потеря захвата тягу бросают.
 /// </para>
 /// <para>
 /// <b>Что несут</b> — подпись у курсора (<see cref="DragGhost"/>): значок и имя того, за что взялись, и
@@ -67,7 +68,7 @@ internal sealed class FileDrag : IDisposable
     private IReadOnlyList<ClipItem> _items = [];
     private Point _at;
     private ClipMode _mode;
-    private AxListBox? _over;
+    private Control? _over;
     private Point _overAt;
 
     /// <summary>Подключает тягу к дереву и к обоим видам правой колонки.</summary>
@@ -279,7 +280,7 @@ internal sealed class FileDrag : IDisposable
 
         _at = at;
         _mode = mode;
-        (_over, _overAt) = ListAt(source, at);
+        (_over, _overAt) = SurfaceAt(source, at);
 
         if (_over is { } over)
         {
@@ -346,18 +347,22 @@ internal sealed class FileDrag : IDisposable
         pointer?.Capture(null);
     }
 
-    /// <summary>Наш список под точкой окна и точка в его координатах; пусто — мимо списков окна.</summary>
-    private (AxListBox? List, Point At) ListAt(Visual source, Point at)
+    /// <summary>
+    /// Наш список или крошки под точкой окна и точка в их координатах; пусто — мимо того, куда несут.
+    /// </summary>
+    private (Control? Surface, Point At) SurfaceAt(Visual source, Point at)
     {
+        var surfaces = _drop.Surfaces;
+
         if (TopLevel.GetTopLevel(source) is not { } top
-            || (top.InputHitTest(at) as Visual)?.FindAncestorOfType<AxListBox>(includeSelf: true) is not { } list
-            || Array.IndexOf(Lists, list) < 0
-            || top.TranslatePoint(at, list) is not { } point)
+            || (top.InputHitTest(at) as Visual)?.GetSelfAndVisualAncestors().OfType<Control>()
+                .FirstOrDefault(control => Array.IndexOf(surfaces, control) >= 0) is not { } surface
+            || top.TranslatePoint(at, surface) is not { } point)
         {
             return (null, default);
         }
 
-        return (list, point);
+        return (surface, point);
     }
 
     private static ClipMode ModeOf(KeyModifiers keys) => (keys & KeyModifiers.Control) != 0 ? ClipMode.Copy : ClipMode.Cut;

@@ -185,6 +185,56 @@ public sealed class ProjectWindowDropTests : IDisposable
     }
 
     /// <summary>
+    /// Принесённое из проводника на сегмент крошек ложится копией на этот уровень пути; сегмент решения
+    /// целью не бывает.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_crumb_takes_files_from_explorer_into_its_folder()
+    {
+        var files = new FilesProbe();
+
+        using var studio = new ProjectWindowStudio(twoColumns: true, files: files, width: 900);
+
+        await studio.Open();
+
+        studio.Select("Views");
+
+        var carried = await Carry(studio, File("notes.md"));
+
+        Assert.Equal(DragDropEffects.None, studio.Drag(studio.Crumb("Hello"), carried));
+        Assert.Equal(DragDropEffects.Copy, studio.Drag(studio.Crumb("App"), carried));
+        Assert.True(studio.Crumb("App").IsDropTarget, "сегмент под курсором не отмечен целью");
+
+        studio.Drag(studio.Crumb("App"), carried, drop: true);
+
+        await Settled(studio, () => files.Copied.Count == 1);
+
+        Assert.Equal(studio.Row("App").Node.Path.Directory.Combine("notes.md"), Assert.Single(files.Copied[0]).To);
+        Assert.All(studio.Model.Browser.Segments, segment => Assert.False(segment.IsDropTarget, $"{segment.Node.Name} остался отмечен"));
+    }
+
+    /// <summary>
+    /// Кнопка переполнения крошек — не сегмент: уровни, спрятанные в её меню, целью не становятся, и
+    /// сама она не каталог колонки, хотя стоит над ней.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task The_crumbs_overflow_button_is_not_a_target()
+    {
+        using var studio = new ProjectWindowStudio(twoColumns: true, files: new FilesProbe(), width: 360);
+
+        await studio.Open();
+
+        studio.Select("Views");
+        Dispatcher.UIThread.RunJobs();
+
+        var overflow = studio.View.Path.GetVisualDescendants().OfType<AxButton>().Single(button => button.Name == "PART_Overflow");
+
+        Assert.True(overflow.IsEffectivelyVisible, "крошки уместились — переполнения нет, проверять нечего");
+        Assert.Equal(DragDropEffects.None, studio.Drag(overflow, await Carry(studio, File("notes.md"))));
+        Assert.False(studio.Model.IsColumnDropTarget, "кнопка переполнения отметила колонку");
+    }
+
+    /// <summary>
     /// Свёрнутый каталог, над которым держат файлы, раскрывается; унесли раньше — нет.
     /// </summary>
     [AvaloniaFact]

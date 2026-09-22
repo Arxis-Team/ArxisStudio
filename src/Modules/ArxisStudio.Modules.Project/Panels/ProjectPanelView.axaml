@@ -179,7 +179,8 @@
 
           <!--
               Над колонкой — путь до выбранного крошками, а во время поиска — сколько нашлось: поиск
-              ищет по всему решению, и пути у найденного нет.
+              ищет по всему решению, и пути у найденного нет. Сегмент — цель перетаскивания, как
+              строка каталога: отпущенное на нём ложится на этот уровень пути.
           -->
           <a:Border a:DockPanel.Dock="Top" Padding="{a:DynamicResource AxToolBarPadding}">
             <a:Panel>
@@ -188,6 +189,7 @@
                 <AxBreadcrumb.Styles>
                   <a:Style Selector="AxBreadcrumbItem" x:DataType="b:Segment">
                     <a:Setter Property="Icon" Value="{a:Binding Node, Converter={x:Static p:NodeGlyph.Instance}}"/>
+                    <a:Setter Property="IsDropTarget" Value="{a:Binding IsDropTarget}"/>
                   </a:Style>
                 </AxBreadcrumb.Styles>
               </AxBreadcrumb>

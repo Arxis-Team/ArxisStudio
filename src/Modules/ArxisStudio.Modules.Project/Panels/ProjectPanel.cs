@@ -709,10 +709,11 @@ public sealed class ProjectPanel : ToolWindow
     /// отмечает каталог, в который ляжет принесённое из проводника.
     /// </summary>
     /// <remarks>
-    /// Зовётся на смену буфера и цели и на каждую перемену строк и плиток: раскрытая ветка приносит
-    /// новые строки, и вырезанное в ней должно прийти приглушённым, а каталог назначения — отмеченным.
-    /// Цель отмечена везде, где каталог виден: его строкой, его плиткой и всей колонкой, если колонка
-    /// показывает его.
+    /// Зовётся на смену буфера и цели, на каждую перемену строк и плиток и на новый снимок: раскрытая
+    /// ветка приносит новые строки, и вырезанное в ней должно прийти приглушённым, а каталог
+    /// назначения — отмеченным. Крошки пересобираются вместе с плитками или со снимком, и своего
+    /// повода им не нужно. Цель отмечена везде, где каталог виден: его строкой, его плиткой, его
+    /// сегментом крошек и всей колонкой, если колонка показывает его.
     /// </remarks>
     private void Mark()
     {
@@ -733,6 +734,9 @@ public sealed class ProjectPanel : ToolWindow
             tile.IsCut = cut?.Contains(tile.Node.Path) == true;
             tile.IsDropTarget = drop is { } target && Dropping.Holds(tile.Node, target);
         }
+
+        foreach (var segment in model.Browser.Segments)
+            segment.IsDropTarget = drop is { } target && Dropping.Holds(segment.Node, target);
 
         model.MarkColumn(drop is { } folder && model.IsBrowsing && model.Browser.Current is { } current && Pasting.Folder(current) == folder);
     }

@@ -274,6 +274,75 @@ public class ProjectWindowDragTests
         Assert.Equal("Assets", studio.Model.Browser.Current!.Name);
     }
 
+    /// <summary>
+    /// Плитку несут на сегмент крошек — на уровень выше, как на адресную строку проводника: сегмент
+    /// отмечен целью вместе со строкой каталога в дереве, перенесённое ложится туда, и колонка идёт
+    /// следом. Текущий сегмент, решение и папка решения переноса не принимают; копию с Ctrl текущий
+    /// сегмент принимает — и вся колонка отмечена: копия ляжет туда, где человек стоит.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_tile_carried_onto_a_crumb_moves_up_to_that_level()
+    {
+        var files = new FilesProbe();
+
+        using var studio = new ProjectWindowStudio(twoColumns: true, files: files, width: 900);
+
+        await studio.Open();
+
+        var pane = studio.Panel.Pane!;
+        var drag = studio.Panel.Drag!;
+
+        studio.Select("Views");
+        studio.Grab(TileItem(studio, "MainWindow.axaml"));
+
+        foreach (var refused in new[] { "Views", "src", "Hello" })
+        {
+            studio.Carry(studio.Crumb(refused));
+            Assert.Equal(DragDropEffects.None, drag.Effect);
+            Assert.False(studio.Crumb(refused).IsDropTarget, $"сегмент «{refused}» отмечен целью переноса");
+        }
+
+        studio.Carry(studio.Crumb("Views"), RawInputModifiers.Control);
+
+        Assert.Equal(DragDropEffects.Copy, drag.Effect);
+        Assert.True(studio.Crumb("Views").IsDropTarget, "текущий сегмент не отмечен целью копии");
+        Assert.True(studio.Model.IsColumnDropTarget, "колонка не отмечена, хотя копия ляжет в неё");
+
+        // Между сегментами каталога нет: пустое место ряда — не колонка и не цель даже копии.
+        var path = studio.View.Path;
+
+        studio.Carry(path.TranslatePoint(new Point(path.Bounds.Width - 4, path.Bounds.Height / 2), studio.Window)!.Value, RawInputModifiers.Control);
+
+        Assert.Equal(DragDropEffects.None, drag.Effect);
+
+        studio.Carry(studio.Crumb("App"));
+
+        Assert.Equal(DragDropEffects.Move, drag.Effect);
+        Assert.True(studio.Crumb("App").IsDropTarget, "сегмент под курсором не отмечен целью");
+        Assert.False(studio.Crumb("Views").IsDropTarget, "отметка осталась на прежнем сегменте");
+        Assert.True(studio.Row("App").IsDropTarget, "строка каталога в дереве не отмечена");
+
+        // Снимок решения, пришедший посреди тяги, пересобирает крошки, и отметка идёт за ними.
+        studio.Projects.Publish(ProjectWindowStudio.Ready(2, studio.Solution()));
+        await studio.Built();
+
+        Assert.True(studio.Crumb("App").IsDropTarget, "пересобранные крошки пришли без отметки цели");
+
+        files.After = () => studio.Projects.Publish(ProjectWindowStudio.Ready(3, studio.Solution(
+            without: ["Views/MainWindow.axaml", "Views/MainWindow.axaml.cs"], more: ["MainWindow.axaml", "MainWindow.axaml.cs"])));
+        studio.Release(studio.Crumb("App"));
+
+        await Settled(studio, () => studio.Model.Browser.Current?.Name == "App" && pane.Selected?.Name == "MainWindow.axaml");
+
+        // Путь проекта — его файл, а класть в проект — в каталог рядом с ним.
+        var app = studio.Row("App").Node.Path.Directory;
+
+        Assert.Equal([app.Combine("MainWindow.axaml"), app.Combine("MainWindow.axaml.cs")], files.Moved.Single().Select(move => move.To));
+        Assert.Empty(files.Copied);
+        Assert.All(studio.Model.Browser.Segments, segment => Assert.False(segment.IsDropTarget, $"{segment.Node.Name} остался отмечен"));
+        Assert.True(pane.Shown.IsKeyboardFocusWithin, "клавиатура не пришла к перенесённому");
+    }
+
     private static async Task<ProjectWindowStudio> Opened(FilesProbe files, bool twoColumns = false)
     {
         var studio = new ProjectWindowStudio(twoColumns: twoColumns, files: files);

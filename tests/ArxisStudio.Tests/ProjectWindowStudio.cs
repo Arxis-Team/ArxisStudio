@@ -2,6 +2,7 @@ using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Icons;
 using ArxisStudio.Modules.Project;
+using ArxisStudio.Modules.Project.Browse;
 using ArxisStudio.Modules.Project.Model;
 using ArxisStudio.Modules.Project.Panels;
 using ArxisStudio.Modules.Project.Tree;
@@ -218,6 +219,19 @@ internal sealed class ProjectWindowStudio : IDisposable
         Item(row).Focus();
 
         return row;
+    }
+
+    /// <summary>Сегмент крошек правой колонки по имени его каталога — показанный в ряду, а не в меню.</summary>
+    public AxBreadcrumbItem Crumb(string name)
+    {
+        Dispatcher.UIThread.RunJobs();
+
+        var crumb = View.Path.GetVisualDescendants().OfType<AxBreadcrumbItem>()
+            .Single(item => item.DataContext is Segment segment && segment.Node.Name == name);
+
+        Assert.True(crumb.Bounds.Width > 0, $"сегмент «{name}» ушёл в меню переполнения — окно узко для проверки");
+
+        return crumb;
     }
 
     /// <summary>Контейнер строки — прокрутив до неё.</summary>
