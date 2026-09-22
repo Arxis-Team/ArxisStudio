@@ -18,6 +18,8 @@ namespace ArxisStudio.Modules.Project.Panels;
 /// Двойной щелчок и Enter по контейнеру ведут в него: колонка показывает его содержимое, а дерево
 /// слева выделяет его, раскрыв дорогу, — так ходит правая колонка Unity. По файлу — открывают файл.
 /// Backspace и Alt+Up поднимаются к родителю, как в проводнике; крошка ведёт на свой уровень.
+/// Клавиатура, бывшая в колонке, при переходе остаётся в ней, а поднявшись, колонка выделяет папку,
+/// из которой вышла.
 /// <para>
 /// Ползунок ступени пишет её в настройки, а применяет окно — из настройки, одной дорогой с правкой в
 /// окне настроек студии: иначе ползунок и настройка разошлись бы при первой правке с другой стороны.
@@ -215,29 +217,36 @@ internal sealed class BrowserPane : IDisposable
 
     /// <summary>Контейнер открывается в колонке, файл — в редакторе.</summary>
     /// <param name="tile">Плитка.</param>
-    public void Act(Tile tile)
+    /// <param name="method">Чем открыли: тем же способом клавиатура вернётся в колонку.</param>
+    public void Act(Tile tile, NavigationMethod method = NavigationMethod.Directional)
     {
         ArgumentNullException.ThrowIfNull(tile);
 
         if (tile.IsContainer)
-            Go(tile.Node);
+            Go(tile.Node, method);
         else
             _model.Open(tile.Node);
     }
 
     /// <summary>Переводит колонку в контейнер, и дерево слева встаёт на него.</summary>
     /// <param name="container">Контейнер.</param>
-    public void Go(Node container)
+    /// <param name="method">Чем перешли: клавиатура, бывшая в колонке, вернётся в неё тем же способом.</param>
+    public void Go(Node container, NavigationMethod method = NavigationMethod.Directional)
     {
+        var (from, held) = (_model.Browser.Current, _view.Browser.IsKeyboardFocusWithin);
+
         if (_model.Go(container))
-            _located(container);
+            Arrived(container, from, held ? method : null);
     }
 
     /// <summary>Поднимает колонку к родителю.</summary>
-    public void Up()
+    /// <param name="method">Чем подняли: клавиатура, бывшая в колонке, вернётся в неё тем же способом.</param>
+    public void Up(NavigationMethod method = NavigationMethod.Directional)
     {
+        var (from, held) = (_model.Browser.Current, _view.Browser.IsKeyboardFocusWithin);
+
         if (_model.Up() && _model.Browser.Current is { } current)
-            _located(current);
+            Arrived(current, from, held ? method : null);
     }
 
     /// <summary>Найденное поиском — в его папке: колонка уходит туда, и плитка выделена.</summary>
@@ -258,7 +267,7 @@ internal sealed class BrowserPane : IDisposable
         if (TileOf(e.Source) is not { } tile)
             return;
 
-        Act(tile);
+        Act(tile, NavigationMethod.Pointer);
         e.Handled = true;
     }
 
@@ -461,7 +470,7 @@ internal sealed class BrowserPane : IDisposable
     private void OnNavigated(object? sender, AxBreadcrumbNavigatedEventArgs e)
     {
         if (e.Item is Segment segment)
-            Go(segment.Node);
+            Go(segment.Node, NavigationMethod.Pointer);
     }
 
     private void OnSizeChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -469,6 +478,55 @@ internal sealed class BrowserPane : IDisposable
         if (e.Property == RangeBase.ValueProperty && !_sizing)
             _resized(TileLadder.Of(_view).Size((int)Math.Round(_view.Size.Value)));
     }
+
+    /// <summary>
+    /// Колонка пришла в другой контейнер: дерево слева встаёт на него, поднявшись — колонка выделяет
+    /// то, из чего вышла, а клавиатура, бывшая в колонке, остаётся в ней.
+    /// </summary>
+    /// <param name="container">Куда пришли.</param>
+    /// <param name="from">Откуда; пусто — колонка ничего не показывала.</param>
+    /// <param name="refocus">Как вернуть клавиатуру; пусто — её в колонке не было.</param>
+    /// <remarks>
+    /// Плитка с клавиатурой уходит вместе с прежним содержимым, и клавиатура оставалась нигде: после
+    /// Enter по папке не работали ни стрелки, ни Backspace. Вернуть её можно только после прохода
+    /// раскладки — до него у плиток новой папки нет контейнеров, — и только если она потерялась или
+    /// стоит на самом списке, как в пустой папке: правка, вставшая на плитку сама, или щелчок,
+    /// успевший увести клавиатуру в дерево, её не отдают. Встаёт она туда же, куда её ставит сам
+    /// список, получив фокус: на выделенную плитку, без выделения — на первую, а в пустой папке
+    /// остаётся на списке.
+    /// <para>
+    /// Вышли наверх — выделена папка, из которой вышли, как в проводнике и в Finder: Enter и Backspace
+    /// подряд возвращают туда же, а не на первую плитку.
+    /// </para>
+    /// </remarks>
+    private void Arrived(Node container, Node? from, NavigationMethod? refocus)
+    {
+        _located(container);
+
+        if (from?.Ancestors().Prepend(from).FirstOrDefault(node => node.Parent is { } parent
+                && string.Equals(parent.Key, container.Key, StringComparison.OrdinalIgnoreCase)) is { } child)
+        {
+            Select(child);
+        }
+
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                var list = Shown;
+
+                if (list.SelectedItem is { } selected)
+                    list.ScrollIntoView(selected);
+
+                if (refocus is { } method && (Lost(list) || list.IsFocused) && !Forward(list, method))
+                    list.Focus(method);
+            },
+            DispatcherPriority.Background);
+    }
+
+    /// <summary>Клавиатура нигде: в фокусе у окна ничего нет, или элемент ушёл из дерева, или скрыт.</summary>
+    private static bool Lost(Visual anchor) =>
+        TopLevel.GetTopLevel(anchor)?.FocusManager?.GetFocusedElement() is not Visual { IsEffectivelyVisible: true } focused
+        || TopLevel.GetTopLevel(focused) is null;
 
     /// <summary>Выделяет плитку в показанном списке и, если просят, отдаёт ей клавиатуру.</summary>
     private void Stand(Tile tile, bool focus)
@@ -494,14 +552,20 @@ internal sealed class BrowserPane : IDisposable
     /// </remarks>
     private void OnListFocused(object? sender, FocusChangedEventArgs e)
     {
-        if (sender is not AxListBox list || !ReferenceEquals(e.Source, list)
-            || (list.SelectedItem as Tile ?? _model.Browser.Items.FirstOrDefault()) is not { } tile)
-        {
-            return;
-        }
+        if (sender is AxListBox list && ReferenceEquals(e.Source, list))
+            Forward(list, e.NavigationMethod);
+    }
+
+    /// <summary>Отдаёт клавиатуру плитке списка: выделенной, без выделения — первой.</summary>
+    /// <returns>Отдал ли: в пустой папке плиток нет.</returns>
+    private bool Forward(AxListBox list, NavigationMethod method)
+    {
+        if ((list.SelectedItem as Tile ?? _model.Browser.Items.FirstOrDefault()) is not { } tile)
+            return false;
 
         list.ScrollIntoView(tile);
-        (list.ContainerFromItem(tile) as Control)?.Focus(e.NavigationMethod);
+
+        return (list.ContainerFromItem(tile) as Control)?.Focus(method) == true;
     }
 
     /// <summary>Плитка, в которой пришлось событие.</summary>

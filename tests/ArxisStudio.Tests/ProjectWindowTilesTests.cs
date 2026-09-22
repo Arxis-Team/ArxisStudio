@@ -67,7 +67,8 @@ public class ProjectWindowTilesTests
     }
 
     /// <summary>
-    /// Двойной щелчок по папке ведёт в неё, и дерево слева идёт следом; по файлу — открывает файл.
+    /// Двойной щелчок по папке ведёт в неё, дерево слева идёт следом, а клавиатура остаётся в колонке —
+    /// на первой плитке, без кольца фокуса: пришли мышью; по файлу — открывает файл.
     /// </summary>
     [AvaloniaFact]
     public async Task A_double_click_goes_into_a_folder_and_opens_a_file()
@@ -79,6 +80,8 @@ public class ProjectWindowTilesTests
 
         Assert.Equal("Views", studio.Model.Browser.Current!.Name);
         Assert.Equal("Views", studio.Selected.Name);
+        Assert.Same(TileItem(studio, "MainWindow.axaml"), Focused(studio));
+        Assert.DoesNotContain(":focus-visible", Focused(studio).Classes);
 
         studio.Press(studio.View.Query);
         studio.DoubleClick(TileItem(studio, "MainWindow.axaml"));
@@ -86,23 +89,67 @@ public class ProjectWindowTilesTests
         Assert.Equal("MainWindow.axaml", Path.GetFileName(Assert.Single(studio.Documents.Opened)));
     }
 
-    /// <summary>Backspace поднимается к родителю, а крошка ведёт на свой уровень.</summary>
+    /// <summary>
+    /// Enter по папке ведёт в неё, Backspace и Alt+Up поднимаются к родителю, крошка ведёт на свой
+    /// уровень, — и клавиатура всякий раз остаётся в колонке: в пустой папке — на списке, иначе на
+    /// плитке, с кольцом фокуса. Поднявшись, колонка выделяет папку, из которой вышла. Клавиатуру,
+    /// которую до конца перехода увели в дерево, колонка не отнимает.
+    /// </summary>
+    /// <remarks>
+    /// Так нашла живая проверка записи 268: после Enter по папке клавиатура оставалась нигде, и
+    /// Backspace следом принять было некому. Клавиши идут вводом окна — туда, где клавиатура, — а не
+    /// событием в список: событие в список потерянной клавиатуры не заметило бы.
+    /// </remarks>
     [AvaloniaFact]
-    public async Task Backspace_climbs_and_a_crumb_leads_back()
+    public async Task Enter_goes_in_and_backspace_climbs_with_the_keyboard_in_the_column()
     {
         using var studio = await TwoColumns();
 
-        studio.Select("Views");
-        studio.Press(studio.View.Tiles, Key.Back);
+        var pane = studio.Panel.Pane!;
+
+        studio.Select("App");
+        pane.Select(Tile(studio, "Models").Node, focus: true);
+        Keystroke(studio, Key.Enter);
+
+        Assert.Equal("Models", studio.Model.Browser.Current!.Name);
+        Assert.Same(studio.View.Tiles, Focused(studio));
+
+        Keystroke(studio, Key.Back);
 
         Assert.Equal("App", studio.Model.Browser.Current!.Name);
         Assert.Equal("App", studio.Selected.Name);
+        Assert.Equal("Models", pane.Selected?.Name);
+        Assert.Same(TileItem(studio, "Models"), Focused(studio));
 
-        var crumb = studio.View.Path.GetVisualDescendants().OfType<AxBreadcrumbItem>().First();
+        pane.Select(Tile(studio, "Views").Node, focus: true);
+        Keystroke(studio, Key.Enter);
 
-        studio.Click(crumb);
+        Assert.Equal("Views", studio.Model.Browser.Current!.Name);
+        Assert.Same(TileItem(studio, "MainWindow.axaml"), Focused(studio));
+        Assert.Contains(":focus-visible", Focused(studio).Classes);
+
+        Keystroke(studio, Key.Up, RawInputModifiers.Alt);
+
+        Assert.Equal("App", studio.Model.Browser.Current!.Name);
+        Assert.Equal("Views", pane.Selected?.Name);
+        Assert.Same(TileItem(studio, "Views"), Focused(studio));
+
+        // Крошку щёлкают мышью: кнопка берёт клавиатуру себе и уходит вместе с прежними крошками.
+        studio.Press(studio.View.Path.GetVisualDescendants().OfType<AxBreadcrumbItem>().First());
 
         Assert.Equal("Hello", studio.Model.Browser.Current!.Name);
+        Assert.Equal("src", pane.Selected?.Name);
+        Assert.Same(TileItem(studio, "src"), Focused(studio));
+
+        // Щелчок по дереву, пришедший раньше, чем колонка вернула себе клавиатуру, её и сохраняет.
+        var row = studio.Item(studio.Row("Hello"));
+
+        pane.Act(Tile(studio, "src"));
+        row.Focus();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("src", studio.Model.Browser.Current!.Name);
+        Assert.Same(row, Focused(studio));
     }
 
     /// <summary>
@@ -805,6 +852,16 @@ public class ProjectWindowTilesTests
     /// <summary>Контрол, у которого сейчас клавиатура.</summary>
     private static Control Focused(ProjectWindowStudio studio) =>
         Assert.IsAssignableFrom<Control>(studio.Window.FocusManager?.GetFocusedElement());
+
+    /// <summary>Нажимает клавишу вводом окна — туда, где сейчас клавиатура, как человек.</summary>
+    private static void Keystroke(ProjectWindowStudio studio, Key key, RawInputModifiers modifiers = RawInputModifiers.None)
+    {
+        studio.Window.KeyPress(key, modifiers, PhysicalKey.None, string.Empty);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>Плитка показанной папки по имени.</summary>
+    private static Tile Tile(ProjectWindowStudio studio, string name) => studio.Model.Browser.Items.Single(tile => tile.Name == name);
 
     /// <summary>Тело плитки: силуэт и подпись, шириной плитки.</summary>
     private static StackPanel Body(ProjectWindowStudio studio, string name) =>
