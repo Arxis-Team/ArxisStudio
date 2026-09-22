@@ -1,4 +1,4 @@
-# StudioSdk 7.6
+# StudioSdk 7.7
 ArxisStudio.Controls.AxAvatar : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Controls.AxAvatar :: .ctor()
 ArxisStudio.Controls.AxAvatar :: ArxisStudio.Controls.AxAvatarShape Shape { get; set; }
@@ -135,6 +135,8 @@ ArxisStudio.Controls.AxListBox : class : Avalonia.Controls.ListBox
 ArxisStudio.Controls.AxListBox :: .ctor()
 ArxisStudio.Controls.AxListBoxItem : class : Avalonia.Controls.ListBoxItem
 ArxisStudio.Controls.AxListBoxItem :: .ctor()
+ArxisStudio.Controls.AxListBoxItem :: System.Boolean IsDropTarget { get; set; }
+ArxisStudio.Controls.AxListBoxItem :: static readonly Avalonia.StyledProperty<System.Boolean> IsDropTargetProperty
 ArxisStudio.Controls.AxMenuFlyout : class : Avalonia.Controls.MenuFlyout
 ArxisStudio.Controls.AxMenuFlyout :: .ctor()
 ArxisStudio.Controls.AxMenuFlyout :: const System.String ShadowRoomKey = "AxPopupShadowRoom"

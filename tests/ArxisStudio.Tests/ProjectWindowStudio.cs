@@ -13,6 +13,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -41,6 +42,7 @@ internal sealed class ProjectWindowStudio : IDisposable
     /// <summary>Поднимает модуль и показывает окно.</summary>
     /// <param name="service">Есть ли у студии служба проектов.</param>
     /// <param name="width">Ширина окна.</param>
+    /// <param name="height">Высота окна: низкое окно нужно тем, кто проверяет прокрутку дерева.</param>
     /// <param name="projects">Служба проектов, которую тест завёл заранее; пусто — новая.</param>
     /// <param name="twoColumns">
     /// Раскладка окна. По умолчанию — одна колонка: большинство тестов проверяет дерево, и файлы в нём
@@ -52,6 +54,7 @@ internal sealed class ProjectWindowStudio : IDisposable
     public ProjectWindowStudio(
         bool service = true,
         double width = 520,
+        double height = 720,
         ProjectsProbe? projects = null,
         bool? twoColumns = false,
         FilesProbe? files = null,
@@ -97,7 +100,7 @@ internal sealed class ProjectWindowStudio : IDisposable
         if (twoColumns is { } columns)
             _context.Settings.Set(ProjectSettings.TwoColumnsKey, columns);
 
-        Window = new Window { Width = width, Height = 720 };
+        Window = new Window { Width = width, Height = height };
         Panel = Build();
         Window.Show();
         Dispatcher.UIThread.RunJobs();
@@ -299,6 +302,64 @@ internal sealed class ProjectWindowStudio : IDisposable
             Window.MouseUp(at, MouseButton.Left);
         }
 
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>
+    /// Несёт файлы из проводника к середине элемента — подлёт и движение над ним, как у мыши с
+    /// файлами, — и отдаёт, что на это ответило окно.
+    /// </summary>
+    /// <param name="target">Над чем.</param>
+    /// <param name="data">Что несут.</param>
+    /// <param name="drop">Отпустить ли над ним.</param>
+    public DragDropEffects Drag(Visual target, IDataTransfer data, bool drop = false) => Drag(Middle(target), data, drop);
+
+    /// <summary>То же — к точке окна.</summary>
+    /// <param name="at">Точка окна.</param>
+    /// <param name="data">Что несут.</param>
+    /// <param name="drop">Отпустить ли там.</param>
+    public DragDropEffects Drag(Point at, IDataTransfer data, bool drop = false)
+    {
+        // Проводник разрешает всё; что из этого взять, решает окно. Ответ слышно на самом окне: событие
+        // всплывает до него после того, как список поставил свой ответ, — а над тем, что файлов не
+        // принимает, событий нет вовсе, и ответ остаётся «ничего».
+        const DragDropEffects offered = DragDropEffects.Copy | DragDropEffects.Move | DragDropEffects.Link;
+
+        var answer = DragDropEffects.None;
+
+        void Heard(object? sender, DragEventArgs e) => answer = e.DragEffects;
+
+        Window.AddHandler(DragDrop.DragOverEvent, Heard, RoutingStrategies.Bubble, handledEventsToo: true);
+        Window.AddHandler(DragDrop.DropEvent, Heard, RoutingStrategies.Bubble, handledEventsToo: true);
+
+        try
+        {
+            Window.DragDrop(at, RawDragEventType.DragEnter, data, offered, RawInputModifiers.None);
+            answer = DragDropEffects.None;
+            Window.DragDrop(at, RawDragEventType.DragOver, data, offered, RawInputModifiers.None);
+
+            if (drop)
+            {
+                answer = DragDropEffects.None;
+                Window.DragDrop(at, RawDragEventType.Drop, data, offered, RawInputModifiers.None);
+            }
+        }
+        finally
+        {
+            Window.RemoveHandler(DragDrop.DragOverEvent, Heard);
+            Window.RemoveHandler(DragDrop.DropEvent, Heard);
+        }
+
+        Dispatcher.UIThread.RunJobs();
+
+        return answer;
+    }
+
+    /// <summary>Уносит файлы из окна, не отпустив: курсор ушёл за край или несущий нажал Esc.</summary>
+    /// <param name="data">Что несли.</param>
+    public void Leave(IDataTransfer data)
+    {
+        Window.DragDrop(default, RawDragEventType.DragLeave, data, DragDropEffects.None, RawInputModifiers.None);
         Dispatcher.UIThread.RunJobs();
     }
 

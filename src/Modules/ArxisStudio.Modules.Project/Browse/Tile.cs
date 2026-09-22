@@ -88,6 +88,20 @@ internal sealed class Tile : INotifyPropertyChanged
         }
     }
 
+    /// <summary>Сюда ляжет то, что несут из проводника, — плитка отмечена целью.</summary>
+    public bool IsDropTarget
+    {
+        get;
+        set
+        {
+            if (field == value)
+                return;
+
+            field = value;
+            Raise(nameof(IsDropTarget));
+        }
+    }
+
     /// <summary>Подсказка и строка под колонкой: путь от решения, а у предмета модели — имя с версией.</summary>
     public string Hint => Node.Relative ?? (HasDetail ? $"{Node.Name} {Node.Detail}" : Node.Name);
 

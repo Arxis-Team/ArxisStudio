@@ -69,6 +69,20 @@ internal sealed class Row : INotifyPropertyChanged
         }
     }
 
+    /// <summary>Сюда ляжет то, что несут из проводника, — строка отмечена целью.</summary>
+    public bool IsDropTarget
+    {
+        get;
+        set
+        {
+            if (field == value)
+                return;
+
+            field = value;
+            Raise(nameof(IsDropTarget));
+        }
+    }
+
     /// <summary>Имя строки — по нему ищет набор букв в списке, и его же читает диктор.</summary>
     public override string ToString() => Node.Name;
 

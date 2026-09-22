@@ -106,33 +106,47 @@ internal sealed class Editing(
                 return null;
             }
 
-            if (await Plan(window, clip, folder).ConfigureAwait(true) is not { Pairs.Count: > 0 } plan)
-                return null;
-
-            var first = plan.Roots[0].FileName;
-            var more = plan.Roots.Count - 1;
             var cut = clip.Mode == ClipMode.Cut;
-            var label = Format(
-                (cut ? "project.paste.moved" : "project.paste.copied") + (more == 0 ? ".label" : ".label.many"),
-                first,
-                more);
-
-            var result = await Run(window, () => cut ? files.MoveAsync(plan.Pairs, label) : files.CopyAsync(plan.Pairs, label))
-                .ConfigureAwait(true);
-
-            if (result is not { HasErrors: false })
-                return null;
+            var roots = await PlaceAsync(window, clip, folder, cut ? "project.paste.moved" : "project.paste.copied").ConfigureAwait(true);
 
             // Вырезанное вставляется один раз: после переноса по старым путям ничего нет.
-            if (cut)
+            if (roots is not null && cut)
             {
                 Take(null);
                 await Forget(clip).ConfigureAwait(true);
             }
 
-            Tell(Format((cut ? "project.paste.moved" : "project.paste.copied") + (more == 0 ? string.Empty : ".many"), first, more));
+            return roots;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
 
-            return plan.Roots;
+    /// <summary>
+    /// Копирует в каталог то, что принесли из проводника: занятое имя спрашивает, как вставка.
+    /// </summary>
+    /// <param name="items">Принесённое.</param>
+    /// <param name="folder">Каталог назначения.</param>
+    /// <returns>Где теперь лежат скопированные корни; пусто — копирования не было.</returns>
+    /// <remarks>
+    /// Буфер правки сброс не трогает: вырезанное остаётся вырезанным, а буфер системы — чем был.
+    /// Каталог, который несут в него самого, окно отвергает ещё на подлёте, и здесь такой сброс
+    /// молча ничего не делает.
+    /// </remarks>
+    public async Task<IReadOnlyList<CanonicalPath>?> DropAsync(IReadOnlyList<ClipItem> items, CanonicalPath folder)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
+        if (_busy || owner() is not { } window || !Dropping.Fits(items, folder))
+            return null;
+
+        _busy = true;
+
+        try
+        {
+            return await PlaceAsync(window, new FileClip(ClipMode.Copy, items), folder, "project.drop.added").ConfigureAwait(true);
         }
         finally
         {
@@ -518,6 +532,39 @@ internal sealed class Editing(
         !item.IsFolder && Pasting.Pairs(item, folder, item.Root.FileName)
             .Where(pair => Exists(pair.To.Value))
             .All(pair => File.Exists(pair.To.Value));
+
+    /// <summary>
+    /// Кладёт в каталог вставку или сброс: раскладка с вопросом о занятом, служба файлов одним
+    /// действием истории и строка состояния.
+    /// </summary>
+    /// <param name="window">Окно для вопросов.</param>
+    /// <param name="clip">Что кладётся: вырезанное переносится, прочее копируется.</param>
+    /// <param name="folder">Каталог назначения.</param>
+    /// <param name="said">
+    /// Ключ строки состояния; метка действия — тот же ключ с <c>.label</c>, а у нескольких корней к
+    /// обоим добавляется <c>.many</c>.
+    /// </param>
+    /// <returns>Где теперь лежат корни; пусто — человек бросил или служба отказала.</returns>
+    private async Task<IReadOnlyList<CanonicalPath>?> PlaceAsync(Window window, FileClip clip, CanonicalPath folder, string said)
+    {
+        if (await Plan(window, clip, folder).ConfigureAwait(true) is not { Pairs.Count: > 0 } plan)
+            return null;
+
+        var first = plan.Roots[0].FileName;
+        var more = plan.Roots.Count - 1;
+        var many = more == 0 ? string.Empty : ".many";
+        var label = Format(said + ".label" + many, first, more);
+
+        var result = await Run(window, () => clip.Mode == ClipMode.Cut ? files.MoveAsync(plan.Pairs, label) : files.CopyAsync(plan.Pairs, label))
+            .ConfigureAwait(true);
+
+        if (result is not { HasErrors: false })
+            return null;
+
+        Tell(Format(said + many, first, more));
+
+        return plan.Roots;
+    }
 
     /// <summary>
     /// Раскладывает буфер по папке: своё место, номер при копии туда же, вопрос о занятом.

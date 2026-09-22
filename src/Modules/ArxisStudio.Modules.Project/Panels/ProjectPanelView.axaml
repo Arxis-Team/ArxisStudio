@@ -107,6 +107,7 @@
                 <a:Setter Property="Padding" Value="{a:DynamicResource AxSpaceLeadingThickness}"/>
                 <a:Setter Property="a:AutomationProperties.Name" Value="{a:Binding Name}"/>
                 <a:Setter Property="a:AutomationProperties.HelpText" Value="{a:Binding Hint}"/>
+                <a:Setter Property="IsDropTarget" Value="{a:Binding IsDropTarget}"/>
               </a:Style>
             </p:TreeRows.Styles>
             <p:TreeRows.ItemTemplate>
@@ -252,6 +253,7 @@
                   <a:Setter Property="AxTrimmedTip.IsEnabled" Value="True"/>
                   <a:Setter Property="a:AutomationProperties.Name" Value="{a:Binding Name}"/>
                   <a:Setter Property="a:AutomationProperties.HelpText" Value="{a:Binding Hint}"/>
+                  <a:Setter Property="IsDropTarget" Value="{a:Binding IsDropTarget}"/>
                 </a:Style>
                 <a:Style Selector="a|StackPanel.tile">
                   <a:Setter Property="Width" Value="{a:Binding $parent[AxListBox].(p:TileMetrics.Width)}"/>
@@ -320,6 +322,18 @@
                 <a:Style Selector="AxListBoxItem:selected:selection-active p|Pill">
                   <a:Setter Property="Background" Value="{a:DynamicResource AxSelectionActiveBrush}"/>
                 </a:Style>
+                <!--
+                    Каталог, в который ляжет принесённое из проводника, — по тому же правилу: рамка
+                    цели темы вокруг плитки, а подкраска — под значком, а не во всю плитку. Стоит
+                    последней и сильнее выбора: над выбранным каталогом несут файлы, и он говорит
+                    «сюда ляжет».
+                -->
+                <a:Style Selector="AxListBoxItem:drop-target /template/ a|ContentPresenter#PART_ContentPresenter">
+                  <a:Setter Property="Background" Value="Transparent"/>
+                </a:Style>
+                <a:Style Selector="AxListBoxItem:drop-target a|Border.backdrop">
+                  <a:Setter Property="Background" Value="{a:DynamicResource AxInfoFillBrush}"/>
+                </a:Style>
               </AxListBox.Styles>
               <AxListBox.ItemTemplate>
                 <a:DataTemplate x:DataType="b:Tile">
@@ -360,6 +374,7 @@
                   <a:Setter Property="Padding" Value="{a:DynamicResource AxSpaceLeadingThickness}"/>
                   <a:Setter Property="a:AutomationProperties.Name" Value="{a:Binding Name}"/>
                   <a:Setter Property="a:AutomationProperties.HelpText" Value="{a:Binding Hint}"/>
+                  <a:Setter Property="IsDropTarget" Value="{a:Binding IsDropTarget}"/>
                 </a:Style>
               </AxListBox.Styles>
               <AxListBox.ItemTemplate>
@@ -391,6 +406,16 @@
 
             <a:TextBlock IsVisible="{a:Binding BrowserNothingFound}" Text="{Text project.search.none}" IsHitTestVisible="False"
                          AxText.Tone="Secondary" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+            <!--
+                Принесённое из проводника на файл или на пустое место колонки ляжет в каталог, который
+                она показывает, — целью обведена вся колонка, той же рамкой, что строка-цель. Рамка
+                поверх списка и мышь пропускает: список под ней продолжает принимать подлёт.
+            -->
+            <a:Border IsVisible="{a:Binding IsColumnDropTarget}" IsHitTestVisible="False"
+                      BorderBrush="{a:DynamicResource AxAccentBrush}"
+                      BorderThickness="{a:DynamicResource AxDropTargetThickness}"
+                      CornerRadius="{a:DynamicResource AxCornerRadius}"/>
 
           </a:Panel>
 

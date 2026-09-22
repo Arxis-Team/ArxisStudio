@@ -43,6 +43,10 @@ namespace ArxisStudio.Modules.Project.Panels;
 /// и VS Code, — Shift+F6 Rider у студии занят обходом панелей. После правки выделение встаёт на то,
 /// что получилось: переименованное — на новое имя, удалённое — на соседа, занявшего его место.
 /// </para>
+/// <para>
+/// Файлы из проводника приносят перетаскиванием (<see cref="FileDrop"/>), как в Rider и Unity: на
+/// каталог — в него, на файл — в его каталог, копией и той же правкой, что Ctrl+V.
+/// </para>
 /// </remarks>
 [ToolWindow(ProjectModule.PanelId)]
 public sealed class ProjectPanel : ToolWindow
@@ -57,6 +61,8 @@ public sealed class ProjectPanel : ToolWindow
     private ProjectMenu? _menu;
     private BrowserPane? _pane;
     private Editing? _editing;
+    private FileDrop? _fileDrop;
+    private CanonicalPath? _dropFolder;
     private LanguageProbe? _language;
     private Node? _selected;
     private string? _query;
@@ -73,6 +79,9 @@ public sealed class ProjectPanel : ToolWindow
 
     /// <summary>Правая колонка — тестам.</summary>
     internal BrowserPane? Pane => _pane;
+
+    /// <summary>Перетаскивание из проводника — тестам: его таймеры они зовут, а не ждут.</summary>
+    internal FileDrop? Drop => _fileDrop;
 
     /// <inheritdoc/>
     /// <remarks>Клавиатура окна — у дерева: с него начинают, и в него возвращаются из поиска.</remarks>
@@ -216,6 +225,24 @@ public sealed class ProjectPanel : ToolWindow
             if (_editing is not null)
                 _editing.ClipChanged -= Mark;
         });
+
+        // Принесённое из проводника кладёт служба файлов, как вставку: без неё окно файлов не берёт.
+        if (_editing is not null)
+        {
+            _fileDrop = new FileDrop(
+                view,
+                model,
+                () => _editing is { IsBusy: false } && _model?.IsReady == true,
+                MarkDrop,
+                DropFiles,
+                row => Keep(() => model.Tree.Expand(row)));
+
+            _release.Add(() =>
+            {
+                _fileDrop?.Dispose();
+                _fileDrop = null;
+            });
+        }
 
         // Подписи дерева — «Зависимости», «Пакеты», счёт проектов — строятся вместе с деревом, и
         // смена языка их не трогала бы. Проба держит привязку к словарю и перестраивает дерево,
@@ -553,6 +580,25 @@ public sealed class ProjectPanel : ToolWindow
             await StandOnAsync(first, origin);
     }
 
+    /// <summary>Копирует принесённое из проводника в каталог и ставит выделение на скопированное.</summary>
+    private void DropFiles(IReadOnlyList<ClipItem> items, CanonicalPath folder, EditOrigin origin) => Guard(DropFilesAsync(items, folder, origin));
+
+    private async Task DropFilesAsync(IReadOnlyList<ClipItem> items, CanonicalPath folder, EditOrigin origin)
+    {
+        if (_editing is { } editing && await editing.DropAsync(items, folder) is [var first, ..])
+            await StandOnAsync(first, origin);
+    }
+
+    /// <summary>Отмечает каталог, в который ляжет принесённое из проводника; пусто — снимает отметку.</summary>
+    private void MarkDrop(CanonicalPath? folder)
+    {
+        if (_dropFolder == folder)
+            return;
+
+        _dropFolder = folder;
+        Mark();
+    }
+
     /// <summary>
     /// Пункты «Добавить ▸» для проекта узла: те, чьё условие <c>when</c> проект проходит.
     /// </summary>
@@ -639,11 +685,14 @@ public sealed class ProjectPanel : ToolWindow
         string.Format(System.Globalization.CultureInfo.CurrentCulture, Context.Strings[key], values);
 
     /// <summary>
-    /// Приглушает вырезанное — строки и плитки, чьи пути лежат в буфере правки вырезанными.
+    /// Приглушает вырезанное — строки и плитки, чьи пути лежат в буфере правки вырезанными, — и
+    /// отмечает каталог, в который ляжет принесённое из проводника.
     /// </summary>
     /// <remarks>
-    /// Зовётся на смену буфера и на каждую перемену строк и плиток: раскрытая ветка приносит новые
-    /// строки, и вырезанное в ней должно прийти приглушённым.
+    /// Зовётся на смену буфера и цели и на каждую перемену строк и плиток: раскрытая ветка приносит
+    /// новые строки, и вырезанное в ней должно прийти приглушённым, а каталог назначения — отмеченным.
+    /// Цель отмечена везде, где каталог виден: его строкой, его плиткой и всей колонкой, если колонка
+    /// показывает его.
     /// </remarks>
     private void Mark()
     {
@@ -651,12 +700,21 @@ public sealed class ProjectPanel : ToolWindow
             return;
 
         var cut = _editing?.Clip is { Mode: ClipMode.Cut } clip ? clip.Paths.ToHashSet() : null;
+        var drop = _dropFolder;
 
         foreach (var row in model.Tree.Rows)
+        {
             row.IsCut = cut?.Contains(row.Node.Path) == true;
+            row.IsDropTarget = drop is { } target && Dropping.Holds(row.Node, target);
+        }
 
         foreach (var tile in model.Browser.Items)
+        {
             tile.IsCut = cut?.Contains(tile.Node.Path) == true;
+            tile.IsDropTarget = drop is { } target && Dropping.Holds(tile.Node, target);
+        }
+
+        model.MarkColumn(drop is { } folder && model.IsBrowsing && model.Browser.Current is { } current && Pasting.Folder(current) == folder);
     }
 
     private void OnMarksChanged(object? sender, NotifyCollectionChangedEventArgs e) => Mark();

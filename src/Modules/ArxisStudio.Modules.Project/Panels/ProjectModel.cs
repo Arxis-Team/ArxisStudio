@@ -170,6 +170,23 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
     /// <summary>Поиск правой колонки ничего не нашёл.</summary>
     public bool BrowserNothingFound => Browser.IsSearching && Browser.Found == 0;
 
+    /// <summary>
+    /// То, что несут из проводника, ляжет в каталог, который показывает правая колонка: колонка
+    /// обведена целью.
+    /// </summary>
+    public bool IsColumnDropTarget { get; private set; }
+
+    /// <summary>Отмечает правую колонку целью перетаскивания или снимает отметку.</summary>
+    /// <param name="target">Колонка — цель.</param>
+    internal void MarkColumn(bool target)
+    {
+        if (IsColumnDropTarget == target)
+            return;
+
+        IsColumnDropTarget = target;
+        Raise(nameof(IsColumnDropTarget));
+    }
+
     /// <summary>Строка под колонкой: путь выбранного, а без выбора — сколько в колонке предметов.</summary>
     public string? Status => _picked is { } tile ? tile.Hint : Format("project.browser.items", Browser.Items.Count);
 
