@@ -1,0 +1,6 @@
+{
+  "plugin.description": "A probe plugin: opens text files read-only in AvaloniaEdit",
+  "viewer.toobig": "The file is larger than {0} KB — the viewer does not open it",
+  "viewer.binary": "The file is not text: it holds bytes a text viewer cannot show",
+  "viewer.unreadable": "The file could not be read: {0}"
+}

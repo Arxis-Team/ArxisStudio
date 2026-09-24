@@ -25,6 +25,22 @@
     </PropertyGroup>
 
     <!--
+        Сборки пакетов кладутся рядом с плагином. Библиотеке их в выход не
+        копируют — это умолчание для всякого проекта, который не приложение, — и
+        без этой строки пакетная зависимость плагина оставалась бы только
+        строкой в его .deps.json: на машине автора она разрешалась бы из кэша
+        NuGet, а у человека плагин падал бы на первом же типе из неё.
+
+        Общие сборки — Sdk, контролы, значки, Avalonia, ядро модели проектов —
+        из раскладки отсеивает цель AxPluginLayout: их студия всегда берёт из
+        своего контекста загрузки. В bin/Debug плагина они при этом остаются, и
+        мешать там некому.
+    -->
+    <PropertyGroup>
+        <CopyLocalLockFileAssemblies Condition="'$(CopyLocalLockFileAssemblies)' == ''">true</CopyLocalLockFileAssemblies>
+    </PropertyGroup>
+
+    <!--
         Имя архива и папки установки — идентификатор плагина, а он объявлен в
         манифесте: имя сборки с ним не совпадает и совпадать не обязано.
         Разбирать JSON здесь нечем, поэтому строка достаётся выражением; если
@@ -216,6 +232,16 @@
                 AvaloniaEdit, в студии не лежащие, и в пакет плагина они не ехали.
             -->
             <_AxSharedName>^((Avalonia|ArxisStudio\.Sdk|ArxisStudio\.Controls|ArxisStudio\.Icons)(\..+)?|ArxisStudio\.ProjectSystem)$</_AxSharedName>
+
+            <!--
+                Спутники Avalonia, которые студия везёт в lib/ рядом с ней.
+                Общими их никто не объявляет — типы из них через границу плагина
+                не ходят, — но и копия в плагине не нужна: сборку, которой у него
+                нет, контекст загрузки отдаёт основному, а там она уже стоит.
+                Своя копия SkiaSharp рядом с плагином хуже отсутствующей: за ней
+                стоит нативная библиотека, которой в плагине нет вовсе.
+            -->
+            <_AxStudioName>^(HarfBuzzSharp|MicroCom\.Runtime|SkiaSharp|Tmds\.DBus\.Protocol)(\..+)?$</_AxStudioName>
         </PropertyGroup>
 
         <!--
@@ -240,7 +266,8 @@
         <ItemGroup>
             <_AxPluginCarry Include="@(ReferenceCopyLocalPaths)"
                             Condition="'%(Extension)' != '.xml' And
-                                       !$([System.Text.RegularExpressions.Regex]::IsMatch('%(Filename)', '$(_AxSharedName)'))" />
+                                       !$([System.Text.RegularExpressions.Regex]::IsMatch('%(Filename)', '$(_AxSharedName)')) And
+                                       !$([System.Text.RegularExpressions.Regex]::IsMatch('%(Filename)', '$(_AxStudioName)'))" />
 
             <_AxPluginBin Include="$(TargetPath)" />
             <_AxPluginBin Include="@(_AxPluginCarry)" />
@@ -253,7 +280,15 @@
             <_AxPluginBin Include="$(TargetDir)$(TargetName).pdb" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
         </ItemGroup>
 
-        <Copy SourceFiles="@(_AxPluginBin)" DestinationFolder="$(_AxPluginBinDir)" />
+        <!--
+            Папка назначения берётся у самой ссылки, а не задаётся одна на всех:
+            перевод пакета лежит в папке своего языка (zh-Hans/Имя.resources.dll),
+            и сложенный в корень bin/ он не находится ничем — загрузчик ищет
+            сателлит только в папке культуры. У обычной сборки это свойство
+            пустое, и она остаётся в корне.
+        -->
+        <Copy SourceFiles="@(_AxPluginBin)"
+              DestinationFiles="@(_AxPluginBin->'$(_AxPluginBinDir)%(DestinationSubDirectory)%(Filename)%(Extension)')" />
 
         <ItemGroup>
             <_AxPluginRoot Include="$(AxPluginManifest)" />

@@ -43,6 +43,15 @@
                           ReferenceOutputAssembly="false"
                           SkipGetTargetFrameworkProperties="true"/>
         <!--
+            Пробный просмотрщик — тоже собирается и тоже не связывается: его
+            типы тест видеть не должен. Он единственный в репозитории редактор
+            документов и единственный плагин со своей пакетной зависимостью, и
+            обе дороги проверяются на нём — открытие файла и раскладка пакета.
+        -->
+        <ProjectReference Include="../../src/Plugins/Arxis.CodeViewer/Arxis.CodeViewer.csproj"
+                          ReferenceOutputAssembly="false"
+                          SkipGetTargetFrameworkProperties="true"/>
+        <!--
             Контракт примера — обычной ссылкой: тест доказывает идентичность
             типов, приводя объект плагина к СВОЕМУ IGreeter. Это и есть весь
             смысл контрактных сборок.

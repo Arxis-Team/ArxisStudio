@@ -1,0 +1,27 @@
+{
+  "id": "arxis.code-viewer",
+  "name": "Code Viewer",
+  "version": "1.0.0",
+  "publisher": "Arxis Labs",
+  "description": "%plugin.description%",
+  "tags": [ "sample", "editor" ],
+  "sdk": {
+    "min": "7.0"
+  },
+  "entry": "bin/Arxis.CodeViewer.dll",
+  "activation": [
+    "onFileType:.cs",
+    "onFileType:.axaml",
+    "onFileType:.xaml",
+    "onFileType:.csproj",
+    "onFileType:.props",
+    "onFileType:.targets",
+    "onFileType:.slnx",
+    "onFileType:.xml",
+    "onFileType:.json",
+    "onFileType:.md",
+    "onFileType:.txt",
+    "onFileType:.yml",
+    "onFileType:.yaml"
+  ]
+}

@@ -12,7 +12,11 @@
     <PackageVersion Include="Avalonia.Skia" Version="12.1.1" />
   </ItemGroup>
   <ItemGroup>
-    <!-- Текстовый редактор XAML-вкладки. -->
+    <!--
+        Текстовый редактор: своя зависимость пробного плагина-просмотрщика, а не
+        общая сборка студии. Студия его не грузит и о нём не знает.
+    -->
+    <PackageVersion Include="Avalonia.AvaloniaEdit" Version="12.0.0" />
   </ItemGroup>
   <ItemGroup>
     <!--

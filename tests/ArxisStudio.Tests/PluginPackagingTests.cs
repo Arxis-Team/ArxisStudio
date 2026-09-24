@@ -111,6 +111,70 @@ public class PluginPackagingTests
     }
 
     /// <summary>
+    /// Своя зависимость плагина едет с ним — и сборкой, и переводом.
+    /// </summary>
+    /// <remarks>
+    /// Общему контракту в пакете места нет, а своей зависимости — ровно
+    /// наоборот: без неё плагин упадёт на первом же типе из неё, и упадёт уже у
+    /// человека. На машине автора беду не видно вовсе: там сборку находит кэш
+    /// NuGet, по которому <c>AssemblyDependencyResolver</c> и ищет.
+    /// <para>
+    /// Перевод пакета — сборка-сателлит, и живёт она в папке своего языка:
+    /// сложенный в корень <c>bin/</c>, он не находится ничем. Просмотрщик —
+    /// единственный плагин репозитория с пакетной зависимостью, и потому
+    /// правило проверяется на нём.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_package_dependency_travels_with_the_plugin()
+    {
+        var bin = Path.Combine(Package("Arxis.CodeViewer"), "bin");
+
+        Assert.True(File.Exists(Path.Combine(bin, "AvaloniaEdit.dll")), "своя зависимость не уехала в пакет");
+
+        Assert.True(
+            File.Exists(Path.Combine(bin, "zh-Hans", "AvaloniaEdit.resources.dll")),
+            "перевод зависимости лежит не в папке своего языка");
+    }
+
+    /// <summary>
+    /// Того, что студия везёт сама, в пакете плагина нет.
+    /// </summary>
+    /// <remarks>
+    /// Список общих сборок отвечает за контракты, которыми студия и плагин
+    /// обмениваются типами, а рядом с Avalonia в <c>lib/</c> едут её спутники —
+    /// SkiaSharp, HarfBuzzSharp, MicroCom. Типы их границу не переходят, и
+    /// объявлять их общими незачем; копия в плагине при этом всё равно лишняя —
+    /// сборку, которой у него нет, контекст загрузки берёт у основного, а
+    /// своя копия SkiaSharp пришла бы без нативной библиотеки.
+    /// <para>
+    /// Набор берётся у собранной студии, а не списком в тесте: список пришлось
+    /// бы править вслед за каждой новой зависимостью платформы, и он бы отстал.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("Arxis.HelloPlugin")]
+    [InlineData("Arxis.HelloFriend")]
+    [InlineData("Arxis.CodeViewer")]
+    public void Nothing_the_studio_carries_travels_in_the_package(string plugin)
+    {
+        var studio = Directory
+            .GetFiles(Studio(), "*.dll")
+            .Select(path => Path.GetFileNameWithoutExtension(path)!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        Assert.NotEmpty(studio);
+
+        var strays = Directory
+            .GetFiles(Path.Combine(Package(plugin), "bin"), "*.dll", SearchOption.AllDirectories)
+            .Select(path => Path.GetFileNameWithoutExtension(path)!)
+            .Where(studio.Contains)
+            .ToList();
+
+        Assert.True(strays.Count == 0, $"плагин везёт то, что есть у студии: {string.Join(", ", strays)}");
+    }
+
+    /// <summary>
     /// Архив собран и ставится студией.
     /// </summary>
     /// <remarks>
@@ -326,6 +390,31 @@ public class PluginPackagingTests
     }
 
     private static string Package() => Path.Combine(Sample(), "package");
+
+    /// <summary>Раскладка названного плагина репозитория.</summary>
+    private static string Package(string plugin) =>
+        Path.Combine(Repository(), "src", "Plugins", plugin, "package");
+
+    /// <summary>
+    /// Папка платформы у собранной студии — той же конфигурации, что у тестов.
+    /// </summary>
+    /// <remarks>
+    /// Конфигурация берётся из пути самих тестов: прогон бывает и Debug, и
+    /// Release, а сверять Release-плагин с Debug-студией значит сверять с тем,
+    /// чего в этом прогоне не собирали.
+    /// </remarks>
+    private static string Studio()
+    {
+        var tests = new DirectoryInfo(AppContext.BaseDirectory);
+
+        var library = Path.Combine(
+            Repository(), "src", "ArxisStudio", "bin", tests.Parent!.Name, tests.Name,
+            StudioAssemblyFolder.Library.Name);
+
+        Assert.True(Directory.Exists(library), $"студия не собрана: нет {library}");
+
+        return library;
+    }
 
     /// <summary>Корень репозитория: над ним лежит решение.</summary>
     private static string Repository()

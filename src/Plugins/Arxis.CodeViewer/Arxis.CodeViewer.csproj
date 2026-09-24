@@ -1,0 +1,40 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+        Пробный внешний плагин: единственный в репозитории редактор документов.
+        Нужен затем, чтобы контракт открытия файлов проверялся не одними
+        заглушками тестов, — и уйдёт, когда появится настоящий редактор.
+    -->
+    <PropertyGroup>
+        <RootNamespace>Arxis.CodeViewer</RootNamespace>
+        <AssemblyName>Arxis.CodeViewer</AssemblyName>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
+    </ItemGroup>
+
+    <!--
+        Своя зависимость плагина, а не общая сборка студии: AvaloniaEdit лежит
+        рядом с ним и грузится его же контекстом. Именно этот случай разбирает
+        PluginLoadContext.IsShared — семейство «Avalonia» узнаётся по точке, и
+        чужая AvaloniaEdit под него не попадает.
+    -->
+    <ItemGroup>
+        <PackageReference Include="Avalonia.AvaloniaEdit"/>
+    </ItemGroup>
+
+    <!--
+        Анализатор SDK приходится подключать отдельно: через цепочку
+        ProjectReference анализаторы не передаются — так умеют только пакеты.
+    -->
+    <ItemGroup>
+        <ProjectReference Include="../../ArxisStudio.Sdk.Analyzers/ArxisStudio.Sdk.Analyzers.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false"/>
+    </ItemGroup>
+
+    <Import Project="../../ArxisStudio.Sdk/build/ArxisStudio.Sdk.targets"/>
+
+</Project>
