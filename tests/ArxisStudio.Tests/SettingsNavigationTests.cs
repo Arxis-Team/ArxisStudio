@@ -352,6 +352,38 @@ public class SettingsNavigationTests : IDisposable
         owner.Close();
     }
 
+    /// <summary>
+    /// Alt+← с поля страницы: страница уходит вместе с полем, а каретка встаёт на выбранный раздел.
+    /// </summary>
+    /// <remarks>
+    /// Найдено живой проверкой: сочетание уводило страницу, на контроле которой стояла каретка, и
+    /// следующая клавиша не доставалась никому.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task Going_back_from_a_field_of_the_page_keeps_the_caret()
+    {
+        var (owner, settings, shown) = _harness.Open();
+        var model = (SettingsViewModel)settings.DataContext!;
+
+        model.Open("extension:arxis.terminal");
+        Dispatcher.UIThread.RunJobs();
+
+        settings.GetVisualDescendants()
+            .OfType<AxTextBox>()
+            .First(box => box.IsEffectivelyVisible && box.DataContext is ViewModels.PluginSettingRow)
+            .Focus();
+        Dispatcher.UIThread.RunJobs();
+
+        settings.KeyPress(Key.Left, RawInputModifiers.Alt, PhysicalKey.ArrowLeft, string.Empty);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("studio.appearance", model.Page?.Id);
+        Assert.Equal("studio.appearance", CaretSection(settings));
+
+        await Close(settings, shown);
+        owner.Close();
+    }
+
     /// <summary>Раздел дерева, на котором стоит каретка; null — она не на разделе.</summary>
     private static string? CaretSection(SettingsWindow settings) =>
         (settings.FocusManager?.GetFocusedElement() as AxTreeViewItem)?.DataContext is SettingsNode node ? node.Page.Id : null;

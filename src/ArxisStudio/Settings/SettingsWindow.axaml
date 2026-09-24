@@ -147,205 +147,332 @@
     </DataTemplate>
 
     <!--
-        Плагины: менеджер расширений, приехавших со стороны. Переехал сюда из
-        экрана Welcome целиком — вместе с карточкой и вопросами о зависимых.
+        Плагины: менеджер расширений, как Plugins → Installed у Rider. Слева список с группами и
+        флажком в строке, справа подробности выбранного, между ними граница, которую тянут.
+        Переехал сюда из экрана Welcome целиком — вместе с вопросами о зависимых.
 
-        Вторичные действия под «…», а не под шестерёнкой, как у Rider:
-        шестерёнка в этой студии уже занята — она открывает само это окно, и
-        два разных смысла на один значок читались бы как один.
+        Вторичные действия менеджера — под «…» в шапке страницы, а не под шестерёнкой, как у Rider:
+        шестерёнка в этой студии уже занята — она открывает само это окно, и два разных смысла на
+        один значок читались бы как один.
     -->
     <DataTemplate DataType="s:PluginsPage">
-      <ScrollViewer>
-      <DockPanel Margin="{DynamicResource AxSettingsPagePadding}">
+      <Grid ColumnDefinitions="2*,Auto,3*" Loaded="OnPluginsSplitLoaded">
 
-        <DockPanel DockPanel.Dock="Top" Margin="{DynamicResource AxSpaceWideBelowThickness}">
-          <ax:AxButton DockPanel.Dock="Right" Appearance="Toolbar"
-                       AutomationProperties.Name="{ax:Loc plugins.actions}"
-                       ToolTip.Tip="{ax:Loc plugins.actions}"
-                       Click="OnPluginActionsClick">
-            <ax:AxIcon Data="{x:Static ax:AxIcons.MoreHorizontal}"/>
-          </ax:AxButton>
-          <TextBlock ax:AxText.Tone="Tertiary" VerticalAlignment="Center" TextWrapping="Wrap"
-                     FontSize="{DynamicResource AxFontSizeSmall}"
-                     Text="{ax:Loc plugins.subtitle}"/>
+        <DockPanel>
+          <!-- Чем кончилось последнее действие: установка, обновление, снятие. -->
+          <ax:AxBanner DockPanel.Dock="Top" Margin="{DynamicResource AxSpaceThickness}"
+                       IsVisible="{Binding HasStatus}" Closed="OnPluginStatusClosed">
+            <TextBlock Text="{Binding Status}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+          </ax:AxBanner>
+
+          <!-- Внешних нет — в списке одни встроенные; где ставят плагины, сказано над ними. -->
+          <TextBlock DockPanel.Dock="Top" ax:AxText.Tone="Tertiary" TextWrapping="Wrap"
+                     FontSize="{DynamicResource AxFontSizeSmall}" Margin="{DynamicResource AxSpaceWideThickness}"
+                     Text="{ax:Loc plugins.empty}" IsVisible="{Binding IsEmpty}"/>
+
+          <!--
+              Один список на все группы, как у Rider: стрелки идут по плагинам подряд, а заголовок
+              группы — строка, которую нельзя выбрать. Стрелки и Tab проходят мимо неё, наведение
+              её не красит, а набор букв её не находит.
+          -->
+          <ax:AxListBox x:Name="PluginList" ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected, Mode=TwoWay}"
+                        AutomationProperties.Name="{ax:Loc plugins.title}"
+                        SelectionChanged="OnPluginListSelectionChanged">
+            <ax:AxListBox.Styles>
+              <Style Selector="ax|AxListBoxItem" x:DataType="vm:IPluginRow">
+                <Setter Property="Focusable" Value="{Binding !IsHeader}"/>
+                <Setter Property="AutomationProperties.Name" Value="{Binding Label}"/>
+                <Setter Property="AutomationProperties.ItemStatus" Value="{Binding Status}"/>
+              </Style>
+              <Style Selector="ax|AxListBoxItem[Focusable=False] /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="Transparent"/>
+              </Style>
+              <!-- Выключенный плагин — вторичным тоном, как у Rider: видно, не читая флажков. -->
+              <Style Selector="TextBlock.off">
+                <Setter Property="ax:AxText.Tone" Value="Secondary"/>
+              </Style>
+            </ax:AxListBox.Styles>
+
+            <ax:AxListBox.DataTemplates>
+              <!--
+                  Заголовок группы: сколько включено из всех. Свернуть его нельзя, пока идёт поиск —
+                  свёрнутая группа спрятала бы найденное.
+              -->
+              <DataTemplate DataType="vm:PluginGroup">
+                <ax:AxGroupHeader Content="{Binding Title}" Counter="{Binding Counter}" ToolTip.Tip="{Binding CounterHint}"
+                                  IsCollapsible="{Binding CanFold}" IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
+                                  Margin="{DynamicResource AxSpaceAboveThickness}"/>
+              </DataTemplate>
+
+              <DataTemplate DataType="vm:PluginCard">
+                <DockPanel Margin="{DynamicResource AxSpaceHairThickness}">
+                  <Border DockPanel.Dock="Left" Width="{DynamicResource AxPluginTileSize}" Height="{DynamicResource AxPluginTileSize}"
+                          Margin="{DynamicResource AxSpaceTrailingThickness}"
+                          CornerRadius="{DynamicResource AxCornerRadiusLarge}"
+                          Background="{DynamicResource AxSurfaceRaisedBrush}">
+                    <Panel>
+                      <!--
+                          Значок — украшение: имя плагина стоит рядом текстом, и экранный диктор,
+                          назвав картинку ещё раз, сказал бы одно и то же дважды. Поэтому из дерева
+                          доступности значок убран, а не назван.
+                      -->
+                      <Image x:Name="PluginIcon" Width="{DynamicResource AxAvatarSizeSmall}" Height="{DynamicResource AxAvatarSizeSmall}"
+                             AutomationProperties.AccessibilityView="Raw"
+                             RenderOptions.BitmapInterpolationMode="HighQuality"
+                             Source="{Binding Plugin.IconPath, Converter={x:Static conv:PluginIconConverter.Instance}}"/>
+                      <!--
+                          Общий значок показывается тогда, когда картинки нет: не объявлена,
+                          потерялась или не прочиталась. Решает сама картинка, а не путь к ней.
+                      -->
+                      <ax:AxIcon Data="{x:Static ax:AxIcons.Package}"
+                                 Foreground="{DynamicResource AxTintPurpleBrush}"
+                                 IsVisible="{Binding #PluginIcon.Source, Converter={x:Static ObjectConverters.IsNull}}"/>
+                    </Panel>
+                  </Border>
+                  <!--
+                      Флажок — как у Rider: включение копится до «Сохранить», и флажок, а не
+                      тумблер, говорит, что сразу ничего не случится. Встроенному включать нечего —
+                      у него слово вместо флажка.
+                  -->
+                  <ax:AxCheckBox DockPanel.Dock="Right" VerticalAlignment="Center" Margin="{DynamicResource AxSpaceLeadingThickness}"
+                                 IsChecked="{Binding IsOn, Mode=OneWay}" IsVisible="{Binding CanToggle}"
+                                 AutomationProperties.Name="{Binding Plugin.DisplayName}"
+                                 Click="OnPluginCheckClick"/>
+                  <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="{DynamicResource AxSpaceLeadingThickness}"
+                             ax:AxText.Tone="Tertiary" FontSize="{DynamicResource AxFontSizeSmall}"
+                             Text="{ax:Loc plugins.builtin}" IsVisible="{Binding IsBuiltIn}"/>
+                  <!-- Непринятое — точкой, тем же знаком, что правленый раздел в дереве. -->
+                  <Ellipse DockPanel.Dock="Right" VerticalAlignment="Center" Margin="{DynamicResource AxSpaceLeadingThickness}"
+                           Width="{DynamicResource AxTabModifiedDotSize}" Height="{DynamicResource AxTabModifiedDotSize}"
+                           Fill="{DynamicResource AxAccentBrush}" IsVisible="{Binding IsChanged}"/>
+                  <ax:AxIcon DockPanel.Dock="Right" VerticalAlignment="Center" Margin="{DynamicResource AxSpaceLeadingThickness}"
+                             Data="{x:Static ax:AxIcons.Error}" Foreground="{DynamicResource AxErrorBrush}"
+                             ToolTip.Tip="{Binding Problem}" IsVisible="{Binding IsProblem}"
+                             AutomationProperties.AccessibilityView="Raw"/>
+                  <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Plugin.DisplayName}" TextTrimming="CharacterEllipsis" Classes.off="{Binding !IsOn}"/>
+                    <TextBlock Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis"
+                               ax:AxText.Tone="Tertiary" FontSize="{DynamicResource AxFontSizeSmall}"/>
+                  </StackPanel>
+                </DockPanel>
+              </DataTemplate>
+            </ax:AxListBox.DataTemplates>
+          </ax:AxListBox>
         </DockPanel>
 
-        <!-- Чем кончилось последнее действие: установка, обновление, снятие. -->
-        <ax:AxCard DockPanel.Dock="Top" Margin="{DynamicResource AxSpaceWideBelowThickness}" Padding="{DynamicResource AxBannerPadding}"
-                   IsVisible="{Binding HasStatus}">
-          <TextBlock Text="{Binding Status}" TextWrapping="Wrap"
-                     FontSize="{DynamicResource AxFontSizeSmall}" AutomationProperties.LiveSetting="Polite"/>
-        </ax:AxCard>
+        <ax:AxSplitter Grid.Column="1" Orientation="Vertical"/>
 
-        <TextBlock DockPanel.Dock="Top" ax:AxText.Tone="Tertiary" TextWrapping="Wrap"
-                   FontSize="{DynamicResource AxFontSizeSmall}"
-                   Text="{ax:Loc plugins.empty}" IsVisible="{Binding IsEmpty}"/>
+        <!--
+            Подробности выбранного — разделами одной прокруткой, а не вкладками, как у Rider: у
+            плагина здесь десяток-другой строк, и прятать половину за щелчком незачем. Вкладки
+            появятся вместе с тем, что им показывать, — описанием из README и журналом версий.
+            Текст переносится, а не режется: подробности читают целиком.
+        -->
+        <ScrollViewer Grid.Column="2">
+          <Panel Margin="{DynamicResource AxSettingsPagePadding}">
+            <TextBlock ax:AxText.Tone="Tertiary" TextWrapping="Wrap" FontSize="{DynamicResource AxFontSizeSmall}"
+                       Text="{ax:Loc plugins.pick}" IsVisible="{Binding !HasCard}"/>
 
-        <ax:AxCard Padding="0" VerticalAlignment="Top" IsVisible="{Binding !IsEmpty}">
-          <ItemsControl ItemsSource="{Binding Cards}">
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="vm:PluginCard">
-                <DockPanel IsVisible="{Binding IsShown}">
-                  <ax:AxDivider DockPanel.Dock="Bottom"/>
-                  <Border Padding="{DynamicResource AxSettingsRowPadding}">
+            <ContentControl Content="{Binding Card}" IsVisible="{Binding HasCard}">
+              <ContentControl.ContentTemplate>
+                <DataTemplate x:DataType="vm:PluginCard">
+                  <StackPanel Spacing="{DynamicResource AxGapGroup}" Grid.IsSharedSizeScope="True">
+
                     <DockPanel>
-                      <Border DockPanel.Dock="Left" Width="{DynamicResource AxPluginTileSize}" Height="{DynamicResource AxPluginTileSize}" Margin="{DynamicResource AxSpaceWideTrailingThickness}"
+                      <Border DockPanel.Dock="Left" Width="{DynamicResource AxPluginTileSize}" Height="{DynamicResource AxPluginTileSize}"
+                              Margin="{DynamicResource AxSpaceWideTrailingThickness}" VerticalAlignment="Top"
                               CornerRadius="{DynamicResource AxCornerRadiusLarge}"
                               Background="{DynamicResource AxSurfaceRaisedBrush}">
                         <Panel>
-                          <!--
-                              Значок — украшение: имя плагина стоит рядом текстом, и
-                              экранный диктор, назвав картинку ещё раз, сказал бы
-                              одно и то же дважды. Поэтому из дерева доступности
-                              значок убран, а не назван.
-                          -->
                           <Image x:Name="PluginIcon" Width="{DynamicResource AxAvatarSizeSmall}" Height="{DynamicResource AxAvatarSizeSmall}"
                                  AutomationProperties.AccessibilityView="Raw"
                                  RenderOptions.BitmapInterpolationMode="HighQuality"
                                  Source="{Binding Plugin.IconPath, Converter={x:Static conv:PluginIconConverter.Instance}}"/>
-                          <!--
-                              Общий значок показывается тогда, когда картинки нет:
-                              не объявлена, потерялась или не прочиталась. Решает
-                              сама картинка, а не путь к ней, — иначе объявленный
-                              и битый файл оставлял бы на карточке пустое место.
-                          -->
                           <ax:AxIcon Data="{x:Static ax:AxIcons.Package}"
                                      Foreground="{DynamicResource AxTintPurpleBrush}"
                                      IsVisible="{Binding #PluginIcon.Source, Converter={x:Static ObjectConverters.IsNull}}"/>
                         </Panel>
                       </Border>
-                      <!--
-                          Одна кнопка на оба действия, как в Rider: слева
-                          «Включить»/«Выключить», под стрелкой — удаление.
-                          Выключают часто, удаляют редко и навсегда, и держать
-                          необратимое на расстоянии одного промаха от частого
-                          незачем.
-                      -->
-                      <ax:AxSplitButton DockPanel.Dock="Right" MinWidth="{DynamicResource AxSettingsActionWidth}" MinHeight="{DynamicResource AxControlHeightCompact}" Margin="{DynamicResource AxSpaceLeadingThickness}"
-                                        VerticalAlignment="Center" FontSize="{DynamicResource AxFontSizeSmall}"
-                                        Click="OnPluginToggleClick" Tag="{Binding}"
-                                        Content="{Binding IsOn, Converter={x:Static conv:PluginToggleConverter.Instance}}"
-                                        IsVisible="{Binding Plugin.IsValid}">
-                        <ax:AxSplitButton.Flyout>
-                          <ax:AxMenuFlyout Placement="BottomEdgeAlignedRight">
-                            <ax:AxMenuItem IsDestructive="True" Header="{ax:Loc plugins.remove}"
-                                           Click="OnPluginRemoveClick" Tag="{Binding}"/>
-                          </ax:AxMenuFlyout>
-                        </ax:AxSplitButton.Flyout>
-                      </ax:AxSplitButton>
-                      <!--
-                          Сломанному включать нечего — ему остаётся только уйти, и
-                          кнопка у него своя: под стрелкой удаление было бы
-                          спрятано за действием, которого у него нет.
-                      -->
-                      <ax:AxButton DockPanel.Dock="Right" MinHeight="{DynamicResource AxControlHeightSmall}" Margin="{DynamicResource AxSpaceLeadingThickness}"
-                                   VerticalAlignment="Center" FontSize="{DynamicResource AxFontSizeSmall}"
-                                   Click="OnPluginRemoveClick" Tag="{Binding}"
-                                   Content="{ax:Loc plugins.remove}"
-                                   IsVisible="{Binding !Plugin.IsValid}"/>
-                      <TextBlock DockPanel.Dock="Right" ax:AxText.Role="Code" ax:AxText.Tone="Tertiary" VerticalAlignment="Center"
-                                 FontSize="{DynamicResource AxFontSizeSmall}"
-                                 Text="{Binding Plugin.Manifest.Version}"/>
                       <StackPanel VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapControls}">
-                          <TextBlock Text="{Binding Plugin.DisplayName}" FontWeight="SemiBold"
-                                     FontSize="{DynamicResource AxFontSize}"/>
-                          <TextBlock ax:AxText.Tone="Tertiary" VerticalAlignment="Bottom"
-                                     FontSize="{DynamicResource AxFontSizeSmall}"
-                                     Text="{Binding Plugin.Manifest.Publisher}"/>
-                          <ax:AxChip Content="{ax:Loc plugins.broken}" IsVisible="{Binding !Plugin.IsValid}"/>
-                          <!--
-                              Манифест цел, а плагин не поднялся: сборка не читается или точка
-                              входа падает. Без отметки он выглядел исправным, хотя не работал, а
-                              журнал, где сказана причина, с Welcome не виден.
-                          -->
-                          <ax:AxChip Content="{ax:Loc plugins.unrisen}" IsVisible="{Binding HasRiseError}"/>
-                          <!--
-                              Отметка непринятого: галочку копят до «Сохранить», и
-                              без неё человек не отличит выключенное от того, что
-                              он только что решил выключить.
-                          -->
-                          <ax:AxChip Content="{ax:Loc plugins.pending}" IsVisible="{Binding IsChanged}"/>
-                        </StackPanel>
-                        <!-- Описание длиннее строки сокращается многоточием и читается целиком в подсказке. -->
-                        <TextBlock ax:AxText.Tone="Secondary" Margin="0,1,0,0" TextTrimming="CharacterEllipsis"
-                                   FontSize="{DynamicResource AxFontSizeSmall}"
-                                   Text="{Binding Plugin.Description}" ToolTip.Tip="{Binding Plugin.Description}"/>
-                        <TextBlock ax:AxText.Tone="Tertiary" Margin="0,1,0,0" TextTrimming="CharacterEllipsis"
-                                   FontSize="{DynamicResource AxFontSizeSmall}"
-                                   Text="{Binding Plugin.Error}" IsVisible="{Binding !Plugin.IsValid}"/>
-                        <!-- Причина отказа — одной строкой, целиком в подсказке. -->
-                        <TextBlock ax:AxText.Tone="Tertiary" TextTrimming="CharacterEllipsis"
-                                   FontSize="{DynamicResource AxFontSizeSmall}"
-                                   Text="{Binding RiseError}" ToolTip.Tip="{Binding RiseError}"
-                                   IsVisible="{Binding HasRiseError}"/>
-
-                        <!--
-                            Метки: то, чем расширение назвало себя само. Известные
-                            студия переводит, остальные показывает как написаны.
-                        -->
-                        <ItemsControl ItemsSource="{Binding Tags}" Margin="{DynamicResource AxSpaceTightAboveThickness}"
-                                      IsVisible="{Binding HasTags}">
-                          <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                              <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapIconText}"/>
-                            </ItemsPanelTemplate>
-                          </ItemsControl.ItemsPanel>
-                          <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="x:String">
-                              <ax:AxChip Content="{Binding}"/>
-                            </DataTemplate>
-                          </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-
-                        <!-- Полнота перевода: у обычного плагина список пуст. -->
-                        <ItemsControl ItemsSource="{Binding Plugin.Coverage}" Margin="{DynamicResource AxSpaceTightAboveThickness}">
-                          <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                              <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapIconText}"/>
-                            </ItemsPanelTemplate>
-                          </ItemsControl.ItemsPanel>
-                          <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="ext:LanguageCoverage">
-                              <ax:AxChip Content="{Binding Label}"/>
-                            </DataTemplate>
-                          </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-
-                        <!--
-                            Зависимости: у большинства плагинов их нет. Обязательная
-                            не в порядке подсвечивается — это ответ на вопрос
-                            «почему плагин не поднялся».
-                        -->
-                        <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapIconText}" Margin="{DynamicResource AxSpaceTightAboveThickness}"
-                                    IsVisible="{Binding HasDependencies}">
-                          <TextBlock ax:AxText.Tone="Tertiary" VerticalAlignment="Center"
-                                     FontSize="{DynamicResource AxFontSizeSmall}"
-                                     Text="{ax:Loc plugins.deps}"/>
-                          <ItemsControl ItemsSource="{Binding Dependencies}">
-                            <ItemsControl.ItemsPanel>
-                              <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapIconText}"/>
-                              </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                              <DataTemplate x:DataType="ext:PluginDependencyState">
-                                <ax:AxChip Classes="dependency" Classes.problem="{Binding IsProblem}" Content="{Binding Label}"/>
-                              </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                          </ItemsControl>
-                        </StackPanel>
+                        <TextBlock ax:AxText.Role="Title" Text="{Binding Plugin.DisplayName}" TextWrapping="Wrap"/>
+                        <TextBlock ax:AxText.Tone="Secondary" FontSize="{DynamicResource AxFontSizeSmall}" TextWrapping="Wrap"
+                                   Text="{Binding Subtitle}"/>
                       </StackPanel>
                     </DockPanel>
-                  </Border>
-                </DockPanel>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </ax:AxCard>
 
-      </DockPanel>
-      </ScrollViewer>
+                    <StackPanel Spacing="{DynamicResource AxGapControls}">
+                      <WrapPanel ItemSpacing="{DynamicResource AxGapControls}" LineSpacing="{DynamicResource AxGapControls}">
+                        <!--
+                            Одна кнопка на оба действия, как в Rider: слева «Включить»/«Выключить», под
+                            стрелкой — удаление. Выключают часто, удаляют редко и навсегда, и держать
+                            необратимое на расстоянии одного промаха от частого незачем.
+                        -->
+                        <ax:AxSplitButton MinWidth="{DynamicResource AxSettingsActionWidth}"
+                                          Click="OnPluginToggleClick" Tag="{Binding}"
+                                          Content="{Binding IsOn, Converter={x:Static conv:PluginToggleConverter.Instance}}"
+                                          IsVisible="{Binding CanToggle}">
+                          <ax:AxSplitButton.Flyout>
+                            <ax:AxMenuFlyout Placement="BottomEdgeAlignedLeft">
+                              <ax:AxMenuItem IsDestructive="True" Header="{ax:Loc plugins.remove}"
+                                             Click="OnPluginRemoveClick" Tag="{Binding}"/>
+                            </ax:AxMenuFlyout>
+                          </ax:AxSplitButton.Flyout>
+                        </ax:AxSplitButton>
+                        <!--
+                            Сломанному включать нечего — ему остаётся только уйти, и кнопка у него своя:
+                            под стрелкой удаление было бы спрятано за действием, которого у него нет.
+                        -->
+                        <ax:AxButton Content="{ax:Loc plugins.remove}" Click="OnPluginRemoveClick" Tag="{Binding}"
+                                     IsVisible="{Binding IsBroken}"/>
+                        <ax:AxButton Content="{ax:Loc plugins.configure}" Click="OnPluginConfigureClick" Tag="{Binding}"
+                                     IsVisible="{Binding DeclaresSettings}"/>
+                        <ax:AxButton Appearance="Toolbar" Click="OnPluginMoreClick" Tag="{Binding}"
+                                     AutomationProperties.Name="{ax:Loc plugins.more}" ToolTip.Tip="{ax:Loc plugins.more}">
+                          <ax:AxIcon Data="{x:Static ax:AxIcons.MoreHorizontal}"/>
+                        </ax:AxButton>
+                      </WrapPanel>
+                      <TextBlock ax:AxText.Tone="Tertiary" FontSize="{DynamicResource AxFontSizeSmall}" TextWrapping="Wrap"
+                                 Text="{ax:Loc plugins.builtin.note}" IsVisible="{Binding IsBuiltIn}"/>
+                    </StackPanel>
+
+                    <!--
+                        Беда и непринятое — строкой со знаком, а не баннером: баннер закрывают
+                        крестиком, а беда от этого не проходит, и непринятое — тоже.
+                    -->
+                    <DockPanel IsVisible="{Binding IsProblem}">
+                      <ax:AxIcon DockPanel.Dock="Left" VerticalAlignment="Top" Margin="{DynamicResource AxGapIconTextThickness}"
+                                 Data="{x:Static ax:AxIcons.Error}" Foreground="{DynamicResource AxErrorBrush}"
+                                 AutomationProperties.AccessibilityView="Raw"/>
+                      <TextBlock ax:AxText.Tone="Error" TextWrapping="Wrap" Text="{Binding Problem}"/>
+                    </DockPanel>
+                    <DockPanel IsVisible="{Binding IsChanged}">
+                      <ax:AxIcon DockPanel.Dock="Left" VerticalAlignment="Top" Margin="{DynamicResource AxGapIconTextThickness}"
+                                 Data="{x:Static ax:AxIcons.Info}" Foreground="{DynamicResource AxAccentBrush}"
+                                 AutomationProperties.AccessibilityView="Raw"/>
+                      <ax:AxLink DockPanel.Dock="Right" VerticalAlignment="Top" Margin="{DynamicResource AxSpaceLeadingThickness}"
+                                 Content="{ax:Loc plugins.revert}" Click="OnPluginUndoClick" Tag="{Binding}"/>
+                      <TextBlock TextWrapping="Wrap" Text="{Binding Pending}" AutomationProperties.LiveSetting="Polite"/>
+                    </DockPanel>
+
+                    <StackPanel Spacing="{DynamicResource AxGapControls}" IsVisible="{Binding HasDescription}">
+                      <ax:AxGroupHeader Content="{ax:Loc plugins.details.description}"/>
+                      <TextBlock TextWrapping="Wrap" Text="{Binding Plugin.Description}"/>
+                      <!--
+                          Метки: то, чем расширение назвало себя само. Известные студия переводит,
+                          остальные показывает как написаны.
+                      -->
+                      <ItemsControl ItemsSource="{Binding Tags}" IsVisible="{Binding HasTags}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <WrapPanel ItemSpacing="{DynamicResource AxGapIconText}" LineSpacing="{DynamicResource AxGapIconText}"/>
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="x:String">
+                            <ax:AxChip Content="{Binding}"/>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+
+                    <!--
+                        Зависимости в обе стороны, как в Unity Package Manager: кого плагин
+                        использует и кому он нужен. Обязательная не в порядке подсвечивается — это
+                        ответ на вопрос «почему плагин не поднялся».
+                    -->
+                    <!--
+                        Подпись над списком, а не колонкой слева, как «Is using» и «Used by» у Unity:
+                        плашка зависимости не переносится, и рядом с широкой подписью ей при крупном
+                        кегле не хватало места.
+                    -->
+                    <StackPanel Spacing="{DynamicResource AxGapControls}" IsVisible="{Binding HasLinks}">
+                      <ax:AxGroupHeader Content="{ax:Loc plugins.details.dependencies}"/>
+                      <StackPanel Spacing="{DynamicResource AxSpaceTight}" IsVisible="{Binding HasDependencies}">
+                        <TextBlock ax:AxText.Tone="Secondary" Text="{ax:Loc plugins.details.uses}"/>
+                        <ItemsControl ItemsSource="{Binding Dependencies}">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <WrapPanel ItemSpacing="{DynamicResource AxGapIconText}" LineSpacing="{DynamicResource AxGapIconText}"/>
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="ext:PluginDependencyState">
+                              <ax:AxChip Classes="dependency" Classes.problem="{Binding IsProblem}" Content="{Binding Label}"/>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                      <StackPanel Spacing="{DynamicResource AxSpaceTight}" IsVisible="{Binding HasDependents}">
+                        <TextBlock ax:AxText.Tone="Secondary" Text="{ax:Loc plugins.details.usedby}"/>
+                        <ItemsControl ItemsSource="{Binding Dependents}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                              <TextBlock TextWrapping="Wrap" Text="{Binding}"/>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </StackPanel>
+
+                    <!-- Что плагин добавляет в студию — по манифесту, не загружая сборки. -->
+                    <StackPanel Spacing="{DynamicResource AxGapControls}" IsVisible="{Binding HasBrings}">
+                      <ax:AxGroupHeader Content="{ax:Loc plugins.details.brings}"/>
+                      <ItemsControl ItemsSource="{Binding Brings}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:PluginFact">
+                            <Grid>
+                              <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="fact"/>
+                                <ColumnDefinition Width="*"/>
+                              </Grid.ColumnDefinitions>
+                              <TextBlock ax:AxText.Tone="Secondary" Margin="{DynamicResource AxSpaceWideTrailingThickness}"
+                                         Text="{Binding Label}"/>
+                              <TextBlock Grid.Column="1" TextWrapping="Wrap" Text="{Binding Value}"/>
+                            </Grid>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+
+                    <StackPanel Spacing="{DynamicResource AxGapControls}">
+                      <ax:AxGroupHeader Content="{ax:Loc plugins.details.info}"/>
+                      <ItemsControl ItemsSource="{Binding Facts}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:PluginFact">
+                            <Grid>
+                              <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="fact"/>
+                                <ColumnDefinition Width="*"/>
+                              </Grid.ColumnDefinitions>
+                              <TextBlock ax:AxText.Tone="Secondary" Margin="{DynamicResource AxSpaceWideTrailingThickness}"
+                                         Text="{Binding Label}"/>
+                              <TextBlock Grid.Column="1" TextWrapping="Wrap" Text="{Binding Value}"/>
+                            </Grid>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                      <!-- Папка — ссылкой: открыть её в системе чаще нужно, чем прочесть путь. -->
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="Auto" SharedSizeGroup="fact"/>
+                          <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock ax:AxText.Tone="Secondary" Margin="{DynamicResource AxSpaceWideTrailingThickness}"
+                                   Text="{ax:Loc plugins.details.folder}"/>
+                        <ax:AxLink Grid.Column="1" Click="OnPluginRevealClick" Tag="{Binding}" ToolTip.Tip="{Binding Folder}">
+                          <TextBlock TextWrapping="Wrap" Text="{Binding FolderShown}"/>
+                        </ax:AxLink>
+                      </Grid>
+                    </StackPanel>
+
+                  </StackPanel>
+                </DataTemplate>
+              </ContentControl.ContentTemplate>
+            </ContentControl>
+          </Panel>
+        </ScrollViewer>
+
+      </Grid>
     </DataTemplate>
 
     <!--
@@ -552,6 +679,26 @@
           <DockPanel>
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
                         Spacing="{DynamicResource AxGapControls}">
+              <!--
+                  Действия самой страницы — в её шапке, там же, где у Rider кнопки страницы
+                  плагинов. Они есть только у плагинов — установка, — и последний шаблон отвечает
+                  остальным страницам пустотой.
+              -->
+              <ContentControl Content="{Binding Page}" VerticalAlignment="Center">
+                <ContentControl.DataTemplates>
+                  <DataTemplate DataType="s:PluginsPage">
+                    <ax:AxButton Appearance="Toolbar"
+                                 AutomationProperties.Name="{ax:Loc plugins.actions}"
+                                 ToolTip.Tip="{ax:Loc plugins.actions}"
+                                 Click="OnPluginActionsClick">
+                      <ax:AxIcon Data="{x:Static ax:AxIcons.MoreHorizontal}"/>
+                    </ax:AxButton>
+                  </DataTemplate>
+                  <DataTemplate DataType="s:ISettingsPage">
+                    <Panel/>
+                  </DataTemplate>
+                </ContentControl.DataTemplates>
+              </ContentControl>
               <ax:AxLink x:Name="Reset" Content="{ax:Loc settings.reset}" VerticalAlignment="Center"
                          IsVisible="{Binding CanReset}"/>
               <StackPanel Orientation="Horizontal">

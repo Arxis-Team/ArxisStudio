@@ -99,6 +99,32 @@ internal sealed class SettingsHarness : IDisposable
         return (welcome, Assert.Single(welcome.OwnedWindows.OfType<SettingsWindow>()));
     }
 
+    /// <summary>
+    /// Кладёт в каталог харнесса плагин из одного манифеста — без сборки, как языковой пакет.
+    /// </summary>
+    /// <param name="id">Идентификатор — он же имя папки.</param>
+    /// <param name="name">Имя в списке.</param>
+    /// <param name="dependsOn">От кого плагин зависит обязательно; null — ни от кого.</param>
+    /// <remarks>Список и подробности читают манифест, а не сборку: этого довольно странице плагинов.</remarks>
+    public void Install(string id, string name, string? dependsOn = null)
+    {
+        var folder = Path.Combine(_home, "plugins", id);
+        var manifest = new Dictionary<string, object>
+        {
+            ["id"] = id,
+            ["name"] = name,
+            ["version"] = "1.0.0",
+            ["publisher"] = "Тест",
+            ["description"] = $"Пример плагина «{name}» для проверки страницы плагинов",
+        };
+
+        if (dependsOn is not null)
+            manifest["dependencies"] = new[] { new Dictionary<string, object> { ["id"] = dependsOn } };
+
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "plugin.json"), System.Text.Json.JsonSerializer.Serialize(manifest));
+    }
+
     private StudioPlugins Extensions(PluginCatalog catalog)
     {
         var dock = new StudioDock(new DockView());

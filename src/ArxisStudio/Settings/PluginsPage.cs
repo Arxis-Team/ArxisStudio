@@ -63,9 +63,12 @@ public interface IPluginDialogs
 /// перезагружается. Не отпустился — окно говорит про перезапуск, а не молчит.
 /// </para>
 /// <para>
-/// Встроенных модулей здесь нет и быть не должно: их не ставят и не удаляют,
-/// они приезжают со студией. Настройки же объявляют и те и другие — они на
-/// соседней ветке «Расширения».
+/// Устроена, как Plugins → Installed у Rider: слева список с группами — внешние, языковые
+/// пакеты, встроенные — и флажком в строке, справа подробности выбранного. Встроенные модули
+/// стоят здесь только для справки: их не ставят, не выключают и не удаляют, они приезжают со
+/// студией, — но видно их версию, что они добавляют и дорогу к их настройкам. Карточек у них
+/// прежде не было вовсе (запись 105); группу завёл человек, когда менеджер стал справочником, а
+/// не только пультом.
 /// </para>
 /// </remarks>
 public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
@@ -73,15 +76,29 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
     private readonly PluginCatalog _catalog;
     private readonly StudioPlugins _extensions;
     private readonly IPluginDialogs _dialogs;
+    private readonly IReadOnlyList<InstalledPlugin> _builtIn;
+
+    /// <summary>Какие группы человек свернул или раскрыл сам — это переживает пересборку списка.</summary>
+    private readonly Dictionary<string, bool> _folded = new(StringComparer.Ordinal);
 
     private string? _status;
     private string? _query;
+    private PluginCard? _selected;
+    private bool _arranging;
 
     /// <summary>Собирает страницу поверх каталога и живых расширений.</summary>
     /// <param name="catalog">Каталог плагинов на диске.</param>
     /// <param name="extensions">Расширения студии: живой хост.</param>
     /// <param name="dialogs">Кто спрашивает человека.</param>
-    public PluginsPage(PluginCatalog catalog, StudioPlugins extensions, IPluginDialogs dialogs)
+    /// <param name="builtIn">
+    /// Встроенные модули; null — те, что подняла служба расширений. Окно передаёт тех же, что
+    /// объявляют настройки, — из Welcome служба ещё может не знать своих модулей.
+    /// </param>
+    public PluginsPage(
+        PluginCatalog catalog,
+        StudioPlugins extensions,
+        IPluginDialogs dialogs,
+        IReadOnlyList<InstalledPlugin>? builtIn = null)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(extensions);
@@ -90,6 +107,7 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
         _catalog = catalog;
         _extensions = extensions;
         _dialogs = dialogs;
+        _builtIn = builtIn ?? extensions.Modules;
 
         Refresh();
     }
@@ -100,8 +118,49 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
     /// <inheritdoc/>
     public event EventHandler? Changed;
 
-    /// <summary>Установленные плагины.</summary>
+    /// <summary>Установленные плагины — те, что ставят, выключают и удаляют.</summary>
     public ObservableCollection<PluginCard> Cards { get; } = [];
+
+    /// <summary>Встроенные модули — для справки.</summary>
+    public IReadOnlyList<PluginCard> BuiltIn { get; private set; } = [];
+
+    /// <summary>Группы списка в порядке показа; пустых нет.</summary>
+    public IReadOnlyList<PluginGroup> Groups { get; private set; } = [];
+
+    /// <summary>
+    /// Строки списка: заголовок группы, затем её видимые плагины, и так по группам.
+    /// </summary>
+    /// <remarks>
+    /// Список один на все группы, как в Rider: стрелки идут по плагинам подряд. Свёрнутая группа
+    /// оставляет в нём только заголовок; поиск оставляет найденные строки и раскрывает группы.
+    /// </remarks>
+    public ObservableCollection<object> Rows { get; } = [];
+
+    /// <summary>
+    /// Выбранная строка — её показывают подробности справа.
+    /// </summary>
+    /// <remarks>
+    /// Пишет сюда список. Заголовок группы выбрать нельзя, и пустоту от списка страница не
+    /// принимает, пока выбранный плагин где-то есть: список теряет строку, когда её группу
+    /// свернули или пересобрали, а подробности при этом менять незачем.
+    /// </remarks>
+    public object? Selected
+    {
+        get => _selected;
+        set
+        {
+            if (value is PluginGroup || (value is null && (_arranging || (_selected is not null && !Rows.Contains(_selected)))))
+                return;
+
+            Choose(value as PluginCard);
+        }
+    }
+
+    /// <summary>Выбранный плагин; null — не выбрано ничего.</summary>
+    public PluginCard? Card => _selected;
+
+    /// <summary>Выбран плагин — подробности есть что показать.</summary>
+    public bool HasCard => _selected is not null;
 
     /// <inheritdoc/>
     public string Id => "studio.plugins";
@@ -128,12 +187,12 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
     /// автора и его манифест.
     /// </para>
     /// </remarks>
-    public IEnumerable<string> Terms => Cards.SelectMany(card => card.Terms).Append(Title);
+    public IEnumerable<string> Terms => Cards.Concat(BuiltIn).SelectMany(card => card.Terms).Append(Title);
 
     /// <inheritdoc/>
     public bool HasChanges => Cards.Any(card => card.IsChanged);
 
-    /// <summary>Плагинов не установлено.</summary>
+    /// <summary>Внешних плагинов не установлено.</summary>
     public bool IsEmpty => Cards.Count == 0;
 
     /// <summary>
@@ -231,6 +290,34 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
         _dialogs.Reveal(_catalog.Root);
     }
 
+    /// <summary>Показывает папку одного плагина средствами системы.</summary>
+    /// <param name="card">Чью папку.</param>
+    public void RevealFolder(PluginCard card)
+    {
+        ArgumentNullException.ThrowIfNull(card);
+
+        _dialogs.Reveal(card.Folder);
+    }
+
+    /// <summary>
+    /// «Вернуть» в подробностях: забывает непринятую галочку одного плагина.
+    /// </summary>
+    /// <param name="card">Чью галочку.</param>
+    /// <remarks>
+    /// Зависимых, выключенных вместе с ним по вопросу, не трогает: их человек выключил своим
+    /// согласием, и вернуть их — отдельное решение, которое он примет их же строкой.
+    /// </remarks>
+    public void Undo(PluginCard card)
+    {
+        ArgumentNullException.ThrowIfNull(card);
+
+        card.Revert();
+        Notify(nameof(HasChanges));
+    }
+
+    /// <summary>Баннер итога действия закрыли — сказанное больше не нужно.</summary>
+    public void Dismiss() => Status = null;
+
     /// <summary>
     /// Ставит или снимает галочку — со спросом, если страдают соседи.
     /// </summary>
@@ -244,6 +331,11 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
     public async Task ToggleAsync(PluginCard card)
     {
         ArgumentNullException.ThrowIfNull(card);
+
+        // Модуль и сломанный не выключаются: у них и флажка нет, но Пробел в строке и чужой вызов
+        // доходят сюда и без него.
+        if (!card.CanToggle)
+            return;
 
         if (!card.IsOn)
         {
@@ -297,6 +389,10 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
     public async Task RemoveAsync(PluginCard card)
     {
         ArgumentNullException.ThrowIfNull(card);
+
+        // Модуль уходит только вместе со студией: Delete в его строке не делает ничего.
+        if (!card.CanRemove)
+            return;
 
         var dependents = Dependents(card.Plugin, onlyMandatory: true);
 
@@ -364,7 +460,8 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
     public void Refresh()
     {
         var installed = _catalog.Scan();
-        var all = installed.Concat(_extensions.Modules).ToList();
+        var all = installed.Concat(_builtIn).ToList();
+        var wanted = _selected?.Plugin.Id;
 
         Cards.Clear();
 
@@ -375,27 +472,191 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
             var riseError = plugin.IsEnabled && _extensions.Unrisen.TryGetValue(plugin.Id, out var why) ? why : null;
             var card = new PluginCard(plugin, PluginGraph.Describe(plugin, all), riseError);
 
-            // Список собирается заново после установки и удаления, а поиск в окне остаётся тем
-            // же: новая карточка встаёт под тот отбор, что был у прежних.
-            card.Narrow(_query);
             card.PropertyChanged += OnCardChanged;
             Cards.Add(card);
         }
 
+        BuiltIn = [.. _builtIn.Select(module => new PluginCard(module, PluginGraph.Describe(module, all)))];
+
+        foreach (var card in Cards.Concat(BuiltIn))
+        {
+            // Список собирается заново после установки и удаления, а поиск в окне остаётся тем
+            // же: новая строка встаёт под тот отбор, что был у прежних.
+            card.Narrow(_query);
+            card.Dependents = NeededBy(card.Plugin, all);
+        }
+
+        Group();
+
+        // Выбор переживает пересборку: плагин, который смотрели, остаётся выбранным и после
+        // установки соседа, и после «Сохранить».
+        Choose(Cards.Concat(BuiltIn).FirstOrDefault(card => string.Equals(card.Plugin.Id, wanted, StringComparison.Ordinal)));
+        Arrange();
+
         Notify(nameof(Cards));
+        Notify(nameof(BuiltIn));
         Notify(nameof(IsEmpty));
         Notify(nameof(HasChanges));
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <inheritdoc/>
-    /// <remarks>Строки страницы — карточки, и отбирает их то же, по чему поиск находит страницу.</remarks>
+    /// <remarks>
+    /// Строки страницы — плагины, и отбирает их то же, по чему поиск находит страницу: имя,
+    /// идентификатор, издатель и метки. Пока идёт отбор, группы раскрыты и не сворачиваются.
+    /// </remarks>
     public void Narrow(string? query)
     {
-        _query = query;
+        _query = string.IsNullOrWhiteSpace(query) ? null : query.Trim();
 
-        foreach (var card in Cards)
-            card.Narrow(query);
+        foreach (var card in Cards.Concat(BuiltIn))
+            card.Narrow(_query);
+
+        foreach (var group in Groups)
+            group.CanFold = _query is null;
+
+        Arrange();
+    }
+
+    /// <summary>Кто из установленных сам объявил зависимость на этот плагин.</summary>
+    /// <remarks>
+    /// Прямые, а не вся волна: «нужен плагинам» отвечает, кто назвал его в своём манифесте. Кто
+    /// стоит за ними, видно в их собственных подробностях. Необязательная связь так и подписана.
+    /// </remarks>
+    private static IReadOnlyList<string> NeededBy(InstalledPlugin target, IReadOnlyList<InstalledPlugin> all) =>
+    [
+        .. all
+            .Select(plugin => (plugin, dependency: (plugin.Manifest?.Dependencies ?? [])
+                .FirstOrDefault(dependency => string.Equals(dependency.Id, target.Id, StringComparison.OrdinalIgnoreCase))))
+            .Where(pair => pair.dependency is not null)
+            .Select(pair => pair.dependency!.Optional
+                ? $"{pair.plugin.DisplayName} — {Localizer.Instance["plugins.dep.optional"]}"
+                : pair.plugin.DisplayName),
+    ];
+
+    /// <summary>
+    /// Раскладывает плагины по группам: внешние, языковые пакеты, встроенные.
+    /// </summary>
+    /// <remarks>
+    /// Встроенные свёрнуты, если есть что-то ещё, — они справочные и стоят последними; одни они —
+    /// раскрыты, иначе страница показывала бы пустоту под заголовком. Что человек свернул или
+    /// раскрыл сам, помнится до закрытия окна.
+    /// </remarks>
+    private void Group()
+    {
+        foreach (var group in Groups)
+            group.Toggled -= OnGroupToggled;
+
+        var external = Cards.Where(card => !card.IsLanguagePack).ToList();
+        var languages = Cards.Where(card => card.IsLanguagePack).ToList();
+        var only = external.Count == 0 && languages.Count == 0;
+
+        Groups =
+        [
+            .. new[]
+            {
+                Make("external", "plugins.group.external", external, counts: true, open: true),
+                Make("languages", "plugins.group.languages", languages, counts: true, open: true),
+                Make("builtin", "plugins.group.builtin", BuiltIn, counts: false, open: only),
+            }.Where(group => group.Cards.Count > 0),
+        ];
+
+        foreach (var group in Groups)
+            group.Toggled += OnGroupToggled;
+
+        Notify(nameof(Groups));
+
+        PluginGroup Make(string key, string title, IReadOnlyList<PluginCard> cards, bool counts, bool open) =>
+            new(key, Localizer.Instance[title], cards, counts, _folded.TryGetValue(key, out var kept) ? kept : open)
+            {
+                CanFold = _query is null,
+            };
+    }
+
+    /// <summary>
+    /// Собирает строки списка из групп: заголовок, затем видимые плагины, если группа раскрыта
+    /// или идёт поиск.
+    /// </summary>
+    /// <remarks>
+    /// Выбранный плагин, которого поиск больше не показывает, уступает выбор первому видимому:
+    /// подробности идут за отбором. Спрятанный свёрнутой группой — остаётся выбранным: человек
+    /// свернул группу, а не передумал смотреть на плагин.
+    /// <para>
+    /// Строки правятся на месте, а не собираются заново: заголовок, по которому щёлкнули, остаётся
+    /// тем же контролом, и каретка, взятая им при щелчке, не пропадает вместе со строкой.
+    /// </para>
+    /// </remarks>
+    private void Arrange()
+    {
+        var wanted = new List<object>();
+
+        foreach (var group in Groups)
+        {
+            var shown = group.Cards.Where(card => card.IsShown).ToList();
+
+            if (shown.Count == 0)
+                continue;
+
+            wanted.Add(group);
+
+            if (group.IsExpanded || _query is not null)
+                wanted.AddRange(shown);
+        }
+
+        _arranging = true;
+
+        try
+        {
+            for (var at = Rows.Count - 1; at >= 0; at--)
+            {
+                if (!wanted.Contains(Rows[at]))
+                    Rows.RemoveAt(at);
+            }
+
+            for (var at = 0; at < wanted.Count; at++)
+            {
+                if (at < Rows.Count && ReferenceEquals(Rows[at], wanted[at]))
+                    continue;
+
+                var from = Rows.IndexOf(wanted[at]);
+
+                if (from >= 0)
+                    Rows.Move(from, at);
+                else
+                    Rows.Insert(at, wanted[at]);
+            }
+        }
+        finally
+        {
+            _arranging = false;
+        }
+
+        if (_selected is not { IsShown: true })
+            Choose(Rows.OfType<PluginCard>().FirstOrDefault());
+
+        // Список, потерявший строку на время пересборки, получает выбор обратно.
+        Notify(nameof(Selected));
+    }
+
+    private void Choose(PluginCard? card)
+    {
+        if (ReferenceEquals(card, _selected))
+            return;
+
+        _selected = card;
+
+        Notify(nameof(Selected));
+        Notify(nameof(Card));
+        Notify(nameof(HasCard));
+    }
+
+    private void OnGroupToggled(object? sender, EventArgs e)
+    {
+        if (sender is not PluginGroup group)
+            return;
+
+        _folded[group.Key] = group.IsExpanded;
+        Arrange();
     }
 
     /// <summary>Галочка карточки сменилась — несохранённое страницы тоже.</summary>

@@ -9,7 +9,9 @@ using ArxisStudio.Shell.Settings;
 using ArxisStudio.ViewModels;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
@@ -65,6 +67,7 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
         // контрола окна, и взявший нажатие ради фокуса не должен её глушить.
         AddHandler(PointerPressedEvent, OnSideButton, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(KeyDownEvent, OnHistoryKey, RoutingStrategies.Tunnel);
+        AddHandler(KeyDownEvent, OnPluginRowKey, RoutingStrategies.Tunnel);
 
         // Каретка — в поиске, как в настройках Rider: окно открывают, чтобы найти настройку,
         // а без этого фокуса не было ни у кого, и первое нажатие уходило в пустоту.
@@ -114,7 +117,7 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
             extensions.Settings,
             declaring,
             extensions.Announce,
-            new PluginsPage(catalog, extensions, window),
+            new PluginsPage(catalog, extensions, window, [.. declaring.Where(extension => extension.IsBuiltIn)]),
             keys);
 
         window.Attach(model, page);
@@ -239,10 +242,10 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
         switch (e.Key)
         {
             case Key.Left:
-                model.Back();
+                Then(model.Back);
                 break;
             case Key.Right:
-                model.Forward();
+                Then(model.Forward);
                 break;
             default:
                 return;
@@ -260,10 +263,10 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
         switch (e.GetCurrentPoint(this).Properties.PointerUpdateKind)
         {
             case PointerUpdateKind.XButton1Pressed:
-                model.Back();
+                Then(model.Back);
                 break;
             case PointerUpdateKind.XButton2Pressed:
-                model.Forward();
+                Then(model.Forward);
                 break;
             default:
                 return;
@@ -298,8 +301,9 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
     /// <remarks>
     /// Ссылка ветки и сегмент пути уходят вместе со страницей, «Сбросить» прячется вместе с
     /// правкой, а крайняя стрелка гаснет — и каретка, стоявшая на них, оставалась ни на чём:
-    /// следующая клавиша уходила в пустоту. Её место тогда — выбранный раздел дерева, откуда
-    /// работают с окном. Ставит её туда программа, поэтому без кольца.
+    /// следующая клавиша уходила в пустоту. Так же и с Alt+← из страницы: каретка стояла на её
+    /// контроле, и страница унесла его с собой. Место каретки тогда — выбранный раздел дерева,
+    /// откуда работают с окном. Ставит её туда программа, поэтому без кольца.
     /// </remarks>
     private void Then(Action act)
     {
@@ -421,9 +425,9 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
     /// Вторичные действия менеджера: поставить из папки, из архива, открыть папку.
     /// </summary>
     /// <remarks>
-    /// Меню, а не три кнопки в ряд: ставят плагин редко, а место наверху нужно
-    /// подписи раздела. Собирается на каждый щелчок — тем же приёмом, что меню
-    /// шестерёнки в полосе: подписи переводятся вместе с языком.
+    /// Меню, а не три кнопки в ряд: ставят плагин редко, и шапке страницы, где
+    /// стоит путь, хватает одной кнопки. Собирается на каждый щелчок — тем же
+    /// приёмом, что меню шестерёнки в полосе: подписи переводятся вместе с языком.
     /// </remarks>
     private void OnPluginActionsClick(object? sender, RoutedEventArgs e)
     {
@@ -450,6 +454,129 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
     }
 
     private void OnPluginFolderClick(object? sender, RoutedEventArgs e) => Plugins?.OpenFolder();
+
+    /// <summary>
+    /// Флажок строки: включение идёт той же дорогой, что кнопка в подробностях, — через вопрос о
+    /// зависимых.
+    /// </summary>
+    /// <remarks>
+    /// Флажок переключается сам раньше, чем приходит щелчок, а человек на вопрос может ответить
+    /// «нет». Поэтому после ответа флажок сверяется с галочкой строки: отказ не оставит его снятым.
+    /// </remarks>
+    private async void OnPluginCheckClick(object? sender, RoutedEventArgs e)
+    {
+        if (Plugins is not { } page || sender is not AxCheckBox { DataContext: PluginCard card } box)
+            return;
+
+        await page.ToggleAsync(card);
+
+        box.SetCurrentValue(ToggleButton.IsCheckedProperty, card.IsOn);
+    }
+
+    /// <summary>«Настройки» в подробностях ведут на страницу настроек плагина.</summary>
+    private void OnPluginConfigureClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { Tag: PluginCard card } && _model is { } model)
+            Then(() => model.Open(card.SettingsPageId));
+    }
+
+    /// <summary>«Вернуть» в подробностях: непринятая галочка плагина забывается.</summary>
+    private void OnPluginUndoClick(object? sender, RoutedEventArgs e)
+    {
+        if (Plugins is { } page && sender is Control { Tag: PluginCard card })
+            Then(() => page.Undo(card));
+    }
+
+    /// <summary>Папка плагина в подробностях — ссылкой, средствами системы.</summary>
+    private void OnPluginRevealClick(object? sender, RoutedEventArgs e)
+    {
+        if (Plugins is { } page && sender is Control { Tag: PluginCard card })
+            page.RevealFolder(card);
+    }
+
+    /// <summary>Итог действия прочитан и закрыт крестиком.</summary>
+    private void OnPluginStatusClosed(object? sender, RoutedEventArgs e) => Plugins?.Dismiss();
+
+    /// <summary>
+    /// «…» в подробностях: открыть папку плагина, скопировать его идентификатор.
+    /// </summary>
+    /// <remarks>
+    /// Идентификатор копируют, чтобы назвать плагин там, где его ищут по имени из манифеста: в
+    /// зависимостях соседа, в <c>keymap.json</c>, в отчёте о сбое.
+    /// </remarks>
+    private void OnPluginMoreClick(object? sender, RoutedEventArgs e)
+    {
+        if (Plugins is not { } page || sender is not Control { Tag: PluginCard card } button)
+            return;
+
+        var flyout = new AxMenuFlyout { Placement = PlacementMode.BottomEdgeAlignedLeft };
+        var reveal = new AxMenuItem { Header = Localizer.Instance["plugins.revealfolder"], Icon = new AxIcon { Data = AxIcons.FolderOpen } };
+        var copy = new AxMenuItem { Header = Localizer.Instance["plugins.copyid"], Icon = new AxIcon { Data = AxIcons.Copy } };
+
+        reveal.Click += (_, _) => page.RevealFolder(card);
+        copy.Click += (_, _) => _ = TopLevel.GetTopLevel(this)?.Clipboard?.SetTextAsync(card.Plugin.Id);
+
+        flyout.Items.Add(reveal);
+        flyout.Items.Add(copy);
+        flyout.ShowAt(button);
+    }
+
+    /// <summary>
+    /// Заголовок группы не выбирается и мышью: список, выбравший его, возвращает выбор плагину.
+    /// </summary>
+    /// <remarks>
+    /// Стрелки и набор букв мимо заголовка проходят сами. Щёлкнуть по нему можно, пока идёт
+    /// поиск: тогда он не сворачивается и нажатие не берёт.
+    /// </remarks>
+    private void OnPluginListSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (sender is AxListBox { SelectedItem: PluginGroup } list && Plugins is { } page)
+            Dispatcher.UIThread.Post(() => list.SelectedItem = page.Card);
+    }
+
+    /// <summary>
+    /// Колонкам страницы плагинов — наименьшая ширина из темы: границу между ними тянут, и
+    /// утянутая в ноль колонка пропала бы вместе с тем, за что её тянуть обратно.
+    /// </summary>
+    private void OnPluginsSplitLoaded(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Grid grid
+            || !this.TryFindResource("AxSettingsPaneMinWidth", ActualThemeVariant, out var found)
+            || found is not double least)
+        {
+            return;
+        }
+
+        grid.ColumnDefinitions[0].MinWidth = least;
+        grid.ColumnDefinitions[2].MinWidth = least;
+    }
+
+    /// <summary>
+    /// Пробел в строке плагина ставит и снимает флажок, Delete удаляет плагин — как в списке
+    /// плагинов Rider.
+    /// </summary>
+    /// <remarks>
+    /// На спуске: список сам берёт Пробел себе — им он выбирает строку. Отвечает только строка
+    /// плагина: на флажке Пробел делает своё, а у встроенного оба нажатия ничего не значат.
+    /// </remarks>
+    private async void OnPluginRowKey(object? sender, KeyEventArgs e)
+    {
+        if (e.KeyModifiers != KeyModifiers.None
+            || e.Key is not (Key.Space or Key.Delete)
+            || Plugins is not { } page
+            || FocusManager?.GetFocusedElement() is not AxListBoxItem { DataContext: PluginCard card } row
+            || row.FindAncestorOfType<AxListBox>() is not { Name: "PluginList" })
+        {
+            return;
+        }
+
+        e.Handled = true;
+
+        if (e.Key == Key.Space)
+            await page.ToggleAsync(card);
+        else
+            await page.RemoveAsync(card);
+    }
 
     /// <summary>Открытая страница плагинов; null — открыта другая.</summary>
     private PluginsPage? Plugins => _model?.Page as PluginsPage;

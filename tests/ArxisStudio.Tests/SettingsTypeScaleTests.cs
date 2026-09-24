@@ -62,6 +62,42 @@ public class SettingsTypeScaleTests : IDisposable
     }
 
     /// <summary>
+    /// Страница плагинов цела при двойном кегле и тогда, когда в ней есть что показать: группы со
+    /// счётчиком, строки и подробности выбранного — с зависимостью и путём папки.
+    /// </summary>
+    /// <remarks>
+    /// В харнессе без плагинов страница показывает одну группу встроенных; здесь в ней стоят и
+    /// внешние, а выбран плагин с зависимостью — в подробностях читается всё, что у них бывает.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_plugins_page_reads_whole_at_twice_the_type_scale_with_a_plugin_chosen()
+    {
+        Localizer.Instance.SetLanguage("ru");
+
+        _harness.Install("arxis.one", "Первый");
+        _harness.Install("arxis.two", "Второй", dependsOn: "arxis.one");
+
+        var (owner, settings, _) = _harness.Open(page: "studio.plugins");
+        var page = Assert.IsType<PluginsPage>(((SettingsViewModel)settings.DataContext!).Page);
+
+        page.Selected = page.Cards.Single(card => card.Plugin.Id == "arxis.two");
+        Dispatcher.UIThread.RunJobs();
+
+        TypeScale.Enlarge(settings, 2);
+
+        var cut = TypeScale.Labels(settings)
+            .Select(label => TypeScale.Whole(label, settings, out var why) ? null : $"«{label.Text}»: {why}")
+            .OfType<string>()
+            .ToList();
+
+        Assert.True(cut.Count == 0, "страница плагинов срезана при двойном кегле:\n" + string.Join("\n", cut));
+
+        settings.Cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
+        owner.Close();
+    }
+
+    /// <summary>
     /// Подпись строки настроек не упирается в свой контрол — ни в обычном кегле, ни в двойном.
     /// </summary>
     /// <remarks>

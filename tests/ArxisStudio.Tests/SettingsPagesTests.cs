@@ -52,7 +52,11 @@ public class SettingsPagesTests : IDisposable
     public async Task A_flag_setting_is_a_check_box_labelled_with_its_title()
     {
         var (owner, settings, shown) = _harness.Open(page: "extension:arxis.terminal", declaring: [Terminal()]);
-        var page = settings.GetVisualDescendants().OfType<ContentControl>().Single(host => host.Content is ExtensionPage);
+        // Страницу держат двое: сама страница и слот действий в шапке. Строки — у первой.
+        var page = settings.GetVisualDescendants()
+            .OfType<ContentControl>()
+            .Where(host => host.Content is ExtensionPage)
+            .Single(host => host.GetVisualDescendants().OfType<ItemsControl>().Any());
 
         Assert.DoesNotContain(page.GetVisualDescendants().OfType<AxToggleSwitch>(), toggle => toggle.IsEffectivelyVisible);
 
