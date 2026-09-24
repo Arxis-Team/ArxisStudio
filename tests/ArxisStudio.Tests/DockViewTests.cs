@@ -1119,6 +1119,35 @@ public class DockViewTests
     }
 
     /// <summary>
+    /// Панель в делении тоже уходит из памяти вместе с хозяином.
+    /// </summary>
+    /// <remarks>
+    /// Правило то же, что выше, а дорога другая: деление вид собирает сеткой, и сетка живёт одну
+    /// постройку. Предел панели полоса сетки спрашивала у темы через сам вид, а подписку держит тот,
+    /// у кого спросили, — и вид держал каждую прежнюю сетку со всем, что в ней стояло. Живьём так
+    /// оставался в памяти выключенный и перезагруженный пример: его панель стоит справа, в делении.
+    /// Одна группа сетки не строит, и тест выше этого не видел.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_panel_beside_another_leaves_no_trace_when_its_owner_goes()
+    {
+        var items = new DockItems();
+        var view = new DockView { Items = items };
+
+        new Window { Content = view, Width = 600, Height = 400 }.Show();
+
+        var gone = PutBeside(view, items);
+
+        foreach (var id in items.RemoveOwnedBy("hello"))
+            view.Root = DockTree.Remove(view.Root!, id);
+
+        Settle();
+
+        Assert.IsNotType<Grid>(view.Child);
+        Assert.False(gone.IsAlive, "контрол панели остался в памяти: прежнюю сетку деления держит вид");
+    }
+
+    /// <summary>
     /// Доигрывает отложенную работу окна и собирает мусор.
     /// </summary>
     /// <remarks>
@@ -1156,6 +1185,37 @@ public class DockViewTests
         view.Root = new DockGroup { Id = "root", Items = ["solution"], Selected = "solution" };
 
         Dispatcher.UIThread.RunJobs();
+
+        return new WeakReference(content);
+    }
+
+    /// <summary>
+    /// Кладёт панель хозяина в деление рядом с чужой и возвращает слабую ссылку на её контрол.
+    /// </summary>
+    /// <remarks>Не встраивается — по той же причине, что <see cref="Put"/>.</remarks>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static WeakReference PutBeside(DockView view, DockItems items)
+    {
+        var content = new Border();
+
+        items.Add("studio", new DockItem("solution", new Border()) { Title = "Проект" });
+        items.Add("hello", new DockItem("hello", content) { Title = "Hello" });
+
+        view.Root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children =
+            [
+                new DockGroup { Id = "left", Items = ["solution"], Selected = "solution" },
+                new DockGroup { Id = "right", Items = ["hello"], Selected = "hello" },
+            ],
+            Weights = [0.5, 0.5],
+        };
+
+        Dispatcher.UIThread.RunJobs();
+
+        // Деление встало сеткой — иначе проверять было бы нечего.
+        Assert.IsType<Grid>(view.Child);
 
         return new WeakReference(content);
     }

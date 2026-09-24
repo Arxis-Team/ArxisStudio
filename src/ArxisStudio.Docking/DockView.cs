@@ -1049,7 +1049,7 @@ public class DockView : Decorator
             if (number > 0)
                 Line(division);
 
-            var row = Row(grid, down, new GridLength(room[number], GridUnitType.Star), this);
+            var row = Row(grid, down, new GridLength(room[number], GridUnitType.Star), pane: true);
 
             Put(grid, down, control, row);
             division.Sized.Add((at, row));
@@ -1306,21 +1306,25 @@ public class DockView : Decorator
     /// <param name="grid">Сетка деления.</param>
     /// <param name="down">Деление идёт сверху вниз.</param>
     /// <param name="size">Длина полосы.</param>
-    /// <param name="pane">
-    /// Кто спрашивает у темы наименьший размер панели; пусто — полоса под границу, и предела у неё нет.
-    /// </param>
+    /// <param name="pane">Полоса под панель; у полосы под границу предела нет.</param>
     /// <remarks>
     /// Панель не сжимается в ноль: граница упирается в наименьший размер, и доля в дереве остаётся
     /// живой. Предел — ключом темы и привязкой: за сменой темы он идёт сам.
+    /// <para>
+    /// Тему спрашивает сама сетка, а не вид. Подписка держит полосу, полоса — сетку, сетка — всё,
+    /// что в ней стояло, а сетка живёт одну постройку, вид же — всю жизнь окна. Спрошенный вид
+    /// держал каждую прежнюю сетку вместе с её панелями, а панель плагина — его контекст загрузки:
+    /// выключенный или перезагруженный плагин оставался в памяти.
+    /// </para>
     /// </remarks>
-    private static int Row(Grid grid, bool down, GridLength size, Control? pane = null)
+    private static int Row(Grid grid, bool down, GridLength size, bool pane = false)
     {
         if (down)
         {
             var row = new RowDefinition(size);
 
-            if (pane is not null)
-                row.Bind(RowDefinition.MinHeightProperty, pane.GetResourceObservable("AxDockPaneMinSize"));
+            if (pane)
+                row.Bind(RowDefinition.MinHeightProperty, grid.GetResourceObservable("AxDockPaneMinSize"));
 
             grid.RowDefinitions.Add(row);
         }
@@ -1328,8 +1332,8 @@ public class DockView : Decorator
         {
             var column = new ColumnDefinition(size);
 
-            if (pane is not null)
-                column.Bind(ColumnDefinition.MinWidthProperty, pane.GetResourceObservable("AxDockPaneMinSize"));
+            if (pane)
+                column.Bind(ColumnDefinition.MinWidthProperty, grid.GetResourceObservable("AxDockPaneMinSize"));
 
             grid.ColumnDefinitions.Add(column);
         }
