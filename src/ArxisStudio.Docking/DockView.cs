@@ -74,17 +74,6 @@ public class DockView : Decorator
         AvaloniaProperty.Register<DockView, DockItems?>(nameof(Items));
 
     /// <summary>
-    /// Что показать там, где показывать нечего.
-    /// </summary>
-    /// <remarks>
-    /// Достаётся одной названной группе, а не всем пустым: родитель у контрола
-    /// ровно один, и одна и та же заставка в двух местах кончилась бы
-    /// исключением.
-    /// </remarks>
-    public static readonly StyledProperty<object?> EmptyProperty =
-        AvaloniaProperty.Register<DockView, object?>(nameof(Empty));
-
-    /// <summary>
     /// Имя группы, которая показывается даже пустой.
     /// </summary>
     /// <remarks>
@@ -92,6 +81,11 @@ public class DockView : Decorator
     /// дерева. Разница видна на выключенном плагине: имена его панелей остаются
     /// на своих местах, места на экране не занимают, и стоит плагин включить,
     /// как панель возвращается туда же, где стояла, той же ширины.
+    /// <para>
+    /// Показанная пустой, она ничего не пишет и принимает брошенную вкладку
+    /// целиком: полосы у неё нет, целиться не во что, и любая точка внутри
+    /// значит «стань её вкладкой».
+    /// </para>
     /// </remarks>
     public static readonly StyledProperty<string?> EmptyGroupProperty =
         AvaloniaProperty.Register<DockView, string?>(nameof(EmptyGroup));
@@ -235,7 +229,6 @@ public class DockView : Decorator
         HiddenProperty.Changed.AddClassHandler<DockView>((view, _) => view.Rebuild());
         FixedProperty.Changed.AddClassHandler<DockView>((view, _) => view.Rebuild());
         ItemsProperty.Changed.AddClassHandler<DockView>((view, _) => view.Rebuild());
-        EmptyProperty.Changed.AddClassHandler<DockView>((view, _) => view.Rebuild());
         EmptyGroupProperty.Changed.AddClassHandler<DockView>((view, _) => view.Rebuild());
         ActionsProperty.Changed.AddClassHandler<DockView>((view, _) => view.Hang());
 
@@ -325,13 +318,6 @@ public class DockView : Decorator
     {
         get => GetValue(ItemsProperty);
         set => SetValue(ItemsProperty, value);
-    }
-
-    /// <inheritdoc cref="EmptyProperty"/>
-    public object? Empty
-    {
-        get => GetValue(EmptyProperty);
-        set => SetValue(EmptyProperty, value);
     }
 
     /// <inheritdoc cref="ActionsProperty"/>
@@ -630,6 +616,16 @@ public class DockView : Decorator
 
         if (aim is DockAim.Tab tab && View(tab.Group) is { } joined && Place(joined) is { } strip)
         {
+            // Пустая область занимается целиком, и подсказка это и показывает:
+            // полосы у неё нет, а черта высотой в ноль не видна никому.
+            if (!joined.HasTabs)
+            {
+                Paint(strip, title);
+                Mark(null);
+
+                return;
+            }
+
             var (_, edge) = joined.Slot(Local(at) is { } point ? (point - strip.Position).X : 0, item);
 
             // Подсвечивается сама полоса, а не вся область: вкладка встаёт в
@@ -684,6 +680,12 @@ public class DockView : Decorator
             return null;
 
         var local = point - area.Position;
+
+        // В области без вкладок целиться не во что: полосы нет — шапка скрыта
+        // вместе с ней, — а делить пустоту надвое незачем. Поэтому любая точка
+        // внутри значит «стань её вкладкой»: так центр принимает первую панель.
+        if (!group.HasTabs)
+            return new DockAim.Tab(group.Id, group.Slot(local.X, item).At);
 
         // Полоса вкладок сильнее всего: она и есть «встань рядом», и место в
         // ней человек выбирает тем же движением.
@@ -1005,7 +1007,7 @@ public class DockView : Decorator
             view.CanHide = Hideable && !named && group.Items.Any(id => Hidable(id, items));
             view.HideTitle = HideTitle;
             view.Hidden = Hidden;
-            view.Update(group, items, named ? Empty : null);
+            view.Update(group, items);
 
             return view;
         }

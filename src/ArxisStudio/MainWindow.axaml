@@ -85,8 +85,8 @@
 
     <!--
         Рабочая область — дерево доков. Панели встают в него из манифестов, а
-        документы открываются в названную группу; заставка достаётся ей же,
-        пока в ней пусто.
+        документы открываются в названную группу; пустой она показывает пол
+        рабочей области и принимает брошенную вкладку целиком.
 
         Подписи кнопок дока приходят отсюда: движок докинга о языках студии не
         знает и знать не должен. Первая достаётся оторванному окну, вторая —
@@ -95,15 +95,7 @@
     -->
     <ax:DockView x:Name="Dock"
                  DockTitle="{ax:Loc action.dock}"
-                 HideTitle="{ax:Loc action.hide}">
-      <ax:DockView.Empty>
-        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="{DynamicResource AxSpace}">
-          <TextBlock ax:AxText.Tone="Secondary" Text="ArxisStudio" FontSize="{DynamicResource AxFontSizeLarge}" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-          <TextBlock ax:AxText.Tone="Tertiary" Text="{ax:Loc studio.canvas.hint}"
-                     FontSize="{DynamicResource AxFontSizeSmall}" HorizontalAlignment="Center"/>
-        </StackPanel>
-      </ax:DockView.Empty>
-    </ax:DockView>
+                 HideTitle="{ax:Loc action.hide}"/>
 
     <!--
         Статус-бар: наименьшая высота контрола, 24 при обычной плотности. Сообщение — живая

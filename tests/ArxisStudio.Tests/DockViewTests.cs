@@ -45,21 +45,20 @@ public class DockViewTests
     }
 
     /// <summary>
-    /// Пустая группа показывает заставку и убирает шапку.
+    /// Пустая названная группа стоит без шапки и без содержимого.
     /// </summary>
     /// <remarks>
-    /// Пустой остаётся область документов — её не сносят, пока в ней ничего не
-    /// открыто. Полоса шапки в 38 пикселей, в которой нечего показать, выглядит
-    /// над заставкой недоделкой, а не местом, куда что-то откроется.
+    /// Пустой остаётся центральная область — её не сносят, пока в ней ничего не
+    /// открыто, — и видно в ней пол рабочей области. Полоса шапки в 38 пикселей,
+    /// в которой нечего показать, выглядела бы недоделкой, а надпись стояла бы
+    /// ровно там, куда целятся вкладкой: пустая область принимает бросок целиком.
     /// </remarks>
     [AvaloniaFact]
-    public void An_empty_group_shows_the_placeholder_and_hides_its_header()
+    public void An_empty_group_stands_without_a_header_and_without_content()
     {
-        var hint = new TextBlock { Text = "здесь открываются документы" };
         var view = new DockView
         {
             Items = new DockItems(),
-            Empty = hint,
             EmptyGroup = "documents",
             Root = new DockGroup { Id = "documents" },
         };
@@ -72,7 +71,7 @@ public class DockViewTests
         Assert.NotNull(group);
         Assert.False(group.HasTabs);
         Assert.False(Chrome(group).ShowHeader);
-        Assert.Same(hint, Content(group));
+        Assert.Null(Content(group));
     }
 
     /// <summary>
@@ -442,6 +441,109 @@ public class DockViewTests
         Assert.NotNull(dropped);
         Assert.Equal("solution", dropped.Item);
         Assert.IsType<DockAim.Float>(view.Aim(dropped.At, dropped.Item));
+    }
+
+    /// <summary>
+    /// Брошенная в пустую область вкладка просится в неё, а не в своё окно.
+    /// </summary>
+    /// <remarks>
+    /// У пустой области полосы вкладок нет — шапка скрыта вместе с ней, — и
+    /// целиться человеку не во что. Середина значит тогда не «оторви», а «стань
+    /// её вкладкой», и край тоже: делить пустоту надвое незачем. Иначе первая
+    /// панель в центральную область не попадает вовсе.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_tab_dropped_into_an_empty_area_asks_to_stand_in_it()
+    {
+        var (view, window) = Lonely();
+        var empty = view.View("documents")!;
+
+        Assert.False(empty.HasTabs);
+
+        Assert.Equal(
+            new DockAim.Tab("documents", 0),
+            view.Aim(Screen(DockMouse.Inside(empty, 0.5, 0.5, window), window), "solution"));
+
+        Assert.Equal(
+            new DockAim.Tab("documents", 0),
+            view.Aim(Screen(DockMouse.Inside(empty, 0.02, 0.5, window), window), "solution"));
+
+        window.Close();
+    }
+
+    /// <summary>
+    /// В пустой области место вкладки считается по дереву, а не с нуля.
+    /// </summary>
+    /// <remarks>
+    /// В группе могут числиться имена, которых на экране нет: плагин выключили
+    /// или ещё не подняли. Вкладок у них нет, а места в счёте дерева есть, и
+    /// брошенная вкладка встаёт за ними — иначе вернувшийся плагин обнаружил бы
+    /// свою панель на чужом месте.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_tab_dropped_into_an_empty_area_lands_after_the_names_it_cannot_show()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children =
+            [
+                new DockGroup { Id = "left", Items = ["solution"], Selected = "solution" },
+                new DockGroup { Id = "documents", Items = ["doc:ушедший"] },
+            ],
+            Weights = [0.5, 0.5],
+        };
+
+        var (view, _) = Shown(root, "solution");
+
+        view.EmptyGroup = "documents";
+        Dispatcher.UIThread.RunJobs();
+
+        var window = Assert.IsAssignableFrom<Window>(TopLevel.GetTopLevel(view));
+        var empty = view.View("documents")!;
+
+        Assert.False(empty.HasTabs);
+        Assert.Equal(
+            new DockAim.Tab("documents", 1),
+            view.Aim(Screen(DockMouse.Inside(empty, 0.5, 0.5, window), window), "solution"));
+
+        window.Close();
+    }
+
+    /// <summary>
+    /// Над пустой областью подсказка накрывает её целиком и черты не ставит.
+    /// </summary>
+    /// <remarks>
+    /// Вкладка займёт всю область, и обещание это показывает. Черта вставки
+    /// здесь высотой в ноль — полосы, в которую её ставят, нет.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_hint_over_an_empty_area_covers_it_whole()
+    {
+        var (view, window) = Lonely();
+        var empty = view.View("documents")!;
+
+        view.Dragging += (_, drag) => view.Show(drag.At, drag.Item);
+
+        var from = DockMouse.Tab(view.View("left")!, 0, window);
+        var to = DockMouse.Inside(empty, 0.5, 0.5, window);
+
+        window.MouseMove(from);
+        window.MouseDown(from, MouseButton.Left);
+        window.MouseMove(to);
+        Dispatcher.UIThread.RunJobs();
+
+        var hint = Hint(view);
+
+        Assert.NotNull(hint);
+        Assert.Null(Caret(view));
+        Assert.Equal(empty.Bounds.Width, hint.Width, 3);
+        Assert.Equal(empty.Bounds.Height, hint.Height, 3);
+
+        window.MouseUp(to, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        window.Close();
     }
 
     /// <summary>
@@ -1178,6 +1280,28 @@ public class DockViewTests
     /// <summary>Окно инструментов, в которое одета показанная группа.</summary>
     private static AxToolWindow Chrome(DockGroupView group) =>
         group.GetVisualDescendants().OfType<AxToolWindow>().Single();
+
+    /// <summary>Панель слева и пустая названная область справа.</summary>
+    private static (DockView View, Window Window) Lonely()
+    {
+        var root = new DockSplit
+        {
+            Orientation = DockOrientation.Horizontal,
+            Children =
+            [
+                new DockGroup { Id = "left", Items = ["solution"], Selected = "solution" },
+                new DockGroup { Id = "documents" },
+            ],
+            Weights = [0.5, 0.5],
+        };
+
+        var (view, _) = Shown(root, "solution");
+
+        view.EmptyGroup = "documents";
+        Dispatcher.UIThread.RunJobs();
+
+        return (view, Assert.IsAssignableFrom<Window>(TopLevel.GetTopLevel(view)));
+    }
 
     /// <summary>Две группы рядом: слева две вкладки, справа одна.</summary>
     private static (DockView View, Window Window) Pair()

@@ -35,6 +35,14 @@ public sealed class StudioDock
     /// <summary>Имя группы, куда открываются документы по умолчанию.</summary>
     public const string Documents = "documents";
 
+    /// <summary>Сторона манифеста, означающая центральную область окна.</summary>
+    /// <remarks>
+    /// Имя группы задаёт файл раскладки, и в чужом файле оно может быть любым;
+    /// манифест поэтому называет не группу, а место — <see cref="Place"/>
+    /// переводит это слово в нынешний дом документов.
+    /// </remarks>
+    public const string Center = "center";
+
     /// <summary>
     /// В оторванном окне намертво не стоит ничего.
     /// </summary>
@@ -297,8 +305,12 @@ public sealed class StudioDock
             // Выбранное имя может не быть на экране: панель убрали с глаз, а
             // выбор в группе остался за ней. Назвать её показанной значит
             // соврать — и тот, кто спрашивал, покажет не то, что видит человек.
+            // В доме документов стоят и панели — с тех пор, как в пустую область
+            // можно бросить вкладку. Выбранная панель показанным документом не
+            // становится: спрашивают здесь про документ.
             if (_view.Root is { } root
                 && DockTree.Group(root, _home)?.Selected is { } home
+                && _documents.Contains(home)
                 && Onscreen(home))
             {
                 return home;
@@ -1827,7 +1839,8 @@ public sealed class StudioDock
     /// <para>
     /// Долю слушают только у первой панели на пустой стороне. У занятой размер
     /// уже есть — его дал сосед или мышь человека, — и отбирать его новичок не
-    /// вправе.
+    /// вправе. У дома документов не слушают вовсе: это не сторона, которую
+    /// заводят под панель, а область, что была в окне до неё.
     /// </para>
     /// </remarks>
     private DockNode Place(DockNode root, string id, PluginPlacement where)
@@ -1837,11 +1850,16 @@ public sealed class StudioDock
 
         var side = where.Side.ToLowerInvariant();
 
-        // «В документы» указывает на дом документов, где бы он ни был: имя
-        // группы задаёт файл раскладки, и слово «documents» может не значить в
-        // ней ничего. Иначе документ, вернувшийся из закрытого окна, заводил бы
-        // себе одноимённую группу у правого края и оставался в ней навсегда.
-        if (string.Equals(side, Documents, StringComparison.Ordinal))
+        // «В центр» указывает на дом документов, где бы он ни был: имя группы
+        // задаёт файл раскладки, и слово «documents» может не значить в ней
+        // ничего. Иначе документ, вернувшийся из закрытого окна, заводил бы себе
+        // одноимённую группу у правого края и оставался в ней навсегда. Слов два:
+        // «center» — для манифеста, «documents» — внутреннее имя, которым уже
+        // пользуются чужие манифесты и файлы раскладки.
+        var home = string.Equals(side, Center, StringComparison.Ordinal)
+            || string.Equals(side, Documents, StringComparison.Ordinal);
+
+        if (home)
             side = _home;
 
         if (DockTree.Group(root, side) is not { } waiting)
@@ -1852,7 +1870,7 @@ public sealed class StudioDock
 
         var next = DockTree.Attach(root, side, id);
 
-        return waiting.Items.Count == 0
+        return waiting.Items.Count == 0 && !home
             ? DockTree.Widen(next, side, where.Size, _standing)
             : next;
     }

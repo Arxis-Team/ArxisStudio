@@ -833,6 +833,123 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
+    /// Панель, попросившая центр, встаёт туда, где открываются документы.
+    /// </summary>
+    /// <remarks>
+    /// Центральная область — такая же область доков: панель встаёт в неё вкладкой
+    /// рядом с документами, а не вместо них. Слово манифеста указывает на место, а
+    /// не на группу: имя группы задаёт файл раскладки, и прежнее внутреннее слово
+    /// работает по-прежнему — оно записано в чужих манифестах.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_panel_asking_for_the_centre_stands_where_documents_open()
+    {
+        var (dock, view) = Dock();
+
+        dock.Add("hello", "hello:scene", At(StudioDock.Center), "Сцена", Strings, new Border());
+        dock.Add("friend", "friend:game", At(StudioDock.Documents), "Игра", Strings, new Border());
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal([StudioDock.Documents], Shown(view));
+        Assert.Equal(
+            ["hello:scene", "friend:game"],
+            DockTree.Group(view.Root!, StudioDock.Documents)?.Items);
+
+        dock.Open("hello", "doc:a.axaml", "a.axaml", new Border());
+        Dispatcher.UIThread.RunJobs();
+
+        // Документ приходит в ту же область, к панелям — и показанным считается он.
+        Assert.Equal(
+            ["hello:scene", "friend:game", "doc:a.axaml"],
+            DockTree.Group(view.Root!, StudioDock.Documents)?.Items);
+        Assert.Equal("doc:a.axaml", dock.Showing);
+    }
+
+    /// <summary>
+    /// Центр, названный словом, — это дом документов из файла, а не группа «documents».
+    /// </summary>
+    [AvaloniaFact]
+    public void A_panel_asking_for_the_centre_finds_the_home_from_the_file()
+    {
+        new DockLayoutStore(File).Save(new DockLayout
+        {
+            Active = DockLayout.DefaultName,
+            Layouts = new Dictionary<string, DockWorkspace>(StringComparer.Ordinal)
+            {
+                [DockLayout.DefaultName] = new()
+                {
+                    DocumentHome = "centre",
+                    Root = new DockGroup { Id = "centre" },
+                },
+            },
+        });
+
+        var (dock, view) = Dock(new DockLayoutStore(File));
+
+        dock.Restore();
+        dock.Add("hello", "hello:scene", At(StudioDock.Center), "Сцена", Strings, new Border());
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(["centre"], Shown(view));
+        Assert.Equal(["hello:scene"], ((DockGroup)view.Root!).Items);
+    }
+
+    /// <summary>
+    /// Долю у центра не спрашивают: его размер задан окном до всякой панели.
+    /// </summary>
+    /// <remarks>
+    /// У пустой стороны доля первой панели — единственный её размер, и его
+    /// слушают. Центр же стоит в окне с самого начала, и манифест, попросивший
+    /// половину, ужал бы область документов вдвое ни за что.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_centre_keeps_its_width_whatever_a_panel_asks()
+    {
+        var (dock, view) = Dock();
+
+        // Доля центра живёт во вложенном делении: он стоит в столбце над нижней
+        // зоной, а в ряду вместе с ней делит место с боками.
+        var across = Assert.IsType<DockSplit>(view.Root).Weights;
+        var along = Assert.IsType<DockSplit>(Assert.IsType<DockSplit>(view.Root).Children[1]).Weights;
+
+        dock.Add("hello", "hello:scene", new PluginPlacement { Side = StudioDock.Center, Size = 0.5 },
+            "Сцена", Strings, new Border());
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(across, Assert.IsType<DockSplit>(view.Root).Weights);
+        Assert.Equal(along, Assert.IsType<DockSplit>(Assert.IsType<DockSplit>(view.Root).Children[1]).Weights);
+    }
+
+    /// <summary>
+    /// Панель, выбранная в центре, показанным документом не считается.
+    /// </summary>
+    /// <remarks>
+    /// Спрашивают здесь про документ: его имя уходит в заголовок окна и в службу
+    /// документов. Панель в центре — обычное дело с тех пор, как туда бросают
+    /// вкладки, и называть её документом значило бы соврать обоим.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_panel_chosen_in_the_centre_is_not_a_shown_document()
+    {
+        var (dock, _) = Dock();
+
+        dock.Add("hello", "hello:scene", At(StudioDock.Center), "Сцена", Strings, new Border());
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(dock.Showing);
+
+        dock.Open("hello", "doc:a.axaml", "a.axaml", new Border());
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("doc:a.axaml", dock.Showing);
+
+        dock.Show("hello:scene");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(dock.Showing);
+    }
+
+    /// <summary>
     /// Ключ в заголовке переводится, обычный текст — нет.
     /// </summary>
     /// <remarks>
@@ -2416,6 +2533,41 @@ public class StudioDockTests : IDisposable
 
         Assert.NotNull(second);
         Assert.NotEqual(holder.Id, second.Id);
+    }
+
+    /// <summary>
+    /// Вкладка, брошенная в пустой центр, встаёт в него, а не отрывается в окно.
+    /// </summary>
+    /// <remarks>
+    /// Пока центр пуст, полосы вкладок у него нет, и целиться человеку не во что:
+    /// любая точка внутри значит «стань его вкладкой». Призрак отдельного окна при
+    /// этом не обещается — обещание должно совпадать с тем, что человек получит.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_tab_dropped_into_the_empty_centre_becomes_its_tab()
+    {
+        var (dock, view) = Dock();
+        var window = Assert.IsAssignableFrom<Window>(TopLevel.GetTopLevel(view));
+
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, new Border());
+        Dispatcher.UIThread.RunJobs();
+
+        var from = DockMouse.Tab(view.View("left")!, 0, window);
+        var to = DockMouse.Inside(view.View(StudioDock.Documents)!, 0.5, 0.5, window);
+
+        window.MouseMove(from);
+        window.MouseDown(from, MouseButton.Left);
+        window.MouseMove(to);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(dock.Promised);
+
+        window.MouseUp(to, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(StudioDock.Documents, DockTree.Holder(view.Root!, "hello:tree")?.Id);
+        Assert.Equal([StudioDock.Documents], Shown(view));
+        Assert.Empty(dock.Floating);
     }
 
     /// <summary>

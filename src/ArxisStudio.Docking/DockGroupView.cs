@@ -98,8 +98,6 @@ public class DockGroupView : TemplatedControl
     private bool _hasTabs;
     private DockGroup? _group;
     private DockItems? _items;
-    private object? _empty;
-    private string? _ghost;
     private bool _filling;
 
     /// <summary>Человек попросил закрыть панель; в поле — её имя.</summary>
@@ -249,20 +247,19 @@ public class DockGroupView : TemplatedControl
     /// <summary>Показывает группу.</summary>
     /// <param name="group">Что показывать.</param>
     /// <param name="items">Где брать живые панели.</param>
-    /// <param name="empty">Что показать, если показывать нечего; может быть null.</param>
-    /// <param name="ghost">
-    /// Имя несомой панели: у неё рисуется вкладка, но не тело — панель в этот
-    /// миг ещё живёт в дереве-источнике.
-    /// </param>
-    public void Update(DockGroup group, DockItems items, object? empty = null, string? ghost = null)
+    /// <remarks>
+    /// Показывать нечего — группа стоит пустой: шапки у неё нет, тела нет, виден
+    /// пол рабочей области. Заставку ей сюда больше не передают: пустая
+    /// центральная область принимает брошенную вкладку целиком, и надпись стояла
+    /// бы ровно там, куда целятся.
+    /// </remarks>
+    public void Update(DockGroup group, DockItems items)
     {
         ArgumentNullException.ThrowIfNull(group);
         ArgumentNullException.ThrowIfNull(items);
 
         _group = group;
         _items = items;
-        _empty = empty;
-        _ghost = ghost;
 
         Fill();
     }
@@ -278,7 +275,6 @@ public class DockGroupView : TemplatedControl
     {
         _group = null;
         _items = null;
-        _empty = null;
 
         Clear();
     }
@@ -365,14 +361,7 @@ public class DockGroupView : TemplatedControl
 
             _tabs.SelectedIndex = chosen;
 
-            // Тело призрака пустое: панель в этот миг ещё живёт в
-            // дереве-источнике, а родитель у контрола Avalonia ровно один —
-            // возьми мы её сюда, она пропала бы из своего окна на полпути.
-            _content.Content = chosen < 0
-                ? _empty
-                : string.Equals(_shown[chosen], _ghost, StringComparison.Ordinal)
-                    ? null
-                    : _items.Find(_shown[chosen])?.Content;
+            _content.Content = chosen < 0 ? null : _items.Find(_shown[chosen])?.Content;
 
             HasTabs = _shown.Count > 0;
         }
