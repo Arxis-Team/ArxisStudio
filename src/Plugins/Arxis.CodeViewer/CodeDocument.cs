@@ -20,10 +20,10 @@ namespace Arxis.CodeViewer;
 /// студии и пережил бы выгрузку плагина (ARX0014). Здесь он живёт ровно
 /// столько, сколько вкладка.
 /// <para>
-/// Цвета и шрифт берутся ключами темы, а подсветка синтаксиса — своя у
-/// AvaloniaEdit: её палитра из темы студии не выводится, и для пробного
-/// плагина это осознанный размен. Настоящему редактору документов придётся
-/// раскрашивать свой набор ключами темы.
+/// Цвета и шрифт берутся ключами темы — и текст вкладки, и подсветка: набор
+/// AvaloniaEdit приезжает со своими цветами, и все они переписываются ролями
+/// темы (<see cref="CodePalette"/>). Своего значения в разметке и в коде здесь
+/// не появляется ни одного.
 /// </para>
 /// </remarks>
 public sealed class CodeDocument : DocumentView
@@ -52,6 +52,7 @@ public sealed class CodeDocument : DocumentView
     ];
 
     private readonly Panel _host;
+    private readonly CodePalette? _palette;
 
     /// <summary>Заводит вкладку по прочитанному файлу.</summary>
     /// <param name="filePath">Путь к файлу: по нему выбирается подсветка и подпись вкладки.</param>
@@ -63,13 +64,15 @@ public sealed class CodeDocument : DocumentView
 
         Title = Path.GetFileName(filePath);
 
+        var highlighting = Colouring(Path.GetExtension(filePath));
+
         Editor = new TextEditor
         {
             Document = new TextDocument(text),
             IsReadOnly = true,
             ShowLineNumbers = true,
             WordWrap = false,
-            SyntaxHighlighting = Colouring(Path.GetExtension(filePath)),
+            SyntaxHighlighting = highlighting,
         };
 
         // Панель поиска снимается вместе с её сочетанием: поле ввода и кнопки у
@@ -82,8 +85,10 @@ public sealed class CodeDocument : DocumentView
         // оформление, — потому и снимается здесь, а не строкой выше.
         Editor.TemplateApplied += (_, _) => Editor.SearchPanel?.Uninstall();
 
+        // Цвет текста — кодовый, а не общий: у темы на код своя роль, и ею же
+        // красится всё, чему в подсветке роли не нашлось.
         Editor[!TemplatedControl.BackgroundProperty] = new DynamicResourceExtension("AxSurfaceBaseBrush");
-        Editor[!TemplatedControl.ForegroundProperty] = new DynamicResourceExtension("AxTextPrimaryBrush");
+        Editor[!TemplatedControl.ForegroundProperty] = new DynamicResourceExtension("AxCodeTextBrush");
         Editor[!TemplatedControl.FontFamilyProperty] = new DynamicResourceExtension("AxFontFamilyMono");
         Editor[!TemplatedControl.FontSizeProperty] = new DynamicResourceExtension("AxFontSize");
         Editor[!TextEditor.LineNumbersForegroundProperty] = new DynamicResourceExtension("AxTextTertiaryBrush");
@@ -107,6 +112,10 @@ public sealed class CodeDocument : DocumentView
         _host = new Panel();
         _host.Styles.Add(style);
         _host.Children.Add(Editor);
+
+        // Палитра заводится последней: ей нужен тот, у кого спрашивать ресурсы.
+        if (highlighting is not null)
+            _palette = new CodePalette(highlighting, Editor, _host);
     }
 
     /// <inheritdoc/>
@@ -118,10 +127,25 @@ public sealed class CodeDocument : DocumentView
     /// <summary>Сам редактор; тестам и проверке живьём.</summary>
     internal TextEditor Editor { get; }
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Палитра слушает тему, а слушает она её у контрола вкладки: закрытую
+    /// вкладку никто не держит, но подписку отпускают сами — иначе выгрузка
+    /// плагина зависела бы от того, когда сборщик мусора дойдёт до неё.
+    /// </remarks>
+    public override ValueTask DisposeAsync()
+    {
+        _palette?.Dispose();
+
+        return ValueTask.CompletedTask;
+    }
+
     /// <summary>Подсветка по расширению; пусто — показываем просто текст.</summary>
     /// <remarks>
-    /// Набор идёт с AvaloniaEdit и знает расширения сам; разметка Avalonia ему
-    /// незнакома, и <c>.axaml</c> с <c>.slnx</c> приходится называть XML руками.
+    /// Набор идёт с AvaloniaEdit и знает расширения сам — <c>.cs</c>,
+    /// <c>.json</c>, <c>.md</c>, <c>.xml</c> с <c>.xaml</c> и <c>.csproj</c>.
+    /// Разметка Avalonia ему незнакома, и <c>.axaml</c> со <c>.slnx</c> и
+    /// <c>.props</c> приходится называть XML руками.
     /// </remarks>
     private static IHighlightingDefinition? Colouring(string extension)
     {
@@ -130,8 +154,7 @@ public sealed class CodeDocument : DocumentView
         return manager.GetDefinitionByExtension(extension)
             ?? (extension.ToLowerInvariant() switch
             {
-                ".axaml" or ".slnx" or ".csproj" or ".props" or ".targets" => manager.GetDefinition("XML"),
-                ".json" => manager.GetDefinition("JavaScript"),
+                ".axaml" or ".slnx" or ".props" => manager.GetDefinition("XML"),
                 _ => null,
             });
     }

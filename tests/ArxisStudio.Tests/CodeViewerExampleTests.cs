@@ -5,9 +5,12 @@ using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.LogicalTree;
+using Avalonia.Media;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using Xunit;
 
@@ -172,6 +175,176 @@ public class CodeViewerExampleTests : IDisposable
         Assert.EndsWith(Say("viewer.binary"), _status.Said[^1], StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Подсветка раскрашена ролями темы, а не палитрой пакета.
+    /// </summary>
+    /// <remarks>
+    /// Проверяется весь набор подсветки, а не видимая строка: цвет в нём бывает
+    /// объявлен и внутри правила, мимо списка именованных, — так покрашены
+    /// пометки <c>TODO</c> и текст XML-комментария. Файл взят разметочный:
+    /// набор MarkDown везёт с собой и чужой кегль заголовка, и гарнитуру блока
+    /// кода, и подложку переноса строки, и весь набор C# в придачу — всё, чего
+    /// в студии быть не должно.
+    /// <para>
+    /// Тема переключается при открытой вкладке: палитра обязана пойти за ней, а
+    /// не покрасить однажды при открытии. Тёмная здесь ещё и различает роли —
+    /// в светлой цвет кода и цвет текста студии совпадают, и подмена одного
+    /// другим прошла бы незамеченной.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task The_highlighting_is_painted_with_the_themes_own_roles()
+    {
+        Start();
+
+        await _documents.OpenAsync(Write("Заметка.md", "# Заголовок\n\n    код\n\n`строка`\n"));
+
+        var application = Assert.IsAssignableFrom<Application>(Application.Current);
+        var was = application.RequestedThemeVariant;
+
+        try
+        {
+            application.RequestedThemeVariant = ThemeVariant.Dark;
+            Dispatcher.UIThread.RunJobs();
+
+            var theme = Palette();
+            var colours = Painted();
+            var used = new HashSet<Color>();
+
+            Assert.NotEmpty(colours);
+
+            foreach (var colour in colours)
+            {
+                var name = Read(colour, "Name") as string ?? "без имени";
+
+                Assert.True(Read(colour, "Background") is null, $"у цвета {name} осталась чужая подложка");
+                Assert.True(Read(colour, "FontSize") is null, $"у цвета {name} остался чужой кегль");
+                Assert.True(Read(colour, "FontFamily") is null, $"у цвета {name} осталась чужая гарнитура");
+
+                if (Foreground(colour) is not { } painted)
+                    continue;
+
+                Assert.True(theme.Contains(painted), $"цвет {name} покрашен мимо темы: {painted}");
+
+                used.Add(painted);
+            }
+
+            // Обратная половина: не только чужого не осталось, но и своё в ходу —
+            // иначе подсветка, покрашенная пустотой, прошла бы проверку выше.
+            Assert.True(theme.SetEquals(used), $"роли темы не все в ходу: {string.Join(", ", theme.Except(used))}");
+
+            // Непокрашенное берёт цвет редактора, и цвет этот — та же роль темы,
+            // кодовая, а не общий текст студии.
+            Assert.Equal(
+                Colour("AxCodeTextColor"),
+                Assert.IsAssignableFrom<ISolidColorBrush>(Read(Editor(), "Foreground")).Color);
+        }
+        finally
+        {
+            application.RequestedThemeVariant = was;
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    /// <summary>Цвета ролей кода, как их объявила тема.</summary>
+    private static HashSet<Color> Palette()
+    {
+        var colours = new[] { "AxCodeTagColor", "AxCodeAttributeColor", "AxCodeStringColor", "AxCodeCommentColor" }
+            .Select(Colour)
+            .ToHashSet();
+
+        Assert.Equal(4, colours.Count);
+
+        return colours;
+    }
+
+    /// <summary>Цвет роли, как его объявила тема текущего варианта.</summary>
+    private static Color Colour(string key)
+    {
+        var application = Assert.IsAssignableFrom<Application>(Application.Current);
+
+        Assert.True(
+            application.TryGetResource(key, application.ActualThemeVariant, out var value),
+            $"в теме нет ключа {key}");
+
+        return Assert.IsType<Color>(value);
+    }
+
+    /// <summary>
+    /// Все цвета набора подсветки открытого документа.
+    /// </summary>
+    /// <remarks>
+    /// Через отражение: типы AvaloniaEdit живут в контексте загрузки плагина, и
+    /// тесту они не видны — ровно так же, как студии.
+    /// </remarks>
+    private IReadOnlyList<object> Painted()
+    {
+        var definition = Read(Editor(), "SyntaxHighlighting");
+
+        Assert.True(definition is not null, "у документа нет набора подсветки");
+
+        var found = new List<object>();
+        var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        var queue = new Queue<object>();
+
+        void Take(object? colour)
+        {
+            if (colour is not null && seen.Add(colour))
+                found.Add(colour);
+        }
+
+        void Reach(object? set)
+        {
+            if (set is not null && seen.Add(set))
+                queue.Enqueue(set);
+        }
+
+        foreach (var colour in Assert.IsAssignableFrom<System.Collections.IEnumerable>(Read(definition!, "NamedHighlightingColors")))
+            Take(colour);
+
+        Reach(Read(definition!, "MainRuleSet"));
+
+        while (queue.Count > 0)
+        {
+            var set = queue.Dequeue();
+
+            foreach (var rule in Assert.IsAssignableFrom<System.Collections.IEnumerable>(Read(set, "Rules")))
+                Take(Read(rule, "Color"));
+
+            foreach (var span in Assert.IsAssignableFrom<System.Collections.IEnumerable>(Read(set, "Spans")))
+            {
+                Take(Read(span, "StartColor"));
+                Take(Read(span, "SpanColor"));
+                Take(Read(span, "EndColor"));
+
+                Reach(Read(span, "RuleSet"));
+            }
+        }
+
+        return found;
+    }
+
+    /// <summary>Цвет, которым покрашен элемент подсветки; пусто — цвет редактора.</summary>
+    private static Color? Foreground(object colour)
+    {
+        if (Read(colour, "Foreground") is not { } brush)
+            return null;
+
+        var got = brush.GetType().GetMethod("GetBrush")?.Invoke(brush, [null]);
+
+        return Assert.IsAssignableFrom<ISolidColorBrush>(got).Color;
+    }
+
+    /// <summary>Значение открытого свойства по имени.</summary>
+    private static object? Read(object owner, string property)
+    {
+        var found = owner.GetType().GetProperty(property);
+
+        Assert.True(found is not null, $"у {owner.GetType().Name} нет свойства {property}");
+
+        return found!.GetValue(owner);
+    }
+
     /// <summary>Поднимает студию с одним установленным плагином — просмотрщиком.</summary>
     private StudioPlugins Start()
     {
@@ -211,7 +384,10 @@ public class CodeViewerExampleTests : IDisposable
     /// своём контексте загрузки, и типы из неё тесту не видны — ни AvaloniaEdit,
     /// ни его собственные. Так же их видит и студия.
     /// </remarks>
-    private string Shown()
+    private string Shown() => Assert.IsType<string>(Read(Editor(), "Text"));
+
+    /// <summary>Редактор AvaloniaEdit, стоящий в показанной вкладке.</summary>
+    private Control Editor()
     {
         var content = Assert.IsAssignableFrom<Control>(_documents.Shown?.Content);
 
@@ -224,7 +400,7 @@ public class CodeViewerExampleTests : IDisposable
 
         Assert.True(editor is not null, "во вкладке нет редактора AvaloniaEdit");
 
-        return Assert.IsType<string>(editor!.GetType().GetProperty("Text")?.GetValue(editor));
+        return editor!;
     }
 
     /// <summary>Строка из словаря плагина, лежащего в его раскладке.</summary>
