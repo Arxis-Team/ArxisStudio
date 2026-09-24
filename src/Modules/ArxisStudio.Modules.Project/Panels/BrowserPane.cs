@@ -49,6 +49,12 @@ internal sealed class BrowserPane : IDisposable
     /// </summary>
     private NavigationMethod? _refocus;
 
+    /// <summary>
+    /// Плитка, на которой стояла клавиатура до щелчка мимо плиток: выбор снят, а клавиатура остаётся
+    /// на ней, а не уходит на первую.
+    /// </summary>
+    private Tile? _resume;
+
     /// <summary>Связывает колонку с разметкой.</summary>
     /// <param name="view">Разметка окна.</param>
     /// <param name="model">Модель окна.</param>
@@ -70,6 +76,7 @@ internal sealed class BrowserPane : IDisposable
         {
             list.Focusable = true;
             list.GotFocus += OnListFocused;
+            list.AddHandler(InputElement.PointerPressedEvent, OnPressed, RoutingStrategies.Tunnel);
             list.DoubleTapped += OnDoubleTapped;
             list.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
             list.SelectionChanged += OnSelectionChanged;
@@ -103,6 +110,7 @@ internal sealed class BrowserPane : IDisposable
         foreach (var list in Lists)
         {
             list.GotFocus -= OnListFocused;
+            list.RemoveHandler(InputElement.PointerPressedEvent, OnPressed);
             list.DoubleTapped -= OnDoubleTapped;
             list.RemoveHandler(InputElement.KeyDownEvent, OnKeyDown);
             list.SelectionChanged -= OnSelectionChanged;
@@ -274,6 +282,41 @@ internal sealed class BrowserPane : IDisposable
 
         Go(container);
         Select(node);
+    }
+
+    /// <summary>
+    /// Левый щелчок мимо плиток снимает выбор, как в проводнике и в Unity.
+    /// </summary>
+    /// <remarks>
+    /// Правый щелчок по пустому месту выбор снимал всегда — перед меню папки, — а левый нет: он уводил
+    /// клавиатуру в сам список, и тот отдавал её выбранной плитке, оставив выбор как был. Клавиатура
+    /// после щелчка остаётся там, где стояла: стрелки продолжают от той же плитки, как в проводнике,
+    /// а не прыгают на первую.
+    /// <para>
+    /// С Ctrl или Shift щелчок мимо выбора не трогает: промах мимо плитки, пока собирают группу, не
+    /// должен её разбивать. Полоса прокрутки — не пустое место: её тянут, а не щёлкают мимо плиток.
+    /// </para>
+    /// </remarks>
+    private void OnPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not AxListBox list
+            || !e.GetCurrentPoint(list).Properties.IsLeftButtonPressed
+            || (e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Shift)) != 0
+            || TileOf(e.Source) is not null
+            || (e.Source as Visual)?.FindAncestorOfType<ScrollBar>(includeSelf: true) is not null)
+        {
+            return;
+        }
+
+        // Клавиатуру щелчок уведёт в сам список — нажатие ещё впереди, — а список отдаст её дальше
+        // (Forward): запоминается плитка, с которой она уходит.
+        _resume = TopLevel.GetTopLevel(list)?.FocusManager?.GetFocusedElement() is Visual focused
+            && focused.FindAncestorOfType<AxListBoxItem>(includeSelf: true) is { DataContext: Tile tile } item
+            && ReferenceEquals(item.FindAncestorOfType<AxListBox>(), list)
+                ? tile
+                : null;
+
+        list.UnselectAll();
     }
 
     private void OnDoubleTapped(object? sender, TappedEventArgs e)
@@ -588,11 +631,22 @@ internal sealed class BrowserPane : IDisposable
             KeyboardNavigation.SetIsTabStop(list, empty);
     }
 
-    /// <summary>Отдаёт клавиатуру плитке списка: выделенной, без выделения — первой.</summary>
+    /// <summary>
+    /// Отдаёт клавиатуру плитке списка: выделенной; без выделения — той, где она стояла до щелчка мимо
+    /// плиток, а иначе первой.
+    /// </summary>
     /// <returns>Отдал ли: в пустой папке плиток нет.</returns>
     private bool Forward(AxListBox list, NavigationMethod method)
     {
-        if ((list.SelectedItem as Tile ?? _model.Browser.Items.FirstOrDefault()) is not { } tile)
+        var resume = _resume;
+
+        _resume = null;
+
+        var tile = list.SelectedItem as Tile
+            ?? (resume is not null && _model.Browser.Items.Contains(resume) ? resume : null)
+            ?? _model.Browser.Items.FirstOrDefault();
+
+        if (tile is null)
             return false;
 
         list.ScrollIntoView(tile);

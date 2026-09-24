@@ -8,6 +8,7 @@ using ArxisStudio.Modules.Project.Tree;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
@@ -751,6 +752,102 @@ public class ProjectWindowTilesTests
 
         Assert.Empty(tiles.SelectedItems!);
         Assert.Equal(studio.Panel.Pane!.FolderItems().Select(item => item.Header), Menu(studio));
+    }
+
+    /// <summary>
+    /// Левый щелчок мимо плиток снимает выбор, как правый, — а клавиатура остаётся на той плитке, где
+    /// стояла.
+    /// </summary>
+    /// <remarks>
+    /// Прежде щелчок уводил клавиатуру в сам список, и тот отдавал её выбранной плитке: выбор оставался
+    /// как был, и снять его можно было только правым щелчком — ради меню папки. Клавиатура не уходит на
+    /// первую плитку: стрелки продолжают от той, где человек был, как в проводнике.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_left_click_past_the_tiles_clears_the_choice_and_keeps_the_keyboard_in_place()
+    {
+        using var studio = await TwoColumns();
+
+        var tiles = studio.View.Tiles;
+
+        studio.Select("App");
+        studio.Press(TileItem(studio, "Views"));
+
+        Assert.Equal("Views", Assert.IsType<Tile>(tiles.SelectedItem).Name);
+
+        Click(studio, Corner(studio, tiles));
+
+        Assert.Empty(tiles.SelectedItems!);
+        Assert.Equal("Views", Assert.IsType<Tile>(Focused(studio).DataContext).Name);
+    }
+
+    /// <summary>Щелчок мимо плиток с Ctrl выбора не трогает: собирая группу, промахнуться не страшно.</summary>
+    [AvaloniaFact]
+    public async Task A_ctrl_click_past_the_tiles_keeps_the_choice()
+    {
+        using var studio = await TwoColumns();
+
+        var tiles = studio.View.Tiles;
+
+        studio.Select("App");
+        studio.Press(TileItem(studio, "Views"));
+        Click(studio, Corner(studio, tiles), RawInputModifiers.Control);
+
+        Assert.Equal("Views", Assert.IsType<Tile>(tiles.SelectedItem).Name);
+    }
+
+    /// <summary>Полоса прокрутки — не пустое место: щелчок по ней выбора не снимает.</summary>
+    [AvaloniaFact]
+    public async Task A_click_on_the_scroll_bar_keeps_the_choice()
+    {
+        using var studio = new ProjectWindowStudio(twoColumns: true, height: 240);
+
+        await studio.Open();
+
+        var tiles = studio.View.Tiles;
+
+        studio.Select("App");
+        studio.Press(TileItem(studio, "Views"));
+
+        var bar = tiles.GetVisualDescendants().OfType<ScrollBar>()
+            .First(scroll => scroll.Orientation == Orientation.Vertical && scroll.IsEffectivelyVisible);
+
+        Click(studio, bar.TranslatePoint(new Point(bar.Bounds.Width / 2, bar.Bounds.Height / 2), studio.Window)!.Value);
+
+        Assert.Equal("Views", Assert.IsType<Tile>(tiles.SelectedItem).Name);
+    }
+
+    /// <summary>Ступенью «список» — то же: щелчок мимо строк снимает выбор.</summary>
+    [AvaloniaFact]
+    public async Task A_left_click_past_the_rows_clears_the_choice()
+    {
+        using var studio = await TwoColumns();
+
+        studio.Settings.Set(ProjectSettings.IconSizeKey, ProjectSettings.List);
+        Dispatcher.UIThread.RunJobs();
+
+        var rows = studio.View.Files;
+
+        studio.Select("App");
+        studio.Press(TileItem(studio, "Views"));
+
+        Assert.Equal("Views", Assert.IsType<Tile>(rows.SelectedItem).Name);
+
+        Click(studio, Corner(studio, rows));
+
+        Assert.Empty(rows.SelectedItems!);
+    }
+
+    /// <summary>Нижний правый угол списка — далеко от плиток и от полосы прокрутки.</summary>
+    private static Point Corner(ProjectWindowStudio studio, AxListBox list) =>
+        list.TranslatePoint(new Point(list.Bounds.Width - 24, list.Bounds.Height - 4), studio.Window)!.Value;
+
+    /// <summary>Щелчок левой кнопкой в точке окна.</summary>
+    private static void Click(ProjectWindowStudio studio, Point at, RawInputModifiers modifiers = RawInputModifiers.None)
+    {
+        studio.Window.MouseDown(at, MouseButton.Left, modifiers);
+        studio.Window.MouseUp(at, MouseButton.Left, modifiers);
+        Dispatcher.UIThread.RunJobs();
     }
 
     /// <summary>Клавиша меню в пустой папке открывает меню папки: выбранного нет, и меню — её.</summary>
