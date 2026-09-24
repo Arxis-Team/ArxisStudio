@@ -7,11 +7,14 @@ using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
 using ArxisStudio.Shell.Settings;
 using ArxisStudio.ViewModels;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace ArxisStudio.Settings;
 
@@ -51,7 +54,17 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
 
         Cancel.Click += OnCancelClick;
         Save.Click += OnSaveClick;
+        Reset.Click += (_, _) => Then(() => _model?.Reset());
+        Back.Click += (_, _) => Then(() => _model?.Back());
+        Forward.Click += (_, _) => Then(() => _model?.Forward());
+        Crumbs.Navigated += OnCrumbNavigated;
         Closing += OnClosing;
+
+        // Боковые кнопки мыши ходят по истории, как в браузере и в настройках Rider. Слушаются
+        // и отданные контролом нажатия: кнопка «назад» у мыши ничего не значит ни для одного
+        // контрола окна, и взявший нажатие ради фокуса не должен её глушить.
+        AddHandler(PointerPressedEvent, OnSideButton, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(KeyDownEvent, OnHistoryKey, RoutingStrategies.Tunnel);
 
         // Каретка — в поиске, как в настройках Rider: окно открывают, чтобы найти настройку,
         // а без этого фокуса не было ни у кого, и первое нажатие уходило в пустоту.
@@ -187,6 +200,10 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
     /// не доходит. Пока идёт запись, клавиша не делает ничего: закрыть окно посреди
     /// сохранения значило бы спросить о правках, которые как раз ложатся на диск.
     /// </para>
+    /// <para>
+    /// В поиске, где что-то набрано, первый Esc очищает поиск, как в настройках Rider: человек
+    /// бросает запрос, а не окно. Второй идёт обычной дорогой.
+    /// </para>
     /// </remarks>
     protected override void OnKeyDown(KeyEventArgs e)
     {
@@ -197,7 +214,110 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
 
         e.Handled = true;
 
+        if (_model is { Search.Length: > 0 } model && InSearch())
+        {
+            model.Search = string.Empty;
+            return;
+        }
+
         Close();
+    }
+
+    /// <summary>
+    /// Alt+← и Alt+→ ходят по пройденным страницам, откуда бы их ни нажали.
+    /// </summary>
+    /// <remarks>
+    /// На спуске, а не на подъёме: строка дерева берёт стрелки себе при любых модификаторах — Left
+    /// сворачивает её или уводит к родителю, — и из дерева, где каретка стоит после выбора раздела
+    /// мышью, «назад» не доходил бы.
+    /// </remarks>
+    private void OnHistoryKey(object? sender, KeyEventArgs e)
+    {
+        if (e.KeyModifiers != KeyModifiers.Alt || _model is not { } model)
+            return;
+
+        switch (e.Key)
+        {
+            case Key.Left:
+                model.Back();
+                break;
+            case Key.Right:
+                model.Forward();
+                break;
+            default:
+                return;
+        }
+
+        e.Handled = true;
+    }
+
+    /// <summary>Боковые кнопки мыши: «назад» и «вперёд».</summary>
+    private void OnSideButton(object? sender, PointerPressedEventArgs e)
+    {
+        if (_model is not { } model)
+            return;
+
+        switch (e.GetCurrentPoint(this).Properties.PointerUpdateKind)
+        {
+            case PointerUpdateKind.XButton1Pressed:
+                model.Back();
+                break;
+            case PointerUpdateKind.XButton2Pressed:
+                model.Forward();
+                break;
+            default:
+                return;
+        }
+
+        e.Handled = true;
+    }
+
+    /// <summary>Каретка в поле поиска или внутри него.</summary>
+    private bool InSearch() =>
+        FocusManager?.GetFocusedElement() is Visual focused
+        && (focused == SearchBox || SearchBox.IsVisualAncestorOf(focused));
+
+    /// <summary>Сегмент пути в шапке ведёт на свою страницу.</summary>
+    private void OnCrumbNavigated(object? sender, AxBreadcrumbNavigatedEventArgs e)
+    {
+        if (e.Item is SettingsNode node && _model is { } model)
+            Then(() => model.Open(node.Page.Id));
+    }
+
+    /// <summary>Ссылка страницы ведёт на другую страницу — страница ветки ведёт так на детей.</summary>
+    private void OnPageLinkClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { Tag: string pageId } && _model is { } model)
+            Then(() => model.Open(pageId));
+    }
+
+    /// <summary>
+    /// Делает дело шапки или страницы и не теряет каретку, если дело унесло её место.
+    /// </summary>
+    /// <param name="act">Что сделать.</param>
+    /// <remarks>
+    /// Ссылка ветки и сегмент пути уходят вместе со страницей, «Сбросить» прячется вместе с
+    /// правкой, а крайняя стрелка гаснет — и каретка, стоявшая на них, оставалась ни на чём:
+    /// следующая клавиша уходила в пустоту. Её место тогда — выбранный раздел дерева, откуда
+    /// работают с окном. Ставит её туда программа, поэтому без кольца.
+    /// </remarks>
+    private void Then(Action act)
+    {
+        act();
+
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                if (FocusManager?.GetFocusedElement() is InputElement { IsEffectivelyVisible: true, IsEffectivelyEnabled: true } focused
+                    && this.IsVisualAncestorOf(focused))
+                {
+                    return;
+                }
+
+                if (_model?.Selected is { } node && Tree.TreeContainerFromItem(node) is Control row)
+                    row.Focus(NavigationMethod.Unspecified);
+            },
+            DispatcherPriority.Loaded);
     }
 
     private void Discard()

@@ -100,6 +100,35 @@ public class KeysPageTests : IDisposable
     }
 
     /// <summary>
+    /// Поиск сужает страницу до найденного — и среди строк, и среди отказов, — не меняя порядка раздачи.
+    /// </summary>
+    /// <remarks>
+    /// «Куда делось моё Ctrl+W» — вопрос, с которым сюда приходят, и ответ на него — две строки: кому
+    /// сочетание досталось и кому нет, — а не весь список. Раздел отказов, в котором поиск ничего не
+    /// оставил, не показывается.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_search_by_a_shortcut_narrows_the_keys_page()
+    {
+        var page = Page(Path.Combine(_root, "keymap.json"), _ => { });
+
+        page.Narrow("Ctrl+Alt");
+
+        Assert.Equal(["Ctrl+Alt+H", "Ctrl+Alt+G"], page.ShownRows.Select(row => row.Gesture));
+        Assert.False(page.ShowsRefusals, "раздел отказов остался, хотя поиск ничего в нём не нашёл");
+
+        page.Narrow("Ctrl+W");
+
+        Assert.Equal(["Закрыть вкладку"], page.ShownRows.Select(row => row.Command));
+        Assert.Equal(["hello.close"], page.ShownRefusals.Select(refusal => refusal.Command));
+
+        page.Narrow(null);
+
+        Assert.Equal(page.Rows, page.ShownRows);
+        Assert.True(page.ShowsRefusals, "стёртый поиск не вернул отказы");
+    }
+
+    /// <summary>
     /// Нет файла — кнопка заводит его с подсказкой и открывает; подсказка файл не ломает.
     /// </summary>
     /// <remarks>

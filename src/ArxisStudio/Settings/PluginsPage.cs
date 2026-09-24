@@ -75,6 +75,7 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
     private readonly IPluginDialogs _dialogs;
 
     private string? _status;
+    private string? _query;
 
     /// <summary>Собирает страницу поверх каталога и живых расширений.</summary>
     /// <param name="catalog">Каталог плагинов на диске.</param>
@@ -95,6 +96,9 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
 
     /// <inheritdoc/>
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <inheritdoc/>
+    public event EventHandler? Changed;
 
     /// <summary>Установленные плагины.</summary>
     public ObservableCollection<PluginCard> Cards { get; } = [];
@@ -124,14 +128,7 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
     /// автора и его манифест.
     /// </para>
     /// </remarks>
-    public IEnumerable<string> Terms =>
-        Cards
-            .SelectMany(card => card.Plugin.Tags
-                .Append(card.Plugin.DisplayName)
-                .Append(card.Plugin.Id)
-                .Append(card.Plugin.Manifest?.Publisher))
-            .Append(Title)
-            .OfType<string>();
+    public IEnumerable<string> Terms => Cards.SelectMany(card => card.Terms).Append(Title);
 
     /// <inheritdoc/>
     public bool HasChanges => Cards.Any(card => card.IsChanged);
@@ -376,13 +373,36 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
         foreach (var plugin in installed)
         {
             var riseError = plugin.IsEnabled && _extensions.Unrisen.TryGetValue(plugin.Id, out var why) ? why : null;
+            var card = new PluginCard(plugin, PluginGraph.Describe(plugin, all), riseError);
 
-            Cards.Add(new PluginCard(plugin, PluginGraph.Describe(plugin, all), riseError));
+            // Список собирается заново после установки и удаления, а поиск в окне остаётся тем
+            // же: новая карточка встаёт под тот отбор, что был у прежних.
+            card.Narrow(_query);
+            card.PropertyChanged += OnCardChanged;
+            Cards.Add(card);
         }
 
         Notify(nameof(Cards));
         Notify(nameof(IsEmpty));
         Notify(nameof(HasChanges));
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>Строки страницы — карточки, и отбирает их то же, по чему поиск находит страницу.</remarks>
+    public void Narrow(string? query)
+    {
+        _query = query;
+
+        foreach (var card in Cards)
+            card.Narrow(query);
+    }
+
+    /// <summary>Галочка карточки сменилась — несохранённое страницы тоже.</summary>
+    private void OnCardChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PluginCard.IsOn))
+            Changed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Говорит, чем кончилась установка, и доводит её до студии.</summary>

@@ -9,8 +9,8 @@
         x:Class="ArxisStudio.Settings.SettingsWindow"
         x:DataType="s:SettingsViewModel"
         Title="{ax:Loc settings.title}"
-        Width="900" Height="620"
-        MinWidth="720" MinHeight="460"
+        Width="1040" Height="680"
+        MinWidth="860" MinHeight="520"
         WindowStartupLocation="CenterScreen">
 
   <!--
@@ -21,26 +21,34 @@
   -->
   <ax:AxWindow.DataTemplates>
 
-    <!-- Оформление: тема, плотность и язык. Переехало из экрана настроек в Welcome. -->
+    <!--
+        Оформление: тема, плотность и язык. Переехало из экрана настроек в Welcome.
+
+        Страница плоская, как у Rider: без карточки и без линий между строками — строки
+        разводит воздух. Каждая страница прокручивается сама: у плагинов их две, список и
+        подробности, и общая прокрутка окна уводила бы обе разом.
+    -->
     <DataTemplate DataType="s:AppearancePage">
-      <ax:AxCard Padding="{DynamicResource AxSettingsCardPadding}">
-        <StackPanel>
+      <ScrollViewer>
+        <StackPanel Margin="{DynamicResource AxSettingsPagePadding}" Spacing="{DynamicResource AxGapFormRow}">
           <!--
               Подпись и контрол — ряд, а не док: док зазора не знает, и при крупном кегле
               подпись вставала к контролу вплотную. Ряд держит зазор сам, а когда тесно,
-              ставит контрол под подпись.
+              ставит контрол под подпись. Колонка подписей одна на всё окно: контролы стоят
+              линией возле подписей, а не у края широкого окна.
           -->
-          <ax:WrapRow Classes="settings-row" Spacing="{DynamicResource AxGapFormRow}">
-            <TextBlock Text="{ax:Loc settings.theme}" FontSize="{DynamicResource AxFontSize}"/>
+          <ax:WrapRow Classes="settings-row" Spacing="{DynamicResource AxGapFormRow}"
+                      LeadWidth="{DynamicResource AxSettingsLabelWidth}" IsVisible="{Binding ShowsTheme}">
+            <TextBlock Text="{ax:Loc settings.theme}" FontSize="{DynamicResource AxFontSize}" TextWrapping="Wrap"/>
             <ax:AxSegmentedControl AutomationProperties.Name="{ax:Loc settings.theme}"
                                    SelectedIndex="{Binding ThemeIndex, Mode=TwoWay}">
               <ax:AxSegmentItem Content="{ax:Loc settings.theme.dark}"/>
               <ax:AxSegmentItem Content="{ax:Loc settings.theme.light}"/>
             </ax:AxSegmentedControl>
           </ax:WrapRow>
-          <ax:AxDivider/>
-          <ax:WrapRow Classes="settings-row" Spacing="{DynamicResource AxGapFormRow}">
-            <TextBlock Text="{ax:Loc settings.density}" FontSize="{DynamicResource AxFontSize}"/>
+          <ax:WrapRow Classes="settings-row" Spacing="{DynamicResource AxGapFormRow}"
+                      LeadWidth="{DynamicResource AxSettingsLabelWidth}" IsVisible="{Binding ShowsDensity}">
+            <TextBlock Text="{ax:Loc settings.density}" FontSize="{DynamicResource AxFontSize}" TextWrapping="Wrap"/>
             <ax:AxSegmentedControl AutomationProperties.Name="{ax:Loc settings.density}"
                                    SelectedIndex="{Binding DensityIndex, Mode=TwoWay}">
               <ax:AxSegmentItem Content="{ax:Loc settings.density.compact}"/>
@@ -48,9 +56,9 @@
               <ax:AxSegmentItem Content="{ax:Loc settings.density.comfortable}"/>
             </ax:AxSegmentedControl>
           </ax:WrapRow>
-          <ax:AxDivider/>
-          <ax:WrapRow Classes="settings-row" Spacing="{DynamicResource AxGapFormRow}">
-            <TextBlock Text="{ax:Loc settings.language}" FontSize="{DynamicResource AxFontSize}"/>
+          <ax:WrapRow Classes="settings-row" Spacing="{DynamicResource AxGapFormRow}"
+                      LeadWidth="{DynamicResource AxSettingsLabelWidth}" IsVisible="{Binding ShowsLanguage}">
+            <TextBlock Text="{ax:Loc settings.language}" FontSize="{DynamicResource AxFontSize}" TextWrapping="Wrap"/>
             <!-- Список языков студия узнаёт на ходу, а не знает наперёд. -->
             <ax:AxComboBox Width="{DynamicResource AxSettingsFilterWidth}"
                            AutomationProperties.Name="{ax:Loc settings.language}"
@@ -64,73 +72,78 @@
             </ax:AxComboBox>
           </ax:WrapRow>
         </StackPanel>
-      </ax:AxCard>
+      </ScrollViewer>
     </DataTemplate>
 
     <!--
         Клавиши: все сочетания студии, чьи они и кому не досталось. Правок у
         страницы нет — сочетания меняют в keymap.json, и страница ведёт к нему.
-        Сочетание — плашкой клавиши, как в карточке «Шорткаты и код»; откуда оно
-        — вторичным текстом справа. Отказы стоят над списком: это ответ на
-        вопрос, с которым сюда и приходят, — «куда делось моё сочетание».
+        Отказы стоят над списком: это ответ на вопрос, с которым сюда и приходят, —
+        «куда делось моё сочетание».
+
+        Строка — как в keymap Rider: команда слева, сочетание плашкой клавиши за ней,
+        откуда оно — третичным текстом. Колонки сочетаний и источников общие у обоих
+        разделов, и плашки стоят одной линией.
     -->
     <DataTemplate DataType="s:KeysPage">
-      <StackPanel Spacing="{DynamicResource AxGapGroup}">
-        <ax:WrapRow Spacing="{DynamicResource AxGapFormRow}">
-          <TextBlock ax:AxText.Tone="Tertiary" VerticalAlignment="Center" TextWrapping="Wrap"
-                     FontSize="{DynamicResource AxFontSizeSmall}"
-                     Text="{ax:Loc keys.subtitle}"/>
-          <!-- Под подписью кнопка встаёт своей ширины, а не полосой во всю страницу. -->
-          <ax:AxButton Content="{ax:Loc keys.open}" ToolTip.Tip="{Binding File}"
-                       HorizontalAlignment="Left"
-                       Click="OnKeymapOpenClick"/>
-        </ax:WrapRow>
+      <ScrollViewer>
+        <StackPanel Margin="{DynamicResource AxSettingsPagePadding}" Spacing="{DynamicResource AxGapGroup}"
+                    Grid.IsSharedSizeScope="True">
+          <ax:WrapRow Spacing="{DynamicResource AxGapFormRow}">
+            <TextBlock ax:AxText.Tone="Tertiary" VerticalAlignment="Center" TextWrapping="Wrap"
+                       FontSize="{DynamicResource AxFontSizeSmall}"
+                       Text="{ax:Loc keys.subtitle}"/>
+            <!-- Под подписью кнопка встаёт своей ширины, а не полосой во всю страницу. -->
+            <ax:AxButton Content="{ax:Loc keys.open}" ToolTip.Tip="{Binding File}"
+                         HorizontalAlignment="Left"
+                         Click="OnKeymapOpenClick"/>
+          </ax:WrapRow>
 
-        <StackPanel Spacing="{DynamicResource AxGapControls}" IsVisible="{Binding HasRefusals}">
-          <TextBlock ax:AxText.Role="Section" Text="{ax:Loc keys.refused}"/>
-          <ax:AxCard Padding="0">
-            <ItemsControl ItemsSource="{Binding Refusals}">
+          <StackPanel IsVisible="{Binding ShowsRefusals}">
+            <ax:AxGroupHeader Content="{ax:Loc keys.refused}" Counter="{Binding ShownRefusals.Count}"/>
+            <ItemsControl ItemsSource="{Binding ShownRefusals}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="s:KeyRefusal">
-                  <DockPanel>
-                    <ax:AxDivider DockPanel.Dock="Bottom"/>
-                    <Border Padding="{DynamicResource AxSettingsRowPadding}">
-                      <DockPanel>
-                        <ax:AxChip DockPanel.Dock="Left" Kind="Key" Content="{Binding Gesture}"
-                                   Margin="{DynamicResource AxSpaceWideTrailingThickness}" VerticalAlignment="Center"/>
-                        <TextBlock DockPanel.Dock="Right" ax:AxText.Tone="Tertiary" Text="{Binding Winner}"
-                                   Margin="{DynamicResource AxSpaceWideLeadingThickness}" VerticalAlignment="Center"/>
-                        <TextBlock Text="{Binding Command}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                      </DockPanel>
-                    </Border>
-                  </DockPanel>
+                  <Grid MinHeight="{DynamicResource AxRowHeight}">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*"/>
+                      <ColumnDefinition Width="Auto" SharedSizeGroup="gesture"/>
+                      <ColumnDefinition Width="Auto" SharedSizeGroup="source"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{Binding Command}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                    <ax:AxChip Grid.Column="1" Kind="Key" Content="{Binding Gesture}" HorizontalAlignment="Left"
+                               Margin="{DynamicResource AxSpaceWideLeadingThickness}" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="2" ax:AxText.Tone="Tertiary" Text="{Binding Winner}"
+                               Margin="{DynamicResource AxSpaceWideLeadingThickness}" VerticalAlignment="Center"/>
+                  </Grid>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
-          </ax:AxCard>
-        </StackPanel>
+          </StackPanel>
 
-        <ax:AxCard Padding="0">
-          <ItemsControl ItemsSource="{Binding Rows}">
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="s:KeyRow">
-                <DockPanel>
-                  <ax:AxDivider DockPanel.Dock="Bottom"/>
-                  <Border Padding="{DynamicResource AxSettingsRowPadding}">
-                    <DockPanel>
-                      <ax:AxChip DockPanel.Dock="Left" Kind="Key" Content="{Binding Gesture}"
-                                 Margin="{DynamicResource AxSpaceWideTrailingThickness}" VerticalAlignment="Center"/>
-                      <TextBlock DockPanel.Dock="Right" ax:AxText.Tone="Tertiary" Text="{Binding Source}"
-                                 Margin="{DynamicResource AxSpaceWideLeadingThickness}" VerticalAlignment="Center"/>
-                      <TextBlock Text="{Binding Command}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                    </DockPanel>
-                  </Border>
-                </DockPanel>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </ax:AxCard>
-      </StackPanel>
+          <StackPanel>
+            <ax:AxGroupHeader Content="{ax:Loc keys.assigned}" Counter="{Binding ShownRows.Count}"/>
+            <ItemsControl ItemsSource="{Binding ShownRows}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="s:KeyRow">
+                  <Grid MinHeight="{DynamicResource AxRowHeight}">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*"/>
+                      <ColumnDefinition Width="Auto" SharedSizeGroup="gesture"/>
+                      <ColumnDefinition Width="Auto" SharedSizeGroup="source"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{Binding Command}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                    <ax:AxChip Grid.Column="1" Kind="Key" Content="{Binding Gesture}" HorizontalAlignment="Left"
+                               Margin="{DynamicResource AxSpaceWideLeadingThickness}" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="2" ax:AxText.Tone="Tertiary" Text="{Binding Source}"
+                               Margin="{DynamicResource AxSpaceWideLeadingThickness}" VerticalAlignment="Center"/>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
     </DataTemplate>
 
     <!--
@@ -142,7 +155,8 @@
         два разных смысла на один значок читались бы как один.
     -->
     <DataTemplate DataType="s:PluginsPage">
-      <DockPanel>
+      <ScrollViewer>
+      <DockPanel Margin="{DynamicResource AxSettingsPagePadding}">
 
         <DockPanel DockPanel.Dock="Top" Margin="{DynamicResource AxSpaceWideBelowThickness}">
           <ax:AxButton DockPanel.Dock="Right" Appearance="Toolbar"
@@ -171,7 +185,7 @@
           <ItemsControl ItemsSource="{Binding Cards}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:PluginCard">
-                <DockPanel>
+                <DockPanel IsVisible="{Binding IsShown}">
                   <ax:AxDivider DockPanel.Dock="Bottom"/>
                   <Border Padding="{DynamicResource AxSettingsRowPadding}">
                     <DockPanel>
@@ -331,19 +345,51 @@
         </ax:AxCard>
 
       </DockPanel>
+      </ScrollViewer>
     </DataTemplate>
 
-    <!-- Ветка расширений: своих настроек нет, только подсказка. -->
+    <!--
+        Ветка расширений: своих настроек нет. Страница ветки перечисляет детей ссылками, как
+        страница раздела в Rider: подсказка «выберите слева» говорила, куда идти, а ссылка ведёт.
+    -->
     <DataTemplate DataType="s:ExtensionsPage">
-      <TextBlock ax:AxText.Tone="Tertiary" TextWrapping="Wrap"
-                 FontSize="{DynamicResource AxFontSizeSmall}"
-                 Text="{ax:Loc settings.extensions.hint}"/>
+      <ScrollViewer>
+        <StackPanel Margin="{DynamicResource AxSettingsPagePadding}" Spacing="{DynamicResource AxGapControls}">
+          <TextBlock ax:AxText.Tone="Tertiary" TextWrapping="Wrap"
+                     FontSize="{DynamicResource AxFontSizeSmall}"
+                     Text="{ax:Loc settings.extensions.hint}"/>
+          <ItemsControl ItemsSource="{Binding Children}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Spacing="{DynamicResource AxGapControls}"/>
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="s:ISettingsPage">
+                <ax:AxLink Content="{Binding Title}" Tag="{Binding Id}" HorizontalAlignment="Left"
+                           Click="OnPageLinkClick"/>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </ScrollViewer>
     </DataTemplate>
 
-    <!-- Страница расширения: строки, объявленные его манифестом. -->
+    <!--
+        Страница расширения: строки, объявленные его манифестом.
+
+        Флаг — флажок с подписью, как в Rider, а не тумблер: тумблер обещает, что сработает
+        сразу, а правка здесь ждёт «Сохранить». Ключ настройки — в подсказке подписи: ищут его
+        и так, а строкой под каждой подписью он удваивал страницу.
+    -->
     <DataTemplate DataType="s:ExtensionPage">
-      <ax:AxCard Padding="{DynamicResource AxSettingsCardPadding}">
-        <ItemsControl ItemsSource="{Binding Rows}">
+      <ScrollViewer>
+        <ItemsControl ItemsSource="{Binding Rows}" Margin="{DynamicResource AxSettingsPagePadding}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Spacing="{DynamicResource AxGapFormRow}"/>
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <!--
                 Подпись строки — она же имя контрола для средств доступности:
@@ -351,27 +397,30 @@
                 объявляет «поле» — одинаково во всех строках подряд.
             -->
             <DataTemplate x:DataType="vm:PluginSettingRow">
-              <!-- Ряд, как у строк оформления: подпись, затем её контрол — один из двух. -->
-              <ax:WrapRow Classes="settings-row" Spacing="{DynamicResource AxGapFormRow}">
-                <StackPanel>
-                  <TextBlock Text="{Binding Label}" FontSize="{DynamicResource AxFontSize}"/>
-                  <TextBlock ax:AxText.Tone="Tertiary" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,1,0,0"
-                             Text="{Binding Key}"/>
-                  <TextBlock ax:AxText.Tone="Tertiary" FontSize="{DynamicResource AxFontSizeSmall}" Margin="0,1,0,0"
-                             Text="{Binding Note}"
-                             IsVisible="{Binding Note, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-                </StackPanel>
-                <ax:AxToggleSwitch IsChecked="{Binding Flag, Mode=TwoWay}"
-                                   AutomationProperties.Name="{Binding Label}"
-                                   IsEnabled="{Binding IsEditable}" IsVisible="{Binding IsToggle}"/>
-                <ax:AxTextBox Width="{DynamicResource AxSettingsFieldWidth}" Text="{Binding Text, Mode=TwoWay}"
-                              AutomationProperties.Name="{Binding Label}"
-                              IsEnabled="{Binding IsEditable}" IsVisible="{Binding IsText}"/>
-              </ax:WrapRow>
+              <StackPanel IsVisible="{Binding IsShown}">
+                <ax:AxCheckBox IsChecked="{Binding Flag, Mode=TwoWay}" ToolTip.Tip="{Binding Key}"
+                               AutomationProperties.Name="{Binding Label}"
+                               IsEnabled="{Binding IsEditable}" IsVisible="{Binding IsToggle}">
+                  <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
+                </ax:AxCheckBox>
+                <!-- Ряд, как у строк оформления: подпись в колонке подписей, поле за ней. -->
+                <ax:WrapRow Classes="settings-row" Spacing="{DynamicResource AxGapFormRow}"
+                            LeadWidth="{DynamicResource AxSettingsLabelWidth}" IsVisible="{Binding IsText}">
+                  <TextBlock Text="{Binding Label}" FontSize="{DynamicResource AxFontSize}" TextWrapping="Wrap"
+                             ToolTip.Tip="{Binding Key}"/>
+                  <ax:AxTextBox Width="{DynamicResource AxSettingsFieldWidth}" Text="{Binding Text, Mode=TwoWay}"
+                                AutomationProperties.Name="{Binding Label}"
+                                IsEnabled="{Binding IsEditable}"/>
+                </ax:WrapRow>
+                <TextBlock ax:AxText.Tone="Tertiary" FontSize="{DynamicResource AxFontSizeSmall}" TextWrapping="Wrap"
+                           Margin="{DynamicResource AxSpaceHairAboveThickness}"
+                           Text="{Binding Note}"
+                           IsVisible="{Binding Note, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+              </StackPanel>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
-      </ax:AxCard>
+      </ScrollViewer>
     </DataTemplate>
 
   </ax:AxWindow.DataTemplates>
@@ -430,10 +479,10 @@
     -->
     <ax:AxDivider DockPanel.Dock="Bottom"/>
 
-    <Grid ColumnDefinitions="260,Auto,*">
+    <Grid ColumnDefinitions="Auto,Auto,*">
 
       <!-- Слева: поиск и дерево разделов. Ширина — как у боковой полосы Welcome. -->
-      <Border Grid.Column="0"
+      <Border Grid.Column="0" Width="{DynamicResource AxSettingsNavWidth}"
               Background="{DynamicResource AxSurfacePanelBrush}">
         <DockPanel Margin="{DynamicResource AxSpaceWideThickness}">
           <ax:AxSearchField DockPanel.Dock="Top" x:Name="SearchBox" Margin="{DynamicResource AxSpaceWideBelowThickness}"
@@ -463,16 +512,26 @@
                     Имя строки для средств доступности: подпись живёт в
                     шаблоне шапки, а диктор читает сам узел и без имени
                     объявляет «элемент дерева» — одинаково у всех разделов.
+                    Несохранённое — там же, состоянием строки: точку глазом
+                    видно, а диктору о ней надо сказать словами.
                 -->
                 <Setter Property="AutomationProperties.Name" Value="{Binding Title}"/>
+                <Setter Property="AutomationProperties.ItemStatus" Value="{Binding ModifiedStatus}"/>
               </Style>
             </ax:AxTreeView.Styles>
 
             <ax:AxTreeView.ItemTemplate>
               <TreeDataTemplate x:DataType="s:SettingsNode" ItemsSource="{Binding Children}">
+                <!--
+                    Правленый раздел отмечен точкой — тем же знаком, что изменённая вкладка
+                    документа, и там же, где Rider отмечает раздел с непринятой правкой.
+                -->
                 <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapIconText}">
                   <ax:AxIcon Data="{Binding Icon}" VerticalAlignment="Center"/>
                   <TextBlock Text="{Binding Title}" VerticalAlignment="Center"/>
+                  <Ellipse Width="{DynamicResource AxTabModifiedDotSize}" Height="{DynamicResource AxTabModifiedDotSize}"
+                           Fill="{DynamicResource AxAccentBrush}" VerticalAlignment="Center"
+                           IsVisible="{Binding IsModified}"/>
                 </StackPanel>
               </TreeDataTemplate>
             </ax:AxTreeView.ItemTemplate>
@@ -480,12 +539,44 @@
         </DockPanel>
       </Border>
 
-      <!-- Справа: страница. Что рисовать — решает её тип, шаблоны выше. -->
       <ax:AxDivider Grid.Column="1" Orientation="Vertical"/>
 
-      <ScrollViewer Grid.Column="2">
-        <ContentControl Content="{Binding Page}" Margin="{DynamicResource AxSettingsPagePadding}"/>
-      </ScrollViewer>
+      <!--
+          Справа: шапка страницы и сама страница. Шапка — как в настройках Rider: путь к
+          странице, «Сбросить», пока на ней есть несохранённое, и стрелки по пройденным
+          страницам. Что рисовать ниже — решает тип страницы, шаблоны выше.
+      -->
+      <DockPanel Grid.Column="2">
+        <Border DockPanel.Dock="Top" MinHeight="{DynamicResource AxTabHeight}"
+                Padding="{DynamicResource AxSettingsHeaderPadding}">
+          <DockPanel>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
+                        Spacing="{DynamicResource AxGapControls}">
+              <ax:AxLink x:Name="Reset" Content="{ax:Loc settings.reset}" VerticalAlignment="Center"
+                         IsVisible="{Binding CanReset}"/>
+              <StackPanel Orientation="Horizontal">
+                <ax:AxButton x:Name="Back" Appearance="Toolbar"
+                             AutomationProperties.Name="{ax:Loc settings.back}"
+                             ToolTip.Tip="{ax:Loc settings.back}" ax:AxToolTip.Gesture="Alt+Left"
+                             IsEnabled="{Binding CanGoBack}">
+                  <ax:AxIcon Data="{x:Static ax:AxIcons.ChevronLeft}"/>
+                </ax:AxButton>
+                <ax:AxButton x:Name="Forward" Appearance="Toolbar"
+                             AutomationProperties.Name="{ax:Loc settings.forward}"
+                             ToolTip.Tip="{ax:Loc settings.forward}" ax:AxToolTip.Gesture="Alt+Right"
+                             IsEnabled="{Binding CanGoForward}">
+                  <ax:AxIcon Data="{x:Static ax:AxIcons.ChevronRight}"/>
+                </ax:AxButton>
+              </StackPanel>
+            </StackPanel>
+            <ax:AxBreadcrumb x:Name="Crumbs" VerticalAlignment="Center" ItemsSource="{Binding Path}"
+                             AutomationProperties.Name="{ax:Loc settings.path}"/>
+          </DockPanel>
+        </Border>
+        <ax:AxDivider DockPanel.Dock="Top"/>
+
+        <ContentControl Content="{Binding Page}"/>
+      </DockPanel>
 
     </Grid>
 

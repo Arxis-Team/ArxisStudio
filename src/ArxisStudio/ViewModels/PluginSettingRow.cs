@@ -46,8 +46,24 @@ public sealed class PluginSettingRow(
     /// </remarks>
     private object? _pending;
 
+    private bool _shown = true;
+
     /// <inheritdoc/>
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>Строка видна: поиска нет или он её нашёл.</summary>
+    public bool IsShown
+    {
+        get => _shown;
+        private set
+        {
+            if (_shown == value)
+                return;
+
+            _shown = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsShown)));
+        }
+    }
 
     /// <summary>Чьё это расширение — по нему студия говорит ему об изменении.</summary>
     public string PluginId => pluginId;
@@ -166,6 +182,19 @@ public sealed class PluginSettingRow(
         Notify();
         return true;
     }
+
+    /// <summary>
+    /// Оставляет строку на виду, если поиск её нашёл.
+    /// </summary>
+    /// <param name="query">Что ищут; <c>null</c> — строка видна всегда.</param>
+    /// <remarks>
+    /// Ищется и подпись, и ключ — тем же правилом, по которому поиск находит страницу: ключ
+    /// человек видит в файле настроек и ищет именно его.
+    /// </remarks>
+    public void Narrow(string? query) =>
+        IsShown = query is null
+            || Label.Contains(query, StringComparison.CurrentCultureIgnoreCase)
+            || Key.Contains(query, StringComparison.CurrentCultureIgnoreCase);
 
     /// <summary>Забывает накопленную правку.</summary>
     public void Revert()

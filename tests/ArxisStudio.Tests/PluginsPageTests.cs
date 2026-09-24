@@ -168,6 +168,35 @@ public class PluginsPageTests : IDisposable
     }
 
     /// <summary>
+    /// Поиск окна оставляет на странице только найденные плагины — и тогда, когда список собрали заново.
+    /// </summary>
+    /// <remarks>
+    /// Список пересобирается после установки и удаления, а поиск в окне остаётся тем же: новая
+    /// карточка обязана встать под тот же отбор, иначе установленный плагин выскочил бы посреди
+    /// найденных.
+    /// </remarks>
+    [Fact]
+    public void A_search_leaves_only_the_plugins_it_found()
+    {
+        Plugin("arxis.one", "Первый", tags: ["tools"]);
+        Plugin("arxis.two", "Второй");
+
+        var page = Page(out _);
+
+        page.Narrow("tools");
+
+        Assert.Equal(["arxis.one"], page.Cards.Where(card => card.IsShown).Select(card => card.Plugin.Id));
+
+        page.Refresh();
+
+        Assert.Equal(["arxis.one"], page.Cards.Where(card => card.IsShown).Select(card => card.Plugin.Id));
+
+        page.Narrow(null);
+
+        Assert.All(page.Cards, card => Assert.True(card.IsShown, $"{card.Plugin.Id} не вернулся, когда поиск стёрли"));
+    }
+
+    /// <summary>
     /// Плагин, который не поднялся, говорит об этом на своей карточке — и причину тоже.
     /// </summary>
     /// <remarks>

@@ -32,6 +32,7 @@ public sealed class AppearancePage : ISettingsPage, INotifyPropertyChanged
     private StudioTheme _theme;
     private StudioDensity _density;
     private string _language;
+    private string? _query;
 
     /// <summary>Заводит страницу поверх настроек студии.</summary>
     /// <param name="studio">Хранилище настроек студии.</param>
@@ -47,6 +48,9 @@ public sealed class AppearancePage : ISettingsPage, INotifyPropertyChanged
 
     /// <inheritdoc/>
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <inheritdoc/>
+    public event EventHandler? Changed;
 
     /// <summary>Куда сказать о том, что не вышло.</summary>
     public Action<string>? Complain { get; init; }
@@ -67,13 +71,38 @@ public sealed class AppearancePage : ISettingsPage, INotifyPropertyChanged
     public IReadOnlyList<ISettingsPage> Children => [];
 
     /// <inheritdoc/>
-    public IEnumerable<string> Terms =>
+    /// <remarks>
+    /// Подписи строк и их вариантов: «светлая» ищут чаще, чем «тема», — человек помнит, что
+    /// хочет получить, а не как это называется.
+    /// </remarks>
+    public IEnumerable<string> Terms => [Title, .. ThemeTerms, .. DensityTerms, .. LanguageTerms];
+
+    /// <summary>Строка темы видна: поиска нет или он её нашёл.</summary>
+    public bool ShowsTheme => Shows(ThemeTerms);
+
+    /// <summary>Строка плотности видна: поиска нет или он её нашёл.</summary>
+    public bool ShowsDensity => Shows(DensityTerms);
+
+    /// <summary>Строка языка видна: поиска нет или он её нашёл.</summary>
+    public bool ShowsLanguage => Shows(LanguageTerms);
+
+    private static string[] ThemeTerms =>
     [
-        Title,
         Localizer.Instance["settings.theme"],
-        Localizer.Instance["settings.density"],
-        Localizer.Instance["settings.language"],
+        Localizer.Instance["settings.theme.dark"],
+        Localizer.Instance["settings.theme.light"],
     ];
+
+    private static string[] DensityTerms =>
+    [
+        Localizer.Instance["settings.density"],
+        Localizer.Instance["settings.density.compact"],
+        Localizer.Instance["settings.density.normal"],
+        Localizer.Instance["settings.density.comfortable"],
+    ];
+
+    private string[] LanguageTerms =>
+        [Localizer.Instance["settings.language"], .. Languages.Select(language => language.Name)];
 
     /// <inheritdoc/>
     public bool HasChanges =>
@@ -227,12 +256,31 @@ public sealed class AppearancePage : ISettingsPage, INotifyPropertyChanged
             Relabelled?.Invoke();
         }
 
-        Notify();
+        // Страница остаётся на экране после «Сбросить» в шапке, и её контролы обязаны показать
+        // вернувшееся. Прежде откат шёл только с закрытием окна, и сегменты, оставшиеся на
+        // прежнем выборе, видно не было.
+        Notify(nameof(ThemeIndex));
+        Notify(nameof(DensityIndex));
+        Notify(nameof(SelectedLanguage));
     }
+
+    /// <inheritdoc/>
+    public void Narrow(string? query)
+    {
+        _query = string.IsNullOrWhiteSpace(query) ? null : query.Trim();
+
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsTheme)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsDensity)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsLanguage)));
+    }
+
+    private bool Shows(IEnumerable<string> terms) =>
+        _query is not { } query || terms.Any(term => term.Contains(query, StringComparison.CurrentCultureIgnoreCase));
 
     private void Notify([CallerMemberName] string? property = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasChanges)));
+        Changed?.Invoke(this, EventArgs.Empty);
     }
 }

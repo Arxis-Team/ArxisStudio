@@ -121,6 +121,34 @@ public class SettingsKeyboardTests : IDisposable
         owner.Close();
     }
 
+    /// <summary>
+    /// Esc в поиске, где что-то набрано, очищает поиск и оставляет окно; следующий закрывает его.
+    /// </summary>
+    /// <remarks>
+    /// Так в настройках Rider: человек бросает запрос, а не окно. Каретка стоит в поиске с самого
+    /// открытия, и Esc, закрывший бы окно вместе с набранным, стоил бы заново открытых настроек.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task Escape_in_a_filled_search_clears_it_and_keeps_the_window()
+    {
+        var (owner, settings, shown) = Open();
+        var model = (SettingsViewModel)settings.DataContext!;
+
+        settings.SearchBox.Text = "кегль";
+        Dispatcher.UIThread.RunJobs();
+
+        Escape(settings);
+
+        Assert.False(shown.IsCompleted, "Esc в заполненном поиске закрыл окно");
+        Assert.Equal(string.Empty, model.Search);
+
+        Escape(settings);
+
+        Assert.Same(shown, await Task.WhenAny(shown, Task.Delay(Patience)));
+
+        owner.Close();
+    }
+
     /// <summary>Esc с модификатором окно не закрывает: это уже другое сочетание.</summary>
     [AvaloniaFact]
     public async Task Escape_with_a_modifier_is_not_escape()

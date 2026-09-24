@@ -45,6 +45,7 @@ public sealed class KeysPage : ISettingsPage, INotifyPropertyChanged, IDisposabl
     private readonly Func<(IReadOnlyList<KeyRow> Rows, IReadOnlyList<KeyRefusal> Refusals)> _read;
     private readonly Action<string> _open;
     private Action? _release;
+    private string? _query;
 
     /// <summary>Собирает страницу и читает строки первый раз.</summary>
     /// <param name="read">Отданные сочетания в порядке раздачи и отказы — такими, какие они сейчас.</param>
@@ -64,6 +65,14 @@ public sealed class KeysPage : ISettingsPage, INotifyPropertyChanged, IDisposabl
 
     /// <inheritdoc/>
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <inheritdoc/>
+    /// <remarks>Правок у страницы нет, и сказать о них ей нечего.</remarks>
+    public event EventHandler? Changed
+    {
+        add { }
+        remove { }
+    }
 
     /// <inheritdoc/>
     public string Id => "studio.keys";
@@ -99,6 +108,17 @@ public sealed class KeysPage : ISettingsPage, INotifyPropertyChanged, IDisposabl
     /// <summary>Есть кому не досталось.</summary>
     public bool HasRefusals => Refusals.Count > 0;
 
+    /// <summary>Сочетания, которые оставил поиск, — в том же порядке раздачи.</summary>
+    public IReadOnlyList<KeyRow> ShownRows =>
+        _query is { } query ? [.. Rows.Where(row => Matches(query, row.Gesture, row.Command))] : Rows;
+
+    /// <summary>Отказы, которые оставил поиск.</summary>
+    public IReadOnlyList<KeyRefusal> ShownRefusals =>
+        _query is { } query ? [.. Refusals.Where(refusal => Matches(query, refusal.Gesture, refusal.Command))] : Refusals;
+
+    /// <summary>Раздел отказов виден: есть отказы, и поиск их не спрятал.</summary>
+    public bool ShowsRefusals => ShownRefusals.Count > 0;
+
     /// <summary>Путь к <c>keymap.json</c>.</summary>
     public string File { get; }
 
@@ -110,6 +130,30 @@ public sealed class KeysPage : ISettingsPage, INotifyPropertyChanged, IDisposabl
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Rows)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Refusals)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasRefusals)));
+        Shown();
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Ищется и сочетание, и команда — тем же правилом, по которому поиск находит страницу:
+    /// «куда делось Ctrl+W» и «чем открыть палитру». Порядок раздачи отбор не трогает: он и
+    /// объясняет, кому досталось занятое.
+    /// </remarks>
+    public void Narrow(string? query)
+    {
+        _query = string.IsNullOrWhiteSpace(query) ? null : query.Trim();
+        Shown();
+    }
+
+    private static bool Matches(string query, string gesture, string command) =>
+        gesture.Contains(query, StringComparison.CurrentCultureIgnoreCase)
+        || command.Contains(query, StringComparison.CurrentCultureIgnoreCase);
+
+    private void Shown()
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShownRows)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShownRefusals)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsRefusals)));
     }
 
     /// <summary>Перестаёт слушать реестр: окно, показывавшее страницу, закрыто.</summary>

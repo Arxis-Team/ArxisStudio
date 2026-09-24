@@ -1,6 +1,7 @@
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Settings;
+using ArxisStudio.Shell.Localization;
 using ArxisStudio.Shell.Settings;
 using Xunit;
 
@@ -198,6 +199,66 @@ public class SettingsTests : IDisposable
         Assert.Empty(SettingsViewModel.Filter(Pages(Module()), "такого ключа нет"));
     }
 
+    /// <summary>
+    /// Страница, уцелевшая в поиске ради своих строк, показывает только совпавшие.
+    /// </summary>
+    /// <remarks>
+    /// Правило то же, что у дерева, уровнем ниже: найденная настройка не тонет среди соседей, как
+    /// в Project Settings у Unity. Стёртый поиск возвращает все строки.
+    /// </remarks>
+    [Fact]
+    public void A_search_by_a_row_shows_only_the_rows_that_matched()
+    {
+        var model = Model(out _, Terminal());
+        var rows = Rows(model);
+
+        model.Search = "курсор";
+
+        Assert.Equal(["terminal.cursorBlink"], rows.Where(row => row.IsShown).Select(row => row.Key));
+
+        model.Search = "fontSize";
+
+        Assert.Equal(["terminal.fontSize"], rows.Where(row => row.IsShown).Select(row => row.Key));
+
+        model.Search = string.Empty;
+
+        Assert.All(rows, row => Assert.True(row.IsShown, $"{row.Key} не вернулся, когда поиск стёрли"));
+    }
+
+    /// <summary>
+    /// Страница, найденная по своей подписи или по подписи ветки над ней, показывается целиком.
+    /// </summary>
+    /// <remarks>Человек искал страницу, а не строку на ней, — и получает её всю.</remarks>
+    [Fact]
+    public void A_search_by_the_page_title_shows_the_whole_page()
+    {
+        var model = Model(out _, Terminal());
+        var rows = Rows(model);
+
+        foreach (var query in new[] { "Терминал", Localizer.Instance["settings.plugins"] })
+        {
+            model.Search = query;
+
+            Assert.All(rows, row => Assert.True(row.IsShown, $"по запросу «{query}» спрятана строка {row.Key}"));
+        }
+    }
+
+    /// <summary>Оформление находят и по его вариантам: «светлая» ведёт к строке темы, и только к ней.</summary>
+    /// <remarks>Человек помнит, что хочет получить, а не как это называется.</remarks>
+    [Fact]
+    public void The_appearance_page_is_found_by_its_choices()
+    {
+        var model = Model(out _, Module());
+        var appearance = Assert.IsType<AppearancePage>(model.Nodes[0].Page);
+
+        model.Search = Localizer.Instance["settings.theme.light"];
+
+        Assert.Same(appearance, model.Page);
+        Assert.True(appearance.ShowsTheme, "строка темы спрятана поиском, который её нашёл");
+        Assert.False(appearance.ShowsDensity, "строка плотности осталась, хотя поиск её не нашёл");
+        Assert.False(appearance.ShowsLanguage, "строка языка осталась, хотя поиск её не нашёл");
+    }
+
     /// <summary>Страницы, какими их видит окно.</summary>
     private IReadOnlyList<ISettingsPage> Pages(params InstalledPlugin[] extensions)
     {
@@ -241,6 +302,26 @@ public class SettingsTests : IDisposable
             Contributions = new PluginContributions
             {
                 Settings = { new PluginSetting("terminal.fontSize", "number", "user", "Кегль", 13) },
+            },
+        },
+        Error: null,
+        IsEnabled: true,
+        IsBuiltIn: true);
+
+    /// <summary>Модуль с двумя настройками: числом и флагом.</summary>
+    private static InstalledPlugin Terminal() => new(
+        ModuleManifest.FolderOf(typeof(ArxisStudio.Modules.Terminal.TerminalModule).Assembly),
+        new PluginManifest
+        {
+            Id = "arxis.terminal",
+            Name = "Терминал",
+            Contributions = new PluginContributions
+            {
+                Settings =
+                {
+                    new PluginSetting("terminal.fontSize", "number", "user", "Кегль", 13),
+                    new PluginSetting("terminal.cursorBlink", "bool", "user", "Мигающий курсор", true),
+                },
             },
         },
         Error: null,

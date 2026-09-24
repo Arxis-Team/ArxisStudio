@@ -27,6 +27,12 @@ namespace ArxisStudio.Shell;
 /// Перенесённый хвост получает всю ширину ряда. Не помещается он и в неё — переносить дальше
 /// должен он сам: кнопки для этого стоят в <c>WrapPanel</c>, а не в стопке.
 /// </para>
+/// <para>
+/// С <see cref="LeadWidth"/> ряд становится строкой формы: ведущая — колонка подписей этой ширины,
+/// хвост встаёт сразу за ней, а не у правого края. Так стоят поля у Unity и в формах Rider:
+/// контролы страницы — одной линией возле подписей, а не у края широкого окна, куда глазу
+/// идти через пустоту. Переносит ряд по тому же правилу — не хватило места хвосту.
+/// </para>
 /// </remarks>
 public sealed class WrapRow : Panel
 {
@@ -34,7 +40,11 @@ public sealed class WrapRow : Panel
     public static readonly StyledProperty<double> SpacingProperty =
         AvaloniaProperty.Register<WrapRow, double>(nameof(Spacing));
 
-    static WrapRow() => AffectsMeasure<WrapRow>(SpacingProperty);
+    /// <summary>Ширина колонки ведущей; не задана — ведущая берёт остаток ряда.</summary>
+    public static readonly StyledProperty<double> LeadWidthProperty =
+        AvaloniaProperty.Register<WrapRow, double>(nameof(LeadWidth), double.NaN);
+
+    static WrapRow() => AffectsMeasure<WrapRow>(SpacingProperty, LeadWidthProperty);
 
     /// <summary>Зазор между частями — и в ряд, и при переносе.</summary>
     public double Spacing
@@ -42,6 +52,23 @@ public sealed class WrapRow : Panel
         get => GetValue(SpacingProperty);
         set => SetValue(SpacingProperty, value);
     }
+
+    /// <summary>
+    /// Ширина колонки ведущей; не задана — ведущая берёт остаток ряда, а хвост стоит у правого края.
+    /// </summary>
+    /// <remarks>
+    /// Ведущая получает ровно эту ширину и переносит в ней свой текст, а хвост встаёт за колонкой.
+    /// Колонка одна на все ряды, где её назвали одним ключом темы, — отсюда и выравнивание: ширина,
+    /// снятая с самой подписи, у каждого ряда была бы своя.
+    /// </remarks>
+    public double LeadWidth
+    {
+        get => GetValue(LeadWidthProperty);
+        set => SetValue(LeadWidthProperty, value);
+    }
+
+    /// <summary>Колонка ведущей задана.</summary>
+    private bool IsForm => !double.IsNaN(LeadWidth) && LeadWidth >= 0;
 
     /// <summary>Стоит ли хвост под ведущей после последнего замера.</summary>
     public bool IsWrapped { get; private set; }
@@ -60,16 +87,19 @@ public sealed class WrapRow : Panel
             return Wrap(false, lead.DesiredSize);
         }
 
-        lead.Measure(Size.Infinity);
+        // Колонка задана — ведущая меряется в неё, а не без предела: подпись длиннее колонки
+        // переносится в ней, и ширину строки решает колонка, а не текст.
+        lead.Measure(IsForm ? new Size(LeadWidth, double.PositiveInfinity) : Size.Infinity);
         trail.Measure(Size.Infinity);
 
-        var leadWidth = lead.DesiredSize.Width;
+        var leadWidth = IsForm ? LeadWidth : lead.DesiredSize.Width;
         var trailWidth = trail.DesiredSize.Width;
         var row = leadWidth + Spacing + trailWidth;
 
         if (row <= availableSize.Width)
         {
-            lead.Measure(new Size(availableSize.Width - trailWidth - Spacing, availableSize.Height));
+            if (!IsForm)
+                lead.Measure(new Size(availableSize.Width - trailWidth - Spacing, availableSize.Height));
 
             return Wrap(false, new Size(row, Math.Max(lead.DesiredSize.Height, trail.DesiredSize.Height)));
         }
@@ -112,6 +142,19 @@ public sealed class WrapRow : Panel
         if (trail is null)
         {
             lead.Arrange(new Rect(0, 0, Math.Min(lead.MaxWidth, finalSize.Width), finalSize.Height));
+            return finalSize;
+        }
+
+        if (!IsWrapped && IsForm)
+        {
+            // Хвост — сразу за колонкой, и места ему — весь остаток: поле, которое тянется,
+            // дотянется до края, а контрол своей ширины встанет у колонки.
+            var column = Math.Min(lead.MaxWidth, LeadWidth);
+            var start = LeadWidth + Spacing;
+
+            lead.Arrange(new Rect(0, 0, column, finalSize.Height));
+            trail.Arrange(new Rect(start, 0, Math.Max(trail.DesiredSize.Width, finalSize.Width - start), finalSize.Height));
+
             return finalSize;
         }
 

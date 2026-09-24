@@ -21,6 +21,7 @@ namespace ArxisStudio.ViewModels;
 public sealed class PluginCard : INotifyPropertyChanged
 {
     private bool _on;
+    private bool _shown = true;
 
     /// <summary>Собирает строку поверх записи каталога.</summary>
     /// <param name="plugin">Запись каталога.</param>
@@ -96,6 +97,39 @@ public sealed class PluginCard : INotifyPropertyChanged
 
     /// <summary>Галочка разошлась с тем, что записано на диске.</summary>
     public bool IsChanged => _on != Plugin.IsEnabled;
+
+    /// <summary>
+    /// По чему плагин находит поиск: имя, идентификатор, издатель и метки.
+    /// </summary>
+    /// <remarks>
+    /// Метки — сами теги, а не их подписи: тег один на все языки, и найденное по нему не должно
+    /// меняться вместе с языком интерфейса.
+    /// </remarks>
+    public IEnumerable<string> Terms =>
+        Plugin.Tags
+            .Append(Plugin.DisplayName)
+            .Append(Plugin.Id)
+            .Append(Plugin.Manifest?.Publisher)
+            .OfType<string>();
+
+    /// <summary>Карточка видна: поиска нет или он её нашёл.</summary>
+    public bool IsShown
+    {
+        get => _shown;
+        private set
+        {
+            if (_shown == value)
+                return;
+
+            _shown = value;
+            Notify();
+        }
+    }
+
+    /// <summary>Оставляет карточку на виду, если поиск её нашёл.</summary>
+    /// <param name="query">Что ищут; <c>null</c> — карточка видна всегда.</param>
+    public void Narrow(string? query) =>
+        IsShown = query is null || Terms.Any(term => term.Contains(query, StringComparison.CurrentCultureIgnoreCase));
 
     /// <summary>Возвращает галочку к записанному.</summary>
     public void Revert() => IsOn = Plugin.IsEnabled;

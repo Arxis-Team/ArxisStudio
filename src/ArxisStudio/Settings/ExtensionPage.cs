@@ -13,10 +13,32 @@ namespace ArxisStudio.Settings;
 /// Своих настроек у ветки нет, и всё, что её просят, она складывает из детей.
 /// Так окну не приходится знать, что узел бывает двух родов: сохранение и
 /// отмена идут одной дорогой по всему дереву.
+/// <para>
+/// Показывает ветка своих детей — ссылками, как страница раздела в Rider: подсказка «выберите
+/// слева» говорила, куда идти, а ссылка туда ведёт.
+/// </para>
 /// </remarks>
-/// <param name="children">Страницы расширений в порядке показа.</param>
-public sealed class ExtensionsPage(IReadOnlyList<ISettingsPage> children) : ISettingsPage
+public sealed class ExtensionsPage : ISettingsPage
 {
+    private readonly IReadOnlyList<ISettingsPage> _children;
+
+    /// <summary>Собирает ветку над страницами расширений.</summary>
+    /// <param name="children">Страницы расширений в порядке показа.</param>
+    public ExtensionsPage(IReadOnlyList<ISettingsPage> children)
+    {
+        ArgumentNullException.ThrowIfNull(children);
+
+        _children = children;
+
+        // Правленая страница расширения — правленая ветка: точка в дереве стоит на обеих, и
+        // сказать о ней ветке некому, кроме детей.
+        foreach (var child in children)
+            child.Changed += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <inheritdoc/>
+    public event EventHandler? Changed;
+
     /// <inheritdoc/>
     public string Id => "studio.extensions";
 
@@ -27,26 +49,32 @@ public sealed class ExtensionsPage(IReadOnlyList<ISettingsPage> children) : ISet
     public Geometry? Icon => AxIcons.Package;
 
     /// <inheritdoc/>
-    public IReadOnlyList<ISettingsPage> Children => children;
+    public IReadOnlyList<ISettingsPage> Children => _children;
 
     /// <inheritdoc/>
     public IEnumerable<string> Terms => [Title];
 
     /// <inheritdoc/>
-    public bool HasChanges => children.Any(child => child.HasChanges);
+    public bool HasChanges => _children.Any(child => child.HasChanges);
 
     /// <inheritdoc/>
     public async Task CommitAsync(ICollection<string> problems)
     {
-        foreach (var child in children)
+        foreach (var child in _children)
             await child.CommitAsync(problems);
     }
 
     /// <inheritdoc/>
     public void Revert()
     {
-        foreach (var child in children)
+        foreach (var child in _children)
             child.Revert();
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>Строк у ветки нет: детей окно сужает само, каждого своим вызовом.</remarks>
+    public void Narrow(string? query)
+    {
     }
 }
 
@@ -90,7 +118,13 @@ public sealed class ExtensionPage : ISettingsPage
                 .Select(declared => new PluginSettingRow(
                     extension.Id, extension.DisplayName, declared, store, extension.Strings)),
         ];
+
+        foreach (var row in Rows)
+            row.PropertyChanged += OnRowChanged;
     }
+
+    /// <inheritdoc/>
+    public event EventHandler? Changed;
 
     /// <summary>Строки настроек в порядке манифеста.</summary>
     public IReadOnlyList<PluginSettingRow> Rows { get; }
@@ -144,10 +178,23 @@ public sealed class ExtensionPage : ISettingsPage
             row.Revert();
     }
 
+    /// <inheritdoc/>
+    public void Narrow(string? query)
+    {
+        foreach (var row in Rows)
+            row.Narrow(query);
+    }
+
     /// <summary>Перечитывает подписи строк: язык сменили.</summary>
     public void Relabel()
     {
         foreach (var row in Rows)
             row.Relabel();
+    }
+
+    private void OnRowChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PluginSettingRow.HasChanges))
+            Changed?.Invoke(this, EventArgs.Empty);
     }
 }
