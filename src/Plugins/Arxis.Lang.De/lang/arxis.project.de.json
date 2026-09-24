@@ -46,6 +46,7 @@
 
   "settings.project.twoColumns": "Projektfenster in zwei Spalten anzeigen",
   "settings.project.iconSize": "Symbolgröße im Projektfenster in Punkten: 0 — Liste, leer — Standard",
+  "settings.project.previews": "Bildvorschau auf den Kacheln des Projektfensters anzeigen",
   "project.options": "Fensteroptionen",
   "project.layout.one": "Eine Spalte",
   "project.layout.two": "Zwei Spalten",

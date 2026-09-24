@@ -46,6 +46,7 @@
 
   "settings.project.twoColumns": "Show the project window in two columns",
   "settings.project.iconSize": "Project window icon size in points: 0 — list, empty — default",
+  "settings.project.previews": "Show image previews on project window tiles",
   "project.options": "Window Options",
   "project.layout.one": "One Column",
   "project.layout.two": "Two Columns",

@@ -1,7 +1,7 @@
 {
   "id": "arxis.project",
   "name": "%module.project%",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "publisher": "Arxis",
   "description": "%module.project.description%",
   "tags": [ "tools", "project" ],
@@ -18,7 +18,8 @@
     ],
     "settings": [
       { "key": "project.twoColumns", "type": "bool", "scope": "user", "title": "%settings.project.twoColumns%", "default": true },
-      { "key": "project.iconSize", "type": "number", "scope": "user", "title": "%settings.project.iconSize%" }
+      { "key": "project.iconSize", "type": "number", "scope": "user", "title": "%settings.project.iconSize%" },
+      { "key": "project.previews", "type": "bool", "scope": "user", "title": "%settings.project.previews%", "default": true }
     ],
     "newItems": [
       { "id": "project.directory", "kind": "directory", "title": "%add.directory%", "icon": "arxis:Folder",

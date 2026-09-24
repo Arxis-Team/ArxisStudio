@@ -134,7 +134,7 @@ public sealed class ProjectPanel : ToolWindow
             creating ? node => Creatable(newItems!, node) : null,
             creating ? Create : null));
         _pane = new BrowserPane(_view, _model, _menu, Located, Resize, Copy);
-        _pane.Show(settings.IconSize);
+        _pane.Show(settings.IconSize, settings.Previews);
 
         Wire(_view, _model);
 
@@ -973,7 +973,7 @@ public sealed class ProjectPanel : ToolWindow
     /// </summary>
     private void OnSettingsChanged(object? sender, string key)
     {
-        if (key is not (ProjectSettings.TwoColumnsKey or ProjectSettings.IconSizeKey))
+        if (key is not (ProjectSettings.TwoColumnsKey or ProjectSettings.IconSizeKey or ProjectSettings.PreviewsKey))
             return;
 
         if (Dispatcher.UIThread.CheckAccess())
@@ -996,7 +996,7 @@ public sealed class ProjectPanel : ToolWindow
         var columns = settings.TwoColumns != _model.IsTwoColumns;
 
         _model.Arrange(settings);
-        _pane.Show(settings.IconSize);
+        _pane.Show(settings.IconSize, settings.Previews);
 
         // Плитки и строки — два списка, и выделение у каждого своё: сменив ступень, человек видел
         // бы невыделенный список, а строка под ним говорила бы о выбранном.

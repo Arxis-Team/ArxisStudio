@@ -17,6 +17,14 @@
 
     <ItemGroup>
         <PackageReference Include="Avalonia"/>
+
+        <!--
+            Размер картинки по заголовку — у декодера, которым рисует Avalonia: своего такого вопроса у
+            неё нет, а превью без него растягивало бы иконку 16×16 во всю плитку. Только для
+            компиляции: сборка едет со студией в lib/, тем же экземпляром, что у Avalonia.Skia, и в
+            папку модуля не копируется.
+        -->
+        <PackageReference Include="SkiaSharp" IncludeAssets="compile" PrivateAssets="all"/>
     </ItemGroup>
 
     <ItemGroup>

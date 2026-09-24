@@ -33,6 +33,16 @@ internal sealed class Browser
     private Node? _root;
     private string? _query;
 
+    /// <summary>
+    /// Колонка переложена: новый снимок, переход или поиск.
+    /// </summary>
+    /// <remarks>
+    /// Приходит и тогда, когда список предметов не изменился: плитки того же ключа переживают снимок, и
+    /// перезапись картинки, сделанная окном, другого следа не оставляет. По нему превью сверяются с
+    /// диском.
+    /// </remarks>
+    public event EventHandler? Refreshed;
+
     /// <summary>Предметы колонки — источник для плиток и для списка.</summary>
     public AvaloniaList<Tile> Items { get; } = [];
 
@@ -188,6 +198,7 @@ internal sealed class Browser
         }
 
         Splice.Into(Items, tiles);
+        Refreshed?.Invoke(this, EventArgs.Empty);
     }
 }
 

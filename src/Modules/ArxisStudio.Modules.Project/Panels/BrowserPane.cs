@@ -35,6 +35,7 @@ internal sealed class BrowserPane : IDisposable
     private readonly Action<Node> _located;
     private readonly Action<double> _resized;
     private readonly Action<string> _copy;
+    private readonly TilePreviews _previews;
     private bool _sizing;
 
     /// <summary>Доля щелчка колеса, накопленная тачпадом.</summary>
@@ -78,6 +79,8 @@ internal sealed class BrowserPane : IDisposable
         _model.Browser.Items.CollectionChanged += OnItemsChanged;
         Stops();
 
+        _previews = new TilePreviews(view.Tiles, model.Browser);
+
         view.Path.Navigated += OnNavigated;
         view.Size.PropertyChanged += OnSizeChanged;
         view.Browser.AddHandler(InputElement.PointerWheelChangedEvent, OnWheel, RoutingStrategies.Tunnel);
@@ -90,6 +93,9 @@ internal sealed class BrowserPane : IDisposable
     public Tile? Selected => Shown.SelectedItem as Tile;
 
     private AxListBox[] Lists => [_view.Tiles, _view.Files];
+
+    /// <summary>Превью картинок в плитках — тестам: дождаться прохода и спросить, что прочитано.</summary>
+    internal TilePreviews Previews => _previews;
 
     /// <inheritdoc/>
     public void Dispose()
@@ -107,11 +113,13 @@ internal sealed class BrowserPane : IDisposable
         _view.Path.Navigated -= OnNavigated;
         _view.Size.PropertyChanged -= OnSizeChanged;
         _view.Browser.RemoveHandler(InputElement.PointerWheelChangedEvent, OnWheel);
+        _previews.Dispose();
     }
 
     /// <summary>Ставит ползунок и плитки на размер из настроек, не записывая его обратно.</summary>
     /// <param name="size">Размер силуэта в точках, ноль — список; пусто — обычная ступень.</param>
-    public void Show(double? size)
+    /// <param name="previews">Показывать ли у картинок саму картинку вместо силуэта.</param>
+    public void Show(double? size, bool previews)
     {
         var ladder = TileLadder.Of(_view);
         var position = ladder.Position(size);
@@ -124,6 +132,7 @@ internal sealed class BrowserPane : IDisposable
         if (position > 0)
             TileMetrics.Apply(_view.Tiles, ladder, ladder.Size(position));
 
+        _previews.Show(previews);
         Keep();
     }
 

@@ -90,11 +90,13 @@ public class ProjectWindowModuleTests
     }
 
     /// <summary>
-    /// Манифест объявляет ровно те настройки, которые окно читает: раскладку и ступень плиток.
+    /// Манифест объявляет ровно те настройки, которые окно читает: раскладку, ступень плиток и
+    /// выключатель превью.
     /// </summary>
     /// <remarks>
     /// Необъявленную настройку служба не запишет вовсе — запись молча пропадёт, и ⋮ окна переключал
-    /// бы раскладку до первого перезапуска.
+    /// бы раскладку до первого перезапуска. Умолчание выключателя в манифесте то же, что в коде:
+    /// без него окно настроек показало бы превью выключенными, а окно рисовало бы их.
     /// </remarks>
     [Fact]
     public void The_manifest_declares_exactly_the_settings_the_window_reads()
@@ -104,6 +106,14 @@ public class ProjectWindowModuleTests
         Assert.Equal(ProjectSettings.Keys.Order(), declared.Select(setting => setting.Key).Order());
         Assert.True(declared.Single(setting => setting.Key == ProjectSettings.TwoColumnsKey).IsBool, "раскладка объявлена не переключателем");
         Assert.True(declared.Single(setting => setting.Key == ProjectSettings.IconSizeKey).IsNumber, "ступень объявлена не числом");
+
+        var previews = declared.Single(setting => setting.Key == ProjectSettings.PreviewsKey);
+
+        Assert.True(previews.IsBool, "превью объявлены не переключателем");
+        Assert.True(
+            previews.Default is JsonElement { ValueKind: JsonValueKind.True or JsonValueKind.False } flag
+                && flag.GetBoolean() == ProjectSettings.Default.Previews,
+            "умолчание превью в манифесте расходится с кодом");
         Assert.All(declared, setting => Assert.False(setting.IsProject, $"{setting.Key} уехала бы с проектом, а это вкус человека"));
     }
 

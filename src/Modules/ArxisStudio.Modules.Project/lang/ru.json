@@ -46,6 +46,7 @@
 
   "settings.project.twoColumns": "Показывать окно проекта в две колонки",
   "settings.project.iconSize": "Размер значков в окне проекта, в точках: 0 — список, пусто — обычный",
+  "settings.project.previews": "Показывать превью изображений на плитках окна проекта",
   "project.options": "Параметры окна",
   "project.layout.one": "Одна колонка",
   "project.layout.two": "Две колонки",

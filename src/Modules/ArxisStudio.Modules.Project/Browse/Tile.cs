@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using ArxisStudio.Modules.Project.Model;
+using Avalonia.Media.Imaging;
 
 namespace ArxisStudio.Modules.Project.Browse;
 
@@ -85,8 +86,40 @@ internal sealed class Tile : INotifyPropertyChanged
 
             field = value;
             Raise(nameof(IsCut));
+            Raise(nameof(ShowsPreview));
+            Raise(nameof(ShowsSilhouette));
         }
     }
+
+    /// <summary>Уменьшенная копия картинки; пусто — плитка рисует силуэт.</summary>
+    /// <remarks>
+    /// Ставит её колонка, когда плитка видна, а держит служба превью: растр освобождается там, где
+    /// известно, что его больше никто не рисует, а не у плитки, которую список может пересоздать.
+    /// </remarks>
+    public Bitmap? Preview
+    {
+        get;
+        set
+        {
+            if (ReferenceEquals(field, value))
+                return;
+
+            field = value;
+            Raise(nameof(Preview));
+            Raise(nameof(ShowsPreview));
+            Raise(nameof(ShowsSilhouette));
+        }
+    }
+
+    /// <summary>Плитка рисует картинку: превью есть, и файл не вырезан.</summary>
+    /// <remarks>
+    /// Вырезанный файл показывает приглушённый силуэт: ключа прозрачности у темы нет, а приглушённый
+    /// силуэт — уже знакомый знак «вырезан, ждёт вставки».
+    /// </remarks>
+    public bool ShowsPreview => Preview is not null && !IsCut;
+
+    /// <summary>Плитка рисует силуэт: у предмета на диске, пока на его месте нет картинки.</summary>
+    public bool ShowsSilhouette => IsSilhouette && !ShowsPreview;
 
     /// <summary>Сюда ляжет то, что несут из проводника, — плитка отмечена целью.</summary>
     public bool IsDropTarget

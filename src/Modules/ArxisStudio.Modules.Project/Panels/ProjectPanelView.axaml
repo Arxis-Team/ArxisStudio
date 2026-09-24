@@ -273,6 +273,18 @@
                   <a:Setter Property="Width" Value="{a:Binding $parent[AxListBox].(p:TileMetrics.Glyph)}"/>
                   <a:Setter Property="Height" Value="{a:Binding $parent[AxListBox].(p:TileMetrics.Glyph)}"/>
                 </a:Style>
+                <!--
+                    Превью картинки — во весь квадрат ступени, как в Unity и в проводнике: у силуэта
+                    поля сетки 16, у картинки их нет, и превью выходит крупнее соседних силуэтов —
+                    зато содержимое читается. Пропорции свои, по центру, и не крупнее самой картинки:
+                    иконка 16×16 остаётся 16×16, а не мыльным квадратом во всю плитку. Рамки и
+                    подложки у картинки нет — прозрачное показывает подложку плитки, и выбор с
+                    наведением ложатся под картинку тем же кольцом, что под силуэт.
+                -->
+                <a:Style Selector="a|Image.preview">
+                  <a:Setter Property="Width" Value="{a:Binding $parent[AxListBox].(p:TileMetrics.Glyph)}"/>
+                  <a:Setter Property="Height" Value="{a:Binding $parent[AxListBox].(p:TileMetrics.Glyph)}"/>
+                </a:Style>
                 <a:Style Selector="a|Border.plate">
                   <a:Setter Property="Width" Value="{a:Binding $parent[AxListBox].(p:TileMetrics.Plate)}"/>
                   <a:Setter Property="Height" Value="{a:Binding $parent[AxListBox].(p:TileMetrics.Plate)}"/>
@@ -342,9 +354,13 @@
                   <a:StackPanel Classes="tile" Spacing="{a:DynamicResource AxSpaceHair}">
                     <a:Border Classes="backdrop" HorizontalAlignment="Center">
                       <a:Panel Classes="glyph">
-                        <AxIcon Classes="tile" IsVisible="{a:Binding IsSilhouette}"
+                        <AxIcon Classes="tile" IsVisible="{a:Binding ShowsSilhouette}"
                                 Data="{a:Binding Node, Converter={x:Static p:Silhouette.Instance}}"
                                 p:Tint.Key="{a:Binding Node, Converter={x:Static p:TintKey.Instance}}" p:Tint.Muted="{a:Binding IsCut}"/>
+                        <a:Image Classes="preview" IsVisible="{a:Binding ShowsPreview}" Source="{a:Binding Preview}"
+                                 Stretch="Uniform" StretchDirection="DownOnly"
+                                 a:RenderOptions.BitmapInterpolationMode="HighQuality"
+                                 a:AutomationProperties.AccessibilityView="Raw"/>
                         <a:Border Classes="plate" IsVisible="{a:Binding IsPlate}"
                                   HorizontalAlignment="Center" VerticalAlignment="Center">
                           <AxIcon HorizontalAlignment="Center" VerticalAlignment="Center"
