@@ -1,3 +1,5 @@
+using System.IO.Compression;
+using System.Text.Json;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Services;
 using Xunit;
@@ -172,6 +174,57 @@ public class PluginPackagingTests
             .ToList();
 
         Assert.True(strays.Count == 0, $"плагин везёт то, что есть у студии: {string.Join(", ", strays)}");
+    }
+
+    /// <summary>
+    /// Каждый плагин, которого собирает проект, оставляет свой архив — и тот
+    /// же, что его раскладка.
+    /// </summary>
+    /// <remarks>
+    /// Архив включают строкой в csproj, и новый плагин её забывает: сборка
+    /// проходит, раскладка ложится, а поставить плагин менеджером нечем. Так
+    /// вышло у просмотрщика (запись 278). Правило сверяет все плагины разом, а
+    /// не называет их поимённо: список отстал бы от первого же нового.
+    /// <para>
+    /// Одного наличия файла мало. Архив в <c>.gitignore</c>, и выключенная
+    /// упаковка оставляет на диске прежний: на машине автора он лежит, пока
+    /// его не удалят, и ставится вместо сегодняшней сборки. Поэтому архив
+    /// сверяется с раскладкой побайтно — отставший расходится с ней на первой
+    /// же правке.
+    /// </para>
+    /// <para>
+    /// Пакет, собранный без проекта, — словарь перевода вроде
+    /// <c>Arxis.Lang.De</c> — сборка не собирает вовсе, и правило его не
+    /// касается.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_plugin_project_leaves_its_archive()
+    {
+        var projects = Directory
+            .GetDirectories(Path.Combine(Repository(), "src", "Plugins"))
+            .Where(folder => File.Exists(Path.Combine(folder, "plugin.json")) &&
+                             Directory.GetFiles(folder, "*.csproj").Length > 0)
+            .ToList();
+
+        Assert.NotEmpty(projects);
+
+        var broken = new List<string>();
+
+        foreach (var folder in projects)
+        {
+            using var manifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(folder, "plugin.json")));
+
+            var id = manifest.RootElement.GetProperty("id").GetString();
+            var archive = Path.Combine(folder, $"{id}.axplugin");
+
+            if (!File.Exists(archive))
+                broken.Add($"{Path.GetFileName(folder)}: нет {id}.axplugin");
+            else if (Differs(archive, Path.Combine(folder, "package")) is { } difference)
+                broken.Add($"{Path.GetFileName(folder)}: {difference}");
+        }
+
+        Assert.True(broken.Count == 0, $"архив не собран или отстал от раскладки — {string.Join("; ", broken)}");
     }
 
     /// <summary>
@@ -390,6 +443,43 @@ public class PluginPackagingTests
     }
 
     private static string Package() => Path.Combine(Sample(), "package");
+
+    /// <summary>Чем архив расходится с раскладкой; пусто — ничем.</summary>
+    /// <remarks>
+    /// Пути сравниваются прямой чертой: в архиве она такая всегда, а на диске —
+    /// какая у системы.
+    /// </remarks>
+    private static string? Differs(string archive, string package)
+    {
+        using var zip = ZipFile.OpenRead(archive);
+
+        var packed = zip.Entries
+            .Where(entry => !entry.FullName.EndsWith('/'))
+            .ToDictionary(entry => entry.FullName.Replace('\\', '/'), StringComparer.Ordinal);
+
+        var laid = Directory
+            .GetFiles(package, "*", SearchOption.AllDirectories)
+            .ToDictionary(path => Path.GetRelativePath(package, path).Replace('\\', '/'), StringComparer.Ordinal);
+
+        if (laid.Keys.Except(packed.Keys).FirstOrDefault() is { } missing)
+            return $"в архиве нет {missing}";
+
+        if (packed.Keys.Except(laid.Keys).FirstOrDefault() is { } extra)
+            return $"в архиве лишний {extra}";
+
+        foreach (var (path, entry) in packed)
+        {
+            using var stream = entry.Open();
+            using var copy = new MemoryStream();
+
+            stream.CopyTo(copy);
+
+            if (!copy.ToArray().AsSpan().SequenceEqual(File.ReadAllBytes(laid[path])))
+                return $"{path} в архиве не тот, что в раскладке";
+        }
+
+        return null;
+    }
 
     /// <summary>Раскладка названного плагина репозитория.</summary>
     private static string Package(string plugin) =>

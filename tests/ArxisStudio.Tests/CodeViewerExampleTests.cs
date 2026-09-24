@@ -346,9 +346,14 @@ public class CodeViewerExampleTests : IDisposable
     }
 
     /// <summary>Поднимает студию с одним установленным плагином — просмотрщиком.</summary>
+    /// <remarks>
+    /// Плагин ставится из архива, тем же каталогом, каким его ставит менеджер
+    /// плагинов: так проверяется то, что получит человек, а не раскладка,
+    /// которую он в руки не берёт.
+    /// </remarks>
     private StudioPlugins Start()
     {
-        Assert.Null(new PluginCatalog(_root).InstallFromDirectory(Package()).Error);
+        Assert.Null(new PluginCatalog(_root).InstallFromArchive(Archive()).Error);
 
         var plugins = new StudioPlugins(_log, _guard, _tasks, _contributions)
         {
@@ -452,6 +457,17 @@ public class CodeViewerExampleTests : IDisposable
         }
 
         throw new InvalidOperationException("Не найдена раскладка src/Plugins/Arxis.CodeViewer/package");
+    }
+
+    /// <summary>Архив просмотрщика — настоящий <c>.axplugin</c>, собранный сборкой решения.</summary>
+    /// <remarks>Лежит рядом с раскладкой: оба оставляет таргет упаковки.</remarks>
+    private static string Archive()
+    {
+        var archive = Path.Combine(Path.GetDirectoryName(Package())!, $"{Id}.axplugin");
+
+        Assert.True(File.Exists(archive), $"сборка не оставила архива {Id}.axplugin");
+
+        return archive;
     }
 
     /// <summary>Что студия сказала человеку, по порядку.</summary>

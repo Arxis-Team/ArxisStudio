@@ -9,6 +9,12 @@
         <RootNamespace>Arxis.CodeViewer</RootNamespace>
         <AssemblyName>Arxis.CodeViewer</AssemblyName>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+        <!--
+            Готовый .axplugin, как у остальных плагинов репозитория: его ставят
+            менеджером плагинов, а не одной отладочной выкладкой.
+        -->
+        <AxPluginPack>true</AxPluginPack>
     </PropertyGroup>
 
     <ItemGroup>
