@@ -44,16 +44,16 @@ internal static class HistoryUndo
     public static FileWorkResult Undo(long id, SolutionSnapshot snapshot, LocalHistoryStore store, HistoryWords words)
     {
         if (store.Find(id) is not { } action)
-            return Refused(ProjectsDiagnosticCodes.HistoryUnavailable, words.Unknown);
+            return Refusals.Work(ProjectsDiagnosticCodes.HistoryUnavailable, words.Unknown);
 
         if (action.IsLabel)
-            return Refused(ProjectsDiagnosticCodes.HistoryUnavailable, words.Label);
+            return Refusals.Work(ProjectsDiagnosticCodes.HistoryUnavailable, words.Label);
 
         if (store.Undone().Contains(action.Id))
-            return Refused(ProjectsDiagnosticCodes.ChangedSince, words.Undone(action.Label));
+            return Refusals.Work(ProjectsDiagnosticCodes.ChangedSince, words.Undone(action.Label));
 
         if (Outside(action, snapshot) is { } outside)
-            return Refused(ProjectsDiagnosticCodes.OutsideProjects, words.Outside(outside), outside);
+            return Refusals.Work(ProjectsDiagnosticCodes.OutsideProjects, words.Outside(outside), outside);
 
         var warnings = new List<ProjectDiagnostic>();
         var (steps, refusal) = Plan(action, snapshot, store, words, warnings);
@@ -66,7 +66,7 @@ internal static class HistoryUndo
             // Пропущено всё: или вернуть нечем — тогда причины и есть отказ, — или отменять нечего.
             return warnings.Count > 0
                 ? new FileWorkResult(ProjectOperationResult.Failed(warnings.Select(warning => warning with { Severity = ProjectDiagnosticSeverity.Error })), null)
-                : Refused(ProjectsDiagnosticCodes.ChangedSince, words.Nothing(action.Label));
+                : Refusals.Work(ProjectsDiagnosticCodes.ChangedSince, words.Nothing(action.Label));
         }
 
         var done = new List<Step>();
@@ -89,7 +89,7 @@ internal static class HistoryUndo
                 FileWorker.Quietly(() => step.Back(store));
             }
 
-            return Refused(ProjectsDiagnosticCodes.FileOperationFailed, words.Failed(e.Message));
+            return Refusals.Work(ProjectsDiagnosticCodes.FileOperationFailed, words.Failed(e.Message));
         }
 
         foreach (var step in done)
@@ -98,7 +98,7 @@ internal static class HistoryUndo
         var changes = done.SelectMany(step => step.Changes).ToList();
 
         if (changes.Count == 0)
-            return Refused(ProjectsDiagnosticCodes.ChangedSince, words.Nothing(action.Label));
+            return Refusals.Work(ProjectsDiagnosticCodes.ChangedSince, words.Nothing(action.Label));
 
         store.Record(words.Undo(action.Label), HistoryOrigin.Studio, changes, undoes: action.Id);
         store.Flush();
@@ -132,23 +132,23 @@ internal static class HistoryUndo
         var file = path.Value;
 
         if (!HistoryFilter.IsTracked(snapshot, path))
-            return Refused(ProjectsDiagnosticCodes.OutsideProjects, words.Outside(file), file);
+            return Refusals.Work(ProjectsDiagnosticCodes.OutsideProjects, words.Outside(file), file);
 
         if (Directory.Exists(file))
-            return Refused(ProjectsDiagnosticCodes.ChangedSince, words.Folder(file), file);
+            return Refusals.Work(ProjectsDiagnosticCodes.ChangedSince, words.Folder(file), file);
 
         if (!store.Has(content))
-            return Refused(ProjectsDiagnosticCodes.NotStored, words.Corrupted(file), file);
+            return Refusals.Work(ProjectsDiagnosticCodes.NotStored, words.Corrupted(file), file);
 
         HistoryFileState? current = null;
 
         if (File.Exists(file))
         {
             if (store.Capture(file) is not { } state)
-                return Refused(ProjectsDiagnosticCodes.FileOperationFailed, words.Busy(file), file);
+                return Refusals.Work(ProjectsDiagnosticCodes.FileOperationFailed, words.Busy(file), file);
 
             if (state.TooLarge)
-                return Refused(ProjectsDiagnosticCodes.NotStored, words.CurrentTooLarge(file), file);
+                return Refusals.Work(ProjectsDiagnosticCodes.NotStored, words.CurrentTooLarge(file), file);
 
             // Файл уже такой: переписывать и записывать нечего.
             if (state.Content == content)
@@ -169,7 +169,7 @@ internal static class HistoryUndo
         {
             FileWorker.Quietly(() => step.Back(store));
 
-            return Refused(ProjectsDiagnosticCodes.FileOperationFailed, words.Failed(e.Message), file);
+            return Refusals.Work(ProjectsDiagnosticCodes.FileOperationFailed, words.Failed(e.Message), file);
         }
 
         step.Settle(store);
@@ -428,7 +428,7 @@ internal static class HistoryUndo
         return (steps, null);
 
         (List<Step>, ProjectDiagnostic?) Refuse(string code, string message, string at) =>
-            ([], Diagnostic(code, message, ProjectDiagnosticSeverity.Error, at));
+            ([], Refusals.Diagnostic(code, message, at));
     }
 
     /// <summary>Каков файл сейчас — снятый заново: его содержимое заодно ложится в хранилище, и откату есть что вернуть.</summary>
@@ -454,7 +454,7 @@ internal static class HistoryUndo
     /// <summary>Пишет файл через временный рядом: оборванная запись не оставит полфайла.</summary>
     private static void Write(string path, byte[] bytes, bool overwrite)
     {
-        var temporary = $"{path}.arxis-{Guid.NewGuid():N}.tmp";
+        var temporary = FileWorker.Temporary(path);
 
         try
         {
@@ -499,17 +499,8 @@ internal static class HistoryUndo
         }
     }
 
-    private static ProjectDiagnostic Diagnostic(string code, string message, ProjectDiagnosticSeverity severity, string? path) =>
-        new(code, message, severity)
-        {
-            FilePath = CanonicalPath.TryCreate(path, out var canonical) ? canonical : CanonicalPath.None,
-        };
-
     private static ProjectDiagnostic Warning(string message, string path) =>
-        Diagnostic(ProjectsDiagnosticCodes.NotStored, message, ProjectDiagnosticSeverity.Warning, path);
-
-    private static FileWorkResult Refused(string code, string message, string? path = null) =>
-        new(ProjectOperationResult.Failed(Diagnostic(code, message, ProjectDiagnosticSeverity.Error, path)), null);
+        Refusals.Diagnostic(ProjectsDiagnosticCodes.NotStored, message, path, ProjectDiagnosticSeverity.Warning);
 
     /// <summary>Шаг отмены: сделать, откатить сделанное, запомнить, каким стал диск.</summary>
     private abstract class Step
@@ -608,11 +599,7 @@ internal static class HistoryUndo
                 ? store.KnownUnder(from).ToList()
                 : store.Known(from) is { } file ? [new KeyValuePair<string, HistoryFileState>(from, file)] : [];
 
-            foreach (var (path, state) in known)
-            {
-                store.Forget(path);
-                store.Learn(to + path[from.Length..], state);
-            }
+            FileWorker.Rekey(store, known.Select(pair => (pair.Key, pair.Value)), path => PathChange.Moved(path, from, to));
         }
     }
 

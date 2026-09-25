@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Globalization;
 using ArxisStudio.Modules.Project.Browse;
 using ArxisStudio.Modules.Project.Model;
 using ArxisStudio.Modules.Project.Tree;
@@ -161,8 +160,8 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
 
     /// <summary>Сколько нашлось — заголовок колонки во время поиска.</summary>
     public string? Results => !Browser.IsSearching ? null
-        : Browser.Found > Browser.Cap ? Format("project.browser.capped", Browser.Cap, Browser.Found)
-        : Format("project.browser.results", Browser.Found);
+        : Browser.Found > Browser.Cap ? _context.Strings.Format("project.browser.capped", Browser.Cap, Browser.Found)
+        : _context.Strings.Format("project.browser.results", Browser.Found);
 
     /// <summary>Контейнер пуст.</summary>
     public bool BrowserEmpty => !Browser.IsSearching && Browser.Current is not null && Browser.Items.Count == 0;
@@ -188,7 +187,7 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
     }
 
     /// <summary>Строка под колонкой: путь выбранного, а без выбора — сколько в колонке предметов.</summary>
-    public string? Status => _picked is { } tile ? tile.Hint : Format("project.browser.items", Browser.Items.Count);
+    public string? Status => _picked is { } tile ? tile.Hint : _context.Strings.Format("project.browser.items", Browser.Items.Count);
 
     /// <summary>Последняя постройка дерева — тесты ждут её, а не времени.</summary>
     internal Task Settled { get; private set; } = Task.CompletedTask;
@@ -417,7 +416,7 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
 
         IsLoading = status.IsLoading && snapshot is not null;
         IsStale = status.State == ProjectsState.Failed && snapshot is not null && !ReferenceEquals(_load, _dismissed);
-        Opening = status.EntryPoint.IsEmpty ? null : Format("project.state.opening", status.EntryPoint.FileName);
+        Opening = status.EntryPoint.IsEmpty ? null : _context.Strings.Format("project.state.opening", status.EntryPoint.FileName);
         Failure = failed?.Diagnostics.FirstOrDefault(diagnostic => diagnostic.IsError)?.Message
                   ?? status.LastLoad?.Result.Diagnostics.FirstOrDefault()?.Message;
 
@@ -543,9 +542,6 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
         Raise(nameof(BrowserNothingFound));
         Raise(nameof(Status));
     }
-
-    private string Format(string key, params object[] values) =>
-        string.Format(CultureInfo.CurrentCulture, _context.Strings[key], values);
 
     private void Raise(string? property) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
 }

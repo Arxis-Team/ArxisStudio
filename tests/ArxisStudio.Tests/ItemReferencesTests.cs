@@ -132,6 +132,29 @@ public class ItemReferencesTests
         Assert.Equal("Docs/readme.md;Docs/todo.md", document.Descendants("None").Single().Attribute("Include")?.Value);
     }
 
+    /// <summary>
+    /// Папка с тем же началом имени — соседка, а не вложенная: переименование <c>Assets</c> не
+    /// трогает <c>AssetsOld</c>.
+    /// </summary>
+    [Fact]
+    public void A_sibling_folder_sharing_the_start_of_the_name_is_not_inside()
+    {
+        var document = Parse("""
+            <Project Sdk="Microsoft.NET.Sdk">
+              <ItemGroup>
+                <None Update="Assets\logo.ico" Pack="true" />
+                <None Update="AssetsOld\logo.ico" Pack="true" />
+              </ItemGroup>
+            </Project>
+            """);
+
+        Assert.True(Rewrite(document, Moved("Assets", "Images", folder: true)));
+
+        Assert.Equal(
+            ["Images\\logo.ico", "AssetsOld\\logo.ico"],
+            document.Descendants("None").Select(item => item.Attribute("Update")?.Value));
+    }
+
     private static bool Rewrite(XDocument document, params PathChange[] changes) =>
         ItemReferences.Rewrite(document, Project, changes);
 

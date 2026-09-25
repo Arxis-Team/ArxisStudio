@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
 
@@ -20,12 +21,17 @@ namespace ArxisStudio.Modules.Projects.Delivery;
 /// </remarks>
 /// <param name="sender">Кто отправитель событий — сама служба.</param>
 /// <param name="thread">Поток интерфейса.</param>
-/// <param name="failed">Куда девать исключение подписчика.</param>
+/// <param name="failed">
+/// Куда девать исключение подписчика; null — бросить заново в потоке, как у перемен модели: в
+/// продукте он уходит студии необработанным, и она приписывает его тому, чей код бросил.
+/// </param>
 internal sealed class OperationPublisher(
     object sender,
     IProjectsThread thread,
-    Action<Exception> failed)
+    Action<Exception>? failed)
 {
+    private readonly Action<Exception> _failed = failed ?? (error => thread.Post(ExceptionDispatchInfo.Capture(error).Throw));
+
     private readonly Subscribers<ProjectOperationEventArgs> _started = new();
     private readonly Subscribers<ProjectOperationEventArgs> _completed = new();
 
@@ -51,7 +57,7 @@ internal sealed class OperationPublisher(
     {
         var change = new ProjectOperationEventArgs(operation);
 
-        thread.Post(() => _started.Invoke(sender, change, failed));
+        thread.Post(() => _started.Invoke(sender, change, _failed));
     }
 
     /// <summary>Говорит, что операция кончилась.</summary>
@@ -62,6 +68,6 @@ internal sealed class OperationPublisher(
     {
         var change = new ProjectOperationEventArgs(operation, result, isCancelled);
 
-        thread.Post(() => _completed.Invoke(sender, change, failed));
+        thread.Post(() => _completed.Invoke(sender, change, _failed));
     }
 }

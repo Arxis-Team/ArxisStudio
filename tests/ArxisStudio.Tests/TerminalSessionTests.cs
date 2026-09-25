@@ -746,6 +746,35 @@ public class TerminalSessionTests
         Assert.True(SpinWait.SpinUntil(() => pty.Disposed, TerminalSession.TailGrace + Timeout), "псевдотерминал не отпущен");
     }
 
+    /// <summary>
+    /// О фокусе экрана программа слышит, только если просила: без просьбы — ни байта.
+    /// </summary>
+    /// <remarks>
+    /// Просьба — <c>CSI ? 1004 h</c>, ответ — <c>CSI I</c> на получение фокуса и <c>CSI O</c> на
+    /// потерю, как у xterm: так vim и tmux узнают, что к ним вернулись.
+    /// </remarks>
+    [Fact]
+    public void Focus_is_reported_only_to_a_program_that_asked()
+    {
+        using var pty = new FakePty();
+        using var session = Start(pty);
+        using var changed = new ManualResetEventSlim();
+
+        session.ReportFocus(true);
+        Assert.Equal(string.Empty, pty.WaitForWritten(text => text.Length > 0, TimeSpan.FromMilliseconds(300)));
+
+        session.Changed += (_, _) => changed.Set();
+        pty.Emit(Esc + "[?1004h");
+        Assert.True(changed.Wait(Timeout, TestContext.Current.CancellationToken));
+
+        session.ReportFocus(true);
+        Assert.Equal(Esc + "[I", pty.WaitForWritten(text => text.Length >= 3, Timeout));
+
+        pty.ClearWritten();
+        session.ReportFocus(false);
+        Assert.Equal(Esc + "[O", pty.WaitForWritten(text => text.Length >= 3, Timeout));
+    }
+
     /// <summary>После закрытия сеанс молчит: ни в трубу, ни на экран.</summary>
     [Fact]
     public void A_disposed_session_sends_nothing()

@@ -6,7 +6,47 @@ namespace ArxisStudio.Modules.Projects.Files;
 /// <param name="From">Полный путь до правки.</param>
 /// <param name="To">Полный путь после; null — путь удалён.</param>
 /// <param name="IsDirectory">Путь — папка: правка касается и всего, что под ней.</param>
-internal sealed record PathChange(string From, string? To, bool IsDirectory);
+/// <remarks>
+/// Сопоставление путей с правками стояло четырьмя копиями — у ссылок файла проекта дважды, у правки
+/// файлов и у отмены, — и одна из них сравнивала пути строго, а другая прощала хвостовой разделитель.
+/// </remarks>
+internal sealed record PathChange(string From, string? To, bool IsDirectory)
+{
+    /// <summary>Куда путь ушёл после правок: нашёлся ли он среди них и куда — null, если удалён.</summary>
+    /// <param name="path">Полный путь до правок.</param>
+    /// <param name="changes">Правки в порядке их применения; первая подошедшая решает.</param>
+    public static (bool Found, string? To) Map(string path, IEnumerable<PathChange> changes)
+    {
+        foreach (var change in changes)
+        {
+            if (Same(path, change.From))
+                return (true, change.To);
+
+            if (change.IsDirectory && Inside(path, change.From))
+                return (true, change.To is { } to ? Moved(path, change.From, to) : null);
+        }
+
+        return (false, null);
+    }
+
+    /// <summary>Путь в папке, переехавшей целиком: хвост под папкой прежний, голова — новая.</summary>
+    /// <param name="path">Путь под прежним местом папки.</param>
+    /// <param name="from">Где папка была.</param>
+    /// <param name="to">Куда уехала.</param>
+    public static string Moved(string path, string from, string to) => to + path[from.Length..];
+
+    /// <summary>Один ли это путь — без оглядки на регистр и хвостовой разделитель.</summary>
+    /// <param name="left">Один путь.</param>
+    /// <param name="right">Другой.</param>
+    public static bool Same(string left, string right) =>
+        string.Equals(left.TrimEnd(Path.DirectorySeparatorChar), right.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Лежит ли путь внутри папки — не на ней самой.</summary>
+    /// <param name="path">Путь.</param>
+    /// <param name="folder">Папка.</param>
+    public static bool Inside(string path, string folder) =>
+        path.StartsWith(folder.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+}
 
 /// <summary>
 /// Переписывает в документе файла проекта ссылки, которые называют переехавшие и удалённые пути.
@@ -158,8 +198,8 @@ internal static class ItemReferences
 
             foreach (var change in changes)
             {
-                if (change is { IsDirectory: true, To: { } to } && (Same(folder, change.From) || Inside(folder, change.From)))
-                    return Relative(directory, to + folder[change.From.Length..], separator) + entry[cut..];
+                if (change is { IsDirectory: true, To: { } to } && (PathChange.Same(folder, change.From) || PathChange.Inside(folder, change.From)))
+                    return Relative(directory, PathChange.Moved(folder, change.From, to), separator) + entry[cut..];
             }
 
             return entry;
@@ -168,7 +208,7 @@ internal static class ItemReferences
         if (Full(directory, entry) is not { } path)
             return entry;
 
-        return Map(path, changes) switch
+        return PathChange.Map(path, changes) switch
         {
             { Found: false } => entry,
             { To: null } => null,
@@ -204,11 +244,11 @@ internal static class ItemReferences
             if (value.Length == 0 || Unresolved(value) || Full(oldFolder, value) is not { } owner)
                 continue;
 
-            var mapped = Map(owner, changes);
+            var mapped = PathChange.Map(owner, changes);
 
             // Не переехали ни владелец, ни сам элемент — запись не трогается, как бы она ни была
             // написана: правка не вправе переписывать то, чего не касалась.
-            if (!mapped.Found && Same(before, after))
+            if (!mapped.Found && PathChange.Same(before, after))
                 continue;
 
             // Владелец удалён — зависимость остаётся как есть: она ни на что не укажет, но и не соврёт.
@@ -258,21 +298,6 @@ internal static class ItemReferences
         return null;
     }
 
-    /// <summary>Куда путь ушёл после правок: нашёлся ли он среди них и куда — null, если удалён.</summary>
-    private static (bool Found, string? To) Map(string path, IReadOnlyList<PathChange> changes)
-    {
-        foreach (var change in changes)
-        {
-            if (Same(path, change.From))
-                return (true, change.To);
-
-            if (change.IsDirectory && Inside(path, change.From))
-                return (true, change.To is { } to ? to + path[change.From.Length..] : null);
-        }
-
-        return (false, null);
-    }
-
     /// <summary>Убирает элемент вместе с отступом перед ним: иначе на его месте осталась бы пустая строка.</summary>
     private static void Remove(XElement item)
     {
@@ -303,16 +328,6 @@ internal static class ItemReferences
         Path.GetRelativePath(directory, path)
             .Replace(Path.DirectorySeparatorChar, separator)
             .Replace(Path.AltDirectorySeparatorChar, separator);
-
-    private static bool Same(string left, string right) =>
-        string.Equals(left.TrimEnd(Path.DirectorySeparatorChar), right.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
-
-    private static bool Inside(string path, string folder)
-    {
-        var prefix = folder.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-
-        return path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
-    }
 
     /// <summary>Место, где записан <c>DependentUpon</c>.</summary>
     private sealed class Holder(Func<string> read, Action<string> write)

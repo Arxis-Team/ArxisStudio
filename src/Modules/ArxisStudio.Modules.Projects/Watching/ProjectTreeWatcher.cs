@@ -24,9 +24,6 @@ namespace ArxisStudio.Modules.Projects.Watching;
 /// </remarks>
 internal sealed class ProjectTreeWatcher : IDisposable
 {
-    /// <summary>Столько же, сколько у наблюдателя входов библиотеки: запас дешевле перезагрузки.</summary>
-    private const int BufferSize = 64 * 1024;
-
     private readonly Action<CanonicalPath> _changed;
     private readonly Action<CanonicalPath> _overflowed;
     private readonly Lock _gate = new();
@@ -85,42 +82,24 @@ internal sealed class ProjectTreeWatcher : IDisposable
 
     private void Start(CanonicalPath root)
     {
-        FileSystemWatcher? watcher = null;
-
-        try
+        // Папку убрали между снимком и слежением или читать её нельзя. Загрузку это не проваливает:
+        // просили сказать о переменах, а не о том, что диск сдвинулся.
+        var watcher = FolderWatchers.Start(root, deep: true, NotifyFilters.FileName | NotifyFilters.DirectoryName, watcher =>
         {
-            watcher = new FileSystemWatcher(root.Value)
-            {
-                IncludeSubdirectories = true,
-                InternalBufferSize = BufferSize,
-                NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName,
-            };
-
             watcher.Created += OnEvent;
             watcher.Deleted += OnEvent;
             watcher.Renamed += OnRenamed;
             watcher.Error += (_, _) => Overflow(root);
+        });
 
-            watcher.EnableRaisingEvents = true;
-
+        if (watcher is not null)
             _watchers.Add(watcher);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
-        {
-            // Папку убрали между снимком и слежением или читать её нельзя. Загрузку это не
-            // проваливает: просили сказать о переменах, а не о том, что диск сдвинулся. Остальные
-            // папки следятся по-прежнему.
-            watcher?.Dispose();
-        }
     }
 
     private void StopAll()
     {
         foreach (var watcher in _watchers)
-        {
-            watcher.EnableRaisingEvents = false;
-            watcher.Dispose();
-        }
+            FolderWatchers.Stop(watcher);
 
         _watchers.Clear();
     }

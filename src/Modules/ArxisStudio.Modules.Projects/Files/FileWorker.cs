@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using ArxisStudio.LocalHistory;
 using ArxisStudio.Modules.Projects.History;
 using ArxisStudio.Projects;
@@ -200,11 +199,7 @@ internal static class FileWorker
 
         if (store is not null)
         {
-            foreach (var (path, state) in known)
-            {
-                store.Forget(path);
-                store.Learn(Relocated(path, changes), state);
-            }
+            Rekey(store, known, path => Relocated(path, changes));
 
             // Чего история не знала, снимается на новом месте сейчас: иначе пачка наблюдателя, пришедшая
             // следом, записала бы переехавший файл появившимся.
@@ -443,7 +438,7 @@ internal static class FileWorker
             // Уехавшее из проекта в чужой — для этого проекта удалено: оставь ссылку переписанной, и
             // проект взял бы чужой файл к себе.
             var own = changes
-                .Select(change => change.To is { } to && Inside(change.From, directory) && !Inside(to, directory)
+                .Select(change => change.To is { } to && PathChange.Inside(change.From, directory) && !PathChange.Inside(to, directory)
                     ? change with { To = null }
                     : change)
                 .ToList();
@@ -528,23 +523,9 @@ internal static class FileWorker
             : store.Capture(path);
     }
 
-    /// <summary>Куда уехал путь после переносов.</summary>
-    private static string Relocated(string path, IReadOnlyList<PathChange> changes)
-    {
-        foreach (var change in changes)
-        {
-            if (change.To is not { } to)
-                continue;
-
-            if (string.Equals(path, change.From, StringComparison.OrdinalIgnoreCase))
-                return to;
-
-            if (change.IsDirectory && Inside(path, change.From))
-                return to + path[change.From.Length..];
-        }
-
-        return path;
-    }
+    /// <summary>Куда уехал путь после переносов; удаления его не трогают.</summary>
+    private static string Relocated(string path, IReadOnlyList<PathChange> changes) =>
+        PathChange.Map(path, changes.Where(change => change.To is not null)) is (true, { } to) ? to : path;
 
     /// <summary>
     /// Откладывает файлы, которые просят заменить, под временное имя: пока правка не прошла, их можно
@@ -562,7 +543,7 @@ internal static class FileWorker
         {
             foreach (var pair in pairs.Where(pair => pair.Replace && File.Exists(pair.To.Value)))
             {
-                var temporary = $"{pair.To.Value}.arxis-{Guid.NewGuid():N}.tmp";
+                var temporary = Temporary(pair.To.Value);
 
                 File.Move(pair.To.Value, temporary);
                 aside.Add(new Aside(pair.To.Value, temporary));
@@ -700,8 +681,29 @@ internal static class FileWorker
         }
     }
 
-    internal static bool Inside(string path, string folder) =>
-        path.StartsWith(folder.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// Временное имя рядом с файлом: <c>.arxis-…tmp</c>.
+    /// </summary>
+    /// <remarks>
+    /// Окончание — часть правила, а не вкус: файлы <c>.tmp</c> не видят ни слежение за составом, ни
+    /// локальная история, и промежуточная запись не становится ни элементом проекта, ни действием.
+    /// Имя строилось двумя копиями — у правки файлов и у отмены.
+    /// </remarks>
+    /// <param name="path">Файл, рядом с которым нужно временное имя.</param>
+    internal static string Temporary(string path) => $"{path}.arxis-{Guid.NewGuid():N}.tmp";
+
+    /// <summary>Пересаживает известные истории состояния на новые имена: переезд байт не меняет.</summary>
+    /// <param name="store">История.</param>
+    /// <param name="known">Состояния под прежними именами.</param>
+    /// <param name="moved">Новое имя по прежнему.</param>
+    internal static void Rekey(LocalHistoryStore store, IEnumerable<(string Path, HistoryFileState State)> known, Func<string, string> moved)
+    {
+        foreach (var (path, state) in known)
+        {
+            store.Forget(path);
+            store.Learn(moved(path), state);
+        }
+    }
 
     internal static void Quietly(Action action)
     {
@@ -724,6 +726,5 @@ internal static class FileWorker
         new(ProjectOperationResult.Succeeded(), change);
 
     private static FileWorkResult Failed(FileWords words, Exception error) =>
-        new(ProjectOperationResult.Failed(new ProjectDiagnostic(
-            ProjectsDiagnosticCodes.FileOperationFailed, words.Failed(error.Message), ProjectDiagnosticSeverity.Error)), null);
+        Refusals.Work(ProjectsDiagnosticCodes.FileOperationFailed, words.Failed(error.Message));
 }

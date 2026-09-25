@@ -1,4 +1,3 @@
-using System.Globalization;
 using ArxisStudio.Controls;
 using ArxisStudio.Sdk;
 using Avalonia.Controls;
@@ -34,7 +33,7 @@ public partial class UndoDialog : AxDialog
 
         var dialog = new UndoDialog();
 
-        dialog.Question.Text = string.Format(CultureInfo.CurrentCulture, strings["project.undo.question"], label);
+        dialog.Question.Text = strings.Format("project.undo.question", label);
 
         return await dialog.ShowDialog<bool?>(owner) == true;
     }

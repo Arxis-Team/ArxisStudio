@@ -188,7 +188,8 @@ public class TerminalViewTests
     }
 
     /// <summary>
-    /// Программе с мышью сообщается отпускание той кнопки, что была нажата.
+    /// Программе с мышью сообщается отпускание той кнопки, что была нажата; с Shift мышь остаётся у
+    /// человека.
     /// </summary>
     /// <remarks>
     /// В режиме SGR отпускание несёт номер кнопки. Пока здесь всегда стояла левая, tmux и vim
@@ -217,6 +218,18 @@ public class TerminalViewTests
         Assert.Contains("\u001b[<2;3;1M", pty.WrittenText, StringComparison.Ordinal);
         Assert.Contains("\u001b[<2;3;1m", pty.WrittenText, StringComparison.Ordinal);
         Assert.DoesNotContain("\u001b[<0;", pty.WrittenText, StringComparison.Ordinal);
+
+        // С Shift мышь остаётся у человека, как в xterm и Windows Terminal: протяжка выделяет, а
+        // программа о ней не слышит.
+        var start = new Point(TerminalView.Inset + (0.5 * cell.Width), point.Y);
+
+        pty.ClearWritten();
+        window.MouseDown(start, MouseButton.Left, RawInputModifiers.Shift);
+        window.MouseMove(point, RawInputModifiers.Shift);
+        window.MouseUp(point, MouseButton.Left, RawInputModifiers.Shift);
+
+        Assert.True(view.HasSelection, "протяжка с Shift ушла программе, а не выделила");
+        Assert.DoesNotContain("\u001b[<", pty.WrittenText, StringComparison.Ordinal);
     }
 
     /// <summary>Протяжка мышью выделяет текст; щелчок без протяжки — нет; Ctrl+C с выделением не прерывает оболочку.</summary>
@@ -283,6 +296,38 @@ public class TerminalViewTests
 
         Assert.False(view.IsFocused, "Shift+Escape не выпустил клавиатуру");
         Assert.True(neighbour.IsFocused, "фокус ушёл не к соседу");
+
+        session.Dispose();
+    }
+
+    /// <summary>
+    /// Программа, просившая о фокусе, слышит, как экран его получил и потерял.
+    /// </summary>
+    /// <remarks>
+    /// Так vim и tmux узнают, что к ним вернулись. Слышит только просившая: без просьбы фокус не
+    /// стоит оболочке ни байта — это держит <see cref="TerminalSessionTests"/>.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_program_that_asked_hears_the_screen_gain_and_lose_focus()
+    {
+        var pty = new FakePty();
+        var session = new TerminalSession(Probe, pty, TerminalSession.Options(TerminalSettings.Default, 40, 10));
+        var view = new TerminalView();
+        var neighbour = new AxButton { Content = "рядом" };
+        var window = new Window { Width = 800, Height = 600, Content = new StackPanel { Children = { view, neighbour } } };
+
+        window.Show();
+        view.Session = session;
+        Dispatcher.UIThread.RunJobs();
+
+        pty.Emit("\u001b[?1004h");
+        Until(() => session.Terminal.SendFocusEvents);
+
+        view.Focus();
+        Until(() => pty.WrittenText.Contains("\u001b[I", StringComparison.Ordinal));
+
+        neighbour.Focus();
+        Until(() => pty.WrittenText.Contains("\u001b[O", StringComparison.Ordinal));
 
         session.Dispose();
     }

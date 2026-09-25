@@ -1,4 +1,3 @@
-using System.Globalization;
 using ArxisStudio.Controls;
 using ArxisStudio.Sdk;
 using Avalonia.Controls;
@@ -58,11 +57,11 @@ public partial class ConflictDialog : AxDialog
 
         var dialog = new ConflictDialog();
 
-        dialog.Question.Text = string.Format(CultureInfo.CurrentCulture, strings["project.conflict.question"], folder, name);
+        dialog.Question.Text = strings.Format("project.conflict.question", folder, name);
         dialog.Replace.IsEnabled = canReplace;
         dialog.Folders.IsVisible = !canReplace;
         dialog.ForAll.IsVisible = more > 0;
-        dialog.ForAll.Content = string.Format(CultureInfo.CurrentCulture, strings["project.conflict.forAll"], more);
+        dialog.ForAll.Content = strings.Format("project.conflict.forAll", more);
 
         return await dialog.ShowDialog<ConflictAnswer?>(owner) ?? new ConflictAnswer(ConflictChoice.Cancel, false);
     }

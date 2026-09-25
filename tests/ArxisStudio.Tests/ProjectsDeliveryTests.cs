@@ -135,6 +135,27 @@ public class ProjectsDeliveryTests
         Assert.Contains(nameof(Broken), crash.StackTrace, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// У издателя операций без ловца то же умолчание: сбой подписчика бросается заново в потоке, со
+    /// своим стеком.
+    /// </summary>
+    [Fact]
+    public async Task Without_a_catcher_an_operation_subscriber_failure_is_thrown_again_on_the_thread()
+    {
+        using var thread = new ProjectsTestThread();
+
+        var publisher = new OperationPublisher(this, thread, failed: null);
+
+        publisher.SubscribeStarted(BrokenOperation);
+        publisher.Start(new ProjectOperation { Id = 1, Kind = ProjectOperationKind.Build, EntryPoint = ProjectsStudio.Solution() });
+
+        await thread.IdleAsync();
+
+        var crash = Assert.Single(thread.Crashes);
+
+        Assert.Contains(nameof(BrokenOperation), crash.StackTrace, StringComparison.Ordinal);
+    }
+
     /// <summary>Обработчик, прокачавший поток изнутри события, вложенного события не получит.</summary>
     [Fact]
     public async Task A_handler_that_pumps_the_thread_gets_no_nested_event()
@@ -201,6 +222,9 @@ public class ProjectsDeliveryTests
         Assert.Empty(change.Removed);
         Assert.Empty(change.Modified);
     }
+
+    private static void BrokenOperation(object? sender, ProjectOperationEventArgs change) =>
+        throw new InvalidOperationException("подписчик операций сломан");
 
     private static void Broken(object? sender, ProjectsChangedEventArgs change) =>
         throw new InvalidOperationException("обработчик плагина");

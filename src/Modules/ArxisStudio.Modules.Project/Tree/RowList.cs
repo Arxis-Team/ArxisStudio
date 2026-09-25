@@ -24,7 +24,7 @@ namespace ArxisStudio.Modules.Project.Tree;
 /// </remarks>
 internal sealed class RowList
 {
-    private readonly HashSet<string> _expanded = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _expanded = new(Node.KeyComparer);
     private HashSet<string>? _shown;
     private Func<Node, bool>? _scope;
     private string? _query;
@@ -103,7 +103,7 @@ internal sealed class RowList
             return;
         }
 
-        var shown = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var shown = new HashSet<string>(Node.KeyComparer);
         var found = 0;
 
         foreach (var node in _root.Descendants())
@@ -215,16 +215,11 @@ internal sealed class RowList
     /// <summary>Строка узла с таким ключом, если она видна.</summary>
     /// <param name="key">Ключ.</param>
     public Row? Find(string key) =>
-        Rows.FirstOrDefault(row => string.Equals(row.Key, key, StringComparison.OrdinalIgnoreCase));
+        Rows.FirstOrDefault(row => Node.KeyComparer.Equals(row.Key, key));
 
     /// <summary>Строка родителя, если она видна.</summary>
     /// <param name="row">Строка.</param>
     public Row? ParentOf(Row row) => row.Node.Parent is { } parent ? Find(parent.Key) : null;
-
-    /// <summary>Узел с таким ключом во всём дереве, видим он или нет.</summary>
-    /// <param name="key">Ключ.</param>
-    public Node? Locate(string key) =>
-        _root?.Descendants().FirstOrDefault(node => string.Equals(node.Key, key, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Дети узла в том, что сейчас показано.</summary>
     private IEnumerable<Node> Children(Node node)
@@ -270,7 +265,7 @@ internal sealed class RowList
     private void Sync()
     {
         var wanted = Flatten();
-        var existing = new Dictionary<string, Row>(StringComparer.OrdinalIgnoreCase);
+        var existing = new Dictionary<string, Row>(Node.KeyComparer);
 
         foreach (var row in Rows)
             existing.TryAdd(row.Key, row);

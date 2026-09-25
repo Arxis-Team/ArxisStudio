@@ -1,15 +1,12 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Globalization;
-using System.Runtime.ExceptionServices;
 using ArxisStudio.Modules.Projects.Delivery;
 using ArxisStudio.Modules.Projects.Engine;
 using ArxisStudio.Modules.Projects.Files;
 using ArxisStudio.Modules.Projects.History;
-using ArxisStudio.Modules.Projects.Reporting;
 using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
-using ArxisStudio.ProjectSystem.MSBuild;
 using ArxisStudio.ProjectSystem.NuGet;
 using ArxisStudio.Sdk;
 
@@ -47,6 +44,7 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
     private readonly OperationPublisher _operations;
     private readonly Lane _lane;
     private readonly HistoryRecorder _history;
+    private readonly ProjectsJournal _journal;
     private readonly Lock _gate = new();
 
     private ProjectsStatus _status = ProjectsStatus.Closed;
@@ -55,7 +53,6 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
     private long _sequence;
     private bool _stopped;
     private int _watching;
-    private int _announced;
     private long _operationNumber;
     private ProjectOperation? _running;
 
@@ -73,12 +70,8 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
 
         _publisher = new ChangePublisher(this, _thread, options.SubscriberFailed);
 
-        // Сбой подписчика — туда же, куда у перемен модели: в продукте он уходит студии
-        // необработанным, и она приписывает его тому, чей код бросил.
-        _operations = new OperationPublisher(
-            this,
-            _thread,
-            options.SubscriberFailed ?? (error => _thread.Post(ExceptionDispatchInfo.Capture(error).Throw)));
+        _operations = new OperationPublisher(this, _thread, options.SubscriberFailed);
+        _journal = new ProjectsJournal(context.Log);
         _lane = new Lane(error => context.Log.Write(
             StudioLogLevel.Error, ProjectsModule.LogSource, $"Очередь службы проектов: {error}"));
 
@@ -231,7 +224,7 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
             ObjectDisposedException.ThrowIf(_stopped, this);
 
             if (_session is not { } session)
-                return Task.FromResult(NothingOpen());
+                return Task.FromResult(WorkspaceLoadResult.Failure(Refusals.Diagnostic(ProjectsDiagnosticCodes.NothingOpen, NothingOpen)));
 
             item = Enqueue(session, ProjectsLoadReason.Reload, [], pinned: false);
         }
@@ -252,7 +245,7 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
             ObjectDisposedException.ThrowIf(_stopped, this);
 
             if (_session is not { } session)
-                return Task.FromResult(NothingOpen());
+                return Task.FromResult(WorkspaceLoadResult.Failure(Refusals.Diagnostic(ProjectsDiagnosticCodes.NothingOpen, NothingOpen)));
 
             var same = string.Equals(session.Configuration, configuration, StringComparison.Ordinal);
 
@@ -366,11 +359,11 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
             ObjectDisposedException.ThrowIf(_stopped, this);
 
             if (_session is not { } session)
-                return Task.FromResult(Refused(ProjectsDiagnosticCodes.NothingOpen, _context.Strings["module.projects.nothingOpen"]));
+                return Task.FromResult(Refusals.Of(ProjectsDiagnosticCodes.NothingOpen, NothingOpen));
 
             if (Stranger(session, projects) is { } stranger)
             {
-                return Task.FromResult(Refused(
+                return Task.FromResult(Refusals.Of(
                     ProjectsDiagnosticCodes.ProjectNotOpen,
                     string.Format(CultureInfo.CurrentCulture, _context.Strings["module.projects.projectNotOpen"], stranger)));
             }
@@ -410,8 +403,7 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
     {
         var result = await ReloadAsync();
 
-        if (result.Diagnostics.Any(diagnostic => diagnostic.Code == ProjectsDiagnosticCodes.NothingOpen))
-            _context.GetService<IStudioStatus>()?.Show(_context.Strings["module.projects.nothingOpen"]);
+        SayIfNothingOpen(result.Diagnostics);
     });
 
     /// <summary>Команда «закрыть».</summary>
@@ -423,9 +415,19 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
     {
         var result = await RunAsync(kind);
 
-        if (result.Diagnostics.Any(diagnostic => diagnostic.Code == ProjectsDiagnosticCodes.NothingOpen))
-            _context.GetService<IStudioStatus>()?.Show(_context.Strings["module.projects.nothingOpen"]);
+        SayIfNothingOpen(result.Diagnostics);
     });
+
+    /// <summary>Команде, которой нечего делать, отвечают словом в строке состояния: итога не ждёт никто.</summary>
+    /// <param name="diagnostics">Что ответила служба.</param>
+    private void SayIfNothingOpen(IEnumerable<ProjectDiagnostic> diagnostics)
+    {
+        if (diagnostics.Any(diagnostic => diagnostic.Code == ProjectsDiagnosticCodes.NothingOpen))
+            _context.GetService<IStudioStatus>()?.Show(NothingOpen);
+    }
+
+    /// <summary>«Ничего не открыто» — словами человека.</summary>
+    private string NothingOpen => _context.Strings["module.projects.nothingOpen"];
 
     private static async Task CommandAsync(Func<Task> command)
     {
@@ -594,7 +596,7 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
 
         if (result is not null)
         {
-            Announce(reason, request, causes, result, clock.Elapsed);
+            _journal.Loaded(reason, request, causes, result, clock.Elapsed);
             Watch(session);
             item.Complete(result);
             RestoreOnOpen(session, result);
@@ -702,7 +704,7 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
 
         Volatile.Write(ref _running, null);
 
-        Announce(item, result, error, clock.Elapsed);
+        _journal.Finished(item, result, error, clock.Elapsed);
         _operations.Complete(operation, result, isCancelled: result is null && error is null);
 
         if (result is not null)
@@ -878,11 +880,11 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
             ObjectDisposedException.ThrowIf(_stopped, this);
 
             if (_session is not { } session)
-                return Task.FromResult(Refused(ProjectsDiagnosticCodes.NothingOpen, _context.Strings["module.projects.nothingOpen"]));
+                return Task.FromResult(Refusals.Of(ProjectsDiagnosticCodes.NothingOpen, NothingOpen));
 
             if (Where(session, project) is not { } snapshot)
             {
-                return Task.FromResult(Refused(
+                return Task.FromResult(Refusals.Of(
                     ProjectsDiagnosticCodes.ProjectNotOpen,
                     string.Format(CultureInfo.CurrentCulture, _context.Strings["module.projects.projectNotOpen"], project)));
             }
@@ -894,7 +896,7 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
             // за человека — не его дело.
             if (declared is { Origin: ProjectItemOrigin.Imported })
             {
-                return Task.FromResult(Refused(
+                return Task.FromResult(Refusals.Of(
                     ProjectsDiagnosticCodes.ReferenceNotInProjectFile,
                     string.Format(CultureInfo.CurrentCulture, _context.Strings["module.projects.packageNotInProject"], packageId)));
             }
@@ -943,12 +945,6 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
 
         return null;
     }
-
-    /// <summary>Отказ операции: провал с кодом службы, а не исключение.</summary>
-    /// <param name="code">Код.</param>
-    /// <param name="message">Что сказать человеку.</param>
-    private static ProjectOperationResult Refused(string code, string message) =>
-        ProjectOperationResult.Failed(new ProjectDiagnostic(code, message, ProjectDiagnosticSeverity.Error));
 
     /// <summary>Сбой чужого приёмника хода — в журнал: операцию он не роняет.</summary>
     /// <param name="error">Сбой.</param>
@@ -1056,9 +1052,9 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
     /// </summary>
     private void Republish(SnapshotStep step)
     {
-        var next = Derive(_session);
+        var next = SessionStatus.Of(_session);
 
-        if (step.IsEmpty && Same(_status, next))
+        if (step.IsEmpty && SessionStatus.Same(_status, next))
             return;
 
         next = next with { Sequence = ++_sequence };
@@ -1067,88 +1063,10 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
         _publisher.Publish(next, step);
     }
 
-    private static ProjectsStatus Derive(ProjectsSession? session) => session is null
-        ? ProjectsStatus.Closed
-        : new ProjectsStatus
-        {
-            Session = session.Number,
-            State = session.Snapshot is not null ? ProjectsState.Ready
-                : session.LastLoad is not null ? ProjectsState.Failed
-                : ProjectsState.Opening,
-            EntryPoint = session.EntryPoint,
-            Configuration = session.Configuration,
-            Snapshot = session.Snapshot,
-            LastLoad = session.LastLoad,
-            IsLoading = session.Pending is not null || session.Running is not null,
-        };
-
-    private static bool Same(ProjectsStatus a, ProjectsStatus b) =>
-        a.Session == b.Session
-        && a.State == b.State
-        && a.EntryPoint == b.EntryPoint
-        && string.Equals(a.Configuration, b.Configuration, StringComparison.Ordinal)
-        && ReferenceEquals(a.Snapshot, b.Snapshot)
-        && ReferenceEquals(a.LastLoad, b.LastLoad)
-        && a.IsLoading == b.IsLoading;
-
-    private WorkspaceLoadResult NothingOpen() => WorkspaceLoadResult.Failure(new ProjectDiagnostic(
-        ProjectsDiagnosticCodes.NothingOpen,
-        _context.Strings["module.projects.nothingOpen"],
-        ProjectDiagnosticSeverity.Error));
-
     private string Title(ProjectsLoadReason reason, CanonicalPath entryPoint) => string.Format(
         CultureInfo.CurrentCulture,
         _context.Strings[reason == ProjectsLoadReason.Open ? "module.projects.task.open" : "module.projects.task.reload"],
         entryPoint.FileName);
-
-    /// <summary>Итог загрузки — в журнал, одной строкой, с причиной и временем.</summary>
-    private void Announce(
-        ProjectsLoadReason reason,
-        WorkspaceLoadRequest request,
-        ImmutableArray<CanonicalPath> causes,
-        WorkspaceLoadResult result,
-        TimeSpan elapsed)
-    {
-        // Какой MSBuild нашёлся — один раз за службу: регистрация одна на процесс, и первая
-        // загрузка — первое место, где об этом можно сказать правду.
-        if (MSBuildEnvironment.Current is { } registration && Interlocked.Exchange(ref _announced, 1) == 0)
-            _context.Log.Write(StudioLogLevel.Info, ProjectsModule.LogSource, $"MSBuild: {registration}");
-
-        var why = reason switch
-        {
-            ProjectsLoadReason.Open => "открыто",
-            ProjectsLoadReason.Reload => "перезагружено",
-            ProjectsLoadReason.Configuration => $"перезагружено под конфигурацию {request.Configuration ?? "проекта"}",
-            _ => $"перезагружено, изменилось: {Causes(causes)}",
-        };
-
-        ProjectDiagnostic? failure = null;
-
-        if (result.Snapshot is { } snapshot)
-        {
-            var errors = result.Diagnostics.Count(diagnostic => diagnostic.IsError);
-
-            _context.Log.Write(
-                errors > 0 ? StudioLogLevel.Warning : StudioLogLevel.Info,
-                ProjectsModule.LogSource,
-                $"{snapshot.Name}: {why} — проектов {snapshot.Projects.Length}, ошибок {errors}, {elapsed.TotalMilliseconds:F0} мс");
-        }
-        else
-        {
-            failure = result.Diagnostics.FirstOrDefault(diagnostic => diagnostic.IsError);
-
-            _context.Log.Write(
-                StudioLogLevel.Error,
-                ProjectsModule.LogSource,
-                $"{request.EntryPointPath.FileName}: не {(reason == ProjectsLoadReason.Open ? "открылось" : "перезагрузилось")} — {failure?.Code} {failure?.Message}");
-        }
-
-        // Сами находки — следом за итогом: он говорит, что вышло, они — что сказано. Ту, которой
-        // провал уже назвался, повторять сразу под собой незачем.
-        FindingsLog.Write(
-            _context.Log,
-            failure is null ? result.Diagnostics : result.Diagnostics.Where(diagnostic => diagnostic != failure));
-    }
 
     /// <summary>Имя задачи студии: у правки пакетов оно называет пакет, а не решение.</summary>
     /// <param name="item">Операция.</param>
@@ -1170,57 +1088,4 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
             }],
             item.Operation.EntryPoint.FileName);
 
-    /// <summary>Итог операции — в журнал, одной строкой.</summary>
-    /// <param name="item">Операция.</param>
-    /// <param name="result">Итог; null — отменена или сорвалась.</param>
-    /// <param name="error">Сбой самой службы; null — его не было.</param>
-    /// <param name="elapsed">Сколько заняла.</param>
-    private void Announce(OperationItem item, ProjectOperationResult? result, Exception? error, TimeSpan elapsed)
-    {
-        var operation = item.Operation;
-        var what = item.Edit is { } edit ? $"{Name(edit.Kind)} {edit.PackageId}" : Name(operation.Kind);
-        var file = operation.EntryPoint.FileName;
-
-        if (result is null)
-        {
-            _context.Log.Write(
-                error is null ? StudioLogLevel.Info : StudioLogLevel.Error,
-                ProjectsModule.LogSource,
-                error is null ? $"{file}: {what} — отменено" : $"{file}: {what} — сорвалось: {error.Message}");
-
-            return;
-        }
-
-        var errors = result.Diagnostics.Count(diagnostic => diagnostic.IsError);
-
-        _context.Log.Write(
-            result.HasErrors ? StudioLogLevel.Error : StudioLogLevel.Info,
-            ProjectsModule.LogSource,
-            $"{file}: {what} — {(result.HasErrors ? "не удалось" : "готово")}, ошибок {errors}, {elapsed.TotalMilliseconds:F0} мс");
-
-        FindingsLog.Write(_context.Log, result.Diagnostics);
-    }
-
-    /// <summary>Как операция называется в журнале.</summary>
-    /// <param name="kind">Что делали.</param>
-    private static string Name(ProjectOperationKind kind) => kind switch
-    {
-        ProjectOperationKind.Restore => "восстановление",
-        ProjectOperationKind.Build => "сборка",
-        ProjectOperationKind.Rebuild => "пересборка",
-        _ => "очистка",
-    };
-
-    /// <summary>Как правка пакетов называется в журнале.</summary>
-    /// <param name="kind">Что делали.</param>
-    private static string Name(PackageEditKind kind) => kind switch
-    {
-        PackageEditKind.Install => "установка",
-        PackageEditKind.Update => "обновление",
-        _ => "удаление",
-    };
-
-    private static string Causes(ImmutableArray<CanonicalPath> causes) => causes.Length <= 3
-        ? string.Join(", ", causes.Select(cause => cause.FileName))
-        : $"{string.Join(", ", causes.Take(3).Select(cause => cause.FileName))} и ещё {causes.Length - 3}";
 }

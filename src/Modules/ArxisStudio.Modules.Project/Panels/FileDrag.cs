@@ -1,4 +1,3 @@
-using System.Globalization;
 using ArxisStudio.Controls;
 using ArxisStudio.Modules.Project.Browse;
 using ArxisStudio.Modules.Project.Model;
@@ -263,7 +262,7 @@ internal sealed class FileDrag : IDisposable
         {
             DataContext = new Carried(
                 first,
-                more == 0 ? first.Name : string.Format(CultureInfo.CurrentCulture, _strings["project.drag.many"], first.Name, more)),
+                more == 0 ? first.Name : _strings.Format("project.drag.many", first.Name, more)),
         };
 
         OverlayLayer.GetOverlayLayer(list)?.Children.Add(Ghost);

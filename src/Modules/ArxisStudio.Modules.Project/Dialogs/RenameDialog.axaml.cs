@@ -1,4 +1,3 @@
-using System.Globalization;
 using ArxisStudio.Controls;
 using ArxisStudio.Modules.Project.Model;
 using ArxisStudio.Sdk;
@@ -100,7 +99,7 @@ public partial class RenameDialog : AxDialog
         var check = Renaming.Check(typed, node, _exists);
 
         Confirm.IsEnabled = check.IsFine;
-        Problem.Text = Say(check);
+        Problem.Text = NameWords.Say(check, Format);
         Problem.IsVisible = Problem.Text is not null;
 
         // Вложенные показываются и при занятом имени: занятым может оказаться как раз имя вложенного.
@@ -122,19 +121,8 @@ public partial class RenameDialog : AxDialog
         Along.IsVisible = along.Count > 0;
     }
 
-    /// <summary>Что сказать о негодном имени; null — говорить нечего.</summary>
-    private string? Say(NameCheck check) => check.Problem switch
-    {
-        NameProblem.Empty => Format("project.rename.empty"),
-        NameProblem.Invalid => Format("project.rename.invalid", check.Subject ?? string.Empty),
-        NameProblem.Trailing => Format("project.rename.trailing"),
-        NameProblem.Reserved => Format("project.rename.reserved", check.Subject ?? string.Empty),
-        NameProblem.Taken => Format("project.rename.taken", check.Subject ?? string.Empty),
-        _ => null,
-    };
-
-    private string Format(string key, params object[] values) =>
-        _strings is null ? key : string.Format(CultureInfo.CurrentCulture, _strings[key], values);
+    /// <summary>Строка словаря со вставками; без словарей — сам ключ, как в предпросмотре разметки.</summary>
+    private string Format(string key, params object[] values) => _strings is null ? key : _strings.Format(key, values);
 
     private void Submit()
     {

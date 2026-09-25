@@ -93,9 +93,6 @@ internal sealed class TilePreviews : IDisposable
         _previews.Clear();
     }
 
-    /// <summary>Сверяет видимые превью с диском — тем же проходом, что возвращение окна.</summary>
-    internal void Revalidate() => Schedule(true);
-
     /// <inheritdoc/>
     public void Dispose()
     {

@@ -159,7 +159,7 @@ public class ConsoleRowsTests
 
         Assert.False(hidden.Shows("Plugins"), "После переворота источник спрятан");
         Assert.True(hidden.Toggle("Plugins").Shows("Plugins"), "Второй переворот возвращает источник");
-        Assert.Equal(1, hidden.HiddenCount);
+        Assert.Equal(LogSources.All.Hide("Plugins"), hidden);
     }
 
     /// <summary>Свёртка схлопывает одинаковые подряд и считает их.</summary>

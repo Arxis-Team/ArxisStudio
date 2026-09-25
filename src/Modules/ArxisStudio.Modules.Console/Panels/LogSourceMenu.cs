@@ -2,7 +2,6 @@ using ArxisStudio.Controls;
 using ArxisStudio.Modules.Console.Log;
 using ArxisStudio.Sdk;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives.PopupPositioning;
 
 namespace ArxisStudio.Modules.Console.Panels;
 

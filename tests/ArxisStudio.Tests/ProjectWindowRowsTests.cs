@@ -1,4 +1,5 @@
 using System.Collections.Specialized;
+using ArxisStudio.Modules.Project.Model;
 using ArxisStudio.Modules.Project.Tree;
 using Xunit;
 
@@ -255,9 +256,8 @@ public class ProjectWindowRowsTests
 
         rows.CollapseAll();
 
-        var code = rows.Locate(Key(rows, "App.axaml.cs"));
+        var code = Named(rows, "App.axaml.cs");
 
-        Assert.NotNull(code);
         Assert.Null(rows.Find(code.Key));
 
         rows.Reveal(code);
@@ -308,8 +308,8 @@ public class ProjectWindowRowsTests
     /// <summary>Строка по имени.</summary>
     private static Row Row(RowList rows, string name) => rows.Rows.Single(row => row.Name == name);
 
-    /// <summary>Ключ узла по имени — видим он или нет.</summary>
-    private static string Key(RowList rows, string name) => rows.Root!.Descendants().Single(node => node.Name == name).Key;
+    /// <summary>Узел по имени — видим он или нет.</summary>
+    private static Node Named(RowList rows, string name) => rows.Root!.Descendants().Single(node => node.Name == name);
 
     /// <summary>Правки списка, по одной на событие.</summary>
     private static List<NotifyCollectionChangedEventArgs> Record(RowList rows)

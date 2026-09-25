@@ -1,4 +1,3 @@
-using System.Globalization;
 using ArxisStudio.Controls;
 using ArxisStudio.Modules.Project.Model;
 using ArxisStudio.Sdk;
@@ -34,7 +33,6 @@ public partial class CreateDialog : AxDialog
     private StudioNewItem? _item;
     private IStudioStrings? _strings;
     private Func<string, string?, NameCheck> _check = static (_, _) => default;
-    private string _suggested = string.Empty;
 
     /// <summary>Собирает диалог из разметки.</summary>
     public CreateDialog()
@@ -124,7 +122,6 @@ public partial class CreateDialog : AxDialog
         _item = item;
         _strings = strings;
         _check = check;
-        _suggested = suggested;
 
         Title = Format("project.add.title", item.Title);
         Hint.IsVisible = item.Nested;
@@ -147,25 +144,12 @@ public partial class CreateDialog : AxDialog
         var check = _check(Chosen.Text ?? string.Empty, Variant);
 
         Confirm.IsEnabled = check.IsFine;
-        Problem.Text = Say(check);
+        Problem.Text = NameWords.Say(check, Format);
         Problem.IsVisible = Problem.Text is not null;
     }
 
-    /// <summary>Что сказать о негодном имени; null — говорить нечего.</summary>
-    private string? Say(NameCheck check) => check.Problem switch
-    {
-        NameProblem.Empty => Format("project.rename.empty"),
-        NameProblem.Invalid => Format("project.rename.invalid", check.Subject ?? string.Empty),
-        NameProblem.Trailing => Format("project.rename.trailing"),
-        NameProblem.Reserved => Format("project.rename.reserved", check.Subject ?? string.Empty),
-        NameProblem.Taken => Format("project.rename.taken", check.Subject ?? string.Empty),
-        NameProblem.NotIdentifier => Format("project.add.identifier"),
-        NameProblem.Keyword => Format("project.add.keyword", check.Subject ?? string.Empty),
-        _ => null,
-    };
-
-    private string Format(string key, params object[] values) =>
-        _strings is null ? key : string.Format(CultureInfo.CurrentCulture, _strings[key], values);
+    /// <summary>Строка словаря со вставками; без словарей — сам ключ, как в предпросмотре разметки.</summary>
+    private string Format(string key, params object[] values) => _strings is null ? key : _strings.Format(key, values);
 
     private void Submit()
     {

@@ -87,6 +87,12 @@ public sealed class Node
 {
     private readonly List<Node> _children = [];
 
+    /// <summary>
+    /// Как сравнивают ключи узлов: без регистра. Ключ строится от путей, и окно всегда сравнивало его
+    /// так — своей копией в каждом месте.
+    /// </summary>
+    public static StringComparer KeyComparer => StringComparer.OrdinalIgnoreCase;
+
     /// <summary>Устойчивый ключ: одинаков у того же узла в любом снимке того же решения.</summary>
     public required string Key { get; init; }
 
@@ -131,6 +137,10 @@ public sealed class Node
 
     /// <inheritdoc/>
     public override string ToString() => Name;
+
+    /// <summary>Тот же ли это узел — в этом снимке или в другом: ключи совпадают.</summary>
+    /// <param name="other">Другой узел; пусто — не тот же.</param>
+    public bool Is(Node? other) => other is not null && KeyComparer.Equals(Key, other.Key);
 
     /// <summary>Кладёт ребёнка; только пока дерево строится.</summary>
     internal void Add(Node child)

@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using ArxisStudio.LocalHistory;
+using ArxisStudio.Modules.Projects.Watching;
 using ArxisStudio.ProjectSystem;
 
 namespace ArxisStudio.Modules.Projects.History;
@@ -30,9 +31,6 @@ internal sealed class HistoryWatcher : IDisposable
 {
     /// <summary>Столько файлов опорного снимка идёт одним делом очереди.</summary>
     private const int Chunk = 128;
-
-    /// <summary>Как у наблюдателя состава: запас дешевле обхода заново.</summary>
-    private const int BufferSize = 64 * 1024;
 
     private readonly HistoryRecorder _recorder;
     private readonly FileChangeCoalescer _changes;
@@ -71,7 +69,7 @@ internal sealed class HistoryWatcher : IDisposable
 
             foreach (var gone in _watchers.Keys.Where(root => !roots.Any(wanted => wanted.Root == root)).ToList())
             {
-                Stop(_watchers[gone]);
+                FolderWatchers.Stop(_watchers[gone]);
                 _watchers.Remove(gone);
                 _scanned.Remove(gone);
             }
@@ -112,7 +110,7 @@ internal sealed class HistoryWatcher : IDisposable
             _disposed = true;
 
             foreach (var watcher in _watchers.Values)
-                Stop(watcher);
+                FolderWatchers.Stop(watcher);
 
             _watchers.Clear();
         }
@@ -297,43 +295,24 @@ internal sealed class HistoryWatcher : IDisposable
 
     private void Start(CanonicalPath root, bool deep)
     {
-        FileSystemWatcher? watcher = null;
-
-        try
-        {
-            watcher = new FileSystemWatcher(root.Value)
+        var watcher = FolderWatchers.Start(
+            root,
+            deep,
+            NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite | NotifyFilters.Size,
+            watcher =>
             {
-                IncludeSubdirectories = deep,
-                InternalBufferSize = BufferSize,
-                NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName
-                    | NotifyFilters.LastWrite | NotifyFilters.Size,
-            };
+                watcher.Created += (_, e) => Report(e.FullPath);
+                watcher.Changed += (_, e) => Report(e.FullPath);
+                watcher.Deleted += (_, e) => Report(e.FullPath);
+                watcher.Renamed += (_, e) =>
+                {
+                    Report(e.OldFullPath);
+                    Report(e.FullPath);
+                };
+                watcher.Error += (_, _) => Scan(root, deep, _recorder.Words.External);
+            });
 
-            watcher.Created += (_, e) => Report(e.FullPath);
-            watcher.Changed += (_, e) => Report(e.FullPath);
-            watcher.Deleted += (_, e) => Report(e.FullPath);
-            watcher.Renamed += (_, e) =>
-            {
-                Report(e.OldFullPath);
-                Report(e.FullPath);
-            };
-            watcher.Error += (_, _) => Scan(root, deep, _recorder.Words.External);
-
-            watcher.EnableRaisingEvents = true;
-
+        if (watcher is not null)
             _watchers[root] = watcher;
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
-        {
-            // Папку убрали между снимком и слежением или читать её нельзя: следующий снимок попробует
-            // снова, а остальные папки следятся по-прежнему.
-            watcher?.Dispose();
-        }
-    }
-
-    private static void Stop(FileSystemWatcher watcher)
-    {
-        watcher.EnableRaisingEvents = false;
-        watcher.Dispose();
     }
 }

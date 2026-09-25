@@ -142,7 +142,11 @@ public sealed class ProjectsHistoryTests() : ProjectsOnDisk("projects-history")
         var result = await studio.History.UndoAsync(studio.History.LastStudioAction!.Id, Token);
 
         Assert.False(result.HasErrors, Said(result));
-        Assert.Equal(ProjectsDiagnosticCodes.NotStored, Assert.Single(result.Diagnostics).Code);
+
+        var warning = Assert.Single(result.Diagnostics);
+
+        Assert.Equal(ProjectsDiagnosticCodes.NotStored, warning.Code);
+        Assert.Equal(Canon("Lib.csproj"), warning.FilePath);
         Assert.True(File.Exists(At("Views/Readme.txt")), "файлы не вернулись");
         Assert.EndsWith("<!-- правка -->", File.ReadAllText(At("Lib.csproj")), StringComparison.Ordinal);
     }
@@ -377,6 +381,7 @@ public sealed class ProjectsHistoryTests() : ProjectsOnDisk("projects-history")
 
     /// <summary>
     /// Копию больше предела отмена не убирает: проверить, что её не меняли, нечем, — и говорит об этом.
+    /// Копию в пределах убирает: предел — мегабайты настройки, а не килобайты.
     /// </summary>
     [Fact]
     public async Task A_copy_too_large_to_check_is_left_with_a_warning()
@@ -386,15 +391,17 @@ public sealed class ProjectsHistoryTests() : ProjectsOnDisk("projects-history")
         studio.Settings.Set(ProjectsSettings.HistoryMaxFileMbKey, 1d);
         await studio.SettleHistoryAsync();
         File.WriteAllBytes(At("Assets.bin"), new byte[(1024 * 1024) + 1]);
+        File.WriteAllBytes(At("Logo.bin"), new byte[512 * 1024]);
 
         await Succeeds(studio.Files.CopyAsync(
-            [Pair("Assets.bin", "Assets (2).bin"), Pair("Greeter.cs", "Greeter (2).cs")], "Вставка", Token));
+            [Pair("Assets.bin", "Assets (2).bin"), Pair("Logo.bin", "Logo (2).bin"), Pair("Greeter.cs", "Greeter (2).cs")], "Вставка", Token));
 
         var result = await studio.History.UndoAsync(studio.History.LastStudioAction!.Id, Token);
 
         Assert.False(result.HasErrors, Said(result));
         Assert.Equal(ProjectsDiagnosticCodes.NotStored, Assert.Single(result.Diagnostics).Code);
         Assert.True(File.Exists(At("Assets (2).bin")), "непроверенную копию убрали");
+        Assert.False(File.Exists(At("Logo (2).bin")), "копию в пределах мегабайта сочли слишком большой");
         Assert.False(File.Exists(At("Greeter (2).cs")), "проверяемую копию оставили");
     }
 

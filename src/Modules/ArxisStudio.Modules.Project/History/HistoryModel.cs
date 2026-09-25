@@ -102,7 +102,7 @@ internal sealed class HistoryModel : INotifyPropertyChanged, IDisposable
         Target = target;
         IsFolder = folder;
         Name = name;
-        Title = Format("project.history.title", name);
+        Title = _strings.Format("project.history.title", name);
         _history.Changed += OnHistoryChanged;
     }
 
@@ -234,7 +234,7 @@ internal sealed class HistoryModel : INotifyPropertyChanged, IDisposable
             Selected = null;
             Diff = [];
             LeftCaption = RightCaption = string.Empty;
-            Status = _history.IsOn ? Format("project.history.empty", Name) : _strings["project.history.off"];
+            Status = _history.IsOn ? _strings.Format("project.history.empty", Name) : _strings["project.history.off"];
             return;
         }
 
@@ -269,11 +269,11 @@ internal sealed class HistoryModel : INotifyPropertyChanged, IDisposable
             ? (file.Change.Path, file.Change.Before)
             : (Target, _state.Content);
 
-        var result = await _history.RevertAsync(path, content, Format("project.history.revert.label", path.FileName, row.Title))
+        var result = await _history.RevertAsync(path, content, _strings.Format("project.history.revert.label", path.FileName, row.Title))
             .ConfigureAwait(true);
 
         if (!result.HasErrors)
-            Status = Format("project.history.reverted", path.FileName, row.Title);
+            Status = _strings.Format("project.history.reverted", path.FileName, row.Title);
 
         return result;
     }
@@ -288,7 +288,7 @@ internal sealed class HistoryModel : INotifyPropertyChanged, IDisposable
         var result = await _history.UndoAsync(row.Id).ConfigureAwait(true);
 
         if (!result.HasErrors)
-            Status = Format("project.undone", row.Revision.Action.Label);
+            Status = _strings.Format("project.undone", row.Revision.Action.Label);
 
         return result;
     }
@@ -300,7 +300,7 @@ internal sealed class HistoryModel : INotifyPropertyChanged, IDisposable
         var result = await _history.PutLabelAsync(text).ConfigureAwait(true);
 
         if (!result.HasErrors)
-            Status = Format("project.history.labelled", text);
+            Status = _strings.Format("project.history.labelled", text);
 
         return result;
     }
@@ -328,9 +328,9 @@ internal sealed class HistoryModel : INotifyPropertyChanged, IDisposable
         var local = action.Time.ToLocalTime();
         var when = (now.Date - local.Date).Days switch
         {
-            0 => Format("project.history.today", local),
-            1 => Format("project.history.yesterday", local),
-            _ => Format("project.history.date", local),
+            0 => _strings.Format("project.history.today", local),
+            1 => _strings.Format("project.history.yesterday", local),
+            _ => _strings.Format("project.history.date", local),
         };
 
         var detail = new List<string> { when, _strings[action.Origin == LocalHistoryOrigin.Studio ? "project.history.studio" : "project.history.outside"] };
@@ -338,7 +338,7 @@ internal sealed class HistoryModel : INotifyPropertyChanged, IDisposable
         if (action.IsUndone)
             detail.Add(_strings["project.history.undone"]);
 
-        var title = action.IsLabel ? Format("project.history.labelRow", action.Label) : action.Label;
+        var title = action.IsLabel ? _strings.Format("project.history.labelRow", action.Label) : action.Label;
 
         return new HistoryRow(revision, title, string.Join(" · ", detail), when);
     }
@@ -364,7 +364,7 @@ internal sealed class HistoryModel : INotifyPropertyChanged, IDisposable
             {
                 Diff = [];
                 LeftCaption = RightCaption = string.Empty;
-                Status = Format("project.history.labelRow", row.Revision.Action.Label);
+                Status = _strings.Format("project.history.labelRow", row.Revision.Action.Label);
                 return;
             }
 
@@ -375,7 +375,7 @@ internal sealed class HistoryModel : INotifyPropertyChanged, IDisposable
         var at = Rows.IndexOf(row);
 
         _state = at >= 0 && at < _states.Count ? _states[at] : FileState.Now;
-        LeftCaption = Format("project.history.before", row.Revision.Action.Label, row.When);
+        LeftCaption = _strings.Format("project.history.before", row.Revision.Action.Label, row.When);
         RightCaption = _strings["project.history.now"];
 
         var left = _state.Kind switch
@@ -464,7 +464,7 @@ internal sealed class HistoryModel : INotifyPropertyChanged, IDisposable
             ? _strings["project.history.gone"]
             : blocks == 0
                 ? _strings[differs ? "project.history.whitespace" : "project.history.same"]
-                : Format("project.history.changes", blocks);
+                : _strings.Format("project.history.changes", blocks);
 
         return (rows, status, differs);
     }
@@ -513,7 +513,7 @@ internal sealed class HistoryModel : INotifyPropertyChanged, IDisposable
             _ => "moved",
         };
 
-        return Format($"project.history.{(change.IsDirectory ? "folder" : "file")}.{kind}", path, Relative(change.From));
+        return _strings.Format($"project.history.{(change.IsDirectory ? "folder" : "file")}.{kind}", path, Relative(change.From));
     }
 
     private string Relative(CanonicalPath path)
@@ -525,9 +525,6 @@ internal sealed class HistoryModel : INotifyPropertyChanged, IDisposable
             ? Path.GetRelativePath(Target.Value, path.Value)
             : path.FileName;
     }
-
-    private string Format(string key, params object[] values) =>
-        string.Format(CultureInfo.CurrentCulture, _strings[key], values);
 
     private void Set<T>(ref T field, T value, params string[] names)
     {

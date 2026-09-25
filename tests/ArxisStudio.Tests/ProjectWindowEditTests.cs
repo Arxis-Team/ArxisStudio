@@ -145,6 +145,33 @@ public class ProjectWindowEditTests
     }
 
     /// <summary>
+    /// Выбор из нескольких уходит одним удалением, и выделение встаёт на соседа, занявшего место
+    /// первого из выбранных, — а не последнего.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_choice_of_many_goes_in_one_delete_and_the_neighbour_of_the_first_takes_its_place()
+    {
+        var files = new FilesProbe();
+
+        using var studio = await Opened(files);
+
+        var at = studio.Rows.IndexOf(studio.Row("app.manifest"));
+
+        files.After = () => studio.Projects.Publish(ProjectWindowStudio.Ready(2, studio.Solution(without: ["app.manifest", "Program.cs"])));
+
+        studio.Select("app.manifest");
+        studio.Press(studio.Item(studio.Row("app.manifest")), Key.Down, KeyModifiers.Shift);
+        studio.Press(studio.Item(studio.Row("Program.cs")), Key.Delete);
+
+        Dialog<DeleteDialog>(studio).KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, string.Empty);
+
+        await Settled(studio, () => studio.Rows.All(row => row.Name is not ("app.manifest" or "Program.cs")) && studio.View.Tree.SelectedItem is Row);
+
+        Assert.Equal(2, Assert.Single(files.Deleted).Count);
+        Assert.Equal(studio.Rows[at].Name, studio.Selected.Name);
+    }
+
+    /// <summary>
     /// Правый щелчок по выбранной строке оставляет весь выбор — меню о нём, — а по невыбранной
     /// выбирает её одну.
     /// </summary>
@@ -192,7 +219,10 @@ public class ProjectWindowEditTests
         Assert.Equal("Program.cs", studio.Selected.Name);
     }
 
-    /// <summary>Esc и «Отмена» оставляют всё как было: служба не слышит ничего.</summary>
+    /// <summary>
+    /// Esc и «Отмена» оставляют всё как было: служба не слышит ничего. Пока вопрос открыт, вторая
+    /// правка не начинается — выбор под ней могла увести первая.
+    /// </summary>
     [AvaloniaFact]
     public async Task Escape_and_cancel_leave_everything_as_it_was()
     {
@@ -201,6 +231,11 @@ public class ProjectWindowEditTests
         using var studio = await Opened(files);
 
         studio.Press(studio.Item(studio.Select("Program.cs")), Key.Delete);
+        studio.Press(studio.Item(studio.Row("Program.cs")), Key.F2);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Empty(studio.Window.OwnedWindows.OfType<RenameDialog>());
+
         Dialog<DeleteDialog>(studio).KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, string.Empty);
         Dispatcher.UIThread.RunJobs();
 

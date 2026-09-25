@@ -13,6 +13,11 @@ namespace ArxisStudio.Modules.Terminal.Emulator;
 /// и тёмно-синие подсказки PowerShell читаются на тёмном фоне. Фон, текст и
 /// выделение — из темы студии, чтобы панель терминала не была чужим окном
 /// среди своих. Остальные 240 индексов и truecolor эмулятор считает сам.
+/// <para>
+/// Запасные цвета — тёмной темы студии: ими вид рисует и эмулятор заводится, пока тема их не дала,
+/// а вне студии — в тесте, в предпросмотре — её нет вовсе. Прежде они были записаны дважды: в виде
+/// и в настройках эмулятора.
+/// </para>
 /// </remarks>
 public static class TerminalTheme
 {
@@ -24,6 +29,21 @@ public static class TerminalTheme
 
     /// <summary>Наименьший контраст текста к фону его ячейки: 4,5:1 — порог WCAG для обычного текста.</summary>
     public const double MinimumContrast = 4.5;
+
+    /// <summary>Фон, пока тема студии его не дала.</summary>
+    public static readonly Color FallbackBackground = Color.FromRgb(0x17, 0x1A, 0x1D);
+
+    /// <summary>Текст, пока тема студии его не дала.</summary>
+    public static readonly Color FallbackForeground = Color.FromRgb(0xCC, 0xCC, 0xCC);
+
+    /// <summary>Подложка выделения, пока тема студии её не дала.</summary>
+    public static readonly Color FallbackSelection = Color.FromRgb(0x26, 0x3D, 0x68);
+
+    /// <summary>Бегунок полосы прокрутки, пока тема студии его не дала.</summary>
+    public static readonly Color FallbackThumb = Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF);
+
+    /// <summary>Бегунок под указателем, пока тема студии его не дала.</summary>
+    public static readonly Color FallbackThumbOver = Color.FromArgb(0x59, 0xFF, 0xFF, 0xFF);
 
     /// <summary>Сколько пар «текст — фон» помнится поправленными, прежде чем память начнётся заново.</summary>
     /// <remarks>Программа с truecolor рисует тысячами оттенков, и память без предела росла бы вместе с выводом.</remarks>

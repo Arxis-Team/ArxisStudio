@@ -177,6 +177,23 @@ internal sealed class ProjectMenu(IStudioStrings strings, MenuActions actions)
         return rows;
     }
 
+    /// <summary>
+    /// Alt+Insert, как «New…» у Rider: пункты «Добавить ▸» отдельным меню у строки или плитки.
+    /// </summary>
+    /// <param name="node">На чём создают.</param>
+    /// <param name="anchor">К чему привязать меню.</param>
+    /// <param name="origin">Откуда просили: туда потом и встанет выделение.</param>
+    /// <returns>Показано ли меню: у решения и зависимостей создавать некуда.</returns>
+    public bool ShowAdd(Node node, Control anchor, EditOrigin origin)
+    {
+        if (AddItems(node, origin) is not { Count: > 0 } items)
+            return false;
+
+        ShowAt(anchor, items, atPointer: false);
+
+        return true;
+    }
+
     private List<AxMenuItem> Items(Node node, Row? branch, Action? showInFolder, EditSelection? edit, EditOrigin origin)
     {
         var items = new List<AxMenuItem>();
@@ -187,7 +204,7 @@ internal sealed class ProjectMenu(IStudioStrings strings, MenuActions actions)
             var menu = new AxMenuItem
             {
                 Header = strings["project.add"],
-                InputGesture = new KeyGesture(Key.Insert, KeyModifiers.Alt),
+                InputGesture = EditKeys.Create,
             };
 
             foreach (var row in add)
@@ -199,7 +216,7 @@ internal sealed class ProjectMenu(IStudioStrings strings, MenuActions actions)
         switch (node.Kind)
         {
             case NodeKind.File:
-                items.Add(Item("project.menu.open", new KeyGesture(Key.Enter), () => actions.Open(node)));
+                items.Add(Item("project.menu.open", EditKeys.Open, () => actions.Open(node)));
                 break;
             case NodeKind.Project:
                 items.Add(Item("project.menu.openProject", null, () => actions.Open(node)));
@@ -221,7 +238,7 @@ internal sealed class ProjectMenu(IStudioStrings strings, MenuActions actions)
         if (path is not null)
         {
             items.Add(Item(Reveal.Words, null, () => actions.Reveal(path)));
-            items.Add(Item("project.menu.copyPath", new KeyGesture(Key.C, KeyModifiers.Control | KeyModifiers.Shift), () => actions.Copy(path)));
+            items.Add(Item("project.menu.copyPath", EditKeys.CopyPath, () => actions.Copy(path)));
 
             if (node.Relative is { Length: > 0 } relative && node.Kind is not (NodeKind.Dependency or NodeKind.Solution))
                 items.Add(Item("project.menu.copyRelative", null, () => actions.Copy(relative)));
@@ -258,24 +275,24 @@ internal sealed class ProjectMenu(IStudioStrings strings, MenuActions actions)
         if (!edit.IsEmpty)
         {
             if (actions.CutFiles is { } cut)
-                menu.Items.Add(Item("project.edit.cut", new KeyGesture(Key.X, KeyModifiers.Control), () => cut(edit, origin)));
+                menu.Items.Add(Item("project.edit.cut", EditKeys.Cut, () => cut(edit, origin)));
 
             if (actions.CopyFiles is { } copy)
-                menu.Items.Add(Item("project.edit.copy", new KeyGesture(Key.C, KeyModifiers.Control), () => copy(edit, origin)));
+                menu.Items.Add(Item("project.edit.copy", EditKeys.Copy, () => copy(edit, origin)));
         }
 
         if (folder is { } target && actions.Paste is { } paste)
-            menu.Items.Add(Item("project.edit.paste", new KeyGesture(Key.V, KeyModifiers.Control), () => paste(target, origin)));
+            menu.Items.Add(Item("project.edit.paste", EditKeys.Paste, () => paste(target, origin)));
 
         if (edit.IsEmpty)
             return menu;
 
         if (actions.Delete is { } delete)
-            menu.Items.Add(Item("project.edit.delete", new KeyGesture(Key.Delete), () => delete(edit, origin)));
+            menu.Items.Add(Item("project.edit.delete", EditKeys.Delete, () => delete(edit, origin)));
 
         if (actions.Rename is { } rename)
         {
-            var item = Item("project.edit.rename", new KeyGesture(Key.F2), () => rename(edit, origin));
+            var item = Item("project.edit.rename", EditKeys.Rename, () => rename(edit, origin));
 
             item.IsEnabled = edit.CanRename;
             menu.Items.Add(item);

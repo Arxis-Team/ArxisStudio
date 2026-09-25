@@ -2,6 +2,7 @@ using System.Collections.Specialized;
 using ArxisStudio.Controls;
 using ArxisStudio.Modules.Project.Browse;
 using ArxisStudio.Modules.Project.Model;
+using ArxisStudio.ProjectSystem;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -162,7 +163,7 @@ internal sealed class BrowserPane : IDisposable
     {
         ArgumentNullException.ThrowIfNull(node);
 
-        var tile = _model.Browser.Items.FirstOrDefault(item => string.Equals(item.Key, node.Key, StringComparison.OrdinalIgnoreCase));
+        var tile = _model.Browser.Items.FirstOrDefault(item => item.Node.Is(node));
 
         if (tile is null)
             return false;
@@ -173,10 +174,7 @@ internal sealed class BrowserPane : IDisposable
     }
 
     /// <summary>Место первой выделенной плитки; −1 — выделения нет.</summary>
-    public int FirstSelected() =>
-        Shown.SelectedItems is { Count: > 0 } selected
-            ? selected.OfType<Tile>().Select(tile => _model.Browser.Items.IndexOf(tile)).Where(at => at >= 0).DefaultIfEmpty(-1).Min()
-            : -1;
+    public int FirstSelected() => ListItems.FirstIndex(Shown, _model.Browser.Items);
 
     /// <summary>Выделяет плитку на месте — ту, что заняла место удалённой, — и отдаёт ей клавиатуру.</summary>
     /// <param name="at">Место; за концом — последняя плитка.</param>
@@ -195,7 +193,7 @@ internal sealed class BrowserPane : IDisposable
     }
 
     /// <summary>Что выбрано в колонке — так, как его возьмёт правка.</summary>
-    internal EditSelection Selection() => EditSelection.Of(Shown.SelectedItems?.OfType<Tile>().Select(tile => tile.Node) ?? []);
+    internal EditSelection Selection() => EditSelection.Of(ListItems.Of<Tile>(Shown).Select(tile => tile.Node));
 
     /// <summary>Пункты меню плитки — тестам: попап — отдельное окно, которого у безголового прогона нет.</summary>
     /// <param name="tile">Плитка.</param>
@@ -219,12 +217,8 @@ internal sealed class BrowserPane : IDisposable
     {
         ArgumentNullException.ThrowIfNull(list);
 
-        if (AddTarget(list) is not { } node || _menu.AddItems(node, EditOrigin.Pane) is not { Count: > 0 } items)
-            return false;
-
-        ProjectMenu.ShowAt(list.SelectedItem is Tile tile ? list.ContainerFromItem(tile) ?? list : list, items, atPointer: false);
-
-        return true;
+        return AddTarget(list) is { } node
+            && _menu.ShowAdd(node, list.SelectedItem is Tile tile ? list.ContainerFromItem(tile) ?? list : list, EditOrigin.Pane);
     }
 
     /// <summary>На чём создаёт Alt+Insert колонки: на выбранной плитке, без неё — на каталоге колонки.</summary>
@@ -302,7 +296,7 @@ internal sealed class BrowserPane : IDisposable
         if (sender is not AxListBox list
             || !e.GetCurrentPoint(list).Properties.IsLeftButtonPressed
             || (e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Shift)) != 0
-            || TileOf(e.Source) is not null
+            || ListItems.At<Tile>(e.Source) is not null
             || (e.Source as Visual)?.FindAncestorOfType<ScrollBar>(includeSelf: true) is not null)
         {
             return;
@@ -321,7 +315,7 @@ internal sealed class BrowserPane : IDisposable
 
     private void OnDoubleTapped(object? sender, TappedEventArgs e)
     {
-        if (TileOf(e.Source) is not { } tile)
+        if (ListItems.At<Tile>(e.Source) is not { } tile)
             return;
 
         Act(tile, NavigationMethod.Pointer);
@@ -333,46 +327,21 @@ internal sealed class BrowserPane : IDisposable
         if (sender is not AxListBox list)
             return;
 
+        // Вставка с клавиатуры идёт в папку, которую колонка показывает, — как в проводнике и в
+        // Unity; в найденном поиском папки нет.
+        if (EditKeys.Press(e, _menu.Actions, Selection, PasteFolder, EditOrigin.Pane))
+        {
+            e.Handled = true;
+            return;
+        }
+
         switch (e.Key)
         {
-            case Key.Enter when e.KeyModifiers == KeyModifiers.None && list.SelectedItem is Tile tile:
-                Act(tile);
-                break;
-            case Key.Delete when e.KeyModifiers == KeyModifiers.None && _menu.Actions.Delete is { } delete:
-                delete(Selection(), EditOrigin.Pane);
-                break;
-            case Key.F2 when e.KeyModifiers == KeyModifiers.None && _menu.Actions.Rename is { } rename:
-                rename(Selection(), EditOrigin.Pane);
-                break;
-            case Key.X when e.KeyModifiers == KeyModifiers.Control && _menu.Actions.CutFiles is { } cut:
-                cut(Selection(), EditOrigin.Pane);
-                break;
-            case Key.C when e.KeyModifiers == KeyModifiers.Control && _menu.Actions.CopyFiles is { } copy:
-                copy(Selection(), EditOrigin.Pane);
-                break;
-
-            // Вставка с клавиатуры идёт в папку, которую колонка показывает, — как в проводнике и в
-            // Unity; в найденном поиском папки нет.
-            case Key.V when e.KeyModifiers == KeyModifiers.Control && _menu.Actions.Paste is { } paste
-                            && !_model.IsSearching && _model.Browser.Current is { } here && Pasting.Folder(here) is { } folder:
-                paste(folder, EditOrigin.Pane);
-                break;
-            case Key.Escape when e.KeyModifiers == KeyModifiers.None && _menu.Actions.Uncut?.Invoke() == true:
-                break;
-            case Key.Z when e.KeyModifiers == KeyModifiers.Control && _menu.Actions.Undo is { } undo:
-                undo(EditOrigin.Pane);
-                break;
-            case Key.Insert when e.KeyModifiers == KeyModifiers.Alt && ShowAdd(list):
-                break;
             case Key.Back when e.KeyModifiers == KeyModifiers.None:
                 Up();
                 break;
             case Key.Up when e.KeyModifiers == KeyModifiers.Alt:
                 Up();
-                break;
-            case Key.C when e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift)
-                            && list.SelectedItem is Tile { Node.Path.IsEmpty: false } picked:
-                _copy(picked.Node.Path.Value);
                 break;
 
             // Плюс и минус — с Shift и без: «+» на основной клавиатуре — это Shift и «=».
@@ -385,12 +354,24 @@ internal sealed class BrowserPane : IDisposable
             case Key.D0 or Key.NumPad0 when e.KeyModifiers == KeyModifiers.Control:
                 Stand(TileLadder.Of(_view).Position(null), null, NavigationMethod.Directional);
                 break;
+            case var _ when e.Is(EditKeys.Open) && list.SelectedItem is Tile tile:
+                Act(tile);
+                break;
+            case var _ when e.Is(EditKeys.Create) && ShowAdd(list):
+                break;
+            case var _ when e.Is(EditKeys.CopyPath) && list.SelectedItem is Tile { Node.Path.IsEmpty: false } picked:
+                _copy(picked.Node.Path.Value);
+                break;
             default:
                 return;
         }
 
         e.Handled = true;
     }
+
+    /// <summary>Папка, которую колонка показывает, — туда идёт вставка с клавиатуры; пусто — идёт поиск.</summary>
+    private CanonicalPath? PasteFolder() =>
+        !_model.IsSearching && _model.Browser.Current is { } here ? Pasting.Folder(here) : null;
 
     /// <summary>
     /// Колесо с Ctrl меняет ступень, как в проводнике и в Unity: от себя — крупнее, на себя — мельче.
@@ -415,7 +396,7 @@ internal sealed class BrowserPane : IDisposable
             return;
 
         _wheel -= steps;
-        Step(steps, TileOf(e.Source), NavigationMethod.Pointer);
+        Step(steps, ListItems.At<Tile>(e.Source), NavigationMethod.Pointer);
     }
 
     /// <summary>Ставит ползунок в положение — дальше ступень идёт обычной дорогой ползунка.</summary>
@@ -481,7 +462,7 @@ internal sealed class BrowserPane : IDisposable
 
         var atPointer = e.TryGetPosition(list, out _);
 
-        if ((atPointer ? TileOf(e.Source) : list.SelectedItem as Tile) is not { } tile)
+        if ((atPointer ? ListItems.At<Tile>(e.Source) : list.SelectedItem as Tile) is not { } tile)
         {
             if (ShowFolderMenu(list, atPointer))
                 e.Handled = true;
@@ -561,7 +542,7 @@ internal sealed class BrowserPane : IDisposable
         _located(container);
 
         if (from?.Ancestors().Prepend(from).FirstOrDefault(node => node.Parent is { } parent
-                && string.Equals(parent.Key, container.Key, StringComparison.OrdinalIgnoreCase)) is { } child)
+                && parent.Is(container)) is { } child)
         {
             Select(child);
         }
@@ -653,8 +634,4 @@ internal sealed class BrowserPane : IDisposable
 
         return (list.ContainerFromItem(tile) as Control)?.Focus(method) == true;
     }
-
-    /// <summary>Плитка, в которой пришлось событие.</summary>
-    private static Tile? TileOf(object? source) =>
-        (source as Visual)?.FindAncestorOfType<AxListBoxItem>(includeSelf: true)?.DataContext as Tile;
 }

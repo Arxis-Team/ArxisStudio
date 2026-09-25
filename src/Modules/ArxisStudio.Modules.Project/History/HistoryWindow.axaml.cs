@@ -111,8 +111,8 @@ public partial class HistoryWindow : AxWindow
                 : null);
 
     /// <summary>
-    /// Делает дело службы и говорит, чем кончилось: отказ — диалогом с причиной, удача, вернувшая не
-    /// всё, — тем же диалогом с тем, что не вернулось.
+    /// Делает дело службы и говорит, чем кончилось (<see cref="FailureDialog.ReportAsync"/>): отказ —
+    /// диалогом с причиной, удача, вернувшая не всё, — тем же диалогом с тем, что не вернулось.
     /// </summary>
     private async Task Run(Func<HistoryModel, Task<ProjectOperationResult?>> operation)
     {
@@ -123,16 +123,8 @@ public partial class HistoryWindow : AxWindow
 
         try
         {
-            if (await operation(model).ConfigureAwait(true) is not { } result)
-                return;
-
-            var errors = result.Diagnostics.Where(diagnostic => diagnostic.IsError).Select(diagnostic => diagnostic.Message).ToList();
-            var warnings = result.Diagnostics.Where(diagnostic => !diagnostic.IsError).Select(diagnostic => diagnostic.Message).ToList();
-
-            if (errors.Count > 0)
-                await FailureDialog.ShowAsync(this, string.Join(Environment.NewLine, errors)).ConfigureAwait(true);
-            else if (warnings.Count > 0 && _strings is not null)
-                await FailureDialog.ShowAsync(this, string.Join(Environment.NewLine, warnings), _strings["project.undo.partial"]).ConfigureAwait(true);
+            if (await operation(model).ConfigureAwait(true) is { } result)
+                await FailureDialog.ReportAsync(this, result, _strings?["project.undo.partial"]).ConfigureAwait(true);
         }
         catch (Exception error) when (error is not OutOfMemoryException)
         {

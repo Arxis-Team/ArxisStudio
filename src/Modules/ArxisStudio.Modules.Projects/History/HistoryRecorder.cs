@@ -268,7 +268,7 @@ internal sealed class HistoryRecorder : IDisposable
     private static LocalHistoryOptions Options(ProjectsSettings settings) => new()
     {
         Days = settings.HistoryDays,
-        MaxFileBytes = settings.HistoryMaxFileMb * 1024L * 1024,
-        MaxTotalBytes = settings.HistoryMaxTotalMb * 1024L * 1024,
+        MaxFileBytes = settings.HistoryMaxFileBytes,
+        MaxTotalBytes = settings.HistoryMaxTotalBytes,
     };
 }

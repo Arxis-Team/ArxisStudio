@@ -40,9 +40,6 @@ public readonly struct LogSources : IEquatable<LogSources>
     /// <summary>Не спрятан никто.</summary>
     public bool ShowsAll => Hidden.IsEmpty;
 
-    /// <summary>Сколько источников спрятано.</summary>
-    public int HiddenCount => Hidden.Count;
-
     private ImmutableHashSet<string> Hidden => _hidden ?? None;
 
     /// <summary>Равны ли отборы.</summary>

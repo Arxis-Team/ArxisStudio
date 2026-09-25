@@ -121,6 +121,21 @@ public class ProjectWindowClipboardTests
         Assert.NotNull(studio.Clipboard.Held);
     }
 
+    /// <summary>
+    /// Ctrl+Shift+C кладёт путь строки текстом, а файлов не трогает: сочетание сверяется целиком, и
+    /// Ctrl+C им не притворяется.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Ctrl_shift_c_copies_the_path_and_leaves_the_files_alone()
+    {
+        using var studio = await Opened();
+
+        studio.Press(studio.Item(studio.Select("Program.cs")), Key.C, KeyModifiers.Control | KeyModifiers.Shift);
+
+        Assert.Null(studio.Clipboard.Held);
+        Assert.DoesNotContain(Format(studio, "project.clip.copied", "Program.cs"), studio.Status.Said);
+    }
+
     /// <summary>Файлы, положенные в буфер проводником, вставляются копией в папку строки.</summary>
     [AvaloniaFact]
     public async Task Files_from_explorer_are_copied_in()

@@ -3,7 +3,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
-using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Media.TextFormatting;
@@ -55,9 +54,6 @@ public sealed class TerminalView : Control
     /// </remarks>
     public const double ScrollBarWidth = 12;
 
-    /// <summary>Короче бегунок не бывает: на длинной истории он выродился бы в точку.</summary>
-    private const double MinThumb = 20;
-
     /// <summary>
     /// Сколько тишины в раскладке ждать, прежде чем сказать оболочке новый размер.
     /// </summary>
@@ -104,11 +100,11 @@ public sealed class TerminalView : Control
     private double _cellHeight = 16;
     private int _columns = 80;
     private int _rows = 24;
-    private Color _background = Color.FromRgb(0x17, 0x1A, 0x1D);
-    private Color _foreground = Color.FromRgb(0xCC, 0xCC, 0xCC);
-    private Color _selection = Color.FromRgb(0x26, 0x3D, 0x68);
-    private Color _thumb = Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF);
-    private Color _thumbOver = Color.FromArgb(0x59, 0xFF, 0xFF, 0xFF);
+    private Color _background = TerminalTheme.FallbackBackground;
+    private Color _foreground = TerminalTheme.FallbackForeground;
+    private Color _selection = TerminalTheme.FallbackSelection;
+    private Color _thumb = TerminalTheme.FallbackThumb;
+    private Color _thumbOver = TerminalTheme.FallbackThumbOver;
 
     /// <summary>Недокрученная доля щелчка колеса: тачпад шлёт щелчок долями.</summary>
     private double _wheel;
@@ -412,7 +408,7 @@ public sealed class TerminalView : Control
     {
         base.OnGotFocus(e);
         RestartBlink();
-        SendFocus(true);
+        _session?.ReportFocus(true);
         InvalidateVisual();
     }
 
@@ -422,7 +418,7 @@ public sealed class TerminalView : Control
         base.OnLostFocus(e);
         _blink.Stop();
         _blinkOn = true;
-        SendFocus(false);
+        _session?.ReportFocus(false);
         InvalidateVisual();
     }
 
@@ -536,9 +532,9 @@ public sealed class TerminalView : Control
 
         var (x, y) = Cell(point.Position);
 
-        if (Reporting(e.KeyModifiers))
+        if (_session.WantsMouse(e.KeyModifiers))
         {
-            Report(point.Properties.IsLeftButtonPressed ? XMouseButton.Left
+            _session.ReportMouse(point.Properties.IsLeftButtonPressed ? XMouseButton.Left
                 : point.Properties.IsRightButtonPressed ? XMouseButton.Right
                 : XMouseButton.Middle, x, y, XMouseEventType.Down, e.KeyModifiers);
             e.Handled = true;
@@ -643,7 +639,7 @@ public sealed class TerminalView : Control
 
         // Отпущена та кнопка, что была нажата. Пока здесь стояла левая, программа с мышью в режиме
         // SGR — tmux, vim — видела нажатие правой и отпускание левой, и её счёт кнопок расходился.
-        if (Reporting(e.KeyModifiers))
+        if (_session.WantsMouse(e.KeyModifiers))
         {
             var button = e.InitialPressMouseButton switch
             {
@@ -652,7 +648,7 @@ public sealed class TerminalView : Control
                 _ => XMouseButton.Left,
             };
 
-            Report(button, x, y, XMouseEventType.Up, e.KeyModifiers);
+            _session.ReportMouse(button, x, y, XMouseEventType.Up, e.KeyModifiers);
         }
     }
 
@@ -687,9 +683,9 @@ public sealed class TerminalView : Control
 
         var (x, y) = Cell(e.GetPosition(this));
 
-        if (Reporting(e.KeyModifiers))
+        if (_session.WantsMouse(e.KeyModifiers))
         {
-            Report(notches > 0 ? XMouseButton.WheelUp : XMouseButton.WheelDown, x, y,
+            _session.ReportMouse(notches > 0 ? XMouseButton.WheelUp : XMouseButton.WheelDown, x, y,
                 notches > 0 ? XMouseEventType.WheelUp : XMouseEventType.WheelDown, e.KeyModifiers);
             e.Handled = true;
             return;
@@ -875,37 +871,9 @@ public sealed class TerminalView : Control
         }
     }
 
-    /// <summary>
-    /// Где стоит бегунок полосы; <c>null</c> — истории нет, и полосы тоже.
-    /// </summary>
-    /// <remarks>
-    /// Одно место на рисунок и на попадание. Разойдясь, они дали бы полосу, которая берётся не
-    /// там, где нарисована, — и починить такое можно только вернув их в одно место.
-    /// <para>
-    /// Мерится по <c>YBase</c> — самой нижней строке, на которую можно встать, — а не по длине
-    /// списка строк: список кольцевой, и длина у него бывает больше, чем есть куда вставать.
-    /// Прежде на этой разнице бегунок не доходил до низа дорожки: на живом сеансе <c>cmd</c> при
-    /// двухстах строках истории он кончался на одиннадцать точек выше её дна, и низ бегунка оказывался
-    /// дорожкой — нажатие туда листало страницу вниз вместо того, чтобы взять бегунок.
-    /// </para>
-    /// </remarks>
-    private Bar? Thumb()
-    {
-        if (_session is null)
-            return null;
-
-        var buffer = _session.Terminal.Buffer;
-        var max = buffer.YBase;
-
-        if (max <= 0)
-            return null;
-
-        var track = Bounds.Height - (2 * Inset);
-        var height = Math.Max(MinThumb, track * _rows / (max + _rows));
-        var travel = Math.Max(0, track - height);
-
-        return new Bar(Inset + (travel * buffer.YDisp / max), height, travel, max);
-    }
+    /// <summary>Где стоит бегунок полосы; <c>null</c> — истории нет, и полосы тоже.</summary>
+    private ScrollThumb? Thumb() =>
+        _session?.Terminal.Buffer is { } buffer ? ScrollThumb.Of(Inset, Bounds.Height, _rows, buffer.YBase, buffer.YDisp) : null;
 
     /// <summary>
     /// Рисует бегунок полосы прокрутки.
@@ -952,7 +920,7 @@ public sealed class TerminalView : Control
         if (_session is null || Thumb() is not { } bar)
             return;
 
-        if (y >= bar.Top && y < bar.Top + bar.Height)
+        if (bar.Holds(y))
         {
             _dragging = true;
             _grab = y - bar.Top;
@@ -968,22 +936,14 @@ public sealed class TerminalView : Control
         InvalidateVisual();
     }
 
-    /// <summary>
-    /// Бегунок тянут.
-    /// </summary>
+    /// <summary>Бегунок тянут: экран встаёт на строку, которую бегунок называет в этой точке.</summary>
     /// <param name="y">Где указатель.</param>
-    /// <remarks>
-    /// Считается обратным ходом того же расчёта, которым бегунок нарисован, и от точки захвата, а
-    /// не от верха бегунка: взятый за середину, он и тянется за середину — иначе на первом же
-    /// движении прыгнул бы под курсор.
-    /// </remarks>
     private void DragBar(double y)
     {
         if (_session is null || Thumb() is not { } bar)
             return;
 
-        var line = (int)Math.Round((y - _grab - Inset) * bar.Max / Math.Max(1, bar.Travel));
-        var delta = Math.Clamp(line, 0, bar.Max) - _session.Terminal.Buffer.YDisp;
+        var delta = bar.LineAt(y, _grab, Inset) - _session.Terminal.Buffer.YDisp;
 
         if (delta != 0)
             _session.Terminal.ScrollLines(delta);
@@ -1002,13 +962,6 @@ public sealed class TerminalView : Control
         InvalidateVisual();
     }
 
-    /// <summary>Бегунок полосы: где стоит, какой длины и сколько ему ходу.</summary>
-    /// <param name="Top">Верх бегунка в координатах вида.</param>
-    /// <param name="Height">Длина бегунка.</param>
-    /// <param name="Travel">Сколько бегунку ходу от верха дорожки до низа.</param>
-    /// <param name="Max">Самая нижняя строка истории, на которую можно встать.</param>
-    private readonly record struct Bar(double Top, double Height, double Travel, int Max);
-
     /// <summary>Ячейка под точкой; за краями — ближайшая.</summary>
     private (int X, int Y) Cell(Point point)
     {
@@ -1016,34 +969,6 @@ public sealed class TerminalView : Control
         var y = (int)Math.Floor((point.Y - Inset) / _cellHeight);
 
         return (Math.Clamp(x, 0, Math.Max(0, _columns - 1)), Math.Clamp(y, 0, Math.Max(0, _rows - 1)));
-    }
-
-    /// <summary>Программа просила отдавать ей мышь, и человек не удерживает Shift, чтобы выделять самому.</summary>
-    private bool Reporting(KeyModifiers modifiers) =>
-        _session is not null
-        && _session.Terminal.MouseTrackingMode != XTerm.Input.MouseTrackingMode.None
-        && !modifiers.HasFlag(KeyModifiers.Shift);
-
-    private void Report(XMouseButton button, int x, int y, XMouseEventType type, KeyModifiers modifiers)
-    {
-        if (_session is null)
-            return;
-
-        var sequence = _session.Terminal.GenerateMouseEvent(button, x, y, type, KeyMap.Convert(modifiers));
-
-        if (!string.IsNullOrEmpty(sequence))
-            _session.SendText(sequence);
-    }
-
-    private void SendFocus(bool focused)
-    {
-        if (_session is null || !_session.Terminal.SendFocusEvents)
-            return;
-
-        var sequence = _session.Terminal.GenerateFocusEvent(focused);
-
-        if (!string.IsNullOrEmpty(sequence))
-            _session.SendText(sequence);
     }
 
     private static string SelectedText(SelectionManager selection)

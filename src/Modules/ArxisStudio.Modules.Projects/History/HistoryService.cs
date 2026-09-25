@@ -55,7 +55,7 @@ internal sealed class HistoryService : IStudioHistory
     public bool IsOn => _host.History.Store is not null;
 
     /// <inheritdoc/>
-    public long MaxFileBytes => ProjectsSettings.Read(_context.Settings).HistoryMaxFileMb * 1024L * 1024;
+    public long MaxFileBytes => ProjectsSettings.Read(_context.Settings).HistoryMaxFileBytes;
 
     /// <inheritdoc/>
     public LocalHistoryAction? LastStudioAction
@@ -218,9 +218,7 @@ internal sealed class HistoryService : IStudioHistory
             && (string.Equals(change.Path, path, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(change.From, path, StringComparison.OrdinalIgnoreCase))));
 
-    private FileWorkResult Off() =>
-        new(ProjectOperationResult.Failed(new ProjectDiagnostic(
-            ProjectsDiagnosticCodes.HistoryUnavailable, _words.Off, ProjectDiagnosticSeverity.Error)), null);
+    private FileWorkResult Off() => Refusals.Work(ProjectsDiagnosticCodes.HistoryUnavailable, _words.Off);
 
     /// <summary>
     /// Записано действие: окну — одно событие на пачку, в потоке интерфейса.

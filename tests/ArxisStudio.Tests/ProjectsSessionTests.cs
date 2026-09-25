@@ -1,4 +1,5 @@
 using ArxisStudio.Modules.Projects;
+using ArxisStudio.Modules.Projects.Engine;
 using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
 using ArxisStudio.Sdk;
@@ -60,6 +61,34 @@ public class ProjectsSessionTests
         Assert.True(
             seen.Zip(seen.Skip(1)).All(pair => pair.First.Current.Sequence < pair.Second.Current.Sequence),
             "номера доставленных состояний не растут");
+    }
+
+    /// <summary>
+    /// Идущая загрузка — это загрузка и при пустой очереди: состояние, выведенное посреди неё, не
+    /// говорит «не грузит», а перемена одного «грузит» — перемена для подписчика.
+    /// </summary>
+    /// <remarks>
+    /// Состояние выводится заново не только в начале загрузки: перезагрузка, отменённая, пока идёт
+    /// другая, уходит из очереди, и выведенное тогда состояние видит только идущую.
+    /// </remarks>
+    [Fact]
+    public void A_running_load_keeps_the_service_loading_with_nothing_queued()
+    {
+        var session = new ProjectsSession(1, ProjectsStudio.Solution(), new ProjectWorkspace(new ScriptedProvider()));
+
+        try
+        {
+            session.Running = new LoadItem(session, ProjectsLoadReason.Open);
+
+            var running = SessionStatus.Of(session);
+
+            Assert.True(running.IsLoading, "загрузка идёт, очередь пуста, а служба говорит, что не грузит");
+            Assert.False(SessionStatus.Same(running, running with { IsLoading = false }), "конец загрузки подписчику не перемена");
+        }
+        finally
+        {
+            session.Retire();
+        }
     }
 
     /// <summary>

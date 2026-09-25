@@ -112,8 +112,7 @@ internal sealed class FilesService : IStudioFiles
 
         if (_host.Session is not { Snapshot: not null } session)
         {
-            return ProjectOperationResult.Failed(new ProjectDiagnostic(
-                ProjectsDiagnosticCodes.NothingOpen, _words.NothingOpen, ProjectDiagnosticSeverity.Error));
+            return Refusals.Of(ProjectsDiagnosticCodes.NothingOpen, _words.NothingOpen);
         }
 
         var outcome = new TaskCompletionSource<FileWorkResult>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -129,8 +128,7 @@ internal sealed class FilesService : IStudioFiles
 
             if (session.IsRetired || session.Snapshot is not { } snapshot)
             {
-                outcome.TrySetResult(new FileWorkResult(ProjectOperationResult.Failed(new ProjectDiagnostic(
-                    ProjectsDiagnosticCodes.NothingOpen, _words.NothingOpen, ProjectDiagnosticSeverity.Error)), null));
+                outcome.TrySetResult(Refusals.Work(ProjectsDiagnosticCodes.NothingOpen, _words.NothingOpen));
 
                 return Task.CompletedTask;
             }

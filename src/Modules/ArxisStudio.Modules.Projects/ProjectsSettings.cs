@@ -56,6 +56,14 @@ public sealed record ProjectsSettings(
     /// <summary>Ключ предела всей истории, в мегабайтах.</summary>
     public const string HistoryMaxTotalMbKey = "projects.history.maxTotalMb";
 
+    /// <summary>Предел файла истории, в байтах: так его ждёт хранилище.</summary>
+    public long HistoryMaxFileBytes => HistoryMaxFileMb * Megabyte;
+
+    /// <summary>Предел всей истории, в байтах.</summary>
+    public long HistoryMaxTotalBytes => HistoryMaxTotalMb * Megabyte;
+
+    private const long Megabyte = 1024L * 1024;
+
     /// <summary>Настройки, пока человек ничего не менял.</summary>
     public static ProjectsSettings Default { get; } = new(true, true);
 

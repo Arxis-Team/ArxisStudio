@@ -126,8 +126,8 @@ internal sealed class Browser
 
     /// <summary>Узел с таким ключом в показанном дереве.</summary>
     /// <param name="key">Ключ.</param>
-    public Node? Locate(string key) =>
-        _root?.Descendants().FirstOrDefault(node => string.Equals(node.Key, key, StringComparison.OrdinalIgnoreCase));
+    private Node? Locate(string key) =>
+        _root?.Descendants().FirstOrDefault(node => Node.KeyComparer.Equals(node.Key, key));
 
     /// <summary>Тот же контейнер в новом дереве, а если его нет — ближайший уцелевший предок.</summary>
     private Node? Resolve(Node? was)
@@ -180,7 +180,7 @@ internal sealed class Browser
             Found = 0;
         }
 
-        var existing = new Dictionary<string, Tile>(StringComparer.OrdinalIgnoreCase);
+        var existing = new Dictionary<string, Tile>(Node.KeyComparer);
 
         foreach (var tile in Items)
             existing.TryAdd(tile.Key, tile);

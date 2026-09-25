@@ -4,11 +4,12 @@ using ArxisStudio.Modules.Terminal.Emulator;
 using ArxisStudio.Modules.Terminal.Pty;
 using ArxisStudio.Modules.Terminal.Shells;
 using Avalonia.Input;
-using Avalonia.Media;
 using Avalonia.Threading;
 using XTerm.Options;
 using AttributeData = XTerm.Buffer.AttributeData;
 using BufferLine = XTerm.Buffer.BufferLine;
+using XMouseButton = XTerm.Input.MouseButton;
+using XMouseEventType = XTerm.Input.MouseEventType;
 using XTerminal = XTerm.Terminal;
 
 namespace ArxisStudio.Modules.Terminal.Sessions;
@@ -177,9 +178,9 @@ public sealed class TerminalSession : IDisposable
             // удвоить пустые строки.
             ConvertEol = false,
             Theme = TerminalTheme.Campbell(
-                Color.FromRgb(0x17, 0x1A, 0x1D),
-                Color.FromRgb(0xCC, 0xCC, 0xCC),
-                Color.FromRgb(0x26, 0x3D, 0x68)),
+                TerminalTheme.FallbackBackground,
+                TerminalTheme.FallbackForeground,
+                TerminalTheme.FallbackSelection),
         };
     }
 
@@ -229,6 +230,44 @@ public sealed class TerminalSession : IDisposable
 
         Terminal.ScrollToBottom();
         Terminal.Paste(text);
+    }
+
+    /// <summary>
+    /// Хочет ли программа мышь себе: она просила отдавать ей нажатия, и человек не удерживает Shift,
+    /// чтобы выделять самому.
+    /// </summary>
+    /// <param name="modifiers">Что удержано.</param>
+    public bool WantsMouse(KeyModifiers modifiers) =>
+        Terminal.MouseTrackingMode != XTerm.Input.MouseTrackingMode.None && !modifiers.HasFlag(KeyModifiers.Shift);
+
+    /// <summary>Говорит программе о мыши — той записью, которую она выбрала.</summary>
+    /// <param name="button">Кнопка или колесо.</param>
+    /// <param name="column">Столбец ячейки.</param>
+    /// <param name="row">Строка ячейки на экране.</param>
+    /// <param name="type">Нажатие, отпускание или колесо.</param>
+    /// <param name="modifiers">Что удержано.</param>
+    /// <remarks>
+    /// Запись знает эмулятор, а дорогу к программе — сеанс; вид говорит только, что сделала мышь.
+    /// </remarks>
+    public void ReportMouse(XMouseButton button, int column, int row, XMouseEventType type, KeyModifiers modifiers)
+    {
+        var sequence = Terminal.GenerateMouseEvent(button, column, row, type, KeyMap.Convert(modifiers));
+
+        if (!string.IsNullOrEmpty(sequence))
+            SendText(sequence);
+    }
+
+    /// <summary>Говорит программе, что экран получил фокус или потерял, — если она об этом просила.</summary>
+    /// <param name="focused">Получил.</param>
+    public void ReportFocus(bool focused)
+    {
+        if (!Terminal.SendFocusEvents)
+            return;
+
+        var sequence = Terminal.GenerateFocusEvent(focused);
+
+        if (!string.IsNullOrEmpty(sequence))
+            SendText(sequence);
     }
 
     /// <summary>Есть ли что чистить: экран принадлежит нам, а не полноэкранной программе.</summary>

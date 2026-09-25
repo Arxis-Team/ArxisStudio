@@ -1,4 +1,3 @@
-using System.Globalization;
 using ArxisStudio.Modules.Project.Dialogs;
 using ArxisStudio.Modules.Project.Model;
 using ArxisStudio.Projects;
@@ -85,24 +84,19 @@ internal sealed class Editing(
     /// <returns>Где теперь лежат вставленные корни; пусто — вставки не было.</returns>
     public async Task<IReadOnlyList<CanonicalPath>?> PasteAsync(CanonicalPath folder)
     {
-        if (_busy || owner() is not { } window)
-            return null;
-
-        _busy = true;
-
-        try
+        return await Exclusive(async window =>
         {
             var clip = await Buffered().ConfigureAwait(true);
 
             if (clip is null)
             {
-                Tell(Format("project.paste.nothing"));
+                context.Tell(context.Strings.Format("project.paste.nothing"));
                 return null;
             }
 
             if (clip.Items.FirstOrDefault(item => Pasting.IntoItself(item, folder)) is { } inside)
             {
-                await FailureDialog.ShowAsync(window, Format("project.paste.intoItself", inside.Root.FileName)).ConfigureAwait(true);
+                await FailureDialog.ShowAsync(window, context.Strings.Format("project.paste.intoItself", inside.Root.FileName)).ConfigureAwait(true);
                 return null;
             }
 
@@ -117,11 +111,7 @@ internal sealed class Editing(
             }
 
             return roots;
-        }
-        finally
-        {
-            _busy = false;
-        }
+        }).ConfigureAwait(true);
     }
 
     /// <summary>
@@ -139,19 +129,10 @@ internal sealed class Editing(
     {
         ArgumentNullException.ThrowIfNull(items);
 
-        if (_busy || owner() is not { } window || !Dropping.Fits(items, folder))
+        if (!Dropping.Fits(items, folder))
             return null;
 
-        _busy = true;
-
-        try
-        {
-            return await PlaceAsync(window, new FileClip(ClipMode.Copy, items), folder, "project.drop.added").ConfigureAwait(true);
-        }
-        finally
-        {
-            _busy = false;
-        }
+        return await Exclusive(window => PlaceAsync(window, new FileClip(ClipMode.Copy, items), folder, "project.drop.added")).ConfigureAwait(true);
     }
 
     /// <summary>
@@ -166,12 +147,10 @@ internal sealed class Editing(
     {
         ArgumentNullException.ThrowIfNull(selection);
 
-        if (selection.IsEmpty || _busy || owner() is not { } window)
+        if (selection.IsEmpty)
             return false;
 
-        _busy = true;
-
-        try
+        return await Exclusive(async window =>
         {
             var kept = history?.IsOn == true;
             var large = kept ? Large(selection, history!.MaxFileBytes) : [];
@@ -187,19 +166,15 @@ internal sealed class Editing(
 
             var first = selection.Roots[0].Name;
             var more = selection.Roots.Count - 1;
-            var label = more == 0 ? Format("project.delete.label", first) : Format("project.delete.label.many", first, more);
+            var label = more == 0 ? context.Strings.Format("project.delete.label", first) : context.Strings.Format("project.delete.label.many", first, more);
 
             if (await Run(window, () => files.DeleteAsync(selection.Paths, label)) is not { HasErrors: false })
                 return false;
 
-            Tell(more == 0 ? Format("project.deleted", first) : Format("project.deleted.many", first, more));
+            context.Tell(more == 0 ? context.Strings.Format("project.deleted", first) : context.Strings.Format("project.deleted.many", first, more));
 
             return true;
-        }
-        finally
-        {
-            _busy = false;
-        }
+        }).ConfigureAwait(true);
     }
 
     /// <summary>
@@ -211,12 +186,10 @@ internal sealed class Editing(
     {
         ArgumentNullException.ThrowIfNull(node);
 
-        if (!EditSelection.IsEditable(node) || _busy || owner() is not { } window)
+        if (!EditSelection.IsEditable(node))
             return null;
 
-        _busy = true;
-
-        try
+        return await Exclusive<CanonicalPath?>(async window =>
         {
             if (await RenameDialog.AskAsync(window, node, context.Strings, Exists) is not { } name)
                 return null;
@@ -225,17 +198,13 @@ internal sealed class Editing(
                 .Select(step => new FileMove(step.Node.Path, step.Node.Path.Directory.Combine(step.Name)))
                 .ToList();
 
-            if (await Run(window, () => files.MoveAsync(moves, Format("project.rename.label", node.Name))) is not { HasErrors: false })
+            if (await Run(window, () => files.MoveAsync(moves, context.Strings.Format("project.rename.label", node.Name))) is not { HasErrors: false })
                 return null;
 
-            Tell(Format("project.renamed", node.Name, name));
+            context.Tell(context.Strings.Format("project.renamed", node.Name, name));
 
             return moves[0].To;
-        }
-        finally
-        {
-            _busy = false;
-        }
+        }).ConfigureAwait(true);
     }
 
     /// <summary>
@@ -260,12 +229,10 @@ internal sealed class Editing(
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        if (newItems is null || _busy || owner() is not { } window)
+        if (newItems is null)
             return null;
 
-        _busy = true;
-
-        try
+        return await Exclusive(async window =>
         {
             var answer = await CreateDialog.AskAsync(
                 window,
@@ -317,7 +284,7 @@ internal sealed class Editing(
                 .Select(file => new FileCreation(target.Combine(file.Path)) { Content = file.Content, IsDirectory = file.IsDirectory })
                 .ToList();
 
-            if (await Run(window, () => files.CreateAsync(creations, Format("project.add.label", typed.Name))) is not { HasErrors: false })
+            if (await Run(window, () => files.CreateAsync(creations, context.Strings.Format("project.add.label", typed.Name))) is not { HasErrors: false })
                 return null;
 
             return new Created(
@@ -325,11 +292,7 @@ internal sealed class Editing(
                 creations[0].Path,
                 creations[0].IsDirectory,
                 [.. made.Files.Zip(creations).Where(pair => pair.First.Open && !pair.First.IsDirectory).Select(pair => pair.Second.Path)]);
-        }
-        finally
-        {
-            _busy = false;
-        }
+        }).ConfigureAwait(true);
     }
 
     /// <summary>
@@ -344,59 +307,43 @@ internal sealed class Editing(
     /// </remarks>
     public async Task<LocalHistoryAction?> UndoAsync()
     {
-        if (history is null || _busy || owner() is not { } window)
+        if (history is null)
             return null;
 
-        _busy = true;
-
-        try
+        return await Exclusive(async window =>
         {
             if (!history.IsOn)
             {
-                Tell(Format("project.undo.off"));
+                context.Tell(context.Strings.Format("project.undo.off"));
                 return null;
             }
 
             if (history.LastStudioAction is not { } last)
             {
-                Tell(Format("project.undo.nothing"));
+                context.Tell(context.Strings.Format("project.undo.nothing"));
                 return null;
             }
 
             if (!await UndoDialog.AskAsync(window, context.Strings, last.Label))
                 return null;
 
-            if (await Run(window, () => history.UndoAsync(last.Id)) is not { HasErrors: false } result)
+            if (await Run(window, () => history.UndoAsync(last.Id), context.Strings["project.undo.partial"]) is not { HasErrors: false })
                 return null;
 
-            var skipped = result.Diagnostics
-                .Where(diagnostic => diagnostic.Severity == ProjectDiagnosticSeverity.Warning)
-                .Select(diagnostic => diagnostic.Message)
-                .ToList();
-
-            if (skipped.Count > 0)
-                await FailureDialog.ShowAsync(window, string.Join(Environment.NewLine, skipped), Format("project.undo.partial"));
-
-            Tell(Format("project.undone", last.Label));
+            context.Tell(context.Strings.Format("project.undone", last.Label));
 
             return last;
-        }
-        finally
-        {
-            _busy = false;
-        }
+        }).ConfigureAwait(true);
     }
 
     /// <summary>Ставит метку в локальной истории — спросив её текст.</summary>
     /// <returns>Поставлена ли метка.</returns>
     public async Task<bool> LabelAsync()
     {
-        if (history is null || _busy || owner() is not { } window)
+        if (history is null)
             return false;
 
-        _busy = true;
-
-        try
+        return await Exclusive(async window =>
         {
             if (await LabelDialog.AskAsync(window).ConfigureAwait(true) is not { } text)
                 return false;
@@ -404,14 +351,10 @@ internal sealed class Editing(
             if (await Run(window, () => history.PutLabelAsync(text)).ConfigureAwait(true) is not { HasErrors: false })
                 return false;
 
-            Tell(Format("project.history.labelled", text));
+            context.Tell(context.Strings.Format("project.history.labelled", text));
 
             return true;
-        }
-        finally
-        {
-            _busy = false;
-        }
+        }).ConfigureAwait(true);
     }
 
     /// <summary>
@@ -459,8 +402,8 @@ internal sealed class Editing(
         return large switch
         {
             [] => null,
-            [var one] => string.Format(CultureInfo.CurrentCulture, strings["project.delete.large"], one, megabytes),
-            _ => string.Format(CultureInfo.CurrentCulture, strings["project.delete.large.many"], large.Count, megabytes),
+            [var one] => strings.Format("project.delete.large", one, megabytes),
+            _ => strings.Format("project.delete.large.many", large.Count, megabytes),
         };
     }
 
@@ -480,33 +423,31 @@ internal sealed class Editing(
         ArgumentNullException.ThrowIfNull(strings);
         ArgumentNullException.ThrowIfNull(count);
 
-        string Say(string key, params object[] values) => string.Format(CultureInfo.CurrentCulture, strings[key], values);
-
         if (selection.Roots is [var root])
         {
             if (root.Kind == NodeKind.Folder)
             {
                 return count(root.Path) switch
                 {
-                    null => Say("project.delete.folder", root.Name),
-                    > CountLimit => Say("project.delete.folder.count", root.Name, $"{CountLimit}+"),
-                    var files => Say("project.delete.folder.count", root.Name, files),
+                    null => strings.Format("project.delete.folder", root.Name),
+                    > CountLimit => strings.Format("project.delete.folder.count", root.Name, $"{CountLimit}+"),
+                    var files => strings.Format("project.delete.folder.count", root.Name, files),
                 };
             }
 
             return EditSelection.Nested(root) switch
             {
-                [] => Say("project.delete.file", root.Name),
-                [var nested] => Say("project.delete.file.nested", root.Name, nested.Name),
-                var nested => Say("project.delete.file.nestedMany", root.Name, nested.Count),
+                [] => strings.Format("project.delete.file", root.Name),
+                [var nested] => strings.Format("project.delete.file.nested", root.Name, nested.Name),
+                var nested => strings.Format("project.delete.file.nestedMany", root.Name, nested.Count),
             };
         }
 
         return (selection.Files, selection.Folders) switch
         {
-            (var files, 0) => Say("project.delete.files", files),
-            (0, var folders) => Say("project.delete.folders", folders),
-            var (files, folders) => Say("project.delete.mixed", files, folders),
+            (var files, 0) => strings.Format("project.delete.files", files),
+            (0, var folders) => strings.Format("project.delete.folders", folders),
+            var (files, folders) => strings.Format("project.delete.mixed", files, folders),
         };
     }
 
@@ -549,12 +490,10 @@ internal sealed class Editing(
     {
         ArgumentNullException.ThrowIfNull(clip);
 
-        if (_busy || owner() is not { } window || !Dropping.Fits(clip.Items, folder, clip.Mode))
+        if (!Dropping.Fits(clip.Items, folder, clip.Mode))
             return null;
 
-        _busy = true;
-
-        try
+        return await Exclusive(async window =>
         {
             var moved = clip.Mode == ClipMode.Cut;
             var roots = await PlaceAsync(window, clip, folder, moved ? "project.paste.moved" : "project.drop.copied").ConfigureAwait(true);
@@ -566,11 +505,7 @@ internal sealed class Editing(
             }
 
             return roots;
-        }
-        finally
-        {
-            _busy = false;
-        }
+        }).ConfigureAwait(true);
     }
 
     /// <summary>
@@ -593,7 +528,7 @@ internal sealed class Editing(
         var first = plan.Roots[0].FileName;
         var more = plan.Roots.Count - 1;
         var many = more == 0 ? string.Empty : ".many";
-        var label = Format(said + ".label" + many, first, more);
+        var label = context.Strings.Format(said + ".label" + many, first, more);
 
         var result = await Run(window, () => clip.Mode == ClipMode.Cut ? files.MoveAsync(plan.Pairs, label) : files.CopyAsync(plan.Pairs, label))
             .ConfigureAwait(true);
@@ -601,7 +536,7 @@ internal sealed class Editing(
         if (result is not { HasErrors: false })
             return null;
 
-        Tell(Format(said + many, first, more));
+        context.Tell(context.Strings.Format(said + many, first, more));
 
         return plan.Roots;
     }
@@ -698,7 +633,7 @@ internal sealed class Editing(
         var more = selection.Roots.Count - 1;
 
         Take(clip);
-        Tell(Format((mode == ClipMode.Cut ? "project.clip.cut" : "project.clip.copied") + (more == 0 ? string.Empty : ".many"), first, more));
+        context.Tell(context.Strings.Format((mode == ClipMode.Cut ? "project.clip.cut" : "project.clip.copied") + (more == 0 ? string.Empty : ".many"), first, more));
 
         try
         {
@@ -744,9 +679,38 @@ internal sealed class Editing(
     /// <param name="Roots">Где теперь лежат корни — на них встанет выделение.</param>
     private sealed record PastePlan(IReadOnlyList<FileMove> Pairs, IReadOnlyList<CanonicalPath> Roots);
 
+    /// <summary>
+    /// Делает правку, если её можно начать: другая не идёт, и спросить человека есть где.
+    /// </summary>
+    /// <param name="work">Правка — с окном, которому принадлежат её вопросы.</param>
+    /// <returns>Итог правки; не начатая — значение по умолчанию, то есть «ничего не сделано».</returns>
+    /// <remarks>
+    /// Правка идёт одна: выбор под второй могла увести первая. Занятость снимается и тогда, когда
+    /// правка бросила, — иначе окно перестало бы править до перезапуска.
+    /// </remarks>
+    private async Task<T?> Exclusive<T>(Func<Window, Task<T?>> work)
+    {
+        if (_busy || owner() is not { } window)
+            return default;
+
+        _busy = true;
+
+        try
+        {
+            return await work(window).ConfigureAwait(true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
     /// <summary>Зовёт службу и говорит об отказе; исключение службы — тоже отказ, а не падение окна.</summary>
+    /// <param name="window">Окно для диалога.</param>
+    /// <param name="operation">Дело службы.</param>
+    /// <param name="partial">Заголовок удачи, вернувшей не всё; пусто — о ней не говорят.</param>
     /// <returns>Итог службы; пусто — служба бросила.</returns>
-    private async Task<ProjectOperationResult?> Run(Window window, Func<Task<ProjectOperationResult>> operation)
+    private async Task<ProjectOperationResult?> Run(Window window, Func<Task<ProjectOperationResult>> operation, string? partial = null)
     {
         ProjectOperationResult result;
 
@@ -762,18 +726,8 @@ internal sealed class Editing(
             return null;
         }
 
-        if (result.HasErrors)
-        {
-            var reasons = result.Diagnostics.Where(diagnostic => diagnostic.IsError).Select(diagnostic => diagnostic.Message);
-
-            await FailureDialog.ShowAsync(window, string.Join(Environment.NewLine, reasons)).ConfigureAwait(true);
-        }
+        await FailureDialog.ReportAsync(window, result, partial).ConfigureAwait(true);
 
         return result;
     }
-
-    private void Tell(string message) => context.GetService<IStudioStatus>()?.Show(message);
-
-    private string Format(string key, params object[] values) =>
-        string.Format(CultureInfo.CurrentCulture, context.Strings[key], values);
 }
