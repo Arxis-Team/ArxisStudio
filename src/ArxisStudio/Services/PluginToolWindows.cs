@@ -22,7 +22,7 @@ public sealed class PluginToolWindows(StudioDock dock, string pluginId) : IStudi
     {
         ArgumentException.ThrowIfNullOrEmpty(toolWindowId);
 
-        var id = $"{pluginId}:{toolWindowId}";
+        var id = PluginSurfaces.PanelId(pluginId, toolWindowId);
 
         if (Dispatcher.UIThread.CheckAccess())
             dock.Show(id);

@@ -44,5 +44,5 @@ public sealed class PluginFocus(StudioDock dock, string pluginId) : IStudioFocus
         return Dispatcher.UIThread.CheckAccess() && dock.IsFocused(Name(toolWindowId));
     }
 
-    private string Name(string toolWindowId) => $"{pluginId}:{toolWindowId}";
+    private string Name(string toolWindowId) => PluginSurfaces.PanelId(pluginId, toolWindowId);
 }

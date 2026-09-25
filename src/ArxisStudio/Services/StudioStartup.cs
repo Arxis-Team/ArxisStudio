@@ -2,7 +2,6 @@
 using ArxisStudio.Sdk;
 using ArxisStudio.Shell.Localization;
 using ArxisStudio.ViewModels;
-using Avalonia.Threading;
 
 namespace ArxisStudio.Services;
 
@@ -33,14 +32,14 @@ public sealed class StudioStartup
 {
     private readonly List<Stage> _stages = [];
     private readonly SplashViewModel _splash;
-    private readonly StudioLog _log;
+    private readonly IStudioLog _log;
 
     /// <summary>
     /// Заводит запуск над моделью заставки.
     /// </summary>
     /// <param name="splash">Куда рассказывать о ходе.</param>
     /// <param name="log">Куда писать об упавшем этапе.</param>
-    public StudioStartup(SplashViewModel splash, StudioLog log)
+    public StudioStartup(SplashViewModel splash, IStudioLog log)
     {
         ArgumentNullException.ThrowIfNull(splash);
         ArgumentNullException.ThrowIfNull(log);
@@ -51,9 +50,6 @@ public sealed class StudioStartup
 
     /// <summary>Сколько времени занял запуск.</summary>
     public TimeSpan Elapsed { get; private set; }
-
-    /// <summary>Этапы в порядке выполнения — их имена, как их видит человек.</summary>
-    public IReadOnlyList<string> Stages => [.. _stages.Select(stage => stage.Key)];
 
     /// <summary>
     /// Добавляет этап в конец списка.
@@ -121,7 +117,7 @@ public sealed class StudioStartup
         // сейчас читает эти строки. Не уступив ему до первого этапа, студия
         // приписала бы стоимость первой отрисовки чтению папок — так и вышло,
         // и в отчёте «paths» стоил двести миллисекунд вместо двух.
-        await Idle();
+        await StudioDispatch.PassAsync();
         StudioLaunch.Mark("кадр");
 
         // Число этапов объявляется после первого кадра, а не до него. До кадра
@@ -136,7 +132,7 @@ public sealed class StudioStartup
             // Уступаем поток до работы, а не после: объявление, сделанное
             // строкой выше, иначе доедет до экрана вместе с концом этапа —
             // то есть никогда не будет прочитано.
-            await Idle();
+            await StudioDispatch.PassAsync();
 
             if (await RunAsync(stage, token) is { } failure)
             {
@@ -207,10 +203,6 @@ public sealed class StudioStartup
             return new StageFailure(stage.Key, $"{e.GetType().Name}: {e.Message}", stage.Fatal);
         }
     }
-
-    /// <summary>Отдаёт поток интерфейса на один проход отрисовки.</summary>
-    private static Task Idle() =>
-        Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background).GetTask();
 
     /// <summary>Этап запуска: подпись, работа и цена его отсутствия.</summary>
     /// <param name="Key">Ключ словаря для подписи.</param>

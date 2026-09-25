@@ -410,22 +410,29 @@ public class StudioPluginsTests : IDisposable
     }
 
     /// <summary>
-    /// Панель плагина, отключённого за сбои, всё равно получает прощание.
+    /// Панель и свой элемент полосы плагина, отключённого за сбои, всё равно получают прощание.
     /// </summary>
     /// <remarks>
     /// Гвард помечает плагин сбойным раньше, чем сообщает об этом, а прощание шло рабочей дорогой
     /// шва — той, что отключённому отказывает. <c>Release</c> не звался ровно на той дороге, где он
     /// нужнее всего: упавший терминал оставлял свои оболочки работать без окна.
+    /// <para>
+    /// Элемент полосы прощается той же дорогой, но держал её только уговор: пример студии своего
+    /// <c>Release</c> у элемента не заводит, и дорогу без прощания не заметил бы ни один тест.
+    /// </para>
     /// </remarks>
     [AvaloniaFact]
-    public void A_panel_of_an_extension_disabled_for_failures_still_gets_its_farewell()
+    public void The_panel_and_strip_item_of_an_extension_disabled_for_failures_still_get_their_farewell()
     {
         var module = Farewell("Probe.FarewellDisabled", "arxis.farewell-disabled", broken: false);
         var panel = module.GetType("Probe.FarewellPanel")!;
+        var strip = module.GetType("Probe.FarewellStrip")!;
 
         Start(modules: module);
 
         Assert.Equal(1, Counter(panel, "Built"));
+        Assert.Equal(1, Counter(strip, "Built"));
+        Assert.Contains(StudioToolBar.Key("arxis.farewell-disabled", "farewell.strip"), _studio.ToolBar.Shown("right"));
 
         for (var failure = 0; failure < PluginGuard.FailureLimit; failure++)
             _studio.Guard.Report("arxis.farewell-disabled", "проба", new InvalidOperationException("сломалось"));
@@ -433,6 +440,7 @@ public class StudioPluginsTests : IDisposable
         Pump();
 
         Assert.Equal(1, Counter(panel, "Released"));
+        Assert.Equal(1, Counter(strip, "Released"));
         Assert.DoesNotContain(_studio.Dock.Items.Known(), id => id.StartsWith("arxis.farewell-disabled:", StringComparison.Ordinal));
     }
 
@@ -521,7 +529,7 @@ public class StudioPluginsTests : IDisposable
     }
 
     /// <summary>
-    /// Модуль с панелью, которая считает свои постройки и прощания.
+    /// Модуль с панелью и своим элементом полосы, которые считают свои постройки и прощания.
     /// </summary>
     /// <param name="name">Имя сборки — своё на тест: тип со статическим счётом один на процесс.</param>
     /// <param name="id">Идентификатор модуля.</param>
@@ -566,6 +574,22 @@ public class StudioPluginsTests : IDisposable
 
                 public override void Release() => Released++;
             }
+
+            [ToolBarItem("farewell.strip")]
+            public sealed class FarewellStrip : ToolBarItem
+            {
+                public static int Built;
+                public static int Released;
+
+                protected override Control Build()
+                {
+                    Built++;
+
+                    return new Border();
+                }
+
+                public override void Release() => Released++;
+            }
             """,
         $$"""
             {
@@ -573,7 +597,8 @@ public class StudioPluginsTests : IDisposable
               "name": "Прощание",
               "version": "1.0.0",
               "contributions": {
-                "toolWindows": [ { "id": "farewell.panel", "title": "Прощание", "placement": { "side": "bottom" } } ]
+                "toolWindows": [ { "id": "farewell.panel", "title": "Прощание", "placement": { "side": "bottom" } } ],
+                "toolBar": [ { "id": "farewell.strip", "kind": "custom", "slot": "right" } ]
               },
               "activation": [ "onStartup" ]
             }

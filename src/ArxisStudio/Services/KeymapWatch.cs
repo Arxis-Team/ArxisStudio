@@ -1,3 +1,5 @@
+using ArxisStudio.Shell;
+
 namespace ArxisStudio.Services;
 
 /// <summary>
@@ -106,7 +108,7 @@ internal sealed class KeymapWatch : IDisposable
         {
             _changed();
         }
-        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        catch (Exception e) when (Faults.Survivable(e))
         {
             // Поток пула: исключение отсюда закончило бы процесс. Тот, кто применяет файл, говорит о
             // своих бедах сам.

@@ -1,6 +1,5 @@
 using System.Collections.Frozen;
 using System.Reflection;
-using ArxisStudio.Controls;
 using ArxisStudio.Icons;
 using Avalonia.Media;
 
@@ -91,7 +90,7 @@ public static class ManifestIcons
 
         // Строку принёс посторонний, и чем на неё ответит разборщик — его дело;
         // отказ процесса перехватывать нечем.
-        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        catch (Exception e) when (Faults.Survivable(e))
         {
             problem = $"контур значка «{icon}» не разобрался: {e.Message}";
             return null;

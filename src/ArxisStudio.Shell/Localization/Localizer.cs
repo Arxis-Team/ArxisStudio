@@ -75,12 +75,12 @@ public sealed class Localizer : INotifyPropertyChanged, IStringSource
     /// Папка рядом со студией — то, что мы поставляем: оттуда переводчик
     /// берёт список ключей. Папка пользователя сильнее: правят её, а установку
     /// студии на общей машине может быть и нечем.
-    /// </remarks>
-    /// <remarks>
+    /// <para>
     /// Свойства вычисляемые, а не статические поля: <see cref="Instance"/>
     /// заводится инициализатором того же типа, а инициализаторы выполняются
     /// в порядке объявления — поле, объявленное ниже, к этому моменту ещё
     /// пустое.
+    /// </para>
     /// </remarks>
     public static string SharedFolder => Path.Combine(AppContext.BaseDirectory, Folder);
 
@@ -149,7 +149,7 @@ public sealed class Localizer : INotifyPropertyChanged, IStringSource
         Language = language;
 
         RefreshTracked();
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Language)));
+        PropertyChanged.Raise(this, nameof(Language));
 
         return true;
     }
@@ -177,13 +177,13 @@ public sealed class Localizer : INotifyPropertyChanged, IStringSource
             _strings = _fallback;
             Language = FallbackLanguage;
 
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Language)));
+            PropertyChanged.Raise(this, nameof(Language));
         }
 
         Languages = Scan();
 
         RefreshTracked();
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Languages)));
+        PropertyChanged.Raise(this, nameof(Languages));
     }
 
     /// <summary>
@@ -224,7 +224,7 @@ public sealed class Localizer : INotifyPropertyChanged, IStringSource
     /// Строка студии, обновляющаяся при смене языка.
     /// </summary>
     /// <remarks>
-    /// Разметке хватает <c>{loc:Loc}</c>, но интерфейс, собранный кодом, — списки,
+    /// Разметке хватает <c>{ax:Loc}</c>, но интерфейс, собранный кодом, — списки,
     /// разделы, пункты меню — заводит свои строки сам.
     /// <para>
     /// Строка принадлежит студии и живёт с ней; на один ключ она одна. Держать

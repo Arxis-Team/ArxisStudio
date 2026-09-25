@@ -4,7 +4,6 @@ using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Shell;
-using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -370,11 +369,7 @@ public sealed class StudioToolBar
         var command = declared.Command!;
 
         // Замыкание держит реестр и строку — ничего из сборки плагина.
-        button.Click += (_, _) =>
-        {
-            if (Invoke is not { } invoke || !invoke(command))
-                Complained?.Invoke(this, $"Команду {command} никто не обрабатывает");
-        };
+        button.Click += (_, _) => Call(command);
 
         return button;
     }
@@ -404,14 +399,7 @@ public sealed class StudioToolBar
 
         if (declared.Menu is { Length: > 0 } path)
         {
-            // Путь режется до перевода, а переводится посегментно — как в
-            // StudioMenu: переведённая строка вполне может содержать косую.
-            var strings = owner?.Strings ?? PluginStrings.Studio;
-            var segments = path
-                .Split('/', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-                .Select(strings.Resolve);
-
-            foreach (var segment in segments)
+            foreach (var segment in StudioMenu.Segments(path, owner?.Strings ?? PluginStrings.Studio))
             {
                 var branch = level.FirstOrDefault(item => !item.IsCommand && string.Equals(item.Title, segment, StringComparison.Ordinal));
 
@@ -458,11 +446,7 @@ public sealed class StudioToolBar
             // дошёл до настроек.
             item.InputGesture = Gesture?.Invoke(command);
 
-            item.Click += (_, _) =>
-            {
-                if (Invoke is not { } invoke || !invoke(command))
-                    Complained?.Invoke(this, $"Команду {command} никто не обрабатывает");
-            };
+            item.Click += (_, _) => Call(command);
         }
 
         foreach (var child in source.Children)
@@ -515,7 +499,7 @@ public sealed class StudioToolBar
             {
                 var label = new TextBlock { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
 
-                Text(label, TextBlock.TextProperty, title, strings);
+                strings.Label(label, TextBlock.TextProperty, title);
 
                 var content = new StackPanel
                 {
@@ -532,15 +516,15 @@ public sealed class StudioToolBar
             }
             else
             {
-                Text(button, ContentControl.ContentProperty, title, strings);
+                strings.Label(button, ContentControl.ContentProperty, title);
             }
         }
 
         // Имя ставится и текстовой кнопке: у кнопки со сложным содержимым — а у
         // меню оно такое — своего имени нет, ей досталось бы имя класса
         // раскладки.
-        Text(button, ToolTip.TipProperty, title, strings);
-        Text(button, AutomationProperties.NameProperty, title, strings);
+        strings.Label(button, ToolTip.TipProperty, title);
+        strings.Label(button, AutomationProperties.NameProperty, title);
 
         // Сочетание спрашивается в миг показа подсказки, а не при сборке кнопки: человек правит
         // клавиши в настройках и в keymap.json, а полоса собирается один раз за сеанс.
@@ -550,19 +534,12 @@ public sealed class StudioToolBar
         return button;
     }
 
-    /// <summary>
-    /// Подпись — живой привязкой, если это ключ, и строкой, если нет.
-    /// </summary>
-    /// <remarks>
-    /// Тот же приём, что у заголовка панели в раскладке: текст вклада показывает
-    /// не его автор, а студия, и переводить его при смене языка — её забота.
-    /// </remarks>
-    private static void Text(AvaloniaObject target, AvaloniaProperty property, string text, PluginStrings strings)
+    /// <summary>Зовёт команду через реестр; не нашлось хозяина — говорит об этом.</summary>
+    /// <param name="command">Какую.</param>
+    private void Call(string command)
     {
-        if (PluginStrings.IsKey(text, out var key))
-            target.Bind(property, strings.Text(key));
-        else
-            target.SetValue(property, text);
+        if (Invoke is not { } invoke || !invoke(command))
+            Complained?.Invoke(this, $"Команду {command} никто не обрабатывает");
     }
 
     private sealed class Entry

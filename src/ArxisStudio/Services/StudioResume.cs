@@ -1,4 +1,5 @@
 using ArxisStudio.Sdk;
+using ArxisStudio.Shell;
 
 namespace ArxisStudio.Services;
 
@@ -107,7 +108,7 @@ internal sealed class StudioResume
         {
             act();
         }
-        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        catch (Exception e) when (Faults.Survivable(e))
         {
             Complain(what, e);
         }
@@ -119,7 +120,7 @@ internal sealed class StudioResume
         {
             await act();
         }
-        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        catch (Exception e) when (Faults.Survivable(e))
         {
             Complain(what, e);
         }

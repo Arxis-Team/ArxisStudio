@@ -1,7 +1,5 @@
 using ArxisStudio.Controls;
-using ArxisStudio.Icons;
 using Avalonia;
-using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -449,8 +447,7 @@ public class DockGroupView : TemplatedControl
 
         _hide.IsVisible = CanHide;
 
-        ToolTip.SetTip(_hide, HideTitle);
-        AutomationProperties.SetName(_hide, HideTitle ?? string.Empty);
+        DockLabel.Named(_hide, HideTitle);
     }
 
     /// <summary>Кнопка в шапке просит скрыть группу.</summary>

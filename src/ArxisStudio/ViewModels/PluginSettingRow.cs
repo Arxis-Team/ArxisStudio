@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Globalization;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk.Plugins;
+using ArxisStudio.Settings;
+using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
 
 namespace ArxisStudio.ViewModels;
@@ -61,7 +63,7 @@ public sealed class PluginSettingRow(
                 return;
 
             _shown = value;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsShown)));
+            PropertyChanged.Raise(this, nameof(IsShown));
         }
     }
 
@@ -179,7 +181,7 @@ public sealed class PluginSettingRow(
         }
 
         _pending = null;
-        Notify();
+        PendingChanged();
         return true;
     }
 
@@ -193,8 +195,8 @@ public sealed class PluginSettingRow(
     /// </remarks>
     public void Narrow(string? query) =>
         IsShown = query is null
-            || Label.Contains(query, StringComparison.CurrentCultureIgnoreCase)
-            || Key.Contains(query, StringComparison.CurrentCultureIgnoreCase);
+            || SettingsSearch.Matches(Label, query)
+            || SettingsSearch.Matches(Key, query);
 
     /// <summary>Забывает накопленную правку.</summary>
     public void Revert()
@@ -203,7 +205,7 @@ public sealed class PluginSettingRow(
             return;
 
         _pending = null;
-        Notify();
+        PendingChanged();
     }
 
     /// <summary>
@@ -218,9 +220,7 @@ public sealed class PluginSettingRow(
     /// </remarks>
     public void Relabel()
     {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Label)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PluginName)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Note)));
+        PropertyChanged.Raise(this, nameof(Label), nameof(PluginName), nameof(Note));
     }
 
     /// <summary>Записанное значение строкой; пусто, если ничего не записано.</summary>
@@ -247,13 +247,9 @@ public sealed class PluginSettingRow(
     private void Stage(object value)
     {
         _pending = value;
-        Notify();
+        PendingChanged();
     }
 
-    private void Notify()
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Flag)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Text)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasChanges)));
-    }
+    /// <summary>Накопленная правка сменилась: извещает о показанном значении и о несохранённом.</summary>
+    private void PendingChanged() => PropertyChanged.Raise(this, nameof(Flag), nameof(Text), nameof(HasChanges));
 }

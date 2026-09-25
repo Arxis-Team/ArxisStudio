@@ -296,6 +296,11 @@ public class SettingsNavigationTests : IDisposable
     /// <remarks>
     /// Страница остаётся на экране после сброса, и её контролы обязаны показать вернувшееся. Прежде
     /// откат шёл только с закрытием окна, и тема возвращалась, а сегмент оставался на прежнем выборе.
+    /// <para>
+    /// Сама правка говорит окну о себе так же, как правка строки расширения: у страницы точка, в шапке
+    /// «Сбросить». Тема применяется сразу, и без этого извещения окно показывало бы новую тему как
+    /// сохранённую — сбрасывать её было бы нечем.
+    /// </para>
     /// </remarks>
     [AvaloniaFact]
     public async Task Resetting_the_appearance_brings_its_choices_back_on_screen()
@@ -311,6 +316,10 @@ public class SettingsNavigationTests : IDisposable
         appearance.ThemeIndex = 1 - themeAtOpen;
         appearance.DensityIndex = (densityAtOpen + 1) % 3;
         Dispatcher.UIThread.RunJobs();
+        settings.UpdateLayout();
+
+        Assert.True(settings.Reset.IsEffectivelyVisible, "правка оформления не показала «Сбросить»");
+        Assert.Equal([appearance.Id], Dots(settings));
 
         model.Reset();
         Dispatcher.UIThread.RunJobs();

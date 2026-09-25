@@ -1,7 +1,6 @@
 using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Icons;
-using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
@@ -14,7 +13,6 @@ using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media;
-using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 
@@ -35,7 +33,7 @@ namespace ArxisStudio.Settings;
 /// обязано тянуться. Модальность даёт <c>ShowDialog</c>, а не тип окна.
 /// </para>
 /// </remarks>
-public partial class SettingsWindow : AxWindow, IPluginDialogs
+public partial class SettingsWindow : AxWindow
 {
     private SettingsViewModel? _model;
 
@@ -128,7 +126,7 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
         ArgumentNullException.ThrowIfNull(catalog);
 
         var window = new SettingsWindow { _restart = restart };
-        var plugins = new PluginsPage(catalog, extensions, window, [.. declaring.Where(extension => extension.IsBuiltIn)]);
+        var plugins = new PluginsPage(catalog, extensions, new SettingsDialogs(window), [.. declaring.Where(extension => extension.IsBuiltIn)]);
         var model = new SettingsViewModel(
             studio,
             extensions.Settings,
@@ -211,17 +209,8 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
         if (_model is not { } model)
             return;
 
-        Save.IsEnabled = Cancel.IsEnabled = false;
-
-        try
-        {
-            if (await model.SaveAsync())
-                Close();
-        }
-        finally
-        {
-            Save.IsEnabled = Cancel.IsEnabled = true;
-        }
+        if (await BusyAsync(() => model.SaveAsync()))
+            Close();
     }
 
     /// <summary>
@@ -238,11 +227,24 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
         if (_model is not { HasChanges: true } model)
             return true;
 
+        return await BusyAsync(() => model.SaveAsync(live: false));
+    }
+
+    /// <summary>
+    /// Записывает с выключенными «Сохранить» и «Отменой».
+    /// </summary>
+    /// <remarks>
+    /// Сохранение бывает долгим — страница плагинов опускает выключенных и ждёт, пока их отпустят, —
+    /// и второй щелчок посреди первого начал бы всё заново. Esc, спрашивающий «Отмену», на это время
+    /// тоже молчит.
+    /// </remarks>
+    private async Task<bool> BusyAsync(Func<Task<bool>> save)
+    {
         Save.IsEnabled = Cancel.IsEnabled = false;
 
         try
         {
-            return await model.SaveAsync(live: false);
+            return await save();
         }
         finally
         {
@@ -472,43 +474,6 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
         if (page is { Length: > 0 })
             model.Select(page);
     }
-
-    // -- диалоги страницы плагинов ------------------------------------------
-
-    /// <inheritdoc/>
-    public async Task<string?> AskFolderAsync(string title)
-    {
-        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = title,
-            AllowMultiple = false,
-        });
-
-        return folders.Count == 0 ? null : folders[0].TryGetLocalPath();
-    }
-
-    /// <inheritdoc/>
-    public async Task<string?> AskArchiveAsync(string title)
-    {
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = title,
-            AllowMultiple = false,
-            FileTypeFilter =
-            [
-                new FilePickerFileType("ArxisStudio") { Patterns = ["*.axplugin"] },
-            ],
-        });
-
-        return files.Count == 0 ? null : files[0].TryGetLocalPath();
-    }
-
-    /// <inheritdoc/>
-    public Task<bool> ConfirmAsync(string title, string message, string confirm, bool danger) =>
-        StudioAsk.ConfirmAsync(this, title, message, confirm, danger);
-
-    /// <inheritdoc/>
-    public void Reveal(string path) => StudioOpen.InShell(path);
 
     // -- кнопки страницы плагинов ------------------------------------------
 

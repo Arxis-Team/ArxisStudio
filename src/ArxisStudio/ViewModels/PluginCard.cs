@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using ArxisStudio.Extensibility;
+using ArxisStudio.Settings;
+using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
 
 namespace ArxisStudio.ViewModels;
@@ -376,7 +378,7 @@ public sealed class PluginCard : INotifyPropertyChanged, IPluginRow
     public bool DeclaresSettings => Plugin.Manifest?.Contributions.Settings.Count > 0;
 
     /// <summary>Имя страницы его настроек — туда ведёт кнопка «Настройки».</summary>
-    public string SettingsPageId => $"extension:{Plugin.Id}";
+    public string SettingsPageId => ExtensionPage.IdFor(Plugin.Id);
 
     /// <summary>Включён ли плагин — с учётом непринятой ещё правки.</summary>
     public bool IsOn
@@ -439,7 +441,7 @@ public sealed class PluginCard : INotifyPropertyChanged, IPluginRow
     /// <summary>Оставляет строку на виду, если поиск её нашёл.</summary>
     /// <param name="query">Что ищут; <c>null</c> — строка видна всегда.</param>
     public void Narrow(string? query) =>
-        IsShown = query is null || Terms.Any(term => term.Contains(query, StringComparison.CurrentCultureIgnoreCase));
+        IsShown = query is null || SettingsSearch.Matches(Terms, query);
 
     /// <summary>Возвращает галочку к записанному.</summary>
     public void Revert() => IsOn = Plugin.IsEnabled;
@@ -449,6 +451,5 @@ public sealed class PluginCard : INotifyPropertyChanged, IPluginRow
 
     private static PluginFact Fact(string label, string value) => new(Localizer.Instance[label], value);
 
-    private void Notify([CallerMemberName] string? property = null) =>
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
+    private void Notify([CallerMemberName] string? property = null) => PropertyChanged.Raise(this, property);
 }

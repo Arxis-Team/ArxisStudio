@@ -1,6 +1,5 @@
 using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
-using ArxisStudio.Shell;
 using ArxisStudio.Services;
 using ArxisStudio.Shell.Localization;
 using ArxisStudio.Shell.Settings;

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using ArxisStudio.Icons;
+using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
 using ArxisStudio.Shell.Settings;
 using Avalonia.Media;
@@ -133,7 +134,7 @@ public sealed class AppearancePage : ISettingsPage, INotifyPropertyChanged
 
             _theme = wanted;
             StudioTheming.Apply(wanted);
-            Notify();
+            Edited();
         }
     }
 
@@ -161,7 +162,7 @@ public sealed class AppearancePage : ISettingsPage, INotifyPropertyChanged
 
             _density = wanted;
             StudioTheming.Apply(wanted);
-            Notify();
+            Edited();
         }
     }
 
@@ -180,12 +181,12 @@ public sealed class AppearancePage : ISettingsPage, INotifyPropertyChanged
             if (!Localizer.Instance.SetLanguage(wanted.Code))
             {
                 Complain?.Invoke(Localizer.Instance["settings.language.missing"]);
-                Notify();
+                Edited();
                 return;
             }
 
             _language = wanted.Code;
-            Notify();
+            Edited();
             Relabelled?.Invoke();
         }
     }
@@ -259,28 +260,27 @@ public sealed class AppearancePage : ISettingsPage, INotifyPropertyChanged
         // Страница остаётся на экране после «Сбросить» в шапке, и её контролы обязаны показать
         // вернувшееся. Прежде откат шёл только с закрытием окна, и сегменты, оставшиеся на
         // прежнем выборе, видно не было.
-        Notify(nameof(ThemeIndex));
-        Notify(nameof(DensityIndex));
-        Notify(nameof(SelectedLanguage));
+        Edited(nameof(ThemeIndex));
+        Edited(nameof(DensityIndex));
+        Edited(nameof(SelectedLanguage));
     }
 
     /// <inheritdoc/>
     public void Narrow(string? query)
     {
-        _query = string.IsNullOrWhiteSpace(query) ? null : query.Trim();
+        _query = SettingsSearch.Normalize(query);
 
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsTheme)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsDensity)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsLanguage)));
+        PropertyChanged.Raise(this, nameof(ShowsTheme), nameof(ShowsDensity), nameof(ShowsLanguage));
     }
 
     private bool Shows(IEnumerable<string> terms) =>
-        _query is not { } query || terms.Any(term => term.Contains(query, StringComparison.CurrentCultureIgnoreCase));
+        _query is not { } query || SettingsSearch.Matches(terms, query);
 
-    private void Notify([CallerMemberName] string? property = null)
+    /// <summary>Свойство сменилось правкой: извещает о нём, о несохранённом и окно.</summary>
+    /// <param name="property">Сменившееся свойство.</param>
+    private void Edited([CallerMemberName] string? property = null)
     {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasChanges)));
+        PropertyChanged.Raise(this, property, nameof(HasChanges));
         Changed?.Invoke(this, EventArgs.Empty);
     }
 }

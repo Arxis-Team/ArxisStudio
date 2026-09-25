@@ -334,23 +334,6 @@ public class DockTreeTests
         Assert.Empty(DockTree.Normalize([]));
     }
 
-    /// <summary>
-    /// Неизвестные панели отсеиваются при чтении, но выбранная не остаётся призраком.
-    /// </summary>
-    /// <remarks>
-    /// Плагин могли удалить, пока студия не работала. Дерево обязано открыться без
-    /// него — и не ссылаться выбранной вкладкой на то, чего в группе больше нет.
-    /// </remarks>
-    [Fact]
-    public void Unknown_items_are_sifted_out_on_reading()
-    {
-        var root = new DockGroup { Id = "left", Items = ["solution", "ghost"], Selected = "ghost" };
-        var group = Assert.IsType<DockGroup>(DockTree.Keep(root, new HashSet<string>(["solution"])));
-
-        Assert.Equal(["solution"], group.Items);
-        Assert.Equal("solution", group.Selected);
-    }
-
     /// <summary>Панель находится по имени, и её группа — тоже.</summary>
     [Fact]
     public void A_panel_and_its_group_are_found_by_name()

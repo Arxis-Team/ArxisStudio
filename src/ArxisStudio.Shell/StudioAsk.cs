@@ -13,9 +13,10 @@ namespace ArxisStudio.Shell;
 /// Вопрос, на который студия не вправе ответить за человека.
 /// </summary>
 /// <remarks>
-/// Диалог собирается кодом, а не разметкой: вопросов у студии наперечёт, все
-/// они одной формы — значок, текст, две кнопки, — и заводить под каждый свой
-/// <c>.axaml</c> значило бы повторить эту форму столько раз, сколько вопросов.
+/// Диалог собирается кодом, а не разметкой: вопросов у студии наперечёт, и форм у
+/// них две — значок, текст и две кнопки у вопроса, поле и две кнопки у имени. Заводить
+/// под каждый свой <c>.axaml</c> значило бы повторить форму столько раз, сколько
+/// вопросов, а подвал с кнопками у обеих форм один.
 /// <para>
 /// Жил этот сбор в окне Welcome, пока спрашивало только оно. Со вторым
 /// спрашивающим — окном настроек, которому нужно спросить о несохранённых
@@ -59,25 +60,16 @@ public static class StudioAsk
         ArgumentNullException.ThrowIfNull(owner);
 
         var cancel = new AxButton { Content = refuse ?? Localizer.Instance["common.cancel"] };
-        var agree = new AxButton { Content = confirm };
+        var agree = new AxButton
+        {
+            Content = confirm,
+            Appearance = danger ? AxButtonAppearance.Danger : AxButtonAppearance.Primary,
+        };
         var alert = new AxIcon { Data = question ? AxIcons.Question : AxIcons.Warning };
 
-        // Размер и цвет — привязкой к теме, а не значением, снятым один раз:
-        // снятая кисть не переключилась бы вместе с темой, а число ширины
-        // разошлось бы с плотностью. Кнопки подвала ровняет ключ темы, как и в
-        // остальных диалогах студии.
-        var buttons = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Children = { cancel, agree },
-        };
-
-        cancel.Bind(Layoutable.MinWidthProperty, cancel.GetResourceObservable("AxDialogButtonMinWidth"));
-        agree.Bind(Layoutable.MinWidthProperty, agree.GetResourceObservable("AxDialogButtonMinWidth"));
-        buttons.Bind(StackPanel.SpacingProperty, buttons.GetResourceObservable("AxGapControls"));
+        // Цвет — привязкой к теме, а не значением, снятым один раз: снятая кисть не переключилась
+        // бы вместе с темой.
         alert.Bind(TemplatedControl.ForegroundProperty, alert.GetResourceObservable(question ? "AxAccentBrush" : "AxWarningBrush"));
-
-        agree.Appearance = danger ? AxButtonAppearance.Danger : AxButtonAppearance.Primary;
 
         var dialog = new AxDialog
         {
@@ -89,7 +81,7 @@ public static class StudioAsk
                 MaxWidth = 420,
             },
             AlertIcon = alert,
-            Buttons = buttons,
+            Buttons = Footer(cancel, agree),
         };
 
         cancel.Click += (_, _) => dialog.Close(false);
@@ -102,5 +94,66 @@ public static class StudioAsk
         dialog.Opened += (_, _) => (danger ? cancel : agree).Focus(NavigationMethod.Tab);
 
         return await dialog.ShowDialog<bool?>(owner) == true;
+    }
+
+    /// <summary>
+    /// Спрашивает имя — одно поле и две кнопки.
+    /// </summary>
+    /// <param name="owner">Окно, которому принадлежит вопрос.</param>
+    /// <param name="title">Заголовок.</param>
+    /// <param name="hint">Подсказка в пустом поле.</param>
+    /// <param name="confirm">Надпись на кнопке согласия.</param>
+    /// <returns>Введённое имя как есть; null — отказались.</returns>
+    /// <remarks>
+    /// Модальным окном, а не полем в меню: меню закрывается от первого же щелчка мимо, и начатое
+    /// пропало бы вместе с недопечатанным именем. Каретка сразу в поле — другого дела у этого окна
+    /// нет, — и Enter соглашается. Пустое и лишние пробелы судит тот, кто спрашивал.
+    /// </remarks>
+    public static async Task<string?> NameAsync(Window owner, string title, string hint, string confirm)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+
+        var box = new AxTextBox { PlaceholderText = hint, Width = 260 };
+        var cancel = new AxButton { Content = Localizer.Instance["common.cancel"] };
+        var save = new AxButton { Content = confirm, Appearance = AxButtonAppearance.Primary };
+
+        var dialog = new AxDialog
+        {
+            Title = title,
+            Content = box,
+            Buttons = Footer(cancel, save),
+        };
+
+        dialog.Opened += (_, _) => box.Focus();
+        cancel.Click += (_, _) => dialog.Close(null);
+        save.Click += (_, _) => dialog.Close(box.Text);
+
+        box.KeyDown += (_, key) =>
+        {
+            if (key.Key == Key.Enter)
+                dialog.Close(box.Text);
+        };
+
+        return await dialog.ShowDialog<string?>(owner);
+    }
+
+    /// <summary>Подвал диалога: отказ слева, согласие справа.</summary>
+    /// <remarks>
+    /// Ширина кнопок и зазор между ними — ключами темы, а не числом: число не сжалось бы вместе с
+    /// плотностью, и подвалы вопросов студии разошлись бы между собой.
+    /// </remarks>
+    private static StackPanel Footer(AxButton refuse, AxButton agree)
+    {
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Children = { refuse, agree },
+        };
+
+        refuse.Bind(Layoutable.MinWidthProperty, refuse.GetResourceObservable("AxDialogButtonMinWidth"));
+        agree.Bind(Layoutable.MinWidthProperty, agree.GetResourceObservable("AxDialogButtonMinWidth"));
+        buttons.Bind(StackPanel.SpacingProperty, buttons.GetResourceObservable("AxGapControls"));
+
+        return buttons;
     }
 }

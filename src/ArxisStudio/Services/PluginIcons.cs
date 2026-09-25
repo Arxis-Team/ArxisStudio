@@ -1,3 +1,4 @@
+using ArxisStudio.Shell;
 using Avalonia.Media.Imaging;
 
 namespace ArxisStudio.Services;
@@ -76,7 +77,7 @@ public sealed class PluginIcons
 
             return Bitmap.DecodeToWidth(stream, Width);
         }
-        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        catch (Exception e) when (Faults.Survivable(e))
         {
             // Перехват широкий намеренно. Файл принёс посторонний, и чем
             // ответит декодер на мусор — его дело: Skia, например, на

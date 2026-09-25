@@ -154,7 +154,7 @@ public class App : Application
             _early = new JsonSettingsStore();
             Dress(_early.Current);
         }
-        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        catch (Exception e) when (Faults.Survivable(e))
         {
             _early = null;
         }
@@ -269,7 +269,7 @@ public class App : Application
                     _studio = new MainWindow(_log) { Settings = _settings, Catalog = _plugins };
 
                     // Как перезапуститься, знает приложение: процесс, окна и сессия — его.
-                    _studio.Restart.Perform = () => RestartAsync(desktop);
+                    _studio.Restart.Perform = new StudioRestarter(desktop, _studio, _log).RestartAsync;
                 },
                 fatal: true)
             .Add("splash.stage.modules", () =>
@@ -412,10 +412,7 @@ public class App : Application
 
             if (asked.Path is { } path && _studio.Extensions.Projects is not null)
             {
-                _studio.Show();
-                welcome?.Close();
-                welcome = null;
-
+                Enter(welcome);
                 Forward(_studio);
                 await OpenAsync(path);
 
@@ -424,7 +421,7 @@ public class App : Application
 
             Forward((Window?)welcome ?? _studio);
         }
-        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        catch (Exception e) when (Faults.Survivable(e))
         {
             _log.Write(StudioLogLevel.Error, "Startup", $"Просьба второй студии не выполнилась: {e}");
         }
@@ -504,7 +501,7 @@ public class App : Application
                 _log.Write(StudioLogLevel.Error, "Startup", $"{path} не открылся: {why}");
             }
         }
-        catch (Exception e) when (e is not OutOfMemoryException)
+        catch (Exception e) when (Faults.Survivable(e))
         {
             _log.Write(StudioLogLevel.Error, "Startup", $"{path} не открылся: {e.Message}");
         }
@@ -531,127 +528,6 @@ public class App : Application
     }
 
     /// <summary>
-    /// Перезапускает студию: поднимает новую копию с сессией и закрывает эту.
-    /// </summary>
-    /// <param name="desktop">Жизненный цикл приложения.</param>
-    /// <returns><c>true</c> — эта копия закрывается; <c>false</c> — не вышло, и она работает дальше.</returns>
-    /// <remarks>
-    /// Порядок держит одно правило: до ответа новой копии эта не трогает ничего. Сессия снимается
-    /// первой — пока всё открыто, — и ложится файлом; новая копия поднимается и отвечает, когда
-    /// взяла его. Не ответила — её снимают, файл стирают, а человек остаётся в той же студии, со
-    /// всем открытым.
-    /// <para>
-    /// Ответила — пути назад нет: сессия у неё. Эта перестаёт отвечать вторым студиям, закрывает
-    /// окно настроек сама — его крестик отменяет первое закрытие, и вместе с ним отменилось бы
-    /// закрытие студии, — дожидается закрытия документов и закрывается. Окно, отказавшееся
-    /// закрыться, закрывается принудительно: новая копия ждёт папку данных, и две студии над ней
-    /// хуже, чем окно плагина, не спросившее о своём.
-    /// </para>
-    /// </remarks>
-    private async Task<bool> RestartAsync(IClassicDesktopStyleApplicationLifetime desktop)
-    {
-        var pid = Environment.ProcessId;
-        var file = StudioSession.FileFor(StudioPaths.UserData, pid);
-
-        // Шире, чем бросает запись: перезапуск зовут из обработчиков щелчка, и сбой снимка, дошедший
-        // до них, унёс бы студию вместе со всем, что перезапуск обещал вернуть.
-        try
-        {
-            StudioSession.Write(Capture(desktop), file);
-        }
-        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
-        {
-            StudioSession.Forget(file);
-
-            return Refuse(desktop, $"сессию не снять: {e.Message}");
-        }
-
-        System.Diagnostics.Process? successor;
-
-        try
-        {
-            successor = StudioRelaunch.Launch(file);
-        }
-        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException
-                                      or IOException or ArgumentException or UnauthorizedAccessException
-                                      or NotSupportedException)
-        {
-            StudioSession.Forget(file);
-
-            return Refuse(desktop, $"новая копия не поднялась: {e.Message}");
-        }
-
-        if (successor is null
-            || !await StudioRelaunch.AwaitTakenAsync(file, () => successor.HasExited, StudioRelaunch.Handshake))
-        {
-            StudioRelaunch.Abort(successor);
-            StudioSession.Forget(file);
-
-            return Refuse(desktop, "новая копия не приняла сессию");
-        }
-
-        _log.Write(StudioLogLevel.Info, "Restart", $"Новая копия (процесс {successor.Id}) приняла сессию — эта закрывается");
-
-        StudioInstance.Current?.Stop();
-
-        foreach (var settings in desktop.Windows.OfType<ArxisStudio.Settings.SettingsWindow>().ToList())
-            settings.CloseForRestart();
-
-        await _studio.PrepareForRestartAsync();
-
-        if (!desktop.TryShutdown())
-        {
-            _log.Write(StudioLogLevel.Warning, "Restart", "Окно отказалось закрыться — студия закрывается принудительно: сессия уже у новой копии");
-            desktop.Shutdown();
-        }
-
-        return true;
-    }
-
-    /// <summary>
-    /// Снимает сессию: какое окно спереди, рабочее место, окно настроек, Welcome и причины.
-    /// </summary>
-    /// <remarks>
-    /// Окно студии спрашивается списком окон, а не видимостью: у окна, которое ещё не показывали,
-    /// <c>IsVisible</c> уже истинно.
-    /// </remarks>
-    private StudioSession Capture(IClassicDesktopStyleApplicationLifetime desktop)
-    {
-        var studio = desktop.Windows.Contains(_studio);
-        var session = studio
-            ? _studio.Snapshot()
-            : new StudioSession { Welcome = desktop.Windows.OfType<WelcomeWindow>().FirstOrDefault()?.Snapshot() };
-
-        return session with
-        {
-            Settings = desktop.Windows.OfType<ArxisStudio.Settings.SettingsWindow>().FirstOrDefault()?.Snapshot(),
-            Reasons = new Dictionary<string, string>(_studio.Extensions.AwaitingRestart, StringComparer.Ordinal),
-        };
-    }
-
-    /// <summary>Перезапуск не состоялся: причина — в журнал, человеку — что не вышло.</summary>
-    /// <returns>Всегда <c>false</c>: студия работает дальше.</returns>
-    /// <remarks>
-    /// Человеку говорится там, куда он смотрит: открытое окно настроек модальное и стоит поверх
-    /// строки состояния, и перезапуск, начатый из него, отказывает его подвалом.
-    /// </remarks>
-    private bool Refuse(IClassicDesktopStyleApplicationLifetime desktop, string reason)
-    {
-        _log.Write(StudioLogLevel.Error, "Restart", $"Перезапуск не состоялся: {reason}");
-
-        var said = Localizer.Instance["restart.failed"];
-
-        if (desktop.Windows.OfType<ArxisStudio.Settings.SettingsWindow>().FirstOrDefault() is { } settings)
-            settings.Say(said);
-        else if (desktop.Windows.Contains(_studio))
-            _studio.Say(said);
-        else
-            desktop.Windows.OfType<WelcomeWindow>().FirstOrDefault()?.Say(said);
-
-        return false;
-    }
-
-    /// <summary>
     /// Экран Welcome поверх уже собранной студии.
     /// </summary>
     /// <remarks>
@@ -673,11 +549,7 @@ public class App : Application
             // Перезапуск тоже один: менеджер плагинов открывают и отсюда.
             Restart = _studio.Restart,
         };
-        welcome.StudioRequested += (_, _) =>
-        {
-            _studio.Show();
-            welcome.Close();
-        };
+        welcome.StudioRequested += (_, _) => Enter(welcome);
 
         // Порядок здесь несущий дважды. Окно студии показывается раньше, чем закрывается Welcome:
         // студия закрывается по последнему окну, и промежуток без единого окна был бы промежутком
@@ -685,12 +557,25 @@ public class App : Application
         // их человеку лучше на студию с задачей в статус-баре, чем на окно, которому пора уйти.
         welcome.ProjectRequested += async (_, path) =>
         {
-            _studio.Show();
-            welcome.Close();
+            Enter(welcome);
 
             await OpenAsync(path);
         };
 
         return welcome;
+    }
+
+    /// <summary>
+    /// Уходит с Welcome в студию.
+    /// </summary>
+    /// <param name="welcome">Экран Welcome; null — его уже нет.</param>
+    /// <remarks>
+    /// Окно студии показывается раньше, чем закрывается Welcome: студия закрывается по последнему
+    /// окну, и промежуток без единого окна был бы промежутком без студии.
+    /// </remarks>
+    private void Enter(WelcomeWindow? welcome)
+    {
+        _studio.Show();
+        welcome?.Close();
     }
 }

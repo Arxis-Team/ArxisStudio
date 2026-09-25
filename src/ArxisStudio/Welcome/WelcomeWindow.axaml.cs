@@ -1,7 +1,4 @@
-﻿using System.Diagnostics;
-using System.Globalization;
-using ArxisStudio.Controls;
-using ArxisStudio.Icons;
+﻿using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
@@ -144,7 +141,7 @@ public partial class WelcomeWindow : AxWindow
                 _extensions,
                 _extensions.Declaring(),
                 _model.Plugins,
-                plugins ? "studio.plugins" : null,
+                plugins ? PluginsPage.PageId : null,
                 Keys?.Invoke(),
                 Restart,
                 restore);
@@ -195,7 +192,7 @@ public partial class WelcomeWindow : AxWindow
         {
             await OpenSettingsAsync(plugins, settings);
         }
-        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        catch (Exception e) when (Faults.Survivable(e))
         {
             Say($"{Localizer.Instance["common.error"]}: {e.Message}");
         }

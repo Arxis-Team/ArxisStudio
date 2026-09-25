@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
+using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
 
 namespace ArxisStudio.ViewModels;
@@ -119,9 +120,6 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
 
     /// <summary>Каталог плагинов — тот же, что у окна настроек.</summary>
     public PluginCatalog Plugins { get; }
-
-    /// <summary>Строки интерфейса.</summary>
-    public Localizer Loc => Localizer.Instance;
 
     /// <summary>
     /// Настройки открыты — строка «Настройки» подсвечена, как выбранный раздел.
@@ -240,13 +238,12 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
         ArgumentException.ThrowIfNullOrEmpty(path);
 
         if (!StudioArguments.IsProject(path))
-            return $"{Loc["common.error"]}: {path} — {Loc["projects.unsupported"]}";
+            return $"{Localizer.Instance["common.error"]}: {path} — {Localizer.Instance["projects.unsupported"]}";
 
         return File.Exists(path)
             ? null
-            : $"{Loc["common.error"]}: {path} — {Loc["projects.missing"]}";
+            : $"{Localizer.Instance["common.error"]}: {path} — {Localizer.Instance["projects.missing"]}";
     }
 
-    private void Notify([CallerMemberName] string? property = null) =>
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
+    private void Notify([CallerMemberName] string? property = null) => PropertyChanged.Raise(this, property);
 }

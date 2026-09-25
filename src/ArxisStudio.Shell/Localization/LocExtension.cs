@@ -3,7 +3,7 @@ using Avalonia.Data;
 namespace ArxisStudio.Shell.Localization;
 
 /// <summary>
-/// Разметочное расширение для строк интерфейса: <c>Text="{loc:Loc projects.open}"</c>.
+/// Разметочное расширение для строк интерфейса: <c>Text="{ax:Loc projects.open}"</c>.
 /// Возвращает привязку к <see cref="LocalizedString.Value"/>, поэтому смена языка
 /// перерисовывает уже показанный текст.
 /// </summary>

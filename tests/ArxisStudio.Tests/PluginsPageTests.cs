@@ -310,6 +310,34 @@ public class PluginsPageTests : IDisposable
             string.Format(CultureInfo.CurrentCulture, Localizer.Instance["plugins.group.counter"], on, all);
     }
 
+    /// <summary>
+    /// Возвращённая свёрнутость ложится на те же группы, а не на новые.
+    /// </summary>
+    /// <remarks>
+    /// Группа подписана на свои карточки, пока жива. Прежде <c>Fold</c> пересобирал группы поверх
+    /// тех же карточек, и каждая прежняя группа оставалась висеть на них подписчиком: окно,
+    /// поднятое перезапуском, получало лишние группы, считающие галочки, которых никто не видит.
+    /// </remarks>
+    [Fact]
+    public void Restoring_the_folded_groups_keeps_the_groups_the_list_shows()
+    {
+        Plugin("arxis.one", "Первый");
+
+        var page = Page(out _, Module());
+        var groups = page.Groups.ToList();
+        var builtIn = Assert.Single(groups, group => group.Key == "builtin");
+
+        Assert.False(builtIn.IsExpanded);
+
+        page.Fold(new Dictionary<string, bool> { ["builtin"] = true, ["external"] = false });
+
+        Assert.Equal(groups, page.Groups);
+        Assert.True(builtIn.IsExpanded, "встроенные не раскрылись");
+        Assert.False(page.Groups.Single(group => group.Key == "external").IsExpanded, "внешние не свернулись");
+        Assert.Contains(page.BuiltIn[0], page.Rows);
+        Assert.DoesNotContain(page.Cards[0], page.Rows);
+    }
+
     /// <summary>Заголовок группы выбрать нельзя: выбранным остаётся плагин.</summary>
     [Fact]
     public void A_group_header_cannot_be_chosen()

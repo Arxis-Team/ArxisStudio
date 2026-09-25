@@ -87,7 +87,7 @@ public sealed class PluginSurface : Decorator
         // Отказ процесса перехватывать нечем: после нехватки памяти студия всё
         // равно не продолжится, и делать вид, что панель просто не нарисовалась,
         // значит скрыть настоящую причину.
-        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        catch (Exception e) when (Faults.Survivable(e))
         {
             Break(e);
 

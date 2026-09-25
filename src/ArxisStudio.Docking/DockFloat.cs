@@ -253,6 +253,10 @@ public class DockFloat : AxWindow
     /// имени нема для экранного диктора, и правило это не терпит ни у плагина, ни у студии —
     /// <c>ARX0013</c>. Обновлять подпись <see cref="Describe"/> продолжает: заголовки панели
     /// меняются вместе с тем, что в ней показано.
+    /// <para>
+    /// Здесь пара написана явно, а не через <see cref="DockLabel.Named"/>: правило ищет имя рядом с
+    /// созданием кнопки, и своей обёртки оно не узнаёт — кнопка вышла бы для него безымянной.
+    /// </para>
     /// </remarks>
     private static AxButton Button(Geometry icon, string? title, Action act)
     {
@@ -280,16 +284,10 @@ public class DockFloat : AxWindow
     private void Describe()
     {
         if (_dock is not null)
-        {
-            ToolTip.SetTip(_dock, View.DockTitle);
-            AutomationProperties.SetName(_dock, View.DockTitle ?? string.Empty);
-        }
+            DockLabel.Named(_dock, View.DockTitle);
 
         if (_hide is not null)
-        {
-            ToolTip.SetTip(_hide, View.HideTitle);
-            AutomationProperties.SetName(_hide, View.HideTitle ?? string.Empty);
-        }
+            DockLabel.Named(_hide, View.HideTitle);
     }
 
     /// <summary>Берёт заголовок у показанной вкладки.</summary>

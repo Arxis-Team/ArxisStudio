@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
 
 namespace ArxisStudio.ViewModels;
@@ -144,6 +145,5 @@ public sealed class PluginGroup : IPluginRow, INotifyPropertyChanged
         Notify(nameof(Status));
     }
 
-    private void Notify([CallerMemberName] string? property = null) =>
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
+    private void Notify([CallerMemberName] string? property = null) => PropertyChanged.Raise(this, property);
 }

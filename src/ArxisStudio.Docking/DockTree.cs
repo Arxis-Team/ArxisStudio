@@ -218,26 +218,6 @@ public static class DockTree
     }
 
     /// <summary>
-    /// Оставляет только известные панели.
-    /// </summary>
-    /// <param name="root">Корень дерева.</param>
-    /// <param name="known">Какие идентификаторы считать живыми.</param>
-    /// <returns>Новое дерево без неизвестных панелей.</returns>
-    /// <remarks>
-    /// Нужно при чтении сохранённой раскладки: плагин могли удалить, пока студия не
-    /// работала. Само удаление из <b>файла</b> при этом не делается — выключенный
-    /// плагин обязан вернуться на своё место, когда его включат обратно.
-    /// </remarks>
-    /// <param name="keep">Группы, которые остаются, даже опустев.</param>
-    public static DockNode Keep(DockNode root, IReadOnlySet<string> known, IReadOnlySet<string>? keep = null)
-    {
-        ArgumentNullException.ThrowIfNull(root);
-        ArgumentNullException.ThrowIfNull(known);
-
-        return Prune(Filter(root, id => known.Contains(id)), keep);
-    }
-
-    /// <summary>
     /// Имя группы в правом верхнем углу дерева; null — считать нечего.
     /// </summary>
     /// <param name="root">Дерево.</param>

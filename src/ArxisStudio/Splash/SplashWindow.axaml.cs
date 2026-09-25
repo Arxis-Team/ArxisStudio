@@ -1,10 +1,10 @@
 ﻿using System.Diagnostics;
+using ArxisStudio.Services;
 using ArxisStudio.ViewModels;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
-using Avalonia.Threading;
 
 namespace ArxisStudio.Splash;
 
@@ -108,7 +108,7 @@ public partial class SplashWindow : Window
         if (Rest(visible) is { Ticks: > 0 } rest)
             await Task.Delay(rest);
 
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        await StudioDispatch.PassAsync();
     }
 
     /// <summary>

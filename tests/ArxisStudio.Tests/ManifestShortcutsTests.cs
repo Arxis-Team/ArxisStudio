@@ -1,7 +1,5 @@
-using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
-using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Xunit;
 

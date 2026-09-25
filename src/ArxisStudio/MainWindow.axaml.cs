@@ -1,5 +1,4 @@
 ﻿using ArxisStudio.Controls;
-using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Icons;
 using ArxisStudio.Palette;
@@ -10,9 +9,7 @@ using ArxisStudio.Shell.Localization;
 using ArxisStudio.Shell.Settings;
 using ArxisStudio.ViewModels;
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Layout;
 using Avalonia.Threading;
 
 namespace ArxisStudio;
@@ -161,12 +158,7 @@ public partial class MainWindow : AxWindow
         // Сочетания человека — раньше студийных и манифестных: занятое им
         // достаётся ему. Опечатка в файле не останавливает подъём, а говорит в
         // журнал, что именно не разобралось.
-        var keymap = StudioKeymap.Load(StudioPaths.KeymapFile);
-
-        foreach (var complaint in keymap.Complaints)
-            _log.Write(StudioLogLevel.Warning, "Keys", complaint);
-
-        _shortcuts.Personalize(keymap);
+        _shortcuts.Personalize(ReadKeymap());
 
         // Сохранённый файл раздаётся заново, пока студия открыта. Слежение говорит в
         // потоке пула, а реестр живёт в потоке интерфейса.
@@ -180,7 +172,6 @@ public partial class MainWindow : AxWindow
         _toolbar = new StudioToolBar(LeftStrip, CenterStrip, RightStrip)
         {
             Invoke = _commands.Invoke,
-            Extra = StudioBranches,
             Gesture = _shortcuts.Bound,
         };
 
@@ -223,6 +214,18 @@ public partial class MainWindow : AxWindow
         // вопрос закрывает, а нужду — нет.
         _restart = new StudioRestart(_plugins);
         _restart.Changed += (_, _) => _model.IsRestartRequired = _restart.IsRequired;
+
+        // Свои ветки меню собираются на каждом открытии, а что делать по щелчку, решает окно: вопрос
+        // о перезапуске и имя набора спрашиваются модально и поверх него.
+        _toolbar.Extra = new StudioMenuBranches(_plugins, _dock)
+        {
+            Reload = async id =>
+            {
+                await _plugins.ReloadAsync(id);
+                await _restart.OfferAsync(this);
+            },
+            SaveLayout = SaveLayoutAsync,
+        }.Build;
 
         Keys();
 
@@ -299,138 +302,6 @@ public partial class MainWindow : AxWindow
     }
 
     /// <summary>
-    /// Собственные ветки студии в её меню: перезагрузка плагина и раскладка.
-    /// </summary>
-    /// <remarks>
-    /// Манифестами они не объявлены и объявлены быть не могут: пункты зависят
-    /// от того, что сейчас поднято и какая раскладка показана, — список
-    /// собирается на каждом открытии заново.
-    /// </remarks>
-    private IReadOnlyList<MenuItem> StudioBranches()
-    {
-        var branches = new List<MenuItem>();
-
-        if (_plugins.Reloadable is { Count: > 0 } plugins)
-        {
-            var branch = new AxMenuItem { Header = Localizer.Instance["menu.plugins"] };
-
-            foreach (var plugin in plugins)
-            {
-                var item = new AxMenuItem
-                {
-                    Header = $"{Localizer.Instance["menu.reload"]} · {plugin.DisplayName}",
-                };
-
-                var id = plugin.Id;
-
-                // Не довёл перезагрузку до конца — прежняя копия осталась в памяти, контракт
-                // пересобран — плагин ждёт перезапуска, и о нём спрашивают здесь же: человек,
-                // нажавший «перезагрузить», ждёт ответа там, где нажимал. Причину журнал уже записал.
-                item.Click += async (_, _) =>
-                {
-                    await _plugins.ReloadAsync(id);
-                    await _restart.OfferAsync(this);
-                };
-
-                branch.Items.Add(item);
-            }
-
-            branches.Add(branch);
-        }
-
-        if (_dock.Panels is { Count: > 0 } panels)
-            branches.Add(Panels(panels));
-
-        branches.Add(Layouts());
-
-        return branches;
-
-        // Ветка «Панели» — единственная дорога назад для скрытой панели: имя
-        // её в дереве осталось, но на экране её нет, и попросить за неё некому,
-        // кроме человека. Галочка у стоящей — тем же способом, что и у
-        // показанного набора.
-        MenuItem Panels(IReadOnlyList<StudioPanel> panels)
-        {
-            var branch = new AxMenuItem { Header = Localizer.Instance["menu.panels"] };
-
-            foreach (var panel in panels)
-            {
-                var item = new AxMenuItem { Header = panel.Title };
-
-                if (panel.Standing)
-                    item.Icon = new AxIcon { Size = AxIconSize.Small, Data = AxIcons.Check };
-
-                var id = panel.Id;
-                var standing = panel.Standing;
-
-                item.Click += (_, _) =>
-                {
-                    if (standing)
-                        _dock.Hide(id);
-                    else
-                        _dock.Reopen(id);
-                };
-
-                branch.Items.Add(item);
-            }
-
-            return branch;
-        }
-
-        MenuItem Layouts()
-        {
-            var branch = new AxMenuItem { Header = Localizer.Instance["menu.layout"] };
-
-            foreach (var name in _dock.Layouts)
-            {
-                var set = new AxMenuItem { Header = name };
-
-                // Показанный набор помечен галочкой в колонке значков, которую
-                // тема держит у каждого пункта: переключаться на самого себя
-                // человеку незачем, поэтому щелчка у него и нет.
-                if (string.Equals(name, _dock.Layout, StringComparison.Ordinal))
-                {
-                    set.Icon = new AxIcon { Size = AxIconSize.Small, Data = AxIcons.Check };
-                }
-                else
-                {
-                    var chosen = name;
-
-                    set.Click += (_, _) => _dock.Switch(chosen);
-                }
-
-                branch.Items.Add(set);
-            }
-
-            branch.Items.Add(new Separator());
-
-            var save = new AxMenuItem { Header = Localizer.Instance["menu.layout.save"] };
-            var reset = new AxMenuItem { Header = Localizer.Instance["menu.layout.reset"] };
-
-            save.Click += async (_, _) => await SaveLayoutAsync();
-            reset.Click += (_, _) => _dock.Reset();
-
-            branch.Items.Add(save);
-            branch.Items.Add(reset);
-
-            // Стандартный набор не удаляется: он — то, куда возвращаются.
-            if (!string.Equals(_dock.Layout, DockLayout.DefaultName, StringComparison.Ordinal))
-            {
-                var forget = new AxMenuItem
-                {
-                    Header = Localizer.Instance["menu.layout.delete"],
-                    IsDestructive = true,
-                };
-
-                forget.Click += (_, _) => _dock.Forget();
-                branch.Items.Add(forget);
-            }
-
-            return branch;
-        }
-    }
-
-    /// <summary>
     /// Меню шестерёнки: пока в нём один пункт — настройки.
     /// </summary>
     /// <remarks>
@@ -485,7 +356,7 @@ public partial class MainWindow : AxWindow
 
             await _restart.OfferAsync(this);
         }
-        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        catch (Exception e) when (Faults.Survivable(e))
         {
             // Окно настроек — код студии, и падать ему незачем; но если оно
             // всё-таки не открылось, человек нажал пункт меню и обязан узнать
@@ -506,62 +377,21 @@ public partial class MainWindow : AxWindow
     internal ArxisStudio.Settings.KeysPage KeysSettings() =>
         ArxisStudio.Settings.KeysPage.From(
             _shortcuts,
-            () => CommandPalette.Gather(
-                StudioMenu.Build(_plugins.Contributing),
-                [.. Own(), new(Localizer.Instance["command.palette"], "studio.palette")],
-                CommandPalette.Declared(_plugins.Contributing),
-                _shortcuts.Gesture),
+            () => Commands([.. Own(), new(Localizer.Instance["command.palette"], "studio.palette")]),
             id => _plugins.Installed.Concat(_plugins.Modules).FirstOrDefault(plugin => plugin.Id == id)?.DisplayName,
             StudioPaths.KeymapFile,
             StudioOpen.InShell);
 
-    /// <summary>
-    /// Спрашивает имя и сохраняет под ним нынешнюю раскладку.
-    /// </summary>
-    /// <remarks>
-    /// Имя спрашивают модальным окном, а не полем в меню: меню закрывается от
-    /// первого же щелчка мимо, и набор пропал бы вместе с недопечатанным именем.
-    /// </remarks>
+    /// <summary>Спрашивает имя и сохраняет под ним нынешнюю раскладку.</summary>
     private async Task SaveLayoutAsync()
     {
-        var box = new AxTextBox { PlaceholderText = Localizer.Instance["layout.name.hint"], Width = 260 };
-        var cancel = new AxButton { Content = Localizer.Instance["common.cancel"] };
-        var save = new AxButton
-        {
-            Content = Localizer.Instance["common.save"],
-            Appearance = AxButtonAppearance.Primary,
-        };
-        var buttons = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Children = { cancel, save },
-        };
+        var name = await StudioAsk.NameAsync(
+            this,
+            Localizer.Instance["layout.name.title"],
+            Localizer.Instance["layout.name.hint"],
+            Localizer.Instance["common.save"]);
 
-        // Кнопки подвала и зазор между ними — ключами темы, как в остальных
-        // диалогах студии, а не числом: число не сжалось бы вместе с плотностью.
-        cancel.Bind(Layoutable.MinWidthProperty, cancel.GetResourceObservable("AxDialogButtonMinWidth"));
-        save.Bind(Layoutable.MinWidthProperty, save.GetResourceObservable("AxDialogButtonMinWidth"));
-        buttons.Bind(StackPanel.SpacingProperty, buttons.GetResourceObservable("AxGapControls"));
-
-        var dialog = new AxDialog
-        {
-            Title = Localizer.Instance["layout.name.title"],
-            Content = box,
-            Buttons = buttons,
-        };
-
-        // Курсор сразу в поле: другого дела у этого окна нет.
-        dialog.Opened += (_, _) => box.Focus();
-        cancel.Click += (_, _) => dialog.Close(null);
-        save.Click += (_, _) => dialog.Close(box.Text);
-
-        box.KeyDown += (_, key) =>
-        {
-            if (key.Key == Key.Enter)
-                dialog.Close(box.Text);
-        };
-
-        if (await dialog.ShowDialog<string?>(this) is { } name)
+        if (name is not null)
             _dock.SaveAs(name);
     }
 
@@ -669,10 +499,7 @@ public partial class MainWindow : AxWindow
     /// </remarks>
     private void Rekey()
     {
-        var keymap = StudioKeymap.Load(StudioPaths.KeymapFile);
-
-        foreach (var complaint in keymap.Complaints)
-            _log.Write(StudioLogLevel.Warning, "Keys", complaint);
+        var keymap = ReadKeymap();
 
         if (keymap.Broken)
         {
@@ -701,14 +528,33 @@ public partial class MainWindow : AxWindow
     /// молча.
     /// </para>
     /// </remarks>
-    private void Palette() =>
-        _palette.Show(
-            this,
-            CommandPalette.Gather(
-                StudioMenu.Build(_plugins.Contributing),
-                Own(),
-                CommandPalette.Declared(_plugins.Contributing),
-                _shortcuts.Gesture));
+    private void Palette() => _palette.Show(this, Commands(Own()));
+
+    /// <summary>Все команды с названиями и сочетаниями — для палитры и страницы клавиш.</summary>
+    /// <param name="own">Свои команды студии, какими их видит спрашивающий.</param>
+    private IReadOnlyList<PaletteEntry> Commands(IReadOnlyList<PaletteEntry> own) =>
+        CommandPalette.Gather(
+            StudioMenu.Build(_plugins.Contributing),
+            own,
+            CommandPalette.Declared(_plugins.Contributing),
+            _shortcuts.Gesture);
+
+    /// <summary>
+    /// Читает <c>keymap.json</c> и говорит в журнал, что в нём не разобралось.
+    /// </summary>
+    /// <remarks>
+    /// Опечатка в файле не останавливает ни подъём, ни новую раздачу, но и не молчит: человек
+    /// правит файл руками, и узнать, какая строка не легла, ему больше негде.
+    /// </remarks>
+    private StudioKeymap ReadKeymap()
+    {
+        var keymap = StudioKeymap.Load(StudioPaths.KeymapFile);
+
+        foreach (var complaint in keymap.Complaints)
+            _log.Write(StudioLogLevel.Warning, "Keys", complaint);
+
+        return keymap;
+    }
 
     /// <summary>
     /// Собственные команды студии с названиями.
@@ -774,15 +620,7 @@ public partial class MainWindow : AxWindow
     internal StudioSession Snapshot() => new()
     {
         Studio = true,
-        Window = _normalSize is { Width: > 0, Height: > 0 }
-            ? new StudioPlacement(
-                _normalPosition.X,
-                _normalPosition.Y,
-                _normalSize.Width,
-                _normalSize.Height,
-                DesktopScaling,
-                WindowState == WindowState.Maximized)
-            : null,
+        Window = _normalSize is { Width: > 0, Height: > 0 } ? StudioPlacement.Of(this, _normalPosition, _normalSize) : null,
         Project = _plugins.Project.Path,
         Documents = [.. _documents.Opened.Select(document => document.Path)],
         Onstage = _dock.Onstage,

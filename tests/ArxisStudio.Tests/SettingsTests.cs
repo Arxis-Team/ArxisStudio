@@ -201,7 +201,8 @@ public class SettingsTests : IDisposable
     /// </summary>
     /// <remarks>
     /// Правило то же, что у дерева, уровнем ниже: найденная настройка не тонет среди соседей, как
-    /// в Project Settings у Unity. Стёртый поиск возвращает все строки.
+    /// в Project Settings у Unity. Стёртый поиск возвращает все строки, а пробелы по краям запроса не
+    /// ищутся: слово, вставленное из буфера вместе с пробелом, находит то же, что набранное.
     /// </remarks>
     [Fact]
     public void A_search_by_a_row_shows_only_the_rows_that_matched()
@@ -210,6 +211,10 @@ public class SettingsTests : IDisposable
         var rows = Rows(model);
 
         model.Search = "курсор";
+
+        Assert.Equal(["terminal.cursorBlink"], rows.Where(row => row.IsShown).Select(row => row.Key));
+
+        model.Search = "  курсор ";
 
         Assert.Equal(["terminal.cursorBlink"], rows.Where(row => row.IsShown).Select(row => row.Key));
 

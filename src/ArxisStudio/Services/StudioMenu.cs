@@ -39,9 +39,9 @@ public sealed record StudioMenuItem(string Title, string? PluginId = null, strin
 /// перестраивалось бы после каждой установки.
 /// </para>
 /// <para>
-/// Показывать это дерево сейчас некому: полоса студии очищена до логотипа, а
-/// наполнять её будут модули и плагины. Сборка остаётся моделью вклада —
-/// разбирать манифесты в дерево придётся и тому, кто придёт полосу наполнять.
+/// Дерево собирается заново на каждом открытии: меню полосы показывает его, а палитра команд и
+/// страница клавиш берут из него свои строки. Список вкладывающихся меняется от подъёма к подъёму,
+/// и дерево, запомненное однажды, показывало бы уже выключенных.
 /// </para>
 /// </remarks>
 public static class StudioMenu
@@ -66,13 +66,7 @@ public static class StudioMenu
         {
             foreach (var declared in plugin.Manifest!.Contributions.Menus)
             {
-                // Путь режется до перевода, а переводится посегментно: ключ
-                // разделителя не содержит, а переведённая строка вполне может —
-                // и «Файл/Открыть», пришедшее из словаря, развалило бы путь.
-                var segments = declared.Path
-                    .Split('/', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-                    .Select(plugin.Strings.Resolve)
-                    .ToArray();
+                var segments = Segments(declared.Path, plugin.Strings);
 
                 if (segments.Length == 0)
                     continue;
@@ -91,6 +85,23 @@ public static class StudioMenu
 
         return roots;
     }
+
+    /// <summary>
+    /// Путь меню по сегментам, переведённый словарями хозяина.
+    /// </summary>
+    /// <param name="path">Путь через косую — как его пишет манифест; null — пустой.</param>
+    /// <param name="strings">Словари хозяина пути.</param>
+    /// <remarks>
+    /// Путь режется до перевода, а переводится посегментно: ключ разделителя не содержит, а
+    /// переведённая строка вполне может — и «Файл/Открыть», пришедшее из словаря, развалило бы путь.
+    /// Правило одно у меню, у меню кнопки полосы и у пунктов «Добавить ▸».
+    /// </remarks>
+    internal static string[] Segments(string? path, PluginStrings strings) =>
+    [
+        .. (path ?? string.Empty)
+            .Split('/', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Select(strings.Resolve),
+    ];
 
     /// <summary>
     /// Значок команды — по её объявлению в манифесте этого расширения.

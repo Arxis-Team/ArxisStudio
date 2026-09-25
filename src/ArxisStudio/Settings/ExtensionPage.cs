@@ -130,7 +130,11 @@ public sealed class ExtensionPage : ISettingsPage
     public IReadOnlyList<PluginSettingRow> Rows { get; }
 
     /// <inheritdoc/>
-    public string Id => $"extension:{_extension.Id}";
+    public string Id => IdFor(_extension.Id);
+
+    /// <summary>Имя страницы настроек расширения — по нему к ней ведут из менеджера плагинов.</summary>
+    /// <param name="pluginId">Чья страница.</param>
+    public static string IdFor(string pluginId) => $"extension:{pluginId}";
 
     /// <inheritdoc/>
     public string Title => _extension.DisplayName;

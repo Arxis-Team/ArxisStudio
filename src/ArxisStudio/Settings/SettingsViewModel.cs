@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using ArxisStudio.Extensibility;
+using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
 using ArxisStudio.Shell.Settings;
 
@@ -60,8 +61,7 @@ public sealed class SettingsNode : INotifyPropertyChanged
     /// <summary>Страница могла сменить несохранённое — узел спрашивает её заново.</summary>
     public void Touch()
     {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsModified)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ModifiedStatus)));
+        PropertyChanged.Raise(this, nameof(IsModified), nameof(ModifiedStatus));
     }
 
     /// <summary>Подпись узла — её показывает крошка в шапке страницы и читает диктор.</summary>
@@ -325,10 +325,9 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     {
         ArgumentNullException.ThrowIfNull(pages);
 
-        if (string.IsNullOrWhiteSpace(query))
+        if (SettingsSearch.Normalize(query) is not { } needle)
             return [.. pages.Select(page => new SettingsNode(page, All(page)))];
 
-        var needle = query.Trim();
         var found = new List<SettingsNode>();
 
         foreach (var page in pages)
@@ -354,8 +353,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private static IReadOnlyList<SettingsNode> All(ISettingsPage page) =>
         [.. page.Children.Select(child => new SettingsNode(child, All(child)))];
 
-    private static bool Matches(ISettingsPage page, string needle) =>
-        page.Terms.Any(term => term.Contains(needle, StringComparison.CurrentCultureIgnoreCase));
+    private static bool Matches(ISettingsPage page, string needle) => SettingsSearch.Matches(page.Terms, needle);
 
     /// <summary>Говорит подвалом окна.</summary>
     /// <param name="complaint">Что сказать.</param>
@@ -411,14 +409,14 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     /// </remarks>
     private void Narrow()
     {
-        var needle = string.IsNullOrWhiteSpace(_search) ? null : _search.Trim();
+        var needle = SettingsSearch.Normalize(_search);
 
         foreach (var page in _pages)
             Down(page, needle, whole: needle is null);
 
         static void Down(ISettingsPage page, string? needle, bool whole)
         {
-            var all = whole || page.Title.Contains(needle!, StringComparison.CurrentCultureIgnoreCase);
+            var all = whole || SettingsSearch.Matches(page.Title, needle!);
 
             page.Narrow(all ? null : needle);
 
@@ -517,6 +515,5 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private static IEnumerable<SettingsNode> Flat(IEnumerable<SettingsNode> nodes) =>
         nodes.SelectMany(node => Flat(node.Children).Prepend(node));
 
-    private void Notify([CallerMemberName] string? property = null) =>
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
+    private void Notify([CallerMemberName] string? property = null) => PropertyChanged.Raise(this, property);
 }

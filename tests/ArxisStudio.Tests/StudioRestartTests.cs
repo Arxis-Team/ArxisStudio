@@ -1,4 +1,3 @@
-using ArxisStudio.Extensibility;
 using ArxisStudio.Services;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;

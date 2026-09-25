@@ -75,18 +75,4 @@ public class DockItemsTests
         Assert.Empty(items.RemoveOwnedBy("hello"));
         Assert.Same(fresh, items.Find("solution"));
     }
-
-    /// <summary>Известные имена — это то, по чему дерево отсеивает призраков.</summary>
-    [AvaloniaFact]
-    public void The_known_names_are_what_the_tree_sifts_by()
-    {
-        var items = new DockItems();
-
-        items.Add("hello", new DockItem("solution", new Border()));
-
-        var root = new DockGroup { Id = "left", Items = ["solution", "ghost"], Selected = "ghost" };
-        var group = Assert.IsType<DockGroup>(DockTree.Keep(root, items.Known()));
-
-        Assert.Equal(["solution"], group.Items);
-    }
 }

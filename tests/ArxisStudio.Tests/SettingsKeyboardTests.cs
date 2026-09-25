@@ -1,10 +1,5 @@
 using ArxisStudio.Controls;
-using ArxisStudio.Extensibility;
-using ArxisStudio.Sdk;
-using ArxisStudio.Sdk.Plugins;
-using ArxisStudio.Services;
 using ArxisStudio.Settings;
-using ArxisStudio.Shell.Settings;
 using ArxisStudio.ViewModels;
 using Avalonia;
 using Avalonia.Controls;

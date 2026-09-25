@@ -24,7 +24,7 @@ namespace ArxisStudio.Services;
 /// </remarks>
 public sealed class StudioNewItems : IStudioNewItems
 {
-    private readonly StudioLog _log;
+    private readonly IStudioLog _log;
     private readonly PluginGuard _guard;
     private readonly PluginContributionRegistry _contributions;
 
@@ -32,7 +32,7 @@ public sealed class StudioNewItems : IStudioNewItems
     /// <param name="log">Журнал: о пунктах, которые не собрались, автор узнаёт из него.</param>
     /// <param name="guard">Шов, через который зовётся код пунктов.</param>
     /// <param name="contributions">Реестр вкладов: в нём живёт код пунктов поднятых расширений.</param>
-    public StudioNewItems(StudioLog log, PluginGuard guard, PluginContributionRegistry contributions)
+    public StudioNewItems(IStudioLog log, PluginGuard guard, PluginContributionRegistry contributions)
     {
         ArgumentNullException.ThrowIfNull(log);
         ArgumentNullException.ThrowIfNull(guard);
@@ -233,10 +233,7 @@ public sealed class StudioNewItems : IStudioNewItems
             Kind = kind,
             Title = title,
             Icon = ManifestIcons.Resolve(declared.Icon, out _),
-            Menu = [.. (declared.Menu ?? string.Empty)
-                .Split('/', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-                .Select(strings.Resolve)
-                .Where(segment => segment.Length > 0)],
+            Menu = [.. StudioMenu.Segments(declared.Menu, strings).Where(segment => segment.Length > 0)],
             Name = strings.Resolve(declared.Name),
             NameRule = declared.IsIdentifier ? NewItemNameRule.Identifier : NewItemNameRule.File,
             Nested = declared.Nested,

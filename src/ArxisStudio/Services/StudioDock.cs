@@ -5,7 +5,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
-using Avalonia.Threading;
 
 namespace ArxisStudio.Services;
 
@@ -38,7 +37,7 @@ public sealed class StudioDock
     /// <summary>Сторона манифеста, означающая центральную область окна.</summary>
     /// <remarks>
     /// Имя группы задаёт файл раскладки, и в чужом файле оно может быть любым;
-    /// манифест поэтому называет не группу, а место — <see cref="Place"/>
+    /// манифест поэтому называет не группу, а место — <see cref="DockPlacement.Place"/>
     /// переводит это слово в нынешний дом документов.
     /// </remarks>
     public const string Center = "center";
@@ -54,20 +53,9 @@ public sealed class StudioDock
     private static readonly IReadOnlySet<string> Nothing =
         new HashSet<string>(StringComparer.Ordinal);
 
-    /// <summary>
-    /// Сколько ждать перед записью раскладки.
-    /// </summary>
-    /// <remarks>
-    /// Правок много и они частые: тянут границу — десятки за секунду, щёлкают по
-    /// вкладкам — каждый щелчок. Писать файл на каждую значит стучать по диску
-    /// весь день; ждать конца сеанса — потерять раскладку при жёстком закрытии.
-    /// Пауза даёт человеку договорить движение и записывает уже итог.
-    /// </remarks>
-    private static readonly TimeSpan Pause = TimeSpan.FromSeconds(2);
-
     private readonly DockView _view;
     private readonly DockLayoutStore? _store;
-    private readonly DispatcherTimer? _writer;
+    private readonly DockLayoutWriter _writer;
 
     /// <summary>
     /// Группы, которые не сносятся, даже опустев.
@@ -167,20 +155,8 @@ public sealed class StudioDock
     /// </remarks>
     private bool _sweeping;
 
-    /// <summary>
-    /// Студия попрощалась — раскладка записана и больше не пишется.
-    /// </summary>
-    /// <remarks>
-    /// Оторванные окна закрываются вместе с главным, и каждое из них при этом
-    /// возвращает панели домой — правка, которую нельзя допустить до файла:
-    /// в нём осталась бы раскладка без единого оторванного окна.
-    /// </remarks>
-    private bool _farewell;
-
-
     private string _active = DockLayout.DefaultName;
     private string _home = Documents;
-    private bool _dirty;
 
     /// <summary>
     /// Панель, в которой каретка стояла в последний раз, как её помнит файл раскладки.
@@ -212,10 +188,12 @@ public sealed class StudioDock
         _store = store;
         _view.Items = Items;
         _view.EmptyGroup = _home;
-        _view.Root = Skeleton();
+        _view.Root = DockPlacement.Skeleton();
 
-        if (store is not null)
-            _writer = new DispatcherTimer(Pause, DispatcherPriority.Background, (_, _) => Flush());
+        _writer = new DockLayoutWriter(
+            store,
+            () => _view.Root is { } root ? Snapshot(root) : null,
+            complaint => Complained?.Invoke(this, complaint));
 
         // Выбор вкладки и потянутая граница — это правки дерева, а не состояние
         // контрола: они переживают перезапуск студии. Вид о них только
@@ -421,7 +399,7 @@ public sealed class StudioDock
         _saved[_active] = Current(root);
         _saved.Remove(chosen);
         _active = chosen;
-        _dirty = true;
+        _writer.Touch();
 
         Flush();
     }
@@ -447,7 +425,7 @@ public sealed class StudioDock
         _saved[_active] = Current(root);
         _saved.Remove(name);
         _active = name;
-        _dirty = true;
+        _writer.Touch();
 
         Apply(workspace);
         Flush();
@@ -467,7 +445,7 @@ public sealed class StudioDock
             return;
 
         _active = DockLayout.DefaultName;
-        _dirty = true;
+        _writer.Touch();
 
         if (_saved.Remove(DockLayout.DefaultName, out var standard))
             Apply(standard);
@@ -492,9 +470,7 @@ public sealed class StudioDock
     /// </remarks>
     public void Reset()
     {
-        _home = Documents;
-        _standing = new HashSet<string>([_home], StringComparer.Ordinal);
-        _view.EmptyGroup = _home;
+        Settle(Documents);
 
         // «Как при первом запуске» — значит и закрытых панелей нет: при первом
         // запуске стоят все.
@@ -506,13 +482,13 @@ public sealed class StudioDock
         // в главном дереве, а родитель у контрола Avalonia ровно один.
         Sweep();
 
-        var root = Skeleton();
+        var root = DockPlacement.Skeleton();
 
         foreach (var (id, where) in _asked)
             root = Place(root, id, where);
 
         _view.Root = root;
-        _dirty = true;
+        _writer.Touch();
 
         Flush();
     }
@@ -523,18 +499,7 @@ public sealed class StudioDock
     /// <remarks>
     /// Нужно при закрытии окна: отложенная запись до него просто не доживёт.
     /// </remarks>
-    public void Flush()
-    {
-        _writer?.Stop();
-
-        if (_farewell || !_dirty || _store is null || _view.Root is not { } root)
-            return;
-
-        _dirty = false;
-
-        if (_store.Save(Snapshot(root)) is { } complaint)
-            Complained?.Invoke(this, complaint);
-    }
+    public void Flush() => _writer.Flush();
 
     /// <summary>
     /// Записывает раскладку в последний раз: студия закрывается.
@@ -560,13 +525,10 @@ public sealed class StudioDock
         if (Focused is { } here && !string.Equals(here, _remembered, StringComparison.Ordinal))
         {
             _remembered = here;
-            _dirty = true;
+            _writer.Touch();
         }
 
-        Flush();
-
-        _farewell = true;
-        _writer?.Stop();
+        _writer.Close();
 
         // Раскладка уже записана, а дальше не пишется: закрывать окна теперь
         // безопасно — их возвращение панелей домой до файла не дойдёт.
@@ -627,14 +589,11 @@ public sealed class StudioDock
 
         // Заголовок — единственный текст панели, который показывает не её автор,
         // а студия, поэтому и переводить его при смене языка — забота студии.
-        if (PluginStrings.IsKey(title, out var key))
-            item.Bind(DockItem.TitleProperty, strings.Text(key));
-        else
-            item.Title = title;
+        strings.Label(item, DockItem.TitleProperty, title);
 
         Items.Add(owner, item);
 
-        if (!_asked.Any(asked => string.Equals(asked.Id, id, StringComparison.Ordinal)))
+        if (!Declared(id))
             _asked.Add((id, where));
 
         // Панель, которая в каком-то дереве уже есть, туда и возвращается: её
@@ -665,7 +624,7 @@ public sealed class StudioDock
         // кнопка «скрыть» не достаётся.
         Announce();
 
-        if (!_asked.Any(asked => string.Equals(asked.Id, id, StringComparison.Ordinal)))
+        if (!Declared(id))
             _asked.Add((id, new PluginPlacement { Side = Documents }));
 
         // Документ, уже стоящий в каком-то дереве, туда и достаётся: он мог
@@ -676,7 +635,7 @@ public sealed class StudioDock
         if (Tree(id) is { } known)
             known.Refresh();
         else
-            Edit(root => DockTree.Attach(root, Home(root), id));
+            Edit(root => DockTree.Attach(root, DockPlacement.Anchor(root, _home), id));
 
         Rehang();
 
@@ -732,7 +691,7 @@ public sealed class StudioDock
 
         // Список убранных — часть раскладки, и меняется он без правки дерева.
         // Без этого файл остался бы со вчерашним списком.
-        Note();
+        _writer.Note();
 
         Rehang();
 
@@ -759,7 +718,7 @@ public sealed class StudioDock
             return;
 
         Announce();
-        Note();
+        _writer.Note();
 
         if (Tree(id) is null)
             Edit(root => Place(root, id, Asked(id)));
@@ -960,10 +919,7 @@ public sealed class StudioDock
     /// закрытая с вкладки панель не находила себе наследника.
     /// </para>
     /// </remarks>
-    public string? Focused =>
-        Items.Known().FirstOrDefault(
-            id => Items.Find(id)?.Content is Control content && DockFocus.Holds(content))
-        ?? Headed();
+    public string? Focused => Items.Known().FirstOrDefault(IsFocused) ?? Headed();
 
     /// <summary>Панель, в шапке чьей группы стоит каретка; <c>null</c> — ни в чьей.</summary>
     private string? Headed()
@@ -1216,8 +1172,8 @@ public sealed class StudioDock
         // Место и размер окна — часть раскладки. Про размер приходится
         // спрашивать отдельно: потянутый нижний угол окна не двигает, и одним
         // PositionChanged новая высота до файла не доходит.
-        window.PositionChanged += (_, _) => Note();
-        window.SizeChanged += (_, _) => Note();
+        window.PositionChanged += (_, _) => _writer.Note();
+        window.SizeChanged += (_, _) => _writer.Note();
 
         _floats.Add(window);
         Floated?.Invoke(this, window);
@@ -1267,7 +1223,7 @@ public sealed class StudioDock
     /// </remarks>
     private void Conceal(DockFloat window)
     {
-        var items = window.View.Root?.Groups().SelectMany(group => group.Items).ToList() ?? [];
+        var items = Tabs(window);
 
         foreach (var id in items)
             Hide(id);
@@ -1300,7 +1256,7 @@ public sealed class StudioDock
         if (_sweeping || !_floats.Remove(window))
             return;
 
-        var items = window.View.Root?.Groups().SelectMany(group => group.Items).ToList() ?? [];
+        var items = Tabs(window);
 
         // Сперва отпускаем контролы: родитель у контрола один, и панель встала
         // бы на новое место исключением, не уйдя со старого.
@@ -1330,9 +1286,7 @@ public sealed class StudioDock
             // Живо не то окно, в чьём дереве есть имена, а то, которому есть
             // что показать: имена выключенного плагина и убранных с глаз
             // панелей в дереве остаются, а рамка с пустотой внутри — нет.
-            var alive = window.View.Root?.Groups()
-                .SelectMany(group => group.Items)
-                .Any(Onscreen) == true;
+            var alive = Tabs(window).Any(Onscreen);
 
             if (!alive)
             {
@@ -1471,7 +1425,7 @@ public sealed class StudioDock
             window.View.Root = next;
 
         window.Retitle();
-        Note();
+        _writer.Note();
 
         // Окно без единой вкладки закрывается: держать пустую рамку незачем, а
         // имён, которые стоило бы помнить, в нём уже нет.
@@ -1500,41 +1454,6 @@ public sealed class StudioDock
 
         Hide(id);
     }
-
-    /// <summary>Помечает раскладку изменившейся и заводит отсчёт до записи.</summary>
-    private void Note()
-    {
-        _dirty = true;
-        _writer?.Stop();
-        _writer?.Start();
-    }
-
-    /// <summary>
-    /// Раскладка, с которой студия начинает.
-    /// </summary>
-    /// <remarks>
-    /// Доли взяты с прежней оболочки, где они были зашиты в шаблон: 262 и 302
-    /// пикселя по краям от полутора тысяч ширины и 212 снизу. Стороны заведены
-    /// заранее и пустыми: пока в них никто не встал, вид их не показывает, зато
-    /// пришедшая панель попадает в место с готовым размером, а не делит пополам
-    /// область документов.
-    /// </remarks>
-    private static DockNode Skeleton() => new DockSplit
-    {
-        Orientation = DockOrientation.Horizontal,
-        Weights = [0.18, 0.60, 0.22],
-        Children =
-        [
-            new DockGroup { Id = "left" },
-            new DockSplit
-            {
-                Orientation = DockOrientation.Vertical,
-                Weights = [0.74, 0.26],
-                Children = [new DockGroup { Id = Documents }, new DockGroup { Id = "bottom" }],
-            },
-            new DockGroup { Id = "right" },
-        ],
-    };
 
     /// <summary>Слушает тягу в этом дереве: вести её и бросать — дело общее.</summary>
     private void Follow(DockView view)
@@ -1712,10 +1631,14 @@ public sealed class StudioDock
             ? DockTree.Remove(root, item, Standing(view))
             : root;
 
-        if (aim is DockAim.Tab tab && DockTree.Group(without, tab.Group) is null)
-            return null;
+        var target = aim switch
+        {
+            DockAim.Tab tab => tab.Group,
+            DockAim.Split split => split.Group,
+            _ => null,
+        };
 
-        if (aim is DockAim.Split split && DockTree.Group(without, split.Group) is null)
+        if (target is not null && DockTree.Group(without, target) is null)
             return null;
 
         return DockTree.Apply(without, aim, item, Fresh());
@@ -1757,9 +1680,7 @@ public sealed class StudioDock
     /// </remarks>
     private void Apply(DockWorkspace workspace)
     {
-        _home = string.IsNullOrEmpty(workspace.DocumentHome) ? Documents : workspace.DocumentHome;
-        _standing = new HashSet<string>([_home], StringComparer.Ordinal);
-        _view.EmptyGroup = _home;
+        Settle(string.IsNullOrEmpty(workspace.DocumentHome) ? Documents : workspace.DocumentHome);
         _hidden = new HashSet<string>(workspace.Hidden, StringComparer.Ordinal);
         Announce();
 
@@ -1852,61 +1773,24 @@ public sealed class StudioDock
         _sweeping = false;
     }
 
+    /// <summary>Ставит панель туда, куда она просилась, — правилом <see cref="DockPlacement.Place"/>.</summary>
+    private DockNode Place(DockNode root, string id, PluginPlacement where) =>
+        DockPlacement.Place(root, id, where, _home, _standing);
+
     /// <summary>
-    /// Ставит панель туда, куда она просилась.
+    /// Ставит дом документов: группу, куда открываются документы и которая не сносится, опустев.
     /// </summary>
-    /// <remarks>
-    /// Соседство сильнее стороны: «встань рядом с деревом решения» — пожелание
-    /// точное, и спрашивать после него про сторону незачем. Названного соседа
-    /// может не быть на экране вовсе — плагин не поставили или выключили, —
-    /// и тогда работает сторона.
-    /// <para>
-    /// Долю слушают только у первой панели на пустой стороне. У занятой размер
-    /// уже есть — его дал сосед или мышь человека, — и отбирать его новичок не
-    /// вправе. У дома документов не слушают вовсе: это не сторона, которую
-    /// заводят под панель, а область, что была в окне до неё.
-    /// </para>
-    /// </remarks>
-    private DockNode Place(DockNode root, string id, PluginPlacement where)
+    /// <param name="home">Имя группы.</param>
+    private void Settle(string home)
     {
-        if (where.Near is { Length: > 0 } near && DockTree.Holder(root, near) is { } neighbour)
-            return DockTree.Attach(root, neighbour.Id, id);
-
-        var side = where.Side.ToLowerInvariant();
-
-        // «В центр» указывает на дом документов, где бы он ни был: имя группы
-        // задаёт файл раскладки, и слово «documents» может не значить в ней
-        // ничего. Иначе документ, вернувшийся из закрытого окна, заводил бы себе
-        // одноимённую группу у правого края и оставался в ней навсегда. Слов два:
-        // «center» — для манифеста, «documents» — внутреннее имя, которым уже
-        // пользуются чужие манифесты и файлы раскладки.
-        var home = string.Equals(side, Center, StringComparison.Ordinal)
-            || string.Equals(side, Documents, StringComparison.Ordinal);
-
-        if (home)
-            side = _home;
-
-        if (DockTree.Group(root, side) is not { } waiting)
-        {
-            return DockTree.Widen(
-                DockTree.Insert(root, Home(root), Side(side), id, side), side, where.Size, _standing);
-        }
-
-        var next = DockTree.Attach(root, side, id);
-
-        return waiting.Items.Count == 0 && !home
-            ? DockTree.Widen(next, side, where.Size, _standing)
-            : next;
+        _home = home;
+        _standing = new HashSet<string>([home], StringComparer.Ordinal);
+        _view.EmptyGroup = home;
     }
 
-    /// <summary>Сторона по названию; незнакомое слово уводит вправо.</summary>
-    private static DockSide Side(string side) => side switch
-    {
-        "left" => DockSide.Left,
-        "top" => DockSide.Top,
-        "bottom" => DockSide.Bottom,
-        _ => DockSide.Right,
-    };
+    /// <summary>Имена во всех группах оторванного окна.</summary>
+    private static List<string> Tabs(DockFloat window) =>
+        window.View.Root?.Groups().SelectMany(group => group.Items).ToList() ?? [];
 
     /// <summary>
     /// Раскладка в том виде, в каком она ложится в файл.
@@ -1942,10 +1826,6 @@ public sealed class StudioDock
         Focused = Focused ?? _remembered,
     };
 
-    /// <summary>От какой группы отмерять место для новой.</summary>
-    private string Home(DockNode root) =>
-        DockTree.Group(root, _home)?.Id ?? root.Groups().First().Id;
-
     /// <summary>
     /// Правит дерево и показывает, что вышло.
     /// </summary>
@@ -1967,11 +1847,6 @@ public sealed class StudioDock
             return;
 
         _view.Root = next;
-        _dirty = true;
-
-        // Отсчёт начинается заново с каждой правкой: пока границу тянут, писать
-        // нечего — итог станет известен, когда её отпустят.
-        _writer?.Stop();
-        _writer?.Start();
+        _writer.Note();
     }
 }

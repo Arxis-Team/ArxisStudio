@@ -3,6 +3,7 @@ using System.Globalization;
 using ArxisStudio.Icons;
 using ArxisStudio.Palette;
 using ArxisStudio.Services;
+using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
 using Avalonia.Media;
 
@@ -105,9 +106,6 @@ public sealed class KeysPage : ISettingsPage, INotifyPropertyChanged, IDisposabl
     /// <summary>Кому сочетание не досталось.</summary>
     public IReadOnlyList<KeyRefusal> Refusals { get; private set; }
 
-    /// <summary>Есть кому не досталось.</summary>
-    public bool HasRefusals => Refusals.Count > 0;
-
     /// <summary>Сочетания, которые оставил поиск, — в том же порядке раздачи.</summary>
     public IReadOnlyList<KeyRow> ShownRows =>
         _query is { } query ? [.. Rows.Where(row => Matches(query, row.Gesture, row.Command))] : Rows;
@@ -127,9 +125,7 @@ public sealed class KeysPage : ISettingsPage, INotifyPropertyChanged, IDisposabl
     {
         (Rows, Refusals) = _read();
 
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Rows)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Refusals)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasRefusals)));
+        PropertyChanged.Raise(this, nameof(Rows), nameof(Refusals));
         Shown();
     }
 
@@ -141,19 +137,16 @@ public sealed class KeysPage : ISettingsPage, INotifyPropertyChanged, IDisposabl
     /// </remarks>
     public void Narrow(string? query)
     {
-        _query = string.IsNullOrWhiteSpace(query) ? null : query.Trim();
+        _query = SettingsSearch.Normalize(query);
         Shown();
     }
 
     private static bool Matches(string query, string gesture, string command) =>
-        gesture.Contains(query, StringComparison.CurrentCultureIgnoreCase)
-        || command.Contains(query, StringComparison.CurrentCultureIgnoreCase);
+        SettingsSearch.Matches(gesture, query) || SettingsSearch.Matches(command, query);
 
     private void Shown()
     {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShownRows)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShownRefusals)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsRefusals)));
+        PropertyChanged.Raise(this, nameof(ShownRows), nameof(ShownRefusals), nameof(ShowsRefusals));
     }
 
     /// <summary>Перестаёт слушать реестр: окно, показывавшее страницу, закрыто.</summary>

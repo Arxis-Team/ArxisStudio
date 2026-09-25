@@ -36,5 +36,5 @@ public sealed class LocalizedString : INotifyPropertyChanged
     public override string ToString() => Value;
 
     internal void Refresh() =>
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Value)));
+        PropertyChanged.Raise(this, nameof(Value));
 }

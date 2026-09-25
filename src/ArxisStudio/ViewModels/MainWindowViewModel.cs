@@ -2,6 +2,7 @@
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using ArxisStudio.Extensibility;
+using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
 using Avalonia.Threading;
 
@@ -158,6 +159,5 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         Notify(nameof(MoreTasks));
     }
 
-    private void Notify([CallerMemberName] string? property = null) =>
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
+    private void Notify([CallerMemberName] string? property = null) => PropertyChanged.Raise(this, property);
 }

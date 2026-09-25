@@ -1,5 +1,4 @@
 using ArxisStudio.Docking;
-using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;

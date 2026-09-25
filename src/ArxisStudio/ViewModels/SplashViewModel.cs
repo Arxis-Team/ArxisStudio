@@ -2,6 +2,7 @@
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using ArxisStudio.Services;
+using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
 
 namespace ArxisStudio.ViewModels;
@@ -150,6 +151,5 @@ public sealed class SplashViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnLanguageChanged(object? sender, PropertyChangedEventArgs e) => Notify(nameof(Edition));
 
-    private void Notify([CallerMemberName] string? property = null) =>
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
+    private void Notify([CallerMemberName] string? property = null) => PropertyChanged.Raise(this, property);
 }

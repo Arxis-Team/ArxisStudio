@@ -109,13 +109,6 @@ public static class DockLayoutSerializer
                 : 0;
     }
 
-    /// <summary>Есть ли в поддереве дыры, о которые споткнётся обход.</summary>
-    /// <remarks>
-    /// Аннотации ловят null в полях, но не в элементах списка: <c>[null]</c> в
-    /// детях доезжает до обхода и роняет его. Деление без детей своим писателем
-    /// не создаётся никогда — прибирание такое схлопывает, — значит пришло не от
-    /// нас, и доверять ему нечего.
-    /// </remarks>
     /// <summary>
     /// Целая ли раскладка целиком.
     /// </summary>
@@ -135,6 +128,13 @@ public static class DockLayoutSerializer
             && workspace.Hidden is not null
             && !workspace.Hidden.Contains(null!));
 
+    /// <summary>Есть ли в поддереве дыры, о которые споткнётся обход.</summary>
+    /// <remarks>
+    /// Аннотации ловят null в полях, но не в элементах списка: <c>[null]</c> в
+    /// детях доезжает до обхода и роняет его. Деление без детей своим писателем
+    /// не создаётся никогда — прибирание такое схлопывает, — значит пришло не от
+    /// нас, и доверять ему нечего.
+    /// </remarks>
     private static bool Sound(DockNode? node) => node switch
     {
         DockGroup group => !group.Items.Contains(null!),
