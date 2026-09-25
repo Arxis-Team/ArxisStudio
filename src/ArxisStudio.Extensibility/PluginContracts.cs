@@ -39,7 +39,7 @@ public static class PluginContracts
 
     private static readonly Lock Gate = new();
 
-    private static bool _swept;
+    private static readonly ShadowFolder Shadows = new("arxis-contract-shadow");
 
     /// <summary>
     /// Загружает контракты плагина в общий контекст, если ещё не загружены.
@@ -280,7 +280,7 @@ public static class PluginContracts
         // Имя сборки пишет автор контракта, и в имя файла оно идёт только проверенным:
         // разделитель в нём увёл бы копию за пределы папки теневых копий.
         var label = PluginPaths.IsFolderName(name) ? name : "contract";
-        var shadow = Path.Combine(ShadowRoot, $"{label}-{Guid.NewGuid():N}.dll");
+        var shadow = Path.Combine(Shadows.Root, $"{label}-{Guid.NewGuid():N}.dll");
 
         File.Copy(file.FullName, shadow);
 
@@ -290,42 +290,6 @@ public static class PluginContracts
             file.Length,
             file.LastWriteTimeUtc,
             ownerId);
-    }
-
-    /// <summary>
-    /// Папка теневых копий контрактов; при первом обращении за процесс
-    /// выметаются копии прежних запусков.
-    /// </summary>
-    private static string ShadowRoot
-    {
-        get
-        {
-            var root = Path.Combine(Path.GetTempPath(), "arxis-contract-shadow");
-
-            if (_swept)
-                return root;
-
-            Directory.CreateDirectory(root);
-
-            // Флаг ставится последним: выставь мы его раньше, второй вызов
-            // получил бы дорогу к папке, которую ещё не создали, а сорвавшееся
-            // создание запомнилось бы как успешное на весь процесс.
-            _swept = true;
-
-            foreach (var stale in Directory.EnumerateFiles(root))
-            {
-                try
-                {
-                    File.Delete(stale);
-                }
-                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-                {
-                    // Файл держит другая студия — её контракт, её право.
-                }
-            }
-
-            return root;
-        }
     }
 
     private readonly record struct Known(

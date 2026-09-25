@@ -1,9 +1,7 @@
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
-using Microsoft.CodeAnalysis.Text;
 
 namespace ArxisStudio.Sdk.Analyzers;
 
@@ -36,8 +34,6 @@ public sealed class ManifestTagsAnalyzer : DiagnosticAnalyzer
 
     /// <summary>Насколько длинным тег быть перестаёт.</summary>
     public const int Longest = 24;
-
-    private static readonly string[] Manifests = { "plugin.json", "module.json" };
 
     /// <summary>Тег — строка в списке головы манифеста.</summary>
     private static readonly Regex Tag = new(@"^tags\[\d+\]$", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
@@ -72,7 +68,7 @@ public sealed class ManifestTagsAnalyzer : DiagnosticAnalyzer
     {
         var manifest = context.AdditionalFile;
 
-        if (!IsManifest(manifest.Path))
+        if (!ManifestFiles.IsManifest(manifest.Path))
         {
             return;
         }
@@ -100,7 +96,7 @@ public sealed class ManifestTagsAnalyzer : DiagnosticAnalyzer
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     Rule,
-                    Location.Create(manifest.Path, field.Span, text.Lines.GetLinePositionSpan(field.Span)),
+                    ManifestFiles.At(manifest.Path, text, field.Span),
                     field.Value,
                     complaint));
             }
@@ -148,30 +144,5 @@ public sealed class ManifestTagsAnalyzer : DiagnosticAnalyzer
         {
             yield return "тегов больше " + Limit + " — студия покажет первые " + Limit;
         }
-    }
-
-    private static readonly char[] Separators = { '/', '\\' };
-
-    /// <summary>Манифест ли это — по имени файла.</summary>
-    private static bool IsManifest(string path)
-    {
-        var name = FileName(path);
-
-        foreach (var manifest in Manifests)
-        {
-            if (string.Equals(name, manifest, System.StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static string FileName(string path)
-    {
-        var separator = path.LastIndexOfAny(Separators);
-
-        return separator < 0 ? path : path.Substring(separator + 1);
     }
 }

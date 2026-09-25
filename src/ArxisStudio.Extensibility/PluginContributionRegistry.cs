@@ -41,7 +41,7 @@ public sealed class PluginContributionRegistry(PluginGuard? guard = null)
     {
         ArgumentNullException.ThrowIfNull(plugin);
 
-        Add(plugin.Installed.Id, plugin.Installed.DisplayName, plugin.Assemblies, plugin.Installed.Directory, plugin.Studio);
+        Add(plugin.Installed.Id, plugin.Installed.DisplayName, plugin.Assemblies, plugin.Studio);
     }
 
     /// <summary>
@@ -50,24 +50,19 @@ public sealed class PluginContributionRegistry(PluginGuard? guard = null)
     /// <param name="pluginId">Идентификатор плагина.</param>
     /// <param name="displayName">Как плагин называется в сообщениях.</param>
     /// <param name="assemblies">Сборки, в которых искать вклады.</param>
-    /// <param name="directory">Папка плагина; null, если её нет.</param>
     /// <param name="studio">Контекст, который получат редакторы документов.</param>
     public void Add(
         string pluginId,
         string displayName,
         IEnumerable<Assembly> assemblies,
-        string? directory = null,
         IStudioContext? studio = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
         ArgumentNullException.ThrowIfNull(assemblies);
 
-        foreach (var type in assemblies.SelectMany(assembly => assembly.GetTypes()))
+        foreach (var type in PluginTypes.Concrete(assemblies))
         {
-            if (type is not { IsAbstract: false, IsPublic: true })
-                continue;
-
             if (typeof(NewItemMaker).IsAssignableFrom(type))
             {
                 AddMaker(pluginId, type, studio);

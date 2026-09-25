@@ -1,6 +1,4 @@
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -47,8 +45,6 @@ public sealed class ManifestStringsAnalyzer : DiagnosticAnalyzer
     /// <summary>Код диагностики.</summary>
     public const string DiagnosticId = "ARX0002";
 
-    private static readonly string[] Manifests = { "plugin.json", "module.json" };
-
     private static readonly Regex Keys = new(@"%([A-Za-z0-9._-]+)%", RegexOptions.Compiled);
 
     private static readonly DiagnosticDescriptor Rule = new(
@@ -86,7 +82,7 @@ public sealed class ManifestStringsAnalyzer : DiagnosticAnalyzer
     {
         var manifest = context.AdditionalFile;
 
-        if (!IsManifest(manifest.Path))
+        if (!ManifestFiles.IsManifest(manifest.Path))
         {
             return;
         }
@@ -121,35 +117,10 @@ public sealed class ManifestStringsAnalyzer : DiagnosticAnalyzer
 
                 context.ReportDiagnostic(Diagnostic.Create(
                     Rule,
-                    Location.Create(manifest.Path, span, text.Lines.GetLinePositionSpan(span)),
+                    ManifestFiles.At(manifest.Path, text, span),
                     key));
             }
         }
-    }
-
-    private static readonly char[] Separators = { '/', '\\' };
-
-    /// <summary>Манифест ли это — по имени файла.</summary>
-    private static bool IsManifest(string path)
-    {
-        var name = FileName(path);
-
-        foreach (var manifest in Manifests)
-        {
-            if (string.Equals(name, manifest, System.StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static string FileName(string path)
-    {
-        var separator = path.LastIndexOfAny(Separators);
-
-        return separator < 0 ? path : path.Substring(separator + 1);
     }
 
     /// <summary>
@@ -171,8 +142,8 @@ public sealed class ManifestStringsAnalyzer : DiagnosticAnalyzer
 
         foreach (var file in context.Options.AdditionalFiles)
         {
-            if (IsManifest(file.Path) ||
-                StringsFileAnalyzer.Role(context.Options, file) == "translation" ||
+            if (ManifestFiles.IsManifest(file.Path) ||
+                ManifestFiles.Role(context.Options, file) == ManifestFiles.Translation ||
                 file.GetText(context.CancellationToken) is not { } text)
             {
                 continue;

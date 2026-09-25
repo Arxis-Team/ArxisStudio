@@ -33,8 +33,8 @@ namespace ArxisStudio.Extensibility;
 /// </remarks>
 public sealed class PluginStrings : IStudioStrings, IStringSource
 {
-    /// <summary>Папка словарей внутри плагина.</summary>
-    public const string Folder = "lang";
+    /// <summary>Папка словарей внутри плагина — той же формы, что у самой студии.</summary>
+    public const string Folder = Localizer.Folder;
 
     /// <summary>
     /// Словарь запасного языка: его читают, когда файла текущего языка у расширения нет.

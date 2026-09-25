@@ -214,7 +214,7 @@ avares:// then InvalidateAssembly.. leaked: False
 ```
 
 Стоит с записи 115: `AssetLoader.InvalidateAssemblyCache(имя)` в
-[`PluginLoadContext.Release()`](../src/ArxisStudio.Extensibility/PluginHost.cs) — до
+[`PluginLoadContext.Release()`](../src/ArxisStudio.Extensibility/PluginLoadContext.cs) — до
 `Unload()`, по именам сборок контекста. Место общее для всех трёх дорог выгрузки —
 прощание поднятого плагина, сбой загрузки сборки, сбой активации, — а не у одной из
 них: плагин, упавший на подъёме, тоже успевает тронуть ресурсы. `StyleInclude` и

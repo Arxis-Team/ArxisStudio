@@ -55,19 +55,13 @@ public sealed class PluginSettings(
             {
                 return value.Deserialize<T>();
             }
+            // Тип в файле мог разойтись с тем, что просит плагин: файл правят
+            // руками. Это не отказ студии — это значение, которого она не поняла.
             catch (Exception inner) when (inner is JsonException or NotSupportedException)
             {
                 log.Write(StudioLogLevel.Warning, "Plugins", $"{pluginId}: настройку {key} не прочитать как {typeof(T).Name}");
                 return default;
             }
-        }
-
-        // Тип в файле мог разойтись с тем, что просит плагин: файл правят
-        // руками. Это не отказ студии — это значение, которого она не поняла.
-        catch (Exception e) when (e is JsonException or InvalidOperationException or NotSupportedException)
-        {
-            log.Write(StudioLogLevel.Warning, "Plugins", $"{pluginId}: настройку {key} не прочитать как {typeof(T).Name}");
-            return default;
         }
     }
 

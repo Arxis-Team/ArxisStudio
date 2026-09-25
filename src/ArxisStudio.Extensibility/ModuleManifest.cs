@@ -15,9 +15,6 @@ namespace ArxisStudio.Extensibility;
 /// </remarks>
 public static class ModuleManifest
 {
-    /// <summary>Имя файла манифеста в папке модуля.</summary>
-    private const string FileName = "module.json";
-
     /// <summary>
     /// Читает манифест модуля.
     /// </summary>
@@ -34,14 +31,14 @@ public static class ModuleManifest
     {
         ArgumentNullException.ThrowIfNull(assembly);
 
-        var path = Path.Combine(FolderOf(assembly), FileName);
+        var path = Path.Combine(FolderOf(assembly), ManifestFormat.Module);
 
         if (!File.Exists(path))
             return (null, $"Рядом с модулем нет манифеста: ждали {path}");
 
         try
         {
-            var manifest = JsonSerializer.Deserialize<PluginManifest>(File.ReadAllText(path), ManifestFormat.Options);
+            var manifest = ManifestFormat.Read(path);
 
             // Тело из одного null разбирается без исключения и даёт null: без этой проверки
             // зовущий получил бы пустой ответ без единого слова о том, что случилось.

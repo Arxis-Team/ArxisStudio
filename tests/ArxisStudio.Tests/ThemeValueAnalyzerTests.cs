@@ -28,9 +28,14 @@ public class ThemeValueAnalyzerTests
     public async Task A_gap_written_as_a_number_names_its_step()
     {
         var found = Assert.Single(await AnalyzeAsync("""<StackPanel Spacing="8"/>"""));
+        var place = found.Location.GetLineSpan();
 
         Assert.Equal(ThemeValueAnalyzer.LiteralId, found.Id);
         Assert.Contains("8 — это AxSpace", found.GetMessage(), StringComparison.Ordinal);
+
+        // Отмечено имя атрибута: число правят там, где оно названо.
+        Assert.Equal("Spacing".Length, place.EndLinePosition.Character - place.StartLinePosition.Character);
+        Assert.Equal("Spacing".Length, found.Location.SourceSpan.Length);
     }
 
     /// <summary>Направленный отступ называет ключ ровно своей формы.</summary>

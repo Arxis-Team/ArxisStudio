@@ -144,6 +144,14 @@ public class PluginHostRecordsTests : IDisposable
     /// <remarks>
     /// Статический класс для среды исполнения — <c>abstract sealed</c>, и отбор по одному
     /// <c>IsAbstract</c> молча оставлял его команды незаявленными: пункт меню есть, а обработчика нет.
+    /// <para>
+    /// Метод с параметром командой не становится и в статическом классе: команда — это «сделай», и
+    /// параметру взяться неоткуда, а молча передать null было бы хуже отказа.
+    /// </para>
+    /// <para>
+    /// Абстрактная заготовка точки входа не поднимается вовсе: создать её нельзя, и попытка
+    /// уронила бы подъём всего модуля.
+    /// </para>
     /// </remarks>
     [Fact]
     public void A_command_of_a_static_class_is_registered()
@@ -168,9 +176,12 @@ public class PluginHostRecordsTests : IDisposable
 
                 [Command("probe.static-class")]
                 public static void Run() => Calls++;
+
+                [Command("probe.with-argument")]
+                public static void Take(string what) => Calls += what.Length;
             }
 
-            public abstract class Unfinished
+            public abstract class Unfinished : StudioPlugin
             {
                 [Command("probe.abstract-class")]
                 public static void Run()
@@ -189,6 +200,7 @@ public class PluginHostRecordsTests : IDisposable
 
         // Абстрактный класс — заготовка под наследника, а не дом для команд.
         Assert.DoesNotContain("probe.abstract-class", commands.Registered);
+        Assert.DoesNotContain("probe.with-argument", commands.Registered);
     }
 
     /// <summary>

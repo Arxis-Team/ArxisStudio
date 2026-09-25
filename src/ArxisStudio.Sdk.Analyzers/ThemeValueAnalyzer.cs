@@ -1,9 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Text.RegularExpressions;
-using System.Xml;
 using System.Xml.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -56,8 +53,6 @@ public sealed class ThemeValueAnalyzer : DiagnosticAnalyzer
     /// <summary>Код диагностики: ресурс темы назван не тем именем.</summary>
     public const string FamilyId = "ARX0009";
 
-    private const string Markup = ".axaml";
-
     private static readonly DiagnosticDescriptor Literal = new(
         LiteralId,
         "Число вместо значения темы в разметке расширения",
@@ -99,7 +94,7 @@ public sealed class ThemeValueAnalyzer : DiagnosticAnalyzer
     private static readonly HashSet<string> Gaps = new(StringComparer.Ordinal) { "Margin", "Padding" };
 
     /// <summary>Свойства, которым нужна кисть, а не цвет.</summary>
-    internal static readonly HashSet<string> Brushes = new(StringComparer.Ordinal)
+    private static readonly HashSet<string> Brushes = new(StringComparer.Ordinal)
     {
         "Foreground", "Background", "BorderBrush", "Fill", "Stroke",
         "CaretBrush", "SelectionBrush", "SelectionForegroundBrush",
@@ -137,7 +132,7 @@ public sealed class ThemeValueAnalyzer : DiagnosticAnalyzer
 
         foreach (var file in files)
         {
-            if (!file.Path.EndsWith(Markup, StringComparison.OrdinalIgnoreCase) || file.GetText(cancellation) is not { } text)
+            if (!MarkupFiles.IsMarkup(file.Path) || file.GetText(cancellation) is not { } text)
                 continue;
 
             foreach (Match declared in Declared.Matches(text.ToString()))
@@ -165,26 +160,10 @@ public sealed class ThemeValueAnalyzer : DiagnosticAnalyzer
 
     private static void Check(AdditionalFileAnalysisContext context, HashSet<string> own)
     {
-        if (!context.AdditionalFile.Path.EndsWith(Markup, StringComparison.OrdinalIgnoreCase))
+        if (MarkupFiles.Read(context.AdditionalFile, context.CancellationToken) is not { } markup)
             return;
 
-        var text = context.AdditionalFile.GetText(context.CancellationToken);
-
-        if (text is null)
-            return;
-
-        XDocument document;
-
-        try
-        {
-            document = XDocument.Parse(text.ToString(), LoadOptions.SetLineInfo);
-        }
-        catch (XmlException)
-        {
-            // Недописанную разметку разберёт и отругает компилятор разметки.
-            return;
-        }
-
+        var (text, document) = markup;
         var tokens = ThemeTokens.Instance;
 
         foreach (var element in document.Descendants())
@@ -268,7 +247,7 @@ public sealed class ThemeValueAnalyzer : DiagnosticAnalyzer
     /// <param name="key">Ключ, как его назвали.</param>
     /// <param name="tokens">Тема.</param>
     /// <param name="own">Ключи, которые расширение объявило само.</param>
-    internal static string? Misnamed(string property, string key, ThemeTokens tokens, HashSet<string> own)
+    private static string? Misnamed(string property, string key, ThemeTokens tokens, HashSet<string> own)
     {
         var brush = Brushes.Contains(property);
 
@@ -298,24 +277,8 @@ public sealed class ThemeValueAnalyzer : DiagnosticAnalyzer
         XAttribute attribute,
         DiagnosticDescriptor rule,
         params object[] arguments) =>
-        context.ReportDiagnostic(Diagnostic.Create(rule, Where(attribute, text, context.AdditionalFile.Path), arguments));
-
-    /// <summary>Место атрибута в файле разметки.</summary>
-    private static Location Where(XAttribute attribute, SourceText text, string path)
-    {
-        var info = (IXmlLineInfo)attribute;
-
-        if (!info.HasLineInfo() || info.LineNumber - 1 >= text.Lines.Count)
-            return Location.None;
-
-        var line = info.LineNumber - 1;
-        var column = info.LinePosition - 1;
-        var length = attribute.Name.LocalName.Length;
-        var start = text.Lines[line].Start + column;
-
-        return Location.Create(
-            path,
-            new TextSpan(start, length),
-            new LinePositionSpan(new LinePosition(line, column), new LinePosition(line, column + length)));
-    }
+        context.ReportDiagnostic(Diagnostic.Create(
+            rule,
+            MarkupFiles.At(context.AdditionalFile.Path, text, attribute, attribute.Name.LocalName.Length),
+            arguments));
 }

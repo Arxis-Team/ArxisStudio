@@ -136,6 +136,40 @@ public static class PluginGraph
     }
 
     /// <summary>
+    /// Замыкание по зависимостям: сами корни и всё, что они тянут, — среди известных.
+    /// </summary>
+    /// <param name="roots">С кого начинать.</param>
+    /// <param name="known">Среди кого искать, по идентификатору; незнакомых замыкание обходит.</param>
+    /// <returns>Идентификаторы в замыкании.</returns>
+    /// <remarks>
+    /// Тянутся и необязательные присутствующие зависимости: обещание «сосед стоит подо мной» не
+    /// делится на обязательных и нет. Так считает хост дважды — нетерпеливых при старте, вместе с
+    /// отложенными зависимостями, и цепочку ждущих при пробуждении, — и считал он это двумя
+    /// копиями одного обхода.
+    /// </remarks>
+    internal static HashSet<string> Closure(IEnumerable<string> roots, IReadOnlyDictionary<string, InstalledPlugin> known)
+    {
+        var closure = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var root in roots)
+            Pull(root);
+
+        return closure;
+
+        void Pull(string id)
+        {
+            if (!known.TryGetValue(id, out var plugin) || !closure.Add(id))
+                return;
+
+            foreach (var declared in plugin.Manifest?.Dependencies ?? [])
+            {
+                if (declared.Id is { Length: > 0 } target)
+                    Pull(target);
+            }
+        }
+    }
+
+    /// <summary>
     /// Состояние каждой зависимости плагина — то, что показывает карточка.
     /// </summary>
     /// <param name="plugin">Чьи зависимости.</param>

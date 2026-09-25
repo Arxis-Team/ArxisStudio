@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
 using System.Xml;
 using System.Xml.Linq;
 using Microsoft.CodeAnalysis;
@@ -34,7 +31,6 @@ public sealed class IconNameAnalyzer : DiagnosticAnalyzer
     /// <summary>Код диагностики.</summary>
     public const string DiagnosticId = "ARX0013";
 
-    private const string Markup = ".axaml";
     /// <summary>
     /// Основания кнопок Avalonia: от них ведут родословную все кнопки студии.
     /// </summary>
@@ -218,25 +214,12 @@ public sealed class IconNameAnalyzer : DiagnosticAnalyzer
     /// <summary>Кнопка, записанная разметкой: единственный ребёнок — значок, а имени нет.</summary>
     private static void Drawn(AdditionalFileAnalysisContext context)
     {
-        var file = context.AdditionalFile;
-
-        if (!file.Path.EndsWith(Markup, StringComparison.OrdinalIgnoreCase) ||
-            file.GetText(context.CancellationToken)?.ToString() is not { } text)
+        if (MarkupFiles.Read(context.AdditionalFile, context.CancellationToken) is not { } markup)
         {
             return;
         }
 
-        XDocument document;
-
-        try
-        {
-            document = XDocument.Parse(text, LoadOptions.SetLineInfo);
-        }
-        catch (XmlException)
-        {
-            // Разметку, которую не разобрать, назовёт компилятор XAML — и лучше нас.
-            return;
-        }
+        var (text, document) = markup;
 
         foreach (var element in document.Descendants())
         {
@@ -259,7 +242,7 @@ public sealed class IconNameAnalyzer : DiagnosticAnalyzer
                 continue;
             }
 
-            context.ReportDiagnostic(Diagnostic.Create(Rule, At(file, text, element), element.Name.LocalName));
+            context.ReportDiagnostic(Diagnostic.Create(Rule, At(context.AdditionalFile.Path, text, element), element.Name.LocalName));
         }
     }
 
@@ -288,14 +271,13 @@ public sealed class IconNameAnalyzer : DiagnosticAnalyzer
         element.Attributes().Any(attribute =>
             attribute.Name.LocalName.EndsWith(Name, StringComparison.Ordinal) && attribute.Value.Length > 0);
 
-    /// <summary>Место элемента в файле: без него замечание в разметке не найти.</summary>
-    private static Location At(AdditionalText file, string text, XElement element)
+    /// <summary>Место элемента в файле — вся его строка: без него замечание в разметке не найти.</summary>
+    private static Location At(string path, SourceText text, XElement element)
     {
         var info = (IXmlLineInfo)element;
         var line = info.HasLineInfo() ? info.LineNumber - 1 : 0;
-        var source = SourceText.From(text);
-        var span = line >= 0 && line < source.Lines.Count ? source.Lines[line].Span : new TextSpan(0, 0);
+        var span = line >= 0 && line < text.Lines.Count ? text.Lines[line].Span : new TextSpan(0, 0);
 
-        return Location.Create(file.Path, span, new LinePositionSpan(new LinePosition(line, 0), new LinePosition(line, span.Length)));
+        return Location.Create(path, span, new LinePositionSpan(new LinePosition(line, 0), new LinePosition(line, span.Length)));
     }
 }

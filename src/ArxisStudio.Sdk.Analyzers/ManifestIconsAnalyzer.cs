@@ -1,11 +1,7 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
-using Microsoft.CodeAnalysis.Text;
 
 namespace ArxisStudio.Sdk.Analyzers;
 
@@ -21,7 +17,7 @@ namespace ArxisStudio.Sdk.Analyzers;
 /// <para>
 /// Имена берутся из самой компиляции — из типа <c>AxIcons</c>, против которого
 /// расширение собирается, и ровно так, как их берёт студия: открытые статические
-/// свойства-геометрии самого типа, без вложенных наборов. Копия списка здесь
+/// свойства-геометрии самого типа. Копия списка здесь
 /// разошлась бы с набором на первом новом глифе. Набор в компиляцию не
 /// подключён — имя сверять не с чем, и проверяется только сама запись.
 /// </para>
@@ -42,8 +38,6 @@ public sealed class ManifestIconsAnalyzer : DiagnosticAnalyzer
     private const string Prefix = "arxis:";
 
     private const string Set = "ArxisStudio.Icons.AxIcons";
-
-    private static readonly string[] Manifests = { "plugin.json", "module.json" };
 
     private static readonly string[] Images = { ".png", ".svg", ".ico", ".jpg", ".jpeg", ".gif", ".bmp", ".webp" };
 
@@ -97,7 +91,7 @@ public sealed class ManifestIconsAnalyzer : DiagnosticAnalyzer
     {
         var manifest = context.AdditionalFile;
 
-        if (!IsManifest(manifest.Path) || manifest.GetText(context.CancellationToken) is not { } text)
+        if (!ManifestFiles.IsManifest(manifest.Path) || manifest.GetText(context.CancellationToken) is not { } text)
         {
             return;
         }
@@ -115,7 +109,7 @@ public sealed class ManifestIconsAnalyzer : DiagnosticAnalyzer
 
             context.ReportDiagnostic(Diagnostic.Create(
                 Rule,
-                Location.Create(manifest.Path, field.Span, text.Lines.GetLinePositionSpan(field.Span)),
+                ManifestFiles.At(manifest.Path, text, field.Span),
                 Owner(fields, icon),
                 field.Value,
                 complaint));
@@ -217,8 +211,7 @@ public sealed class ManifestIconsAnalyzer : DiagnosticAnalyzer
     /// </summary>
     /// <remarks>
     /// Те же, что берёт студия отражением: открытые статические свойства самого
-    /// типа, чей тип — геометрия Avalonia или её наследник. Вложенные наборы —
-    /// значки палитры дизайнера — в манифест не отдаются, и здесь их нет.
+    /// типа, чей тип — геометрия Avalonia или её наследник.
     /// </remarks>
     private static HashSet<string>? Names(Compilation compilation)
     {
@@ -272,7 +265,7 @@ public sealed class ManifestIconsAnalyzer : DiagnosticAnalyzer
 
         foreach (var candidate in names.OrderBy(candidate => candidate, StringComparer.Ordinal))
         {
-            var distance = Distance(asked, candidate.ToLowerInvariant());
+            var distance = EditDistance.Between(asked, candidate.ToLowerInvariant());
 
             if (distance <= allowed && distance < shortest)
             {
@@ -282,43 +275,6 @@ public sealed class ManifestIconsAnalyzer : DiagnosticAnalyzer
         }
 
         return best;
-    }
-
-    /// <summary>
-    /// Сколько правок отделяют одно имя от другого: заменить, вставить, убрать
-    /// букву или переставить две соседние.
-    /// </summary>
-    private static int Distance(string from, string to)
-    {
-        var table = new int[from.Length + 1, to.Length + 1];
-
-        for (var row = 0; row <= from.Length; row++)
-        {
-            table[row, 0] = row;
-        }
-
-        for (var column = 0; column <= to.Length; column++)
-        {
-            table[0, column] = column;
-        }
-
-        for (var row = 1; row <= from.Length; row++)
-        {
-            for (var column = 1; column <= to.Length; column++)
-            {
-                var cost = from[row - 1] == to[column - 1] ? 0 : 1;
-                var best = Math.Min(Math.Min(table[row - 1, column] + 1, table[row, column - 1] + 1), table[row - 1, column - 1] + cost);
-
-                if (row > 1 && column > 1 && from[row - 1] == to[column - 2] && from[row - 2] == to[column - 1])
-                {
-                    best = Math.Min(best, table[row - 2, column - 2] + 1);
-                }
-
-                table[row, column] = best;
-            }
-        }
-
-        return table[from.Length, to.Length];
     }
 
     private static bool IsImage(string record)
@@ -331,25 +287,6 @@ public sealed class ManifestIconsAnalyzer : DiagnosticAnalyzer
         foreach (var extension in Images)
         {
             if (record.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static readonly char[] Separators = { '/', '\\' };
-
-    /// <summary>Манифест ли это — по имени файла.</summary>
-    private static bool IsManifest(string path)
-    {
-        var separator = path.LastIndexOfAny(Separators);
-        var name = separator < 0 ? path : path.Substring(separator + 1);
-
-        foreach (var manifest in Manifests)
-        {
-            if (string.Equals(name, manifest, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }

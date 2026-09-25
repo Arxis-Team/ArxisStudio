@@ -142,7 +142,7 @@ public sealed class PluginSurface : Decorator
         // автору плагина.
         box.Children.Add(new TextBlock
         {
-            Text = Message(error),
+            Text = Faults.Message(error),
             TextWrapping = TextWrapping.Wrap,
             Opacity = 0.7,
         });
@@ -162,9 +162,4 @@ public sealed class PluginSurface : Decorator
 
         return box;
     }
-
-    private static string Message(Exception error) =>
-        error is System.Reflection.TargetInvocationException { InnerException: { } inner }
-            ? inner.Message
-            : error.Message;
 }

@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace ArxisStudio.Sdk.Analyzers;
@@ -91,13 +88,6 @@ internal static class ThemeRenames
         ["AxPopupShadow"] = "AxShadowPopup",
         ["AxModalShadow"] = "AxShadowModal",
     };
-
-    /// <summary>Каждое прежнее имя вместе с ролями, которые его заменили.</summary>
-    internal static IEnumerable<KeyValuePair<string, string[]>> All =>
-        Colours
-            .SelectMany(pair => new[] { "Color", "Brush" }.Select(suffix =>
-                new KeyValuePair<string, string[]>(pair.Key + suffix, pair.Value.Select(role => role + suffix).ToArray())))
-            .Concat(Shadows.Select(pair => new KeyValuePair<string, string[]>(pair.Key, [pair.Value])));
 
     /// <summary>
     /// Что сказать о ключе, которого с 6.0 в теме нет; <c>null</c> — ключ не из прежних.

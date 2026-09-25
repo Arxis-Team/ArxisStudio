@@ -1,6 +1,5 @@
 ﻿using System.IO.Compression;
 using System.Text.Json;
-using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Shell;
 
 namespace ArxisStudio.Extensibility;
@@ -49,7 +48,7 @@ public sealed class PluginCatalog
 
         foreach (var directory in Directory.EnumerateDirectories(_root))
         {
-            var manifestPath = Path.Combine(directory, "plugin.json");
+            var manifestPath = Path.Combine(directory, ManifestFormat.Plugin);
             if (!File.Exists(manifestPath))
                 continue;
 
@@ -110,7 +109,7 @@ public sealed class PluginCatalog
         string sourceDirectory,
         bool replace = false)
     {
-        var manifestPath = Path.Combine(sourceDirectory, "plugin.json");
+        var manifestPath = Path.Combine(sourceDirectory, ManifestFormat.Plugin);
         if (!File.Exists(manifestPath))
             return (null, $"В каталоге нет plugin.json: {sourceDirectory}");
 
@@ -153,7 +152,7 @@ public sealed class PluginCatalog
             return (null, $"Плагин {manifest.Id} не скопировался: {e.Message}");
         }
 
-        return (Read(target, Path.Combine(target, "plugin.json")), null);
+        return (Read(target, Path.Combine(target, ManifestFormat.Plugin)), null);
     }
 
     /// <summary>
@@ -189,10 +188,10 @@ public sealed class PluginCatalog
 
             // Архив мог быть собран как «папка внутри архива» — тогда манифест
             // лежит на уровень глубже, и устанавливать надо именно её.
-            var source = File.Exists(Path.Combine(staging, "plugin.json"))
+            var source = File.Exists(Path.Combine(staging, ManifestFormat.Plugin))
                 ? staging
                 : Directory.GetDirectories(staging).FirstOrDefault(directory =>
-                    File.Exists(Path.Combine(directory, "plugin.json")));
+                    File.Exists(Path.Combine(directory, ManifestFormat.Plugin)));
 
             return source is null
                 ? (null, "В архиве нет plugin.json")
@@ -287,8 +286,7 @@ public sealed class PluginCatalog
     {
         try
         {
-            var manifest = JsonSerializer.Deserialize<PluginManifest>(
-                File.ReadAllText(manifestPath), ManifestFormat.Options);
+            var manifest = ManifestFormat.Read(manifestPath);
 
             return manifest is null
                 ? new InstalledPlugin(directory, null, "Пустой манифест", false)

@@ -51,7 +51,7 @@ internal static class SharedAssemblies
 
     private static (string Name, bool Exact)[] Parse()
     {
-        var resolver = File.ReadAllText(Repository.Path("src", "ArxisStudio.Extensibility", "PluginHost.cs"));
+        var resolver = File.ReadAllText(Repository.Path("src", "ArxisStudio.Extensibility", "PluginLoadContext.cs"));
 
         return
         [

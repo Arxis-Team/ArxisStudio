@@ -114,6 +114,9 @@ internal sealed class HistoryJournal
         }
     }
 
+    /// <summary>Все действия всех дней, по номеру.</summary>
+    public ImmutableArray<HistoryAction> ReadAll() => [.. Days().SelectMany(Read).OrderBy(action => action.Id)];
+
     /// <summary>Снимает день целиком.</summary>
     /// <param name="day">День.</param>
     public void Drop(DateOnly day)
@@ -240,13 +243,4 @@ internal sealed class HistoryJournal
 
         private static ContentId? Address(string? text) => ContentId.TryParse(text, out var id) ? id : null;
     }
-}
-
-/// <summary>Действия журнала, прочитанные один раз.</summary>
-internal static class HistoryJournalExtensions
-{
-    /// <summary>Все действия всех дней, по номеру.</summary>
-    /// <param name="journal">Журнал.</param>
-    public static ImmutableArray<HistoryAction> ReadAll(this HistoryJournal journal) =>
-        [.. journal.Days().SelectMany(journal.Read).OrderBy(action => action.Id)];
 }

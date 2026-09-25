@@ -139,7 +139,7 @@ public sealed class PluginLanguages : ILanguageSource, IPluginTranslations
             return;
         }
 
-        _declared[code] = new Declared(plugin.Id, plugin.DisplayName, declared.Name, path);
+        _declared[code] = new Declared(plugin.DisplayName, declared.Name, path);
 
         foreach (var translation in declared.Translations ?? [])
             AddTranslation(plugin, code, translation);
@@ -170,5 +170,5 @@ public sealed class PluginLanguages : ILanguageSource, IPluginTranslations
         _translations[(id, code)] = path;
     }
 
-    private sealed record Declared(string PluginId, string PluginName, string Name, string Path);
+    private sealed record Declared(string PluginName, string Name, string Path);
 }

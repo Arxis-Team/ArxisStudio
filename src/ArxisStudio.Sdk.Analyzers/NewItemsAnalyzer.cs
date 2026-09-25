@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -38,9 +34,6 @@ public sealed class NewItemsAnalyzer : DiagnosticAnalyzer
     public const string UndeclaredId = "ARX0017";
 
     private const string Attribute = "NewItemAttribute";
-    private const string Namespace = "ArxisStudio.Sdk";
-
-    private static readonly string[] Manifests = { "plugin.json", "module.json" };
 
     private static readonly string[] Kinds = { "file", "directory", "code" };
 
@@ -116,12 +109,19 @@ public sealed class NewItemsAnalyzer : DiagnosticAnalyzer
         context.EnableConcurrentExecution();
 
         context.RegisterAdditionalFileAction(Records);
-        context.RegisterCompilationStartAction(Start);
+        context.RegisterCompilationStartAction(start => MarkedClasses.Reconcile(
+            start,
+            Attribute,
+            fields => Items(fields)
+                .Where(item => item.Id.Length > 0 && string.Equals(item.Kind.Trim(), "code", StringComparison.OrdinalIgnoreCase))
+                .Select(item => (item.Id, item.IdSpan ?? item.First)),
+            Missing,
+            Undeclared));
     }
 
     private static void Records(AdditionalFileAnalysisContext context)
     {
-        if (!IsManifest(context.AdditionalFile.Path) ||
+        if (!ManifestFiles.IsManifest(context.AdditionalFile.Path) ||
             context.AdditionalFile.GetText(context.CancellationToken) is not { } text)
         {
             return;
@@ -140,7 +140,7 @@ public sealed class NewItemsAnalyzer : DiagnosticAnalyzer
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     Record,
-                    Location.Create(context.AdditionalFile.Path, span, text.Lines.GetLinePositionSpan(span)),
+                    ManifestFiles.At(context.AdditionalFile.Path, text, span),
                     item.Named,
                     complaint));
             }
@@ -240,70 +240,6 @@ public sealed class NewItemsAnalyzer : DiagnosticAnalyzer
         if (isCode && lazy && item.Id.Length > 0 && !activation.Contains("onNewItem:" + item.Id))
         {
             yield return (at, "расширение спит до своего события, а onNewItem:" + item.Id + " в activation нет — выбор пункта его не разбудит");
-        }
-    }
-
-    /// <remarks>
-    /// Сверка манифеста со сборкой возможна только в конце компиляции: раньше известна лишь одна из
-    /// двух записей.
-    /// </remarks>
-    private static void Start(CompilationStartAnalysisContext context)
-    {
-        var manifest = context.Options.AdditionalFiles.FirstOrDefault(file => IsManifest(file.Path));
-
-        // Проекта без манифеста правило не касается: так собирают частную зависимость расширения.
-        if (manifest?.GetText(context.CancellationToken) is not { } text)
-        {
-            return;
-        }
-
-        var marked = new ConcurrentDictionary<string, Location>(StringComparer.Ordinal);
-
-        context.RegisterSymbolAction(symbol => Mark(symbol, marked), SymbolKind.NamedType);
-
-        context.RegisterCompilationEndAction(end =>
-        {
-            var code = Items(ManifestJson.Strings(text.ToString()))
-                .Where(item => item.Id.Length > 0 && string.Equals(item.Kind.Trim(), "code", StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            foreach (var item in code.Where(item => !marked.ContainsKey(item.Id)))
-            {
-                var span = item.IdSpan ?? item.First;
-
-                end.ReportDiagnostic(Diagnostic.Create(
-                    Missing,
-                    Location.Create(manifest.Path, span, text.Lines.GetLinePositionSpan(span)),
-                    item.Id));
-            }
-
-            var known = new HashSet<string>(code.Select(item => item.Id), StringComparer.Ordinal);
-
-            foreach (var pair in marked.Where(pair => !known.Contains(pair.Key)))
-            {
-                end.ReportDiagnostic(Diagnostic.Create(Undeclared, pair.Value, pair.Key));
-            }
-        });
-    }
-
-    private static void Mark(SymbolAnalysisContext context, ConcurrentDictionary<string, Location> marked)
-    {
-        foreach (var attribute in context.Symbol.GetAttributes())
-        {
-            if (attribute.AttributeClass is not { Name: Attribute } found ||
-                found.ContainingNamespace?.ToDisplayString() != Namespace ||
-                attribute.ConstructorArguments.Length != 1 ||
-                attribute.ConstructorArguments[0].Value is not string id)
-            {
-                continue;
-            }
-
-            // Место находки — сам атрибут: править нужно там или в манифесте.
-            var location = attribute.ApplicationSyntaxReference is { } reference
-                ? Location.Create(reference.SyntaxTree, reference.Span)
-                : context.Symbol.Locations.FirstOrDefault() ?? Location.None;
-
-            marked[id] = location;
         }
     }
 
@@ -554,24 +490,5 @@ public sealed class NewItemsAnalyzer : DiagnosticAnalyzer
                 file.TemplateSpan = field.Span;
             }
         }
-    }
-
-    private static readonly char[] Separators = { '/', '\\' };
-
-    /// <summary>Манифест ли это — по имени файла, как у <c>ARX0003</c>.</summary>
-    private static bool IsManifest(string path)
-    {
-        var separator = path.LastIndexOfAny(Separators);
-        var name = separator < 0 ? path : path.Substring(separator + 1);
-
-        foreach (var manifest in Manifests)
-        {
-            if (string.Equals(name, manifest, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

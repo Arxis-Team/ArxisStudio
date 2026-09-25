@@ -37,8 +37,13 @@ public class MarkupWidgetAnalyzerTests
         Assert.Equal(MarkupWidgetAnalyzer.DiagnosticId, found.Id);
         Assert.Contains("CalendarDatePicker", found.GetMessage(), StringComparison.Ordinal);
 
-        // И место названо: замечание без строки в файле разметки не найти.
-        Assert.Equal(1, found.Location.GetLineSpan().StartLinePosition.Line);
+        // И место названо: замечание без строки в файле разметки не найти. Отмечено имя элемента
+        // вместе с приставкой — его среда и подчеркнёт.
+        var place = found.Location.GetLineSpan();
+
+        Assert.Equal(1, place.StartLinePosition.Line);
+        Assert.Equal("a:CalendarDatePicker".Length, place.EndLinePosition.Character - place.StartLinePosition.Character);
+        Assert.Equal("a:CalendarDatePicker".Length, found.Location.SourceSpan.Length);
     }
 
     /// <summary>

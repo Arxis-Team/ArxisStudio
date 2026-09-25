@@ -1,4 +1,5 @@
 ﻿using ArxisStudio.Sdk;
+using ArxisStudio.Shell;
 
 namespace ArxisStudio.Extensibility;
 
@@ -44,7 +45,7 @@ public sealed class PluginTasks(
             log.Write(StudioLogLevel.Debug, "Tasks", $"{title}: отменено");
             throw;
         }
-        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        catch (Exception e) when (Faults.Survivable(e))
         {
             guard.Report(pluginId, $"задача «{title}»", e);
             throw;

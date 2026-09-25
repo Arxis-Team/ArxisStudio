@@ -3,8 +3,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using ArxisStudio.Sdk;
-using Avalonia;
-using Avalonia.Platform;
+using ArxisStudio.Shell;
 
 namespace ArxisStudio.Extensibility;
 
@@ -25,7 +24,7 @@ namespace ArxisStudio.Extensibility;
 /// </remarks>
 public sealed class PluginHost : IDisposable
 {
-    private static bool _swept;
+    private static readonly ShadowFolder Shadows = new("arxis-plugin-shadow");
 
     private readonly List<LoadedPlugin> _loaded = [];
 
@@ -224,9 +223,9 @@ public sealed class PluginHost : IDisposable
             {
                 raised.Add(Add(plugin));
             }
-            catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+            catch (Exception e) when (Faults.Survivable(e))
             {
-                raised.Add(Fail(plugin, Describe(e)));
+                raised.Add(Fail(plugin, Faults.Message(e)));
             }
         }
 
@@ -237,30 +236,10 @@ public sealed class PluginHost : IDisposable
     /// Замыкание нетерпеливых: кого поднимать сразу вместе с их
     /// зависимостями.
     /// </summary>
-    private static HashSet<string> Eager(IReadOnlyList<InstalledPlugin> order)
-    {
-        var eager = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var byId = order.ToDictionary(plugin => plugin.Id, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var plugin in order.Where(candidate => PluginActivation.IsEager(candidate.Manifest)))
-            Pull(plugin);
-
-        return eager;
-
-        void Pull(InstalledPlugin plugin)
-        {
-            if (!eager.Add(plugin.Id))
-                return;
-
-            foreach (var declared in plugin.Manifest?.Dependencies ?? [])
-            {
-                // Тянутся и необязательные присутствующие: обещание «сосед
-                // стоит подо мной» не делится на обязательных и нет.
-                if (declared.Id is { Length: > 0 } id && byId.TryGetValue(id, out var target))
-                    Pull(target);
-            }
-        }
-    }
+    private static HashSet<string> Eager(IReadOnlyList<InstalledPlugin> order) =>
+        PluginGraph.Closure(
+            order.Where(candidate => PluginActivation.IsEager(candidate.Manifest)).Select(plugin => plugin.Id),
+            order.ToDictionary(plugin => plugin.Id, StringComparer.OrdinalIgnoreCase));
 
     /// <summary>Кладёт отказ в список поднятых — той же дорогой, что сбой подъёма.</summary>
     private LoadedPlugin Fail(InstalledPlugin installed, string reason)
@@ -359,9 +338,7 @@ public sealed class PluginHost : IDisposable
     private List<InstalledPlugin> Chain(string pluginId)
     {
         var byId = _deferred.ToDictionary(plugin => plugin.Id, StringComparer.OrdinalIgnoreCase);
-        var wanted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        Pull(pluginId);
+        var wanted = PluginGraph.Closure([pluginId], byId);
 
         // Порядок берётся из разрешения старта, а не выдумывается заново:
         // правило одно, и оно уже посчитано.
@@ -375,20 +352,6 @@ public sealed class PluginHost : IDisposable
             .OrderBy(plugin => position.TryGetValue(plugin.Id, out var index) ? index : int.MaxValue)
             .ThenBy(plugin => plugin.Id, StringComparer.Ordinal)
             .ToList();
-
-        void Pull(string id)
-        {
-            if (!byId.TryGetValue(id, out var plugin) || !wanted.Add(id))
-                return;
-
-            foreach (var declared in plugin.Manifest?.Dependencies ?? [])
-            {
-                // Тянутся и необязательные: раз сосед установлен и ждёт,
-                // обещание «он стоит подо мной» должно быть сдержано.
-                if (declared.Id is { Length: > 0 } target)
-                    Pull(target);
-            }
-        }
     }
 
     /// <summary>
@@ -756,10 +719,10 @@ public sealed class PluginHost : IDisposable
 
             return Raise(installed, context, [assembly], _contexts.Create(installed));
         }
-        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        catch (Exception e) when (Faults.Survivable(e))
         {
             context?.Release();
-            return LoadedPlugin.Failed(installed, Describe(e));
+            return LoadedPlugin.Failed(installed, Faults.Message(e));
         }
     }
 
@@ -839,9 +802,9 @@ public sealed class PluginHost : IDisposable
         try
         {
             // Плагин, положенный в папку руками, через проверку установки не проходил, и его
-            // идентификатор в имя папки идёт только годным: иначе копия уехала бы из ShadowRoot.
+            // идентификатор в имя папки идёт только годным: иначе копия уехала бы из папки копий.
             var label = PluginPaths.IsFolderName(installed.Id) ? installed.Id : "plugin";
-            var shadow = Path.Combine(ShadowRoot, $"{label}-{Guid.NewGuid():N}");
+            var shadow = Path.Combine(Shadows.Root, $"{label}-{Guid.NewGuid():N}");
 
             Directory.CreateDirectory(shadow);
 
@@ -861,105 +824,6 @@ public sealed class PluginHost : IDisposable
         }
     }
 
-    /// <summary>
-    /// Где живут теневые копии.
-    /// </summary>
-    /// <remarks>
-    /// Папка чистится при первом обращении: копии выгруженных плагинов
-    /// остаются на диске — файл, только что отпущенный контекстом, ещё занят, —
-    /// и убрать их получается лишь в следующий запуск.
-    /// </remarks>
-    private static string ShadowRoot
-    {
-        get
-        {
-            var root = Path.Combine(Path.GetTempPath(), "arxis-plugin-shadow");
-
-            if (_swept)
-                return root;
-
-            _swept = true;
-
-            foreach (var stale in Directory.Exists(root) ? Directory.EnumerateDirectories(root) : [])
-            {
-                try
-                {
-                    Directory.Delete(stale, recursive: true);
-                }
-                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-                {
-                }
-            }
-
-            return root;
-        }
-    }
-
-    /// <summary>
-    /// Заявляет команды, помеченные атрибутом.
-    /// </summary>
-    /// <remarks>
-    /// Плагину остаётся написать метод и повесить на него
-    /// <see cref="CommandAttribute"/>: заявка — работа однообразная, и требовать
-    /// её от каждого автора значит собирать по ней одни и те же опечатки.
-    /// <para>
-    /// Обычный метод берётся у объектов самого плагина — точки входа и служб:
-    /// они уже созданы, им уже отдан контекст, и команда видит то же состояние,
-    /// что и остальной плагин. Создать ради команды второй экземпляр значило бы
-    /// вызвать её на объекте, которому студия ничего не давала.
-    /// </para>
-    /// <para>
-    /// В любом другом классе сборки атрибут действует только на статическом
-    /// методе: у такого класса нет ни контекста, ни причины существовать в
-    /// одном экземпляре. Класс при этом может быть и статическим — это самый
-    /// естественный дом для таких методов. Для среды исполнения статический
-    /// класс — <c>abstract sealed</c>, и отбор по одному <c>IsAbstract</c>
-    /// молча оставлял его команды незаявленными.
-    /// </para>
-    /// </remarks>
-    private static void Bind(
-        IEnumerable<Assembly> assemblies,
-        IEnumerable<object> owners,
-        IStudioContext studio)
-    {
-        foreach (var owner in owners)
-            Register(owner.GetType(), owner, studio);
-
-        foreach (var type in assemblies.SelectMany(assembly => assembly.GetTypes()))
-        {
-            // Абстрактный класс отсеивается, статический — нет: наследника у статического не
-            // бывает, и его методы зовутся как есть. Открытый обобщённый тип звать не у кого.
-            if (type is { IsPublic: true, ContainsGenericParameters: false } && (!type.IsAbstract || type.IsSealed))
-                Register(type, owner: null, studio);
-        }
-    }
-
-    /// <summary>Заявляет команды одного класса.</summary>
-    /// <param name="type">Класс, в котором ищем.</param>
-    /// <param name="owner">Объект плагина; null — берём только статические методы.</param>
-    /// <param name="studio">Контекст, через который заявляются команды.</param>
-    private static void Register(Type type, object? owner, IStudioContext studio)
-    {
-        const BindingFlags Where = BindingFlags.Public | BindingFlags.NonPublic
-            | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
-
-        foreach (var method in type.GetMethods(Where))
-        {
-            if (method.GetCustomAttribute<CommandAttribute>() is not { } declared)
-                continue;
-
-            // Команда — это «сделай», а не «сделай вот с этим»: параметрам
-            // взяться неоткуда, и молча передать null было бы хуже отказа.
-            if (method.GetParameters().Length > 0)
-                continue;
-
-            if (method.IsStatic != (owner is null))
-                continue;
-
-            studio.Commands.Register(declared.Id, () => method.Invoke(owner, null));
-        }
-    }
-
     private LoadedPlugin Raise(
         InstalledPlugin installed,
         PluginLoadContext? context,
@@ -973,14 +837,12 @@ public sealed class PluginHost : IDisposable
 
         try
         {
-            var entries = assemblies.SelectMany(assembly => assembly.GetTypes())
-                .Where(type => type is { IsAbstract: false, IsPublic: true } && typeof(StudioPlugin).IsAssignableFrom(type))
+            var entries = PluginTypes.Concrete<StudioPlugin>(assemblies)
                 .Select(Activator.CreateInstance)
                 .OfType<StudioPlugin>()
                 .ToList();
 
-            var services = assemblies.SelectMany(assembly => assembly.GetTypes())
-                .Where(type => type is { IsAbstract: false, IsPublic: true } && typeof(StudioService).IsAssignableFrom(type))
+            var services = PluginTypes.Concrete<StudioService>(assemblies)
                 .Select(Activator.CreateInstance)
                 .OfType<StudioService>()
                 .ToList();
@@ -1006,7 +868,7 @@ public sealed class PluginHost : IDisposable
                 service.Start(studio);
             }
 
-            Bind(assemblies, entries.Cast<object>().Concat(services), studio);
+            CommandMethods.Bind(assemblies, entries.Cast<object>().Concat(services), studio);
 
             return new LoadedPlugin(installed, context, assemblies, studio, entries, services, null);
         }
@@ -1023,7 +885,7 @@ public sealed class PluginHost : IDisposable
         //
         // Не ловятся две. Нехватку памяти нельзя пережить осмысленно,
         // переполнение стека нельзя поймать вовсе.
-        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        catch (Exception e) when (Faults.Survivable(e))
         {
             // Поднятая половина останавливается тем же порядком, что у ушедшего: службы, потом
             // точки входа. Без этого подписка или таймер из успевшего Activate держали контекст
@@ -1041,7 +903,7 @@ public sealed class PluginHost : IDisposable
             // только что объявила мёртвым.
             Unloading?.Invoke(this, installed.Id);
             context?.Release();
-            return LoadedPlugin.Failed(installed, Describe(e));
+            return LoadedPlugin.Failed(installed, Faults.Message(e));
         }
     }
 
@@ -1058,337 +920,7 @@ public sealed class PluginHost : IDisposable
         {
             farewell();
         }
-        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
-        {
-        }
-    }
-
-    private static string Describe(Exception error) =>
-        error is TargetInvocationException { InnerException: { } inner } ? inner.Message : error.Message;
-}
-
-/// <summary>
-/// Чем кончилась перезагрузка плагина.
-/// </summary>
-/// <param name="Plugin">Новая копия; null, если перезагрузить не вышло.</param>
-/// <param name="Error">Почему не вышло; null, если всё получилось.</param>
-/// <param name="Released">
-/// Выгрузился ли контекст прежней копии. Нет — значит, на её типы кто-то ещё
-/// ссылается: подписка на событие студии, оставленный таймер, работающий поток.
-/// Плагин при этом поднят, но старая копия осталась в памяти и продолжает
-/// получать то, на что подписалась.
-/// </param>
-/// <param name="Notes">
-/// О чём сказать, не отказывая: изменившийся контракт, который выгрузить
-/// нечем. Ради этой строки перезагрузка контракт и перечитывает — потерять
-/// её значит оставить автора править типы, которых процесс уже не увидит.
-/// </param>
-public sealed record PluginReload(
-    LoadedPlugin? Plugin, string? Error, bool Released, IReadOnlyList<string> Notes);
-
-/// <summary>
-/// Итог каскадной перезагрузки.
-/// </summary>
-/// <param name="Released">По каждому опущенному: выгрузился ли его контекст.</param>
-/// <param name="Raised">Поднятые в порядке подъёма, включая записи с ошибкой.</param>
-/// <param name="Skipped">Кого не тронули и почему: не поднят, встроенный.</param>
-/// <param name="Notes">О чём сказать, не отказывая: изменившийся контракт.</param>
-/// <param name="Lingering">
-/// Невыгрузившиеся контексты — слабыми ссылками: застрявшего на миг можно спросить ещё раз, не
-/// удержав его этим вопросом.
-/// </param>
-/// <param name="Restart">
-/// Кому новый контракт встанет только после перезапуска студии, и почему: общий контекст контрактов
-/// не выгружается.
-/// </param>
-public sealed record PluginCascade(
-    IReadOnlyDictionary<string, bool> Released,
-    IReadOnlyList<LoadedPlugin> Raised,
-    IReadOnlyDictionary<string, string> Skipped,
-    IReadOnlyList<string> Notes,
-    IReadOnlyDictionary<string, WeakReference> Lingering,
-    IReadOnlyDictionary<string, string> Restart);
-
-/// <summary>Кто выдаёт плагину его контекст.</summary>
-public interface IStudioContextFactory
-{
-    /// <summary>Создаёт контекст для плагина.</summary>
-    /// <param name="plugin">Плагин, которому он предназначен.</param>
-    IStudioContext Create(InstalledPlugin plugin);
-}
-
-/// <summary>Поднятый плагин или причина, почему он не поднялся.</summary>
-/// <param name="Installed">Плагин каталога.</param>
-/// <param name="Context">
-/// Выгружаемый контекст загрузки; null у встроенного модуля — его сборки живут
-/// в основном контексте и не выгружаются.
-/// </param>
-/// <param name="Assemblies">Сборки плагина.</param>
-/// <param name="Studio">Контекст, выданный плагину при подъёме.</param>
-/// <param name="Entries">Точки входа плагина.</param>
-/// <param name="Services">Службы плагина.</param>
-/// <param name="Error">Почему плагин не поднялся; null, если поднялся.</param>
-public sealed record LoadedPlugin(
-    InstalledPlugin Installed,
-    AssemblyLoadContext? Context,
-    IReadOnlyList<Assembly> Assemblies,
-    IStudioContext? Studio,
-    IReadOnlyList<StudioPlugin> Entries,
-    IReadOnlyList<StudioService> Services,
-    string? Error)
-{
-    /// <summary>Плагин работает.</summary>
-    public bool IsLoaded => Error is null;
-
-    /// <summary>Собирает запись о плагине, который поднять не удалось.</summary>
-    /// <param name="installed">Плагин каталога.</param>
-    /// <param name="error">Почему не удалось.</param>
-    public static LoadedPlugin Failed(InstalledPlugin installed, string error) =>
-        new(installed, null, [], null, [], [], error);
-
-    /// <summary>Останавливает плагин и выгружает его сборки.</summary>
-    public void Unload()
-    {
-        foreach (var service in Services)
-            PluginHost.Quietly(service.Stop);
-
-        foreach (var plugin in Entries)
-            PluginHost.Quietly(plugin.Deactivate);
-
-        (Context as PluginLoadContext)?.Release();
-    }
-}
-
-/// <summary>
-/// Контекст загрузки одного плагина.
-/// </summary>
-/// <remarks>
-/// Сборки студии сюда не тянутся: общий тип должен быть один на всех, иначе
-/// <c>StudioPlugin</c> плагина и <c>StudioPlugin</c> студии окажутся разными
-/// типами. Поэтому разрешаются только те сборки, что лежат рядом с плагином, а
-/// всё остальное отдаётся основному контексту.
-/// </remarks>
-internal sealed class PluginLoadContext(string name, string entryPath)
-    : AssemblyLoadContext($"arxis-plugin:{name}", isCollectible: true)
-{
-    private readonly AssemblyDependencyResolver _resolver = new(entryPath);
-
-    protected override Assembly? Load(AssemblyName assemblyName)
-    {
-        // Контракт один на всех: даже если копия с тем же именем лежит в
-        // bin/ плагина — автор забыл исключить, — тип обязан остаться общим.
-        // Иначе вернулась бы двойная идентичность, от которой контракты и
-        // заведены.
-        if (PluginContracts.Find(assemblyName) is { } contract)
-            return contract;
-
-        return _resolver.ResolveAssemblyToPath(assemblyName) is { } path &&
-               assemblyName.Name is { } name && !IsShared(name)
-            ? LoadFromAssemblyPath(path)
-            : null;
-    }
-
-    /// <summary>
-    /// Сборка, которая обязана быть одной на всех и приходит из общего контекста.
-    /// </summary>
-    /// <remarks>
-    /// Спрашивается не только резолвером: под этими именами нельзя объявить и
-    /// контракт — иначе файл плагина подменил бы общую сборку и студии, и всем
-    /// соседям.
-    /// <para>
-    /// Семейство узнаётся по имени целиком или по имени с точкой, а не по первым буквам: под
-    /// «Avalonia» без точки попадали и чужие библиотеки — <c>AvaloniaEdit</c>, <c>AvaloniaHex</c>, —
-    /// которые в студии не лежат. Плагину с такой зависимостью отказывали в его же файле, основной
-    /// контекст её не находил, и плагин падал на первом обращении к редактору.
-    /// </para>
-    /// </remarks>
-    internal static bool IsShared(string name) =>
-        Family(name, "Avalonia") ||
-        Family(name, "ArxisStudio.Sdk") ||
-        Family(name, "ArxisStudio.Controls") ||
-        Family(name, "ArxisStudio.Icons") ||
-        // Модель проектов — точным именем, а не семейством: семейство отдало бы
-        // плагинам и её движки — MSBuild, NuGet, адаптер разметки, — а их держит
-        // служба проектов, и второй экземпляр движка в процессе был бы бедой.
-        name.Equals("ArxisStudio.ProjectSystem", StringComparison.Ordinal);
-
-    /// <summary>Само имя или имя из его семейства: <c>Avalonia</c>, <c>Avalonia.Base</c>, но не <c>AvaloniaEdit</c>.</summary>
-    private static bool Family(string name, string root) =>
-        name.Equals(root, StringComparison.Ordinal) ||
-        name.StartsWith(root + ".", StringComparison.Ordinal);
-
-    /// <summary>
-    /// Выгружает контекст, отпустив прежде то, что держит его снаружи.
-    /// </summary>
-    /// <remarks>
-    /// Дорог выгрузки три — прощание поднятого плагина, сбой загрузки сборки
-    /// и сбой активации, — и уборка стоит здесь, на общем шве, а не у каждой
-    /// из них. Забытая на одной дороге, она означала бы плагин, который
-    /// выгружается при перезагрузке и остаётся в памяти, упав на подъёме.
-    /// <para>
-    /// Выгрузка идёт в <c>finally</c>: уборка перед ней — дело полезное, но не
-    /// обязательное, и сорвись она непредвиденным образом, контекст не должен
-    /// остаться неотпущенным. Это было бы хуже той беды, ради которой уборку и
-    /// завели.
-    /// </para>
-    /// </remarks>
-    public void Release()
-    {
-        try
-        {
-            Forget();
-            Unregister();
-        }
-        finally
-        {
-            Unload();
-        }
-    }
-
-    /// <summary>
-    /// Снимает с реестра свойств Avalonia всё, что свойства запомнили о типах плагина.
-    /// </summary>
-    /// <remarks>
-    /// Свойство Avalonia кэширует свои метаданные для каждого типа, у которого их спросили, —
-    /// словарём с сильным ключом-типом, а спрашивает оформление. Тип-контрол плагина, побывавший на
-    /// экране, оставался ключом у свойств, которые ему назначила тема, — в замере это
-    /// <c>Border.Background</c>, <c>Visual.ClipToBounds</c>, <c>Visual.IsVisible</c> и
-    /// <c>TemplatedControl.Template</c>, — и контекст загрузки не собирался никогда. Так терял
-    /// перезагрузку на ходу всякий плагин со своим классом-контролом, а значит и всякий с разметкой
-    /// <c>x:Class</c>.
-    /// <para>
-    /// Средство у Avalonia открытое: <c>UnregisterByModule</c> забывает по списку типов их
-    /// переопределения метаданных и кэши. Типы спрашиваются у всех сборок контекста: приватная
-    /// зависимость плагина тоже может завести свой контрол.
-    /// </para>
-    /// <para>
-    /// Свойств и событий, заведённых самим типом, он не снимает — ни в 12.1.1, ни в основной ветке
-    /// Avalonia, — а у реестра событий снятия нет вовсе. Такой плагин остаётся в памяти до
-    /// перезапуска, и узнать это до спуска можно только спросив: <see cref="Pinned"/>. По ответу
-    /// студия решает, ждать ли застрявшую копию или сразу ставить плагин в ждущие перезапуска.
-    /// </para>
-    /// </remarks>
-    private void Unregister() => AvaloniaPropertyRegistry.Instance.UnregisterByModule(Types());
-
-    /// <summary>
-    /// Кто из типов контекста держится реестрами Avalonia; null — никто из видимых.
-    /// </summary>
-    /// <returns>Причина словами: чья сборка завела свои свойства и события и у каких типов.</returns>
-    /// <remarks>
-    /// Avalonia помнит свойство и маршрутизируемое событие статическим реестром до конца процесса, а
-    /// ключом там стоит тип-владелец. Свой <c>StyledProperty</c> у контрола плагина — обычное дело, и
-    /// AvaloniaEdit у просмотрщика заводит их десятки, а с ними события и присоединённое свойство.
-    /// Причина называет сборку: у просмотрщика держит не его код, а его библиотека, — и это автору
-    /// нужнее списка типов.
-    /// <para>
-    /// Свойства спрашиваются закрытым словарём реестра <c>_registered</c>, только на чтение: под
-    /// типом-владельцем Avalonia кладёт и обычное свойство, и прямое, и присоединённое, и принятое
-    /// <c>AddOwner</c>. Открытый <c>GetRegistered</c> прогоняет статические конструкторы всей цепочки
-    /// типов и сам завёл бы свойства, которых плагин ещё не трогал: проверка приковала бы к памяти тот
-    /// плагин, о котором спрашивает. Словарь пропал при обновлении Avalonia — ответ беднеет, а не врёт,
-    /// и падает тест. События спрашиваются открытым <c>GetAllRegistered</c>: он конструкторов не зовёт.
-    /// </para>
-    /// <para>
-    /// Классовый обработчик на чужом событии так не виден вовсе: его подписка лежит внутри события
-    /// Avalonia, и хозяина у неё нет. Его выдаёт только проверка выгрузки после спуска.
-    /// </para>
-    /// </remarks>
-    internal string? Pinned()
-    {
-        var mine = Assemblies.ToHashSet();
-        var owners = new List<Type>();
-
-        foreach (var routed in Avalonia.Interactivity.RoutedEventRegistry.Instance.GetAllRegistered())
-        {
-            if (mine.Contains(routed.OwnerType.Assembly))
-                owners.Add(routed.OwnerType);
-        }
-
-        try
-        {
-            if (typeof(AvaloniaPropertyRegistry)
-                    .GetField("_registered", BindingFlags.Instance | BindingFlags.NonPublic)
-                    ?.GetValue(AvaloniaPropertyRegistry.Instance) is System.Collections.IDictionary registered)
-            {
-                owners.AddRange(registered.Keys.OfType<Type>().Where(key => mine.Contains(key.Assembly)));
-            }
-        }
-        catch (InvalidOperationException)
-        {
-            // Словарь переписали посреди обхода: свойство завели из фонового потока. Сказано то, что
-            // успели увидеть, — проверка выгрузки после спуска всё равно скажет своё.
-        }
-
-        if (owners.Count == 0)
-            return null;
-
-        var assemblies = owners.Select(owner => owner.Assembly.GetName().Name).Distinct().Order(StringComparer.Ordinal).ToList();
-        var names = owners.Select(owner => owner.Name).Distinct().Order(StringComparer.Ordinal).ToList();
-        var shown = names.Count > 3 ? $"{string.Join(", ", names.Take(3))} и ещё {names.Count - 3}" : string.Join(", ", names);
-
-        return $"{string.Join(", ", assemblies)} {(assemblies.Count > 1 ? "заводят" : "заводит")} свои свойства и события " +
-               $"Avalonia — {shown}, — а снимать их Avalonia не умеет";
-    }
-
-    /// <summary>Все типы сборок контекста, включая те, что загрузились не все.</summary>
-    private List<Type> Types()
-    {
-        var types = new List<Type>();
-
-        foreach (var assembly in Assemblies)
-        {
-            try
-            {
-                types.AddRange(assembly.GetTypes());
-            }
-            catch (ReflectionTypeLoadException e)
-            {
-                // Типы, которые не загрузились, ни у кого метаданных не спрашивали.
-                types.AddRange(e.Types.OfType<Type>());
-            }
-        }
-
-        return types;
-    }
-
-    /// <summary>
-    /// Убирает сборки плагина из кэша загрузчика ресурсов Avalonia.
-    /// </summary>
-    /// <remarks>
-    /// Кэш держит сборку сильной ссылкой и по <b>простому</b> имени, а попасть
-    /// в него хватает одного вопроса про <c>avares://</c>-адрес с этим именем:
-    /// в замере даже <c>Exists</c>, ответивший «такого ресурса нет», оставлял
-    /// сборку в кэше — и контекст плагина не собирался никогда.
-    /// <para>
-    /// Беда при этом сама себя поддерживает: живая прежняя копия находится по
-    /// простому имени первой, и следующий подъём того же плагина получал бы
-    /// ресурсы предыдущего. Порядок «сперва забыть, потом выгрузить» её и
-    /// разрывает.
-    /// </para>
-    /// <para>
-    /// Спрашиваются сборки контекста, а не одна entry: приватная зависимость
-    /// плагина, подгруженная по требованию, везёт свои ресурсы и попадает в
-    /// тот же кэш под своим именем.
-    /// </para>
-    /// <para>
-    /// Кэша может не быть вовсе — студию собирают и без платформы Avalonia, и
-    /// так же живёт половина тестов расширений. Спросить об этом заранее
-    /// нечем: <c>AvaloniaLocator</c> из открытой поверхности убран, и
-    /// единственный ответ службы — исключение. Ловится оно здесь: платформы
-    /// нет, значит и кэш пуст, и выгрузке это не помеха.
-    /// </para>
-    /// </remarks>
-    private void Forget()
-    {
-        try
-        {
-            foreach (var assembly in Assemblies)
-            {
-                if (assembly.GetName().Name is { Length: > 0 } simple)
-                    AssetLoader.InvalidateAssemblyCache(simple);
-            }
-        }
-        catch (InvalidOperationException)
+        catch (Exception e) when (Faults.Survivable(e))
         {
         }
     }

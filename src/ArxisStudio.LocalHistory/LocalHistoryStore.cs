@@ -286,11 +286,7 @@ public sealed class LocalHistoryStore : IDisposable
     /// </remarks>
     public IReadOnlySet<long> Undone()
     {
-        HistoryAction[] actions;
-
-        lock (_gate)
-            actions = [.. _actions];
-
+        var actions = Actions;
         var undone = new HashSet<long>();
 
         for (var at = actions.Length - 1; at >= 0; at--)
@@ -339,41 +335,7 @@ public sealed class LocalHistoryStore : IDisposable
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
 
-        HistoryAction[] actions;
-
-        lock (_gate)
-            actions = [.. _actions];
-
-        var found = ImmutableArray.CreateBuilder<HistoryRevision>();
-        var current = path;
-
-        for (var at = actions.Length - 1; at >= 0; at--)
-        {
-            var action = actions[at];
-            string? earlier = null;
-
-            foreach (var change in action.Changes)
-            {
-                if (Same(change.Path, current))
-                {
-                    found.Add(new HistoryRevision(action, change));
-
-                    if (change is { Kind: HistoryChangeKind.Moved, From: { } from })
-                        earlier = from;
-                }
-                else if (change is { IsDirectory: true, Kind: HistoryChangeKind.Moved, From: { } folder }
-                         && Inside(current, change.Path))
-                {
-                    found.Add(new HistoryRevision(action, change));
-                    earlier = folder + current[change.Path.Length..];
-                }
-            }
-
-            if (earlier is not null)
-                current = earlier;
-        }
-
-        return found.ToImmutable();
+        return Trace(path, folder: false, (change, current) => Same(change.Path, current));
     }
 
     /// <summary>
@@ -389,13 +351,28 @@ public sealed class LocalHistoryStore : IDisposable
     {
         ArgumentException.ThrowIfNullOrEmpty(folder);
 
-        HistoryAction[] actions;
+        return Trace(folder, folder: true, (change, current) =>
+            Same(change.Path, current) || Inside(change.Path, current)
+            || (change.From is { } from && (Same(from, current) || Inside(from, current))));
+    }
 
-        lock (_gate)
-            actions = [.. _actions];
-
+    /// <summary>
+    /// Правки пути от новой к старой — сквозь переименования и переезды самого пути и папок над ним.
+    /// </summary>
+    /// <param name="path">Нынешний полный путь.</param>
+    /// <param name="folder">Путь — папка: своё имя она меняет только переездом папки.</param>
+    /// <param name="touches">Задевает ли правка путь под тем именем, каким он звался тогда.</param>
+    /// <remarks>
+    /// Файлу и папке обход общий, различается только то, что считается правкой пути. Переезд
+    /// папки, в которой путь лежит, — правка и для файла, и для папки, даже если сам путь в ней не
+    /// назван. Обход стоял двумя копиями, и правка одной оставила бы у другой прежнее правило
+    /// переименований.
+    /// </remarks>
+    private ImmutableArray<HistoryRevision> Trace(string path, bool folder, Func<HistoryChange, string, bool> touches)
+    {
+        var actions = Actions;
         var found = ImmutableArray.CreateBuilder<HistoryRevision>();
-        var current = folder;
+        var current = path;
 
         for (var at = actions.Length - 1; at >= 0; at--)
         {
@@ -404,24 +381,14 @@ public sealed class LocalHistoryStore : IDisposable
 
             foreach (var change in action.Changes)
             {
-                var within = Same(change.Path, current) || Inside(change.Path, current)
-                    || (change.From is { } from && (Same(from, current) || Inside(from, current)));
+                var carried = change is { IsDirectory: true, Kind: HistoryChangeKind.Moved, From: not null }
+                              && Inside(current, change.Path);
 
-                if (change is { IsDirectory: true, Kind: HistoryChangeKind.Moved, From: { } moved })
-                {
-                    if (Same(change.Path, current))
-                    {
-                        earlier = moved;
-                    }
-                    else if (Inside(current, change.Path))
-                    {
-                        earlier = moved + current[change.Path.Length..];
-                        within = true;
-                    }
-                }
-
-                if (within)
+                if (touches(change, current) || carried)
                     found.Add(new HistoryRevision(action, change));
+
+                if (Earlier(change, current, folder) is { } name)
+                    earlier = name;
             }
 
             if (earlier is not null)
@@ -429,6 +396,21 @@ public sealed class LocalHistoryStore : IDisposable
         }
 
         return found.ToImmutable();
+    }
+
+    /// <summary>Как путь звался до правки; null — правка его не переименовала.</summary>
+    /// <param name="change">Правка.</param>
+    /// <param name="current">Путь под тем именем, каким он звался после неё.</param>
+    /// <param name="folder">Путь — папка: её переименовывает только переезд папки.</param>
+    private static string? Earlier(HistoryChange change, string current, bool folder)
+    {
+        if (change is not { Kind: HistoryChangeKind.Moved, From: { } from })
+            return null;
+
+        if (Same(change.Path, current))
+            return change.IsDirectory || !folder ? from : null;
+
+        return change.IsDirectory && Inside(current, change.Path) ? from + current[change.Path.Length..] : null;
     }
 
     /// <summary>Метки, которые видно в истории пути, от новой к старой.</summary>

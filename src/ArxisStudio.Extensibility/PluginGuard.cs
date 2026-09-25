@@ -1,4 +1,6 @@
-﻿namespace ArxisStudio.Extensibility;
+﻿using ArxisStudio.Shell;
+
+namespace ArxisStudio.Extensibility;
 
 /// <summary>
 /// Шов между студией и плагином: всё, что студия зовёт у плагина, проходит
@@ -118,9 +120,8 @@ public sealed class PluginGuard
     /// <param name="result">Что вернул плагин.</param>
     /// <returns><c>true</c>, если вызов прошёл.</returns>
     /// <remarks>
-    /// Плагин вправе вернуть <c>null</c> и не упав — рисовальщик, который за
-    /// эту строку не берётся, отвечает именно так. Там, где это различие
-    /// важно, ответ приходит отдельно от признака.
+    /// Плагин вправе вернуть <c>null</c> и не упав — так отвечает тот, кому сказать нечего. Там,
+    /// где это различие важно, ответ приходит отдельно от признака.
     /// </remarks>
     public bool Get<T>(string pluginId, string what, Func<T?> call, out T? result) where T : class
     {
@@ -135,10 +136,7 @@ public sealed class PluginGuard
         try
         {
             result = call();
-
-            // Прошедший вызов рвёт цепочку сбоев: счёт — про сбои подряд.
-            lock (_gate)
-                _failures.Remove(pluginId);
+            Succeeded(pluginId);
 
             return true;
         }
@@ -146,7 +144,7 @@ public sealed class PluginGuard
         // Нехватку памяти и переполнение стека не перехватываем: это отказ
         // процесса, а не плагина, и продолжать после них студия всё равно не
         // сможет — притвориться, что обошлось, было бы хуже падения.
-        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        catch (Exception e) when (Faults.Survivable(e))
         {
             Fail(pluginId, what, e);
 
@@ -177,13 +175,11 @@ public sealed class PluginGuard
         try
         {
             await call();
-
-            lock (_gate)
-                _failures.Remove(pluginId);
+            Succeeded(pluginId);
 
             return true;
         }
-        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        catch (Exception e) when (Faults.Survivable(e))
         {
             Fail(pluginId, what, e);
 
@@ -210,14 +206,9 @@ public sealed class PluginGuard
 
             return true;
         }
-        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        catch (Exception e) when (Faults.Survivable(e))
         {
-            int count;
-
-            lock (_gate)
-                count = _failures.GetValueOrDefault(pluginId);
-
-            Failed?.Invoke(this, new PluginFailure(pluginId, what, e, count));
+            Mourn(pluginId, what, e);
 
             return false;
         }
@@ -272,14 +263,9 @@ public sealed class PluginGuard
 
             return true;
         }
-        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        catch (Exception e) when (Faults.Survivable(e))
         {
-            int count;
-
-            lock (_gate)
-                count = _failures.GetValueOrDefault(pluginId);
-
-            Failed?.Invoke(this, new PluginFailure(pluginId, what, e, count));
+            Mourn(pluginId, what, e);
 
             return false;
         }
@@ -301,6 +287,24 @@ public sealed class PluginGuard
             _failures.Remove(pluginId);
             _faulty.Remove(pluginId);
         }
+    }
+
+    /// <summary>Прошедший вызов рвёт цепочку сбоев: счёт — про сбои подряд.</summary>
+    private void Succeeded(string pluginId)
+    {
+        lock (_gate)
+            _failures.Remove(pluginId);
+    }
+
+    /// <summary>Пишет падение на прощании, не считая его: плагин уходит, и считать некому.</summary>
+    private void Mourn(string pluginId, string what, Exception error)
+    {
+        int count;
+
+        lock (_gate)
+            count = _failures.GetValueOrDefault(pluginId);
+
+        Failed?.Invoke(this, new PluginFailure(pluginId, what, error, count));
     }
 
     private void Fail(string pluginId, string what, Exception error)
@@ -334,7 +338,5 @@ public sealed class PluginGuard
 public sealed record PluginFailure(string PluginId, string What, Exception Error, int Count)
 {
     /// <summary>Сообщение исключения без обёрток отражения.</summary>
-    public string Message => Error is System.Reflection.TargetInvocationException { InnerException: { } inner }
-        ? inner.Message
-        : Error.Message;
+    public string Message => Faults.Message(Error);
 }

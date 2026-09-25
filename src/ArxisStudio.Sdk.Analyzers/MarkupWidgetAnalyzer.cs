@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Xml;
 using System.Xml.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -32,7 +29,6 @@ public sealed class MarkupWidgetAnalyzer : DiagnosticAnalyzer
     /// <summary>Код диагностики.</summary>
     public const string DiagnosticId = "ARX0006";
 
-    private const string Markup = ".axaml";
     private const string Using = "using:";
     private const string ClrNamespace = "clr-namespace:";
     private const string XmlnsDefinition = "XmlnsDefinitionAttribute";
@@ -135,30 +131,12 @@ public sealed class MarkupWidgetAnalyzer : DiagnosticAnalyzer
         INamedTypeSymbol templated,
         Dictionary<string, List<string>> addresses)
     {
-        if (!context.AdditionalFile.Path.EndsWith(Markup, StringComparison.OrdinalIgnoreCase))
+        if (MarkupFiles.Read(context.AdditionalFile, context.CancellationToken) is not { } markup)
         {
             return;
         }
 
-        var text = context.AdditionalFile.GetText(context.CancellationToken);
-
-        if (text is null)
-        {
-            return;
-        }
-
-        XDocument document;
-
-        try
-        {
-            document = XDocument.Parse(text.ToString(), LoadOptions.SetLineInfo);
-        }
-        catch (XmlException)
-        {
-            // Разметка не разбирается — об этом скажет компилятор разметки, и
-            // повторять его двумя словами незачем.
-            return;
-        }
+        var (text, document) = markup;
 
         foreach (var element in document.Descendants())
         {
@@ -223,25 +201,11 @@ public sealed class MarkupWidgetAnalyzer : DiagnosticAnalyzer
         return addresses.TryGetValue(address, out var found) ? found : [];
     }
 
-    /// <summary>Место элемента в файле разметки.</summary>
+    /// <summary>Место элемента в файле разметки: его имя вместе с приставкой.</summary>
     private static Location Where(XElement element, SourceText text, string path)
     {
-        var info = (IXmlLineInfo)element;
-
-        if (!info.HasLineInfo() || info.LineNumber - 1 >= text.Lines.Count)
-        {
-            return Location.None;
-        }
-
-        var line = info.LineNumber - 1;
-        var column = info.LinePosition - 1;
         var prefix = element.GetPrefixOfNamespace(element.Name.Namespace);
-        var length = (prefix is null ? 0 : prefix.Length + 1) + element.Name.LocalName.Length;
-        var start = text.Lines[line].Start + column;
 
-        return Location.Create(
-            path,
-            new TextSpan(start, length),
-            new LinePositionSpan(new LinePosition(line, column), new LinePosition(line, column + length)));
+        return MarkupFiles.At(path, text, element, (prefix is null ? 0 : prefix.Length + 1) + element.Name.LocalName.Length);
     }
 }

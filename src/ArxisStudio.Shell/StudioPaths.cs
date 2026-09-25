@@ -51,7 +51,7 @@ public static class StudioPaths
     /// Словарь, положенный сюда, сильнее поставляемого со студией: правят
     /// его, а в папку установки на общей машине может быть и не записать.
     /// </remarks>
-    public static string Languages => Path.Combine(UserData, "lang");
+    public static string Languages => Path.Combine(UserData, Localization.Localizer.Folder);
 
     /// <summary>Создаёт каталог пользовательских данных, если его ещё нет.</summary>
     public static void EnsureUserData() => Directory.CreateDirectory(UserData);

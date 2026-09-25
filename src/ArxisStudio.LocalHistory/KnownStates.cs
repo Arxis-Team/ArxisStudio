@@ -32,9 +32,6 @@ internal sealed class KnownStates
         _states = states;
     }
 
-    /// <summary>Сколько файлов известно.</summary>
-    public int Count => _states.Count;
-
     /// <summary>Читает состояние; нет файла или он испорчен — начинаем с пустого.</summary>
     /// <param name="file">Файл состояния.</param>
     public static KnownStates Load(string file)

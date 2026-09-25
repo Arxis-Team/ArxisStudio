@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -46,9 +42,6 @@ public sealed class ToolBarAnalyzer : DiagnosticAnalyzer
     public const string UndeclaredId = "ARX0005";
 
     private const string Attribute = "ToolBarItemAttribute";
-    private const string Namespace = "ArxisStudio.Sdk";
-
-    private static readonly string[] Manifests = { "plugin.json", "module.json" };
 
     /// <summary>Поле элемента полосы — только во вкладах и только своё, не вложенное.</summary>
     private static readonly Regex ItemField = new(
@@ -111,12 +104,18 @@ public sealed class ToolBarAnalyzer : DiagnosticAnalyzer
         // Про команду видно по одному манифесту — разбираем его на нём самом.
         context.RegisterAdditionalFileAction(Commands);
 
-        context.RegisterCompilationStartAction(Start);
+        // Про свой контрол одного манифеста мало: класс живёт в сборке.
+        context.RegisterCompilationStartAction(start => MarkedClasses.Reconcile(
+            start,
+            Attribute,
+            fields => Items(fields).Where(item => item.IsCustom).Select(item => (item.Id, item.Span)),
+            Missing,
+            Undeclared));
     }
 
     private static void Commands(AdditionalFileAnalysisContext context)
     {
-        if (!IsManifest(context.AdditionalFile.Path) ||
+        if (!ManifestFiles.IsManifest(context.AdditionalFile.Path) ||
             context.AdditionalFile.GetText(context.CancellationToken) is not { } text)
         {
             return;
@@ -134,69 +133,9 @@ public sealed class ToolBarAnalyzer : DiagnosticAnalyzer
 
             context.ReportDiagnostic(Diagnostic.Create(
                 Command,
-                At(context.AdditionalFile.Path, text, item.Span),
+                ManifestFiles.At(context.AdditionalFile.Path, text, item.Span),
                 item.Id,
                 item.Command));
-        }
-    }
-
-    /// <remarks>
-    /// Сверка манифеста со сборкой возможна только в конце компиляции: раньше
-    /// известна лишь одна из двух записей. Среда покажет такую находку после
-    /// полного разбора, а сборка — сразу.
-    /// </remarks>
-    private static void Start(CompilationStartAnalysisContext context)
-    {
-        var manifest = context.Options.AdditionalFiles.FirstOrDefault(file => IsManifest(file.Path));
-
-        // Проекта без манифеста это правило не касается: так собирают частную
-        // зависимость плагина, и объявлять ей нечего.
-        if (manifest?.GetText(context.CancellationToken) is not { } text)
-        {
-            return;
-        }
-
-        var marked = new ConcurrentDictionary<string, Location>(StringComparer.Ordinal);
-
-        context.RegisterSymbolAction(symbol => Mark(symbol, marked), SymbolKind.NamedType);
-
-        context.RegisterCompilationEndAction(end =>
-        {
-            var custom = Items(ManifestJson.Strings(text.ToString())).Where(item => item.IsCustom).ToList();
-
-            foreach (var item in custom.Where(item => item.Id.Length > 0 && !marked.ContainsKey(item.Id)))
-            {
-                end.ReportDiagnostic(Diagnostic.Create(Missing, At(manifest.Path, text, item.Span), item.Id));
-            }
-
-            var known = new HashSet<string>(custom.Select(item => item.Id), StringComparer.Ordinal);
-
-            foreach (var pair in marked.Where(pair => !known.Contains(pair.Key)))
-            {
-                end.ReportDiagnostic(Diagnostic.Create(Undeclared, pair.Value, pair.Key));
-            }
-        });
-    }
-
-    private static void Mark(SymbolAnalysisContext context, ConcurrentDictionary<string, Location> marked)
-    {
-        foreach (var attribute in context.Symbol.GetAttributes())
-        {
-            if (attribute.AttributeClass is not { Name: Attribute } found ||
-                found.ContainingNamespace?.ToDisplayString() != Namespace ||
-                attribute.ConstructorArguments.Length != 1 ||
-                attribute.ConstructorArguments[0].Value is not string id)
-            {
-                continue;
-            }
-
-            // Место находки — сам атрибут: править нужно там или в манифесте, а
-            // не где-то в теле класса.
-            var location = attribute.ApplicationSyntaxReference is { } reference
-                ? Location.Create(reference.SyntaxTree, reference.Span)
-                : context.Symbol.Locations.FirstOrDefault() ?? Location.None;
-
-            marked[id] = location;
         }
     }
 
@@ -298,33 +237,4 @@ public sealed class ToolBarAnalyzer : DiagnosticAnalyzer
     /// <summary>Команды, объявленные в <c>contributions.commands</c>.</summary>
     private static HashSet<string> Declared(List<ManifestJson.Field> fields) =>
         new(fields.Where(field => CommandField.IsMatch(field.Path)).Select(field => field.Value), StringComparer.Ordinal);
-
-    private static Location At(string path, SourceText text, TextSpan span) =>
-        Location.Create(path, span, text.Lines.GetLinePositionSpan(span));
-
-    private static readonly char[] Separators = { '/', '\\' };
-
-    /// <summary>
-    /// Манифест ли это — по имени файла.
-    /// </summary>
-    /// <remarks>
-    /// По имени, а не по тому, что файл — JSON: рядом с манифестом сборка подаёт
-    /// словарь расширения (<c>lang/en.json</c> и у плагина, и у модуля), и принятый
-    /// за манифест словарь дал бы находки на пустом месте.
-    /// </remarks>
-    private static bool IsManifest(string path)
-    {
-        var separator = path.LastIndexOfAny(Separators);
-        var name = separator < 0 ? path : path.Substring(separator + 1);
-
-        foreach (var manifest in Manifests)
-        {
-            if (string.Equals(name, manifest, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
 }

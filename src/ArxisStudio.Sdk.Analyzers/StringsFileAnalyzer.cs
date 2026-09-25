@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -60,17 +59,11 @@ public sealed class StringsFileAnalyzer : DiagnosticAnalyzer
         context.RegisterAdditionalFileAction(Check);
     }
 
-    /// <summary>Роль входа сборки: <c>default</c>, <c>translation</c> или null — не словарь.</summary>
-    internal static string? Role(AnalyzerOptions options, AdditionalText file) =>
-        options.AnalyzerConfigOptionsProvider.GetOptions(file).TryGetValue(RoleKey, out var role) && role.Length > 0
-            ? role
-            : null;
-
     private static void Check(AdditionalFileAnalysisContext context)
     {
         var file = context.AdditionalFile;
 
-        if (Role(context.Options, file) is not ("default" or "translation") ||
+        if (ManifestFiles.Role(context.Options, file) is not (ManifestFiles.Default or ManifestFiles.Translation) ||
             file.GetText(context.CancellationToken) is not { } text ||
             StringsJson.Check(text.ToString()) is not { } problem)
         {
@@ -81,7 +74,7 @@ public sealed class StringsFileAnalyzer : DiagnosticAnalyzer
 
         context.ReportDiagnostic(Diagnostic.Create(
             Rule,
-            Location.Create(file.Path, span, text.Lines.GetLinePositionSpan(span)),
+            ManifestFiles.At(file.Path, text, span),
             problem.Reason));
     }
 }

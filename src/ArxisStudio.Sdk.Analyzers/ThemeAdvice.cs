@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 
 namespace ArxisStudio.Sdk.Analyzers;
 
@@ -151,42 +148,14 @@ internal static class ThemeAdvice
     private static bool IsBrush(string key) => key.EndsWith("Brush", StringComparison.Ordinal);
 
     /// <summary>
-    /// Сколько правок по букве отделяет одно имя от другого: вставка, удаление, замена или
-    /// перестановка соседних букв.
+    /// Сколько правок по букве отделяет одно имя от другого — <see cref="EditDistance"/>.
     /// </summary>
     /// <remarks>
     /// Имена, длиной разошедшиеся сильнее предела, не сравниваются вовсе: правок у них заведомо
     /// больше, а ключей в теме сотни.
     /// </remarks>
-    private static int Edits(string first, string second, int limit)
-    {
-        if (Math.Abs(first.Length - second.Length) > limit)
-            return limit + 1;
-
-        var table = new int[first.Length + 1, second.Length + 1];
-
-        for (var row = 0; row <= first.Length; row++)
-            table[row, 0] = row;
-
-        for (var column = 0; column <= second.Length; column++)
-            table[0, column] = column;
-
-        for (var row = 1; row <= first.Length; row++)
-        {
-            for (var column = 1; column <= second.Length; column++)
-            {
-                var replaced = table[row - 1, column - 1] + (first[row - 1] == second[column - 1] ? 0 : 1);
-                var best = Math.Min(replaced, Math.Min(table[row - 1, column], table[row, column - 1]) + 1);
-
-                if (row > 1 && column > 1 && first[row - 1] == second[column - 2] && first[row - 2] == second[column - 1])
-                    best = Math.Min(best, table[row - 2, column - 2] + 1);
-
-                table[row, column] = best;
-            }
-        }
-
-        return table[first.Length, second.Length];
-    }
+    private static int Edits(string first, string second, int limit) =>
+        Math.Abs(first.Length - second.Length) > limit ? limit + 1 : EditDistance.Between(first, second);
 
     private static string Step(double value, IReadOnlyList<ThemeTokens.Named> steps, string what)
     {

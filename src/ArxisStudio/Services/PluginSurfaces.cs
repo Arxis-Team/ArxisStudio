@@ -384,9 +384,7 @@ internal sealed class PluginSurfaces(IStudioLog log, PluginGuard guard, StudioDo
         LoadedPlugin loaded,
         Func<TAttribute, string> name)
         where TAttribute : Attribute =>
-        loaded.Assemblies
-            .SelectMany(assembly => assembly.GetTypes())
-            .Where(type => type is { IsAbstract: false, IsPublic: true } && typeof(TBase).IsAssignableFrom(type))
+        PluginTypes.Concrete<TBase>(loaded.Assemblies)
             .Select(type => (Type: type, Attribute: type.GetCustomAttribute<TAttribute>()))
             .Where(found => found.Attribute is not null)
             .ToDictionary(found => name(found.Attribute!), found => found.Type, StringComparer.Ordinal);

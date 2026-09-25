@@ -15,7 +15,12 @@ namespace ArxisStudio.Tests;
 /// </remarks>
 public class PluginGuardTests
 {
-    /// <summary>Падение плагина остаётся внутри шва и приписывается ему.</summary>
+    /// <summary>Падение плагина остаётся внутри шва и приписывается ему — его же словами.</summary>
+    /// <remarks>
+    /// Команду из атрибута и конструктор вклада студия зовёт отражением, и снаружи остаётся
+    /// «Exception has been thrown by the target of an invocation». Человеку нужно то, что бросил сам
+    /// плагин.
+    /// </remarks>
     [Fact]
     public void A_failing_call_is_caught_and_attributed()
     {
@@ -31,6 +36,11 @@ public class PluginGuardTests
         Assert.Equal("arxis.demo", failures[0].PluginId);
         Assert.Equal("команда demo.run", failures[0].What);
         Assert.Equal("сломалось", failures[0].Message);
+
+        guard.Run("arxis.demo", "команда demo.reflected", () =>
+            throw new System.Reflection.TargetInvocationException(new InvalidOperationException("сломалось внутри")));
+
+        Assert.Equal("сломалось внутри", failures[1].Message);
     }
 
     /// <summary>Ответ плагина доходит до студии, а счёт падений остаётся нулевым.</summary>

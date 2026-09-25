@@ -26,7 +26,7 @@ internal sealed class ContentStore
     /// Объект кладут раньше, чем на него сошлётся журнал или известное состояние: снять содержимое и
     /// записать правку — два шага. Очистка, прошедшая между ними, забрала бы только что положенное.
     /// </remarks>
-    public static readonly TimeSpan Grace = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan Grace = TimeSpan.FromMinutes(10);
 
     private const string Temporary = ".tmp";
     private const int HeaderLength = 12;
@@ -45,7 +45,7 @@ internal sealed class ContentStore
 
     /// <summary>Где лежит объект.</summary>
     /// <param name="id">Адрес.</param>
-    public string PathOf(ContentId id) => Path.Combine(_root, id.Value[..2], id.Value[2..]);
+    private string PathOf(ContentId id) => Path.Combine(_root, id.Value[..2], id.Value[2..]);
 
     /// <summary>Кладёт байты и возвращает их адрес; уже лежащее не переписывается.</summary>
     /// <param name="bytes">Содержимое.</param>

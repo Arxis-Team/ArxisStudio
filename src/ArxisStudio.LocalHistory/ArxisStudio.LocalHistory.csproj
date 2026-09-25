@@ -16,11 +16,6 @@
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
     </PropertyGroup>
 
-    <!-- Тестам открыты внутренности: хранилище содержимого и журнал проверяются и по отдельности. -->
-    <ItemGroup>
-        <InternalsVisibleTo Include="ArxisStudio.Tests"/>
-    </ItemGroup>
-
     <Target Name="AxHistoryBoundary" BeforeTargets="Build">
         <Error Code="AXH1001" Condition="'@(ProjectReference)' != '' Or '@(PackageReference)' != ''"
                Text="Локальной истории нельзя ссылаться ни на что, кроме платформы .NET, а здесь объявлено: @(ProjectReference->'%(Filename)', ', ') @(PackageReference->'%(Identity)', ', '). Журнал и хранилище переживают студию и читаются другой её версией, поэтому их формат не должен зависеть ни от интерфейса, ни от движка, ни от модели проектов."/>
