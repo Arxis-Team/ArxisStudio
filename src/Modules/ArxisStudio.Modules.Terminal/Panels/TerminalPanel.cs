@@ -292,7 +292,17 @@ public sealed class TerminalPanel : ToolWindow
     }
 
     /// <summary>Настройку поменяли; какую именно — панели неважно, она перечитывает все.</summary>
-    private void OnSettingsChanged(object? sender, string key) => ApplySettings();
+    /// <remarks>
+    /// Настройку пишут и не из потока интерфейса — контракт настроек этого не запрещает, — а кегль и
+    /// мигание курсора — свойства видов: разносятся они в потоке интерфейса, как у окна проекта.
+    /// </remarks>
+    private void OnSettingsChanged(object? sender, string key)
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+            ApplySettings();
+        else
+            Dispatcher.UIThread.Post(ApplySettings);
+    }
 
     /// <summary>Разносит изменённые настройки по открытым сеансам; история — только у новых.</summary>
     private void ApplySettings()

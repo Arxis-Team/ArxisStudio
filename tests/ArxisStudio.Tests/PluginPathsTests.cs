@@ -251,6 +251,28 @@ public class PluginPathsTests : IDisposable
         Assert.Empty(pack.Coverage);
     }
 
+    /// <summary>
+    /// Код языка, который не годится именем файла, не предлагается: выбранный язык становится именем
+    /// словаря у студии и у каждого расширения, и код вида <c>../x</c> увёл бы чтение из их папок.
+    /// </summary>
+    [Fact]
+    public void A_language_code_that_is_not_a_file_name_is_not_offered()
+    {
+        var folder = Path.Combine(_plugins, "arxis.lang-up");
+
+        Directory.CreateDirectory(Path.Combine(folder, "lang"));
+        File.WriteAllText(Path.Combine(folder, "lang", "up.json"), """{ "menu.file": "вверх" }""");
+
+        var manifest = new PluginManifest { Id = "arxis.lang-up", Name = "Up" };
+
+        manifest.Contributions.Languages.Add(new PluginLanguage("../up", "Up", "lang/up.json", null));
+
+        var packs = new PluginLanguages([new InstalledPlugin(folder, manifest, null, IsEnabled: true)]);
+
+        Assert.Empty(packs.Codes);
+        Assert.Contains(packs.Problems, problem => problem.Contains("../up", StringComparison.Ordinal));
+    }
+
     /// <summary>Папка-источник с манифестом и «сборкой».</summary>
     private string Source(string id)
     {

@@ -148,8 +148,14 @@ public sealed class ThemeValueCodeAnalyzer : DiagnosticAnalyzer
             : null;
 
     /// <summary>Объявлено ли свойство контролом Avalonia, а не самим расширением.</summary>
+    /// <remarks>
+    /// Avalonia — семейство: имя целиком или с точкой за ним, как у общих сборок студии и у правила
+    /// виджетов. По первым буквам сюда попадала и чужая <c>AvaloniaEdit</c>, у свойств которой ключей
+    /// темы нет.
+    /// </remarks>
     private static bool IsAvalonia(INamedTypeSymbol? type) =>
-        type?.ContainingNamespace?.ToDisplayString().StartsWith("Avalonia", StringComparison.Ordinal) == true;
+        type?.ContainingNamespace?.ToDisplayString() is { } space &&
+        (space == "Avalonia" || space.StartsWith("Avalonia.", StringComparison.Ordinal));
 
     private static void Report(OperationAnalysisContext context, SyntaxNode syntax, string advice) =>
         context.ReportDiagnostic(Diagnostic.Create(Rule, syntax.GetLocation(), Shorten(syntax.ToString()), advice));

@@ -40,14 +40,40 @@ public sealed class ItemFilter
 
         foreach (var key in OutputProperties)
         {
-            if (project.Properties.GetValueOrDefault(key) is not { Length: > 0 } value)
-                continue;
-
-            var first = value.Replace('\\', '/').Trim('/').Split('/')[0];
-
-            if (first.Length > 0 && first != "." && first != "..")
-                _output.Add(first);
+            if (project.Properties.GetValueOrDefault(key) is { Length: > 0 } value && OutputRoot(project.ProjectDirectory, value) is { } root)
+                _output.Add(root);
         }
+    }
+
+    /// <summary>
+    /// Папка выхода сборки в корне проекта — первый сегмент пути из свойства; пусто — выход лежит вне
+    /// папки проекта.
+    /// </summary>
+    /// <param name="directory">Папка проекта.</param>
+    /// <param name="value">Значение свойства выхода.</param>
+    /// <remarks>
+    /// Путь разрешается от папки проекта, как у службы проектов (<c>MembershipFilter</c>): что окно
+    /// прячет выходом сборки, то и перезагрузки не будит. Прежде первым сегментом абсолютного пути
+    /// становилась буква диска, и выход, названный полным путём внутри проекта, дерево показывало.
+    /// Модули друг на друга не ссылаются, и правило записано дважды.
+    /// </remarks>
+    private static string? OutputRoot(CanonicalPath directory, string value)
+    {
+        string relative;
+
+        try
+        {
+            relative = Path.GetRelativePath(directory.Value, Path.GetFullPath(value, directory.Value));
+        }
+        catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return null;
+        }
+
+        if (relative == "." || Path.IsPathRooted(relative) || relative == ".." || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+            return null;
+
+        return relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)[0];
     }
 
     /// <summary>Явно объявленная папка ли это: <c>&lt;Folder Include="Models\"/&gt;</c>.</summary>

@@ -27,7 +27,7 @@ namespace ArxisStudio.Modules.Projects.Watching;
 /// </remarks>
 internal static class MembershipFilter
 {
-    private static readonly string[] OutputProperties = ["BaseIntermediateOutputPath", "IntermediateOutputPath", "OutputPath"];
+    private static readonly string[] OutputProperties = ["BaseOutputPath", "OutputPath", "BaseIntermediateOutputPath", "IntermediateOutputPath"];
 
     /// <summary>
     /// Папки, за которыми следить: верхние папки проектов.
@@ -173,15 +173,36 @@ internal static class MembershipFilter
         foreach (var property in OutputProperties)
         {
             if (project.Properties.GetValueOrDefault(property) is { Length: > 0 } value
-                && Resolve(directory, value) is { IsEmpty: false } output
-                && output != directory
-                && path.StartsWith(output))
+                && OutputRoot(directory, value) is { } root
+                && segments[0].Equals(root, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Папка выхода сборки в корне проекта — первый сегмент пути из свойства; пусто — выход лежит вне
+    /// папки проекта.
+    /// </summary>
+    /// <param name="directory">Папка проекта.</param>
+    /// <param name="value">Значение свойства выхода.</param>
+    /// <remarks>
+    /// Правило то же, что у окна проекта (<c>ItemFilter</c>): что окно прячет выходом сборки, то и
+    /// перезагрузки не будит. Прежде здесь не было <c>BaseOutputPath</c>, а выход мерился путём
+    /// одной конфигурации: проект, собиравшийся в <c>build\</c>, будил перезагрузку каждой сборкой
+    /// другой конфигурации. Модули друг на друга не ссылаются, и правило записано дважды.
+    /// </remarks>
+    private static string? OutputRoot(CanonicalPath directory, string value)
+    {
+        if (Resolve(directory, value) is not { IsEmpty: false } output || output == directory || !output.StartsWith(directory))
+            return null;
+
+        return output.Value[directory.Value.Length..]
+            .Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries)
+            .FirstOrDefault();
     }
 
     /// <summary>Временный файл редактора или атомарного сохранения.</summary>

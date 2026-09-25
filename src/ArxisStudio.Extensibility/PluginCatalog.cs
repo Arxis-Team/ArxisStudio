@@ -199,8 +199,17 @@ public sealed class PluginCatalog
         }
         finally
         {
-            if (Directory.Exists(staging))
-                Directory.Delete(staging, recursive: true);
+            // Распакованное, бывает, держит чужой процесс — антивирус проверяет свежие сборки, — и
+            // уборка, бросившая отсюда, затёрла бы итог установки, которая могла и пройти. Папка
+            // останется среди временных до уборки самой системы.
+            try
+            {
+                if (Directory.Exists(staging))
+                    Directory.Delete(staging, recursive: true);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+            }
         }
     }
 

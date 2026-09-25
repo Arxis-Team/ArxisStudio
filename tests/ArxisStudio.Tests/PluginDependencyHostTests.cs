@@ -27,9 +27,12 @@ public class PluginDependencyHostTests : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    /// <summary>Старт поднимает плагины в порядке зависимостей.</summary>
+    /// <summary>
+    /// Старт поднимает плагины в порядке зависимостей, а закрытие опускает их в обратном: зависимый
+    /// прощается, пока его соседи ещё стоят.
+    /// </summary>
     [Fact]
-    public void Startup_raises_plugins_in_dependency_order()
+    public void Startup_raises_plugins_in_dependency_order_and_closing_lowers_them_in_reverse()
     {
         Clone("dep.base");
         Clone("dep.middle", depends: """[ { "id": "dep.base" } ]""");
@@ -41,6 +44,13 @@ public class PluginDependencyHostTests : IDisposable
         Assert.Equal(
             ["dep.base", "dep.middle", "dep.top"],
             raised.Where(loaded => loaded.IsLoaded).Select(loaded => loaded.Installed.Id));
+
+        var unloading = new List<string>();
+
+        host.Unloading += (_, id) => unloading.Add(id);
+        host.Dispose();
+
+        Assert.Equal(["dep.top", "dep.middle", "dep.base"], unloading);
     }
 
     /// <summary>
@@ -67,11 +77,12 @@ public class PluginDependencyHostTests : IDisposable
     }
 
     /// <summary>
-    /// Отказанный не поднимается и не ждёт событий.
+    /// Отказанный не поднимается и не ждёт событий, а его запись меняет состав, как всякая.
     /// </summary>
     /// <remarks>
     /// Причина отказа не в событии, а в соседях: будить его значило бы поднять
-    /// то, чему студия только что отказала словами.
+    /// то, чему студия только что отказала словами. Молча положенная запись осталась бы невидимой
+    /// подписчику, пока состав не сменится по другой причине.
     /// </remarks>
     [Fact]
     public void A_refused_plugin_is_failed_and_does_not_wait_for_events()
@@ -79,6 +90,10 @@ public class PluginDependencyHostTests : IDisposable
         Clone("dep.orphan", depends: """[ { "id": "dep.gone" } ]""", activation: """[ "onCommand:orphan.run" ]""");
 
         using var host = Host();
+        var changed = 0;
+
+        host.Changed += (_, _) => changed++;
+
         var raised = host.LoadStartup(new PluginCatalog(_root).Scan());
 
         var failed = Assert.Single(raised);
@@ -86,6 +101,7 @@ public class PluginDependencyHostTests : IDisposable
         Assert.False(failed.IsLoaded);
         Assert.Contains("dep.gone", failed.Error);
         Assert.Empty(host.Deferred);
+        Assert.True(changed > 0, "отказ лёг в список поднятых молча");
     }
 
     /// <summary>Встроенный модуль удовлетворяет зависимость плагина.</summary>

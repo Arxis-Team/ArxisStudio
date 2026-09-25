@@ -36,10 +36,15 @@ public partial class SettingsDialog : AxDialog
         Cancel.Click += (_, _) => Close(false);
         Save.Click += (_, _) => Submit();
 
+        // Enter гасится, как у диалогов окна проекта: иначе он шёл бы дальше формы — к кнопке по
+        // умолчанию, второй раз в тот же Submit.
         Form.KeyDown += (_, key) =>
         {
             if (key.Key == Key.Enter)
+            {
                 Submit();
+                key.Handled = true;
+            }
         };
 
         // Клавиатура — в первом поле, как у переименования и SSH: без этого фокуса в

@@ -134,13 +134,39 @@ public class TerminalDialogTests
         dialog.Close();
     }
 
-    /// <summary>Нажимает Enter в форме диалога.</summary>
-    private static void Enter(AxDialog dialog) =>
-        Part<StackPanel>(dialog, "Form").RaiseEvent(new KeyEventArgs
+    /// <summary>
+    /// Enter в форме гасится в самом диалоге, как у диалогов окна проекта, — даже когда
+    /// подтверждать нечего.
+    /// </summary>
+    /// <remarks>
+    /// Непогашенный, он шёл дальше формы — к кнопке по умолчанию, второй раз в тот же Submit.
+    /// </remarks>
+    /// <param name="kind">Какой диалог.</param>
+    [AvaloniaTheory]
+    [InlineData("rename")]
+    [InlineData("ssh")]
+    [InlineData("settings")]
+    public void Enter_stays_in_the_dialog(string kind)
+    {
+        AxDialog dialog = kind switch
         {
-            RoutedEvent = InputElement.KeyDownEvent,
-            Key = Key.Enter,
-        });
+            "rename" => new RenameDialog(),
+            "ssh" => new SshDialog(),
+            _ => new SettingsDialog(),
+        };
+
+        Assert.True(Enter(dialog).Handled, "Enter ушёл дальше формы");
+    }
+
+    /// <summary>Нажимает Enter в форме диалога.</summary>
+    private static KeyEventArgs Enter(AxDialog dialog)
+    {
+        var press = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter };
+
+        Part<StackPanel>(dialog, "Form").RaiseEvent(press);
+
+        return press;
+    }
 
     /// <summary>
     /// Названная часть разметки диалога.

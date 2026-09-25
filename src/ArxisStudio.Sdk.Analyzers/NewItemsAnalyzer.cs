@@ -237,7 +237,7 @@ public sealed class NewItemsAnalyzer : DiagnosticAnalyzer
             }
         }
 
-        if (isCode && lazy && item.Id.Length > 0 && !activation.Contains("onNewItem:" + item.Id))
+        if (isCode && lazy && item.Id.Length > 0 && !Wakes(activation, item.Id))
         {
             yield return (at, "расширение спит до своего события, а onNewItem:" + item.Id + " в activation нет — выбор пункта его не разбудит");
         }
@@ -272,6 +272,20 @@ public sealed class NewItemsAnalyzer : DiagnosticAnalyzer
         return !fields.Any(field => ToolBarKind.IsMatch(field.Path) &&
                                     string.Equals(field.Value.Trim(), "custom", StringComparison.OrdinalIgnoreCase));
     }
+
+    /// <summary>
+    /// Будит ли событие пункт — так же, как читает событие студия (<c>PluginActivation</c>): приставка
+    /// без регистра, идентификатор за ней — без пробелов по краям и дословно.
+    /// </summary>
+    /// <remarks>
+    /// Прежде событие сверялось строкой целиком, и <c>OnNewItem: probe.code</c>, которое студию будит,
+    /// здесь считалось забытым.
+    /// </remarks>
+    private static bool Wakes(IEnumerable<string> activation, string itemId) =>
+        activation.Any(value => value.StartsWith(OnNewItem, StringComparison.OrdinalIgnoreCase) &&
+                                string.Equals(value.Substring(OnNewItem.Length).Trim(), itemId, StringComparison.Ordinal));
+
+    private const string OnNewItem = "onNewItem:";
 
     /// <summary>Уводит ли путь из своего каталога: корень, диск или <c>..</c> среди сегментов.</summary>
     private static bool Leaves(string path)

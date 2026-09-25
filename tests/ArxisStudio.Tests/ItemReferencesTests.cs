@@ -155,6 +155,27 @@ public class ItemReferencesTests
             document.Descendants("None").Select(item => item.Attribute("Update")?.Value));
     }
 
+    /// <summary>
+    /// Папка, записанная с разделителем на конце, — <c>&lt;Folder Include="Assets\"/&gt;</c>, как её
+    /// пишет Visual Studio, — остаётся записанной так же, с разделителем того же вида.
+    /// </summary>
+    [Fact]
+    public void A_folder_written_with_a_trailing_separator_keeps_it()
+    {
+        var document = Parse("""
+            <Project Sdk="Microsoft.NET.Sdk">
+              <ItemGroup>
+                <Folder Include="Assets\" />
+                <Folder Include="Docs/" />
+              </ItemGroup>
+            </Project>
+            """);
+
+        Assert.True(Rewrite(document, Moved("Assets", "Images", folder: true), Moved("Docs", "Notes", folder: true)));
+
+        Assert.Equal(["Images\\", "Notes/"], document.Descendants("Folder").Select(item => item.Attribute("Include")?.Value));
+    }
+
     private static bool Rewrite(XDocument document, params PathChange[] changes) =>
         ItemReferences.Rewrite(document, Project, changes);
 

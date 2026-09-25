@@ -335,7 +335,7 @@ public sealed class LocalHistoryStore : IDisposable
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
 
-        return Trace(path, folder: false, (change, current) => Same(change.Path, current));
+        return Trace(path, folder: false, (change, current) => HistoryPaths.Same(change.Path, current));
     }
 
     /// <summary>
@@ -352,8 +352,8 @@ public sealed class LocalHistoryStore : IDisposable
         ArgumentException.ThrowIfNullOrEmpty(folder);
 
         return Trace(folder, folder: true, (change, current) =>
-            Same(change.Path, current) || Inside(change.Path, current)
-            || (change.From is { } from && (Same(from, current) || Inside(from, current))));
+            HistoryPaths.Same(change.Path, current) || HistoryPaths.Inside(change.Path, current)
+            || (change.From is { } from && (HistoryPaths.Same(from, current) || HistoryPaths.Inside(from, current))));
     }
 
     /// <summary>
@@ -382,7 +382,7 @@ public sealed class LocalHistoryStore : IDisposable
             foreach (var change in action.Changes)
             {
                 var carried = change is { IsDirectory: true, Kind: HistoryChangeKind.Moved, From: not null }
-                              && Inside(current, change.Path);
+                              && HistoryPaths.Inside(current, change.Path);
 
                 if (touches(change, current) || carried)
                     found.Add(new HistoryRevision(action, change));
@@ -407,10 +407,10 @@ public sealed class LocalHistoryStore : IDisposable
         if (change is not { Kind: HistoryChangeKind.Moved, From: { } from })
             return null;
 
-        if (Same(change.Path, current))
+        if (HistoryPaths.Same(change.Path, current))
             return change.IsDirectory || !folder ? from : null;
 
-        return change.IsDirectory && Inside(current, change.Path) ? from + current[change.Path.Length..] : null;
+        return change.IsDirectory && HistoryPaths.Inside(current, change.Path) ? from + current[change.Path.Length..] : null;
     }
 
     /// <summary>Метки, которые видно в истории пути, от новой к старой.</summary>
@@ -423,7 +423,7 @@ public sealed class LocalHistoryStore : IDisposable
         lock (_gate)
         {
             return [.. _actions
-                .Where(action => action.IsLabel && (action.Scope is not { } scope || Same(path, scope) || Inside(path, scope)))
+                .Where(action => action.IsLabel && (action.Scope is not { } scope || HistoryPaths.Same(path, scope) || HistoryPaths.Inside(path, scope)))
                 .Reverse()];
         }
     }
@@ -535,11 +535,4 @@ public sealed class LocalHistoryStore : IDisposable
 
         return _content.Sweep(alive);
     }
-
-    private static bool Same(string left, string right) => string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
-
-    private static bool Inside(string path, string folder) =>
-        path.Length > folder.Length
-        && path.StartsWith(folder, StringComparison.OrdinalIgnoreCase)
-        && (path[folder.Length] == Path.DirectorySeparatorChar || path[folder.Length] == Path.AltDirectorySeparatorChar);
 }

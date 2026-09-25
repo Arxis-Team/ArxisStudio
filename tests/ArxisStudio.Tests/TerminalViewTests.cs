@@ -6,6 +6,7 @@ using ArxisStudio.Modules.Terminal.Dialogs;
 using ArxisStudio.Modules.Terminal.Panels;
 using ArxisStudio.Modules.Terminal.Sessions;
 using ArxisStudio.Modules.Terminal.Shells;
+using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using Avalonia;
 using ArxisStudio.Icons;
@@ -370,6 +371,41 @@ public class TerminalViewTests
         }
         finally
         {
+            TerminalHub.Reset();
+        }
+    }
+
+    /// <summary>
+    /// Настройка, записанная не из потока интерфейса, доходит до видов сеансов в нём.
+    /// </summary>
+    /// <remarks>
+    /// Кегль — свойство вида, и тронутый из чужого потока он бросил бы тому, кто писал настройку.
+    /// Оболочки с таким именем нет: вид сеанса появляется раньше, чем оболочка не заводится.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_setting_written_off_the_interface_thread_reaches_the_sessions_on_it()
+    {
+        TerminalHub.Reset();
+
+        var panel = Panel(out var context);
+
+        try
+        {
+            var content = panel.Content;
+
+            panel.Open(new ShellProfile("probe", "Проба", "arxis-нет-такой-оболочки", []), focus: false);
+            Dispatcher.UIThread.RunJobs();
+
+            await Task.Run(() => context.Settings.Set(TerminalSettings.FontSizeKey, 18d));
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal(18, content.GetLogicalDescendants().OfType<TerminalView>().Single().FontSize);
+        }
+        finally
+        {
+            foreach (var session in panel.Sessions)
+                panel.Close(session);
+
             TerminalHub.Reset();
         }
     }
@@ -792,7 +828,10 @@ public class TerminalViewTests
     }
 
     /// <summary>Панель терминала с настоящим контекстом студии, но без дока.</summary>
-    private static TerminalPanel Panel()
+    private static TerminalPanel Panel() => Panel(out _);
+
+    /// <summary>Панель терминала — и контекст, который ей выдан.</summary>
+    private static TerminalPanel Panel(out IStudioContext context)
     {
         var (manifest, error) = ModuleManifest.Load(typeof(TerminalModule).Assembly);
 
@@ -807,7 +846,8 @@ public class TerminalViewTests
             null,
             IsEnabled: true,
             IsBuiltIn: true);
-        var context = new StudioContextFactory(new StudioLog(), new StudioCommands(), null).Create(plugin);
+        context = new StudioContextFactory(new StudioLog(), new StudioCommands(), null).Create(plugin);
+
         var panel = new TerminalPanel();
 
         panel.Attach(context);

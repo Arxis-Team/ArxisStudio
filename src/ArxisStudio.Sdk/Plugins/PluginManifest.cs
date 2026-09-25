@@ -420,7 +420,9 @@ public sealed class PluginToolBarItem
     [JsonIgnore]
     public bool IsCustom => Is("custom");
 
-    private bool Is(string kind) => string.Equals(Kind, kind, StringComparison.OrdinalIgnoreCase);
+    // Пробелы по краям не в счёт — так вид читают и анализаторы SDK: одобренное при сборке иначе
+    // у человека не читалось бы.
+    private bool Is(string kind) => string.Equals(Kind?.Trim(), kind, StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>
@@ -539,7 +541,7 @@ public sealed class PluginNewItem
 
     /// <summary>Файлы: вид по умолчанию, когда <see cref="Kind"/> пуст.</summary>
     [JsonIgnore]
-    public bool IsFile => Kind is not { Length: > 0 } || Is("file");
+    public bool IsFile => string.IsNullOrWhiteSpace(Kind) || Is("file");
 
     /// <summary>Файлы собирает код расширения.</summary>
     [JsonIgnore]
@@ -547,9 +549,11 @@ public sealed class PluginNewItem
 
     /// <summary>Имя набирают именем типа C#.</summary>
     [JsonIgnore]
-    public bool IsIdentifier => string.Equals(NameRule, "identifier", StringComparison.OrdinalIgnoreCase);
+    public bool IsIdentifier => string.Equals(NameRule?.Trim(), "identifier", StringComparison.OrdinalIgnoreCase);
 
-    private bool Is(string kind) => string.Equals(Kind, kind, StringComparison.OrdinalIgnoreCase);
+    // Пробелы по краям не в счёт — так вид читают и анализаторы SDK: одобренное при сборке иначе
+    // у человека не читалось бы.
+    private bool Is(string kind) => string.Equals(Kind?.Trim(), kind, StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>Файл, который кладёт пункт создания.</summary>

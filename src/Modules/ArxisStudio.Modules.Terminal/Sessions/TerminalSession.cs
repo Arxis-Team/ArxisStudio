@@ -248,17 +248,24 @@ public sealed class TerminalSession : IDisposable
     /// <param name="modifiers">Что удержано.</param>
     /// <remarks>
     /// Запись знает эмулятор, а дорогу к программе — сеанс; вид говорит только, что сделала мышь.
+    /// Уходит запись мимо набора: набранное возвращает к живому краю, а мышь, нажатая программе,
+    /// историю, которую человек листал, не трогает.
     /// </remarks>
     public void ReportMouse(XMouseButton button, int column, int row, XMouseEventType type, KeyModifiers modifiers)
     {
         var sequence = Terminal.GenerateMouseEvent(button, column, row, type, KeyMap.Convert(modifiers));
 
         if (!string.IsNullOrEmpty(sequence))
-            SendText(sequence);
+            Send(sequence);
     }
 
     /// <summary>Говорит программе, что экран получил фокус или потерял, — если она об этом просила.</summary>
     /// <param name="focused">Получил.</param>
+    /// <remarks>
+    /// Мимо набора, как запись мыши. PSReadLine просит о фокусе, и сообщение, ушедшее дорогой
+    /// набранного, листало к живому краю: поднятая история падала вниз, стоило каретке уйти из
+    /// терминала.
+    /// </remarks>
     public void ReportFocus(bool focused)
     {
         if (!Terminal.SendFocusEvents)
@@ -267,7 +274,7 @@ public sealed class TerminalSession : IDisposable
         var sequence = Terminal.GenerateFocusEvent(focused);
 
         if (!string.IsNullOrEmpty(sequence))
-            SendText(sequence);
+            Send(sequence);
     }
 
     /// <summary>Есть ли что чистить: экран принадлежит нам, а не полноэкранной программе.</summary>

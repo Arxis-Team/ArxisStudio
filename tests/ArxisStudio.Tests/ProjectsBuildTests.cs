@@ -76,6 +76,10 @@ public class ProjectsBuildTests
 
         Assert.Equal(2, studio.Provider.Loads);
         Assert.Equal(ProjectsLoadReason.Restore, studio.Projects.Status.LastLoad?.Reason);
+
+        // Журнал называет причину словами, а не пустым перечнем перемен.
+        Assert.Contains(studio.Written, record => record.Message.Contains("перезагружено после восстановления пакетов", StringComparison.Ordinal));
+        Assert.DoesNotContain(studio.Written, record => record.Message.Contains("изменилось:  ", StringComparison.Ordinal));
     }
 
     /// <summary>Сборка модель не перечитывает: файлов проекта она не меняет.</summary>

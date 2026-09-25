@@ -382,6 +382,28 @@ public class ConsolePanelTests : IDisposable
     }
 
     /// <summary>
+    /// Настройка, записанная не из потока интерфейса, доходит до панели в нём.
+    /// </summary>
+    /// <remarks>
+    /// Контракт настроек поток не называет, а переключатель автопрокрутки и строки списка живут в
+    /// потоке интерфейса: обработчик, тронувший их из чужого, бросил бы тому, кто писал настройку.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_setting_written_off_the_interface_thread_reaches_the_panel_on_it()
+    {
+        var log = new StudioLog();
+        var panel = LogPanel(log);
+
+        log.Write(StudioLogLevel.Info, "Плагин", "строка");
+        Dispatcher.UIThread.RunJobs();
+
+        await Task.Run(() => _settings.Set(ConsoleSettings.TimestampsKey, false));
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(Shown(panel)[0].HasStamp, "настройка из чужого потока не дошла до строк");
+    }
+
+    /// <summary>
     /// Отпущенная панель больше не следует за журналом.
     /// </summary>
     /// <remarks>

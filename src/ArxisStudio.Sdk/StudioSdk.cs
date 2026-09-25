@@ -1,4 +1,6 @@
-﻿namespace ArxisStudio.Sdk;
+﻿using System.Globalization;
+
+namespace ArxisStudio.Sdk;
 
 /// <summary>
 /// Версия контракта, по которой студия и плагин узнают друг друга.
@@ -241,21 +243,42 @@ public static class StudioSdk
     /// плагин по ничтожному поводу. Сама опечатка при этом проходит молча: номер
     /// не разбирают ни студия, ни анализаторы SDK.
     /// </remarks>
-    public static bool Satisfies(string? required)
+    public static bool Satisfies(string? required) => Reaches(Version, required);
+
+    /// <summary>
+    /// Дотягивает ли версия до нижней границы — правило одно на студию: им меряются и
+    /// <c>sdk.min</c>, и версии соседей в графе зависимостей.
+    /// </summary>
+    /// <param name="version">Версия, которую меряют.</param>
+    /// <param name="min">Нижняя граница; пусто или неразобранная — «любая».</param>
+    /// <returns>Дотягивает ли; неразобранная версия при разобранной границе — нет.</returns>
+    /// <remarks>
+    /// Сравниваем по старшему, а при равенстве — по младшему: плагин, написанный под 1.0,
+    /// работает в студии с 1.3, обратное неверно. Прежде у графа был свой разбор, и на «1.x» они
+    /// расходились: здесь это было 1.0, а там — неразобранная граница, то есть «годится любая».
+    /// </remarks>
+    internal static bool Reaches(string? version, string? min)
     {
-        if (!TryParse(required, out var wanted))
+        if (!TryParseVersion(min, out var wanted))
             return true;
 
-        TryParse(Version, out var have);
+        if (!TryParseVersion(version, out var have))
+            return false;
 
-        // Сравниваем по старшему, а при равенстве — по младшему: плагин,
-        // написанный под 1.0, работает в студии с 1.3, обратное неверно.
         return have.Major != wanted.Major
             ? have.Major > wanted.Major
             : have.Minor >= wanted.Minor;
     }
 
-    private static bool TryParse(string? version, out (int Major, int Minor) parsed)
+    /// <summary>Разбирает номер версии: старший и младший, остальное не в счёт.</summary>
+    /// <param name="version">Номер, как его написал человек.</param>
+    /// <param name="parsed">Старший и младший номера.</param>
+    /// <returns>Разобран ли старший номер.</returns>
+    /// <remarks>
+    /// Младший, который не прочитался, — ноль: «1.x» просит первую версию, а не какую угодно.
+    /// Числа — в инвариантной культуре: номер версии не зависит от языка человека.
+    /// </remarks>
+    private static bool TryParseVersion(string? version, out (int Major, int Minor) parsed)
     {
         parsed = default;
 
@@ -264,10 +287,12 @@ public static class StudioSdk
 
         var parts = version.Split('.', StringSplitOptions.RemoveEmptyEntries);
 
-        if (parts.Length == 0 || !int.TryParse(parts[0], out var major))
+        if (parts.Length == 0 || !int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var major))
             return false;
 
-        var minor = parts.Length > 1 && int.TryParse(parts[1], out var found) ? found : 0;
+        var minor = parts.Length > 1 && int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var found)
+            ? found
+            : 0;
 
         parsed = (major, minor);
         return true;

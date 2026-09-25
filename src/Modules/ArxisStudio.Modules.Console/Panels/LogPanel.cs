@@ -222,6 +222,14 @@ public sealed class LogPanel : ToolWindow
         if (!ConsoleSettings.Keys.Contains(key))
             return;
 
+        // Настройку пишут и не из потока интерфейса — контракт настроек этого не запрещает, — а
+        // переключатель автопрокрутки и строки списка живут в нём.
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => OnSettingsChanged(sender, key));
+            return;
+        }
+
         var settings = ConsoleSettings.Read(Context.Settings);
         var rows = settings.Timestamps != _stamps;
 

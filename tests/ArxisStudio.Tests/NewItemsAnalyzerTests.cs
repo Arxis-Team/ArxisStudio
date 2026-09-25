@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk.Analyzers;
 using Microsoft.CodeAnalysis;
 using Xunit;
@@ -61,6 +62,66 @@ public class NewItemsAnalyzerTests
             [NewItem("probe.code")]
             public sealed class Code { }
             """, manifestName));
+    }
+
+    /// <summary>
+    /// Что анализатор пропускает, студия читает так же: вид, правило имени и событие пункта — с
+    /// пробелами по краям и в другом регистре.
+    /// </summary>
+    /// <remarks>
+    /// Анализатор срезал пробелы, а студия нет, и событие он сверял строкой целиком, а студия —
+    /// приставкой без регистра: пункт, одобренный при сборке, у человека не показывался или не будил
+    /// своё расширение, а будившее событие здесь считалось забытым. Одни и те же манифесты идут через
+    /// обе стороны.
+    /// </remarks>
+    /// <param name="kind">Как написан вид.</param>
+    /// <param name="nameRule">Как написано правило имени.</param>
+    /// <param name="activation">Как написано событие пункта.</param>
+    [Theory]
+    [InlineData(" code ", " identifier ", "onNewItem:probe.code")]
+    [InlineData("Code", "Identifier", "OnNewItem: probe.code")]
+    [InlineData("code", "identifier", " onNewItem:probe.code ")]
+    public async Task What_the_analyzer_passes_the_studio_reads_the_same_way(string kind, string nameRule, string activation)
+    {
+        var manifest = $$"""
+            {
+              "id": "arxis.parity",
+              "name": "Сверка",
+              "version": "1.0.0",
+              "contributions": {
+                "newItems": [ { "id": "probe.code", "kind": "{{kind}}", "title": "Код", "nameRule": "{{nameRule}}" } ]
+              },
+              "activation": [ "onCommand:probe.run", "{{activation}}" ]
+            }
+            """;
+
+        Assert.Empty(await AnalyzeAsync(manifest, """
+            using ArxisStudio.Sdk;
+
+            [NewItem("probe.code")]
+            public sealed class Code { }
+            """));
+
+        var root = TempFolder.Create("parity");
+
+        try
+        {
+            var folder = Path.Combine(root, "arxis.parity");
+
+            Directory.CreateDirectory(folder);
+            File.WriteAllText(Path.Combine(folder, "plugin.json"), manifest);
+
+            var read = Assert.Single(new PluginCatalog(root).Scan()).Manifest!;
+            var item = Assert.Single(read.Contributions.NewItems);
+
+            Assert.True(item.IsCode, $"вид «{kind}» студия не узнала");
+            Assert.True(item.IsIdentifier, $"правило «{nameRule}» студия не узнала");
+            Assert.True(PluginActivation.WaitsForNewItem(read, "probe.code"), $"событие «{activation}» студию не будит");
+        }
+        finally
+        {
+            TempFolder.Erase(root);
+        }
     }
 
     /// <summary>Незнакомый вид снимает пункт — находка на самом слове.</summary>

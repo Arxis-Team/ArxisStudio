@@ -97,6 +97,12 @@ public sealed class LocalHistoryStoreTests : IDisposable
         Assert.Equal(action.Changes, read.Changes);
         Assert.Equal(state, reopened.Known(path));
         Assert.Equal(state, reopened.Known(path.ToUpperInvariant()));
+
+        // Под папкой известное находится и с разделителем на конце — любого вида.
+        var folder = Path.GetDirectoryName(path)!;
+
+        Assert.Equal(path, Assert.Single(reopened.KnownUnder(folder)).Key);
+        Assert.Equal(path, Assert.Single(reopened.KnownUnder(folder + Path.AltDirectorySeparatorChar)).Key);
     }
 
     /// <summary>
@@ -266,6 +272,11 @@ public sealed class LocalHistoryStoreTests : IDisposable
         Assert.Equal(
             ["Удалён", "Перенос папки", "Приехал", "Вложенный", "Создан"],
             store.RevisionsUnder(b).Select(revision => revision.Action.Label));
+
+        // Та же папка и с разделителем на конце.
+        Assert.Equal(
+            ["Удалён", "Перенос папки", "Приехал", "Вложенный", "Создан"],
+            store.RevisionsUnder(b + Path.DirectorySeparatorChar).Select(revision => revision.Action.Label));
 
         // Переехала не сама папка, а та, в которой она лежит: и это переезд вложенной.
         Assert.Equal(

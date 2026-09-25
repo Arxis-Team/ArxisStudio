@@ -775,6 +775,38 @@ public class TerminalSessionTests
         Assert.Equal(Esc + "[O", pty.WaitForWritten(text => text.Length >= 3, Timeout));
     }
 
+    /// <summary>
+    /// Сообщения программе — о фокусе и о мыши — не набор: историю, которую человек листал, они к
+    /// живому краю не возвращают.
+    /// </summary>
+    /// <remarks>
+    /// Набранное листает к живому краю: человек должен видеть, что печатает. Сообщения шли той же
+    /// дорогой, и PSReadLine, который о фокусе просит, ронял поднятую историю вниз, стоило каретке
+    /// уйти из терминала.
+    /// </remarks>
+    [Fact]
+    public void Reports_to_the_program_leave_the_scrolled_history_where_it_was()
+    {
+        using var pty = new FakePty();
+        using var session = Start(pty);
+
+        pty.Emit(Esc + "[?1004h" + Esc + "[?1000h" + string.Concat(Enumerable.Range(0, 40).Select(line => $"line {line}\r\n")));
+        Assert.True(SpinWait.SpinUntil(
+            () => session.Terminal.MouseTrackingMode != XTerm.Input.MouseTrackingMode.None &&
+                  session.Terminal.GetVisibleLines().Any(line => line.StartsWith("line 39", StringComparison.Ordinal)),
+            Timeout));
+
+        session.Terminal.ScrollLines(-5);
+
+        var shown = session.Terminal.Buffer.YDisp;
+
+        session.ReportFocus(true);
+        Assert.Equal(shown, session.Terminal.Buffer.YDisp);
+
+        session.ReportMouse(XTerm.Input.MouseButton.Left, 0, 0, XTerm.Input.MouseEventType.Down, KeyModifiers.None);
+        Assert.Equal(shown, session.Terminal.Buffer.YDisp);
+    }
+
     /// <summary>После закрытия сеанс молчит: ни в трубу, ни на экран.</summary>
     [Fact]
     public void A_disposed_session_sends_nothing()

@@ -169,7 +169,7 @@ public sealed class PluginHost : IDisposable
         // зависимым так же, как всякий другой: зависимый, чьи типы не
         // приехали, иначе поднялся бы и упал на первом же приведении.
         var contractNotes = new List<string>();
-        var contractless = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var contractless = new Dictionary<string, string>(PluginIds.Comparer);
 
         foreach (var plugin in enabled)
         {
@@ -192,7 +192,7 @@ public sealed class PluginHost : IDisposable
         // причин едет обычной дорогой сбоя подъёма.
         foreach (var refusedId in _resolution.Refused.Keys)
         {
-            if (enabled.FirstOrDefault(plugin => plugin.Id == refusedId) is { } refused)
+            if (enabled.FirstOrDefault(plugin => PluginIds.Same(plugin.Id, refusedId)) is { } refused)
                 raised.Add(Fail(refused, _resolution.Refused[refusedId]));
         }
 
@@ -239,14 +239,19 @@ public sealed class PluginHost : IDisposable
     private static HashSet<string> Eager(IReadOnlyList<InstalledPlugin> order) =>
         PluginGraph.Closure(
             order.Where(candidate => PluginActivation.IsEager(candidate.Manifest)).Select(plugin => plugin.Id),
-            order.ToDictionary(plugin => plugin.Id, StringComparer.OrdinalIgnoreCase));
+            order.ToDictionary(plugin => plugin.Id, PluginIds.Comparer));
 
     /// <summary>Кладёт отказ в список поднятых — той же дорогой, что сбой подъёма.</summary>
+    /// <remarks>
+    /// Состав меняет и отказ: запись о нём ложится в список поднятых, и подписчик, не услышав о ней,
+    /// показывал бы список без неё, пока состав не сменится по другой причине.
+    /// </remarks>
     private LoadedPlugin Fail(InstalledPlugin installed, string reason)
     {
         var failed = LoadedPlugin.Failed(installed, reason);
 
         Keep(failed);
+        Changed?.Invoke(this, EventArgs.Empty);
         return failed;
     }
 
@@ -262,7 +267,7 @@ public sealed class PluginHost : IDisposable
     /// </remarks>
     private void Keep(LoadedPlugin record)
     {
-        _loaded.RemoveAll(known => !known.IsLoaded && Same(known.Installed.Id, record.Installed.Id));
+        _loaded.RemoveAll(known => !known.IsLoaded && PluginIds.Same(known.Installed.Id, record.Installed.Id));
         _loaded.Add(record);
 
         _standing = [.. _loaded];
@@ -270,9 +275,7 @@ public sealed class PluginHost : IDisposable
 
     /// <summary>Поднят ли плагин с этим идентификатором.</summary>
     private bool Stands(string pluginId) =>
-        _loaded.Any(known => known.IsLoaded && Same(known.Installed.Id, pluginId));
-
-    private static bool Same(string left, string right) => string.Equals(left, right, StringComparison.Ordinal);
+        _loaded.Any(known => known.IsLoaded && PluginIds.Same(known.Installed.Id, pluginId));
 
     /// <summary>
     /// Поднимает ждущий плагин, а прежде — всё, что обязано стоять под ним.
@@ -295,7 +298,7 @@ public sealed class PluginHost : IDisposable
     /// </remarks>
     public IReadOnlyList<LoadedPlugin> Activate(string pluginId)
     {
-        if (_deferred.All(plugin => plugin.Id != pluginId))
+        if (_deferred.All(plugin => !PluginIds.Same(plugin.Id, pluginId)))
             return [];
 
         var chain = Chain(pluginId);
@@ -303,7 +306,7 @@ public sealed class PluginHost : IDisposable
 
         foreach (var plugin in chain)
         {
-            var waiting = _deferred.FirstOrDefault(candidate => candidate.Id == plugin.Id);
+            var waiting = _deferred.FirstOrDefault(candidate => PluginIds.Same(candidate.Id, plugin.Id));
 
             if (waiting is null)
                 continue;
@@ -329,7 +332,7 @@ public sealed class PluginHost : IDisposable
     {
         ArgumentException.ThrowIfNullOrEmpty(pluginId);
 
-        return _deferred.RemoveAll(waiting => Same(waiting.Id, pluginId)) > 0;
+        return _deferred.RemoveAll(waiting => PluginIds.Same(waiting.Id, pluginId)) > 0;
     }
 
     /// <summary>
@@ -337,7 +340,7 @@ public sealed class PluginHost : IDisposable
     /// </summary>
     private List<InstalledPlugin> Chain(string pluginId)
     {
-        var byId = _deferred.ToDictionary(plugin => plugin.Id, StringComparer.OrdinalIgnoreCase);
+        var byId = _deferred.ToDictionary(plugin => plugin.Id, PluginIds.Comparer);
         var wanted = PluginGraph.Closure([pluginId], byId);
 
         // Порядок берётся из разрешения старта, а не выдумывается заново:
@@ -345,7 +348,7 @@ public sealed class PluginHost : IDisposable
         var order = _resolution?.Order ?? [];
         var position = order
             .Select((plugin, index) => (plugin.Id, index))
-            .ToDictionary(pair => pair.Id, pair => pair.index, StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(pair => pair.Id, pair => pair.index, PluginIds.Comparer);
 
         return wanted
             .Select(id => byId[id])
@@ -373,7 +376,7 @@ public sealed class PluginHost : IDisposable
     {
         ArgumentException.ThrowIfNullOrEmpty(pluginId);
 
-        return _loaded.FirstOrDefault(plugin => Same(plugin.Installed.Id, pluginId))?.Context is PluginLoadContext context
+        return _loaded.FirstOrDefault(plugin => PluginIds.Same(plugin.Installed.Id, pluginId))?.Context is PluginLoadContext context
             ? context.Pinned()
             : null;
     }
@@ -455,8 +458,8 @@ public sealed class PluginHost : IDisposable
         ArgumentNullException.ThrowIfNull(lower);
         ArgumentNullException.ThrowIfNull(raise);
 
-        var skipped = new Dictionary<string, string>(StringComparer.Ordinal);
-        var retired = new Dictionary<string, WeakReference>(StringComparer.Ordinal);
+        var skipped = new Dictionary<string, string>(PluginIds.Comparer);
+        var retired = new Dictionary<string, WeakReference>(PluginIds.Comparer);
 
         foreach (var pluginId in lower)
         {
@@ -478,8 +481,8 @@ public sealed class PluginHost : IDisposable
         // нечем — честнее сказать про перезапуск, чем промолчать. До подъёма —
         // потому что отказ обязан разойтись по зависимым прежде, чем кого-то
         // поднимут.
-        var contractless = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var restart = new Dictionary<string, string>(StringComparer.Ordinal);
+        var contractless = new Dictionary<string, string>(PluginIds.Comparer);
+        var restart = new Dictionary<string, string>(PluginIds.Comparer);
 
         foreach (var installed in raising)
         {
@@ -524,7 +527,7 @@ public sealed class PluginHost : IDisposable
         // теперь» потом не удержит его сам.
         var lingering = retired
             .Where(pair => !released[pair.Key])
-            .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+            .ToDictionary(pair => pair.Key, pair => pair.Value, PluginIds.Comparer);
 
         return new PluginCascade(released, raised, skipped, notes, lingering, restart);
     }
@@ -544,7 +547,7 @@ public sealed class PluginHost : IDisposable
             GC.WaitForPendingFinalizers();
         }
 
-        return retired.ToDictionary(pair => pair.Key, pair => !pair.Value.IsAlive, StringComparer.Ordinal);
+        return retired.ToDictionary(pair => pair.Key, pair => !pair.Value.IsAlive, PluginIds.Comparer);
     }
 
     /// <summary>
@@ -560,7 +563,7 @@ public sealed class PluginHost : IDisposable
     [MethodImpl(MethodImplOptions.NoInlining)]
     private string? Refuse(string pluginId)
     {
-        var loaded = _loaded.FirstOrDefault(plugin => Same(plugin.Installed.Id, pluginId));
+        var loaded = _loaded.FirstOrDefault(plugin => PluginIds.Same(plugin.Installed.Id, pluginId));
 
         if (loaded is null)
             return $"Плагин {pluginId} не поднят";
@@ -586,7 +589,7 @@ public sealed class PluginHost : IDisposable
     [MethodImpl(MethodImplOptions.NoInlining)]
     private WeakReference Retire(string pluginId)
     {
-        var loaded = _loaded.First(plugin => Same(plugin.Installed.Id, pluginId));
+        var loaded = _loaded.First(plugin => PluginIds.Same(plugin.Installed.Id, pluginId));
 
         _loaded.Remove(loaded);
         _standing = [.. _loaded];
@@ -647,7 +650,7 @@ public sealed class PluginHost : IDisposable
     {
         ArgumentException.ThrowIfNullOrEmpty(pluginId);
 
-        if (_loaded.All(plugin => !Same(plugin.Installed.Id, pluginId)))
+        if (_loaded.All(plugin => !PluginIds.Same(plugin.Installed.Id, pluginId)))
             return false;
 
         // О перемене состава говорит сам Retire — второй раз отсюда было бы два события на одно.
@@ -660,7 +663,7 @@ public sealed class PluginHost : IDisposable
         // Поднятый больше не ждёт. Включённый в настройках плагин поднимается сразу, не дожидаясь
         // своего события, и запись, оставшаяся в ожидании, подняла бы первым же событием вторую
         // копию: два обработчика на каждую команду и две панели на одно имя в раскладке.
-        _deferred.RemoveAll(waiting => Same(waiting.Id, installed.Id));
+        _deferred.RemoveAll(waiting => PluginIds.Same(waiting.Id, installed.Id));
 
         var loaded = Load(installed);
 
@@ -669,10 +672,14 @@ public sealed class PluginHost : IDisposable
         return loaded;
     }
 
-    /// <summary>Опускает все поднятые плагины.</summary>
+    /// <summary>Опускает все поднятые плагины — в обратном порядке подъёма.</summary>
+    /// <remarks>
+    /// Зависимый поднимается после своей зависимости и, прощаясь, ещё опирается на её службы:
+    /// опущенная раньше него, она оставила бы его прощаться с остановленным соседом.
+    /// </remarks>
     public void Dispose()
     {
-        foreach (var plugin in _loaded)
+        foreach (var plugin in Enumerable.Reverse(_loaded))
         {
             Unloading?.Invoke(this, plugin.Installed.Id);
             plugin.Unload();

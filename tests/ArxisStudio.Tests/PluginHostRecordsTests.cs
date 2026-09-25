@@ -1,4 +1,6 @@
 using ArxisStudio.Extensibility;
+using ArxisStudio.Sdk;
+using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Services;
 using Xunit;
 
@@ -245,11 +247,38 @@ public class PluginHostRecordsTests : IDisposable
 
         host.LoadStartup([sleeping]);
 
-        Assert.True(host.Withdraw("arxis.withdrawn"));
+        // Идентификатор сравнивается без регистра — так же, как в графе зависимостей.
+        Assert.True(host.Withdraw("Arxis.Withdrawn"));
         Assert.False(host.Withdraw("arxis.withdrawn"), "второй раз снимать некого");
 
         Assert.Empty(host.Activate("arxis.withdrawn"));
         Assert.Empty(host.Loaded);
+    }
+
+    /// <summary>
+    /// Ушедший плагин отпускается в обратном порядке подъёма — службы с конца, потом точки входа с
+    /// конца, — так же, как подъём, упавший на середине.
+    /// </summary>
+    /// <remarks>
+    /// Поднятое позже опирается на поднятое раньше. Прежде ушедший плагин останавливался с начала, а
+    /// несостоявшийся — с конца, и две дороги одного прощания расходились.
+    /// </remarks>
+    [Fact]
+    public void A_leaving_plugin_lets_go_in_the_reverse_order_of_its_rise()
+    {
+        var trace = new List<string>();
+        var leaving = new LoadedPlugin(
+            new InstalledPlugin(_root, new PluginManifest { Id = "probe.order", Name = "Порядок" }, null, IsEnabled: true),
+            null,
+            [],
+            null,
+            [new TracedEntry("вход 1", trace), new TracedEntry("вход 2", trace)],
+            [new TracedService("служба 1", trace), new TracedService("служба 2", trace)],
+            null);
+
+        leaving.Unload();
+
+        Assert.Equal(["служба 2", "служба 1", "вход 2", "вход 1"], trace);
     }
 
     /// <summary>
@@ -347,6 +376,22 @@ public class PluginHostRecordsTests : IDisposable
         TestAssembly.EmitPlugin(_root, id, assembly, source, activation);
 
         return new PluginCatalog(_root).Scan().Single(plugin => plugin.Id == id);
+    }
+
+    /// <summary>Точка входа, которая записывает своё прощание.</summary>
+    private sealed class TracedEntry(string name, List<string> trace) : StudioPlugin
+    {
+        public override void Deactivate() => trace.Add(name);
+    }
+
+    /// <summary>Служба, которая записывает свою остановку.</summary>
+    private sealed class TracedService(string name, List<string> trace) : StudioService
+    {
+        public override void Start(IStudioContext context)
+        {
+        }
+
+        public override void Stop() => trace.Add(name);
     }
 
     private const string Working = """

@@ -60,7 +60,7 @@ public static class PluginActivation
         manifest.Activation.Count == 0 ||
         manifest.Activation.Any(activation =>
             Is(activation, OnStartup) ||
-            activation.StartsWith(OnToolWindow, StringComparison.OrdinalIgnoreCase)) ||
+            activation.Trim().StartsWith(OnToolWindow, StringComparison.OrdinalIgnoreCase)) ||
         manifest.Contributions.ToolBar.Any(item => item.IsCustom);
 
     /// <summary>Ждёт ли плагин вызова этой команды.</summary>
@@ -81,14 +81,23 @@ public static class PluginActivation
     public static bool WaitsForNewItem(PluginManifest? manifest, string itemId) =>
         Waits(manifest, OnNewItem, itemId, StringComparer.Ordinal);
 
+    /// <remarks>
+    /// Событие читается целиком без пробелов по краям, приставка — без регистра, значение за ней —
+    /// без пробелов: так же событие читает анализатор пунктов создания, и одобренное при сборке
+    /// будит расширение и у человека. Прежде пробел перед приставкой делал событие немым для студии.
+    /// </remarks>
     private static bool Waits(PluginManifest? manifest, string prefix, string value, StringComparer comparer)
     {
         if (manifest is null || string.IsNullOrWhiteSpace(value))
             return false;
 
         return manifest.Activation.Any(activation =>
-            activation.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
-            comparer.Equals(activation[prefix.Length..].Trim(), value));
+        {
+            var trimmed = activation.Trim();
+
+            return trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+                   comparer.Equals(trimmed[prefix.Length..].Trim(), value);
+        });
     }
 
     private static bool Is(string activation, string name) =>

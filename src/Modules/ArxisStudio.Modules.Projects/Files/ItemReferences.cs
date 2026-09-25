@@ -208,11 +208,16 @@ internal static class ItemReferences
         if (Full(directory, entry) is not { } path)
             return entry;
 
+        // Папку пишут и с разделителем на конце — так её пишет Visual Studio: <Folder Include="Assets\" />.
+        // Разделитель остаётся, как и его вид: переименование пишет запись так, как её написал
+        // человек, а не как её отдал разбор пути.
+        var trailing = entry.EndsWith('\\') || entry.EndsWith('/') ? separator.ToString() : string.Empty;
+
         return PathChange.Map(path, changes) switch
         {
             { Found: false } => entry,
             { To: null } => null,
-            { To: { } moved } => Relative(directory, moved, separator),
+            { To: { } moved } => Relative(directory, moved, separator).TrimEnd('\\', '/') + trailing,
         };
     }
 

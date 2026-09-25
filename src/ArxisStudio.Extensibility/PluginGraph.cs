@@ -29,21 +29,12 @@ public static class PluginGraph
     /// <param name="version">Версия установленного соседа.</param>
     /// <param name="min">Нижняя граница из зависимости; пусто — любая.</param>
     /// <remarks>
-    /// Правило то же, что у <see cref="Sdk.StudioSdk.Satisfies"/>: сравниваются
-    /// старший и младший номера, неразобранная граница считается выполненной —
-    /// манифест пишет человек, и отказать рабочей паре плагинов из-за опечатки
-    /// в номере значило бы наказать несоразмерно поводу.
+    /// Правило одно на студию — то же, что у <see cref="Sdk.StudioSdk.Satisfies"/>: сравниваются
+    /// старший и младший номера, неразобранная граница считается выполненной — манифест пишет
+    /// человек, и отказать рабочей паре плагинов из-за опечатки в номере значило бы наказать
+    /// несоразмерно поводу. Прежде у графа был свой разбор, и на «1.x» они расходились.
     /// </remarks>
-    public static bool Satisfies(string? version, string? min)
-    {
-        if (!TryParse(min, out var wanted))
-            return true;
-
-        if (!TryParse(version, out var have))
-            return false;
-
-        return have.Major != wanted.Major ? have.Major > wanted.Major : have.Minor >= wanted.Minor;
-    }
+    public static bool Satisfies(string? version, string? min) => Sdk.StudioSdk.Reaches(version, min);
 
     /// <summary>
     /// Разрешает граф: кому отказано и в каком порядке подниматься остальным.
@@ -69,7 +60,7 @@ public static class PluginGraph
         ArgumentNullException.ThrowIfNull(present);
 
         var all = Universe(candidates, present);
-        var raised = new HashSet<string>(present.Select(plugin => plugin.Id), StringComparer.OrdinalIgnoreCase);
+        var raised = new HashSet<string>(present.Select(plugin => plugin.Id), PluginIds.Comparer);
         var notes = notesUpfront is null ? new List<string>() : new List<string>(notesUpfront);
         var refused = Refuse(all, notes, refusedUpfront);
 
@@ -105,13 +96,13 @@ public static class PluginGraph
         ArgumentException.ThrowIfNullOrEmpty(pluginId);
         ArgumentNullException.ThrowIfNull(among);
 
-        var found = new Dictionary<string, InstalledPlugin>(StringComparer.OrdinalIgnoreCase);
-        var wave = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { pluginId };
+        var found = new Dictionary<string, InstalledPlugin>(PluginIds.Comparer);
+        var wave = new HashSet<string>(PluginIds.Comparer) { pluginId };
 
         // Волнами до неподвижной точки: зависимые от зависимых — тоже зависимые.
         while (wave.Count > 0)
         {
-            var next = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var next = new HashSet<string>(PluginIds.Comparer);
 
             foreach (var plugin in among)
             {
@@ -149,7 +140,7 @@ public static class PluginGraph
     /// </remarks>
     internal static HashSet<string> Closure(IEnumerable<string> roots, IReadOnlyDictionary<string, InstalledPlugin> known)
     {
-        var closure = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var closure = new HashSet<string>(PluginIds.Comparer);
 
         foreach (var root in roots)
             Pull(root);
@@ -186,7 +177,7 @@ public static class PluginGraph
         foreach (var declared in plugin.Manifest?.Dependencies ?? [])
         {
             var target = all.FirstOrDefault(candidate =>
-                string.Equals(candidate.Id, declared.Id, StringComparison.OrdinalIgnoreCase));
+                PluginIds.Same(candidate.Id, declared.Id));
 
             var health =
                 target is null ? PluginDependencyHealth.Missing
@@ -205,7 +196,7 @@ public static class PluginGraph
         IReadOnlyList<InstalledPlugin> candidates,
         IReadOnlyList<InstalledPlugin> present)
     {
-        var all = new Dictionary<string, InstalledPlugin>(StringComparer.OrdinalIgnoreCase);
+        var all = new Dictionary<string, InstalledPlugin>(PluginIds.Comparer);
 
         foreach (var plugin in present)
             all[plugin.Id] = plugin;
@@ -235,8 +226,8 @@ public static class PluginGraph
         // приехали, обязан узнать причину словами, а не упасть на первом
         // приведении.
         var refused = seed is null
-            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            : new Dictionary<string, string>(seed, StringComparer.OrdinalIgnoreCase);
+            ? new Dictionary<string, string>(PluginIds.Comparer)
+            : new Dictionary<string, string>(seed, PluginIds.Comparer);
 
         var changed = true;
 
@@ -329,8 +320,8 @@ public static class PluginGraph
         Dictionary<string, InstalledPlugin> all,
         Dictionary<string, string> refused)
     {
-        var visiting = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var done = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var visiting = new HashSet<string>(PluginIds.Comparer);
+        var done = new HashSet<string>(PluginIds.Comparer);
         var path = new List<string>();
         var before = refused.Count;
 
@@ -384,10 +375,10 @@ public static class PluginGraph
             .Where(plugin => plugin.Manifest?.Entry is { Length: > 0 } &&
                              !refused.ContainsKey(plugin.Id) &&
                              !raised.Contains(plugin.Id))
-            .ToDictionary(plugin => plugin.Id, StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(plugin => plugin.Id, PluginIds.Comparer);
 
-        var waiting = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        var dependents = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var waiting = new Dictionary<string, int>(PluginIds.Comparer);
+        var dependents = new Dictionary<string, List<string>>(PluginIds.Comparer);
 
         foreach (var node in nodes.Values)
         {
@@ -453,27 +444,6 @@ public static class PluginGraph
         ids.OrderByDescending(id => nodes[id].IsBuiltIn)
             .ThenBy(id => id, StringComparer.Ordinal)
             .ToList();
-
-    private static bool TryParse(string? version, out (int Major, int Minor) parsed)
-    {
-        parsed = default;
-
-        if (string.IsNullOrWhiteSpace(version))
-            return false;
-
-        var parts = version.Split('.', StringSplitOptions.RemoveEmptyEntries);
-
-        if (parts.Length == 0 || !int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var major))
-            return false;
-
-        var minor = 0;
-
-        if (parts.Length > 1 && !int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out minor))
-            return false;
-
-        parsed = (major, minor);
-        return true;
-    }
 }
 
 /// <summary>

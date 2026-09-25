@@ -1,5 +1,4 @@
 using ArxisStudio.Modules.Project.Model;
-using ArxisStudio.ProjectSystem;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
@@ -91,19 +90,23 @@ internal sealed class SystemFiles(Func<TopLevel?> top) : ISystemFiles
         if (await Ours(clipboard).ConfigureAwait(true) is { } ours)
             return ours;
 
-        if (await clipboard.TryGetFilesAsync().ConfigureAwait(true) is not { Length: > 0 } items)
-            return null;
-
-        var foreign = new List<ClipItem>();
-
-        foreach (var item in items)
-        {
-            if (item.TryGetLocalPath() is { } local && CanonicalPath.TryCreate(local, out var path))
-                foreign.Add(new ClipItem(path, Directory.Exists(local), []));
-        }
-
-        return foreign.Count > 0 ? new FileClip(ClipMode.Copy, foreign) : null;
+        return await clipboard.TryGetFilesAsync().ConfigureAwait(true) is { Length: > 0 } items
+            ? Foreign(items.Select(item => item.TryGetLocalPath()))
+            : null;
     }
+
+    /// <summary>
+    /// Чужие файлы из буфера системы — теми же единицами, что принесённые перетаскиванием.
+    /// </summary>
+    /// <param name="locals">Локальные пути; пусто — у элемента пути на диске нет.</param>
+    /// <returns>Что вставлять копией; пусто — вставлять нечего.</returns>
+    /// <remarks>
+    /// Правило у двух дорог одно (<see cref="Dropping.Items"/>): повтор берётся один раз, а пути,
+    /// которого на диске уже нет, не берётся вовсе. Прежде вставка собирала единицы сама — с
+    /// повторами и с пропавшим, которое служба файлов потом отвергала целиком.
+    /// </remarks>
+    internal static FileClip? Foreign(IEnumerable<string?> locals) =>
+        Dropping.Items(locals.OfType<string>()) is { Count: > 0 } items ? new FileClip(ClipMode.Copy, items) : null;
 
     /// <inheritdoc/>
     public async Task ForgetAsync(FileClip clip)

@@ -85,12 +85,17 @@ public sealed record LoadedPlugin(
         new(installed, null, [], null, [], [], error);
 
     /// <summary>Останавливает плагин и выгружает его сборки.</summary>
+    /// <remarks>
+    /// В обратном порядке подъёма — тем же, каким останавливается подъём, упавший на середине:
+    /// службы, потом точки входа, и каждые с конца. Поднятое позже опирается на поднятое раньше.
+    /// Прежде ушедший плагин останавливался с начала, а несостоявшийся — с конца.
+    /// </remarks>
     public void Unload()
     {
-        foreach (var service in Services)
+        foreach (var service in Enumerable.Reverse(Services))
             PluginHost.Quietly(service.Stop);
 
-        foreach (var plugin in Entries)
+        foreach (var plugin in Enumerable.Reverse(Entries))
             PluginHost.Quietly(plugin.Deactivate);
 
         (Context as PluginLoadContext)?.Release();

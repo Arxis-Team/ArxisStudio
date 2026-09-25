@@ -82,14 +82,26 @@ public class ThemeValueCodeAnalyzerTests
     }
 
     /// <summary>
-    /// Своё свойство расширения с тем же именем — не свойство контрола.
+    /// Своё свойство расширения с тем же именем — не свойство контрола; свойство чужой библиотеки, чьё
+    /// имя лишь начинается на «Avalonia», — тоже.
     /// </summary>
+    /// <remarks>
+    /// Avalonia — семейство: имя целиком или с точкой за ним. У <c>AvaloniaEdit</c> ключей темы нет, и
+    /// подсказывать их её свойствам было бы неправдой.
+    /// </remarks>
     [Fact]
     public async Task A_property_of_the_extensions_own_is_left_alone()
     {
         Assert.Empty(await AnalyzeAsync(
-            "var settings = new Settings { FontSize = 13, Spacing = 8 };",
-            "public sealed class Settings { public double FontSize { get; set; } public double Spacing { get; set; } }"));
+            "var settings = new Settings { FontSize = 13, Spacing = 8 }; var editor = new AvaloniaEdit.Editor { FontSize = 13 };",
+            """
+            public sealed class Settings { public double FontSize { get; set; } public double Spacing { get; set; } }
+
+            namespace AvaloniaEdit
+            {
+                public sealed class Editor { public double FontSize { get; set; } }
+            }
+            """));
     }
 
     /// <summary>

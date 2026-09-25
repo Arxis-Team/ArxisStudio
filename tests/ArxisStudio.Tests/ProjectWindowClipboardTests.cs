@@ -136,6 +136,33 @@ public class ProjectWindowClipboardTests
         Assert.DoesNotContain(Format(studio, "project.clip.copied", "Program.cs"), studio.Status.Said);
     }
 
+    /// <summary>
+    /// Чужие файлы из буфера системы берутся теми же единицами, что принесённые перетаскиванием:
+    /// повтор — один раз, пропавшее с диска — никак.
+    /// </summary>
+    [Fact]
+    public void Files_from_the_clipboard_are_taken_like_dropped_ones()
+    {
+        var folder = TempFolder.Create("foreign");
+
+        try
+        {
+            var kept = Path.Combine(folder, "Kept.cs");
+
+            File.WriteAllText(kept, "class Kept { }");
+
+            var clip = SystemFiles.Foreign([kept, kept, Path.Combine(folder, "Gone.cs"), null]);
+
+            Assert.NotNull(clip);
+            Assert.Equal(ClipMode.Copy, clip.Mode);
+            Assert.Equal([kept], clip.Paths.Select(path => path.Value));
+        }
+        finally
+        {
+            TempFolder.Erase(folder);
+        }
+    }
+
     /// <summary>Файлы, положенные в буфер проводником, вставляются копией в папку строки.</summary>
     [AvaloniaFact]
     public async Task Files_from_explorer_are_copied_in()

@@ -274,6 +274,27 @@ public class PluginLanguagePacksTests : IDisposable
     }
 
     /// <summary>
+    /// Перевод пакета находит свой плагин, в каком бы регистре автор пакета ни написал его
+    /// идентификатор, — как нашёл бы его граф зависимостей.
+    /// </summary>
+    [Fact]
+    public void A_pack_finds_the_plugin_it_translates_in_any_case()
+    {
+        var plugin = Plugin("arxis.hello", ("en.json", """{ "panel.main": "Панель" }"""));
+        var pack = Pack(
+            "arxis.lang-de",
+            "de",
+            "Deutsch",
+            """{ "projects.recent": "Öffnen" }""",
+            ("Arxis.Hello", """{ "panel.main": "Fenster" }"""));
+
+        Apply(pack);
+        Localizer.Instance.SetLanguage("de");
+
+        Assert.Equal("Fenster", plugin.Strings.Resolve("%panel.main%"));
+    }
+
+    /// <summary>
     /// Свой перевод плагина сильнее перевода из пакета.
     /// </summary>
     /// <remarks>

@@ -26,7 +26,7 @@ public sealed class PluginLanguages : ILanguageSource, IPluginTranslations
 
     // Ключ — «идентификатор плагина и язык»: пакетов может быть
     // несколько, и каждый переводит своё.
-    private readonly Dictionary<(string Plugin, string Language), string> _translations = new();
+    private readonly Dictionary<(string Plugin, string Language), string> _translations = new(TranslationKey.Comparer);
 
     private readonly List<string> _problems = [];
 
@@ -112,6 +112,14 @@ public sealed class PluginLanguages : ILanguageSource, IPluginTranslations
             return;
         }
 
+        // Код выбранного языка становится именем словаря — у студии и у каждого расширения, — и
+        // код вида «../x» увёл бы чтение из их папок.
+        if (!PluginPaths.IsFolderName(code))
+        {
+            _problems.Add($"{plugin.DisplayName}: код языка {code} не годится именем файла — язык не предлагается");
+            return;
+        }
+
         // Занятый код — не выбор, а гонка: выиграл бы тот, чья папка
         // раньше попалась при обходе каталога.
         if (_declared.TryGetValue(code, out var taken))
@@ -171,4 +179,23 @@ public sealed class PluginLanguages : ILanguageSource, IPluginTranslations
     }
 
     private sealed record Declared(string PluginName, string Name, string Path);
+
+    /// <summary>
+    /// Ключ перевода — идентификатор плагина и код языка, оба без регистра.
+    /// </summary>
+    /// <remarks>
+    /// Идентификатор переводимого плагина пишет автор пакета, а не автор плагина, и написанный им
+    /// в другом регистре перевод молча не находился — хотя граф зависимостей того же соседа узнал
+    /// бы. Код языка сверяется так же, как в списке языков.
+    /// </remarks>
+    private sealed class TranslationKey : IEqualityComparer<(string Plugin, string Language)>
+    {
+        public static readonly TranslationKey Comparer = new();
+
+        public bool Equals((string Plugin, string Language) x, (string Plugin, string Language) y) =>
+            PluginIds.Same(x.Plugin, y.Plugin) && StringComparer.OrdinalIgnoreCase.Equals(x.Language, y.Language);
+
+        public int GetHashCode((string Plugin, string Language) key) =>
+            HashCode.Combine(PluginIds.Comparer.GetHashCode(key.Plugin), StringComparer.OrdinalIgnoreCase.GetHashCode(key.Language));
+    }
 }

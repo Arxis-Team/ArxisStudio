@@ -291,6 +291,21 @@ public class PluginGraphTests
     }
 
     /// <summary>
+    /// «1.x» — первая версия, какой бы ни была младшая: граф читает номер так же, как проверка SDK.
+    /// </summary>
+    /// <remarks>
+    /// Прежде у графа был свой разбор: граница «1.x» считалась неразобранной и пропускала любую
+    /// версию, а сосед с версией «1.x» не дотягивал ни до какой границы.
+    /// </remarks>
+    [Fact]
+    public void An_x_in_a_version_reads_as_zero_like_the_sdk_check()
+    {
+        Assert.True(PluginGraph.Satisfies("1.5", "1.x"), "первая версия не дотянула до «1.x»");
+        Assert.False(PluginGraph.Satisfies("0.9", "1.x"), "нулевая версия прошла границу «1.x»");
+        Assert.True(PluginGraph.Satisfies("1.x", "1.0"), "версия «1.x» не дотянула до 1.0");
+    }
+
+    /// <summary>
     /// Языковой пакет — годная цель: он «есть», хотя поднимать его нечего.
     /// </summary>
     [Fact]

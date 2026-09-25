@@ -28,6 +28,8 @@ public class MembershipFilterTests
         Assert.False(MembershipFilter.IsCandidate(snapshot, At("App", "bin", "Debug", "App.dll")));
         Assert.False(MembershipFilter.IsCandidate(snapshot, At("App", "obj", "project.assets.json")));
         Assert.False(MembershipFilter.IsCandidate(snapshot, At("App", "build", "Debug", "App.dll")), "свой OutputPath проекта не отброшен");
+        Assert.False(MembershipFilter.IsCandidate(snapshot, At("App", "build", "Release", "App.dll")), "выход другой конфигурации не отброшен");
+        Assert.False(MembershipFilter.IsCandidate(snapshot, At("Lib", "artifacts", "Debug", "Lib.dll")), "BaseOutputPath проекта не отброшен");
         Assert.False(MembershipFilter.IsCandidate(snapshot, At("Lib", ".vs", "state.db")));
         Assert.False(MembershipFilter.IsCandidate(snapshot, At("Lib", "web", "node_modules", "left-pad", "index.js")));
         Assert.False(MembershipFilter.IsCandidate(snapshot, At("Lib", "Lib.csproj.user")));
@@ -141,7 +143,7 @@ public class MembershipFilterTests
             ("OutputPath", Path.Combine("build", "Debug") + Path.DirectorySeparatorChar)));
 
         solution.Projects.Add(Project(Path.Combine("App", "Tools"), "Tool", ["Tool.cs"]));
-        solution.Projects.Add(Project("Lib", "Lib", ["Greeter.cs"]));
+        solution.Projects.Add(Project("Lib", "Lib", ["Greeter.cs"], ("BaseOutputPath", "artifacts" + Path.DirectorySeparatorChar)));
 
         return solution.ToSnapshot();
     }

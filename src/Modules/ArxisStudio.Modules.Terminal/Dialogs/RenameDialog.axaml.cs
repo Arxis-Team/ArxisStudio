@@ -40,10 +40,15 @@ public partial class RenameDialog : AxDialog
         Cancel.Click += (_, _) => Close(null);
         Save.Click += (_, _) => Submit();
 
+        // Enter гасится, как у диалогов окна проекта: иначе он шёл бы дальше формы — к кнопке по
+        // умолчанию, второй раз в тот же Submit.
         Form.KeyDown += (_, key) =>
         {
             if (key.Key == Key.Enter)
+            {
                 Submit();
+                key.Handled = true;
+            }
         };
     }
 

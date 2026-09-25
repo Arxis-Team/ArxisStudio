@@ -116,9 +116,11 @@ public class ProjectWindowTreeTests
         var app = solution.Project("App");
 
         app.Properties["OutputPath"] = "build\\Debug\\";
+        app.Properties["BaseIntermediateOutputPath"] = Path.Combine(app.ProjectFilePath.Directory.Value, "artifacts", "obj") + Path.DirectorySeparatorChar;
 
         solution.File(app, "Program.cs");
         solution.File(app, "Missing.cs", onDisk: false);
+        solution.File(app, "artifacts/obj/App.AssemblyInfo.cs");
         solution.File(app, ".editorconfig", "PotentialEditorConfigFiles", onDisk: false);
         solution.File(app, ".globalconfig", ProjectItemTypes.None);
         solution.File(app, "bin/Debug/App.dll", ProjectItemTypes.None);

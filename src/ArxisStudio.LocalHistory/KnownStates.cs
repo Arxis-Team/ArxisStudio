@@ -86,12 +86,8 @@ internal sealed class KnownStates
 
     /// <summary>Известные файлы под папкой, на любой глубине.</summary>
     /// <param name="folder">Полный путь папки.</param>
-    public List<KeyValuePair<string, HistoryFileState>> Under(string folder)
-    {
-        var prefix = Path.EndsInDirectorySeparator(folder) ? folder : folder + Path.DirectorySeparatorChar;
-
-        return [.. _states.Where(pair => pair.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))];
-    }
+    public List<KeyValuePair<string, HistoryFileState>> Under(string folder) =>
+        [.. _states.Where(pair => HistoryPaths.Inside(pair.Key, folder))];
 
     /// <summary>Адреса, на которые ссылается состояние.</summary>
     public IEnumerable<ContentId> Contents() => _states.Values.Select(state => state.Content).OfType<ContentId>();

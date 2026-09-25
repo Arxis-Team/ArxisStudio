@@ -45,6 +45,13 @@ internal sealed class ProjectsJournal(IStudioLog log)
             ProjectsLoadReason.Open => "открыто",
             ProjectsLoadReason.Reload => "перезагружено",
             ProjectsLoadReason.Configuration => $"перезагружено под конфигурацию {request.Configuration ?? "проекта"}",
+            ProjectsLoadReason.Restore => "перезагружено после восстановления пакетов",
+            ProjectsLoadReason.Packages => "перезагружено после правки пакетов",
+            ProjectsLoadReason.Files => "перезагружено после правки файлов",
+
+            // Перечень перемен есть только у перемены на диске. Прежде сюда проваливались и
+            // восстановление, и правка пакетов и файлов, и журнал писал «изменилось:» с пустым перечнем.
+            _ when causes.IsDefaultOrEmpty => "перезагружено",
             _ => $"перезагружено, изменилось: {Causes(causes)}",
         };
 
