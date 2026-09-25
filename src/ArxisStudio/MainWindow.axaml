@@ -103,6 +103,22 @@
     -->
     <ax:StudioShell.StatusBar>
       <DockPanel MinHeight="{DynamicResource AxControlHeightCompact}" Margin="{DynamicResource AxSpaceWideSidesThickness}">
+        <!--
+            Перезапуск нужен, пока его не сделали, — своим местом, а не сообщением: сообщение
+            вытесняет следующее. Первым в полосе: место отмеряется по порядку, и стоявший после
+            сообщения указатель длинный путь документа выталкивал за край вместе со ссылкой. Ссылка
+            перезапускает без вопроса: человек попросил сам.
+        -->
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="{DynamicResource AxGapIconText}"
+                    VerticalAlignment="Center" Margin="{DynamicResource AxSpaceLooseSidesThickness}"
+                    IsVisible="{Binding IsRestartRequired}">
+          <ax:AxIcon Data="{x:Static ax:AxIcons.Warning}" Foreground="{DynamicResource AxWarningBrush}" VerticalAlignment="Center"
+                     AutomationProperties.AccessibilityView="Raw"/>
+          <TextBlock Text="{ax:Loc restart.required}" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center"
+                     AutomationProperties.LiveSetting="Polite"/>
+          <ax:AxLink Content="{ax:Loc restart.now}" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center"
+                     Click="OnRestartClick"/>
+        </StackPanel>
         <TextBlock ax:AxText.Tone="Secondary" Text="{Binding Status}" FontSize="{DynamicResource AxFontSizeSmall}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                    AutomationProperties.LiveSetting="Polite"/>
         <!--

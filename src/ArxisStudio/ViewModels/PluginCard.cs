@@ -40,15 +40,31 @@ public sealed class PluginCard : INotifyPropertyChanged, IPluginRow
     /// <param name="plugin">Запись каталога.</param>
     /// <param name="dependencies">Зависимости с состоянием каждой цели.</param>
     /// <param name="riseError">Почему плагин не поднялся на этом запуске; null — поднялся или не пробовал.</param>
-    public PluginCard(InstalledPlugin plugin, IReadOnlyList<PluginDependencyState> dependencies, string? riseError = null)
+    /// <param name="needsRestart">Изменения плагина применит только перезапуск студии.</param>
+    public PluginCard(
+        InstalledPlugin plugin,
+        IReadOnlyList<PluginDependencyState> dependencies,
+        string? riseError = null,
+        bool needsRestart = false)
     {
         ArgumentNullException.ThrowIfNull(plugin);
 
         Plugin = plugin;
         Dependencies = dependencies;
         RiseError = riseError;
+        NeedsRestart = needsRestart;
         _on = plugin.IsEnabled;
     }
+
+    /// <summary>
+    /// Изменения плагина применит только перезапуск студии.
+    /// </summary>
+    /// <remarks>
+    /// Причину человеку не называют — как Rider, у которого у такого плагина стоит «Restart IDE», и
+    /// только: владельцы свойств Avalonia и пересобранные контракты — разговор для автора плагина,
+    /// и ведётся он в журнале.
+    /// </remarks>
+    public bool NeedsRestart { get; }
 
     /// <summary>Почему плагин не поднялся; null — поднялся или его и не поднимали.</summary>
     /// <remarks>
@@ -187,10 +203,14 @@ public sealed class PluginCard : INotifyPropertyChanged, IPluginRow
             : Path.GetFileName(Plugin.Directory);
 
     /// <inheritdoc/>
-    /// <remarks>Точку, знак ошибки и серый цвет глазом видно, а диктору о них надо сказать словами.</remarks>
+    /// <remarks>
+    /// Точку, знаки ошибки и перезапуска и серый цвет глазом видно, а диктору о них надо сказать
+    /// словами.
+    /// </remarks>
     public string Status =>
         IsChanged ? Localizer.Instance["plugins.pending"]
         : IsProblem ? Localizer.Instance["common.error"]
+        : NeedsRestart ? Localizer.Instance["restart.required"]
         : IsBuiltIn ? Localizer.Instance["plugins.builtin"]
         : string.Empty;
 

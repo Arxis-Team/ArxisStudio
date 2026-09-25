@@ -68,6 +68,13 @@ public partial class MainWindow : AxWindow
     // Жизнь расширений: подъём, пробуждение, перезагрузка, отключение за сбои.
     private readonly StudioPlugins _plugins;
 
+    // Перезапуск студии: нужен ли, когда о нём спросить. Процесс и сессию ставит приложение.
+    private readonly StudioRestart _restart;
+
+    // Обычные границы окна: развёрнутое помнит, куда вернуться, и перезапуск возвращает туда же.
+    private Avalonia.PixelPoint _normalPosition;
+    private Avalonia.Size _normalSize;
+
     /// <summary>
     /// Жизнь расширений студии — чтобы запуск мог поднимать их по шагам.
     /// </summary>
@@ -78,6 +85,15 @@ public partial class MainWindow : AxWindow
     /// шаги — её дело, а окну про них знать нечего.
     /// </remarks>
     public StudioPlugins Extensions => _plugins;
+
+    /// <summary>
+    /// Перезапуск студии — один на студию и на Welcome.
+    /// </summary>
+    /// <remarks>
+    /// Живёт здесь, рядом со службой расширений, которая знает, кому он нужен. Как перезапуститься,
+    /// ему говорит приложение: процесс и окна — его.
+    /// </remarks>
+    internal StudioRestart Restart => _restart;
 
     /// <summary>
     /// Настройки студии — те же, что у экрана Welcome.
@@ -203,6 +219,11 @@ public partial class MainWindow : AxWindow
         newItems.Contributing = () => _plugins.Contributing;
         newItems.Activate = _plugins.Activate;
 
+        // «Требуется перезапуск» стоит в строке состояния, пока перезапуск нужен: ответ «Не сейчас»
+        // вопрос закрывает, а нужду — нет.
+        _restart = new StudioRestart(_plugins);
+        _restart.Changed += (_, _) => _model.IsRestartRequired = _restart.IsRequired;
+
         Keys();
 
         // Меню — элемент самой студии, а не каждого плагина: дерево команд
@@ -244,6 +265,18 @@ public partial class MainWindow : AxWindow
         {
             _dock.Shown();
             Dispatcher.UIThread.Post(() => _dock.Greet(), DispatcherPriority.Loaded);
+            Remember();
+        };
+
+        // Границы помнятся, пока окно в обычном виде: развёрнутое отвечает размером экрана, а
+        // вернуться после перезапуска надо к тому, что было до разворота. Отложенно: система
+        // сообщает новые место и размер раньше, чем новый вид окна, и разворот, спрошенный сразу,
+        // записался бы обычными границами.
+        PositionChanged += (_, _) => Dispatcher.UIThread.Post(Remember, DispatcherPriority.Background);
+        PropertyChanged += (_, change) =>
+        {
+            if (change.Property == ClientSizeProperty)
+                Dispatcher.UIThread.Post(Remember, DispatcherPriority.Background);
         };
 
         Closing += (_, _) => _dock.Farewell();
@@ -290,13 +323,13 @@ public partial class MainWindow : AxWindow
 
                 var id = plugin.Id;
 
-                // Жалоба на невыгрузившуюся копию приходит ответом и попадает в
-                // строку состояния: журнал о ней уже написал, но человек, нажавший
-                // «перезагрузить», ждёт ответа там, где нажимал.
+                // Не довёл перезагрузку до конца — прежняя копия осталась в памяти, контракт
+                // пересобран — плагин ждёт перезапуска, и о нём спрашивают здесь же: человек,
+                // нажавший «перезагрузить», ждёт ответа там, где нажимал. Причину журнал уже записал.
                 item.Click += async (_, _) =>
                 {
-                    if (await _plugins.ReloadAsync(id) is { } complaint)
-                        _model.Say(complaint);
+                    await _plugins.ReloadAsync(id);
+                    await _restart.OfferAsync(this);
                 };
 
                 branch.Items.Add(item);
@@ -429,19 +462,28 @@ public partial class MainWindow : AxWindow
     /// <summary>
     /// Открывает настройки поверх студии.
     /// </summary>
+    /// <param name="restore">С чем окно застал перезапуск; null — открыть как обычно.</param>
     /// <remarks>
     /// Тем же вызовом, что и экран Welcome: хранилище настроек расширений у
     /// студии одно, и оба входа обязаны смотреть в него, а не заводить своё.
-    /// </remarks>
-    /// <remarks>
+    /// <para>
     /// Имя окна пишется полностью: свойство <see cref="Settings"/> закрывает
     /// собой одноимённое пространство имён внутри этого класса.
+    /// </para>
+    /// <para>
+    /// О перезапуске спрашивают, когда окно закрылось: «Сохранить» применяет плагины, и чьи
+    /// изменения довершит только перезапуск, становится известно здесь. Спрашивает студия, а не
+    /// закрывшееся окно, — вопросу нужен живой хозяин.
+    /// </para>
     /// </remarks>
-    private async Task OpenSettingsAsync()
+    internal async Task OpenSettingsAsync(SettingsSession? restore = null)
     {
         try
         {
-            await ArxisStudio.Settings.SettingsWindow.ShowAsync(this, Settings, _plugins, _plugins.Declaring(), Catalog, keys: KeysSettings());
+            await ArxisStudio.Settings.SettingsWindow.ShowAsync(
+                this, Settings, _plugins, _plugins.Declaring(), Catalog, keys: KeysSettings(), restart: _restart, restore: restore);
+
+            await _restart.OfferAsync(this);
         }
         catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
         {
@@ -590,6 +632,10 @@ public partial class MainWindow : AxWindow
         // открытое нечем.
         _commands.Register("studio.palette", Palette);
 
+        // Перезапуск без вопроса и без повода — для автора плагина, который пересобрал контракт
+        // или хочет чистый процесс. Сочетания у него нет: случайно перезапускать незачем.
+        _commands.Register("studio.restart", () => _ = _restart.RestartAsync());
+
         Bind("Ctrl+W", "studio.close");
         Bind("F6", "studio.panel.next");
         Bind("Shift+F6", "studio.panel.previous");
@@ -677,6 +723,7 @@ public partial class MainWindow : AxWindow
         new(Localizer.Instance["command.close"], "studio.close"),
         new(Localizer.Instance["command.panel.next"], "studio.panel.next"),
         new(Localizer.Instance["command.panel.previous"], "studio.panel.previous"),
+        new(Localizer.Instance["command.restart"], "studio.restart"),
     ];
 
     /// <summary>Говорит строкой состояния — тем же местом, что и всё прочее.</summary>
@@ -684,6 +731,91 @@ public partial class MainWindow : AxWindow
     internal void Say(string message) => _model.Say(message);
 
     private void OnCancelTaskClick(object? sender, RoutedEventArgs e) => _model.CancelTask();
+
+    /// <summary>«Перезапустить» в строке состояния: без вопроса — человек попросил сам.</summary>
+    private async void OnRestartClick(object? sender, RoutedEventArgs e) => await _restart.RestartAsync();
+
+    /// <summary>Запоминает обычные границы окна, если оно сейчас в обычном виде.</summary>
+    private void Remember()
+    {
+        if (WindowState != WindowState.Normal)
+            return;
+
+        _normalPosition = Position;
+        _normalSize = ClientSize;
+    }
+
+    /// <summary>
+    /// Ставит окно туда, где его застал перезапуск, — до показа.
+    /// </summary>
+    /// <param name="placement">Место из сессии.</param>
+    /// <remarks>
+    /// Обычные границы запоминаются сразу: окно, поднятое развёрнутым, обычным ещё не бывало, а
+    /// следующий перезапуск должен вернуть к тем же границам, а не к размеру экрана.
+    /// </remarks>
+    internal void Place(StudioPlacement placement)
+    {
+        ArgumentNullException.ThrowIfNull(placement);
+
+        placement.Put(this);
+
+        _normalPosition = Position;
+        _normalSize = new Avalonia.Size(placement.Width, placement.Height);
+    }
+
+    /// <summary>
+    /// Снимок рабочего места для перезапуска: место окна, проект, документы, выбранные вкладки и
+    /// каретка.
+    /// </summary>
+    /// <remarks>
+    /// Снимается до того, как что-нибудь закроется: закрытие документов снимает их с учёта, а
+    /// модальное окно настроек уводит каретку — поэтому она берётся там, где человек работал.
+    /// </remarks>
+    internal StudioSession Snapshot() => new()
+    {
+        Studio = true,
+        Window = _normalSize is { Width: > 0, Height: > 0 }
+            ? new StudioPlacement(
+                _normalPosition.X,
+                _normalPosition.Y,
+                _normalSize.Width,
+                _normalSize.Height,
+                DesktopScaling,
+                WindowState == WindowState.Maximized)
+            : null,
+        Project = _plugins.Project.Path,
+        Documents = [.. _documents.Opened.Select(document => document.Path)],
+        Onstage = _dock.Onstage,
+        Active = _dock.Showing,
+        Focused = _dock.Worked,
+    };
+
+    /// <summary>
+    /// Возвращает рабочее место, которое снял <see cref="Snapshot"/>, — после показа окна.
+    /// </summary>
+    /// <param name="session">Что было открыто в прежней копии.</param>
+    /// <param name="openProject">Как открыть проект: этим ведает приложение.</param>
+    internal Task ResumeAsync(StudioSession session, Func<string, Task> openProject) =>
+        new StudioResume
+        {
+            Log = _log,
+            OpenProject = openProject,
+            OpenDocument = _documents.OpenAsync,
+            Show = _dock.Show,
+            Focus = id => _dock.Focus(id),
+            OpenSettings = restore => _ = OpenSettingsAsync(restore),
+        }.RunAsync(session);
+
+    /// <summary>
+    /// Закрывает документы перед перезапуском — пока диспетчер жив.
+    /// </summary>
+    /// <remarks>
+    /// При обычном закрытии документы закрывает <c>Closed</c>, и продолжение после первого
+    /// <c>await</c> там может уже не исполниться: диспетчер останавливается следом. Перезапуск
+    /// дожидается их сам — представления документов отпускают свои файлы до того, как новая копия
+    /// откроет те же.
+    /// </remarks>
+    internal Task PrepareForRestartAsync() => _documents.CloseAllAsync();
 
     /// <summary>Строка состояния как служба для модулей и плагинов.</summary>
     /// <param name="model">Модель окна, которая её показывает.</param>

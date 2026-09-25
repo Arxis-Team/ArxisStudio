@@ -26,6 +26,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 {
     private readonly StudioTaskRegistry _tasks;
     private string? _status;
+    private bool _restart;
 
     /// <summary>
     /// Заводит модель над реестром задач студии.
@@ -54,6 +55,27 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     /// следовать за языком после первого сообщения.
     /// </remarks>
     public string Status => _status is { Length: > 0 } said ? said : Localizer.Instance["studio.ready"];
+
+    /// <summary>
+    /// Изменения в плагинах ждут перезапуска студии.
+    /// </summary>
+    /// <remarks>
+    /// Своим местом в строке состояния, а не сообщением: сообщение вытесняет следующее — путь
+    /// показанного документа, ход открытия, — а перезапуск нужен, пока его не сделали. «Не сейчас»
+    /// в вопросе человек сказал о сейчас, а не навсегда.
+    /// </remarks>
+    public bool IsRestartRequired
+    {
+        get => _restart;
+        set
+        {
+            if (_restart == value)
+                return;
+
+            _restart = value;
+            Notify();
+        }
+    }
 
     /// <summary>Идёт ли сейчас задача.</summary>
     public bool HasTask => Current is not null;

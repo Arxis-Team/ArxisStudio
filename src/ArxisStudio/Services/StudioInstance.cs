@@ -23,8 +23,9 @@ namespace ArxisStudio.Services;
 /// </para>
 /// <para>
 /// Мьютекс привязан к потоку, который его взял. Берёт его <see cref="Claim"/> в точке
-/// входа, а отпускает система при выходе процесса; <see cref="Dispose"/> нужен тестам и
-/// зовётся из того же потока.
+/// входа, а отпускает <see cref="Dispose"/> там же, на выходе из цикла приложения: перезапущенная
+/// копия ждёт папку и получает её раньше, чем прежний процесс уйдёт совсем. Не дошедший до
+/// этой строки процесс отпускает система, когда умирает.
 /// </para>
 /// </remarks>
 internal sealed class StudioInstance : IDisposable
@@ -86,7 +87,11 @@ internal sealed class StudioInstance : IDisposable
     /// Занимает папку данных; вышло — эта студия первая и слушает вторые.
     /// </summary>
     /// <param name="name">Имя из <see cref="NameFor"/>.</param>
-    public static StudioInstance Claim(string name)
+    /// <param name="wait">
+    /// Сколько ждать, пока папку отпустят; null — не ждать. Ждёт перезапущенная копия: прежняя
+    /// держит папку, пока не закроется.
+    /// </param>
+    public static StudioInstance Claim(string name, TimeSpan? wait = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
@@ -95,7 +100,7 @@ internal sealed class StudioInstance : IDisposable
 
         try
         {
-            first = mutex.WaitOne(0);
+            first = mutex.WaitOne(wait ?? TimeSpan.Zero);
         }
         catch (AbandonedMutexException)
         {
@@ -180,6 +185,17 @@ internal sealed class StudioInstance : IDisposable
         foreach (var arguments in waiting)
             listener(arguments);
     }
+
+    /// <summary>
+    /// Перестаёт отвечать вторым студиям, не отпуская папку данных.
+    /// </summary>
+    /// <remarks>
+    /// Зовёт перезапуск, решившись закрыться: просьба, принятая теперь, ушла бы вместе с этим
+    /// процессом. Вторая студия, не дождавшись ответа, поднимется сама — так она ведёт себя и при
+    /// зависшей первой. Папка остаётся занятой до выхода: новая копия ждёт её, и третий запуск не
+    /// должен проскочить в щель между ними.
+    /// </remarks>
+    public void Stop() => _stop.Cancel();
 
     /// <inheritdoc/>
     public void Dispose()

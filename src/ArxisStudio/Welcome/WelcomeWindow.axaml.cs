@@ -81,6 +81,15 @@ public partial class WelcomeWindow : AxWindow
     /// </remarks>
     internal Func<KeysPage>? Keys { get; init; }
 
+    /// <summary>
+    /// Перезапуск студии; <c>null</c> — о нём не спрашивают.
+    /// </summary>
+    /// <remarks>
+    /// Тот же, что у окна студии: менеджер плагинов открывают и отсюда, и изменения в нём ждут
+    /// перезапуска так же. Отдаёт его приложение — окно студии к этому мигу собрано.
+    /// </remarks>
+    internal StudioRestart? Restart { get; init; }
+
     /// <summary>Пользователь просит открыть студию без проекта.</summary>
     public event EventHandler? StudioRequested;
 
@@ -95,28 +104,8 @@ public partial class WelcomeWindow : AxWindow
 
     private void OnLearnClick(object? sender, RoutedEventArgs e) => Select(WelcomeSection.Learn);
 
-    /// <summary>
-    /// Открывает настройки — то же окно, что и из студии.
-    /// </summary>
-    /// <remarks>
-    /// Языковые пакеты перечитываются перед показом: пакет могли поставить
-    /// менеджером минуту назад, и список языков собирается на ходу, а не
-    /// знается наперёд.
-    /// </remarks>
-    private async void OnSettingsClick(object? sender, RoutedEventArgs e)
-    {
-        _model.ApplyLanguagePacks();
-        _model.IsSettingsOpen = true;
-
-        try
-        {
-            await SettingsWindow.ShowAsync(this, _settings, _extensions, _extensions.Declaring(), _model.Plugins, keys: Keys?.Invoke());
-        }
-        finally
-        {
-            _model.IsSettingsOpen = false;
-        }
-    }
+    /// <summary>Открывает настройки — то же окно, что и из студии.</summary>
+    private async void OnSettingsClick(object? sender, RoutedEventArgs e) => await OpenSettingsAsync(plugins: false);
 
     /// <summary>
     /// Открывает менеджер плагинов — ту же страницу того же окна настроек.
@@ -126,19 +115,89 @@ public partial class WelcomeWindow : AxWindow
     /// на студию и на Welcome, и держать вторую его вёрстку здесь значило бы
     /// чинить каждую находку дважды.
     /// </remarks>
-    private async void OnPluginsClick(object? sender, RoutedEventArgs e)
+    private async void OnPluginsClick(object? sender, RoutedEventArgs e) => await OpenSettingsAsync(plugins: true);
+
+    /// <summary>
+    /// Открывает окно настроек одной из двух дверей полосы.
+    /// </summary>
+    /// <param name="plugins">Дверь «Плагины»: окно открывается на менеджере, и отмечена она.</param>
+    /// <param name="restore">С чем окно застал перезапуск; null — открыть как обычно.</param>
+    /// <remarks>
+    /// Языковые пакеты перечитываются перед показом: пакет могли поставить
+    /// менеджером минуту назад, и список языков собирается на ходу, а не
+    /// знается наперёд.
+    /// <para>
+    /// О перезапуске спрашивают, когда окно закрылось, — тем же правилом, что у окна студии:
+    /// «Сохранить» применяет плагины, и вопросу нужен живой хозяин.
+    /// </para>
+    /// </remarks>
+    internal async Task OpenSettingsAsync(bool plugins, SettingsSession? restore = null)
     {
         _model.ApplyLanguagePacks();
-        _model.IsPluginsOpen = true;
+        Door(plugins, open: true);
 
         try
         {
             await SettingsWindow.ShowAsync(
-                this, _settings, _extensions, _extensions.Declaring(), _model.Plugins, "studio.plugins", Keys?.Invoke());
+                this,
+                _settings,
+                _extensions,
+                _extensions.Declaring(),
+                _model.Plugins,
+                plugins ? "studio.plugins" : null,
+                Keys?.Invoke(),
+                Restart,
+                restore);
         }
         finally
         {
-            _model.IsPluginsOpen = false;
+            Door(plugins, open: false);
+        }
+
+        if (Restart is { } restart)
+            await restart.OfferAsync(this);
+    }
+
+    /// <summary>Отмечает дверь, через которую открыты настройки, — или снимает отметку.</summary>
+    private void Door(bool plugins, bool open)
+    {
+        if (plugins)
+            _model.IsPluginsOpen = open;
+        else
+            _model.IsSettingsOpen = open;
+    }
+
+    /// <summary>Снимок экрана для перезапуска: раздел, поиск недавних и открытая дверь.</summary>
+    internal WelcomeSession Snapshot() => new(_model.Section, _model.ProjectFilter, _model.IsPluginsOpen);
+
+    /// <summary>
+    /// Возвращает экрану то, с чем его застал перезапуск, — после показа.
+    /// </summary>
+    /// <param name="welcome">Снимок экрана; null — возвращать нечего.</param>
+    /// <param name="settings">Окно настроек, если было открыто; null — не было.</param>
+    /// <remarks>Окно настроек не ждётся: оно модальное и живёт, сколько захочет человек.</remarks>
+    internal void Resume(WelcomeSession? welcome, SettingsSession? settings)
+    {
+        if (welcome is not null)
+        {
+            _model.Section = welcome.Section;
+            _model.ProjectFilter = welcome.Filter;
+        }
+
+        if (settings is not null)
+            _ = ReopenAsync(welcome?.Plugins == true, settings);
+    }
+
+    /// <summary>Открывает окно настроек из сессии; отказ говорит полосой состояния, а не молчит.</summary>
+    private async Task ReopenAsync(bool plugins, SettingsSession settings)
+    {
+        try
+        {
+            await OpenSettingsAsync(plugins, settings);
+        }
+        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        {
+            Say($"{Localizer.Instance["common.error"]}: {e.Message}");
         }
     }
 

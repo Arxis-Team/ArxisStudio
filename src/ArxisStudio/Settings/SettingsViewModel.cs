@@ -240,6 +240,10 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     /// <summary>
     /// Пишет накопленное.
     /// </summary>
+    /// <param name="live">
+    /// Применить записанное к работающей студии; <c>false</c> — только записать: студия
+    /// перезапускается и прочтёт его сама.
+    /// </param>
     /// <returns><c>true</c>, если записалось всё и окно можно закрывать.</returns>
     /// <remarks>
     /// Порядок объявлен: сперва настройки студии — одна запись файла, — потом
@@ -247,12 +251,12 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     /// правленой, причина попадает в подвал, окно не закрывается. Сказать
     /// «сохранено» о том, что не записалось, хуже, чем не закрыться.
     /// </remarks>
-    public async Task<bool> SaveAsync()
+    public async Task<bool> SaveAsync(bool live = true)
     {
         _problems.Clear();
 
         foreach (var page in _pages)
-            await page.CommitAsync(_problems);
+            await page.CommitAsync(_problems, live);
 
         Complaint = _problems.Count == 0
             ? null
@@ -353,7 +357,13 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private static bool Matches(ISettingsPage page, string needle) =>
         page.Terms.Any(term => term.Contains(needle, StringComparison.CurrentCultureIgnoreCase));
 
-    private void Say(string complaint) => Complaint = complaint;
+    /// <summary>Говорит подвалом окна.</summary>
+    /// <param name="complaint">Что сказать.</param>
+    /// <remarks>
+    /// Подвал говорит о том, что не вышло: правка страницы, не легшая на диск, или перезапуск, не
+    /// состоявшийся из этого окна.
+    /// </remarks>
+    public void Say(string complaint) => Complaint = complaint;
 
     /// <summary>Открывает раздел по имени его страницы.</summary>
     /// <param name="pageId">Имя страницы; неизвестное — оставляет как есть.</param>

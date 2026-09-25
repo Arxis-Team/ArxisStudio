@@ -33,23 +33,34 @@ public static class StudioAsk
     /// <param name="message">Что случится.</param>
     /// <param name="confirm">Надпись на кнопке согласия.</param>
     /// <param name="danger">Действие необратимо — кнопка предупреждает цветом.</param>
+    /// <param name="refuse">Надпись на кнопке отказа; null — «Отмена».</param>
+    /// <param name="question">
+    /// Это вопрос, а не предупреждение: значок вопроса в цвете акцента вместо знака внимания.
+    /// </param>
     /// <returns><c>true</c>, если человек согласился.</returns>
     /// <remarks>
     /// Диалог модальный намеренно: решение, задевающее чужое, не то, мимо чего
-    /// можно щёлкнуть. Esc и «Отмена» оставляют всё как было.
+    /// можно щёлкнуть. Esc и отказ оставляют всё как было.
+    /// <para>
+    /// Не каждый вопрос предупреждает. «Перезапустить, чтобы применить изменения?» ничего не
+    /// отнимает — отказ у него не «Отмена», а «Не сейчас», и знак внимания над ним пугал бы тем,
+    /// чего нет. Такой вопрос и называет себя вопросом.
+    /// </para>
     /// </remarks>
     public static async Task<bool> ConfirmAsync(
         Window owner,
         string title,
         string message,
         string confirm,
-        bool danger = false)
+        bool danger = false,
+        string? refuse = null,
+        bool question = false)
     {
         ArgumentNullException.ThrowIfNull(owner);
 
-        var cancel = new AxButton { Content = Localizer.Instance["common.cancel"] };
+        var cancel = new AxButton { Content = refuse ?? Localizer.Instance["common.cancel"] };
         var agree = new AxButton { Content = confirm };
-        var alert = new AxIcon { Data = AxIcons.Warning };
+        var alert = new AxIcon { Data = question ? AxIcons.Question : AxIcons.Warning };
 
         // Размер и цвет — привязкой к теме, а не значением, снятым один раз:
         // снятая кисть не переключилась бы вместе с темой, а число ширины
@@ -64,7 +75,7 @@ public static class StudioAsk
         cancel.Bind(Layoutable.MinWidthProperty, cancel.GetResourceObservable("AxDialogButtonMinWidth"));
         agree.Bind(Layoutable.MinWidthProperty, agree.GetResourceObservable("AxDialogButtonMinWidth"));
         buttons.Bind(StackPanel.SpacingProperty, buttons.GetResourceObservable("AxGapControls"));
-        alert.Bind(TemplatedControl.ForegroundProperty, alert.GetResourceObservable("AxWarningBrush"));
+        alert.Bind(TemplatedControl.ForegroundProperty, alert.GetResourceObservable(question ? "AxAccentBrush" : "AxWarningBrush"));
 
         agree.Appearance = danger ? AxButtonAppearance.Danger : AxButtonAppearance.Primary;
 

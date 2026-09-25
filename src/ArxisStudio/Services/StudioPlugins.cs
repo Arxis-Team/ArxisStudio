@@ -30,6 +30,9 @@ namespace ArxisStudio.Services;
 /// </remarks>
 public sealed class StudioPlugins
 {
+    /// <summary>Пауза одного круга передышки: за неё успевает пройти кадр и отработать таймер.</summary>
+    private static readonly TimeSpan SettlePause = TimeSpan.FromMilliseconds(150);
+
     private readonly StudioLog _log;
     private readonly PluginGuard _guard;
     private readonly StudioTaskRegistry _tasks;
@@ -52,6 +55,9 @@ public sealed class StudioPlugins
 
     // Кто не поднялся и почему — до следующей попытки; показывает менеджер плагинов.
     private readonly Dictionary<string, string> _unrisen = new(StringComparer.Ordinal);
+
+    // Чьи изменения применит только перезапуск и почему — до конца сеанса.
+    private readonly Dictionary<string, string> _awaiting = new(StringComparer.Ordinal);
 
     private PluginHost? _host;
     private StudioContextFactory? _contexts;
@@ -525,11 +531,16 @@ public sealed class StudioPlugins
     /// Опускает плагин вместе с зависимыми и поднимает всех заново.
     /// </summary>
     /// <param name="pluginId">Кого перезагружают.</param>
-    /// <returns>Жалоба человеку, если прежняя копия осталась в памяти; иначе null.</returns>
-    public async Task<string?> ReloadAsync(string pluginId)
+    /// <remarks>
+    /// Перезагрузка того, кого держат реестры Avalonia, не отказывается: свежая копия встаёт и
+    /// работает, а прежняя остаётся в памяти до перезапуска. Слов человеку отсюда не возвращается:
+    /// плагин встаёт в <see cref="AwaitingRestart"/>, причина уходит в журнал, а спросить о
+    /// перезапуске — дело того, кто показывает окно.
+    /// </remarks>
+    public async Task ReloadAsync(string pluginId)
     {
         if (_host is not { } host)
-            return null;
+            return;
 
         // Зависимые считаются по манифестам прежних копий: перезагружают
         // потому, что плагин изменился, и свежий манифест мог зависимость
@@ -553,7 +564,7 @@ public sealed class StudioPlugins
         if (_installed.FirstOrDefault(plugin => plugin.Id == pluginId) is not { } installed)
         {
             _log.Write(StudioLogLevel.Warning, "Plugins", $"Плагина {pluginId} больше нет в каталоге плагинов");
-            return null;
+            return;
         }
 
         var lower = dependents.Append(pluginId).ToList();
@@ -568,7 +579,7 @@ public sealed class StudioPlugins
                     $"{Named(dependentId)} зависел от {installed.DisplayName}, но пропал с диска — опущен и не поднят");
         }
 
-        return await CascadeAsync(host, lower, raise);
+        await CascadeAsync(host, lower, raise);
     }
 
     /// <summary>
@@ -576,11 +587,17 @@ public sealed class StudioPlugins
     /// </summary>
     /// <param name="disabled">Кого выключили или сняли.</param>
     /// <param name="enabled">Кого включили или поставили.</param>
-    /// <returns>Жалоба человеку, если прежняя копия осталась в памяти; иначе null.</returns>
+    /// <returns>Кому отказал граф и почему; иначе null.</returns>
     /// <remarks>
     /// Дорога окна настроек: галочку там копят до «Сохранить», а применяет её
     /// эта пара списков. Без неё менеджер правил бы только диск — выключенный
     /// плагин работал бы до перезапуска, а включённый до него же молчал.
+    /// <para>
+    /// Прежней копии, оставшейся в памяти, в ответе нет: записано всё, а довести дело до конца
+    /// может только перезапуск. Плагин встаёт в <see cref="AwaitingRestart"/>, и менеджер говорит
+    /// об этом у него самого. Жалоба в подвале окна звучала бы как «сохранилось не всё» о том,
+    /// что сохранилось.
+    /// </para>
     /// <para>
     /// Опускается не только названный, но и всё, что на нём стоит:
     /// зависимый держит контекст соседа живым так же, как забытая подписка.
@@ -672,8 +689,7 @@ public sealed class StudioPlugins
         // манифестам раньше первого поднятого. Сочетания — после: их снимает уход прежней копии.
         MountDeclared(raise);
 
-        if (await CascadeAsync(host, lower, raise) is { } stuck)
-            refusals.Add(stuck);
+        await CascadeAsync(host, lower, raise);
 
         return refusals.Count == 0 ? null : string.Join("; ", refusals);
 
@@ -691,10 +707,23 @@ public sealed class StudioPlugins
     /// Общая дорога перезагрузки и применения настроек: обе опускают ветку,
     /// ждут, пока её отпустят, и поднимают заново. Разница между ними — только
     /// в том, кого класть в списки.
+    /// <para>
+    /// Чего каскад не довёл до конца, то ждёт перезапуска: прежняя копия осталась в памяти или
+    /// новый контракт не встал в общий контекст. Причина спрашивается до спуска: после него запись
+    /// о плагине уже снята, и спросить не у кого.
+    /// </para>
     /// </remarks>
-    private async Task<string?> CascadeAsync(
+    private async Task CascadeAsync(
         PluginHost host, IReadOnlyList<string> lower, IReadOnlyList<InstalledPlugin> raise)
     {
+        var pinned = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var id in lower)
+        {
+            if (host.Pinned(id) is { } reason)
+                pinned[id] = reason;
+        }
+
         foreach (var id in lower)
         {
             await _release.LetGoAsync(id);
@@ -728,23 +757,92 @@ public sealed class StudioPlugins
                 ClaimDeclared(loaded.Installed);
         }
 
-        // Выгрузка кооперативная, и не удаться она может по вине любого из
-        // опущенных: подписка на событие студии, оставленный таймер,
-        // работающий поток. Каждый невыгрузившийся называется своим именем —
+        // Контракт, пересобранный на ходу, встанет только в новом процессе: общий контекст не
+        // выгружается. Причину журнал уже услышал — заметкой каскада или отказом подъёма.
+        foreach (var (id, reason) in cascade.Restart)
+            Await(id, reason);
+
+        // Кого держат реестры Avalonia, того держат до конца процесса: причина известна и
+        // неустранима, ждать нечего.
+        foreach (var id in cascade.Lingering.Keys.Where(pinned.ContainsKey))
+        {
+            _log.Write(StudioLogLevel.Warning, "Plugins",
+                $"{Named(id)}: прежняя копия останется в памяти до перезапуска студии — {pinned[id]}");
+
+            Await(id, pinned[id]);
+        }
+
+        // Выгрузка кооперативная, и помешать ей может то, что держит контекст лишь до ближайшего
+        // кадра: очередь композитора, таймер жестов. Проверка хоста шла подряд, не отпуская поток
+        // интерфейса, и такой помехе уйти было некогда. Каждый оставшийся называется своим именем —
         // безымянное предупреждение не говорит, кого чинить.
-        var stuck = cascade.Released
-            .Where(pair => !pair.Value)
-            .Select(pair => Named(pair.Key))
-            .ToList();
+        var stuck = cascade.Lingering
+            .Where(pair => !pinned.ContainsKey(pair.Key))
+            .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
 
-        if (stuck.Count == 0)
-            return null;
+        foreach (var id in await SettleAsync(stuck))
+        {
+            const string reason = "прежняя копия осталась в памяти: на её типы ещё кто-то ссылается";
 
-        var warning = $"{string.Join(", ", stuck)}: прежняя копия осталась в памяти — надёжнее перезапустить студию";
+            _log.Write(StudioLogLevel.Warning, "Plugins", $"{Named(id)}: {reason}");
 
-        _log.Write(StudioLogLevel.Warning, "Plugins", warning);
+            Await(id, reason);
+        }
+    }
 
-        return warning;
+    /// <summary>
+    /// Даёт застрявшим контекстам уйти: пауза, проход диспетчера, сборка мусора — до трёх кругов.
+    /// </summary>
+    /// <param name="lingering">Невыгрузившиеся — слабыми ссылками.</param>
+    /// <returns>Кто так и не ушёл.</returns>
+    /// <remarks>
+    /// Сильной ссылки на контекст здесь нет и быть не должно: вопрос «жив ли он» держал бы его сам.
+    /// </remarks>
+    private async Task<IReadOnlyList<string>> SettleAsync(IReadOnlyDictionary<string, WeakReference> lingering)
+    {
+        var alive = lingering.Keys.ToList();
+
+        for (var round = 0; round < 3 && alive.Count > 0; round++)
+        {
+            await Task.Delay(SettlePause);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+
+            alive = alive.Where(id => lingering[id].IsAlive).ToList();
+        }
+
+        return alive;
+    }
+
+    /// <summary>
+    /// Записывает, что изменения расширения применит только перезапуск.
+    /// </summary>
+    /// <param name="pluginId">Чьи изменения.</param>
+    /// <param name="reason">Почему — словами для разработчика.</param>
+    /// <remarks>
+    /// Событие звучит на каждую новую причину, а не только на первую: вопрос о перезапуске задают
+    /// о том, что появилось с прошлого ответа, и повтор той же причины поводом не считается.
+    /// <para>
+    /// Внутренний, а не закрытый, ради тестов вопроса о перезапуске: настоящий повод — плагин,
+    /// которого держит Avalonia, — это сборка на диске и каскад, а проверять там надо вопрос.
+    /// </para>
+    /// </remarks>
+    internal void Await(string pluginId, string reason)
+    {
+        if (_awaiting.TryGetValue(pluginId, out var known))
+        {
+            if (known.Contains(reason, StringComparison.Ordinal))
+                return;
+
+            reason = $"{known}; {reason}";
+        }
+
+        _awaiting[pluginId] = reason;
+
+        RestartRequired?.Invoke(this, pluginId);
     }
 
     /// <summary>Как расширение называется в сообщениях.</summary>
@@ -853,6 +951,21 @@ public sealed class StudioPlugins
     /// перезагрузкой — из списка уходит.
     /// </remarks>
     public IReadOnlyDictionary<string, string> Unrisen => _unrisen;
+
+    /// <summary>
+    /// Расширения, чьи изменения применит только перезапуск студии, — по идентификатору, с причиной
+    /// для разработчика.
+    /// </summary>
+    /// <remarks>
+    /// Поводов два: прежняя копия осталась в памяти после спуска — её держат реестры Avalonia или
+    /// что-то ещё, не отпустившее за передышку, — и пересобранный контракт, которому общий
+    /// контекст не даёт встать. Запись живёт весь сеанс, и когда плагин поднят заново: прежняя
+    /// копия никуда не делась. Человеку причину не показывают — только то, что нужен перезапуск.
+    /// </remarks>
+    public IReadOnlyDictionary<string, string> AwaitingRestart => _awaiting;
+
+    /// <summary>У расширения появился новый повод к перезапуску; аргумент — его идентификатор.</summary>
+    public event EventHandler<string>? RestartRequired;
 
     /// <summary>Принимает поднятый модуль или плагин: вклады и панели.</summary>
     /// <returns><c>false</c>, если расширение не поднялось.</returns>

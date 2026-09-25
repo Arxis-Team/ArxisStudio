@@ -60,7 +60,8 @@ public interface IPluginDialogs
 /// <para>
 /// Оба вида доходят до <b>работающей</b> студии, а не только до диска:
 /// выключенный опускается, включённый поднимается, поставленный поверх
-/// перезагружается. Не отпустился — окно говорит про перезапуск, а не молчит.
+/// перезагружается. Не отпустился — плагин ждёт перезапуска студии, и окно его предлагает, а не
+/// молчит.
 /// </para>
 /// <para>
 /// Устроена, как Plugins → Installed у Rider: слева список с группами — внешние, языковые
@@ -80,6 +81,11 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
 
     /// <summary>Какие группы человек свернул или раскрыл сам — это переживает пересборку списка.</summary>
     private readonly Dictionary<string, bool> _folded = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Чьи галочки записаны перед перезапуском и не применены: не состоится он — их применяют вживую.
+    /// </summary>
+    private readonly HashSet<string> _unapplied = new(StringComparer.Ordinal);
 
     private string? _status;
     private string? _query;
@@ -217,7 +223,17 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
     public bool HasStatus => !string.IsNullOrEmpty(_status);
 
     /// <inheritdoc/>
-    public async Task CommitAsync(ICollection<string> problems)
+    public Task CommitAsync(ICollection<string> problems) => CommitAsync(problems, live: true);
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Перед перезапуском (<paramref name="live"/> = <c>false</c>) галочки только записываются:
+    /// опускать и поднимать плагины в процессе, который через миг закроется, — это ожидание
+    /// выгрузки и десяток проходов сборщика мусора ради состояния, которое новая копия и так
+    /// прочтёт с диска. Записанное помнится до <see cref="CatchUpAsync"/>: перезапуск может и не
+    /// состояться.
+    /// </remarks>
+    public async Task CommitAsync(ICollection<string> problems, bool live)
     {
         ArgumentNullException.ThrowIfNull(problems);
 
@@ -238,12 +254,46 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
                 saved.Add(card);
         }
 
+        if (!live)
+        {
+            _unapplied.UnionWith(saved.Select(card => card.Plugin.Id));
+            Refresh();
+            return;
+        }
+
         var complaint = await _extensions.ApplyAsync(
             saved.Where(card => !card.IsOn).Select(card => card.Plugin.Id).ToList(),
             saved.Where(card => card.IsOn).Select(card => card.Plugin.Id).ToList());
 
         if (complaint is not null)
             problems.Add(complaint);
+
+        Refresh();
+    }
+
+    /// <summary>
+    /// Применяет вживую галочки, записанные перед перезапуском, который не состоялся.
+    /// </summary>
+    /// <remarks>
+    /// Без этого студия после отказа жила бы по-старому, а диск помнил по-новому: выключенный плагин
+    /// работал бы с панелями и документами, а его строка стояла бы выключенной. Что применять,
+    /// решает диск, а не память о галочке: между записью и отказом её могли записать ещё раз.
+    /// </remarks>
+    public async Task CatchUpAsync()
+    {
+        if (_unapplied.Count == 0)
+            return;
+
+        var touched = _catalog.Scan().Where(plugin => _unapplied.Contains(plugin.Id)).ToList();
+
+        _unapplied.Clear();
+
+        if (await _extensions.ApplyAsync(
+                [.. touched.Where(plugin => !plugin.IsEnabled).Select(plugin => plugin.Id)],
+                [.. touched.Where(plugin => plugin.IsEnabled).Select(plugin => plugin.Id)]) is { } complaint)
+        {
+            Status = complaint;
+        }
 
         Refresh();
     }
@@ -441,7 +491,7 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
 
         await _extensions.ApplyAsync(gone, []);
 
-        Status = dependents.Count > 0
+        var removed = dependents.Count > 0
             ? $"{card.Plugin.DisplayName} {Localizer.Instance["plugins.removed.suffix"]}. " +
               string.Format(
                   CultureInfo.CurrentCulture,
@@ -449,8 +499,23 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
                   string.Join(", ", dependents.Select(dependent => dependent.Plugin.DisplayName)))
             : $"{card.Plugin.DisplayName} {Localizer.Instance["plugins.removed.suffix"]}";
 
+        // Удалённого в списке больше нет, и что удаление довершит перезапуск, сказать можно только
+        // здесь.
+        Status = Restarting(removed, card.Plugin.Id);
+
         Refresh();
     }
+
+    /// <summary>
+    /// Итог действия — и что довершит его перезапуск, если плагин его ждёт.
+    /// </summary>
+    /// <param name="done">Итог словами.</param>
+    /// <param name="pluginId">О ком он.</param>
+    /// <remarks>Без причины: её читают в журнале те, кому она что-то говорит.</remarks>
+    private string Restarting(string done, string pluginId) =>
+        _extensions.AwaitingRestart.ContainsKey(pluginId)
+            ? $"{done}. {Localizer.Instance["restart.required"]}"
+            : done;
 
     /// <summary>Перечитывает каталог: список собирается заново.</summary>
     /// <remarks>
@@ -470,7 +535,11 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
         foreach (var plugin in installed)
         {
             var riseError = plugin.IsEnabled && _extensions.Unrisen.TryGetValue(plugin.Id, out var why) ? why : null;
-            var card = new PluginCard(plugin, PluginGraph.Describe(plugin, all), riseError);
+            var card = new PluginCard(
+                plugin,
+                PluginGraph.Describe(plugin, all),
+                riseError,
+                _extensions.AwaitingRestart.ContainsKey(plugin.Id));
 
             card.PropertyChanged += OnCardChanged;
             Cards.Add(card);
@@ -638,6 +707,33 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
         Notify(nameof(Selected));
     }
 
+    /// <summary>
+    /// Выбирает плагин по идентификатору; незнакомый ничего не меняет.
+    /// </summary>
+    /// <param name="pluginId">Кого выбрать.</param>
+    /// <remarks>Так окно настроек возвращает выбор, с которым студию перезапустили.</remarks>
+    public void Pick(string? pluginId)
+    {
+        if (Cards.Concat(BuiltIn).FirstOrDefault(card => string.Equals(card.Plugin.Id, pluginId, StringComparison.Ordinal)) is { } found)
+            Choose(found);
+    }
+
+    /// <summary>Какие группы человек свернул или раскрыл сам: ключ группы и раскрыта ли она.</summary>
+    public IReadOnlyDictionary<string, bool> Folded => new Dictionary<string, bool>(_folded, StringComparer.Ordinal);
+
+    /// <summary>Возвращает группам то, как их свернул и раскрыл человек.</summary>
+    /// <param name="folded">Ключ группы и раскрыта ли она.</param>
+    public void Fold(IReadOnlyDictionary<string, bool> folded)
+    {
+        ArgumentNullException.ThrowIfNull(folded);
+
+        foreach (var (key, open) in folded)
+            _folded[key] = open;
+
+        Group();
+        Arrange();
+    }
+
     private void Choose(PluginCard? card)
     {
         if (ReferenceEquals(card, _selected))
@@ -682,10 +778,12 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
         // нечего, и список опускаемых остаётся пустым сам собой.
         var complaint = await _extensions.ApplyAsync([plugin.Id], [plugin.Id]);
 
-        Status = complaint is not null
-            ? complaint
-            : $"{plugin.DisplayName} {plugin.Manifest?.Version} " +
-              Localizer.Instance[known ? "plugins.updated.suffix" : "plugins.installed.suffix"];
+        // Обновлённый встал свежей копией, а прежняя могла остаться в памяти: о перезапуске
+        // говорится вместе с итогом, а не вместо него.
+        Status = complaint ?? Restarting(
+            $"{plugin.DisplayName} {plugin.Manifest?.Version} " +
+            Localizer.Instance[known ? "plugins.updated.suffix" : "plugins.installed.suffix"],
+            plugin.Id);
 
         Refresh();
     }

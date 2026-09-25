@@ -264,7 +264,13 @@ public class App : Application
             // место по очереди.
             .Add(
                 "splash.stage.shell",
-                () => _studio = new MainWindow(_log) { Settings = _settings, Catalog = _plugins },
+                () =>
+                {
+                    _studio = new MainWindow(_log) { Settings = _settings, Catalog = _plugins };
+
+                    // Как перезапуститься, знает приложение: процесс, окна и сессия — его.
+                    _studio.Restart.Perform = () => RestartAsync(desktop);
+                },
                 fatal: true)
             .Add("splash.stage.modules", () =>
             {
@@ -302,6 +308,10 @@ public class App : Application
 
             return;
         }
+
+        // Место окна ставится до показа: показ ставит его посреди экрана, если места не назвали.
+        if (first is MainWindow placed && StudioRelaunch.Session?.Window is { } placement)
+            placed.Place(placement);
 
         // Настоящее окно открывается до того, как уходит заставка: промежуток
         // без единого окна был бы промежутком без студии.
@@ -354,6 +364,14 @@ public class App : Application
                 "Каталог данных держит другая студия, но на просьбу не ответила: поднялись вторыми. " +
                 "Раскладку и недавние проекты запишет та, что закроется последней.");
         }
+
+        if (StudioRelaunch.Complaint is { } unread)
+            _log.Write(StudioLogLevel.Error, "Restart", $"Сессия перезапуска не прочиталась — студия открыта заново: {unread}");
+
+        // Перезапуск возвращает то, что было открыто, раньше, чем студия начнёт слушать вторые:
+        // просьба, пришедшая сейчас, подождёт в очереди и не встанет поперёк восстановления.
+        if (StudioRelaunch.Session is { } session)
+            await ResumeAsync(first, session);
 
         // Вторые студии слушаются, когда есть что им показать: просьба, пришедшая под
         // заставкой, дождалась окна в очереди.
@@ -431,9 +449,16 @@ public class App : Application
     /// Названный проект — это просьба открыть его, а не выбрать из недавних: Welcome в этом случае
     /// только стоял бы на дороге. Сказанное, но негодное — запись в журнале и обычный Welcome:
     /// студия не должна ни падать, ни делать вид, что открыла.
+    /// <para>
+    /// Перезапущенная копия открывается тем окном, которое было спереди у прежней: окно студии —
+    /// и без проекта, каркасом, — или Welcome.
+    /// </para>
     /// </remarks>
     private Window FirstWindow(string[]? arguments)
     {
+        if (StudioRelaunch.Session is { } session)
+            return session.Studio ? _studio : CreateWelcome();
+
         var asked = StudioArguments.Project(arguments);
 
         if (asked.Complaint is { } complaint)
@@ -486,6 +511,147 @@ public class App : Application
     }
 
     /// <summary>
+    /// Возвращает перезапущенной студии то, что было открыто в прежней копии.
+    /// </summary>
+    /// <param name="first">Показанное окно — студии или Welcome.</param>
+    /// <param name="session">Сессия прежней копии.</param>
+    private async Task ResumeAsync(Window first, StudioSession session)
+    {
+        switch (first)
+        {
+            case MainWindow studio:
+                await studio.ResumeAsync(session, OpenAsync);
+                break;
+
+            case WelcomeWindow welcome:
+                StudioResume.Explain(_log, session);
+                welcome.Resume(session.Welcome, session.Settings);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Перезапускает студию: поднимает новую копию с сессией и закрывает эту.
+    /// </summary>
+    /// <param name="desktop">Жизненный цикл приложения.</param>
+    /// <returns><c>true</c> — эта копия закрывается; <c>false</c> — не вышло, и она работает дальше.</returns>
+    /// <remarks>
+    /// Порядок держит одно правило: до ответа новой копии эта не трогает ничего. Сессия снимается
+    /// первой — пока всё открыто, — и ложится файлом; новая копия поднимается и отвечает, когда
+    /// взяла его. Не ответила — её снимают, файл стирают, а человек остаётся в той же студии, со
+    /// всем открытым.
+    /// <para>
+    /// Ответила — пути назад нет: сессия у неё. Эта перестаёт отвечать вторым студиям, закрывает
+    /// окно настроек сама — его крестик отменяет первое закрытие, и вместе с ним отменилось бы
+    /// закрытие студии, — дожидается закрытия документов и закрывается. Окно, отказавшееся
+    /// закрыться, закрывается принудительно: новая копия ждёт папку данных, и две студии над ней
+    /// хуже, чем окно плагина, не спросившее о своём.
+    /// </para>
+    /// </remarks>
+    private async Task<bool> RestartAsync(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var pid = Environment.ProcessId;
+        var file = StudioSession.FileFor(StudioPaths.UserData, pid);
+
+        // Шире, чем бросает запись: перезапуск зовут из обработчиков щелчка, и сбой снимка, дошедший
+        // до них, унёс бы студию вместе со всем, что перезапуск обещал вернуть.
+        try
+        {
+            StudioSession.Write(Capture(desktop), file);
+        }
+        catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
+        {
+            StudioSession.Forget(file);
+
+            return Refuse(desktop, $"сессию не снять: {e.Message}");
+        }
+
+        System.Diagnostics.Process? successor;
+
+        try
+        {
+            successor = StudioRelaunch.Launch(file);
+        }
+        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException
+                                      or IOException or ArgumentException or UnauthorizedAccessException
+                                      or NotSupportedException)
+        {
+            StudioSession.Forget(file);
+
+            return Refuse(desktop, $"новая копия не поднялась: {e.Message}");
+        }
+
+        if (successor is null
+            || !await StudioRelaunch.AwaitTakenAsync(file, () => successor.HasExited, StudioRelaunch.Handshake))
+        {
+            StudioRelaunch.Abort(successor);
+            StudioSession.Forget(file);
+
+            return Refuse(desktop, "новая копия не приняла сессию");
+        }
+
+        _log.Write(StudioLogLevel.Info, "Restart", $"Новая копия (процесс {successor.Id}) приняла сессию — эта закрывается");
+
+        StudioInstance.Current?.Stop();
+
+        foreach (var settings in desktop.Windows.OfType<ArxisStudio.Settings.SettingsWindow>().ToList())
+            settings.CloseForRestart();
+
+        await _studio.PrepareForRestartAsync();
+
+        if (!desktop.TryShutdown())
+        {
+            _log.Write(StudioLogLevel.Warning, "Restart", "Окно отказалось закрыться — студия закрывается принудительно: сессия уже у новой копии");
+            desktop.Shutdown();
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Снимает сессию: какое окно спереди, рабочее место, окно настроек, Welcome и причины.
+    /// </summary>
+    /// <remarks>
+    /// Окно студии спрашивается списком окон, а не видимостью: у окна, которое ещё не показывали,
+    /// <c>IsVisible</c> уже истинно.
+    /// </remarks>
+    private StudioSession Capture(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var studio = desktop.Windows.Contains(_studio);
+        var session = studio
+            ? _studio.Snapshot()
+            : new StudioSession { Welcome = desktop.Windows.OfType<WelcomeWindow>().FirstOrDefault()?.Snapshot() };
+
+        return session with
+        {
+            Settings = desktop.Windows.OfType<ArxisStudio.Settings.SettingsWindow>().FirstOrDefault()?.Snapshot(),
+            Reasons = new Dictionary<string, string>(_studio.Extensions.AwaitingRestart, StringComparer.Ordinal),
+        };
+    }
+
+    /// <summary>Перезапуск не состоялся: причина — в журнал, человеку — что не вышло.</summary>
+    /// <returns>Всегда <c>false</c>: студия работает дальше.</returns>
+    /// <remarks>
+    /// Человеку говорится там, куда он смотрит: открытое окно настроек модальное и стоит поверх
+    /// строки состояния, и перезапуск, начатый из него, отказывает его подвалом.
+    /// </remarks>
+    private bool Refuse(IClassicDesktopStyleApplicationLifetime desktop, string reason)
+    {
+        _log.Write(StudioLogLevel.Error, "Restart", $"Перезапуск не состоялся: {reason}");
+
+        var said = Localizer.Instance["restart.failed"];
+
+        if (desktop.Windows.OfType<ArxisStudio.Settings.SettingsWindow>().FirstOrDefault() is { } settings)
+            settings.Say(said);
+        else if (desktop.Windows.Contains(_studio))
+            _studio.Say(said);
+        else
+            desktop.Windows.OfType<WelcomeWindow>().FirstOrDefault()?.Say(said);
+
+        return false;
+    }
+
+    /// <summary>
     /// Экран Welcome поверх уже собранной студии.
     /// </summary>
     /// <remarks>
@@ -503,6 +669,9 @@ public class App : Application
         {
             // Сочетания раздаёт окно студии, и страницу клавиш даёт оно же — одну на оба входа.
             Keys = _studio.KeysSettings,
+
+            // Перезапуск тоже один: менеджер плагинов открывают и отсюда.
+            Restart = _studio.Restart,
         };
         welcome.StudioRequested += (_, _) =>
         {

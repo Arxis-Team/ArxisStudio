@@ -206,6 +206,86 @@ public class StudioInstanceTests
         }
     }
 
+    /// <summary>
+    /// Перезапущенная копия ждёт папку и получает её, как только прежняя отпустит, — а третий запуск
+    /// в щель между ними не входит.
+    /// </summary>
+    /// <remarks>
+    /// Новая копия не дожидается выхода прежней, чтобы потом спросить папку без ожидания: между
+    /// «прежняя ушла» и «новая спросила» третий запуск стал бы первым, и две студии поделили бы
+    /// одну папку. Мьютекс ждётся — и переходит из рук в руки без щели.
+    /// </remarks>
+    [Fact]
+    public void A_waiting_claim_gets_the_folder_once_let_go_and_a_third_does_not_slip_in()
+    {
+        var name = Unique();
+        var first = StudioInstance.Claim(name);
+        var restartedIsFirst = false;
+
+        using var got = new ManualResetEventSlim();
+        using var done = new ManualResetEventSlim();
+
+        var restarted = new Thread(() =>
+        {
+            using var claim = StudioInstance.Claim(name, TimeSpan.FromSeconds(10));
+
+            restartedIsFirst = claim.IsFirst;
+            got.Set();
+            done.Wait(TimeSpan.FromSeconds(10));
+        });
+
+        restarted.Start();
+
+        try
+        {
+            Assert.True(first.IsFirst);
+
+            // Пока прежняя держит папку, ждущая не возвращается: не жди она — ответила бы сразу, и
+            // «не первой».
+            Assert.False(
+                got.Wait(TimeSpan.FromMilliseconds(300), TestContext.Current.CancellationToken),
+                "перезапущенная копия не ждала папку, которую держит прежняя");
+
+            // Тем же потоком, что брал: так отпускает прежняя копия на выходе из цикла приложения.
+            first.Dispose();
+
+            Assert.True(got.Wait(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken), "ждущая копия папку не получила");
+            Assert.True(restartedIsFirst);
+
+            var (thirdIsFirst, _) = Second(name, arguments: null);
+
+            Assert.False(thirdIsFirst, "третий запуск занял папку, которую держит перезапущенная копия");
+        }
+        finally
+        {
+            done.Set();
+            restarted.Join();
+        }
+    }
+
+    /// <summary>
+    /// Остановленная первая держит папку, но просьб больше не принимает.
+    /// </summary>
+    /// <remarks>
+    /// Так ведёт себя студия, решившаяся на перезапуск: принятая теперь просьба ушла бы вместе с
+    /// процессом, а отпущенная папка — третьему запуску, раньше новой копии.
+    /// </remarks>
+    [Fact]
+    public void A_stopped_first_keeps_the_folder_and_answers_nobody()
+    {
+        var name = Unique();
+
+        using var first = StudioInstance.Claim(name);
+
+        first.Listen(_ => { });
+        first.Stop();
+
+        var (secondIsFirst, sent) = Second(name, ["--anyone"], TimeSpan.FromMilliseconds(300));
+
+        Assert.False(secondIsFirst, "остановленная первая отпустила папку");
+        Assert.False(sent, "остановленная первая приняла просьбу");
+    }
+
     /// <summary>Разные папки данных — разные студии; регистр пути на Windows не различается.</summary>
     [Fact]
     public void Different_data_folders_are_different_studios()

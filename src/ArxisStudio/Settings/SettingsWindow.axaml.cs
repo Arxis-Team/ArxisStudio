@@ -39,6 +39,12 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
 {
     private SettingsViewModel? _model;
 
+    // Менеджер плагинов этого окна — открыт он сейчас или нет: выбор в нём переживает перезапуск.
+    private PluginsPage? _plugins;
+
+    // Перезапуск студии; null — окно открыли без него, и спрашивать о нём некому.
+    private StudioRestart? _restart;
+
     private bool _closing;
 
     /// <summary>
@@ -87,6 +93,14 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
     /// Страница сочетаний клавиш; null — окно без неё. Окно отпускает страницу, закрываясь: она слушает
     /// реестр сочетаний, который живёт весь сеанс.
     /// </param>
+    /// <param name="restart">
+    /// Перезапуск студии: менеджер предлагает его, когда изменения плагина применит только он; null —
+    /// не предлагает.
+    /// </param>
+    /// <param name="restore">
+    /// С чем окно было открыто, когда студию перезапустили: раздел, поиск, выбранный плагин, свёрнутые
+    /// группы и место; null — открыть как обычно.
+    /// </param>
     /// <remarks>
     /// Хранилище берётся у студии, а не заводится своё: оно читает файл в
     /// память при создании и переписывает его целиком, поэтому второй
@@ -105,25 +119,83 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
         IReadOnlyList<InstalledPlugin> declaring,
         PluginCatalog catalog,
         string? page = null,
-        KeysPage? keys = null)
+        KeysPage? keys = null,
+        StudioRestart? restart = null,
+        SettingsSession? restore = null)
     {
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(extensions);
         ArgumentNullException.ThrowIfNull(catalog);
 
-        var window = new SettingsWindow();
+        var window = new SettingsWindow { _restart = restart };
+        var plugins = new PluginsPage(catalog, extensions, window, [.. declaring.Where(extension => extension.IsBuiltIn)]);
         var model = new SettingsViewModel(
             studio,
             extensions.Settings,
             declaring,
             extensions.Announce,
-            new PluginsPage(catalog, extensions, window, [.. declaring.Where(extension => extension.IsBuiltIn)]),
+            plugins,
             keys);
 
+        window._plugins = plugins;
         window.Attach(model, page);
+        window.Resume(restore);
         window.Closed += (_, _) => keys?.Dispose();
 
         return window.ShowDialog(owner);
+    }
+
+    /// <summary>
+    /// Снимок окна для перезапуска: раздел, поиск, выбранный плагин, свёрнутые группы и место.
+    /// </summary>
+    /// <remarks>
+    /// Несохранённого в снимке нет и быть не должно: перезапуск из этого окна сперва записывает
+    /// его, а отказ записи перезапуск отменяет.
+    /// </remarks>
+    internal SettingsSession Snapshot() => new()
+    {
+        Page = _model?.Page?.Id,
+        Search = _model?.Search ?? string.Empty,
+        Plugin = _plugins?.Card?.Plugin.Id,
+        Folded = _plugins?.Folded ?? new Dictionary<string, bool>(),
+        Window = StudioPlacement.Of(this, Position, ClientSize),
+    };
+
+    /// <summary>
+    /// Закрывает окно ради перезапуска — без вопроса о несохранённом.
+    /// </summary>
+    /// <remarks>
+    /// Крестик спрашивает о правках и потому отменяет первое закрытие всегда; закрытие студии,
+    /// наткнувшись на это окно, отменилось бы вместе с ним. Спрашивать здесь не о чем: перезапуск
+    /// из окна записал несохранённое, прежде чем начаться.
+    /// </remarks>
+    internal void CloseForRestart()
+    {
+        _closing = true;
+        Close();
+    }
+
+    /// <summary>Возвращает окну то, с чем его застал перезапуск.</summary>
+    /// <param name="restore">Снимок прежней копии; null — возвращать нечего.</param>
+    /// <remarks>
+    /// Поиск ставится раньше раздела: раздел ищется среди найденного, а поиск, поставленный
+    /// после, пересобрал бы дерево из-под выбора. Место — до показа: показ ставит окно посреди
+    /// экрана, если места ему не назвали.
+    /// </remarks>
+    private void Resume(SettingsSession? restore)
+    {
+        if (restore is null || _model is not { } model)
+            return;
+
+        model.Search = restore.Search;
+
+        if (restore.Page is { Length: > 0 } page)
+            model.Select(page);
+
+        _plugins?.Fold(restore.Folded);
+        _plugins?.Pick(restore.Plugin);
+
+        restore.Window?.Put(this);
     }
 
     /// <summary>
@@ -151,6 +223,66 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
             Save.IsEnabled = Cancel.IsEnabled = true;
         }
     }
+
+    /// <summary>
+    /// Дописывает несохранённое перед перезапуском — как «Restart IDE» у Rider.
+    /// </summary>
+    /// <returns><c>true</c> — записано всё или записывать нечего; <c>false</c> — отбой перезапуска.</returns>
+    /// <remarks>
+    /// Записывает, не применяя: плагины поднимет новая копия, а опускать их в этой — работа
+    /// впустую. Не записалось — перезапуска нет, и подвал говорит почему: иначе новая копия
+    /// открылась бы с тем, что человек считал сохранённым, а оно не легло.
+    /// </remarks>
+    private async Task<bool> SaveForRestartAsync()
+    {
+        if (_model is not { HasChanges: true } model)
+            return true;
+
+        Save.IsEnabled = Cancel.IsEnabled = false;
+
+        try
+        {
+            return await model.SaveAsync(live: false);
+        }
+        finally
+        {
+            Save.IsEnabled = Cancel.IsEnabled = true;
+        }
+    }
+
+    /// <summary>
+    /// Предлагает перезапуск, если действие менеджера оставило плагин ждать его.
+    /// </summary>
+    /// <remarks>
+    /// Сразу и поверх окна, а не по «Сохранить»: удаление и установка случаются сразу, и о том,
+    /// чего они ждут, говорят тогда же. Согласие дописывает несохранённое этого окна.
+    /// </remarks>
+    private Task OfferRestartAsync() =>
+        _restart?.OfferAsync(this, SaveForRestartAsync, CatchUpAsync) ?? Task.CompletedTask;
+
+    /// <summary>«Перезапустить» у плагина, ждущего перезапуска: без вопроса — человек попросил сам.</summary>
+    private async void OnPluginRestartClick(object? sender, RoutedEventArgs e)
+    {
+        if (_restart is { } restart)
+            await restart.RestartAsync(SaveForRestartAsync, CatchUpAsync);
+    }
+
+    /// <summary>
+    /// Перезапуск не состоялся после записи: записанное применяется вживую.
+    /// </summary>
+    /// <remarks>
+    /// Запись перед перезапуском галочки плагинов только кладёт на диск, и без этого шага студия
+    /// после отказа разошлась бы с тем, что видно в менеджере.
+    /// </remarks>
+    private Task CatchUpAsync() => _plugins?.CatchUpAsync() ?? Task.CompletedTask;
+
+    /// <summary>Говорит подвалом окна — там, куда человек сейчас смотрит.</summary>
+    /// <param name="message">Что сказать.</param>
+    /// <remarks>
+    /// Нужно, когда перезапуск, начатый из этого окна, не состоялся: строка состояния студии стоит
+    /// под ним, и сказанное там человек не увидел бы.
+    /// </remarks>
+    internal void Say(string message) => _model?.Say(message);
 
     /// <summary>
     /// «Отмена»: забыть правки и закрыться.
@@ -398,20 +530,29 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
 
     private async void OnPluginRemoveClick(object? sender, RoutedEventArgs e)
     {
-        if (Plugins is { } page && sender is Control { Tag: PluginCard card })
-            await page.RemoveAsync(card);
+        if (Plugins is not { } page || sender is not Control { Tag: PluginCard card })
+            return;
+
+        await page.RemoveAsync(card);
+        await OfferRestartAsync();
     }
 
     private async void OnPluginInstallClick(object? sender, RoutedEventArgs e)
     {
-        if (Plugins is { } page)
-            await page.InstallFromFolderAsync();
+        if (Plugins is not { } page)
+            return;
+
+        await page.InstallFromFolderAsync();
+        await OfferRestartAsync();
     }
 
     private async void OnPluginInstallArchiveClick(object? sender, RoutedEventArgs e)
     {
-        if (Plugins is { } page)
-            await page.InstallFromArchiveAsync();
+        if (Plugins is not { } page)
+            return;
+
+        await page.InstallFromArchiveAsync();
+        await OfferRestartAsync();
     }
 
     /// <summary>«Открыть keymap.json»: файл сочетаний — средствами системы.</summary>
@@ -573,9 +714,13 @@ public partial class SettingsWindow : AxWindow, IPluginDialogs
         e.Handled = true;
 
         if (e.Key == Key.Space)
+        {
             await page.ToggleAsync(card);
-        else
-            await page.RemoveAsync(card);
+            return;
+        }
+
+        await page.RemoveAsync(card);
+        await OfferRestartAsync();
     }
 
     /// <summary>Открытая страница плагинов; null — открыта другая.</summary>

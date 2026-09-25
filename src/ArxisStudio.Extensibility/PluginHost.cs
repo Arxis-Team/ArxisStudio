@@ -392,6 +392,30 @@ public sealed class PluginHost : IDisposable
     }
 
     /// <summary>
+    /// Почему поднятый плагин выгрузится только перезапуском студии; null — ничто из видимого не держит.
+    /// </summary>
+    /// <param name="pluginId">Идентификатор плагина.</param>
+    /// <returns>Причина словами: чьи свойства и события Avalonia держат его сборки.</returns>
+    /// <remarks>
+    /// Спрашивать надо перед спуском, а не при подъёме: свойство заводится, когда код плагина
+    /// впервые тронул свой тип, — просмотрщик заводит свойства AvaloniaEdit на первом открытом
+    /// файле, — и до того тот же плагин выгружается чисто.
+    /// <para>
+    /// Не встраивается — по той же причине, что <see cref="Retire"/>: запись о плагине, оставшаяся
+    /// в кадре вызывающего, держала бы его контекст.
+    /// </para>
+    /// </remarks>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public string? Pinned(string pluginId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(pluginId);
+
+        return _loaded.FirstOrDefault(plugin => Same(plugin.Installed.Id, pluginId))?.Context is PluginLoadContext context
+            ? context.Pinned()
+            : null;
+    }
+
+    /// <summary>
     /// Поднимает плагин заново: выгружает старую копию и загружает свежую.
     /// </summary>
     /// <param name="installed">Плагин, перечитанный каталогом с диска.</param>
@@ -492,11 +516,19 @@ public sealed class PluginHost : IDisposable
         // потому что отказ обязан разойтись по зависимым прежде, чем кого-то
         // поднимут.
         var contractless = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var restart = new Dictionary<string, string>(StringComparer.Ordinal);
 
         foreach (var installed in raising)
         {
-            if (PluginContracts.EnsureLoaded(installed, notes) is { } refusal)
+            var stale = new List<string>();
+
+            if (PluginContracts.EnsureLoaded(installed, notes, stale) is { } refusal)
                 contractless[installed.Id] = refusal;
+
+            // Новый контракт в общий контекст не встанет до перезапуска: плагин поднят со старым
+            // или не поднят вовсе. Это не отказ плагину, а повод перезапустить студию.
+            if (stale.Count > 0)
+                restart[installed.Id] = string.Join("; ", stale);
         }
 
         var refused = Spread(contractless, raising);
@@ -525,7 +557,13 @@ public sealed class PluginHost : IDisposable
             raised.Add(Add(installed));
         }
 
-        return new PluginCascade(released, raised, skipped, notes);
+        // Слабые ссылки отдаются как есть: сильной на контекст здесь нет, и вопрос «выгрузился ли он
+        // теперь» потом не удержит его сам.
+        var lingering = retired
+            .Where(pair => !released[pair.Key])
+            .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+
+        return new PluginCascade(released, raised, skipped, notes, lingering, restart);
     }
 
     /// <summary>
@@ -1055,11 +1093,21 @@ public sealed record PluginReload(
 /// <param name="Raised">Поднятые в порядке подъёма, включая записи с ошибкой.</param>
 /// <param name="Skipped">Кого не тронули и почему: не поднят, встроенный.</param>
 /// <param name="Notes">О чём сказать, не отказывая: изменившийся контракт.</param>
+/// <param name="Lingering">
+/// Невыгрузившиеся контексты — слабыми ссылками: застрявшего на миг можно спросить ещё раз, не
+/// удержав его этим вопросом.
+/// </param>
+/// <param name="Restart">
+/// Кому новый контракт встанет только после перезапуска студии, и почему: общий контекст контрактов
+/// не выгружается.
+/// </param>
 public sealed record PluginCascade(
     IReadOnlyDictionary<string, bool> Released,
     IReadOnlyList<LoadedPlugin> Raised,
     IReadOnlyDictionary<string, string> Skipped,
-    IReadOnlyList<string> Notes);
+    IReadOnlyList<string> Notes,
+    IReadOnlyDictionary<string, WeakReference> Lingering,
+    IReadOnlyDictionary<string, string> Restart);
 
 /// <summary>Кто выдаёт плагину его контекст.</summary>
 public interface IStudioContextFactory
@@ -1210,11 +1258,80 @@ internal sealed class PluginLoadContext(string name, string entryPath)
     /// <c>x:Class</c>.
     /// <para>
     /// Средство у Avalonia открытое: <c>UnregisterByModule</c> забывает по списку типов их
-    /// регистрации, переопределения метаданных и кэши. Типы спрашиваются у всех сборок контекста:
-    /// приватная зависимость плагина тоже может завести свой контрол.
+    /// переопределения метаданных и кэши. Типы спрашиваются у всех сборок контекста: приватная
+    /// зависимость плагина тоже может завести свой контрол.
+    /// </para>
+    /// <para>
+    /// Свойств и событий, заведённых самим типом, он не снимает — ни в 12.1.1, ни в основной ветке
+    /// Avalonia, — а у реестра событий снятия нет вовсе. Такой плагин остаётся в памяти до
+    /// перезапуска, и узнать это до спуска можно только спросив: <see cref="Pinned"/>. По ответу
+    /// студия решает, ждать ли застрявшую копию или сразу ставить плагин в ждущие перезапуска.
     /// </para>
     /// </remarks>
-    private void Unregister()
+    private void Unregister() => AvaloniaPropertyRegistry.Instance.UnregisterByModule(Types());
+
+    /// <summary>
+    /// Кто из типов контекста держится реестрами Avalonia; null — никто из видимых.
+    /// </summary>
+    /// <returns>Причина словами: чья сборка завела свои свойства и события и у каких типов.</returns>
+    /// <remarks>
+    /// Avalonia помнит свойство и маршрутизируемое событие статическим реестром до конца процесса, а
+    /// ключом там стоит тип-владелец. Свой <c>StyledProperty</c> у контрола плагина — обычное дело, и
+    /// AvaloniaEdit у просмотрщика заводит их десятки, а с ними события и присоединённое свойство.
+    /// Причина называет сборку: у просмотрщика держит не его код, а его библиотека, — и это автору
+    /// нужнее списка типов.
+    /// <para>
+    /// Свойства спрашиваются закрытым словарём реестра <c>_registered</c>, только на чтение: под
+    /// типом-владельцем Avalonia кладёт и обычное свойство, и прямое, и присоединённое, и принятое
+    /// <c>AddOwner</c>. Открытый <c>GetRegistered</c> прогоняет статические конструкторы всей цепочки
+    /// типов и сам завёл бы свойства, которых плагин ещё не трогал: проверка приковала бы к памяти тот
+    /// плагин, о котором спрашивает. Словарь пропал при обновлении Avalonia — ответ беднеет, а не врёт,
+    /// и падает тест. События спрашиваются открытым <c>GetAllRegistered</c>: он конструкторов не зовёт.
+    /// </para>
+    /// <para>
+    /// Классовый обработчик на чужом событии так не виден вовсе: его подписка лежит внутри события
+    /// Avalonia, и хозяина у неё нет. Его выдаёт только проверка выгрузки после спуска.
+    /// </para>
+    /// </remarks>
+    internal string? Pinned()
+    {
+        var mine = Assemblies.ToHashSet();
+        var owners = new List<Type>();
+
+        foreach (var routed in Avalonia.Interactivity.RoutedEventRegistry.Instance.GetAllRegistered())
+        {
+            if (mine.Contains(routed.OwnerType.Assembly))
+                owners.Add(routed.OwnerType);
+        }
+
+        try
+        {
+            if (typeof(AvaloniaPropertyRegistry)
+                    .GetField("_registered", BindingFlags.Instance | BindingFlags.NonPublic)
+                    ?.GetValue(AvaloniaPropertyRegistry.Instance) is System.Collections.IDictionary registered)
+            {
+                owners.AddRange(registered.Keys.OfType<Type>().Where(key => mine.Contains(key.Assembly)));
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // Словарь переписали посреди обхода: свойство завели из фонового потока. Сказано то, что
+            // успели увидеть, — проверка выгрузки после спуска всё равно скажет своё.
+        }
+
+        if (owners.Count == 0)
+            return null;
+
+        var assemblies = owners.Select(owner => owner.Assembly.GetName().Name).Distinct().Order(StringComparer.Ordinal).ToList();
+        var names = owners.Select(owner => owner.Name).Distinct().Order(StringComparer.Ordinal).ToList();
+        var shown = names.Count > 3 ? $"{string.Join(", ", names.Take(3))} и ещё {names.Count - 3}" : string.Join(", ", names);
+
+        return $"{string.Join(", ", assemblies)} {(assemblies.Count > 1 ? "заводят" : "заводит")} свои свойства и события " +
+               $"Avalonia — {shown}, — а снимать их Avalonia не умеет";
+    }
+
+    /// <summary>Все типы сборок контекста, включая те, что загрузились не все.</summary>
+    private List<Type> Types()
     {
         var types = new List<Type>();
 
@@ -1231,7 +1348,7 @@ internal sealed class PluginLoadContext(string name, string entryPath)
             }
         }
 
-        AvaloniaPropertyRegistry.Instance.UnregisterByModule(types);
+        return types;
     }
 
     /// <summary>

@@ -191,6 +191,16 @@ public sealed class StudioDock
     /// </remarks>
     private string? _remembered;
 
+    /// <summary>
+    /// Панель, в которую каретка приходила последней в этом сеансе.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Focused"/> отвечает о том, где каретка сейчас, и пока поверх студии открыт
+    /// модальный диалог, не отвечает ничего: каретка в диалоге. Перезапуск спрашивает как раз из
+    /// окна настроек, а вернуть должен место работы.
+    /// </remarks>
+    private string? _worked;
+
     /// <summary>Заводит раскладку над видом.</summary>
     /// <param name="view">Вид, который её показывает.</param>
     /// <param name="store">Куда записывать раскладку; null — никуда.</param>
@@ -222,6 +232,16 @@ public sealed class StudioDock
 
         Follow(_view);
     }
+
+    /// <summary>
+    /// Где работал человек: там, где каретка сейчас, а если её нет в раскладке — там, где она была
+    /// в последний раз.
+    /// </summary>
+    /// <remarks>
+    /// Последнее — сперва этого сеанса, потом записанное в файле раскладки: сеанс, в котором
+    /// каретка в раскладку не приходила, отвечает прошлым.
+    /// </remarks>
+    public string? Worked => Focused ?? _worked ?? _remembered;
 
     /// <summary>Человек выбрал вкладку; в поле — имя панели или документа.</summary>
     public event EventHandler<string>? Chosen;
@@ -1525,6 +1545,10 @@ public sealed class StudioDock
         // Оборванная тяга — тоже конец тяги: призрак не должен пережить её и
         // остаться висеть над пустым местом.
         view.Stopped += (_, _) => Dismiss();
+
+        // Куда приходит каретка, помнится до конца сеанса: модальный диалог уводит её из
+        // раскладки, а спросить, где работал человек, могут как раз из него.
+        view.AddHandler(InputElement.GotFocusEvent, (_, _) => _worked = Focused ?? _worked, handledEventsToo: true);
     }
 
     /// <summary>

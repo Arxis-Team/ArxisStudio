@@ -31,8 +31,18 @@ internal sealed class SettingsHarness : IDisposable
     private readonly string _home = Path.Combine(Path.GetTempPath(), $"arxis-settings-{Guid.NewGuid():N}");
     private readonly PluginGuard _guard = new();
     private readonly PluginContributionRegistry _contributions = new();
+    private StudioPlugins? _extensions;
 
     public SettingsHarness() => Directory.CreateDirectory(Path.Combine(_home, "plugins"));
+
+    /// <summary>
+    /// Служба расширений харнесса — одна на все окна, которые он открывает.
+    /// </summary>
+    /// <remarks>
+    /// Одна, как у студии: перезапуск, заведённый тестом над ней, слышит те же поводы, что видит
+    /// менеджер в окне.
+    /// </remarks>
+    public StudioPlugins Plugins => _extensions ??= Extensions(new PluginCatalog(Path.Combine(_home, "plugins")));
 
     public void Dispose()
     {
@@ -44,11 +54,15 @@ internal sealed class SettingsHarness : IDisposable
     /// <param name="keys">Страница клавиш — так окно открывает студия; null — как из Welcome.</param>
     /// <param name="page">На каком разделе открыть; null — на первом.</param>
     /// <param name="declaring">Кто объявляет настройки; null — один модуль харнесса с одной настройкой.</param>
+    /// <param name="restart">Перезапуск, который окно предлагает; null — окно без него.</param>
+    /// <param name="restore">С чем окно застал перезапуск; null — открыть как обычно.</param>
     /// <returns>Хозяина, само окно и задачу, которая завершится с его закрытием.</returns>
     public (Window Owner, SettingsWindow Settings, Task Shown) Open(
         KeysPage? keys = null,
         string? page = null,
-        IReadOnlyList<InstalledPlugin>? declaring = null)
+        IReadOnlyList<InstalledPlugin>? declaring = null,
+        StudioRestart? restart = null,
+        SettingsSession? restore = null)
     {
         var owner = new Window { Width = 400, Height = 300 };
 
@@ -59,11 +73,13 @@ internal sealed class SettingsHarness : IDisposable
         var shown = SettingsWindow.ShowAsync(
             owner,
             new JsonSettingsStore(Path.Combine(_home, "settings.json")),
-            Extensions(catalog),
+            Plugins,
             declaring ?? [Module()],
             catalog,
             page,
-            keys);
+            keys,
+            restart,
+            restore);
 
         Dispatcher.UIThread.RunJobs();
 
@@ -73,18 +89,12 @@ internal sealed class SettingsHarness : IDisposable
     /// <summary>Открывает настройки так, как их открывает Welcome, — щелчком по двери в его полосе.</summary>
     /// <param name="door">Ключ подписи двери: <c>welcome.nav.settings</c> или <c>welcome.nav.plugins</c>.</param>
     /// <param name="keys">Чем Welcome спрашивает страницу клавиш; null — не спрашивает.</param>
+    /// <param name="restart">Перезапуск, который Welcome предлагает; null — без него.</param>
     /// <returns>Экран Welcome и открытое им окно настроек.</returns>
-    public (WelcomeWindow Welcome, SettingsWindow Settings) OpenFromWelcome(string door, Func<KeysPage>? keys)
+    public (WelcomeWindow Welcome, SettingsWindow Settings) OpenFromWelcome(
+        string door, Func<KeysPage>? keys, StudioRestart? restart = null)
     {
-        var catalog = new PluginCatalog(Path.Combine(_home, "plugins"));
-        var welcome = new WelcomeWindow(
-            new JsonSettingsStore(Path.Combine(_home, "settings.json")),
-            new RecentProjects(Path.Combine(_home, "recent-projects.json")),
-            catalog,
-            Extensions(catalog))
-        {
-            Keys = keys,
-        };
+        var welcome = Welcome(keys, restart);
 
         welcome.Show();
         Dispatcher.UIThread.RunJobs();
@@ -97,6 +107,24 @@ internal sealed class SettingsHarness : IDisposable
         Dispatcher.UIThread.RunJobs();
 
         return (welcome, Assert.Single(welcome.OwnedWindows.OfType<SettingsWindow>()));
+    }
+
+    /// <summary>Экран Welcome над папкой харнесса — не показанный.</summary>
+    /// <param name="keys">Чем Welcome спрашивает страницу клавиш; null — не спрашивает.</param>
+    /// <param name="restart">Перезапуск, который Welcome предлагает; null — без него.</param>
+    public WelcomeWindow Welcome(Func<KeysPage>? keys = null, StudioRestart? restart = null)
+    {
+        var catalog = new PluginCatalog(Path.Combine(_home, "plugins"));
+
+        return new WelcomeWindow(
+            new JsonSettingsStore(Path.Combine(_home, "settings.json")),
+            new RecentProjects(Path.Combine(_home, "recent-projects.json")),
+            catalog,
+            Plugins)
+        {
+            Keys = keys,
+            Restart = restart,
+        };
     }
 
     /// <summary>

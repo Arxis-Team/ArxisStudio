@@ -240,6 +240,36 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
+    /// Каретка, ушедшая из раскладки, оставляет память о том, где человек работал.
+    /// </summary>
+    /// <remarks>
+    /// Модальное окно настроек уводит каретку к себе, а перезапуск спрашивает, где человек работал,
+    /// как раз из него. <see cref="StudioDock.Focused"/> тогда молчит — каретки в раскладке нет, — а
+    /// вернуть после перезапуска надо место работы.
+    /// </remarks>
+    [AvaloniaFact]
+    public void The_layout_remembers_where_the_caret_worked_after_it_left()
+    {
+        var (dock, _) = Dock();
+
+        dock.Add("hello", "hello:tree", At("left"), "Проект", Strings, Focusable());
+        dock.Add("hello", "hello:other", At("right"), "Прочее", Strings, Focusable());
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(dock.Focus("hello:other"));
+
+        // Каретка уходит в другое окно — как в модальный диалог поверх студии.
+        var elsewhere = new Border { Focusable = true };
+
+        new Window { Content = elsewhere, Width = 200, Height = 100 }.Show();
+        elsewhere.Focus();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(dock.Focused);
+        Assert.Equal("hello:other", dock.Worked);
+    }
+
+    /// <summary>
     /// Закрытая панель отдаёт каретку соседу по группе.
     /// </summary>
     /// <remarks>

@@ -46,6 +46,10 @@ public static class PluginContracts
     /// </summary>
     /// <param name="plugin">Чьи контракты.</param>
     /// <param name="notes">Куда писать о неожиданном, не отказывая.</param>
+    /// <param name="restart">
+    /// Куда писать, чему нужен перезапуск студии: контракт пересобран, а общий контекст не
+    /// выгружается; null — спрашивающему это не нужно, как на старте, где всё грузится впервые.
+    /// </param>
     /// <returns>Причина отказа или null, если всё загрузилось.</returns>
     /// <remarks>
     /// Любая беда с объявленным контрактом — отказ владельцу, а не исключение
@@ -54,7 +58,8 @@ public static class PluginContracts
     /// Правило то же, что у entry-сборки: сломанный плагин становится записью
     /// с ошибкой, а не падением студии.
     /// </remarks>
-    public static string? EnsureLoaded(InstalledPlugin plugin, ICollection<string> notes)
+    public static string? EnsureLoaded(
+        InstalledPlugin plugin, ICollection<string> notes, ICollection<string>? restart = null)
     {
         ArgumentNullException.ThrowIfNull(plugin);
         ArgumentNullException.ThrowIfNull(notes);
@@ -79,7 +84,7 @@ public static class PluginContracts
 
         foreach (var (name, identity, file) in declared)
         {
-            if (Claim(name, identity, file, plugin, notes) is { } refusal)
+            if (Claim(name, identity, file, plugin, notes, restart) is { } refusal)
                 return refusal;
         }
 
@@ -164,7 +169,12 @@ public static class PluginContracts
     /// на чужой уже занятой идентичности.
     /// </remarks>
     private static string? Claim(
-        string name, AssemblyName identity, FileInfo file, InstalledPlugin plugin, ICollection<string> notes)
+        string name,
+        AssemblyName identity,
+        FileInfo file,
+        InstalledPlugin plugin,
+        ICollection<string> notes,
+        ICollection<string>? restart)
     {
         lock (Gate)
         {
@@ -176,15 +186,23 @@ public static class PluginContracts
                 // контекстам вместо своей, и виновника потом не найти.
                 if (!string.Equals(known.Identity, identity.FullName, StringComparison.Ordinal))
                 {
+                    if (!string.Equals(known.OwnerId, plugin.Id, StringComparison.Ordinal))
+                    {
+                        return $"имя {name} уже занято контрактом плагина {known.OwnerId} " +
+                               $"({known.Identity}) — переименуйте свою контрактную сборку";
+                    }
+
                     // Хозяин тот же — значит это не спор за имя, а пересборка
                     // контракта с новой версией. Разговаривать про «занято
                     // чужим» здесь было бы враньём: занял он сам, и беда не в
-                    // соседе, а в том, что общий контекст обновить нечем.
-                    return string.Equals(known.OwnerId, plugin.Id, StringComparison.Ordinal)
-                        ? $"контракт {name} уже загружен как {known.Identity}, а сейчас привезён " +
-                          $"{identity.FullName} — общий контекст обновить нечем, нужен перезапуск студии"
-                        : $"имя {name} уже занято контрактом плагина {known.OwnerId} " +
-                          $"({known.Identity}) — переименуйте свою контрактную сборку";
+                    // соседе, а в том, что общий контекст обновить нечем. Это же
+                    // и повод перезапуска: после него контракт встанет новым.
+                    var rebuilt = $"контракт {name} уже загружен как {known.Identity}, а сейчас привезён " +
+                                  $"{identity.FullName} — общий контекст обновить нечем, нужен перезапуск студии";
+
+                    restart?.Add(rebuilt);
+
+                    return rebuilt;
                 }
 
                 // Прежняя копия остаётся: выгрузить её из общего контекста
@@ -192,9 +210,11 @@ public static class PluginContracts
                 // молча притвориться, что новые типы уже видны.
                 if (known.Length != file.Length || known.Written != file.LastWriteTimeUtc)
                 {
-                    notes.Add(
-                        $"{plugin.DisplayName}: контракт {name} изменился на диске — " +
-                        "студия держит прежнюю копию до перезапуска");
+                    var changed = $"{plugin.DisplayName}: контракт {name} изменился на диске — " +
+                                  "студия держит прежнюю копию до перезапуска";
+
+                    notes.Add(changed);
+                    restart?.Add(changed);
                 }
 
                 return null;

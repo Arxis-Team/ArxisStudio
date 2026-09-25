@@ -9,6 +9,7 @@ using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
 using ArxisStudio.Sdk;
 using ArxisStudio.Shell;
+using ArxisStudio.Shell.Localization;
 using ArxisStudio.Services;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
@@ -383,8 +384,9 @@ public class StudioPluginsTests : IDisposable
     {
         var plugins = Start();
 
-        Assert.Null(await plugins.ReloadAsync("arxis.nobody"));
+        await plugins.ReloadAsync("arxis.nobody");
 
+        Assert.Empty(plugins.AwaitingRestart);
         Assert.Contains(_log.Records, record =>
             record.Level == StudioLogLevel.Warning && record.Message.Contains("arxis.nobody"));
     }
@@ -644,7 +646,193 @@ public class StudioPluginsTests : IDisposable
 
         Assert.Contains(plugins.Reloadable, plugin => plugin.Id == "arxis.forgetful");
 
-        Assert.Null(await plugins.ReloadAsync("arxis.forgetful"));
+        await plugins.ReloadAsync("arxis.forgetful");
+
+        Assert.Empty(plugins.AwaitingRestart);
+    }
+
+    /// <summary>
+    /// Сохранение перед перезапуском пишет галочку на диск, а плагин не трогает — пока перезапуск
+    /// не сорвался.
+    /// </summary>
+    /// <remarks>
+    /// Перезапуск из окна настроек сперва дописывает несохранённое. Опускать выключенного в
+    /// процессе, который через миг закроется, — ожидание выгрузки и десяток проходов сборщика
+    /// мусора ради состояния, которое новая копия и так прочтёт с диска. Не поднялась новая копия
+    /// — записанное применяется вживую: иначе выключенный работал бы, а его строка стояла бы
+    /// выключенной.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task Saving_before_a_restart_writes_the_switch_and_catches_up_if_it_fails()
+    {
+        Install();
+
+        var plugins = Start();
+        var page = new ArxisStudio.Settings.PluginsPage(new PluginCatalog(_root), plugins, new Dialogs());
+        var problems = new List<string>();
+
+        await page.ToggleAsync(Assert.Single(page.Cards));
+        await page.CommitAsync(problems, live: false);
+
+        Assert.Empty(problems);
+        Assert.False(Assert.Single(new PluginCatalog(_root).Scan()).IsEnabled, "выключение не записалось");
+        Assert.Contains(plugins.Reloadable, plugin => plugin.Id == "arxis.hello");
+
+        // Перезапуск не состоялся — записанное применяется вживую, и студия не расходится с диском.
+        await page.CatchUpAsync();
+
+        Assert.DoesNotContain(plugins.Reloadable, plugin => plugin.Id == "arxis.hello");
+        Assert.False(Assert.Single(page.Cards).IsOn);
+    }
+
+    /// <summary>
+    /// Контракт, пересобранный на ходу, ждёт перезапуска: общий контекст его не обновит.
+    /// </summary>
+    /// <remarks>
+    /// Каскад говорил об этом заметкой в журнале, и только: человек, перезагрузивший плагин, видел
+    /// новую сборку и прежние типы контракта, а что поправит только перезапуск, узнавал, найдя эту
+    /// заметку. Теперь плагин встаёт в ждущие, и студия предлагает перезапуск сама.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_contract_changed_on_disk_waits_for_a_restart()
+    {
+        Install();
+
+        var plugins = Start();
+
+        File.SetLastWriteTimeUtc(
+            Path.Combine(_root, "arxis.hello", "bin", "Arxis.Hello.Contracts.dll"),
+            DateTime.UtcNow.AddMinutes(1));
+
+        await plugins.ReloadAsync("arxis.hello");
+
+        Assert.True(
+            plugins.AwaitingRestart.TryGetValue("arxis.hello", out var reason),
+            "плагин с пересобранным контрактом не ждёт перезапуска");
+        Assert.Contains("Arxis.Hello.Contracts", reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Плагин, которого держат реестры Avalonia, ждёт перезапуска: человеку — что он нужен, журналу —
+    /// почему.
+    /// </summary>
+    /// <remarks>
+    /// Свой <c>StyledProperty</c> у контрола — обычное дело, а снять его Avalonia не умеет: прежняя
+    /// копия остаётся в памяти до перезапуска. Запись 284 называла человеку владельцев свойств — в
+    /// менеджере и в строке состояния; владелец студии счёл это лишним. Работающий плагин теперь
+    /// заранее не говорит ничего — применять пока нечего; спущенный встаёт в ждущие перезапуска, и
+    /// менеджер говорит только это. Причина — в журнале, и повтор той же причины нового вопроса не
+    /// заводит.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_plugin_held_by_avalonia_waits_for_a_restart_and_only_the_log_says_why()
+    {
+        const string id = "probe.held";
+
+        var folder = Path.Combine(_root, id);
+
+        Directory.CreateDirectory(Path.Combine(folder, "bin"));
+
+        File.WriteAllText(Path.Combine(folder, "plugin.json"), $$"""
+            {
+              "id": "{{id}}",
+              "name": "Держится",
+              "version": "1.0.0",
+              "entry": "bin/Probe.Held.dll",
+              "activation": [ "onStartup" ]
+            }
+            """);
+
+        TestAssembly.EmitFile(Path.Combine(folder, "bin", "Probe.Held.dll"), "Probe.Held", """
+            using ArxisStudio.Controls;
+            using ArxisStudio.Sdk;
+            using Avalonia;
+
+            namespace Probe;
+
+            public sealed class HeldPlugin : StudioPlugin
+            {
+                public override void Activate(IStudioContext context) => _ = Badge.CountProperty;
+            }
+
+            public sealed class Badge : AxUserControl
+            {
+                public static readonly StyledProperty<int> CountProperty =
+                    AvaloniaProperty.Register<Badge, int>(nameof(Count));
+
+                public int Count
+                {
+                    get => GetValue(CountProperty);
+                    set => SetValue(CountProperty, value);
+                }
+            }
+            """);
+
+        // Обновление ставится из копии папки: установка поверх заменяет каталог плагина целиком.
+        var incoming = Path.Combine(_root, "..", $"arxis-held-{Guid.NewGuid():N}");
+
+        Copy(folder, incoming);
+
+        var plugins = Start();
+        var dialogs = new Dialogs { Folder = incoming };
+        var page = new ArxisStudio.Settings.PluginsPage(new PluginCatalog(_root), plugins, dialogs);
+        var asked = new List<string>();
+        var required = Localizer.Instance["restart.required"];
+
+        plugins.RestartRequired += (_, plugin) => asked.Add(plugin);
+
+        try
+        {
+            // Работающему применять нечего, и заранее он молчит.
+            Assert.False(Card().NeedsRestart, "работающий плагин уже требует перезапуска — применять пока нечего");
+
+            await plugins.ReloadAsync(id);
+
+            Assert.Equal([id], asked);
+            Assert.Contains("Badge", plugins.AwaitingRestart[id], StringComparison.Ordinal);
+            Assert.Contains(_log.Records, record =>
+                record.Level == StudioLogLevel.Warning && record.Message.Contains("Badge", StringComparison.Ordinal));
+
+            page.Refresh();
+
+            Assert.True(Card().NeedsRestart, "менеджер не сказал, что плагин ждёт перезапуска");
+            Assert.Equal(required, Card().Status);
+            Assert.Null(Card().Problem);
+
+            await page.InstallFromFolderAsync();
+
+            Assert.EndsWith(required, page.Status, StringComparison.Ordinal);
+            Assert.DoesNotContain("Badge", page.Status, StringComparison.Ordinal);
+
+            // Та же причина — не новый повод: вопрос о перезапуске не должен звучать на каждое действие.
+            Assert.Equal([id], asked);
+
+            Assert.Null(new PluginCatalog(_root).SetEnabled(id, false));
+            Assert.Null(await plugins.ApplyAsync([id], []));
+
+            await page.RemoveAsync(Card());
+
+            Assert.DoesNotContain(page.Cards, card => card.Plugin.Id == id);
+            Assert.EndsWith(required, page.Status, StringComparison.Ordinal);
+            Assert.DoesNotContain("Badge", page.Status, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(incoming, recursive: true);
+        }
+
+        ViewModels.PluginCard Card() => Assert.Single(page.Cards, card => card.Plugin.Id == id);
+
+        static void Copy(string from, string to)
+        {
+            foreach (var file in Directory.EnumerateFiles(from, "*", SearchOption.AllDirectories))
+            {
+                var target = Path.Combine(to, Path.GetRelativePath(from, file));
+
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                File.Copy(file, target);
+            }
+        }
     }
 
     /// <summary>
@@ -1208,6 +1396,22 @@ public class StudioPluginsTests : IDisposable
     /// <summary>Проект, который отдаёт подставная служба.</summary>
     private static readonly CanonicalPath ProbeSolution =
         CanonicalPath.Create(Path.Combine(Path.GetTempPath(), "Проба", "Проба.slnx"));
+
+    /// <summary>Диалоги менеджера: папку отдают названную, на вопросы соглашаются.</summary>
+    private sealed class Dialogs : ArxisStudio.Settings.IPluginDialogs
+    {
+        public string? Folder { get; init; }
+
+        public Task<string?> AskFolderAsync(string title) => Task.FromResult(Folder);
+
+        public Task<string?> AskArchiveAsync(string title) => Task.FromResult<string?>(null);
+
+        public Task<bool> ConfirmAsync(string title, string message, string confirm, bool danger) => Task.FromResult(true);
+
+        public void Reveal(string path)
+        {
+        }
+    }
 
     /// <summary>Строка состояния, которой здесь никто не смотрит.</summary>
     private sealed class Silence : IStudioStatus

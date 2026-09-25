@@ -249,6 +249,11 @@
                              Data="{x:Static ax:AxIcons.Error}" Foreground="{DynamicResource AxErrorBrush}"
                              ToolTip.Tip="{Binding Problem}" IsVisible="{Binding IsProblem}"
                              AutomationProperties.AccessibilityView="Raw"/>
+                  <!-- Ждёт перезапуска — значком обновления, как у Rider; словами — в подсказке и для диктора. -->
+                  <ax:AxIcon DockPanel.Dock="Right" VerticalAlignment="Center" Margin="{DynamicResource AxSpaceLeadingThickness}"
+                             Data="{x:Static ax:AxIcons.Refresh}" Foreground="{DynamicResource AxWarningBrush}"
+                             ToolTip.Tip="{ax:Loc restart.required}" IsVisible="{Binding NeedsRestart}"
+                             AutomationProperties.AccessibilityView="Raw"/>
                   <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="{Binding Plugin.DisplayName}" TextTrimming="CharacterEllipsis" Classes.off="{Binding !IsOn}"/>
                     <TextBlock Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis"
@@ -352,6 +357,19 @@
                       <ax:AxLink DockPanel.Dock="Right" VerticalAlignment="Top" Margin="{DynamicResource AxSpaceLeadingThickness}"
                                  Content="{ax:Loc plugins.revert}" Click="OnPluginUndoClick" Tag="{Binding}"/>
                       <TextBlock TextWrapping="Wrap" Text="{Binding Pending}" AutomationProperties.LiveSetting="Polite"/>
+                    </DockPanel>
+                    <!--
+                        Изменения применит только перезапуск — строкой со знаком и ссылкой, как «Restart
+                        IDE» у Rider. Без причины: владельцы свойств Avalonia и пересобранные контракты —
+                        разговор для автора плагина, и ведётся он в журнале.
+                    -->
+                    <DockPanel IsVisible="{Binding NeedsRestart}">
+                      <ax:AxIcon DockPanel.Dock="Left" VerticalAlignment="Top" Margin="{DynamicResource AxGapIconTextThickness}"
+                                 Data="{x:Static ax:AxIcons.Warning}" Foreground="{DynamicResource AxWarningBrush}"
+                                 AutomationProperties.AccessibilityView="Raw"/>
+                      <ax:AxLink DockPanel.Dock="Right" VerticalAlignment="Top" Margin="{DynamicResource AxSpaceLeadingThickness}"
+                                 Content="{ax:Loc restart.now}" Click="OnPluginRestartClick"/>
+                      <TextBlock TextWrapping="Wrap" Text="{ax:Loc restart.required}"/>
                     </DockPanel>
 
                     <StackPanel Spacing="{DynamicResource AxGapControls}" IsVisible="{Binding HasDescription}">
