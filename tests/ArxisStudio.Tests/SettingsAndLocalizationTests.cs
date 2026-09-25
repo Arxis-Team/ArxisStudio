@@ -8,16 +8,13 @@ namespace ArxisStudio.Tests;
 /// <summary>Настройки студии и словари локализации.</summary>
 public class SettingsStoreTests : IDisposable
 {
-    private readonly string _directory = Path.Combine(Path.GetTempPath(), $"arxis-settings-{Guid.NewGuid():N}");
+    private readonly string _directory = TempFolder.Create("settings");
 
     private string SettingsFile => Path.Combine(_directory, "settings.json");
 
-    public SettingsStoreTests() => Directory.CreateDirectory(_directory);
-
     public void Dispose()
     {
-        if (Directory.Exists(_directory))
-            Directory.Delete(_directory, recursive: true);
+        TempFolder.Erase(_directory, strict: true);
 
         GC.SuppressFinalize(this);
     }
@@ -95,7 +92,7 @@ public class LocalizerTests
     [InlineData("templates/Arxis.Language/lang/xx.json")]
     public void A_shipped_dictionary_is_json_that_parses(string relative)
     {
-        var path = Path.Combine(Repository(), relative.Replace('/', Path.DirectorySeparatorChar));
+        var path = Path.Combine(Repository.Root, relative.Replace('/', Path.DirectorySeparatorChar));
 
         Assert.True(File.Exists(path), path);
 
@@ -125,7 +122,7 @@ public class LocalizerTests
     [InlineData("templates/Arxis.Language/lang/xx.json")]
     public void A_shipped_dictionary_names_each_key_once(string relative)
     {
-        var path = Path.Combine(Repository(), relative.Replace('/', Path.DirectorySeparatorChar));
+        var path = Path.Combine(Repository.Root, relative.Replace('/', Path.DirectorySeparatorChar));
 
         Assert.True(File.Exists(path), path);
 
@@ -139,19 +136,6 @@ public class LocalizerTests
             .ToList();
 
         Assert.True(twice.Count == 0, $"ключи названы дважды: {string.Join(", ", twice)}");
-    }
-
-    /// <summary>Корень репозитория: тесты бегут из bin, файлы лежат выше.</summary>
-    private static string Repository()
-    {
-        var folder = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (folder is not null && !File.Exists(Path.Combine(folder.FullName, "ArxisStudio.slnx")))
-            folder = folder.Parent;
-
-        Assert.True(folder is not null, "не нашёл корень репозитория");
-
-        return folder!.FullName;
     }
 
     [Fact]

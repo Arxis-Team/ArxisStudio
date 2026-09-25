@@ -20,8 +20,8 @@ public class PluginIconTests : IDisposable
 
     public void Dispose()
     {
-        foreach (var folder in _folders.Where(Directory.Exists))
-            Directory.Delete(folder, recursive: true);
+        foreach (var folder in _folders)
+            TempFolder.Erase(folder, strict: true);
 
         GC.SuppressFinalize(this);
     }
@@ -82,7 +82,7 @@ public class PluginIconTests : IDisposable
         var folder = Folder();
         var small = Path.Combine(folder, "small.png");
         var big = Path.Combine(folder, "big.png");
-        var icon = File.ReadAllBytes(Path.Combine(Sample(), "assets", "icon.png"));
+        var icon = File.ReadAllBytes(Path.Combine(Repository.Path("src", "Plugins", "Arxis.HelloPlugin"), "assets", "icon.png"));
 
         File.WriteAllBytes(small, icon);
         File.WriteAllBytes(big, [.. icon, .. new byte[PluginIcons.MaxBytes]]);
@@ -102,7 +102,7 @@ public class PluginIconTests : IDisposable
     [AvaloniaFact]
     public void The_icon_of_the_sample_plugin_is_readable()
     {
-        var icon = new PluginIcons().Of(Path.Combine(Sample(), "assets", "icon.png"));
+        var icon = new PluginIcons().Of(Path.Combine(Repository.Path("src", "Plugins", "Arxis.HelloPlugin"), "assets", "icon.png"));
 
         Assert.NotNull(icon);
         Assert.Equal(PluginIcons.Width, icon.PixelSize.Width);
@@ -133,7 +133,7 @@ public class PluginIconTests : IDisposable
         var icons = new PluginIcons();
         var path = Path.Combine(Folder(), "icon.png");
 
-        File.Copy(Path.Combine(Sample(), "assets", "icon.png"), path);
+        File.Copy(Path.Combine(Repository.Path("src", "Plugins", "Arxis.HelloPlugin"), "assets", "icon.png"), path);
 
         var first = icons.Of(path);
 
@@ -169,18 +169,5 @@ public class PluginIconTests : IDisposable
             new PluginManifest { Id = "arxis.probe", Name = "Проба", Icon = icon },
             null,
             IsEnabled: true);
-    }
-
-    private static string Sample()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            var candidate = Path.Combine(directory.FullName, "src", "Plugins", "Arxis.HelloPlugin");
-
-            if (File.Exists(Path.Combine(candidate, "Arxis.HelloPlugin.csproj")))
-                return candidate;
-        }
-
-        throw new InvalidOperationException("Не найден пример плагина src/Plugins/Arxis.HelloPlugin");
     }
 }

@@ -17,21 +17,14 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class PluginReloadTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-reload-{Guid.NewGuid():N}");
+    private readonly string _root = TempFolder.Reserve("reload");
 
     public void Dispose()
     {
         GC.Collect();
         GC.WaitForPendingFinalizers();
 
-        try
-        {
-            if (Directory.Exists(_root))
-                Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }
@@ -170,7 +163,7 @@ public class PluginReloadTests : IDisposable
     /// <summary>Ставит пример плагина во временную папку и поднимает его.</summary>
     private PluginHost Raise(StudioCommands commands)
     {
-        var archive = Path.Combine(Sample(), "arxis.hello.axplugin");
+        var archive = HelloArchive.Path;
         var catalog = new PluginCatalog(_root);
 
         Assert.Null(catalog.InstallFromArchive(archive).Error);
@@ -184,18 +177,5 @@ public class PluginReloadTests : IDisposable
         Assert.True(host.LoadStartup(catalog.Scan()).Count == 1, "плагин не поднялся");
 
         return host;
-    }
-
-    private static string Sample()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            var candidate = Path.Combine(directory.FullName, "src", "Plugins", "Arxis.HelloPlugin");
-
-            if (File.Exists(Path.Combine(candidate, "Arxis.HelloPlugin.csproj")))
-                return candidate;
-        }
-
-        throw new InvalidOperationException("Не найден пример плагина src/Plugins/Arxis.HelloPlugin");
     }
 }

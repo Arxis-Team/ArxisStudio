@@ -13,6 +13,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
+using static ArxisStudio.Tests.SettingsHarness;
 
 namespace ArxisStudio.Tests;
 
@@ -32,19 +33,14 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class SettingsNavigationTests : IDisposable
 {
-    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(5);
-
-    private readonly string _home = Path.Combine(Path.GetTempPath(), $"arxis-settings-way-{Guid.NewGuid():N}");
+    private readonly string _home = TempFolder.Create("settings-way");
     private readonly SettingsHarness _harness = new();
-
-    public SettingsNavigationTests() => Directory.CreateDirectory(_home);
 
     public void Dispose()
     {
         _harness.Dispose();
 
-        if (Directory.Exists(_home))
-            Directory.Delete(_home, recursive: true);
+        TempFolder.Erase(_home, strict: true);
 
         GC.SuppressFinalize(this);
     }
@@ -212,7 +208,7 @@ public class SettingsNavigationTests : IDisposable
         Assert.Equal("studio.extensions", model.Page?.Id);
         Assert.True(settings.Back.IsEnabled, "после перехода по пути стрелка «назад» выключена");
 
-        await Close(settings, shown);
+        await CloseAsync(settings, shown);
         owner.Close();
     }
 
@@ -247,7 +243,7 @@ public class SettingsNavigationTests : IDisposable
 
         Assert.Equal("extension:arxis.terminal", model.Page?.Id);
 
-        await Close(settings, shown);
+        await CloseAsync(settings, shown);
         owner.Close();
     }
 
@@ -290,7 +286,7 @@ public class SettingsNavigationTests : IDisposable
         // на раздел, откуда работают с окном.
         Assert.Equal("extension:arxis.terminal", CaretSection(settings));
 
-        await Close(settings, shown);
+        await CloseAsync(settings, shown);
         owner.Close();
     }
 
@@ -322,7 +318,7 @@ public class SettingsNavigationTests : IDisposable
         Assert.Equal(themeAtOpen, theme.SelectedIndex);
         Assert.Equal(densityAtOpen, density.SelectedIndex);
 
-        await Close(settings, shown);
+        await CloseAsync(settings, shown);
         owner.Close();
     }
 
@@ -348,7 +344,7 @@ public class SettingsNavigationTests : IDisposable
         Assert.Equal("extension:arxis.terminal", CaretSection(settings));
         Assert.True(model.CanGoBack, "переход по ссылке не запомнил ветку");
 
-        await Close(settings, shown);
+        await CloseAsync(settings, shown);
         owner.Close();
     }
 
@@ -380,7 +376,7 @@ public class SettingsNavigationTests : IDisposable
         Assert.Equal("studio.appearance", model.Page?.Id);
         Assert.Equal("studio.appearance", CaretSection(settings));
 
-        await Close(settings, shown);
+        await CloseAsync(settings, shown);
         owner.Close();
     }
 
@@ -405,13 +401,6 @@ public class SettingsNavigationTests : IDisposable
                 .Any(dot => dot.IsEffectivelyVisible && dot.FindAncestorOfType<AxTreeViewItem>() == item))
             .Select(item => ((SettingsNode)item.DataContext!).Page.Id),
     ];
-
-    private static async Task Close(SettingsWindow settings, Task shown)
-    {
-        settings.Cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-
-        Assert.Same(shown, await Task.WhenAny(shown, Task.Delay(Patience)));
-    }
 
     /// <summary>Выбирает страницу так, как выбирает её дерево, — через выбранный узел.</summary>
     private static void Choose(SettingsViewModel model, string pageId) =>

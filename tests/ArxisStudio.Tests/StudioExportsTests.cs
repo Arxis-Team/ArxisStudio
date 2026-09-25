@@ -18,20 +18,12 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class StudioExportsTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-exports-{Guid.NewGuid():N}");
+    private readonly string _root = TempFolder.Create("exports");
 
-    public StudioExportsTests() => Directory.CreateDirectory(_root);
 
     public void Dispose()
     {
-        try
-        {
-            if (Directory.Exists(_root))
-                Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }

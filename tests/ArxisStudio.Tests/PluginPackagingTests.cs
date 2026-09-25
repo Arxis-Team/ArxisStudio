@@ -202,7 +202,7 @@ public class PluginPackagingTests
     public void Every_plugin_project_leaves_its_archive()
     {
         var projects = Directory
-            .GetDirectories(Path.Combine(Repository(), "src", "Plugins"))
+            .GetDirectories(Repository.Path("src", "Plugins"))
             .Where(folder => File.Exists(Path.Combine(folder, "plugin.json")) &&
                              Directory.GetFiles(folder, "*.csproj").Length > 0)
             .ToList();
@@ -239,7 +239,7 @@ public class PluginPackagingTests
     [Fact]
     public void The_archive_installs_the_way_the_studio_installs_it()
     {
-        var archive = Path.Combine(Sample(), "arxis.hello.axplugin");
+        var archive = HelloArchive.Path;
 
         Assert.True(File.Exists(archive), "архива .axplugin нет");
 
@@ -286,7 +286,7 @@ public class PluginPackagingTests
         {
             var catalog = new PluginCatalog(root);
 
-            Assert.Null(catalog.InstallFromArchive(Path.Combine(Sample(), "arxis.hello.axplugin")).Error);
+            Assert.Null(catalog.InstallFromArchive(HelloArchive.Path).Error);
 
             // Контекст закрывается здесь, а не в конце метода: пока он жив,
             // сборка плагина открыта, и папку не удалить.
@@ -427,7 +427,7 @@ public class PluginPackagingTests
     public void Everything_the_sdk_shows_a_plugin_is_shared()
     {
         var exposed = File.ReadAllLines(
-            Path.Combine(Repository(), "src", "ArxisStudio.Sdk", "ArxisStudio.Sdk.csproj"))
+            Repository.Path("src", "ArxisStudio.Sdk", "ArxisStudio.Sdk.csproj"))
             .Where(line => line.Contains("ProjectReference", StringComparison.Ordinal))
             .Select(line => line.Split('"'))
             .Where(parts => parts.Length > 1)
@@ -442,7 +442,7 @@ public class PluginPackagingTests
         Assert.All(exposed, name => Assert.True(IsShared(name), $"{name} виден плагину через SDK, но общим не объявлен"));
     }
 
-    private static string Package() => Path.Combine(Sample(), "package");
+    private static string Package() => Repository.Path("src", "Plugins", "Arxis.HelloPlugin", "package");
 
     /// <summary>Чем архив расходится с раскладкой; пусто — ничем.</summary>
     /// <remarks>
@@ -483,7 +483,7 @@ public class PluginPackagingTests
 
     /// <summary>Раскладка названного плагина репозитория.</summary>
     private static string Package(string plugin) =>
-        Path.Combine(Repository(), "src", "Plugins", plugin, "package");
+        Repository.Path("src", "Plugins", plugin, "package");
 
     /// <summary>
     /// Папка платформы у собранной студии — той же конфигурации, что у тестов.
@@ -495,47 +495,10 @@ public class PluginPackagingTests
     /// </remarks>
     private static string Studio()
     {
-        var tests = new DirectoryInfo(AppContext.BaseDirectory);
-
-        var library = Path.Combine(
-            Repository(), "src", "ArxisStudio", "bin", tests.Parent!.Name, tests.Name,
-            StudioAssemblyFolder.Library.Name);
+        var library = Path.Combine(Repository.Output("src", "ArxisStudio"), StudioAssemblyFolder.Library.Name);
 
         Assert.True(Directory.Exists(library), $"студия не собрана: нет {library}");
 
         return library;
-    }
-
-    /// <summary>Корень репозитория: над ним лежит решение.</summary>
-    private static string Repository()
-    {
-        for (var directory = new DirectoryInfo(Sample()); directory is not null; directory = directory.Parent)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "ArxisStudio.slnx")))
-                return directory.FullName;
-        }
-
-        throw new InvalidOperationException("Не найден корень репозитория: рядом нет ArxisStudio.slnx");
-    }
-
-    /// <summary>
-    /// Папка примера плагина.
-    /// </summary>
-    /// <remarks>
-    /// Ищется подъёмом от папки сборки тестов: путь от репозитория до неё
-    /// зависит от конфигурации и платформы, а сам пример узнаётся по файлу
-    /// проекта, который в нём заведомо есть.
-    /// </remarks>
-    private static string Sample()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            var candidate = Path.Combine(directory.FullName, "src", "Plugins", "Arxis.HelloPlugin");
-
-            if (File.Exists(Path.Combine(candidate, "Arxis.HelloPlugin.csproj")))
-                return candidate;
-        }
-
-        throw new InvalidOperationException("Не найден пример плагина src/Plugins/Arxis.HelloPlugin");
     }
 }

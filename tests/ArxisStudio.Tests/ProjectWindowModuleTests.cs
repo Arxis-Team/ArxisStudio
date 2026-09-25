@@ -127,7 +127,7 @@ public class ProjectWindowModuleTests
     [Fact]
     public void The_german_pack_translates_the_whole_window_and_nothing_else()
     {
-        var root = Repository();
+        var root = Repository.Root;
         var own = Keys(Path.Combine(root, "src", "Modules", "ArxisStudio.Modules.Project", "lang", "en.json"));
         var pack = Path.Combine(root, "src", "Plugins", "Arxis.Lang.De");
         var german = Keys(Path.Combine(pack, "lang", "arxis.project.de.json"));
@@ -149,18 +149,6 @@ public class ProjectWindowModuleTests
         using var document = JsonDocument.Parse(File.ReadAllText(path));
 
         return [.. document.RootElement.EnumerateObject().Select(property => property.Name)];
-    }
-
-    private static string Repository()
-    {
-        var folder = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (folder is not null && !File.Exists(Path.Combine(folder.FullName, "ArxisStudio.slnx")))
-            folder = folder.Parent;
-
-        Assert.True(folder is not null, "не нашёл корень репозитория");
-
-        return folder!.FullName;
     }
 
     private static PluginManifest Manifest()

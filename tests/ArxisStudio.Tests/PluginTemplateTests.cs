@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json;
 using ArxisStudio.Extensibility;
@@ -6,9 +5,6 @@ using ArxisStudio.Sdk;
 using ArxisStudio.Sdk.Analyzers;
 using ArxisStudio.Services;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Diagnostics;
-using Microsoft.CodeAnalysis.Text;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -34,16 +30,8 @@ public class PluginTemplateTests : IDisposable
 
     public void Dispose()
     {
-        foreach (var folder in _folders.Where(Directory.Exists))
-        {
-            try
-            {
-                Directory.Delete(folder, recursive: true);
-            }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-            {
-            }
-        }
+        foreach (var folder in _folders)
+            TempFolder.Erase(folder);
 
         GC.SuppressFinalize(this);
     }
@@ -117,25 +105,15 @@ public class PluginTemplateTests : IDisposable
     {
         var made = Generate("Probe.Figma", "probe.figma", "Проба");
 
-        var references = AppDomain.CurrentDomain.GetAssemblies()
-            .Where(assembly => !assembly.IsDynamic && assembly.Location.Length > 0)
-            .Select(assembly => assembly.Location)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(location => (MetadataReference)MetadataReference.CreateFromFile(location))
-            .ToList();
-
-        var compilation = CSharpCompilation.Create(
-            "Probe.Figma",
-            made.Sources.Select((text, at) => CSharpSyntaxTree.ParseText(text, path: $"C:/probe/{at}.cs")),
-            references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var probe = AnalyzerRun.Probe(
+            made.Sources.Select((text, at) => AnalyzerRun.Tree(text, $"C:/probe/{at}.cs")),
+            name: "Probe.Figma");
 
         var files = made.Markup
-            .Select(file => (AdditionalText)new Given(file.Path, file.Text))
-            .Append(new Given("C:/probe/plugin.json", made.Manifest))
+            .Select(file => (AdditionalText)new AdditionalFile(file.Path, file.Text))
+            .Append(new AdditionalFile("C:/probe/plugin.json", made.Manifest))
             .Concat(made.Dictionaries.Select(dictionary =>
-                (AdditionalText)new Given($"C:/probe/lang/{dictionary.Name}", dictionary.Text)))
-            .ToImmutableArray();
+                (AdditionalText)new AdditionalFile($"C:/probe/lang/{dictionary.Name}", dictionary.Text)));
 
         // Роли — как их подаёт сборка: словарь по умолчанию один, остальные переводы. Без них
         // правило сочло бы словарём по умолчанию каждый поданный файл, и ключ, забытый в
@@ -145,15 +123,10 @@ public class PluginTemplateTests : IDisposable
             dictionary => dictionary.Name == "en.json" ? "default" : "translation",
             StringComparer.Ordinal);
 
-        var analyzed = compilation.WithAnalyzers(
-            ImmutableArray.Create<DiagnosticAnalyzer>(
-                new AvaloniaWidgetAnalyzer(),
-                new MarkupWidgetAnalyzer(),
-                new ManifestStringsAnalyzer(),
-                new ToolBarAnalyzer()),
-            new AnalyzerOptions(files, new StringsRoles(roles)));
-
-        var found = await analyzed.GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
+        var found = await probe.RunAsync(
+            [new AvaloniaWidgetAnalyzer(), new MarkupWidgetAnalyzer(), new ManifestStringsAnalyzer(), new ToolBarAnalyzer()],
+            files,
+            new StringsRoles(roles));
 
         Assert.Empty(found.Select(diagnostic => $"{diagnostic.Id}: {diagnostic.GetMessage()}"));
     }
@@ -190,7 +163,7 @@ public class PluginTemplateTests : IDisposable
     {
         Ready();
 
-        var source = Template();
+        var source = Repository.Path("templates", "Arxis.Plugin");
         var target = Path.Combine(Path.GetTempPath(), $"arxis-plugin-{Guid.NewGuid():N}");
 
         _folders.Add(target);
@@ -324,19 +297,6 @@ public class PluginTemplateTests : IDisposable
             .Select(id)
             .ToList();
 
-    private static string Template()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            var candidate = Path.Combine(directory.FullName, "templates", "Arxis.Plugin");
-
-            if (File.Exists(Path.Combine(candidate, ".template.config", "template.json")))
-                return candidate;
-        }
-
-        throw new InvalidOperationException("Не найден шаблон templates/Arxis.Plugin");
-    }
-
     /// <summary>Готовый плагин, как его увидит автор.</summary>
     private sealed record Made(
         IReadOnlyList<string> Files,
@@ -345,13 +305,4 @@ public class PluginTemplateTests : IDisposable
         string Manifest,
         IReadOnlyList<(string Name, string Text)> Dictionaries,
         string Project);
-
-    /// <summary>Файл, переданный анализатору входом сборки.</summary>
-    private sealed class Given(string path, string content) : AdditionalText
-    {
-        public override string Path => path;
-
-        public override SourceText GetText(CancellationToken cancellationToken = default) =>
-            SourceText.From(content);
-    }
 }

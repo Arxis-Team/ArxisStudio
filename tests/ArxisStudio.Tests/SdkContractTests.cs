@@ -179,7 +179,7 @@ public class SdkContractTests
         {
             var catalog = new PluginCatalog(root);
 
-            Assert.Null(catalog.InstallFromArchive(Archive()).Error);
+            Assert.Null(catalog.InstallFromArchive(HelloArchive.Path).Error);
 
             using var host = new PluginHost(new StudioContextFactory(new StudioLog(), commands, null));
 
@@ -323,7 +323,7 @@ public class SdkContractTests
         {
             var catalog = new PluginCatalog(root);
 
-            Assert.Null(catalog.InstallFromArchive(Archive()).Error);
+            Assert.Null(catalog.InstallFromArchive(HelloArchive.Path).Error);
 
             var installed = Assert.Single(catalog.Scan());
             var contexts = new StudioContextFactory(new StudioLog(), new StudioCommands(), null);
@@ -371,7 +371,7 @@ public class SdkContractTests
     private static PluginManifest Manifest()
     {
         var manifest = System.Text.Json.JsonSerializer.Deserialize<PluginManifest>(
-            File.ReadAllText(Path.Combine(Sample(), "plugin.json")),
+            File.ReadAllText(Path.Combine(Repository.Path("src", "Plugins", "Arxis.HelloPlugin"), "plugin.json")),
             new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
         Assert.NotNull(manifest);
@@ -379,18 +379,4 @@ public class SdkContractTests
         return manifest!;
     }
 
-    private static string Archive() => Path.Combine(Sample(), "arxis.hello.axplugin");
-
-    private static string Sample()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            var candidate = Path.Combine(directory.FullName, "src", "Plugins", "Arxis.HelloPlugin");
-
-            if (File.Exists(Path.Combine(candidate, "Arxis.HelloPlugin.csproj")))
-                return candidate;
-        }
-
-        throw new InvalidOperationException("Не найден пример плагина src/Plugins/Arxis.HelloPlugin");
-    }
 }

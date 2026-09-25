@@ -19,7 +19,7 @@ public class DocumentationBuildTests
     [Fact]
     public void Every_project_of_the_studio_builds_its_documentation()
     {
-        var source = Path.Combine(SharedAssemblies.Repository(), "src");
+        var source = Repository.Path("src");
 
         var silent = Directory
             .EnumerateFiles(source, "*.csproj", SearchOption.AllDirectories)
@@ -43,7 +43,7 @@ public class DocumentationBuildTests
     public void The_documentation_of_the_application_stays_out_of_its_output()
     {
         var project = XDocument.Load(
-            Path.Combine(SharedAssemblies.Repository(), "src", "ArxisStudio", "ArxisStudio.csproj"));
+            Repository.Path("src", "ArxisStudio", "ArxisStudio.csproj"));
 
         Assert.Contains(
             project.Descendants("CopyDocumentationFileToOutputDirectory"),

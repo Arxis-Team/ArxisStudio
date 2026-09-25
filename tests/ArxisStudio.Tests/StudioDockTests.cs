@@ -28,16 +28,13 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class StudioDockTests : IDisposable
 {
-    private readonly string _directory = Path.Combine(Path.GetTempPath(), $"arxis-dock-{Guid.NewGuid():N}");
-
-    public StudioDockTests() => Directory.CreateDirectory(_directory);
+    private readonly string _directory = TempFolder.Create("dock");
 
     private string File => Path.Combine(_directory, "layout.json");
 
     public void Dispose()
     {
-        if (Directory.Exists(_directory))
-            Directory.Delete(_directory, recursive: true);
+        TempFolder.Erase(_directory, strict: true);
 
         GC.SuppressFinalize(this);
     }
@@ -1937,14 +1934,10 @@ public class StudioDockTests : IDisposable
     /// <summary>Кнопки в правом краю шапки оторванного окна, слева направо.</summary>
     /// <param name="window">Оторванное окно.</param>
     /// <remarks>
-    /// Кнопка «скрыть» из шапки группы сюда не попадает: в оторванном окне вид
-    /// её прячет, а в главном она стоит в той же полосе — отбираем по имени,
-    /// чтобы тест не зависел от порядка детей.
-    /// </remarks>
-    /// <remarks>
     /// Кнопки шапки — те, что положил туда владелец; части чужих шаблонов сюда не считаются.
     /// Своё имя есть у каждой: «скрыть» принадлежит группе, переполнение вкладок — полосе, и
-    /// обе приезжают вместе с шаблоном, а не с шапкой окна.
+    /// обе приезжают вместе с шаблоном, а не с шапкой окна, — и отбираются они по имени, чтобы
+    /// тест не зависел от порядка детей.
     /// </remarks>
     private static IReadOnlyList<AxButton> Chrome(DockFloat window) =>
     [
@@ -3609,7 +3602,6 @@ public class StudioDockTests : IDisposable
         Dispatcher.UIThread.RunJobs();
     }
 
-    /// <summary>Пожелание «встань с этой стороны» — как его пишет манифест.</summary>
     /// <summary>Панель, внутри которой есть куда встать каретке.</summary>
     private static Control Focusable() =>
         new StackPanel { Children = { new Border { Focusable = true, Height = 20 } } };
@@ -3618,6 +3610,7 @@ public class StudioDockTests : IDisposable
     private static Control Spot(Control panel) =>
         panel.GetVisualDescendants().OfType<Control>().First(control => control.Focusable);
 
+    /// <summary>Пожелание «встань с этой стороны» — как его пишет манифест.</summary>
     private static PluginPlacement At(string side) => new() { Side = side };
 
     private static PluginStrings Strings => PluginStrings.Studio;

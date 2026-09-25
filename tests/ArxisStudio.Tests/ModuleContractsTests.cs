@@ -18,21 +18,11 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class ModuleContractsTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-module-contracts-{Guid.NewGuid():N}");
-
-    public ModuleContractsTests() => Directory.CreateDirectory(_root);
+    private readonly string _root = TempFolder.Create("module-contracts");
 
     public void Dispose()
     {
-        try
-        {
-            if (Directory.Exists(_root))
-                Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            // Контракт живёт в общем контексте до конца процесса и держит свой файл.
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }

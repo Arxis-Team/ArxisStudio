@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Services;
 using Xunit;
@@ -19,22 +18,11 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class PluginDependencyHostTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-deps-{Guid.NewGuid():N}");
-
-    public PluginDependencyHostTests() => Directory.CreateDirectory(_root);
+    private readonly string _root = TempFolder.Create("deps");
 
     public void Dispose()
     {
-        try
-        {
-            if (Directory.Exists(_root))
-                Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            // Сборка клона может быть ещё не отпущена контекстом — папка
-            // догорит с временными файлами, тест от этого не честнее.
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }
@@ -208,42 +196,9 @@ public class PluginDependencyHostTests : IDisposable
     /// <param name="id">Идентификатор клона — он же имя папки.</param>
     /// <param name="depends">JSON-массив dependencies или null.</param>
     /// <param name="activation">JSON-массив activation; null — onStartup.</param>
-    private void Clone(string id, string? depends = null, string? activation = null)
-    {
-        var target = Path.Combine(_root, id);
-
-        ZipFile.ExtractToDirectory(Archive(), target);
-
-        // Манифест переписывается целиком: панелей у клона нет — их типы
-        // объявлены атрибутом на общей сборке, и каждый клон тащил бы одну и
-        // ту же панель в окно.
-        File.WriteAllText(
-            Path.Combine(target, "plugin.json"),
-            $$"""
-            {
-              "id": "{{id}}",
-              "name": "{{id}}",
-              "version": "1.0.0",
-              "entry": "bin/Arxis.HelloPlugin.dll",
-              "dependencies": {{depends ?? "[]"}},
-              "activation": {{activation ?? """[ "onStartup" ]"""}}
-            }
-            """);
-    }
+    private void Clone(string id, string? depends = null, string? activation = null) =>
+        HelloArchive.Clone(_root, id, depends, activation);
 
     private static PluginHost Host() =>
         new(new StudioContextFactory(new StudioLog(), new StudioCommands(), null));
-
-    private static string Archive()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            var candidate = Path.Combine(directory.FullName, "src", "Plugins", "Arxis.HelloPlugin", "arxis.hello.axplugin");
-
-            if (File.Exists(candidate))
-                return candidate;
-        }
-
-        throw new InvalidOperationException("Не найден архив примера arxis.hello.axplugin");
-    }
 }

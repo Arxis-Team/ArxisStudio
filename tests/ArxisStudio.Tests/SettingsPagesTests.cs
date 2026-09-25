@@ -8,10 +8,10 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
-using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
+using static ArxisStudio.Tests.SettingsHarness;
 
 namespace ArxisStudio.Tests;
 
@@ -30,8 +30,6 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class SettingsPagesTests : IDisposable
 {
-    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(5);
-
     private readonly SettingsHarness _harness = new();
 
     public void Dispose()
@@ -77,7 +75,7 @@ public class SettingsPagesTests : IDisposable
         Assert.False(row.Flag, "щелчок по флажку не дошёл до строки");
         Assert.True(row.HasChanges, "снятая галочка не стала правкой");
 
-        await Close(settings, shown);
+        await CloseAsync(settings, shown);
         owner.Close();
     }
 
@@ -98,7 +96,7 @@ public class SettingsPagesTests : IDisposable
 
         Assert.Equal(["Кегль", "Мигающий курсор"], Shown(settings));
 
-        await Close(settings, shown);
+        await CloseAsync(settings, shown);
         owner.Close();
     }
 
@@ -132,7 +130,7 @@ public class SettingsPagesTests : IDisposable
             Assert.Equal(start + (double)column! + (double)gap!, control, 0.5);
         }
 
-        await Close(settings, shown);
+        await CloseAsync(settings, shown);
         owner.Close();
     }
 
@@ -144,13 +142,6 @@ public class SettingsPagesTests : IDisposable
             .Where(control => control.DataContext is PluginSettingRow && control is AxCheckBox or WrapRow && control.IsEffectivelyVisible)
             .Select(control => ((PluginSettingRow)control.DataContext!).Label),
     ];
-
-    private static async Task Close(SettingsWindow settings, Task shown)
-    {
-        settings.Cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-
-        Assert.Same(shown, await Task.WhenAny(shown, Task.Delay(Patience)));
-    }
 
     /// <summary>Модуль с двумя настройками: числом и флагом.</summary>
     /// <remarks>Папка — настоящая папка терминала: из неё берутся подписи настроек.</remarks>

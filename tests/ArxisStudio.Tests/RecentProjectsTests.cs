@@ -6,16 +6,13 @@ namespace ArxisStudio.Tests;
 /// <summary>Список недавних проектов: порядок, отсутствие дублей, переживание перезапуска.</summary>
 public class RecentProjectsTests : IDisposable
 {
-    private readonly string _directory = Path.Combine(Path.GetTempPath(), $"arxis-recent-{Guid.NewGuid():N}");
+    private readonly string _directory = TempFolder.Create("recent");
 
     private string StateFile => Path.Combine(_directory, "recent.json");
 
-    public RecentProjectsTests() => Directory.CreateDirectory(_directory);
-
     public void Dispose()
     {
-        if (Directory.Exists(_directory))
-            Directory.Delete(_directory, recursive: true);
+        TempFolder.Erase(_directory, strict: true);
 
         GC.SuppressFinalize(this);
     }

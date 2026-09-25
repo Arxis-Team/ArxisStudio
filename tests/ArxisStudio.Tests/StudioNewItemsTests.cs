@@ -21,7 +21,7 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class StudioNewItemsTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-newitems-{Guid.NewGuid():N}");
+    private readonly string _root = TempFolder.Reserve("newitems");
     private readonly string _target;
     private readonly StudioLog _log = new();
     private readonly PluginGuard _guard = new();
@@ -38,13 +38,7 @@ public class StudioNewItemsTests : IDisposable
 
     public void Dispose()
     {
-        try
-        {
-            Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }

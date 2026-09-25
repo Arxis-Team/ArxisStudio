@@ -29,8 +29,7 @@ public sealed class ProjectsHistoryWatchTests : IDisposable
         MaximumDelay = TimeSpan.FromMilliseconds(500),
     };
 
-    private readonly string _root = Directory.CreateDirectory(
-        Path.Combine(Path.GetTempPath(), $"arxis-history-watch-{Guid.NewGuid():N}")).FullName;
+    private readonly string _root = TempFolder.Create("history-watch");
 
     private string HistoryRoot => Path.Combine(_root, "history");
 
@@ -42,13 +41,7 @@ public sealed class ProjectsHistoryWatchTests : IDisposable
 
     public void Dispose()
     {
-        try
-        {
-            Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
     }
 
     /// <summary>
@@ -65,7 +58,7 @@ public sealed class ProjectsHistoryWatchTests : IDisposable
         using var recorder = Recorder(studio);
         using var watcher = Follow(recorder);
 
-        await Settle(recorder);
+        await ProjectsStudio.SettleAsync(recorder);
 
         var store = Store(recorder);
         var before = store.Known(Greeter)?.Content;
@@ -114,7 +107,7 @@ public sealed class ProjectsHistoryWatchTests : IDisposable
         using (var first = Recorder(studio))
         using (Follow(first))
         {
-            await Settle(first);
+            await ProjectsStudio.SettleAsync(first);
 
             Assert.Empty(Store(first).Actions);
 
@@ -136,7 +129,7 @@ public sealed class ProjectsHistoryWatchTests : IDisposable
         using var second = Recorder(studio);
         using var watcher = Follow(second);
 
-        await Settle(second);
+        await ProjectsStudio.SettleAsync(second);
 
         var actions = Store(second).Actions;
         var changes = actions.SelectMany(action => action.Changes).ToList();
@@ -174,7 +167,7 @@ public sealed class ProjectsHistoryWatchTests : IDisposable
         using var recorder = Recorder(studio);
         using var watcher = Follow(recorder);
 
-        await Settle(recorder);
+        await ProjectsStudio.SettleAsync(recorder);
 
         var store = Store(recorder);
 
@@ -196,7 +189,7 @@ public sealed class ProjectsHistoryWatchTests : IDisposable
         using var recorder = Recorder(studio);
         using var watcher = Follow(recorder);
 
-        await Settle(recorder);
+        await ProjectsStudio.SettleAsync(recorder);
 
         var renamed = Path.Combine(Lib, "Welcome.cs");
 
@@ -230,7 +223,7 @@ public sealed class ProjectsHistoryWatchTests : IDisposable
         using var recorder = Recorder(studio);
         using var watcher = Follow(recorder);
 
-        await Settle(recorder);
+        await ProjectsStudio.SettleAsync(recorder);
 
         var store = Store(recorder);
         var known = new[] { "A.cs", "B.cs" }.Select(name => store.Known(Path.Combine(models, name))?.Content).ToList();
@@ -265,7 +258,7 @@ public sealed class ProjectsHistoryWatchTests : IDisposable
         using var recorder = Recorder(studio);
         using var watcher = Follow(recorder);
 
-        await Settle(recorder);
+        await ProjectsStudio.SettleAsync(recorder);
 
         var store = Store(recorder);
 
@@ -285,7 +278,7 @@ public sealed class ProjectsHistoryWatchTests : IDisposable
         using var studio = new ProjectsStudio();
         using var recorder = Recorder(studio);
 
-        await Settle(recorder);
+        await ProjectsStudio.SettleAsync(recorder);
 
         Assert.Null(recorder.Store);
         Assert.Contains(studio.Written, record => record.Message.Contains("другая студия", StringComparison.Ordinal));
@@ -317,7 +310,7 @@ public sealed class ProjectsHistoryWatchTests : IDisposable
         var host = ((ProjectsModule)Assert.Single(studio.Module.Entries)).Host!;
         var history = host.History;
 
-        await Settle(history);
+        await ProjectsStudio.SettleAsync(history);
 
         var watcher = Assert.IsType<HistoryWatcher>(host.Session?.History);
 
@@ -329,7 +322,7 @@ public sealed class ProjectsHistoryWatchTests : IDisposable
         Assert.Equal(HistoryChangeKind.Modified, Assert.Single(Assert.Single(Store(history).Actions).Changes).Kind);
 
         studio.Settings.Set(ProjectsSettings.HistoryKey, false);
-        await Settle(history);
+        await ProjectsStudio.SettleAsync(history);
 
         Assert.Null(host.Session?.History);
         Assert.Null(history.Store);
@@ -383,26 +376,6 @@ public sealed class ProjectsHistoryWatchTests : IDisposable
             watcher.Report(path);
 
         watcher.Flush();
-        await Settle(recorder);
-    }
-
-    /// <summary>
-    /// Ждёт, пока очередь записи опустеет: несколько кругов, потому что дело опорного снимка ставит
-    /// в очередь свои куски.
-    /// </summary>
-    private static async Task Settle(HistoryRecorder recorder)
-    {
-        for (var round = 0; round < 4; round++)
-        {
-            var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
-            Assert.True(recorder.Enqueue(() =>
-            {
-                done.TrySetResult();
-                return Task.CompletedTask;
-            }), "очередь истории закрыта");
-
-            await done.Task.WaitAsync(TimeSpan.FromSeconds(30), Token);
-        }
+        await ProjectsStudio.SettleAsync(recorder);
     }
 }

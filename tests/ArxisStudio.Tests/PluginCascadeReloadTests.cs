@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using System.Runtime.CompilerServices;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Services;
@@ -19,25 +18,16 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class PluginCascadeReloadTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-cascade-{Guid.NewGuid():N}");
+    private readonly string _root = TempFolder.Create("cascade");
 
     // Ссылка, которую «забыли»: объект плагина, оставшийся у студии, держит его контекст загрузки.
     private object? _forgotten;
-
-    public PluginCascadeReloadTests() => Directory.CreateDirectory(_root);
 
     public void Dispose()
     {
         _forgotten = null;
 
-        try
-        {
-            if (Directory.Exists(_root))
-                Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }
@@ -177,41 +167,9 @@ public class PluginCascadeReloadTests : IDisposable
     private void Start(PluginHost host, int expected) =>
         Assert.Equal(expected, host.LoadStartup(new PluginCatalog(_root).Scan()).Count);
 
-    private void Clone(string id, string? depends = null, bool waiting = false)
-    {
-        var target = Path.Combine(_root, id);
-
-        ZipFile.ExtractToDirectory(Archive(), target);
-
-        var activation = waiting ? $"""[ "onCommand:{id}.run" ]""" : """[ "onStartup" ]""";
-
-        File.WriteAllText(
-            Path.Combine(target, "plugin.json"),
-            $$"""
-            {
-              "id": "{{id}}",
-              "name": "{{id}}",
-              "version": "1.0.0",
-              "entry": "bin/Arxis.HelloPlugin.dll",
-              "dependencies": {{depends ?? "[]"}},
-              "activation": {{activation}}
-            }
-            """);
-    }
+    private void Clone(string id, string? depends = null, bool waiting = false) =>
+        HelloArchive.Clone(_root, id, depends, waiting ? $"""[ "onCommand:{id}.run" ]""" : null);
 
     private static PluginHost Host(StudioCommands? commands = null) =>
         new(new StudioContextFactory(new StudioLog(), commands ?? new StudioCommands(), null));
-
-    private static string Archive()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            var candidate = Path.Combine(directory.FullName, "src", "Plugins", "Arxis.HelloPlugin", "arxis.hello.axplugin");
-
-            if (File.Exists(candidate))
-                return candidate;
-        }
-
-        throw new InvalidOperationException("Не найден архив примера arxis.hello.axplugin");
-    }
 }

@@ -14,6 +14,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
+using static ArxisStudio.Tests.SettingsHarness;
 
 namespace ArxisStudio.Tests;
 
@@ -28,8 +29,6 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class SettingsRestartTests : IDisposable
 {
-    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(5);
-
     private readonly SettingsHarness _harness = new();
     private readonly List<Window> _asked = [];
     private readonly List<string> _performed = [];
@@ -54,7 +53,7 @@ public class SettingsRestartTests : IDisposable
         _harness.Plugins.Await("arxis.one", "Probe.Held заводит свои свойства и события Avalonia — Badge");
 
         var (owner, settings, shown) = _harness.Open(page: "studio.plugins");
-        var card = Page(settings).Cards.Single();
+        var card = PluginsOf(settings).Cards.Single();
         var row = Row(settings, card);
         var required = Localizer.Instance["restart.required"];
         var texts = Texts(settings);
@@ -72,7 +71,7 @@ public class SettingsRestartTests : IDisposable
         Assert.Equal(required, ToolTip.GetTip(marker));
         Assert.Equal(required, AutomationProperties.GetItemStatus(row));
 
-        await Close(settings, shown);
+        await CloseAsync(settings, shown);
         owner.Close();
     }
 
@@ -87,7 +86,7 @@ public class SettingsRestartTests : IDisposable
 
         var restart = Restart(agree: true);
         var (owner, settings, shown) = _harness.Open(page: "studio.plugins", restart: restart);
-        var page = Page(settings);
+        var page = PluginsOf(settings);
 
         await page.ToggleAsync(page.Cards.Single());
 
@@ -95,7 +94,7 @@ public class SettingsRestartTests : IDisposable
 
         restart.Perform = () =>
         {
-            _performed.Add(Page(settings).Cards.Single().Plugin.IsEnabled ? "включён" : "выключен");
+            _performed.Add(PluginsOf(settings).Cards.Single().Plugin.IsEnabled ? "включён" : "выключен");
             return Task.FromResult(true);
         };
 
@@ -106,7 +105,7 @@ public class SettingsRestartTests : IDisposable
         Assert.Equal(["выключен"], _performed);
         Assert.False(Model(settings).HasChanges, "перезапуск начался, а несохранённое так и не записалось");
 
-        await Close(settings, shown);
+        await CloseAsync(settings, shown);
         owner.Close();
     }
 
@@ -120,7 +119,7 @@ public class SettingsRestartTests : IDisposable
 
         var restart = Restart(agree: false);
         var (owner, settings, shown) = _harness.Open(page: "studio.plugins", restart: restart);
-        var card = Page(settings).Cards.Single();
+        var card = PluginsOf(settings).Cards.Single();
 
         _harness.Plugins.Await("arxis.one", "прежняя копия осталась в памяти");
 
@@ -139,10 +138,10 @@ public class SettingsRestartTests : IDisposable
 
         Assert.Equal([settings], _asked);
         Assert.Empty(_performed);
-        Assert.Empty(Page(settings).Cards);
-        Assert.EndsWith(Localizer.Instance["restart.required"], Page(settings).Status, StringComparison.Ordinal);
+        Assert.Empty(PluginsOf(settings).Cards);
+        Assert.EndsWith(Localizer.Instance["restart.required"], PluginsOf(settings).Status, StringComparison.Ordinal);
 
-        await Close(settings, shown);
+        await CloseAsync(settings, shown);
         owner.Close();
     }
 
@@ -159,14 +158,14 @@ public class SettingsRestartTests : IDisposable
         _harness.Install("arxis.one", "Первый");
 
         var (owner, settings, shown) = _harness.Open(page: "studio.plugins");
-        var page = Page(settings);
+        var page = PluginsOf(settings);
 
         await page.ToggleAsync(page.Cards.Single());
 
         settings.CloseForRestart();
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Same(shown, await Task.WhenAny(shown, Task.Delay(Patience)));
+        await ClosedAsync(shown);
         Assert.Empty(owner.OwnedWindows);
 
         owner.Close();
@@ -191,7 +190,7 @@ public class SettingsRestartTests : IDisposable
         };
 
         var (owner, settings, shown) = _harness.Open(restore: restore);
-        var page = Page(settings);
+        var page = PluginsOf(settings);
 
         Assert.Equal("studio.plugins", Model(settings).Page?.Id);
         Assert.Equal("arxis", Model(settings).Search);
@@ -208,7 +207,7 @@ public class SettingsRestartTests : IDisposable
         Assert.False(snapshot.Folded["external"]);
         Assert.Equal(new PixelPoint(123, 77), new PixelPoint(snapshot.Window!.X, snapshot.Window.Y));
 
-        await Close(settings, shown);
+        await CloseAsync(settings, shown);
         owner.Close();
     }
 
@@ -285,17 +284,8 @@ public class SettingsRestartTests : IDisposable
 
     private static SettingsViewModel Model(SettingsWindow settings) => (SettingsViewModel)settings.DataContext!;
 
-    private static PluginsPage Page(SettingsWindow settings) =>
-        Assert.IsType<PluginsPage>(Model(settings).Page);
-
-    private static AxListBoxItem Row(SettingsWindow settings, PluginCard card) =>
-        settings.GetVisualDescendants().OfType<AxListBoxItem>().Single(row => ReferenceEquals(row.DataContext, card));
-
     private static AxLink Link(SettingsWindow settings, string content) =>
         settings.GetVisualDescendants().OfType<AxLink>().Single(link => link.IsEffectivelyVisible && Equals(link.Content, content));
-
-    private static List<string?> Texts(SettingsWindow settings) =>
-        [.. settings.GetVisualDescendants().OfType<TextBlock>().Where(text => text.IsEffectivelyVisible).Select(text => text.Text)];
 
     /// <summary>Прогоняет диспетчер, пока условие не станет истинным, — но не дольше терпения.</summary>
     private static async Task Until(Func<bool> condition)
@@ -309,12 +299,5 @@ public class SettingsRestartTests : IDisposable
         }
 
         Assert.True(condition(), "не дождались");
-    }
-
-    private static async Task Close(SettingsWindow settings, Task shown)
-    {
-        settings.Cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-
-        Assert.Same(shown, await Task.WhenAny(shown, Task.Delay(Patience)));
     }
 }

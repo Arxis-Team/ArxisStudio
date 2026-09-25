@@ -14,17 +14,14 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class StudioLanguagesTests : IDisposable
 {
-    private readonly string _folder = Path.Combine(Path.GetTempPath(), $"arxis-lang-{Guid.NewGuid():N}");
-
-    public StudioLanguagesTests() => Directory.CreateDirectory(_folder);
+    private readonly string _folder = TempFolder.Create("lang");
 
     public void Dispose()
     {
         Localizer.Instance.UseFolders();
         Localizer.Instance.SetLanguage(Localizer.FallbackLanguage);
 
-        if (Directory.Exists(_folder))
-            Directory.Delete(_folder, recursive: true);
+        TempFolder.Erase(_folder, strict: true);
 
         GC.SuppressFinalize(this);
     }

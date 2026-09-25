@@ -4,7 +4,6 @@ using ArxisStudio.Modules.Projects;
 using ArxisStudio.Modules.Projects.History;
 using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
-using ArxisStudio.Sdk;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -17,38 +16,8 @@ namespace ArxisStudio.Tests;
 /// <c>Update</c> в файле проекта, — и правится оно настоящим диском. Историю служба ведёт во
 /// временной папке теста.
 /// </remarks>
-public sealed class ProjectsHistoryTests : IDisposable
+public sealed class ProjectsHistoryTests() : ProjectsOnDisk("projects-history")
 {
-    private const string Project = """
-        <Project Sdk="Microsoft.NET.Sdk">
-          <ItemGroup>
-            <None Update="Views\Readme.txt" CopyToOutputDirectory="Always" />
-          </ItemGroup>
-        </Project>
-        """;
-
-    private readonly string _root = Directory.CreateDirectory(
-        Path.Combine(Path.GetTempPath(), $"arxis-projects-history-{Guid.NewGuid():N}")).FullName;
-
-    private string Solution => Path.Combine(_root, "solution");
-
-    private string Lib => Path.Combine(Solution, "Lib");
-
-    private string HistoryRoot => Path.Combine(_root, "history");
-
-    private static CancellationToken Token => TestContext.Current.CancellationToken;
-
-    public void Dispose()
-    {
-        try
-        {
-            Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
-    }
-
     /// <summary>
     /// Отмена переименования возвращает оба файла под прежние имена одним действием «Отмена: …»,
     /// перечитывает модель и говорит о переехавшем.
@@ -67,7 +36,7 @@ public sealed class ProjectsHistoryTests : IDisposable
 
         Assert.Equal("Переименование MainWindow.axaml", last?.Label);
 
-        var moved = Record(studio);
+        var moved = studio.RecordFileChanges();
 
         await Succeeds(studio.History.UndoAsync(last!.Id, Token));
         await studio.Thread.IdleAsync();
@@ -75,15 +44,15 @@ public sealed class ProjectsHistoryTests : IDisposable
         Assert.True(File.Exists(At("Views/MainWindow.axaml")) && File.Exists(At("Views/MainWindow.axaml.cs")), "файлы не вернулись");
         Assert.False(File.Exists(At("Views/Main.axaml")), "под новым именем файл остался");
 
-        var undo = Store(studio).Actions[^1];
+        var undo = studio.HistoryStore.Actions[^1];
 
         // Метку отмены пишет служба словами своего словаря; язык процесса тестов — английский.
         Assert.EndsWith(": Переименование MainWindow.axaml", undo.Label, StringComparison.Ordinal);
         Assert.Equal(last.Id, undo.Undoes);
         Assert.Equal(2, Assert.Single(moved).Moved.Length);
         Assert.Equal(ProjectsLoadReason.Files, studio.Projects.Status.LastLoad?.Reason);
-        Assert.NotNull(Store(studio).Known(At("Views/MainWindow.axaml.cs")));
-        Assert.Null(Store(studio).Known(At("Views/Main.axaml.cs")));
+        Assert.NotNull(studio.HistoryStore.Known(At("Views/MainWindow.axaml.cs")));
+        Assert.Null(studio.HistoryStore.Known(At("Views/Main.axaml.cs")));
         Assert.Null(studio.History.LastStudioAction);
     }
 
@@ -142,7 +111,7 @@ public sealed class ProjectsHistoryTests : IDisposable
     {
         using var studio = await OpenAsync();
         var original = File.ReadAllBytes(At("Lib.csproj"));
-        var deleted = Record(studio);
+        var deleted = studio.RecordFileChanges();
 
         await Succeeds(studio.Files.DeleteAsync([Canon("Views")], "Удаление Views", Token));
 
@@ -301,13 +270,13 @@ public sealed class ProjectsHistoryTests : IDisposable
     {
         using var studio = await OpenAsync();
 
-        Store(studio).Record("Чужое решение", HistoryOrigin.Studio,
+        studio.HistoryStore.Record("Чужое решение", HistoryOrigin.Studio,
         [
-            new HistoryChange { Kind = HistoryChangeKind.Created, Path = Path.Combine(_root, "other", "Other.cs") },
+            new HistoryChange { Kind = HistoryChangeKind.Created, Path = Path.Combine(Root, "other", "Other.cs") },
         ]);
 
         Assert.Null(studio.History.LastStudioAction);
-        Assert.Equal(ProjectsDiagnosticCodes.OutsideProjects, Code(await studio.History.UndoAsync(Store(studio).Actions[^1].Id, Token)));
+        Assert.Equal(ProjectsDiagnosticCodes.OutsideProjects, Code(await studio.History.UndoAsync(studio.HistoryStore.Actions[^1].Id, Token)));
     }
 
     /// <summary>
@@ -320,7 +289,7 @@ public sealed class ProjectsHistoryTests : IDisposable
 
         await Edit(studio, "Greeter.cs", "class Greeter { int X; }");
 
-        var edit = Store(studio).Actions[^1];
+        var edit = studio.HistoryStore.Actions[^1];
 
         await Edit(studio, "Greeter.cs", "class Greeter { }");
         await Succeeds(studio.Files.MoveAsync([Pair("appsettings.json", "settings.json")], "Переименование appsettings.json", Token));
@@ -334,7 +303,7 @@ public sealed class ProjectsHistoryTests : IDisposable
             var result = await studio.History.UndoAsync(id, Token);
 
             Assert.Equal(ProjectsDiagnosticCodes.ChangedSince, Code(result));
-            Assert.Contains(Store(studio).Find(id)!.Label, Assert.Single(result.Diagnostics).Message, StringComparison.Ordinal);
+            Assert.Contains(studio.HistoryStore.Find(id)!.Label, Assert.Single(result.Diagnostics).Message, StringComparison.Ordinal);
         }
     }
 
@@ -380,7 +349,7 @@ public sealed class ProjectsHistoryTests : IDisposable
 
         Assert.Equal(ProjectsDiagnosticCodes.ChangedSince, Code(await studio.History.UndoAsync(rename.Id, Token)));
 
-        await Succeeds(studio.History.UndoAsync(Store(studio).Actions[^1].Id, Token));
+        await Succeeds(studio.History.UndoAsync(studio.HistoryStore.Actions[^1].Id, Token));
 
         Assert.True(File.Exists(At("Hello.cs")) && !File.Exists(At("Greeter.cs")), "отмена отмены не вернула переименование");
         Assert.Equal(rename.Id, studio.History.LastStudioAction?.Id);
@@ -415,7 +384,7 @@ public sealed class ProjectsHistoryTests : IDisposable
         using var studio = await OpenAsync();
 
         studio.Settings.Set(ProjectsSettings.HistoryMaxFileMbKey, 1d);
-        await Settle(Host(studio).History);
+        await studio.SettleHistoryAsync();
         File.WriteAllBytes(At("Assets.bin"), new byte[(1024 * 1024) + 1]);
 
         await Succeeds(studio.Files.CopyAsync(
@@ -443,7 +412,7 @@ public sealed class ProjectsHistoryTests : IDisposable
         await Succeeds(studio.History.PutLabelAsync("метка", Token));
         await Edit(studio, "Hello.cs", "class Hello { }");
 
-        Assert.Equal(HistoryOrigin.External, Store(studio).Actions[^1].Origin);
+        Assert.Equal(HistoryOrigin.External, studio.HistoryStore.Actions[^1].Origin);
         Assert.Equal("Первое", studio.History.LastStudioAction?.Label);
     }
 
@@ -459,7 +428,7 @@ public sealed class ProjectsHistoryTests : IDisposable
         using (var before = await OpenAsync())
         {
             await Succeeds(before.Files.MoveAsync([Pair("Greeter.cs", "Hello.cs")], "Вчерашнее", Token));
-            earlier = Host(before).History;
+            earlier = before.Service.History;
         }
 
         // Хранилище закрывается последним делом очереди, а папку истории держит, пока открыто.
@@ -467,7 +436,7 @@ public sealed class ProjectsHistoryTests : IDisposable
 
         using var studio = await OpenAsync(write: false);
 
-        Assert.Contains(Store(studio).Actions, action => action.Label == "Вчерашнее");
+        Assert.Contains(studio.HistoryStore.Actions, action => action.Label == "Вчерашнее");
         Assert.Null(studio.History.LastStudioAction);
 
         await Succeeds(studio.Files.MoveAsync([Pair("Hello.cs", "Greeter.cs")], "Сегодняшнее", Token));
@@ -484,7 +453,7 @@ public sealed class ProjectsHistoryTests : IDisposable
         using var studio = await OpenAsync();
 
         studio.Settings.Set(ProjectsSettings.HistoryMaxFileMbKey, 1d);
-        await Settle(Host(studio).History);
+        await studio.SettleHistoryAsync();
         File.WriteAllBytes(At("Assets.bin"), new byte[(1024 * 1024) + 1]);
 
         await Succeeds(studio.Files.DeleteAsync([Canon("Assets.bin"), Canon("Greeter.cs")], "Удаление", Token));
@@ -523,11 +492,11 @@ public sealed class ProjectsHistoryTests : IDisposable
         Assert.Equal(sequence, studio.Projects.Status.Sequence);
 
         // Файл уже такой: второй возврат ничего не пишет.
-        var recorded = Store(studio).Last;
+        var recorded = studio.HistoryStore.Last;
 
         await Succeeds(studio.History.RevertAsync(Canon("Greeter.cs"), edit.Before, "Возврат Greeter.cs", Token));
 
-        Assert.Equal(recorded, Store(studio).Last);
+        Assert.Equal(recorded, studio.HistoryStore.Last);
 
         await Succeeds(studio.History.UndoAsync(studio.History.LastStudioAction!.Id, Token));
 
@@ -549,7 +518,7 @@ public sealed class ProjectsHistoryTests : IDisposable
         await Succeeds(studio.History.RevertAsync(Canon("Greeter.cs"), gone.Before, "Возврат Greeter.cs", Token));
 
         Assert.Equal("class Greeter { }", File.ReadAllText(At("Greeter.cs")));
-        Assert.Equal(HistoryChangeKind.Created, Assert.Single(Store(studio).Actions[^1].Changes).Kind);
+        Assert.Equal(HistoryChangeKind.Created, Assert.Single(studio.HistoryStore.Actions[^1].Changes).Kind);
 
         // Появившийся файл — перемена состава: модель перечитана раньше, чем возврат вернулся.
         Assert.True(studio.Projects.Status.Sequence > sequence, "модель не перечитана");
@@ -570,7 +539,7 @@ public sealed class ProjectsHistoryTests : IDisposable
             .First(change => change.Kind == LocalHistoryChangeKind.Modified);
 
         studio.Settings.Set(ProjectsSettings.HistoryMaxFileMbKey, 1d);
-        await Settle(Host(studio).History);
+        await studio.SettleHistoryAsync();
 
         var big = new string('x', (1024 * 1024) + 1);
 
@@ -655,54 +624,17 @@ public sealed class ProjectsHistoryTests : IDisposable
         Assert.Equal(ProjectsDiagnosticCodes.HistoryUnavailable, Code(await studio.History.PutLabelAsync("метка", Token)));
     }
 
-    /// <summary>Решение на диске, открытое службой с историей, — и опорный снимок снят.</summary>
-    /// <param name="history">Вести ли историю.</param>
-    /// <param name="write">Раскладывать ли решение заново: второй запуск открывает то, что оставил первый.</param>
-    private async Task<ProjectsStudio> OpenAsync(bool history = true, bool write = true)
-    {
-        if (write)
-        {
-            Directory.CreateDirectory(Path.Combine(Lib, "Views"));
-            File.WriteAllText(Path.Combine(Solution, "Hello.slnx"), "<Solution />");
-            File.WriteAllText(At("Lib.csproj"), Project.ReplaceLineEndings("\r\n"), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
-            File.WriteAllText(At("Greeter.cs"), "class Greeter { }");
-            File.WriteAllText(At("appsettings.json"), "{ }");
-            File.WriteAllText(At("Views/MainWindow.axaml"), "<Window />");
-            File.WriteAllText(At("Views/MainWindow.axaml.cs"), "partial class MainWindow { }");
-            File.WriteAllText(At("Views/Readme.txt"), "прочти");
-            Directory.CreateDirectory(Path.Combine(Solution, "App"));
-            File.WriteAllText(Path.Combine(Solution, "App", "App.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\" />");
-            File.WriteAllText(Path.Combine(Solution, "App", "Program.cs"), "class Program { }");
-        }
-
-        var studio = new ProjectsStudio(historyRoot: history ? HistoryRoot : null);
-
-        studio.Provider.Projects =
-        [
-            ("Lib", ["Greeter.cs", "appsettings.json", "Views/MainWindow.axaml", "Views/MainWindow.axaml.cs"]),
-            ("App", ["Program.cs"]),
-        ];
-
-        var opened = await studio.Projects.OpenAsync(CanonicalPath.Create(Path.Combine(Solution, "Hello.slnx")), Token);
-
-        Assert.True(opened.HasSnapshot, "решение не открылось");
-
-        await Settle(Host(studio).History);
-
-        return studio;
-    }
-
     /// <summary>Правит файл мимо студии и ждёт, пока история запишет правку внешней.</summary>
     private async Task Edit(ProjectsStudio studio, string relative, string text)
     {
         File.WriteAllText(At(relative), text);
 
-        var host = Host(studio);
+        var host = studio.Service;
         var watcher = host.Session?.History ?? throw new InvalidOperationException("история сессии не ведётся");
 
         watcher.Report(At(relative));
         watcher.Flush();
-        await Settle(host.History);
+        await ProjectsStudio.SettleAsync(host.History);
     }
 
     private static async Task Succeeds(Task<ProjectOperationResult> operation)
@@ -710,48 +642,5 @@ public sealed class ProjectsHistoryTests : IDisposable
         var result = await operation;
 
         Assert.False(result.HasErrors, Said(result));
-    }
-
-    private static ProjectsHost Host(ProjectsStudio studio) =>
-        ((ProjectsModule)Assert.Single(studio.Module.Entries)).Host ?? throw new InvalidOperationException("служба не поднята");
-
-    private static LocalHistoryStore Store(ProjectsStudio studio) =>
-        Host(studio).History.Store ?? throw new InvalidOperationException("история не открылась");
-
-    private static List<FilesChangedEventArgs> Record(ProjectsStudio studio)
-    {
-        var seen = new List<FilesChangedEventArgs>();
-
-        studio.Files.Changed += (_, change) => seen.Add(change);
-
-        return seen;
-    }
-
-    private string At(string relative) =>
-        Path.GetFullPath(Path.Combine(Lib, relative.Replace('/', Path.DirectorySeparatorChar)));
-
-    private CanonicalPath Canon(string relative) => CanonicalPath.Create(At(relative));
-
-    private FileMove Pair(string from, string to) => new(Canon(from), Canon(to));
-
-    private static string? Code(ProjectOperationResult result) => result.Diagnostics.FirstOrDefault()?.Code;
-
-    private static string Said(ProjectOperationResult result) =>
-        string.Join("; ", result.Diagnostics.Select(diagnostic => $"{diagnostic.Code} {diagnostic.Message}"));
-
-    private static async Task Settle(HistoryRecorder recorder)
-    {
-        for (var round = 0; round < 4; round++)
-        {
-            var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
-            Assert.True(recorder.Enqueue(() =>
-            {
-                done.TrySetResult();
-                return Task.CompletedTask;
-            }), "очередь истории закрыта");
-
-            await done.Task.WaitAsync(TimeSpan.FromSeconds(30), Token);
-        }
     }
 }

@@ -18,7 +18,7 @@ public class ProjectsFilesIntegrationTests : IDisposable
 {
     private static readonly TimeSpan Patience = TimeSpan.FromMinutes(2);
 
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-projects-files-hello-{Guid.NewGuid():N}");
+    private readonly string _root = TempFolder.Reserve("projects-files-hello");
 
     /// <summary>
     /// Копия фикстуры, у приложения которой есть файл с метаданными и окно с вложенным кодом.
@@ -50,13 +50,7 @@ public class ProjectsFilesIntegrationTests : IDisposable
 
     public void Dispose()
     {
-        try
-        {
-            Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }

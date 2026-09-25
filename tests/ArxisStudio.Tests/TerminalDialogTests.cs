@@ -1,12 +1,10 @@
 using ArxisStudio.Controls;
-using ArxisStudio.Modules.Terminal;
 using ArxisStudio.Modules.Terminal.Dialogs;
 using ArxisStudio.Modules.Terminal.Shells;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
-using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Avalonia.VisualTree;

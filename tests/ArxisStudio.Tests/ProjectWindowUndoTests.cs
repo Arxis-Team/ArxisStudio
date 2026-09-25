@@ -34,7 +34,7 @@ public class ProjectWindowUndoTests
 
         using var studio = await Opened(history, window: "Main");
 
-        Expand(studio, "Views");
+        studio.Expand("Views");
 
         var renamed = studio.Row("Main.axaml").Node.Path;
         var label = "Переименование MainWindow.axaml";
@@ -304,18 +304,6 @@ public class ProjectWindowUndoTests
         Changes = [new LocalHistoryChange { Kind = LocalHistoryChangeKind.Moved, Path = path, From = from }],
     };
 
-    private static async Task<ProjectWindowStudio> Opened(HistoryProbe history, bool twoColumns = false, string window = "MainWindow")
-    {
-        var studio = new ProjectWindowStudio(twoColumns: twoColumns, files: new FilesProbe(), history: history);
-
-        await studio.Open(studio.Solution(window: window));
-
-        return studio;
-    }
-
-    private static void Expand(ProjectWindowStudio studio, string name)
-    {
-        studio.Model.Tree.Expand(studio.Row(name));
-        Dispatcher.UIThread.RunJobs();
-    }
+    private static Task<ProjectWindowStudio> Opened(HistoryProbe history, bool twoColumns = false, string window = "MainWindow") =>
+        ProjectWindowStudio.OpenedAsync(twoColumns: twoColumns, history: history, window: window);
 }

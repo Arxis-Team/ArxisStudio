@@ -138,7 +138,7 @@ public class ExtensionStringKeysTests
     /// </remarks>
     private static IReadOnlyList<string> Found()
     {
-        var repository = SharedAssemblies.Repository();
+        var repository = Repository.Root;
 
         var roots = new[]
         {

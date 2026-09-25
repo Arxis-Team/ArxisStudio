@@ -12,20 +12,13 @@ namespace ArxisStudio.Tests;
 /// </remarks>
 public sealed class LocalHistoryStoreTests : IDisposable
 {
-    private readonly string _root = Directory.CreateDirectory(
-        Path.Combine(Path.GetTempPath(), $"arxis-history-{Guid.NewGuid():N}")).FullName;
+    private readonly string _root = TempFolder.Create("history");
 
     private string History => Path.Combine(_root, "history");
 
     public void Dispose()
     {
-        try
-        {
-            Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
     }
 
     /// <summary>Одинаковое содержимое хранится одним объектом, с какого бы файла его ни сняли.</summary>

@@ -20,7 +20,7 @@ public class ProjectsContractTests
     public void The_public_surface_of_the_projects_contract_is_the_recorded_one()
     {
         PublicSurface.AssertRecorded(
-            Path.Combine(Repository(), "tests", "ArxisStudio.Tests", "Surfaces", "ArxisStudio.Projects.Contracts.txt"),
+            Repository.Path("tests", "ArxisStudio.Tests", "Surfaces", "ArxisStudio.Projects.Contracts.txt"),
             PublicSurface.Describe(typeof(IStudioProjects).Assembly));
     }
 
@@ -70,18 +70,5 @@ public class ProjectsContractTests
         Assert.Equal(
             "bin/" + Path.GetFileName(typeof(IStudioProjects).Assembly.Location),
             Assert.Single(provides.Contracts));
-    }
-
-    /// <summary>Корень репозитория: тесты бегут из bin, файлы лежат выше.</summary>
-    private static string Repository()
-    {
-        var folder = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (folder is not null && !File.Exists(Path.Combine(folder.FullName, "ArxisStudio.slnx")))
-            folder = folder.Parent;
-
-        Assert.True(folder is not null, "не нашёл корень репозитория");
-
-        return folder!.FullName;
     }
 }

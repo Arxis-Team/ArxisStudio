@@ -50,7 +50,7 @@ public class WindowPlacementTests
     /// <summary>Разметка окон приложения: имя файла и его текст.</summary>
     private static IReadOnlyList<(string Name, string Markup)> Windows() =>
         Directory
-            .EnumerateFiles(Application(), "*.axaml", SearchOption.AllDirectories)
+            .EnumerateFiles(Repository.Path("src", "ArxisStudio"), "*.axaml", SearchOption.AllDirectories)
             .Where(path => !Built(path))
             .Select(path => (Name: Path.GetFileName(path), Markup: File.ReadAllText(path)))
             .Where(file => IsWindow(file.Markup))
@@ -81,19 +81,5 @@ public class WindowPlacementTests
             .ToArray());
 
         return root.EndsWith("Window", StringComparison.Ordinal);
-    }
-
-    /// <summary>Папка приложения-оболочки в репозитории.</summary>
-    private static string Application()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            var candidate = Path.Combine(directory.FullName, "src", "ArxisStudio");
-
-            if (File.Exists(Path.Combine(candidate, "ArxisStudio.csproj")))
-                return candidate;
-        }
-
-        throw new InvalidOperationException("Не найдено приложение src/ArxisStudio");
     }
 }

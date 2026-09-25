@@ -1,12 +1,9 @@
 using System.Collections.Immutable;
-using System.Reflection;
 using ArxisStudio.Sdk.Analyzers;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Diagnostics;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -114,26 +111,8 @@ public class ThemeValueCodeAnalyzerTests
             """));
     }
 
-    private static async Task<ImmutableArray<Diagnostic>> AnalyzeAsync(string statements, string types = "")
+    private static Task<ImmutableArray<Diagnostic>> AnalyzeAsync(string statements, string types = "")
     {
-        // Сборки грузятся лениво, а ссылки собираются по загруженным: без касания
-        // типов Avalonia в списке может не оказаться вовсе, и семантической модели
-        // нечего будет разрешать.
-        Assembly[] anchors =
-        [
-            typeof(Thickness).Assembly,
-            typeof(StackPanel).Assembly,
-            typeof(Color).Assembly,
-        ];
-
-        var references = AppDomain.CurrentDomain.GetAssemblies()
-            .Concat(anchors)
-            .Where(assembly => !assembly.IsDynamic && assembly.Location.Length > 0)
-            .Select(assembly => assembly.Location)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(location => (MetadataReference)MetadataReference.CreateFromFile(location))
-            .ToList();
-
         var source = $$"""
             public static class Probe
             {
@@ -146,17 +125,8 @@ public class ThemeValueCodeAnalyzerTests
             {{types}}
             """;
 
-        var compilation = CSharpCompilation.Create(
-            "Probe",
-            [CSharpSyntaxTree.ParseText(source)],
-            references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-
-        Assert.Empty(compilation.GetDiagnostics(TestContext.Current.CancellationToken)
-            .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
-
-        var analyzed = compilation.WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new ThemeValueCodeAnalyzer()));
-
-        return await analyzed.GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
+        return AnalyzerRun.Probe(source, AnalyzerRun.References([typeof(Thickness), typeof(StackPanel), typeof(Color)]))
+            .Compiling()
+            .RunAsync(new ThemeValueCodeAnalyzer());
     }
 }

@@ -43,7 +43,7 @@ public class BrandIconTests
     {
         if (Environment.GetEnvironmentVariable("ARXIS_WRITE_ICON") == "1")
         {
-            var path = Path.Combine(Root(), "src", "ArxisStudio.Shell", "Assets", "arxis.ico");
+            var path = Repository.Path("src", "ArxisStudio.Shell", "Assets", "arxis.ico");
 
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllBytes(path, BrandIcon.Ico());
@@ -113,15 +113,5 @@ public class BrandIconTests
         }
 
         return entries;
-    }
-
-    private static string Root()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "ArxisStudio.slnx")))
-            directory = directory.Parent;
-
-        return directory?.FullName ?? throw new InvalidOperationException("корень репозитория не найден");
     }
 }

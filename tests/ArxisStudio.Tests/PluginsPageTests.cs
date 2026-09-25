@@ -1,11 +1,8 @@
 using System.Globalization;
 using System.Text.Json;
-using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
-using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using ArxisStudio.Settings;
-using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
 using ArxisStudio.ViewModels;
 using Avalonia.Headless.XUnit;
@@ -27,29 +24,21 @@ namespace ArxisStudio.Tests;
 /// когда человек нажал «Сохранить».
 /// </para>
 /// </remarks>
+[Collection(StudioStateCollection.Name)]
 public class PluginsPageTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-manager-{Guid.NewGuid():N}");
-    private readonly string _modules = Path.Combine(Path.GetTempPath(), $"arxis-manager-modules-{Guid.NewGuid():N}");
-    private readonly ToolBarStrip _left = new();
-    private readonly ToolBarStrip _center = new();
-    private readonly ToolBarStrip _right = new();
-    private readonly DockView _view = new();
-    private readonly StudioLog _log = new();
-    private readonly PluginGuard _guard = new();
-    private readonly StudioTaskRegistry _tasks = new();
-    private readonly PluginContributionRegistry _contributions = new();
-    private readonly Answers _answers = new();
-
-    public PluginsPageTests() => Directory.CreateDirectory(_root);
+    private readonly string _root = TempFolder.Create("manager");
+    private readonly string _modules = TempFolder.Reserve("manager-modules");
+    private readonly StudioPluginsHarness _studio = new();
+    private readonly DialogAnswers _answers = new();
 
     public void Dispose()
     {
-        if (Directory.Exists(_root))
-            Directory.Delete(_root, recursive: true);
+        _studio.Dispose();
 
-        if (Directory.Exists(_modules))
-            Directory.Delete(_modules, recursive: true);
+        TempFolder.Erase(_root, strict: true);
+
+        TempFolder.Erase(_modules, strict: true);
 
         GC.SuppressFinalize(this);
     }
@@ -587,22 +576,7 @@ public class PluginsPageTests : IDisposable
     /// Хоста у неё нет, и применение к живой студии молча ничего не делает —
     /// ровно то, что нужно проверке транзакции.
     /// </remarks>
-    private StudioPlugins Extensions(PluginCatalog catalog)
-    {
-        var commands = new StudioCommands(_guard);
-        var dock = new StudioDock(_view);
-
-        return new StudioPlugins(_log, _guard, _tasks, _contributions)
-        {
-            Commands = commands,
-            Dock = dock,
-            ToolBar = new StudioToolBar(_left, _center, _right),
-            Documents = new StudioDocuments(dock, _contributions.EditorFor, new Silence()),
-            Services = new Dictionary<Type, object>(),
-            Catalog = catalog.Scan,
-            Assemblies = [],
-        };
-    }
+    private StudioPlugins Extensions(PluginCatalog catalog) => _studio.Build(catalog: catalog.Scan);
 
     /// <summary>Кладёт плагин, манифест которого цел, а сборка сборкой не является.</summary>
     private void Broken(string id, string name)
@@ -650,29 +624,5 @@ public class PluginsPageTests : IDisposable
         File.WriteAllText(
             Path.Combine(folder, "plugin.json"),
             JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
-    }
-
-    /// <summary>Ответы вместо человека: страница спрашивает, тест отвечает.</summary>
-    private sealed class Answers : IPluginDialogs
-    {
-        public Func<bool> Answer { get; set; } = () => true;
-
-        public Task<string?> AskFolderAsync(string title) => Task.FromResult<string?>(null);
-
-        public Task<string?> AskArchiveAsync(string title) => Task.FromResult<string?>(null);
-
-        public Task<bool> ConfirmAsync(string title, string message, string confirm, bool danger) =>
-            Task.FromResult(Answer());
-
-        public void Reveal(string path)
-        {
-        }
-    }
-
-    private sealed class Silence : IStudioStatus
-    {
-        public void Show(string message)
-        {
-        }
     }
 }

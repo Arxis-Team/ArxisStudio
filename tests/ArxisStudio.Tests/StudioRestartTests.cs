@@ -1,7 +1,5 @@
-using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Services;
-using ArxisStudio.Shell;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Xunit;
@@ -16,12 +14,22 @@ namespace ArxisStudio.Tests;
 /// а настоящий перезапуск закрыл бы процесс тестов. Повод настоящий — запись в службе расширений.
 /// </remarks>
 [Collection(StudioStateCollection.Name)]
-public class StudioRestartTests
+public class StudioRestartTests : IDisposable
 {
-    private readonly StudioPlugins _plugins = Plugins();
+    private readonly StudioPluginsHarness _studio = new();
+    private readonly StudioPlugins _plugins;
     private readonly Window _owner = new();
     private readonly List<Window> _asked = [];
     private int _performed;
+
+    /// <summary>Служба расширений без единого расширения — поводы к перезапуску тест пишет сам.</summary>
+    public StudioRestartTests() => _plugins = _studio.Build();
+
+    public void Dispose()
+    {
+        _studio.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
     /// <summary>Спрашивают только о новом: та же причина второй раз вопроса не заводит.</summary>
     [AvaloniaFact]
@@ -204,31 +212,4 @@ public class StudioRestartTests
         _asked.Add(owner);
         return Task.FromResult(agree);
     };
-
-    /// <summary>Служба расширений без единого расширения — поводы к перезапуску тест пишет сам.</summary>
-    private static StudioPlugins Plugins()
-    {
-        var guard = new PluginGuard();
-        var contributions = new PluginContributionRegistry();
-        var dock = new StudioDock(new DockView());
-
-        return new StudioPlugins(new StudioLog(), guard, new StudioTaskRegistry(), contributions)
-        {
-            Commands = new StudioCommands(guard),
-            Dock = dock,
-            ToolBar = new StudioToolBar(new ToolBarStrip(), new ToolBarStrip(), new ToolBarStrip()),
-            Documents = new StudioDocuments(dock, contributions.EditorFor, new Silence()),
-            Services = new Dictionary<Type, object>(),
-            Catalog = () => [],
-            Assemblies = [],
-            Settings = new PluginSettingsStore(userFile: Path.Combine(Path.GetTempPath(), $"arxis-restart-{Guid.NewGuid():N}.json")),
-        };
-    }
-
-    private sealed class Silence : Sdk.IStudioStatus
-    {
-        public void Show(string message)
-        {
-        }
-    }
 }

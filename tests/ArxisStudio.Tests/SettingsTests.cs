@@ -28,14 +28,11 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class SettingsTests : IDisposable
 {
-    private readonly string _home = Path.Combine(Path.GetTempPath(), $"arxis-settings-ui-{Guid.NewGuid():N}");
-
-    public SettingsTests() => Directory.CreateDirectory(_home);
+    private readonly string _home = TempFolder.Create("settings-ui");
 
     public void Dispose()
     {
-        if (Directory.Exists(_home))
-            Directory.Delete(_home, recursive: true);
+        TempFolder.Erase(_home, strict: true);
 
         GC.SuppressFinalize(this);
     }

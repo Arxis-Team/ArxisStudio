@@ -20,18 +20,11 @@ public class ProjectsWatchTests : IDisposable
         MaximumDelay = TimeSpan.FromMilliseconds(500),
     };
 
-    private readonly string _root = Directory.CreateDirectory(
-        Path.Combine(Path.GetTempPath(), $"arxis-projects-watch-{Guid.NewGuid():N}")).FullName;
+    private readonly string _root = TempFolder.Create("projects-watch");
 
     public void Dispose()
     {
-        try
-        {
-            Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }

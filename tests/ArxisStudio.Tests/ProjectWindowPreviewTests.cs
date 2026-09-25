@@ -33,13 +33,13 @@ public class ProjectWindowPreviewTests
     {
         using var studio = await Pictures(new ProjectWindowStudio(twoColumns: true), ("logo.png", 48, 48));
 
-        var logo = TileItem(studio, "logo.png");
+        var logo = studio.TileItem("logo.png");
 
         Assert.True(Preview(logo).IsEffectivelyVisible, "картинки на плитке нет");
         Assert.IsAssignableFrom<Bitmap>(Preview(logo).Source);
         Assert.False(Silhouette(logo).IsVisible, "силуэт остался под картинкой");
 
-        var empty = TileItem(studio, "avalonia-logo.ico");
+        var empty = studio.TileItem("avalonia-logo.ico");
 
         Assert.True(Silhouette(empty).IsEffectivelyVisible, "плитка непрочитанного файла потеряла силуэт");
         Assert.False(Preview(empty).IsVisible, "у непрочитанного файла место картинки");
@@ -57,7 +57,7 @@ public class ProjectWindowPreviewTests
         studio.Settings.Set(ProjectSettings.PreviewsKey, false);
         Dispatcher.UIThread.RunJobs();
 
-        var logo = TileItem(studio, "logo.png");
+        var logo = studio.TileItem("logo.png");
 
         Assert.True(Silhouette(logo).IsEffectivelyVisible, "выключенные превью оставили картинку");
         Assert.False(Preview(logo).IsVisible, "выключенные превью оставили место картинки");
@@ -66,7 +66,7 @@ public class ProjectWindowPreviewTests
         studio.Settings.Set(ProjectSettings.PreviewsKey, true);
         await Settled(studio);
 
-        Assert.True(Preview(TileItem(studio, "logo.png")).IsEffectivelyVisible, "включённые превью не вернулись");
+        Assert.True(Preview(studio.TileItem("logo.png")).IsEffectivelyVisible, "включённые превью не вернулись");
     }
 
     /// <summary>
@@ -175,7 +175,7 @@ public class ProjectWindowPreviewTests
         tile.IsCut = true;
         Dispatcher.UIThread.RunJobs();
 
-        var logo = TileItem(studio, "logo.png");
+        var logo = studio.TileItem("logo.png");
 
         Assert.True(Silhouette(logo).IsEffectivelyVisible, "у вырезанной картинки нет силуэта");
         Assert.Same(studio.Resource("AxTextDisabledBrush"), Silhouette(logo).Foreground);
@@ -204,7 +204,7 @@ public class ProjectWindowPreviewTests
         var shape = studio.Model.Browser.Items.Single(tile => tile.Name == "shape.svg");
 
         Assert.Null(shape.Preview);
-        Assert.True(Silhouette(TileItem(studio, "shape.svg")).IsEffectivelyVisible, "у SVG нет силуэта");
+        Assert.True(Silhouette(studio.TileItem("shape.svg")).IsEffectivelyVisible, "у SVG нет силуэта");
         Assert.Equal(2, Service(studio).Decoded);
     }
 
@@ -273,18 +273,6 @@ public class ProjectWindowPreviewTests
     /// <summary>Растр, который стоит на плитке.</summary>
     private static Bitmap Bitmap(ProjectWindowStudio studio, string name) =>
         Assert.IsAssignableFrom<Bitmap>(studio.Model.Browser.Items.Single(tile => tile.Name == name).Preview);
-
-    /// <summary>Контейнер плитки в показанном списке — прокрутив до неё.</summary>
-    private static AxListBoxItem TileItem(ProjectWindowStudio studio, string name)
-    {
-        var list = studio.Panel.Pane!.Shown;
-        var tile = studio.Model.Browser.Items.Single(item => item.Name == name);
-
-        list.ScrollIntoView(tile);
-        Dispatcher.UIThread.RunJobs();
-
-        return Assert.IsType<AxListBoxItem>(list.ContainerFromItem(tile));
-    }
 
     /// <summary>Силуэт плитки.</summary>
     private static AxIcon Silhouette(AxListBoxItem item) =>

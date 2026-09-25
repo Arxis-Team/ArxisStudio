@@ -1,4 +1,3 @@
-using ArxisStudio.Controls;
 using ArxisStudio.Icons;
 using ArxisStudio.Shell;
 using Avalonia.Headless.XUnit;

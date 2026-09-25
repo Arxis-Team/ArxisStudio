@@ -1,5 +1,4 @@
 using System.Collections.Specialized;
-using ArxisStudio.Modules.Project.Model;
 using ArxisStudio.Modules.Project.Tree;
 using Xunit;
 

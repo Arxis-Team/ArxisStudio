@@ -59,6 +59,7 @@ public sealed class StudioPlugins
     // Чьи изменения применит только перезапуск и почему — до конца сеанса.
     private readonly Dictionary<string, string> _awaiting = new(StringComparer.Ordinal);
 
+    private PluginSettingsStore? _settings;
     private PluginHost? _host;
     private StudioContextFactory? _contexts;
     private IReadOnlyList<InstalledPlugin> _installed = [];
@@ -169,10 +170,16 @@ public sealed class StudioPlugins
     /// <para>
     /// Свойством с <c>init</c>, а не полем: так его видно снаружи и можно
     /// подставить своё в тесте — тем же приёмом, что у <see cref="Catalog"/> и
-    /// <see cref="Assemblies"/>.
+    /// <see cref="Assemblies"/>. Умолчание заводится при первом обращении, а не
+    /// при сборке службы: хранилище читает файл, едва родившись, и подставленное
+    /// своё не спасало бы от чтения настоящей папки данных.
     /// </para>
     /// </remarks>
-    public PluginSettingsStore Settings { get; init; } = new();
+    public PluginSettingsStore Settings
+    {
+        get => _settings ??= new PluginSettingsStore();
+        init => _settings = value;
+    }
 
     /// <summary>
     /// Кто сейчас объявляет настройки: модули и то, что лежит в папке плагинов.

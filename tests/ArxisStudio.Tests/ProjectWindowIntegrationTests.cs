@@ -20,19 +20,13 @@ public class ProjectWindowIntegrationTests : IDisposable
 {
     private static readonly TimeSpan Patience = TimeSpan.FromMinutes(2);
 
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-project-window-hello-{Guid.NewGuid():N}");
+    private readonly string _root = TempFolder.Reserve("project-window-hello");
 
     public ProjectWindowIntegrationTests() => ProjectsIntegrationTests.Copy(ProjectsIntegrationTests.Fixture(), _root);
 
     public void Dispose()
     {
-        try
-        {
-            Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }

@@ -7,9 +7,7 @@ using ArxisStudio.Sdk;
 using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Services;
 using ArxisStudio.Shell;
-using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
 
@@ -29,17 +27,11 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class DeclaredIconsTests : IDisposable
 {
-    private readonly StudioLog _log = new();
-    private readonly PluginGuard _guard = new();
-    private readonly PluginContributionRegistry _contributions = new();
-
-    private StudioPlugins? _plugins;
+    private readonly StudioPluginsHarness _studio = new();
 
     public void Dispose()
     {
-        // Хост отпускается первым: пока жив контекст загрузки, его файлы держит процесс.
-        _plugins?.Stop();
-
+        _studio.Dispose();
         GC.SuppressFinalize(this);
     }
 
@@ -73,12 +65,12 @@ public class DeclaredIconsTests : IDisposable
     {
         Raised();
 
-        var branch = Assert.Single(StudioMenu.Build(_plugins!.Contributing), item => item.Title == "Значки");
+        var branch = Assert.Single(StudioMenu.Build(_studio.Plugins!.Contributing), item => item.Title == "Значки");
 
         Assert.Null(branch.Icon);
         Assert.Same(AxIcons.Refresh, Assert.Single(branch.Children).Icon);
 
-        var declared = CommandPalette.Declared(_plugins.Contributing);
+        var declared = CommandPalette.Declared(_studio.Plugins!.Contributing);
 
         Assert.Same(AxIcons.Refresh, Assert.Single(declared, entry => entry.CommandId == "glyphs.run").Icon);
         Assert.Null(Assert.Single(declared, entry => entry.CommandId == "glyphs.odd").Icon);
@@ -98,32 +90,32 @@ public class DeclaredIconsTests : IDisposable
     {
         Raised();
 
-        StudioMenu.Build(_plugins!.Contributing);
-        CommandPalette.Declared(_plugins.Contributing);
+        StudioMenu.Build(_studio.Plugins!.Contributing);
+        CommandPalette.Declared(_studio.Plugins!.Contributing);
 
-        Assert.Single(_log.Records, record =>
+        Assert.Single(_studio.Log.Records, record =>
             record.Level == StudioLogLevel.Warning
             && record.Message.Contains("glyphs.odd", StringComparison.Ordinal)
             && record.Message.Contains("arxis:Nope", StringComparison.Ordinal));
 
-        Assert.Single(_log.Records, record =>
+        Assert.Single(_studio.Log.Records, record =>
             record.Level == StudioLogLevel.Warning
             && record.Message.Contains("blank", StringComparison.Ordinal)
             && record.Message.Contains("M8 8", StringComparison.Ordinal));
 
-        Assert.DoesNotContain(_log.Records, record =>
+        Assert.DoesNotContain(_studio.Log.Records, record =>
             record.Level == StudioLogLevel.Warning
             && (record.Message.Contains("glyphs.run", StringComparison.Ordinal)
                 || record.Message.Contains("glyphs.plain", StringComparison.Ordinal)));
 
         // Пункт «Добавить ▸» — та же запись и то же правило: сказано один раз, при чтении, вместе с
         // пунктом, которого студия не покажет вовсе.
-        Assert.Single(_log.Records, record =>
+        Assert.Single(_studio.Log.Records, record =>
             record.Level == StudioLogLevel.Warning
             && record.Message.Contains("glyphs.add", StringComparison.Ordinal)
             && record.Message.Contains("arxis:Nada", StringComparison.Ordinal));
 
-        Assert.Single(_log.Records, record =>
+        Assert.Single(_studio.Log.Records, record =>
             record.Level == StudioLogLevel.Warning
             && record.Message.Contains("glyphs.odd.kind", StringComparison.Ordinal)
             && record.Message.Contains("«folder»", StringComparison.Ordinal));
@@ -182,11 +174,11 @@ public class DeclaredIconsTests : IDisposable
     [AvaloniaFact]
     public void The_icons_of_the_manifests_in_the_repository_resolve()
     {
-        var plugins = Folder("src", "Plugins");
+        var plugins = Repository.Path("src", "Plugins");
         var manifests = StudioModules.Describe()
             .Select(module => (Name: module.Id, Manifest: module.Manifest!))
             .Concat(Directory.GetDirectories(plugins)
-                .Append(Folder("templates", "Arxis.Plugin"))
+                .Append(Repository.Path("templates", "Arxis.Plugin"))
                 .Select(folder => Path.Combine(folder, "plugin.json"))
                 .Where(File.Exists)
                 .Select(path => (Name: path, Manifest: Read(path))))
@@ -210,20 +202,6 @@ public class DeclaredIconsTests : IDisposable
 
             Assert.True(problem is null, $"{name}, {what}: {problem}");
         }
-    }
-
-    /// <summary>Папка репозитория — от папки тестов вверх.</summary>
-    private static string Folder(params string[] parts)
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            var candidate = Path.Combine([directory.FullName, .. parts]);
-
-            if (Directory.Exists(candidate) && File.Exists(Path.Combine(directory.FullName, "ArxisStudio.slnx")))
-                return candidate;
-        }
-
-        throw new InvalidOperationException($"Не найдена папка {string.Join('/', parts)}");
     }
 
     /// <summary>Манифест с диска — теми же правилами чтения, что у каталога плагинов.</summary>
@@ -259,39 +237,9 @@ public class DeclaredIconsTests : IDisposable
     /// <summary>Поднимает модуль, объявивший значки панелям и командам.</summary>
     private DockView Raised()
     {
-        var view = new DockView();
-        var dock = new StudioDock(view);
+        _studio.Raise("Probe.Glyphs", Source, Manifest);
 
-        new Window { Width = 900, Height = 600, Content = view }.Show();
-        dock.Shown();
-
-        _plugins = new StudioPlugins(_log, _guard, new StudioTaskRegistry(), _contributions)
-        {
-            Assemblies = [TestAssembly.EmitModule("Probe.Glyphs", Source, Manifest)],
-            Commands = new StudioCommands(),
-            Dock = dock,
-            ToolBar = new StudioToolBar(new ToolBarStrip(), new ToolBarStrip(), new ToolBarStrip()),
-            Documents = new StudioDocuments(dock, _contributions.EditorFor, new Quiet()),
-            Services = new Dictionary<Type, object>
-            {
-                [typeof(PluginContributionRegistry)] = _contributions,
-                [typeof(PluginGuard)] = _guard,
-            },
-            Catalog = () => [],
-        };
-
-        _plugins.LoadModules();
-        Dispatcher.UIThread.RunJobs();
-
-        return view;
-    }
-
-    /// <summary>Статус, которому некому докладывать.</summary>
-    private sealed class Quiet : IStudioStatus
-    {
-        public void Show(string message)
-        {
-        }
+        return _studio.View;
     }
 
     private const string Source = """

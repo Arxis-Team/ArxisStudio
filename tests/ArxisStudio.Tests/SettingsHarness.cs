@@ -1,12 +1,11 @@
-using ArxisStudio.Docking;
+using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
-using ArxisStudio.Sdk;
 using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Services;
 using ArxisStudio.Settings;
-using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
 using ArxisStudio.Shell.Settings;
+using ArxisStudio.ViewModels;
 using ArxisStudio.Welcome;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -25,12 +24,18 @@ namespace ArxisStudio.Tests;
 /// Служба расширений собрана, но не поднята, и файлы настроек у неё свои: окно, открытое в тесте,
 /// не читает и не пишет настоящую папку данных. Среди расширений — один модуль с одной настройкой,
 /// чтобы у окна была и страница расширения, и несохранённое, которое можно набрать.
+/// <para>
+/// Помощники чтения окна — статические: наборы зовут их через <c>using static</c>, как диалоги окна
+/// проекта.
+/// </para>
 /// </remarks>
 internal sealed class SettingsHarness : IDisposable
 {
-    private readonly string _home = Path.Combine(Path.GetTempPath(), $"arxis-settings-{Guid.NewGuid():N}");
-    private readonly PluginGuard _guard = new();
-    private readonly PluginContributionRegistry _contributions = new();
+    /// <summary>Сколько ждут закрытия окна: дольше — значит, оно не закроется вовсе.</summary>
+    public static readonly TimeSpan Patience = TimeSpan.FromSeconds(5);
+
+    private readonly string _home = TempFolder.Reserve("settings");
+    private readonly StudioPluginsHarness _studio = new();
     private StudioPlugins? _extensions;
 
     public SettingsHarness() => Directory.CreateDirectory(Path.Combine(_home, "plugins"));
@@ -40,14 +45,16 @@ internal sealed class SettingsHarness : IDisposable
     /// </summary>
     /// <remarks>
     /// Одна, как у студии: перезапуск, заведённый тестом над ней, слышит те же поводы, что видит
-    /// менеджер в окне.
+    /// менеджер в окне. Собрана, но не поднята.
     /// </remarks>
-    public StudioPlugins Plugins => _extensions ??= Extensions(new PluginCatalog(Path.Combine(_home, "plugins")));
+    public StudioPlugins Plugins =>
+        _extensions ??= _studio.Build(catalog: new PluginCatalog(Path.Combine(_home, "plugins")).Scan);
 
     public void Dispose()
     {
-        if (Directory.Exists(_home))
-            Directory.Delete(_home, recursive: true);
+        _studio.Dispose();
+
+        TempFolder.Erase(_home, strict: true);
     }
 
     /// <summary>Открывает настройки модальным окном поверх своего хозяина.</summary>
@@ -153,22 +160,32 @@ internal sealed class SettingsHarness : IDisposable
         File.WriteAllText(Path.Combine(folder, "plugin.json"), System.Text.Json.JsonSerializer.Serialize(manifest));
     }
 
-    private StudioPlugins Extensions(PluginCatalog catalog)
+    /// <summary>Закрывает окно «Отменой» и ждёт, пока завершится задача его показа.</summary>
+    /// <param name="settings">Окно настроек.</param>
+    /// <param name="shown">Задача, которую отдал его показ.</param>
+    public static async Task CloseAsync(SettingsWindow settings, Task shown)
     {
-        var dock = new StudioDock(new DockView());
+        settings.Cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
-        return new StudioPlugins(new StudioLog(), _guard, new StudioTaskRegistry(), _contributions)
-        {
-            Commands = new StudioCommands(_guard),
-            Dock = dock,
-            ToolBar = new StudioToolBar(new ToolBarStrip(), new ToolBarStrip(), new ToolBarStrip()),
-            Documents = new StudioDocuments(dock, _contributions.EditorFor, new Silence()),
-            Services = new Dictionary<Type, object>(),
-            Catalog = catalog.Scan,
-            Assemblies = [],
-            Settings = new PluginSettingsStore(userFile: Path.Combine(_home, "plugin-settings.json")),
-        };
+        await ClosedAsync(shown);
     }
+
+    /// <summary>Ждёт закрытия окна, но не дольше <see cref="Patience"/>.</summary>
+    /// <param name="shown">Задача, которую отдал показ окна.</param>
+    public static async Task ClosedAsync(Task shown) =>
+        Assert.Same(shown, await Task.WhenAny(shown, Task.Delay(Patience)));
+
+    /// <summary>Строки текста, которые окно показывает сейчас.</summary>
+    public static List<string?> Texts(Window window) =>
+        [.. window.GetVisualDescendants().OfType<TextBlock>().Where(text => text.IsEffectivelyVisible).Select(text => text.Text)];
+
+    /// <summary>Страница плагинов, открытая в окне.</summary>
+    public static PluginsPage PluginsOf(SettingsWindow settings) =>
+        Assert.IsType<PluginsPage>(((SettingsViewModel)settings.DataContext!).Page);
+
+    /// <summary>Строка списка, в которой стоит плагин.</summary>
+    public static AxListBoxItem Row(SettingsWindow settings, PluginCard card) =>
+        settings.GetVisualDescendants().OfType<AxListBoxItem>().Single(row => ReferenceEquals(row.DataContext, card));
 
     /// <summary>Модуль, объявивший одну настройку.</summary>
     /// <remarks>Папка — настоящая папка терминала: из неё берутся подписи настроек.</remarks>
@@ -186,12 +203,4 @@ internal sealed class SettingsHarness : IDisposable
         Error: null,
         IsEnabled: true,
         IsBuiltIn: true);
-
-    /// <summary>Строка состояния, которая молчит.</summary>
-    private sealed class Silence : IStudioStatus
-    {
-        public void Show(string message)
-        {
-        }
-    }
 }

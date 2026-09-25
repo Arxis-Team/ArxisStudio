@@ -14,17 +14,14 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class StudioRelaunchTests : IDisposable
 {
-    private readonly string _folder = Path.Combine(Path.GetTempPath(), $"arxis-relaunch-{Guid.NewGuid():N}");
+    private readonly string _folder = TempFolder.Create("relaunch");
     private readonly Func<int, StudioRelaunch.IPredecessor?> _find = StudioRelaunch.Find;
-
-    public StudioRelaunchTests() => Directory.CreateDirectory(_folder);
 
     public void Dispose()
     {
         StudioRelaunch.Find = _find;
 
-        if (Directory.Exists(_folder))
-            Directory.Delete(_folder, recursive: true);
+        TempFolder.Erase(_folder, strict: true);
 
         GC.SuppressFinalize(this);
     }

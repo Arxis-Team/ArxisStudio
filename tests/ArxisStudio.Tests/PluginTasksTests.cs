@@ -1,5 +1,4 @@
 using ArxisStudio.Extensibility;
-using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using Xunit;
 

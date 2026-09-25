@@ -38,7 +38,7 @@ public class StudioDocumentsTests
         Assert.Equal("arxis.designer", open.PluginId);
         Assert.Same(open.View, documents.Shown);
         Assert.Equal(1, Probe(open).Activated);
-        Assert.Equal(@"C:\проект\Окно.axaml", status[^1]);
+        Assert.Equal(@"C:\проект\Окно.axaml", status.Last());
     }
 
     /// <summary>
@@ -72,7 +72,7 @@ public class StudioDocumentsTests
 
         Assert.Empty(documents.Opened);
         Assert.Null(documents.Shown);
-        Assert.Equal(Text("editor.noeditor"), status[^1]);
+        Assert.Equal(Text("editor.noeditor"), status.Last());
     }
 
     /// <summary>Редактор не справился — человек узнаёт причину, а не пустую вкладку.</summary>
@@ -85,7 +85,7 @@ public class StudioDocumentsTests
         await documents.OpenAsync(@"C:\проект\Окно.axaml");
 
         Assert.Empty(documents.Opened);
-        Assert.Contains("файл побит", status[^1]);
+        Assert.Contains("файл побит", status.Last());
     }
 
     /// <summary>
@@ -416,7 +416,7 @@ public class StudioDocumentsTests
     /// согласие с ней («сосед занял место», «выбор вкладки показал документ»),
     /// и с заглушкой они доказывали бы согласие с самими собой.
     /// </remarks>
-    private static (StudioDocuments Documents, StudioDock Dock, IReadOnlyList<string> Status) Studio(
+    private static (StudioDocuments Documents, StudioDock Dock, IReadOnlyCollection<string> Status) Studio(
         Func<string, EditorMatch?>? editorFor = null,
         PluginGuard? guard = null)
     {
@@ -427,7 +427,7 @@ public class StudioDocumentsTests
         Dispatcher.UIThread.RunJobs();
 
         var editor = new ProbeEditor();
-        var sink = new Sink();
+        var sink = new StatusProbe();
 
         return (new StudioDocuments(dock, editorFor ?? (_ => new EditorMatch(editor, "arxis.designer")), sink, guard),
             dock, sink.Said);
@@ -459,16 +459,6 @@ public class StudioDocumentsTests
 
         /// <inheritdoc/>
         public override ValueTask DisposeAsync() => throw new InvalidOperationException("не закроюсь");
-    }
-
-    /// <summary>Строка состояния, которая всё записывает.</summary>
-    private sealed class Sink : IStudioStatus
-    {
-        /// <summary>Что студия сказала, по порядку.</summary>
-        public List<string> Said { get; } = [];
-
-        /// <inheritdoc/>
-        public void Show(string message) => Said.Add(message);
     }
 
     /// <summary>Редактор-пустышка: открывает всё, чем его попросят.</summary>

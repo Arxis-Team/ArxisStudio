@@ -15,14 +15,11 @@ namespace ArxisStudio.Tests;
 /// </remarks>
 public class StudioSessionTests : IDisposable
 {
-    private readonly string _folder = Path.Combine(Path.GetTempPath(), $"arxis-session-{Guid.NewGuid():N}");
-
-    public StudioSessionTests() => Directory.CreateDirectory(_folder);
+    private readonly string _folder = TempFolder.Create("session");
 
     public void Dispose()
     {
-        if (Directory.Exists(_folder))
-            Directory.Delete(_folder, recursive: true);
+        TempFolder.Erase(_folder, strict: true);
 
         GC.SuppressFinalize(this);
     }

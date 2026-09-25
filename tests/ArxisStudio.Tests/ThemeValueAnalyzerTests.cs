@@ -6,9 +6,6 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Styling;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Diagnostics;
-using Microsoft.CodeAnalysis.Text;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -468,31 +465,11 @@ public class ThemeValueAnalyzerTests
         Assert.Single(found, diagnostic => diagnostic.Location.GetLineSpan().StartLinePosition.Line == line).GetMessage();
 
     private static Task<ImmutableArray<Diagnostic>> AnalyzeAsync(
-        string markup, string path = "C:/probe/View.axaml", string code = "public sealed class Probe { }") =>
+        string markup, string path = "C:/probe/View.axaml", string code = AnalyzerRun.EmptyProbe) =>
         AnalyzeFilesAsync([(path, markup)], code);
 
-    private static async Task<ImmutableArray<Diagnostic>> AnalyzeFilesAsync(
-        IEnumerable<(string Path, string Text)> files, string code = "public sealed class Probe { }")
-    {
-        var compilation = CSharpCompilation.Create(
-            "Probe",
-            [CSharpSyntaxTree.ParseText(code)],
-            [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)],
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-
-        var analyzed = compilation.WithAnalyzers(
-            ImmutableArray.Create<DiagnosticAnalyzer>(new ThemeValueAnalyzer()),
-            new AnalyzerOptions([.. files.Select(file => (AdditionalText)new Given(file.Path, file.Text))]));
-
-        return await analyzed.GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
-    }
-
-    /// <summary>Файл, переданный анализатору входом сборки.</summary>
-    private sealed class Given(string path, string content) : AdditionalText
-    {
-        public override string Path => path;
-
-        public override SourceText GetText(CancellationToken cancellationToken = default) =>
-            SourceText.From(content);
-    }
+    private static Task<ImmutableArray<Diagnostic>> AnalyzeFilesAsync(
+        IEnumerable<(string Path, string Text)> files, string code = AnalyzerRun.EmptyProbe) =>
+        AnalyzerRun.Probe(code, [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)])
+            .RunAsync(new ThemeValueAnalyzer(), files.Select(file => (AdditionalText)new AdditionalFile(file.Path, file.Text)));
 }

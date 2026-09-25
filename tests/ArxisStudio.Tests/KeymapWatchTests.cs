@@ -16,22 +16,13 @@ public class KeymapWatchTests : IDisposable
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan Silence = KeymapWatch.Quiet * 4;
 
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-keymap-watch-{Guid.NewGuid():N}");
-
-    public KeymapWatchTests() => Directory.CreateDirectory(_root);
+    private readonly string _root = TempFolder.Create("keymap-watch");
 
     private string File => Path.Combine(_root, "keymap.json");
 
     public void Dispose()
     {
-        try
-        {
-            if (Directory.Exists(_root))
-                Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }

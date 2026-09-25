@@ -384,7 +384,7 @@ public class StudioLayoutTests
     [Fact]
     public void The_entry_point_only_shows_the_way_and_starts()
     {
-        var source = File.ReadAllText(Path.Combine(SharedAssemblies.Repository(), "src", "ArxisStudio", "Program.cs"));
+        var source = File.ReadAllText(Repository.Path("src", "ArxisStudio", "Program.cs"));
         var start = source.IndexOf("public static void Main(", StringComparison.Ordinal);
 
         Assert.True(start >= 0, "точки входа в Program.cs не нашлось");
@@ -426,8 +426,7 @@ public class StudioLayoutTests
     /// <summary>Выход студии той же конфигурации, что у тестов.</summary>
     private static string Output()
     {
-        var tests = new DirectoryInfo(AppContext.BaseDirectory);
-        var output = Path.Combine(SharedAssemblies.Repository(), "src", "ArxisStudio", "bin", tests.Parent!.Name, tests.Name);
+        var output = Repository.Output("src", "ArxisStudio");
 
         Assert.True(File.Exists(Path.Combine(output, "ArxisStudio.dll")), $"студия не собрана в {output}");
 

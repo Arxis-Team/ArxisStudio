@@ -365,12 +365,12 @@ public class ProjectWindowClipboardTests
         Assert.Equal(
             [studio.Strings["project.edit"], studio.Strings[Reveal.Words], studio.Strings["project.menu.copyPath"], studio.Strings["project.menu.copyRelative"]],
             pane.FolderItems().Select(item => item.Header));
-        Assert.Equal([studio.Strings["project.edit.paste"]], Edit(studio, pane.FolderItems()).Items.OfType<AxMenuItem>().Select(item => item.Header));
+        Assert.Equal([studio.Strings["project.edit.paste"]], studio.EditMenu(pane.FolderItems())!.Items.OfType<AxMenuItem>().Select(item => item.Header));
 
         studio.Select("App");
 
         Assert.Equal(studio.Strings["project.menu.openProject"], pane.FolderItems()[0].Header);
-        Assert.Equal([studio.Strings["project.edit.paste"]], Edit(studio, pane.FolderItems()).Items.OfType<AxMenuItem>().Select(item => item.Header));
+        Assert.Equal([studio.Strings["project.edit.paste"]], studio.EditMenu(pane.FolderItems())!.Items.OfType<AxMenuItem>().Select(item => item.Header));
 
         studio.Select("Hello");
 
@@ -395,7 +395,7 @@ public class ProjectWindowClipboardTests
 
         studio.Select("Models");
         studio.Clipboard.Foreign = new FileClip(ClipMode.Copy, [new ClipItem(outside, IsFolder: false, [])]);
-        studio.Click(Edit(studio, studio.Panel.Pane!.FolderItems()).Items.OfType<AxMenuItem>(), studio.Strings["project.edit.paste"]);
+        studio.Click(studio.EditMenu(studio.Panel.Pane!.FolderItems())!.Items.OfType<AxMenuItem>(), studio.Strings["project.edit.paste"]);
 
         await Settled(studio, () => files.Copied.Count == 1);
 
@@ -403,16 +403,6 @@ public class ProjectWindowClipboardTests
         Assert.Equal(studio.Model.Browser.Current.Path.Combine("notes.md"), Assert.Single(files.Copied[0]).To);
     }
 
-    /// <summary>«Правка» среди пунктов меню.</summary>
-    private static AxMenuItem Edit(ProjectWindowStudio studio, IEnumerable<AxMenuItem> items) =>
-        items.Single(item => Equals(item.Header, studio.Strings["project.edit"]));
-
-    private static async Task<ProjectWindowStudio> Opened(FilesProbe? files = null, bool twoColumns = false)
-    {
-        var studio = new ProjectWindowStudio(twoColumns: twoColumns, files: files ?? new FilesProbe());
-
-        await studio.Open();
-
-        return studio;
-    }
+    private static Task<ProjectWindowStudio> Opened(FilesProbe? files = null, bool twoColumns = false) =>
+        ProjectWindowStudio.OpenedAsync(files, twoColumns);
 }

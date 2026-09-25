@@ -39,7 +39,7 @@ internal static class SharedAssemblies
     public static Regex PackPattern()
     {
         var targets = File.ReadAllText(
-            Path.Combine(Repository(), "src", "ArxisStudio.Sdk", "build", "ArxisStudio.Sdk.targets"));
+            Repository.Path("src", "ArxisStudio.Sdk", "build", "ArxisStudio.Sdk.targets"));
 
         var match = Regex.Match(targets, @"<_AxSharedName>([^<]+)</_AxSharedName>");
 
@@ -49,21 +49,9 @@ internal static class SharedAssemblies
         return new Regex(match.Groups[1].Value, RegexOptions.CultureInvariant);
     }
 
-    /// <summary>Корень репозитория: над папкой тестов лежит решение.</summary>
-    public static string Repository()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "ArxisStudio.slnx")))
-                return directory.FullName;
-        }
-
-        throw new InvalidOperationException("Не найден корень репозитория: выше папки тестов нет ArxisStudio.slnx");
-    }
-
     private static (string Name, bool Exact)[] Parse()
     {
-        var resolver = File.ReadAllText(Path.Combine(Repository(), "src", "ArxisStudio.Extensibility", "PluginHost.cs"));
+        var resolver = File.ReadAllText(Repository.Path("src", "ArxisStudio.Extensibility", "PluginHost.cs"));
 
         return
         [

@@ -1,9 +1,7 @@
 using System.Text.Json;
-using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
-using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
 using Avalonia;
 using Avalonia.Controls;
@@ -37,49 +35,30 @@ public class CodeViewerExampleTests : IDisposable
 {
     private const string Id = "arxis.code-viewer";
 
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-viewer-{Guid.NewGuid():N}");
-    private readonly string _files = Path.Combine(Path.GetTempPath(), $"arxis-viewer-files-{Guid.NewGuid():N}");
-    private readonly DockView _view = new();
-    private readonly StudioLog _log = new();
-    private readonly PluginGuard _guard = new();
-    private readonly StudioTaskRegistry _tasks = new();
-    private readonly PluginContributionRegistry _contributions = new();
-    private readonly StudioCommands _commands;
-    private readonly StudioDock _dock;
-    private readonly StudioDocuments _documents;
-    private readonly Sink _status = new();
-
-    private StudioPlugins? _plugins;
+    private readonly string _root = TempFolder.Create("viewer");
+    private readonly string _files = TempFolder.Create("viewer-files");
+    private readonly StudioPluginsHarness _studio = new();
 
     public CodeViewerExampleTests()
     {
-        Directory.CreateDirectory(_root);
-        Directory.CreateDirectory(_files);
-
         // Язык закрепляется: отказы просмотрщик говорит своими строками, а
         // взять их он может только из словаря текущего языка.
         Localizer.Instance.SetLanguage(Localizer.FallbackLanguage);
 
-        _commands = new StudioCommands(_guard);
-        _dock = new StudioDock(_view);
-        _documents = new StudioDocuments(_dock, _contributions.EditorFor, _status, _guard);
-
-        new Window { Width = 1200, Height = 800, Content = _view }.Show();
-
-        Dispatcher.UIThread.RunJobs();
+        _studio.Show(1200, 800);
     }
 
     public void Dispose()
     {
         // Хост отпускается первым: пока жив контекст загрузки плагина, его
         // файлы держит процесс, и папку не убрать.
-        _plugins?.Stop();
+        _studio.Dispose();
 
         GC.Collect();
         GC.WaitForPendingFinalizers();
 
-        Erase(_root);
-        Erase(_files);
+        TempFolder.Erase(_root);
+        TempFolder.Erase(_files);
 
         GC.SuppressFinalize(this);
     }
@@ -100,14 +79,14 @@ public class CodeViewerExampleTests : IDisposable
 
         Assert.Empty(plugins.Reloadable);
 
-        await _documents.OpenAsync(file);
+        await _studio.Documents.OpenAsync(file);
 
         Assert.Contains(plugins.Reloadable, plugin => plugin.Id == Id);
 
-        var open = Assert.Single(_documents.Opened);
+        var open = Assert.Single(_studio.Documents.Opened);
 
         Assert.Equal(Id, open.PluginId);
-        Assert.Equal(StudioDocuments.Name(file), _dock.Showing);
+        Assert.Equal(StudioDocuments.Name(file), _studio.Dock.Showing);
         Assert.Equal("Окно.axaml", open.View.Title);
         Assert.Equal(File.ReadAllText(file), Shown());
     }
@@ -125,11 +104,11 @@ public class CodeViewerExampleTests : IDisposable
     {
         var plugins = Start();
 
-        await _documents.OpenAsync(Write("Архив.zip", "PK"));
+        await _studio.Documents.OpenAsync(Write("Архив.zip", "PK"));
 
         Assert.Empty(plugins.Reloadable);
-        Assert.Empty(_documents.Opened);
-        Assert.Equal(Localizer.Instance["editor.noeditor"], _status.Said[^1]);
+        Assert.Empty(_studio.Documents.Opened);
+        Assert.Equal(Localizer.Instance["editor.noeditor"], _studio.Status.Last);
     }
 
     /// <summary>
@@ -147,11 +126,11 @@ public class CodeViewerExampleTests : IDisposable
 
         var file = Write("Толстый.txt", new string('т', 600 * 1024));
 
-        await _documents.OpenAsync(file);
+        await _studio.Documents.OpenAsync(file);
 
-        Assert.Empty(_documents.Opened);
-        Assert.Null(_documents.Shown);
-        Assert.Contains("512", _status.Said[^1], StringComparison.Ordinal);
+        Assert.Empty(_studio.Documents.Opened);
+        Assert.Null(_studio.Documents.Shown);
+        Assert.Contains("512", _studio.Status.Last, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -169,10 +148,10 @@ public class CodeViewerExampleTests : IDisposable
 
         var file = Write("Битый.json", "{\"текст\": \"\0\"}");
 
-        await _documents.OpenAsync(file);
+        await _studio.Documents.OpenAsync(file);
 
-        Assert.Empty(_documents.Opened);
-        Assert.EndsWith(Say("viewer.binary"), _status.Said[^1], StringComparison.Ordinal);
+        Assert.Empty(_studio.Documents.Opened);
+        Assert.EndsWith(Say("viewer.binary"), _studio.Status.Last, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -197,7 +176,7 @@ public class CodeViewerExampleTests : IDisposable
     {
         Start();
 
-        await _documents.OpenAsync(Write("Заметка.md", "# Заголовок\n\n    код\n\n`строка`\n"));
+        await _studio.Documents.OpenAsync(Write("Заметка.md", "# Заголовок\n\n    код\n\n`строка`\n"));
 
         var application = Assert.IsAssignableFrom<Application>(Application.Current);
         var was = application.RequestedThemeVariant;
@@ -355,27 +334,9 @@ public class CodeViewerExampleTests : IDisposable
     {
         Assert.Null(new PluginCatalog(_root).InstallFromArchive(Archive()).Error);
 
-        var plugins = new StudioPlugins(_log, _guard, _tasks, _contributions)
-        {
-            Commands = _commands,
-            Dock = _dock,
-            ToolBar = new StudioToolBar(new ToolBarStrip(), new ToolBarStrip(), new ToolBarStrip()),
-            Documents = _documents,
-            Services = new Dictionary<Type, object>
-            {
-                [typeof(PluginContributionRegistry)] = _contributions,
-                [typeof(PluginGuard)] = _guard,
-            },
-
-            // Папка плагинов и хранилище настроек — свои на тест: настоящие
-            // принадлежат человеку, и прогон, читающий их, отвечал бы
-            // по-разному на разных машинах.
-            Catalog = () => new PluginCatalog(_root).Scan(),
-            Settings = new PluginSettingsStore(userFile: Path.Combine(_root, "plugin-settings.json")),
-            Assemblies = [],
-        };
-
-        _plugins = plugins;
+        // Папка плагинов — своя на тест: настоящая принадлежит человеку, и прогон,
+        // читающий её, отвечал бы по-разному на разных машинах.
+        var plugins = _studio.Build(catalog: () => new PluginCatalog(_root).Scan());
 
         plugins.Start();
         Dispatcher.UIThread.RunJobs();
@@ -394,7 +355,7 @@ public class CodeViewerExampleTests : IDisposable
     /// <summary>Редактор AvaloniaEdit, стоящий в показанной вкладке.</summary>
     private Control Editor()
     {
-        var content = Assert.IsAssignableFrom<Control>(_documents.Shown?.Content);
+        var content = Assert.IsAssignableFrom<Control>(_studio.Documents.Shown?.Content);
 
         Dispatcher.UIThread.RunJobs();
 
@@ -412,7 +373,7 @@ public class CodeViewerExampleTests : IDisposable
     private static string Say(string key)
     {
         using var file = File.OpenRead(
-            Path.Combine(Package(), "lang", $"{Localizer.FallbackLanguage}.json"));
+            Path.Combine(Repository.Path("src", "Plugins", "Arxis.CodeViewer", "package"), "lang", $"{Localizer.FallbackLanguage}.json"));
 
         return JsonDocument.Parse(file).RootElement.GetProperty(key).GetString()!;
     }
@@ -427,55 +388,14 @@ public class CodeViewerExampleTests : IDisposable
         return path;
     }
 
-    private static void Erase(string directory)
-    {
-        try
-        {
-            if (Directory.Exists(directory))
-                Directory.Delete(directory, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
-    }
-
-    /// <summary>
-    /// Раскладка просмотрщика — та, что оставил после себя таргет упаковки.
-    /// </summary>
-    /// <remarks>
-    /// Ищется подъёмом от папки сборки тестов: путь от репозитория до неё
-    /// зависит от конфигурации и платформы.
-    /// </remarks>
-    private static string Package()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            var candidate = Path.Combine(directory.FullName, "src", "Plugins", "Arxis.CodeViewer", "package");
-
-            if (File.Exists(Path.Combine(candidate, "plugin.json")))
-                return candidate;
-        }
-
-        throw new InvalidOperationException("Не найдена раскладка src/Plugins/Arxis.CodeViewer/package");
-    }
-
     /// <summary>Архив просмотрщика — настоящий <c>.axplugin</c>, собранный сборкой решения.</summary>
     /// <remarks>Лежит рядом с раскладкой: оба оставляет таргет упаковки.</remarks>
     private static string Archive()
     {
-        var archive = Path.Combine(Path.GetDirectoryName(Package())!, $"{Id}.axplugin");
+        var archive = Path.Combine(Path.GetDirectoryName(Repository.Path("src", "Plugins", "Arxis.CodeViewer", "package"))!, $"{Id}.axplugin");
 
         Assert.True(File.Exists(archive), $"сборка не оставила архива {Id}.axplugin");
 
         return archive;
-    }
-
-    /// <summary>Что студия сказала человеку, по порядку.</summary>
-    private sealed class Sink : IStudioStatus
-    {
-        public List<string> Said { get; } = [];
-
-        /// <inheritdoc/>
-        public void Show(string message) => Said.Add(message);
     }
 }

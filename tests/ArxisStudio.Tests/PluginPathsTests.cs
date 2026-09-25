@@ -18,9 +18,10 @@ namespace ArxisStudio.Tests;
 /// быть папка теста, а не <c>%TEMP%</c>.
 /// </para>
 /// </remarks>
+[Collection(StudioStateCollection.Name)]
 public class PluginPathsTests : IDisposable
 {
-    private readonly string _sandbox = Path.Combine(Path.GetTempPath(), $"arxis-paths-{Guid.NewGuid():N}");
+    private readonly string _sandbox = TempFolder.Reserve("paths");
     private readonly string _plugins;
 
     public PluginPathsTests()
@@ -32,8 +33,7 @@ public class PluginPathsTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_sandbox))
-            Directory.Delete(_sandbox, recursive: true);
+        TempFolder.Erase(_sandbox, strict: true);
 
         GC.SuppressFinalize(this);
     }

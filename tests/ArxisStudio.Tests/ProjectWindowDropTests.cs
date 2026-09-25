@@ -1,5 +1,4 @@
 using ArxisStudio.Controls;
-using ArxisStudio.Modules.Project.Browse;
 using ArxisStudio.Modules.Project.Model;
 using ArxisStudio.Modules.Project.Tree;
 using ArxisStudio.Projects;
@@ -27,18 +26,11 @@ namespace ArxisStudio.Tests;
 /// </remarks>
 public sealed class ProjectWindowDropTests : IDisposable
 {
-    private readonly string _outside = Directory.CreateDirectory(
-        Path.Combine(Path.GetTempPath(), $"arxis-explorer-{Guid.NewGuid():N}")).FullName;
+    private readonly string _outside = TempFolder.Create("explorer");
 
     public void Dispose()
     {
-        try
-        {
-            Directory.Delete(_outside, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_outside);
     }
 
     /// <summary>
@@ -161,16 +153,16 @@ public sealed class ProjectWindowDropTests : IDisposable
         Assert.Equal(DragDropEffects.Copy, studio.Drag(empty, carried));
         Assert.True(studio.Model.IsColumnDropTarget, "пустое место колонки не отметило её каталог");
 
-        Assert.Equal(DragDropEffects.Copy, studio.Drag(TileItem(studio, "Program.cs"), carried));
+        Assert.Equal(DragDropEffects.Copy, studio.Drag(studio.TileItem("Program.cs"), carried));
         Assert.True(studio.Model.IsColumnDropTarget, "файл колонки не отметил её каталог");
 
-        Assert.Equal(DragDropEffects.Copy, studio.Drag(TileItem(studio, "Models"), carried));
+        Assert.Equal(DragDropEffects.Copy, studio.Drag(studio.TileItem("Models"), carried));
         Assert.False(studio.Model.IsColumnDropTarget, "колонка отмечена, хотя ляжет в плитку каталога");
-        Assert.True(Tile(studio, "Models").IsDropTarget, "плитка каталога не отмечена");
+        Assert.True(studio.Tile("Models").IsDropTarget, "плитка каталога не отмечена");
         Assert.True(studio.Row("Models").IsDropTarget, "строка каталога в дереве не отмечена");
 
         files.After = () => studio.Projects.Publish(ProjectWindowStudio.Ready(2, studio.Solution(more: ["Models/notes.md"])));
-        studio.Drag(TileItem(studio, "Models"), carried, drop: true);
+        studio.Drag(studio.TileItem("Models"), carried, drop: true);
 
         await Settled(studio, () => pane.Selected?.Name == "notes.md");
 
@@ -252,7 +244,7 @@ public sealed class ProjectWindowDropTests : IDisposable
         await studio.Open(studio.Solution(more: ["Views/Deep/Note.cs"]));
 
         studio.Select("Views");
-        studio.DoubleClick(TileItem(studio, "Deep"));
+        studio.DoubleClick(studio.TileItem("Deep"));
 
         // Не файлы положить некуда, и меню ради них не раскрывается.
         var text = new DataTransfer();
@@ -302,7 +294,7 @@ public sealed class ProjectWindowDropTests : IDisposable
         await studio.Open(studio.Solution(more: ["Views/Deep/Note.cs"]));
 
         studio.Select("Views");
-        studio.DoubleClick(TileItem(studio, "Deep"));
+        studio.DoubleClick(studio.TileItem("Deep"));
 
         var carried = await Carry(studio, File("notes.md"));
 
@@ -423,14 +415,8 @@ public sealed class ProjectWindowDropTests : IDisposable
             items.Select(item => (item.Root, item.IsFolder)));
     }
 
-    private static async Task<ProjectWindowStudio> Opened(FilesProbe files, bool twoColumns = false)
-    {
-        var studio = new ProjectWindowStudio(twoColumns: twoColumns, files: files);
-
-        await studio.Open();
-
-        return studio;
-    }
+    private static Task<ProjectWindowStudio> Opened(FilesProbe files, bool twoColumns = false) =>
+        ProjectWindowStudio.OpenedAsync(files, twoColumns);
 
     /// <summary>Файл снаружи решения — настоящий, во временной папке теста.</summary>
     private string File(string name)
@@ -479,20 +465,5 @@ public sealed class ProjectWindowDropTests : IDisposable
         }
 
         return data;
-    }
-
-    private static Tile Tile(ProjectWindowStudio studio, string name) =>
-        studio.Model.Browser.Items.Single(tile => tile.Name == name);
-
-    /// <summary>Контейнер плитки в показанном списке — прокрутив до неё.</summary>
-    private static AxListBoxItem TileItem(ProjectWindowStudio studio, string name)
-    {
-        var list = studio.Panel.Pane!.Shown;
-        var tile = Tile(studio, name);
-
-        list.ScrollIntoView(tile);
-        Dispatcher.UIThread.RunJobs();
-
-        return Assert.IsType<AxListBoxItem>(list.ContainerFromItem(tile));
     }
 }

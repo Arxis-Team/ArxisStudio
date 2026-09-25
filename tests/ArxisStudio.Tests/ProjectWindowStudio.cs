@@ -36,7 +36,7 @@ namespace ArxisStudio.Tests;
 /// </remarks>
 internal sealed class ProjectWindowStudio : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-project-window-{Guid.NewGuid():N}");
+    private readonly string _root = TempFolder.Create("project-window");
     private readonly PluginHost _host;
     private readonly IStudioContext _context;
 
@@ -62,8 +62,6 @@ internal sealed class ProjectWindowStudio : IDisposable
         HistoryProbe? history = null,
         IStudioNewItems? newItems = null)
     {
-        Directory.CreateDirectory(_root);
-
         Projects = projects ?? new ProjectsProbe { Accepts = true };
         Files = files;
         History = history;
@@ -181,6 +179,30 @@ internal sealed class ProjectWindowStudio : IDisposable
         return Panel;
     }
 
+    /// <summary>Поднимает окно со службой файлов и открывает в нём обычное решение.</summary>
+    /// <param name="files">Служба файлов; пусто — новая.</param>
+    /// <param name="twoColumns">Раскладка окна: одна колонка или две.</param>
+    /// <param name="history">Служба истории; пусто — её нет.</param>
+    /// <param name="newItems">Служба создания студии; пусто — её нет.</param>
+    /// <param name="window">Имя главного окна решения.</param>
+    public static async Task<ProjectWindowStudio> OpenedAsync(
+        FilesProbe? files = null,
+        bool twoColumns = false,
+        HistoryProbe? history = null,
+        IStudioNewItems? newItems = null,
+        string window = "MainWindow")
+    {
+        var studio = new ProjectWindowStudio(
+            twoColumns: twoColumns,
+            files: files ?? new FilesProbe(),
+            history: history,
+            newItems: newItems);
+
+        await studio.Open(studio.Solution(window: window));
+
+        return studio;
+    }
+
     /// <summary>Открывает решение и ждёт, пока окно его покажет.</summary>
     /// <param name="snapshot">Снимок; пусто — обычное решение.</param>
     public async Task Open(SolutionSnapshot? snapshot = null)
@@ -209,6 +231,32 @@ internal sealed class ProjectWindowStudio : IDisposable
 
     /// <summary>Строка по имени.</summary>
     public Row Row(string name) => Rows.Single(row => row.Name == name);
+
+    /// <summary>Раскрывает строку по имени и даёт дереву перестроиться.</summary>
+    public void Expand(string name)
+    {
+        Model.Tree.Expand(Row(name));
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>Плитка показанной папки по имени.</summary>
+    public Tile Tile(string name) => Model.Browser.Items.Single(tile => tile.Name == name);
+
+    /// <summary>Контейнер плитки в показанном списке — прокрутив до неё.</summary>
+    public AxListBoxItem TileItem(string name)
+    {
+        var list = Panel.Pane!.Shown;
+        var tile = Tile(name);
+
+        list.ScrollIntoView(tile);
+        Dispatcher.UIThread.RunJobs();
+
+        return Assert.IsType<AxListBoxItem>(list.ContainerFromItem(tile));
+    }
+
+    /// <summary>«Правка» среди пунктов меню; пусто — её нет.</summary>
+    public AxMenuItem? EditMenu(IEnumerable<AxMenuItem> items) =>
+        items.SingleOrDefault(item => Equals(item.Header, Strings["project.edit"]));
 
     /// <summary>Выделяет строку, как выделил бы её человек, и отдаёт ей клавиатуру.</summary>
     public Row Select(string name)
@@ -498,13 +546,7 @@ internal sealed class ProjectWindowStudio : IDisposable
         Window.Close();
         _host.Dispose();
 
-        try
-        {
-            Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
     }
 
     private ProjectPanel Build()

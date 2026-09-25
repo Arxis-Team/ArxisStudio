@@ -20,7 +20,7 @@ namespace ArxisStudio.Tests;
 /// </remarks>
 public class ProjectsGuideTests
 {
-    private static string Guide { get; } = File.ReadAllText(Path.Combine(Root(), "docs", "projects.md"));
+    private static string Guide { get; } = File.ReadAllText(Repository.Path("docs", "projects.md"));
 
     /// <summary>Каждый пример из руководства компилируется.</summary>
     /// <remarks>
@@ -89,7 +89,7 @@ public class ProjectsGuideTests
         foreach (var link in Regex.Matches(Guide, @"\]\((?<path>[^)#:]+)\)")
                      .Select(match => match.Groups["path"].Value))
         {
-            var full = Path.GetFullPath(Path.Combine(Root(), "docs", link));
+            var full = Path.GetFullPath(Repository.Path("docs", link));
 
             Assert.True(File.Exists(full) || Directory.Exists(full), $"{link} ведёт в никуда");
         }
@@ -103,17 +103,4 @@ public class ProjectsGuideTests
                 $"^```{language}\r?\n(?<code>.*?)^```",
                 RegexOptions.Multiline | RegexOptions.Singleline)
             .Select(match => match.Groups["code"].Value)];
-
-    /// <summary>Корень репозитория: тесты бегут из своей выходной папки.</summary>
-    private static string Root()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "ArxisStudio.slnx")))
-            directory = directory.Parent;
-
-        Assert.NotNull(directory);
-
-        return directory.FullName;
-    }
 }

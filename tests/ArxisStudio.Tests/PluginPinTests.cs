@@ -21,20 +21,11 @@ public class PluginPinTests : IDisposable
 {
     private const string Id = "probe.pinned";
 
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-pin-{Guid.NewGuid():N}");
-
-    public PluginPinTests() => Directory.CreateDirectory(_root);
+    private readonly string _root = TempFolder.Create("pin");
 
     public void Dispose()
     {
-        try
-        {
-            if (Directory.Exists(_root))
-                Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }
@@ -116,15 +107,10 @@ public class PluginPinTests : IDisposable
     /// </remarks>
     private void Emit()
     {
-        var folder = Path.Combine(_root, Id);
-        var name = $"Probe.Pinned{Guid.NewGuid():N}";
-
-        Directory.CreateDirectory(Path.Combine(folder, "bin"));
-
         // Компилятор берёт ссылки из загруженного: библиотека контролов обязана быть в процессе.
         _ = typeof(AxUserControl);
 
-        TestAssembly.EmitFile(Path.Combine(folder, "bin", name + ".dll"), name, """
+        TestAssembly.EmitPlugin(_root, Id, $"Probe.Pinned{Guid.NewGuid():N}", """
             using ArxisStudio.Controls;
             using ArxisStudio.Sdk;
             using Avalonia;
@@ -154,16 +140,6 @@ public class PluginPinTests : IDisposable
             {
                 public static readonly RoutedEvent<RoutedEventArgs> PingEvent =
                     RoutedEvent.Register<RoutedEventArgs>("Ping", RoutingStrategies.Bubble, typeof(Signals));
-            }
-            """);
-
-        File.WriteAllText(Path.Combine(folder, "plugin.json"), $$"""
-            {
-              "id": "{{Id}}",
-              "name": "{{Id}}",
-              "version": "1.0.0",
-              "entry": "bin/{{name}}.dll",
-              "activation": [ "onStartup" ]
             }
             """);
     }

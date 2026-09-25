@@ -1220,7 +1220,6 @@ public class DockViewTests
         return new WeakReference(content);
     }
 
-    /// <summary>Показывает дерево в окне, заведя живые панели с такими именами.</summary>
     /// <summary>
     /// Потянутая граница не уносит каретку из панели — ни тягой, ни простым щелчком.
     /// </summary>
@@ -1322,6 +1321,7 @@ public class DockViewTests
             Assert.IsType<Grid>(view.Child).Children.OfType<GridSplitter>().Single());
     }
 
+    /// <summary>Показывает дерево в окне, заведя живые панели с такими именами.</summary>
     private static (DockView View, DockItems Items) Shown(DockNode root, params string[] ids)
     {
         var items = new DockItems();

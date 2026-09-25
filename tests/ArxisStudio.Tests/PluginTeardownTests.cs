@@ -26,20 +26,11 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class PluginTeardownTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-teardown-{Guid.NewGuid():N}");
-
-    public PluginTeardownTests() => Directory.CreateDirectory(_root);
+    private readonly string _root = TempFolder.Create("teardown");
 
     public void Dispose()
     {
-        try
-        {
-            if (Directory.Exists(_root))
-                Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }
@@ -250,14 +241,10 @@ public class PluginTeardownTests : IDisposable
     {
         const string id = "probe.view";
 
-        var folder = Directory.CreateDirectory(Path.Combine(_root, id)).FullName;
-        var bin = Directory.CreateDirectory(Path.Combine(folder, "bin")).FullName;
-        var name = $"Probe.View{Guid.NewGuid():N}";
-
         // Компилятор берёт ссылки из загруженного: библиотека контролов обязана быть в процессе.
         _ = typeof(AxUserControl);
 
-        TestAssembly.EmitFile(Path.Combine(bin, name + ".dll"), name, """
+        TestAssembly.EmitPlugin(_root, id, $"Probe.View{Guid.NewGuid():N}", """
             using ArxisStudio.Controls;
             using ArxisStudio.Sdk;
             using Avalonia.Controls;
@@ -271,16 +258,6 @@ public class PluginTeardownTests : IDisposable
             public sealed class View : AxUserControl
             {
                 public View() => Content = new TextBlock { Text = "probe" };
-            }
-            """);
-
-        File.WriteAllText(Path.Combine(folder, "plugin.json"), $$"""
-            {
-              "id": "{{id}}",
-              "name": "{{id}}",
-              "version": "1.0.0",
-              "entry": "bin/{{name}}.dll",
-              "activation": [ "onStartup" ]
             }
             """);
 

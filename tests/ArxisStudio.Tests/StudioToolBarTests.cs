@@ -16,7 +16,6 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Threading;
-using Avalonia.VisualTree;
 using Xunit;
 
 namespace ArxisStudio.Tests;

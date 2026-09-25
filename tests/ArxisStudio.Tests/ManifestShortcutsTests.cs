@@ -1,11 +1,8 @@
-using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
-using ArxisStudio.Shell;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Avalonia.Threading;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -27,15 +24,11 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class ManifestShortcutsTests : IDisposable
 {
-    private readonly StudioLog _log = new();
-    private readonly PluginGuard _guard = new();
-    private readonly PluginContributionRegistry _contributions = new();
-
-    private StudioPlugins? _plugins;
+    private readonly StudioPluginsHarness _studio = new();
 
     public void Dispose()
     {
-        _plugins?.Stop();
+        _studio.Dispose();
         GC.SuppressFinalize(this);
     }
 
@@ -100,47 +93,16 @@ public class ManifestShortcutsTests : IDisposable
     /// <param name="taken">Сочетание, занятое студией до чтения манифестов.</param>
     private StudioShortcuts Raised(out StudioLog log, string gesture = "Ctrl+Alt+R", string? taken = null)
     {
-        var view = new DockView();
-        var dock = new StudioDock(view);
-
-        new Window { Width = 900, Height = 600, Content = view }.Show();
-        dock.Shown();
-
         var keys = new StudioShortcuts(_ => true);
 
         if (taken is not null)
             keys.Bind(taken, "studio.close");
 
-        _plugins = new StudioPlugins(_log, _guard, new StudioTaskRegistry(), _contributions)
-        {
-            Assemblies = [TestAssembly.EmitModule("Probe.Keys", Source, Manifest(gesture))],
-            Commands = new StudioCommands(),
-            Dock = dock,
-            ToolBar = new StudioToolBar(new ToolBarStrip(), new ToolBarStrip(), new ToolBarStrip()),
-            Documents = new StudioDocuments(dock, _contributions.EditorFor, new Quiet()),
-            Shortcuts = keys,
-            Services = new Dictionary<Type, object>
-            {
-                [typeof(PluginContributionRegistry)] = _contributions,
-                [typeof(PluginGuard)] = _guard,
-            },
-            Catalog = () => [],
-        };
+        _studio.Raise("Probe.Keys", Source, Manifest(gesture), keys);
 
-        _plugins.LoadModules();
-        Dispatcher.UIThread.RunJobs();
-
-        log = _log;
+        log = _studio.Log;
 
         return keys;
-    }
-
-    /// <summary>Статус, которому некому докладывать.</summary>
-    private sealed class Quiet : IStudioStatus
-    {
-        public void Show(string message)
-        {
-        }
     }
 
     private const string Source = """

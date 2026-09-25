@@ -19,19 +19,11 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class StudioAssemblyFolderTests : IDisposable
 {
-    private readonly string _root = Directory.CreateDirectory(
-        Path.Combine(Path.GetTempPath(), $"arxis-assembly-folder-{Guid.NewGuid():N}")).FullName;
+    private readonly string _root = TempFolder.Create("assembly-folder");
 
     public void Dispose()
     {
-        try
-        {
-            Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            // Выгружаемый контекст отпускает файл, когда его соберёт сборщик мусора.
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }

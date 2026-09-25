@@ -3,10 +3,10 @@ using ArxisStudio.Shell.Localization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
+using static ArxisStudio.Tests.SettingsHarness;
 
 namespace ArxisStudio.Tests;
 
@@ -38,11 +38,11 @@ public class SettingsTypeScaleTests : IDisposable
     [InlineData("en", "studio.appearance")]
     [InlineData("ru", "extension:arxis.terminal")]
     [InlineData("ru", "studio.plugins")]
-    public void A_settings_page_reads_whole_at_twice_the_type_scale(string language, string page)
+    public async Task A_settings_page_reads_whole_at_twice_the_type_scale(string language, string page)
     {
         Localizer.Instance.SetLanguage(language);
 
-        var (owner, settings, _) = _harness.Open();
+        var (owner, settings, shown) = _harness.Open();
 
         ((SettingsViewModel)settings.DataContext!).Select(page);
         Dispatcher.UIThread.RunJobs();
@@ -56,8 +56,7 @@ public class SettingsTypeScaleTests : IDisposable
 
         Assert.True(cut.Count == 0, $"{page} ({language}) срезано при двойном кегле:\n" + string.Join("\n", cut));
 
-        settings.Cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        Dispatcher.UIThread.RunJobs();
+        await CloseAsync(settings, shown);
         owner.Close();
     }
 
@@ -70,15 +69,15 @@ public class SettingsTypeScaleTests : IDisposable
     /// внешние, а выбран плагин с зависимостью — в подробностях читается всё, что у них бывает.
     /// </remarks>
     [AvaloniaFact]
-    public void The_plugins_page_reads_whole_at_twice_the_type_scale_with_a_plugin_chosen()
+    public async Task The_plugins_page_reads_whole_at_twice_the_type_scale_with_a_plugin_chosen()
     {
         Localizer.Instance.SetLanguage("ru");
 
         _harness.Install("arxis.one", "Первый");
         _harness.Install("arxis.two", "Второй", dependsOn: "arxis.one");
 
-        var (owner, settings, _) = _harness.Open(page: "studio.plugins");
-        var page = Assert.IsType<PluginsPage>(((SettingsViewModel)settings.DataContext!).Page);
+        var (owner, settings, shown) = _harness.Open(page: "studio.plugins");
+        var page = PluginsOf(settings);
 
         page.Selected = page.Cards.Single(card => card.Plugin.Id == "arxis.two");
         Dispatcher.UIThread.RunJobs();
@@ -92,8 +91,7 @@ public class SettingsTypeScaleTests : IDisposable
 
         Assert.True(cut.Count == 0, "страница плагинов срезана при двойном кегле:\n" + string.Join("\n", cut));
 
-        settings.Cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        Dispatcher.UIThread.RunJobs();
+        await CloseAsync(settings, shown);
         owner.Close();
     }
 
@@ -109,11 +107,11 @@ public class SettingsTypeScaleTests : IDisposable
     [AvaloniaTheory]
     [InlineData(1d)]
     [InlineData(2d)]
-    public void A_settings_row_keeps_its_label_apart_from_its_control(double scale)
+    public async Task A_settings_row_keeps_its_label_apart_from_its_control(double scale)
     {
         Localizer.Instance.SetLanguage("ru");
 
-        var (owner, settings, _) = _harness.Open();
+        var (owner, settings, shown) = _harness.Open();
 
         if (scale > 1)
             TypeScale.Enlarge(settings, scale);
@@ -141,8 +139,7 @@ public class SettingsTypeScaleTests : IDisposable
             Assert.True(apart, $"при кегле ×{scale} подпись {label} и контрол {control} ближе {gap}");
         }
 
-        settings.Cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        Dispatcher.UIThread.RunJobs();
+        await CloseAsync(settings, shown);
         owner.Close();
     }
 

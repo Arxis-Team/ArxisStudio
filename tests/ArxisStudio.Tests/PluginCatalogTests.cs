@@ -60,14 +60,11 @@ public class PluginCatalogTests : IDisposable
         }
         """;
 
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-plugins-{Guid.NewGuid():N}");
-
-    public PluginCatalogTests() => Directory.CreateDirectory(_root);
+    private readonly string _root = TempFolder.Create("plugins");
 
     public void Dispose()
     {
-        if (Directory.Exists(_root))
-            Directory.Delete(_root, recursive: true);
+        TempFolder.Erase(_root, strict: true);
 
         GC.SuppressFinalize(this);
     }

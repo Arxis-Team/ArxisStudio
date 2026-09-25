@@ -17,20 +17,11 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class ProjectSystemSurfaceTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-model-surface-{Guid.NewGuid():N}");
-
-    public ProjectSystemSurfaceTests() => Directory.CreateDirectory(_root);
+    private readonly string _root = TempFolder.Create("model-surface");
 
     public void Dispose()
     {
-        try
-        {
-            if (Directory.Exists(_root))
-                Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }
@@ -53,7 +44,7 @@ public class ProjectSystemSurfaceTests : IDisposable
     public void The_public_surface_of_the_project_model_is_the_recorded_one()
     {
         PublicSurface.AssertVersioned(
-            Path.Combine(Repository(), "tests", "ArxisStudio.Tests", "Surfaces", "ArxisStudio.ProjectSystem.txt"),
+            Repository.Path("tests", "ArxisStudio.Tests", "Surfaces", "ArxisStudio.ProjectSystem.txt"),
             PublicSurface.Describe(typeof(SolutionSnapshot).Assembly),
             ArxisStudio.Sdk.StudioSdk.Version);
     }
@@ -120,18 +111,5 @@ public class ProjectSystemSurfaceTests : IDisposable
         var impostor = Assert.Single(new PluginCatalog(_root).Scan());
 
         Assert.Contains("ArxisStudio.ProjectSystem", PluginContracts.EnsureLoaded(impostor, []));
-    }
-
-    /// <summary>Корень репозитория: тесты бегут из bin, файлы лежат выше.</summary>
-    private static string Repository()
-    {
-        var folder = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (folder is not null && !File.Exists(Path.Combine(folder.FullName, "ArxisStudio.slnx")))
-            folder = folder.Parent;
-
-        Assert.True(folder is not null, "не нашёл корень репозитория");
-
-        return folder!.FullName;
     }
 }

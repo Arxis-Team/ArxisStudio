@@ -24,8 +24,8 @@ public class LanguageTemplateTests : IDisposable
         Localizer.Instance.UsePacks(null);
         Localizer.Instance.SetLanguage(Localizer.FallbackLanguage);
 
-        foreach (var folder in _folders.Where(Directory.Exists))
-            Directory.Delete(folder, recursive: true);
+        foreach (var folder in _folders)
+            TempFolder.Erase(folder, strict: true);
 
         GC.SuppressFinalize(this);
     }
@@ -41,7 +41,7 @@ public class LanguageTemplateTests : IDisposable
     [Fact]
     public void The_template_dictionary_holds_exactly_the_studio_keys()
     {
-        var template = Keys(Path.Combine(Template(), "lang", "xx.json"));
+        var template = Keys(Path.Combine(Repository.Path("templates", "Arxis.Language"), "lang", "xx.json"));
         var studio = Localizer.Instance.Keys;
 
         Assert.Empty(studio.Except(template));
@@ -52,7 +52,7 @@ public class LanguageTemplateTests : IDisposable
         // словарь показал бы новый язык английским.
         Assert.Contains(
             "LANGUAGE-NAME",
-            File.ReadAllText(Path.Combine(Template(), "lang", "xx.json")),
+            File.ReadAllText(Path.Combine(Repository.Path("templates", "Arxis.Language"), "lang", "xx.json")),
             StringComparison.Ordinal);
     }
 
@@ -94,7 +94,7 @@ public class LanguageTemplateTests : IDisposable
     /// <summary>Собирает пакет так, как это сделал бы <c>dotnet new</c>.</summary>
     private InstalledPlugin Generate(string code, string name)
     {
-        var source = Template();
+        var source = Repository.Path("templates", "Arxis.Language");
         var target = Path.Combine(Path.GetTempPath(), $"arxis-template-{Guid.NewGuid():N}");
 
         _folders.Add(target);
@@ -121,17 +121,4 @@ public class LanguageTemplateTests : IDisposable
 
     private static IReadOnlyCollection<string> Keys(string path) =>
         JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path))!.Keys;
-
-    private static string Template()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            var candidate = Path.Combine(directory.FullName, "templates", "Arxis.Language");
-
-            if (File.Exists(Path.Combine(candidate, ".template.config", "template.json")))
-                return candidate;
-        }
-
-        throw new InvalidOperationException("Не найден шаблон templates/Arxis.Language");
-    }
 }

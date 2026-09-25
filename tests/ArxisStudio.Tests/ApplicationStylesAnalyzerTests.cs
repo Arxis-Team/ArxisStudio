@@ -1,11 +1,8 @@
 using System.Collections.Immutable;
-using System.Reflection;
 using ArxisStudio.Controls;
 using ArxisStudio.Sdk.Analyzers;
 using Avalonia;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Diagnostics;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -115,28 +112,7 @@ public class ApplicationStylesAnalyzerTests
             """));
     }
 
-    private static async Task<ImmutableArray<Diagnostic>> AnalyzeAsync(string code)
-    {
-        Assembly[] anchors = [typeof(AxButton).Assembly, typeof(Application).Assembly];
-
-        var references = AppDomain.CurrentDomain.GetAssemblies()
-            .Concat(anchors)
-            .Where(assembly => !assembly.IsDynamic && assembly.Location.Length > 0)
-            .Select(assembly => assembly.Location)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(location => (MetadataReference)MetadataReference.CreateFromFile(location))
-            .ToList();
-
-        var compilation = CSharpCompilation.Create(
-            "Probe",
-            [CSharpSyntaxTree.ParseText(code)],
-            references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-
-        var analyzed = compilation.WithAnalyzers(
-            ImmutableArray.Create<DiagnosticAnalyzer>(new ApplicationStylesAnalyzer()),
-            new AnalyzerOptions([]));
-
-        return await analyzed.GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
-    }
+    private static Task<ImmutableArray<Diagnostic>> AnalyzeAsync(string code) =>
+        AnalyzerRun.Probe(code, AnalyzerRun.References([typeof(AxButton), typeof(Application)]))
+            .RunAsync(new ApplicationStylesAnalyzer());
 }

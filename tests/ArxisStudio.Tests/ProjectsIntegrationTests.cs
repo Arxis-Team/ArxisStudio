@@ -22,19 +22,13 @@ public class ProjectsIntegrationTests : IDisposable
 
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-projects-hello-{Guid.NewGuid():N}");
+    private readonly string _root = TempFolder.Reserve("projects-hello");
 
     public ProjectsIntegrationTests() => Copy(Fixture(), _root);
 
     public void Dispose()
     {
-        try
-        {
-            Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }
@@ -134,17 +128,7 @@ public class ProjectsIntegrationTests : IDisposable
     private CanonicalPath Solution() => CanonicalPath.Create(Path.Combine(_root, "Hello.slnx"));
 
     /// <summary>Фикстура в репозитории: тесты бегут из bin, файлы лежат выше.</summary>
-    internal static string Fixture()
-    {
-        var folder = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (folder is not null && !File.Exists(Path.Combine(folder.FullName, "ArxisStudio.slnx")))
-            folder = folder.Parent;
-
-        Assert.True(folder is not null, "не нашёл корень репозитория");
-
-        return Path.Combine(folder!.FullName, "tests", "Fixtures", "Projects", "Hello");
-    }
+    internal static string Fixture() => Repository.Path("tests", "Fixtures", "Projects", "Hello");
 
     /// <summary>Диагностики одной строкой — чтобы падение говорило, что случилось.</summary>
     /// <param name="diagnostics">Диагностики.</param>

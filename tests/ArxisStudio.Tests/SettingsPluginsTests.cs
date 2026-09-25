@@ -1,7 +1,6 @@
 using ArxisStudio.Controls;
 using ArxisStudio.Settings;
 using ArxisStudio.Shell.Localization;
-using ArxisStudio.ViewModels;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
@@ -12,6 +11,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
+using static ArxisStudio.Tests.SettingsHarness;
 
 namespace ArxisStudio.Tests;
 
@@ -29,8 +29,6 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class SettingsPluginsTests : IDisposable
 {
-    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(5);
-
     private readonly SettingsHarness _harness = new();
 
     public void Dispose()
@@ -48,7 +46,7 @@ public class SettingsPluginsTests : IDisposable
         _harness.Install("arxis.one", "Первый");
 
         var (owner, settings, shown) = _harness.Open(page: "studio.plugins");
-        var page = Page(settings);
+        var page = PluginsOf(settings);
         var card = Assert.Single(page.Cards);
         var row = Row(settings, card);
 
@@ -62,7 +60,7 @@ public class SettingsPluginsTests : IDisposable
             "у строки с непринятой правкой нет точки");
         Assert.Contains(Localizer.Instance["plugins.pending.off"], Texts(settings));
 
-        await Close(settings, shown);
+        await CloseAsync(settings, shown);
         owner.Close();
     }
 
@@ -80,7 +78,7 @@ public class SettingsPluginsTests : IDisposable
         _harness.Install("arxis.two", "Второй", dependsOn: "arxis.one");
 
         var (owner, settings, shown) = _harness.Open(page: "studio.plugins");
-        var card = Page(settings).Cards.Single(candidate => candidate.Plugin.Id == "arxis.one");
+        var card = PluginsOf(settings).Cards.Single(candidate => candidate.Plugin.Id == "arxis.one");
         var box = Row(settings, card).GetVisualDescendants().OfType<AxCheckBox>().Single();
         var at = box.TranslatePoint(new Point(box.Bounds.Width / 2, box.Bounds.Height / 2), settings)!.Value;
 
@@ -97,7 +95,7 @@ public class SettingsPluginsTests : IDisposable
         Assert.True(card.IsOn, "отказ выключил плагин");
         Assert.True(box.IsChecked, "после отказа флажок остался снятым");
 
-        await Close(settings, shown);
+        await CloseAsync(settings, shown);
         owner.Close();
     }
 
@@ -114,7 +112,7 @@ public class SettingsPluginsTests : IDisposable
         var (owner, settings, shown) = _harness.Open(page: "studio.plugins");
         var model = (SettingsViewModel)settings.DataContext!;
 
-        Assert.Equal("arxis.terminal", Page(settings).Card?.Plugin.Id);
+        Assert.Equal("arxis.terminal", PluginsOf(settings).Card?.Plugin.Id);
 
         settings.GetVisualDescendants()
             .OfType<AxButton>()
@@ -129,7 +127,7 @@ public class SettingsPluginsTests : IDisposable
 
         Assert.Equal("studio.plugins", model.Page?.Id);
 
-        await Close(settings, shown);
+        await CloseAsync(settings, shown);
         owner.Close();
     }
 
@@ -141,7 +139,7 @@ public class SettingsPluginsTests : IDisposable
         _harness.Install("arxis.beta", "Бета");
 
         var (owner, settings, shown) = _harness.Open(page: "studio.plugins");
-        var page = Page(settings);
+        var page = PluginsOf(settings);
         var beta = page.Cards.Single(card => card.Plugin.Id == "arxis.beta");
 
         page.Groups.Single(group => group.Key == "builtin").IsExpanded = true;
@@ -159,7 +157,7 @@ public class SettingsPluginsTests : IDisposable
 
         Assert.Equal("arxis.beta", page.Card?.Plugin.Id);
 
-        await Close(settings, shown);
+        await CloseAsync(settings, shown);
         owner.Close();
     }
 
@@ -177,7 +175,7 @@ public class SettingsPluginsTests : IDisposable
         _harness.Install("arxis.beta", "Бета");
 
         var (owner, settings, shown) = _harness.Open(page: "studio.plugins");
-        var page = Page(settings);
+        var page = PluginsOf(settings);
         var beta = page.Cards.Single(card => card.Plugin.Id == "arxis.beta");
         var list = settings.GetVisualDescendants().OfType<AxListBox>().Single(candidate => candidate.Name == "PluginList");
 
@@ -191,7 +189,7 @@ public class SettingsPluginsTests : IDisposable
         Assert.Same(beta, page.Card);
         Assert.Same(beta, list.SelectedItem);
 
-        await Close(settings, shown);
+        await CloseAsync(settings, shown);
         owner.Close();
     }
 
@@ -209,7 +207,7 @@ public class SettingsPluginsTests : IDisposable
         _harness.Install("arxis.one", "Первый");
 
         var (owner, settings, shown) = _harness.Open(page: "studio.plugins");
-        var page = Page(settings);
+        var page = PluginsOf(settings);
         var group = page.Groups.Single(candidate => candidate.Key == "external");
         var header = settings.GetVisualDescendants().OfType<AxGroupHeader>().Single(candidate => ReferenceEquals(candidate.DataContext, group));
         var at = header.TranslatePoint(new Point(header.Bounds.Width / 4, header.Bounds.Height / 2), settings)!.Value;
@@ -228,26 +226,7 @@ public class SettingsPluginsTests : IDisposable
         Assert.True(group.IsExpanded, "Пробел на заголовке группу не развернул");
         Assert.Contains(page.Cards[0], page.Rows);
 
-        await Close(settings, shown);
+        await CloseAsync(settings, shown);
         owner.Close();
-    }
-
-    /// <summary>Страница плагинов, открытая в окне.</summary>
-    private static PluginsPage Page(SettingsWindow settings) =>
-        Assert.IsType<PluginsPage>(((SettingsViewModel)settings.DataContext!).Page);
-
-    /// <summary>Строка списка, в которой стоит плагин.</summary>
-    private static AxListBoxItem Row(SettingsWindow settings, PluginCard card) =>
-        settings.GetVisualDescendants().OfType<AxListBoxItem>().Single(row => ReferenceEquals(row.DataContext, card));
-
-    /// <summary>Строки текста, которые окно показывает сейчас.</summary>
-    private static List<string?> Texts(SettingsWindow settings) =>
-        [.. settings.GetVisualDescendants().OfType<TextBlock>().Where(text => text.IsEffectivelyVisible).Select(text => text.Text)];
-
-    private static async Task Close(SettingsWindow settings, Task shown)
-    {
-        settings.Cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-
-        Assert.Same(shown, await Task.WhenAny(shown, Task.Delay(Patience)));
     }
 }

@@ -10,6 +10,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
+using static ArxisStudio.Tests.SettingsHarness;
 
 namespace ArxisStudio.Tests;
 
@@ -27,25 +28,14 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class KeysPageTests : IDisposable
 {
-    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(5);
-
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-keys-{Guid.NewGuid():N}");
+    private readonly string _root = TempFolder.Create("keys");
     private readonly SettingsHarness _harness = new();
-
-    public KeysPageTests() => Directory.CreateDirectory(_root);
 
     public void Dispose()
     {
         _harness.Dispose();
 
-        try
-        {
-            if (Directory.Exists(_root))
-                Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }
@@ -185,7 +175,7 @@ public class KeysPageTests : IDisposable
         Dispatcher.UIThread.RunJobs();
 
         var chips = settings.GetVisualDescendants().OfType<AxChip>().Select(chip => chip.Content as string).ToList();
-        var texts = settings.GetVisualDescendants().OfType<TextBlock>().Where(text => text.IsEffectivelyVisible).Select(text => text.Text).ToList();
+        var texts = Texts(settings);
 
         Assert.Equal(["Ctrl+W", "Ctrl+Alt+H", "Ctrl+W", "Ctrl+Alt+G"], chips);
         Assert.Contains(Localizer.Instance["keys.refused"], texts);
@@ -198,9 +188,7 @@ public class KeysPageTests : IDisposable
 
         Assert.Equal([file], opened);
 
-        settings.Cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-
-        Assert.Same(shown, await Task.WhenAny(shown, Task.Delay(Patience)));
+        await CloseAsync(settings, shown);
 
         owner.Close();
     }
@@ -232,9 +220,7 @@ public class KeysPageTests : IDisposable
 
         Assert.Equal(["Ctrl+Alt+J", "Ctrl+W"], Chips(settings));
 
-        settings.Cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-
-        Assert.Same(shown, await Task.WhenAny(shown, Task.Delay(Patience)));
+        await CloseAsync(settings, shown);
 
         owner.Close();
     }
@@ -253,9 +239,7 @@ public class KeysPageTests : IDisposable
 
         page.PropertyChanged += (_, _) => heard++;
 
-        settings.Cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-
-        Assert.Same(shown, await Task.WhenAny(shown, Task.Delay(Patience)));
+        await CloseAsync(settings, shown);
 
         keys.Bind("Ctrl+Alt+K", "studio.panel.next");
 
@@ -293,10 +277,6 @@ public class KeysPageTests : IDisposable
     /// <summary>Плашки сочетаний, которые окно показывает сейчас.</summary>
     private static List<string?> Chips(Window window) =>
         [.. window.GetVisualDescendants().OfType<AxChip>().Where(chip => chip.IsEffectivelyVisible).Select(chip => chip.Content as string)];
-
-    /// <summary>Строки текста, которые окно показывает сейчас.</summary>
-    private static List<string?> Texts(Window window) =>
-        [.. window.GetVisualDescendants().OfType<TextBlock>().Where(text => text.IsEffectivelyVisible).Select(text => text.Text)];
 
     /// <summary>
     /// Страница по реестру, где есть всё сразу: сочетание человека, студии и плагина и один отказ.

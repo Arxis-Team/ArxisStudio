@@ -310,7 +310,7 @@ public class BuiltInModuleTests
     public void Every_module_project_feeds_the_analyzer()
     {
         var projects = Directory
-            .EnumerateFiles(Modules(), "*.csproj", SearchOption.AllDirectories)
+            .EnumerateFiles(Repository.Path("src", "Modules"), "*.csproj", SearchOption.AllDirectories)
             .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .Where(path => File.Exists(Path.Combine(Path.GetDirectoryName(path)!, "module.json")))
             .ToList();
@@ -340,24 +340,10 @@ public class BuiltInModuleTests
 
         // Правило подачи одно на все модули и живёт в общем таргете: снятое, оно оставило бы
         // ARX0002 без словаря и без единого слова об этом.
-        var targets = File.ReadAllText(Path.Combine(Modules(), "Directory.Build.targets"));
+        var targets = File.ReadAllText(Path.Combine(Repository.Path("src", "Modules"), "Directory.Build.targets"));
 
         Assert.Contains("lang/en.json", targets, StringComparison.Ordinal);
         Assert.Contains("AxStrings=\"default\"", targets, StringComparison.Ordinal);
         Assert.Contains("AxStrings=\"translation\"", targets, StringComparison.Ordinal);
-    }
-
-    /// <summary>Папка встроенных модулей в репозитории.</summary>
-    private static string Modules()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            var candidate = Path.Combine(directory.FullName, "src", "Modules");
-
-            if (Directory.Exists(candidate))
-                return candidate;
-        }
-
-        throw new InvalidOperationException("Не найдена папка src/Modules");
     }
 }

@@ -20,22 +20,14 @@ public class ProjectsConsumerPluginTests : IDisposable
     private const string SeenService = "arxis.tests.projects.service";
     private const string SeenSnapshot = "arxis.tests.projects.snapshot";
 
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-projects-consumer-{Guid.NewGuid():N}");
-
-    public ProjectsConsumerPluginTests() => Directory.CreateDirectory(_root);
+    private readonly string _root = TempFolder.Create("projects-consumer");
 
     public void Dispose()
     {
         AppDomain.CurrentDomain.SetData(SeenService, null);
         AppDomain.CurrentDomain.SetData(SeenSnapshot, null);
 
-        try
-        {
-            Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }
@@ -143,29 +135,21 @@ public class ProjectsConsumerPluginTests : IDisposable
     /// <summary>Кладёт плагин папкой: сборка, копии общих сборок рядом и манифест.</summary>
     private void Install(string id, string source)
     {
-        var folder = Directory.CreateDirectory(Path.Combine(_root, id)).FullName;
-        var bin = Directory.CreateDirectory(Path.Combine(folder, "bin")).FullName;
-        var name = $"Probe.Projects{Guid.NewGuid():N}";
-
         // Компилятор берёт ссылки из загруженного: контракт и ядро обязаны быть в процессе.
         _ = typeof(IStudioProjects);
         _ = typeof(SolutionSnapshot);
 
-        TestAssembly.EmitFile(Path.Combine(bin, name + ".dll"), name, source);
+        var folder = TestAssembly.EmitPlugin(
+            _root,
+            id,
+            $"Probe.Projects{Guid.NewGuid():N}",
+            source,
+            dependencies: """[ { "id": "arxis.projects", "min": "1.0" } ]""");
+
+        var bin = Path.Combine(folder, "bin");
 
         File.Copy(typeof(IStudioProjects).Assembly.Location, Path.Combine(bin, "ArxisStudio.Projects.Contracts.dll"));
         File.Copy(typeof(SolutionSnapshot).Assembly.Location, Path.Combine(bin, "ArxisStudio.ProjectSystem.dll"));
-
-        File.WriteAllText(Path.Combine(folder, "plugin.json"), $$"""
-            {
-              "id": "{{id}}",
-              "name": "{{id}}",
-              "version": "1.0.0",
-              "entry": "bin/{{name}}.dll",
-              "dependencies": [ { "id": "arxis.projects", "min": "1.0" } ],
-              "activation": [ "onStartup" ]
-            }
-            """);
     }
 
     private static string TreeSource => $$"""

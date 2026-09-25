@@ -13,14 +13,12 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class ExtensibilityTests : IDisposable
 {
-    private readonly string _root = Path.Combine(
-        Path.GetTempPath(), "arxis-tests-" + Guid.NewGuid().ToString("N"));
+    private readonly string _root = TempFolder.Reserve("tests");
 
     /// <inheritdoc/>
     public void Dispose()
     {
-        if (Directory.Exists(_root))
-            Directory.Delete(_root, recursive: true);
+        TempFolder.Erase(_root, strict: true);
 
         GC.SuppressFinalize(this);
     }

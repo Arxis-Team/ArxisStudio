@@ -49,15 +49,5 @@ public class SharedSurfaceTests
             PublicSurface.Describe(typeof(AxIcon).Assembly),
             StudioSdk.Version);
 
-    private static string Baseline(string file)
-    {
-        var folder = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (folder is not null && !File.Exists(Path.Combine(folder.FullName, "ArxisStudio.slnx")))
-            folder = folder.Parent;
-
-        Assert.True(folder is not null, "не нашёл корень репозитория");
-
-        return Path.Combine(folder!.FullName, "tests", "ArxisStudio.Tests", "Surfaces", file);
-    }
+    private static string Baseline(string file) => Repository.Path("tests", "ArxisStudio.Tests", "Surfaces", file);
 }

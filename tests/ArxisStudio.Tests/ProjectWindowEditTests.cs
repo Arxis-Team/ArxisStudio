@@ -1,5 +1,4 @@
 using ArxisStudio.Controls;
-using ArxisStudio.Modules.Project.Browse;
 using ArxisStudio.Modules.Project.Dialogs;
 using ArxisStudio.Modules.Project.Model;
 using ArxisStudio.Modules.Project.Panels;
@@ -9,7 +8,6 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
-using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Xunit;
 using static ArxisStudio.Tests.ProjectWindowDialogs;
@@ -36,8 +34,8 @@ public class ProjectWindowEditTests
     {
         using var studio = await Opened();
 
-        Expand(studio, "Views");
-        Expand(studio, "MainWindow.axaml");
+        studio.Expand("Views");
+        studio.Expand("MainWindow.axaml");
 
         foreach (var name in new[] { "Program.cs", "Views", "MainWindow.axaml", "MainWindow.axaml.cs" })
         {
@@ -57,13 +55,13 @@ public class ProjectWindowEditTests
 
         Assert.Equal(
             [studio.Strings["project.edit.paste"]],
-            EditOf(studio, studio.Panel.Items(studio.Row("App")))!.Items.OfType<AxMenuItem>().Select(item => item.Header));
+            studio.EditMenu(studio.Panel.Items(studio.Row("App")))!.Items.OfType<AxMenuItem>().Select(item => item.Header));
 
         foreach (var row in new[] { studio.Row("Hello"), studio.Rows.First(row => row.Node.Kind == NodeKind.Dependencies) })
         {
             studio.View.Tree.SelectedItem = row;
 
-            Assert.True(EditOf(studio, studio.Panel.Items(row)) is null, $"у {row.Name} есть «Правка», а править в нём нечего");
+            Assert.True(studio.EditMenu(studio.Panel.Items(row)) is null, $"у {row.Name} есть «Правка», а править в нём нечего");
         }
 
         using var bare = new ProjectWindowStudio();
@@ -93,7 +91,7 @@ public class ProjectWindowEditTests
 
         Assert.Equal(["app.manifest", "Program.cs"], studio.View.Tree.SelectedItems!.OfType<Row>().Select(row => row.Name));
 
-        var edit = Assert.IsType<AxMenuItem>(EditOf(studio, studio.Panel.Items(studio.Row("Program.cs"))));
+        var edit = Assert.IsType<AxMenuItem>(studio.EditMenu(studio.Panel.Items(studio.Row("Program.cs"))));
 
         AxMenuItem Item(string key) => edit.Items.OfType<AxMenuItem>().Single(item => Equals(item.Header, studio.Strings[key]));
 
@@ -107,7 +105,7 @@ public class ProjectWindowEditTests
 
         Assert.Equal(
             [studio.Strings["project.edit.paste"]],
-            EditOf(studio, studio.Panel.Items(studio.Row("Program.cs")))!.Items.OfType<AxMenuItem>().Select(item => item.Header));
+            studio.EditMenu(studio.Panel.Items(studio.Row("Program.cs")))!.Items.OfType<AxMenuItem>().Select(item => item.Header));
     }
 
     /// <summary>
@@ -266,7 +264,7 @@ public class ProjectWindowEditTests
 
         using var studio = await Opened(files);
 
-        Expand(studio, "Views");
+        studio.Expand("Views");
         files.After = () => studio.Projects.Publish(ProjectWindowStudio.Ready(2, studio.Solution(window: "Main")));
 
         studio.Press(studio.Item(studio.Select("MainWindow.axaml")), Key.F2);
@@ -307,7 +305,7 @@ public class ProjectWindowEditTests
     {
         using var studio = await Opened();
 
-        Expand(studio, "Views");
+        studio.Expand("Views");
 
         var owner = studio.Select("MainWindow.axaml");
 
@@ -392,7 +390,7 @@ public class ProjectWindowEditTests
         var pane = studio.Panel.Pane!;
 
         studio.Select("Views");
-        pane.Select(Tile(studio, "MainWindow.axaml").Node, focus: true);
+        pane.Select(studio.Tile("MainWindow.axaml").Node, focus: true);
         files.After = () => studio.Projects.Publish(ProjectWindowStudio.Ready(2, studio.Solution(window: "Main")));
 
         studio.Press(pane.Shown, Key.F2);
@@ -404,9 +402,9 @@ public class ProjectWindowEditTests
         Assert.Equal("Views", studio.Model.Browser.Current!.Name);
 
         studio.Select("App");
-        pane.Select(Tile(studio, "App.axaml").Node, focus: true);
+        pane.Select(studio.Tile("App.axaml").Node, focus: true);
 
-        var at = studio.Model.Browser.Items.IndexOf(Tile(studio, "App.axaml"));
+        var at = studio.Model.Browser.Items.IndexOf(studio.Tile("App.axaml"));
 
         files.After = () => studio.Projects.Publish(
             ProjectWindowStudio.Ready(3, studio.Solution(window: "Main", without: ["App.axaml", "App.axaml.cs"])));
@@ -441,10 +439,10 @@ public class ProjectWindowEditTests
 
         studio.Select("App");
 
-        var place = studio.Model.Browser.Items.IndexOf(Tile(studio, "Views"));
+        var place = studio.Model.Browser.Items.IndexOf(studio.Tile("Views"));
 
         studio.Select("Views");
-        pane.Select(Tile(studio, "MainWindow.axaml").Node, focus: true);
+        pane.Select(studio.Tile("MainWindow.axaml").Node, focus: true);
         files.After = () => studio.Projects.Publish(ProjectWindowStudio.Ready(
             2, studio.Solution(without: ["Views/MainWindow.axaml", "Views/MainWindow.axaml.cs"])));
 
@@ -477,7 +475,7 @@ public class ProjectWindowEditTests
 
         studio.Select("Assets");
 
-        var logo = Tile(studio, "avalonia-logo.ico").Node;
+        var logo = studio.Tile("avalonia-logo.ico").Node;
 
         pane.Select(logo, focus: true);
         files.After = () =>
@@ -507,7 +505,7 @@ public class ProjectWindowEditTests
 
         using var studio = await Opened(files);
 
-        Expand(studio, "Assets");
+        studio.Expand("Assets");
 
         var logo = studio.Row("avalonia-logo.ico");
         var at = studio.Rows.IndexOf(logo);
@@ -532,28 +530,10 @@ public class ProjectWindowEditTests
         Assert.Equal(studio.Rows[at].Name, studio.Selected.Name);
     }
 
-    private static async Task<ProjectWindowStudio> Opened(FilesProbe? files = null, bool twoColumns = false)
-    {
-        var studio = new ProjectWindowStudio(twoColumns: twoColumns, files: files ?? new FilesProbe());
-
-        await studio.Open();
-
-        return studio;
-    }
-
-    private static void Expand(ProjectWindowStudio studio, string name)
-    {
-        studio.Model.Tree.Expand(studio.Row(name));
-        Dispatcher.UIThread.RunJobs();
-    }
+    private static Task<ProjectWindowStudio> Opened(FilesProbe? files = null, bool twoColumns = false) =>
+        ProjectWindowStudio.OpenedAsync(files, twoColumns);
 
     /// <summary>«Правка» в меню строки, выбранной одной; пусто — её нет.</summary>
     private static AxMenuItem? Edit(ProjectWindowStudio studio, string name) =>
-        EditOf(studio, studio.Panel.Items(studio.Select(name)));
-
-    private static AxMenuItem? EditOf(ProjectWindowStudio studio, IEnumerable<AxMenuItem> items) =>
-        items.SingleOrDefault(item => Equals(item.Header, studio.Strings["project.edit"]));
-
-    private static Tile Tile(ProjectWindowStudio studio, string name) =>
-        studio.Model.Browser.Items.Single(tile => tile.Name == name);
+        studio.EditMenu(studio.Panel.Items(studio.Select(name)));
 }

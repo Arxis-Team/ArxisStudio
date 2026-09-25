@@ -1,9 +1,6 @@
 using System.Collections.Immutable;
 using ArxisStudio.Sdk.Analyzers;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Diagnostics;
-using Microsoft.CodeAnalysis.Text;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -399,53 +396,27 @@ public class ToolBarAnalyzerTests
     /// <c>lang/en.json</c>, модуль — словарь студии. Манифестом правила обязаны признать ровно
     /// манифест, а не первый попавшийся JSON.
     /// </remarks>
-    private static async Task<ImmutableArray<Diagnostic>> AnalyzeAsync(
+    private static Task<ImmutableArray<Diagnostic>> AnalyzeAsync(
         string? manifest, string? source = null, string manifestName = "plugin.json")
     {
-        var references = AppDomain.CurrentDomain.GetAssemblies()
-            .Where(assembly => !assembly.IsDynamic && assembly.Location.Length > 0)
-            .Select(assembly => assembly.Location)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(location => (MetadataReference)MetadataReference.CreateFromFile(location))
-            .ToList();
-
         // Атрибут объявлен прямо здесь, а не взят из SDK: анализатор ищет его по
         // имени и пространству имён, и подделка проверяет ровно то, что он ищет.
-        var trees = new List<SyntaxTree>
-        {
-            CSharpSyntaxTree.ParseText(Attribute, path: "C:/probe/Attribute.cs"),
-            CSharpSyntaxTree.ParseText(source ?? "public sealed class Probe { }", path: "C:/probe/Probe.cs"),
-        };
-
-        var compilation = CSharpCompilation.Create(
-            "Probe",
-            trees,
-            references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var probe = AnalyzerRun.Probe(
+        [
+            AnalyzerRun.Tree(Attribute, "C:/probe/Attribute.cs"),
+            AnalyzerRun.Tree(source ?? AnalyzerRun.EmptyProbe, "C:/probe/Probe.cs"),
+        ]);
 
         var files = new List<AdditionalText>
         {
-            new Given(
+            new AdditionalFile(
                 manifestName == "module.json" ? "C:/studio/Localization/Strings/en.json" : "C:/probe/lang/en.json",
                 """{ "menu.tools": "Tools" }"""),
         };
 
         if (manifest is not null)
-            files.Add(new Given($"C:/probe/{manifestName}", manifest));
+            files.Add(new AdditionalFile($"C:/probe/{manifestName}", manifest));
 
-        var analyzed = compilation.WithAnalyzers(
-            ImmutableArray.Create<DiagnosticAnalyzer>(new ToolBarAnalyzer()),
-            new AnalyzerOptions([.. files]));
-
-        return await analyzed.GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
-    }
-
-    /// <summary>Файл, переданный анализатору входом сборки.</summary>
-    private sealed class Given(string path, string content) : AdditionalText
-    {
-        public override string Path => path;
-
-        public override SourceText GetText(CancellationToken cancellationToken = default) =>
-            SourceText.From(content);
+        return probe.RunAsync(new ToolBarAnalyzer(), files);
     }
 }

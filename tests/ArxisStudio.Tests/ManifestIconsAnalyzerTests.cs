@@ -5,9 +5,6 @@ using ArxisStudio.Sdk.Analyzers;
 using ArxisStudio.Shell;
 using Avalonia.Headless.XUnit;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Diagnostics;
-using Microsoft.CodeAnalysis.Text;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -369,36 +366,12 @@ public class ManifestIconsAnalyzerTests
     private static string Recorded(string manifest, Diagnostic diagnostic) =>
         manifest.Substring(diagnostic.Location.SourceSpan.Start, diagnostic.Location.SourceSpan.Length);
 
-    private static async Task<ImmutableArray<Diagnostic>> AnalyzeAsync(
-        string manifest, string manifestName = "plugin.json", bool withSet = true)
-    {
-        var locations = AppDomain.CurrentDomain.GetAssemblies()
-            .Where(assembly => !assembly.IsDynamic && assembly.Location.Length > 0)
-            .Select(assembly => assembly.Location)
-            .Append(typeof(Avalonia.Media.Geometry).Assembly.Location)
-            .Append(typeof(AxIcons).Assembly.Location)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Where(location => withSet || !Path.GetFileNameWithoutExtension(location).Equals("ArxisStudio.Icons", StringComparison.OrdinalIgnoreCase));
-
-        var compilation = CSharpCompilation.Create(
-            "Probe",
-            [CSharpSyntaxTree.ParseText("public sealed class Probe { }", cancellationToken: TestContext.Current.CancellationToken)],
-            locations.Select(location => (MetadataReference)MetadataReference.CreateFromFile(location)),
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-
-        var analyzed = compilation.WithAnalyzers(
-            ImmutableArray.Create<DiagnosticAnalyzer>(new ManifestIconsAnalyzer()),
-            new AnalyzerOptions([new Given($"C:/probe/{manifestName}", manifest)]));
-
-        return await analyzed.GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
-    }
-
-    /// <summary>Файл, переданный анализатору входом сборки.</summary>
-    private sealed class Given(string path, string content) : AdditionalText
-    {
-        public override string Path => path;
-
-        public override SourceText GetText(CancellationToken cancellationToken = default) =>
-            SourceText.From(content);
-    }
+    private static Task<ImmutableArray<Diagnostic>> AnalyzeAsync(
+        string manifest, string manifestName = "plugin.json", bool withSet = true) =>
+        AnalyzerRun.Probe(
+                AnalyzerRun.EmptyProbe,
+                AnalyzerRun.References(
+                    [typeof(Avalonia.Media.Geometry), typeof(AxIcons)],
+                    keep: assembly => withSet || assembly.GetName().Name != "ArxisStudio.Icons"))
+            .RunAsync(new ManifestIconsAnalyzer(), [new AdditionalFile($"C:/probe/{manifestName}", manifest)]);
 }

@@ -19,20 +19,11 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class PluginContractGuardTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-guard-{Guid.NewGuid():N}");
-
-    public PluginContractGuardTests() => Directory.CreateDirectory(_root);
+    private readonly string _root = TempFolder.Create("guard");
 
     public void Dispose()
     {
-        try
-        {
-            if (Directory.Exists(_root))
-                Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }
@@ -537,27 +528,7 @@ public class PluginContractGuardTests : IDisposable
     }
 
     /// <summary>Клонирует пример, объявив ему контракт по указанному пути.</summary>
-    private string Clone(string id, string contract)
-    {
-        var target = Path.Combine(_root, id);
-
-        ZipFile.ExtractToDirectory(HelloArchive.Path, target);
-
-        File.WriteAllText(
-            Path.Combine(target, "plugin.json"),
-            $$"""
-            {
-              "id": "{{id}}",
-              "name": "{{id}}",
-              "version": "1.0.0",
-              "entry": "bin/Arxis.HelloPlugin.dll",
-              "provides": { "contracts": [ {{System.Text.Json.JsonSerializer.Serialize(contract)}} ] },
-              "activation": [ "onStartup" ]
-            }
-            """);
-
-        return target;
-    }
+    private string Clone(string id, string contract) => HelloArchive.Clone(_root, id, contract: contract);
 
     private IReadOnlyList<LoadedPlugin> Start()
     {

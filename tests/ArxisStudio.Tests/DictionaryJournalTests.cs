@@ -16,14 +16,11 @@ namespace ArxisStudio.Tests;
 /// </remarks>
 public class DictionaryJournalTests : IDisposable
 {
-    private readonly string _folder = Path.Combine(Path.GetTempPath(), $"arxis-journal-{Guid.NewGuid():N}");
-
-    public DictionaryJournalTests() => Directory.CreateDirectory(_folder);
+    private readonly string _folder = TempFolder.Create("journal");
 
     public void Dispose()
     {
-        if (Directory.Exists(_folder))
-            Directory.Delete(_folder, recursive: true);
+        TempFolder.Erase(_folder, strict: true);
 
         GC.SuppressFinalize(this);
     }

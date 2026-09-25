@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Shell.Localization;
 using ArxisStudio.ViewModels;

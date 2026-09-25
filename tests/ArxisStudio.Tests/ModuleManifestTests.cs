@@ -18,19 +18,11 @@ public class ModuleManifestTests : IDisposable
 {
     private const string Source = "namespace Probe; public static class Marker { }";
 
-    private readonly string _root = Directory.CreateDirectory(
-        Path.Combine(Path.GetTempPath(), $"arxis-module-manifest-{Guid.NewGuid():N}")).FullName;
+    private readonly string _root = TempFolder.Create("module-manifest");
 
     public void Dispose()
     {
-        try
-        {
-            Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            // Сборка уехала в основной контекст и держит свой файл до конца процесса.
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }

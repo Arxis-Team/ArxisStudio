@@ -3,7 +3,6 @@ using ArxisStudio.Controls;
 using ArxisStudio.Modules.Project.Dialogs;
 using ArxisStudio.Modules.Project.History;
 using ArxisStudio.Modules.Project.Model;
-using ArxisStudio.Modules.Project.Tree;
 using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
 using Avalonia.Controls;
@@ -192,7 +191,7 @@ public class ProjectWindowHistoryTests
 
         using var studio = await Opened(history);
 
-        Expand(studio, "Views");
+        studio.Expand("Views");
 
         var views = studio.Row("Views").Node.Path;
         var gone = views.Combine("Old.axaml");
@@ -350,14 +349,8 @@ public class ProjectWindowHistoryTests
         Assert.Equal(4, model.Selected?.Id);
     }
 
-    private static async Task<ProjectWindowStudio> Opened(HistoryProbe history)
-    {
-        var studio = new ProjectWindowStudio(files: new FilesProbe(), history: history);
-
-        await studio.Open();
-
-        return studio;
-    }
+    private static Task<ProjectWindowStudio> Opened(HistoryProbe history) =>
+        ProjectWindowStudio.OpenedAsync(history: history);
 
     /// <summary>«Локальная история ▸» в меню строки; пусто — её нет.</summary>
     private static AxMenuItem? History(ProjectWindowStudio studio, string name) =>
@@ -386,12 +379,6 @@ public class ProjectWindowHistoryTests
         File.WriteAllText(path.Value, text);
 
         return path;
-    }
-
-    private static void Expand(ProjectWindowStudio studio, string name)
-    {
-        studio.Model.Tree.Expand(studio.Row(name));
-        Dispatcher.UIThread.RunJobs();
     }
 
     private static LocalHistoryChange Modified(CanonicalPath path, string before, string after) => new()

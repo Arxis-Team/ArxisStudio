@@ -158,20 +158,7 @@ public class SampleLanguagePackTests : IDisposable
 
     private static IEnumerable<string> Keys(string path) => Strings(path).Keys;
 
-    private static string Sample() => Find("Arxis.Lang.De", "plugin.json");
+    private static string Sample() => Repository.Path("src", "Plugins", "Arxis.Lang.De");
 
-    private static string Hello() => Find("Arxis.HelloPlugin", "Arxis.HelloPlugin.csproj");
-
-    private static string Find(string plugin, string marker)
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            var candidate = Path.Combine(directory.FullName, "src", "Plugins", plugin);
-
-            if (File.Exists(Path.Combine(candidate, marker)))
-                return candidate;
-        }
-
-        throw new InvalidOperationException($"Не найден src/Plugins/{plugin}");
-    }
+    private static string Hello() => Repository.Path("src", "Plugins", "Arxis.HelloPlugin");
 }

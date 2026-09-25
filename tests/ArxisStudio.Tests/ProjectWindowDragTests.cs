@@ -1,9 +1,7 @@
-using ArxisStudio.Controls;
 using ArxisStudio.Modules.Project.Panels;
 using ArxisStudio.Modules.Project.Tree;
 using ArxisStudio.Projects;
 using Avalonia;
-using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
@@ -240,8 +238,8 @@ public class ProjectWindowDragTests
         files.After = () => studio.Projects.Publish(ProjectWindowStudio.Ready(2, studio.Solution(
             without: ["Program.cs"], more: ["Models/Program.cs"])));
 
-        studio.Grab(TileItem(studio, "Program.cs"));
-        studio.Release(TileItem(studio, "Models"));
+        studio.Grab(studio.TileItem("Program.cs"));
+        studio.Release(studio.TileItem("Models"));
 
         await Settled(studio, () => pane.Selected?.Name == "Program.cs" && pane.Shown.IsKeyboardFocusWithin);
 
@@ -252,7 +250,7 @@ public class ProjectWindowDragTests
         files.After = () => studio.Projects.Publish(ProjectWindowStudio.Ready(3, studio.Solution(
             without: ["Program.cs", "app.manifest"], more: ["Models/Program.cs", "Views/app.manifest"])));
 
-        studio.Grab(TileItem(studio, "app.manifest"));
+        studio.Grab(studio.TileItem("app.manifest"));
         studio.Release(studio.Item(studio.Row("Views")));
 
         await Settled(studio, () => pane.Selected?.Name == "app.manifest" && pane.Shown.IsKeyboardFocusWithin);
@@ -265,8 +263,8 @@ public class ProjectWindowDragTests
             without: ["Program.cs", "app.manifest", "Assets/avalonia-logo.ico"],
             more: ["Models/Program.cs", "Views/app.manifest", "Views/Assets/avalonia-logo.ico"])));
 
-        studio.Grab(TileItem(studio, "Assets"));
-        studio.Release(TileItem(studio, "Views"));
+        studio.Grab(studio.TileItem("Assets"));
+        studio.Release(studio.TileItem("Views"));
 
         await Settled(studio, () => studio.Model.Browser.Current?.Path.Directory.FileName == "Views" && pane.Shown.IsKeyboardFocusWithin);
 
@@ -293,7 +291,7 @@ public class ProjectWindowDragTests
         var drag = studio.Panel.Drag!;
 
         studio.Select("Views");
-        studio.Grab(TileItem(studio, "MainWindow.axaml"));
+        studio.Grab(studio.TileItem("MainWindow.axaml"));
 
         foreach (var refused in new[] { "Views", "src", "Hello" })
         {
@@ -367,11 +365,11 @@ public class ProjectWindowDragTests
         var crumbs = studio.View.Path;
 
         studio.Select("Views");
-        studio.DoubleClick(TileItem(studio, "Deep"));
+        studio.DoubleClick(studio.TileItem("Deep"));
 
         Assert.True(studio.Overflow().IsEffectivelyVisible, "крошки уместились — прятать нечего");
 
-        studio.Grab(TileItem(studio, "Note.cs"));
+        studio.Grab(studio.TileItem("Note.cs"));
 
         var held = studio.Window.FocusManager?.GetFocusedElement();
 
@@ -415,7 +413,7 @@ public class ProjectWindowDragTests
         // Щелчок в стороне: время в безголовом прогоне стоит, и следующее нажатие иначе сочлось бы двойным.
         studio.Release(studio.Item(studio.Row("App")));
         studio.Press(studio.View.Query);
-        studio.Grab(TileItem(studio, "Note.cs"));
+        studio.Grab(studio.TileItem("Note.cs"));
         studio.Carry(studio.Overflow());
         studio.Unfold();
 
@@ -428,14 +426,8 @@ public class ProjectWindowDragTests
         Assert.False(crumbs.IsOverflowOpen, "меню пережило сброс");
     }
 
-    private static async Task<ProjectWindowStudio> Opened(FilesProbe files, bool twoColumns = false)
-    {
-        var studio = new ProjectWindowStudio(twoColumns: twoColumns, files: files);
-
-        await studio.Open();
-
-        return studio;
-    }
+    private static Task<ProjectWindowStudio> Opened(FilesProbe files, bool twoColumns = false) =>
+        ProjectWindowStudio.OpenedAsync(files, twoColumns);
 
     /// <summary>Выбирает строки, как их выбирают с Ctrl.</summary>
     private static void Choose(ProjectWindowStudio studio, params Row[] rows)
@@ -446,17 +438,5 @@ public class ProjectWindowDragTests
             studio.View.Tree.SelectedItems.Add(row);
 
         Dispatcher.UIThread.RunJobs();
-    }
-
-    /// <summary>Контейнер плитки в показанном списке — прокрутив до неё.</summary>
-    private static AxListBoxItem TileItem(ProjectWindowStudio studio, string name)
-    {
-        var list = studio.Panel.Pane!.Shown;
-        var tile = studio.Model.Browser.Items.Single(item => item.Name == name);
-
-        list.ScrollIntoView(tile);
-        Dispatcher.UIThread.RunJobs();
-
-        return Assert.IsType<AxListBoxItem>(list.ContainerFromItem(tile));
     }
 }

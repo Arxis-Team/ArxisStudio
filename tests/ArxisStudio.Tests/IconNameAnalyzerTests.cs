@@ -1,13 +1,9 @@
 using System.Collections.Immutable;
-using System.Reflection;
 using ArxisStudio.Controls;
 using ArxisStudio.Icons;
 using ArxisStudio.Sdk.Analyzers;
 using Avalonia.Controls;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Diagnostics;
-using Microsoft.CodeAnalysis.Text;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -190,45 +186,13 @@ public class IconNameAnalyzerTests
             """));
     }
 
-    private static async Task<ImmutableArray<Diagnostic>> MarkupAsync(string markup) =>
-        await AnalyzeAsync("public sealed class Probe { }", [new Given("C:/probe/View.axaml", markup)]);
+    private static Task<ImmutableArray<Diagnostic>> MarkupAsync(string markup) =>
+        AnalyzeAsync(AnalyzerRun.EmptyProbe, [new AdditionalFile("C:/probe/View.axaml", markup)]);
 
-    private static async Task<ImmutableArray<Diagnostic>> CodeAsync(string code) =>
-        await AnalyzeAsync(code, []);
+    private static Task<ImmutableArray<Diagnostic>> CodeAsync(string code) =>
+        AnalyzeAsync(code, []);
 
-    private static async Task<ImmutableArray<Diagnostic>> AnalyzeAsync(string code, AdditionalText[] files)
-    {
-        // Сборки грузятся лениво, а ссылки собираются по загруженным: без касания типов ни
-        // контролов студии, ни виджетов Avalonia в списке может не оказаться вовсе.
-        Assembly[] anchors = [typeof(AxButton).Assembly, typeof(AxIcon).Assembly, typeof(Button).Assembly];
-
-        var references = AppDomain.CurrentDomain.GetAssemblies()
-            .Concat(anchors)
-            .Where(assembly => !assembly.IsDynamic && assembly.Location.Length > 0)
-            .Select(assembly => assembly.Location)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(location => (MetadataReference)MetadataReference.CreateFromFile(location))
-            .ToList();
-
-        var compilation = CSharpCompilation.Create(
-            "Probe",
-            [CSharpSyntaxTree.ParseText(code)],
-            references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-
-        var analyzed = compilation.WithAnalyzers(
-            ImmutableArray.Create<DiagnosticAnalyzer>(new IconNameAnalyzer()),
-            new AnalyzerOptions([.. files]));
-
-        return await analyzed.GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
-    }
-
-    /// <summary>Файл, переданный анализатору входом сборки.</summary>
-    private sealed class Given(string path, string content) : AdditionalText
-    {
-        public override string Path => path;
-
-        public override SourceText GetText(CancellationToken cancellationToken = default) =>
-            SourceText.From(content);
-    }
+    private static Task<ImmutableArray<Diagnostic>> AnalyzeAsync(string code, AdditionalText[] files) =>
+        AnalyzerRun.Probe(code, AnalyzerRun.References([typeof(AxButton), typeof(AxIcon), typeof(Button)]))
+            .RunAsync(new IconNameAnalyzer(), files);
 }

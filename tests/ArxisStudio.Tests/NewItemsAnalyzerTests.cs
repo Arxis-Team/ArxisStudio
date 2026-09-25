@@ -1,9 +1,6 @@
 using System.Collections.Immutable;
 using ArxisStudio.Sdk.Analyzers;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Diagnostics;
-using Microsoft.CodeAnalysis.Text;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -385,50 +382,24 @@ public class NewItemsAnalyzerTests
     /// <param name="manifest">Содержимое манифеста; null — манифеста нет.</param>
     /// <param name="source">Код проекта; null — пустой класс.</param>
     /// <param name="manifestName">Имя манифеста: <c>plugin.json</c> у плагина, <c>module.json</c> у модуля.</param>
-    private static async Task<ImmutableArray<Diagnostic>> AnalyzeAsync(
+    private static Task<ImmutableArray<Diagnostic>> AnalyzeAsync(
         string? manifest, string? source = null, string manifestName = "plugin.json")
     {
-        var references = AppDomain.CurrentDomain.GetAssemblies()
-            .Where(assembly => !assembly.IsDynamic && assembly.Location.Length > 0)
-            .Select(assembly => assembly.Location)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(location => (MetadataReference)MetadataReference.CreateFromFile(location))
-            .ToList();
-
         // Атрибут объявлен прямо здесь, а не взят из SDK: анализатор ищет его по имени и
         // пространству имён, и подделка проверяет ровно то, что он ищет.
-        var trees = new List<SyntaxTree>
-        {
-            CSharpSyntaxTree.ParseText(Attribute, path: "C:/probe/Attribute.cs"),
-            CSharpSyntaxTree.ParseText(source ?? "public sealed class Probe { }", path: "C:/probe/Probe.cs"),
-        };
-
-        var compilation = CSharpCompilation.Create(
-            "Probe",
-            trees,
-            references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var probe = AnalyzerRun.Probe(
+        [
+            AnalyzerRun.Tree(Attribute, "C:/probe/Attribute.cs"),
+            AnalyzerRun.Tree(source ?? AnalyzerRun.EmptyProbe, "C:/probe/Probe.cs"),
+        ]);
 
         // Словарь подаётся раньше манифеста, как в настоящей сборке: манифестом правила обязаны
         // признать ровно манифест, а не первый попавшийся JSON.
-        var files = new List<AdditionalText> { new Given("C:/probe/lang/en.json", """{ "add.note": "Note" }""") };
+        var files = new List<AdditionalText> { new AdditionalFile("C:/probe/lang/en.json", """{ "add.note": "Note" }""") };
 
         if (manifest is not null)
-            files.Add(new Given($"C:/probe/{manifestName}", manifest));
+            files.Add(new AdditionalFile($"C:/probe/{manifestName}", manifest));
 
-        var analyzed = compilation.WithAnalyzers(
-            ImmutableArray.Create<DiagnosticAnalyzer>(new NewItemsAnalyzer()),
-            new AnalyzerOptions([.. files]));
-
-        return await analyzed.GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
-    }
-
-    /// <summary>Файл, переданный анализатору входом сборки.</summary>
-    private sealed class Given(string path, string content) : AdditionalText
-    {
-        public override string Path => path;
-
-        public override SourceText GetText(CancellationToken cancellationToken = default) =>
-            SourceText.From(content);
+        return probe.RunAsync(new NewItemsAnalyzer(), files);
     }
 }

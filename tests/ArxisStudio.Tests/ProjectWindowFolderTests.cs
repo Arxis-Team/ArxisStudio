@@ -17,19 +17,12 @@ namespace ArxisStudio.Tests;
 /// </remarks>
 public class ProjectWindowFolderTests : IDisposable
 {
-    private readonly string _root = Directory.CreateDirectory(
-        Path.Combine(Path.GetTempPath(), $"arxis-project-window-folders-{Guid.NewGuid():N}")).FullName;
+    private readonly string _root = TempFolder.Create("project-window-folders");
 
     /// <inheritdoc/>
     public void Dispose()
     {
-        try
-        {
-            Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }

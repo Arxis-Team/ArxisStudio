@@ -36,14 +36,13 @@ public class PluginSettingsTests : IDisposable
         """{ "key": "figma.blink", "type": "bool", "scope": "user", "title": "Мигание", "default": true }""",
         new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
 
-    private readonly string _home = Path.Combine(Path.GetTempPath(), $"arxis-settings-{Guid.NewGuid():N}");
+    private readonly string _home = TempFolder.Reserve("settings");
 
     public PluginSettingsTests() => Directory.CreateDirectory(Project());
 
     public void Dispose()
     {
-        if (Directory.Exists(_home))
-            Directory.Delete(_home, recursive: true);
+        TempFolder.Erase(_home, strict: true);
 
         GC.SuppressFinalize(this);
     }

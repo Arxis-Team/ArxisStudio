@@ -54,18 +54,11 @@ public class ProjectsPackagesTests : IDisposable
 
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
-    private readonly string _root = Directory.CreateDirectory(
-        Path.Combine(Path.GetTempPath(), $"arxis-packages-{Guid.NewGuid():N}")).FullName;
+    private readonly string _root = TempFolder.Create("packages");
 
     public void Dispose()
     {
-        try
-        {
-            Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }

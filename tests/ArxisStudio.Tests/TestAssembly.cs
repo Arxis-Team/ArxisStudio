@@ -1,6 +1,5 @@
 using System.Reflection;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -105,6 +104,53 @@ internal static class TestAssembly
         Compile(name, [source], file);
     }
 
+    /// <summary>
+    /// Кладёт внешний плагин папкой каталога: манифест в корне, сборка в <c>bin</c>.
+    /// </summary>
+    /// <param name="root">Папка плагинов.</param>
+    /// <param name="id">Идентификатор — он же имя папки.</param>
+    /// <param name="assembly">Имя сборки.</param>
+    /// <param name="source">Код плагина.</param>
+    /// <param name="activation">Событие активации.</param>
+    /// <param name="name">Имя в манифесте; null — идентификатор.</param>
+    /// <param name="dependencies">Зависимости записью манифеста; null — ни от кого.</param>
+    /// <returns>Папку плагина.</returns>
+    /// <remarks>
+    /// Сборка не загружается: плагин поднимает хост из своего контекста, и копия, заранее
+    /// загруженная в процесс тестов, подменила бы ту, что лежит в папке.
+    /// </remarks>
+    public static string EmitPlugin(
+        string root,
+        string id,
+        string assembly,
+        string source,
+        string activation = "onStartup",
+        string? name = null,
+        string? dependencies = null)
+    {
+        var folder = Path.Combine(root, id);
+        var bin = Directory.CreateDirectory(Path.Combine(folder, "bin")).FullName;
+
+        EmitFile(Path.Combine(bin, assembly + ".dll"), assembly, source);
+
+        var fields = new List<string>
+        {
+            $"\"id\": \"{id}\"",
+            $"\"name\": \"{name ?? id}\"",
+            "\"version\": \"1.0.0\"",
+            $"\"entry\": \"bin/{assembly}.dll\"",
+        };
+
+        if (dependencies is not null)
+            fields.Add($"\"dependencies\": {dependencies}");
+
+        fields.Add($"\"activation\": [ \"{activation}\" ]");
+
+        File.WriteAllText(Path.Combine(folder, "plugin.json"), "{\n  " + string.Join(",\n  ", fields) + "\n}\n");
+
+        return folder;
+    }
+
     /// <summary>Имя файла манифеста — то же, что у настоящего модуля.</summary>
     private const string ModuleManifestFile = "module.json";
 
@@ -138,20 +184,7 @@ internal static class TestAssembly
     {
         ArgumentNullException.ThrowIfNull(sources);
 
-        var references = AppDomain.CurrentDomain.GetAssemblies()
-            .Where(assembly => !assembly.IsDynamic && assembly.Location.Length > 0)
-            .Select(assembly => assembly.Location)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(location => (MetadataReference)MetadataReference.CreateFromFile(location))
-            .ToList();
-
-        var compilation = CSharpCompilation.Create(
-            name,
-            sources.Select(text => CSharpSyntaxTree.ParseText(text)),
-            references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-
-        var result = compilation.Emit(output);
+        var result = AnalyzerRun.Probe(sources.Select(text => AnalyzerRun.Tree(text)), name: name).Emit(output);
 
         // Сборка, не собравшаяся сама, проверила бы что угодно, кроме контракта.
         Assert.True(

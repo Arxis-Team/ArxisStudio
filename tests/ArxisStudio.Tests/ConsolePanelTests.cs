@@ -3,7 +3,6 @@ using ArxisStudio.Docking;
 using ArxisStudio.Icons;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Modules.Console;
-using ArxisStudio.Modules.Console.Feed;
 using ArxisStudio.Modules.Console.Log;
 using ArxisStudio.Modules.Console.Panels;
 using ArxisStudio.Sdk;
@@ -33,14 +32,13 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class ConsolePanelTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-console-{Guid.NewGuid():N}");
+    private readonly string _root = TempFolder.Create("console");
 
     private IStudioSettings _settings = null!;
     private IStudioStrings _strings = null!;
 
     public ConsolePanelTests()
     {
-        Directory.CreateDirectory(_root);
         ConsoleHub.Reset();
     }
 
@@ -50,14 +48,7 @@ public class ConsolePanelTests : IDisposable
         // чужую. Ровно та причина, по которой у панели есть Release.
         ConsoleHub.Reset();
 
-        try
-        {
-            if (Directory.Exists(_root))
-                Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }
@@ -596,7 +587,6 @@ public class ConsolePanelTests : IDisposable
         Assert.Equal(TextWrapping.Wrap, Part<AxTextArea>(panel, "DetailsText").TextWrapping);
     }
 
-    /// <summary>Нажимает клавишу там, где стоит человек, и говорит, взяла ли её панель.</summary>
     /// <summary>
     /// Меню источников — список флажков: щелчок прячет один источник, не трогая остальных.
     /// </summary>
@@ -783,6 +773,7 @@ public class ConsolePanelTests : IDisposable
     private static AxMenuItem Item(IEnumerable<AxMenuItem> items, string header) =>
         items.Single(item => Equals(item.Header, header));
 
+    /// <summary>Нажимает клавишу там, где стоит человек, и говорит, взяла ли её панель.</summary>
     private static bool Press(Control where, Key key, KeyModifiers modifiers)
     {
         var args = new KeyEventArgs

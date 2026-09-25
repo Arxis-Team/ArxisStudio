@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using ArxisStudio.Extensibility;
+using ArxisStudio.LocalHistory;
 using ArxisStudio.Modules.Projects;
+using ArxisStudio.Modules.Projects.History;
 using ArxisStudio.Modules.Projects.Watching;
 using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
@@ -166,6 +168,14 @@ internal sealed class ProjectsStudio : IDisposable
     public static CanonicalPath Solution(string name = "Hello") =>
         CanonicalPath.Create(Path.Combine(Path.GetTempPath(), "arxis-projects-fixture", name, name + ".slnx"));
 
+    /// <summary>Служба, поднятая модулем, — изнутри, со всеми её частями.</summary>
+    public ProjectsHost Service =>
+        ((ProjectsModule)Assert.Single(Module.Entries)).Host ?? throw new InvalidOperationException("служба не поднята");
+
+    /// <summary>Хранилище локальной истории службы.</summary>
+    public LocalHistoryStore HistoryStore =>
+        Service.History.Store ?? throw new InvalidOperationException("история не открылась");
+
     /// <summary>Записывает доставленные события.</summary>
     public List<ProjectsChangedEventArgs> Record()
     {
@@ -174,6 +184,40 @@ internal sealed class ProjectsStudio : IDisposable
         Projects.Changed += (_, change) => seen.Add(change);
 
         return seen;
+    }
+
+    /// <summary>Записывает перемены, о которых говорит служба файлов.</summary>
+    public List<FilesChangedEventArgs> RecordFileChanges()
+    {
+        var seen = new List<FilesChangedEventArgs>();
+
+        Files.Changed += (_, change) => seen.Add(change);
+
+        return seen;
+    }
+
+    /// <summary>Ждёт, пока история службы запишет начатое.</summary>
+    public Task SettleHistoryAsync() => SettleAsync(Service.History);
+
+    /// <summary>
+    /// Ждёт, пока очередь записи истории опустеет: несколько кругов, потому что дело опорного
+    /// снимка ставит в очередь свои куски.
+    /// </summary>
+    /// <param name="recorder">Чья очередь.</param>
+    public static async Task SettleAsync(HistoryRecorder recorder)
+    {
+        for (var round = 0; round < 4; round++)
+        {
+            var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            Assert.True(recorder.Enqueue(() =>
+            {
+                done.TrySetResult();
+                return Task.CompletedTask;
+            }), "очередь истории закрыта");
+
+            await done.Task.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+        }
     }
 
     /// <summary>Ждёт состояния, отвечающего условию: доставленного или уже опубликованного.</summary>
@@ -207,16 +251,6 @@ internal sealed class ProjectsStudio : IDisposable
         {
         }
     }
-}
-
-/// <summary>Строка состояния, которая помнит сказанное.</summary>
-internal sealed class StatusProbe : IStudioStatus
-{
-    /// <summary>Что сказали, по порядку.</summary>
-    public ConcurrentQueue<string> Said { get; } = new();
-
-    /// <inheritdoc/>
-    public void Show(string message) => Said.Enqueue(message);
 }
 
 /// <summary>Слежение, которым тест управляет: что велели следить и когда сказать «устарело».</summary>

@@ -4,7 +4,6 @@ using ArxisStudio.Icons;
 using ArxisStudio.Modules.Project;
 using ArxisStudio.Modules.Project.Browse;
 using ArxisStudio.Modules.Project.Panels;
-using ArxisStudio.Modules.Project.Tree;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
@@ -12,7 +11,6 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
-using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform;
@@ -77,15 +75,15 @@ public class ProjectWindowTilesTests
         using var studio = await TwoColumns();
 
         studio.Select("App");
-        studio.DoubleClick(TileItem(studio, "Views"));
+        studio.DoubleClick(studio.TileItem("Views"));
 
         Assert.Equal("Views", studio.Model.Browser.Current!.Name);
         Assert.Equal("Views", studio.Selected.Name);
-        Assert.Same(TileItem(studio, "MainWindow.axaml"), Focused(studio));
+        Assert.Same(studio.TileItem("MainWindow.axaml"), Focused(studio));
         Assert.DoesNotContain(":focus-visible", Focused(studio).Classes);
 
         studio.Press(studio.View.Query);
-        studio.DoubleClick(TileItem(studio, "MainWindow.axaml"));
+        studio.DoubleClick(studio.TileItem("MainWindow.axaml"));
 
         Assert.Equal("MainWindow.axaml", Path.GetFileName(Assert.Single(studio.Documents.Opened)));
     }
@@ -109,7 +107,7 @@ public class ProjectWindowTilesTests
         var pane = studio.Panel.Pane!;
 
         studio.Select("App");
-        pane.Select(Tile(studio, "Models").Node, focus: true);
+        pane.Select(studio.Tile("Models").Node, focus: true);
         Keystroke(studio, Key.Enter);
 
         Assert.Equal("Models", studio.Model.Browser.Current!.Name);
@@ -120,32 +118,32 @@ public class ProjectWindowTilesTests
         Assert.Equal("App", studio.Model.Browser.Current!.Name);
         Assert.Equal("App", studio.Selected.Name);
         Assert.Equal("Models", pane.Selected?.Name);
-        Assert.Same(TileItem(studio, "Models"), Focused(studio));
+        Assert.Same(studio.TileItem("Models"), Focused(studio));
 
-        pane.Select(Tile(studio, "Views").Node, focus: true);
+        pane.Select(studio.Tile("Views").Node, focus: true);
         Keystroke(studio, Key.Enter);
 
         Assert.Equal("Views", studio.Model.Browser.Current!.Name);
-        Assert.Same(TileItem(studio, "MainWindow.axaml"), Focused(studio));
+        Assert.Same(studio.TileItem("MainWindow.axaml"), Focused(studio));
         Assert.Contains(":focus-visible", Focused(studio).Classes);
 
         Keystroke(studio, Key.Up, RawInputModifiers.Alt);
 
         Assert.Equal("App", studio.Model.Browser.Current!.Name);
         Assert.Equal("Views", pane.Selected?.Name);
-        Assert.Same(TileItem(studio, "Views"), Focused(studio));
+        Assert.Same(studio.TileItem("Views"), Focused(studio));
 
         // Крошку щёлкают мышью: кнопка берёт клавиатуру себе и уходит вместе с прежними крошками.
         studio.Press(studio.View.Path.GetVisualDescendants().OfType<AxBreadcrumbItem>().First());
 
         Assert.Equal("Hello", studio.Model.Browser.Current!.Name);
         Assert.Equal("src", pane.Selected?.Name);
-        Assert.Same(TileItem(studio, "src"), Focused(studio));
+        Assert.Same(studio.TileItem("src"), Focused(studio));
 
         // Щелчок по дереву, пришедший раньше, чем колонка вернула себе клавиатуру, её и сохраняет.
         var row = studio.Item(studio.Row("Hello"));
 
-        pane.Act(Tile(studio, "src"));
+        pane.Act(studio.Tile("src"));
         row.Focus();
         Dispatcher.UIThread.RunJobs();
 
@@ -171,13 +169,13 @@ public class ProjectWindowTilesTests
         var pane = studio.Panel.Pane!;
 
         studio.Select("App");
-        pane.Select(Tile(studio, "Assets").Node, focus: true);
+        pane.Select(studio.Tile("Assets").Node, focus: true);
         Keystroke(studio, Key.Right);
 
-        var next = studio.Model.Browser.Items[studio.Model.Browser.Items.IndexOf(Tile(studio, "Assets")) + 1];
+        var next = studio.Model.Browser.Items[studio.Model.Browser.Items.IndexOf(studio.Tile("Assets")) + 1];
 
         Assert.Same(next, pane.Selected);
-        Assert.Same(TileItem(studio, next.Name), Focused(studio));
+        Assert.Same(studio.TileItem(next.Name), Focused(studio));
         Assert.Contains(":focus-visible", Focused(studio).Classes);
 
         Keystroke(studio, Key.Tab, RawInputModifiers.Shift);
@@ -186,9 +184,9 @@ public class ProjectWindowTilesTests
 
         Keystroke(studio, Key.Tab);
 
-        Assert.Same(TileItem(studio, next.Name), Focused(studio));
+        Assert.Same(studio.TileItem(next.Name), Focused(studio));
 
-        pane.Select(Tile(studio, "Models").Node, focus: true);
+        pane.Select(studio.Tile("Models").Node, focus: true);
         Keystroke(studio, Key.Enter);
         Keystroke(studio, Key.Tab, RawInputModifiers.Shift);
 
@@ -285,10 +283,10 @@ public class ProjectWindowTilesTests
 
         // Подложка наведения и выбора — квадрат места под значок у каждой плитки ряда: подложка
         // предмета модели мельче места, но место от этого не сужается и не вытягивается.
-        var cell = Backdrop(TileItem(studio, "Program.cs")).Bounds.Size;
+        var cell = Backdrop(studio.TileItem("Program.cs")).Bounds.Size;
 
         Assert.Equal(cell.Width, cell.Height);
-        Assert.Equal(cell, Backdrop(TileItem(studio, "Dependencies")).Bounds.Size);
+        Assert.Equal(cell, Backdrop(studio.TileItem("Dependencies")).Bounds.Size);
 
         studio.View.Size.Value = 1;
         Dispatcher.UIThread.RunJobs();
@@ -320,23 +318,23 @@ public class ProjectWindowTilesTests
         var (_, normal, _, step) = Ladder(studio);
         var start = studio.View.Size.Value;
 
-        studio.Wheel(TileItem(studio, "Views"), 1, RawInputModifiers.Control);
+        studio.Wheel(studio.TileItem("Views"), 1, RawInputModifiers.Control);
 
         Assert.Equal(start + 1, studio.View.Size.Value);
         Assert.Equal(normal + step, studio.Settings.Get<double?>(ProjectSettings.IconSizeKey));
         Assert.Equal(normal + step, Silhouette(studio, "Program.cs").Bounds.Width);
 
-        studio.Wheel(TileItem(studio, "Views"), -2, RawInputModifiers.Control);
+        studio.Wheel(studio.TileItem("Views"), -2, RawInputModifiers.Control);
 
         Assert.Equal(start - 1, studio.View.Size.Value);
 
-        studio.Wheel(TileItem(studio, "Views"), -1);
+        studio.Wheel(studio.TileItem("Views"), -1);
 
         Assert.Equal(start - 1, studio.View.Size.Value);
 
         studio.View.Size.Value = 1;
         Dispatcher.UIThread.RunJobs();
-        studio.Wheel(TileItem(studio, "Views"), -1, RawInputModifiers.Control);
+        studio.Wheel(studio.TileItem("Views"), -1, RawInputModifiers.Control);
 
         Assert.Equal(0d, studio.View.Size.Value);
         Assert.True(studio.View.Files.IsEffectivelyVisible, "мельче малой ступени колонка не стала списком");
@@ -359,7 +357,7 @@ public class ProjectWindowTilesTests
 
         Assert.True(offset.Y > 0, "крупные плитки уместились без прокрутки — проверять нечего");
 
-        studio.Wheel(TileItem(studio, "Views"), 1, RawInputModifiers.Control);
+        studio.Wheel(studio.TileItem("Views"), 1, RawInputModifiers.Control);
 
         Assert.Equal(studio.View.Size.Maximum, studio.View.Size.Value);
         Assert.Equal(offset, viewer.Offset);
@@ -378,29 +376,29 @@ public class ProjectWindowTilesTests
 
         var start = studio.View.Size.Value;
 
-        studio.Wheel(TileItem(studio, "Views"), 0.4, RawInputModifiers.Control);
-        studio.Wheel(TileItem(studio, "Views"), 0.4, RawInputModifiers.Control);
+        studio.Wheel(studio.TileItem("Views"), 0.4, RawInputModifiers.Control);
+        studio.Wheel(studio.TileItem("Views"), 0.4, RawInputModifiers.Control);
 
         Assert.Equal(start, studio.View.Size.Value);
 
         // Смена направления копилку сбрасывает: целый щелчок назад — целая ступень назад, и восемь
         // десятых, накопленных вперёд, его не съедают.
-        studio.Wheel(TileItem(studio, "Views"), -1, RawInputModifiers.Control);
+        studio.Wheel(studio.TileItem("Views"), -1, RawInputModifiers.Control);
 
         Assert.Equal(start - 1, studio.View.Size.Value);
 
-        studio.Wheel(TileItem(studio, "Views"), 0.4, RawInputModifiers.Control);
-        studio.Wheel(TileItem(studio, "Views"), 0.4, RawInputModifiers.Control);
-        studio.Wheel(TileItem(studio, "Views"), 0.4, RawInputModifiers.Control);
+        studio.Wheel(studio.TileItem("Views"), 0.4, RawInputModifiers.Control);
+        studio.Wheel(studio.TileItem("Views"), 0.4, RawInputModifiers.Control);
+        studio.Wheel(studio.TileItem("Views"), 0.4, RawInputModifiers.Control);
 
         Assert.Equal(start, studio.View.Size.Value);
 
         // Десять десятых в двоичной записи — 0,999…, и без поправки на погрешность щелчок не
         // засчитывался бы. Копилку опустошает целый щелчок назад.
-        studio.Wheel(TileItem(studio, "Views"), -1, RawInputModifiers.Control);
+        studio.Wheel(studio.TileItem("Views"), -1, RawInputModifiers.Control);
 
         for (var tenth = 0; tenth < 10; tenth++)
-            studio.Wheel(TileItem(studio, "Views"), 0.1, RawInputModifiers.Control);
+            studio.Wheel(studio.TileItem("Views"), 0.1, RawInputModifiers.Control);
 
         Assert.Equal(start, studio.View.Size.Value);
     }
@@ -456,7 +454,7 @@ public class ProjectWindowTilesTests
         studio.View.Size.Value = 1;
         Dispatcher.UIThread.RunJobs();
 
-        var views = TileItem(studio, "Views");
+        var views = studio.TileItem("Views");
 
         studio.View.Tiles.SelectedItem = views.DataContext;
         views.Focus();
@@ -495,7 +493,7 @@ public class ProjectWindowTilesTests
 
         Assert.True(InView(studio.View.Tiles, program), "на малой ступени плитка не видна и без прокрутки");
 
-        studio.Wheel(TileItem(studio, "Dependencies"), studio.View.Size.Maximum - 1, RawInputModifiers.Control);
+        studio.Wheel(studio.TileItem("Dependencies"), studio.View.Size.Maximum - 1, RawInputModifiers.Control);
 
         Assert.Equal(studio.View.Size.Maximum, studio.View.Size.Value);
         Assert.True(InView(studio.View.Tiles, program), "выбранная плитка уехала из виду, когда плитки выросли");
@@ -569,7 +567,7 @@ public class ProjectWindowTilesTests
 
         studio.Select("App");
 
-        var item = TileItem(studio, "Views");
+        var item = studio.TileItem("Views");
         var backdrop = Backdrop(item);
         var caption = Caption(item);
         var chrome = item.GetVisualDescendants().OfType<ContentPresenter>().First(part => part.Name == "PART_ContentPresenter");
@@ -637,7 +635,7 @@ public class ProjectWindowTilesTests
 
         studio.Select("App");
 
-        var item = TileItem(studio, "Program.cs");
+        var item = studio.TileItem("Program.cs");
         var caption = Caption(item);
         var label = Label(studio, "Program.cs");
 
@@ -665,7 +663,7 @@ public class ProjectWindowTilesTests
 
         studio.Select("App");
 
-        var wrapped = TileItem(studio, "MainWindowViewModelBase.cs");
+        var wrapped = studio.TileItem("MainWindowViewModelBase.cs");
         var row = studio.View.Tiles.GetRealizedContainers().OfType<AxListBoxItem>()
             .Where(item => Top(studio, item) == Top(studio, wrapped))
             .ToList();
@@ -771,7 +769,7 @@ public class ProjectWindowTilesTests
         var tiles = studio.View.Tiles;
 
         studio.Select("App");
-        studio.Press(TileItem(studio, "Views"));
+        studio.Press(studio.TileItem("Views"));
 
         Assert.Equal("Views", Assert.IsType<Tile>(tiles.SelectedItem).Name);
 
@@ -790,7 +788,7 @@ public class ProjectWindowTilesTests
         var tiles = studio.View.Tiles;
 
         studio.Select("App");
-        studio.Press(TileItem(studio, "Views"));
+        studio.Press(studio.TileItem("Views"));
         Click(studio, Corner(studio, tiles), RawInputModifiers.Control);
 
         Assert.Equal("Views", Assert.IsType<Tile>(tiles.SelectedItem).Name);
@@ -807,7 +805,7 @@ public class ProjectWindowTilesTests
         var tiles = studio.View.Tiles;
 
         studio.Select("App");
-        studio.Press(TileItem(studio, "Views"));
+        studio.Press(studio.TileItem("Views"));
 
         var bar = tiles.GetVisualDescendants().OfType<ScrollBar>()
             .First(scroll => scroll.Orientation == Orientation.Vertical && scroll.IsEffectivelyVisible);
@@ -829,7 +827,7 @@ public class ProjectWindowTilesTests
         var rows = studio.View.Files;
 
         studio.Select("App");
-        studio.Press(TileItem(studio, "Views"));
+        studio.Press(studio.TileItem("Views"));
 
         Assert.Equal("Views", Assert.IsType<Tile>(rows.SelectedItem).Name);
 
@@ -882,13 +880,13 @@ public class ProjectWindowTilesTests
 
         studio.Select("App");
 
-        var views = TileItem(studio, "Views");
+        var views = studio.TileItem("Views");
 
         tiles.SelectedItem = views.DataContext;
         views.Focus();
         Dispatcher.UIThread.RunJobs();
 
-        studio.Press(TileItem(studio, "App.axaml"));
+        studio.Press(studio.TileItem("App.axaml"));
 
         Assert.Equal("App.axaml", Assert.IsType<Tile>(tiles.SelectedItem).Name);
         Assert.Same(tiles.SelectedItem, Focused(studio).DataContext);
@@ -1013,12 +1011,9 @@ public class ProjectWindowTilesTests
         Dispatcher.UIThread.RunJobs();
     }
 
-    /// <summary>Плитка показанной папки по имени.</summary>
-    private static Tile Tile(ProjectWindowStudio studio, string name) => studio.Model.Browser.Items.Single(tile => tile.Name == name);
-
     /// <summary>Тело плитки: силуэт и подпись, шириной плитки.</summary>
     private static StackPanel Body(ProjectWindowStudio studio, string name) =>
-        TileItem(studio, name).GetVisualDescendants().OfType<StackPanel>().Single(panel => panel.Classes.Contains("tile"));
+        studio.TileItem(name).GetVisualDescendants().OfType<StackPanel>().Single(panel => panel.Classes.Contains("tile"));
 
     /// <summary>Окно в две колонки с открытым обычным решением.</summary>
     private static async Task<ProjectWindowStudio> TwoColumns()
@@ -1032,21 +1027,9 @@ public class ProjectWindowTilesTests
 
     private static List<string> Names(ProjectWindowStudio studio) => [.. studio.Model.Browser.Items.Select(tile => tile.Name)];
 
-    /// <summary>Контейнер плитки в показанном списке — прокрутив до неё.</summary>
-    private static AxListBoxItem TileItem(ProjectWindowStudio studio, string name)
-    {
-        var list = studio.Panel.Pane!.Shown;
-        var tile = studio.Model.Browser.Items.Single(item => item.Name == name);
-
-        list.ScrollIntoView(tile);
-        Dispatcher.UIThread.RunJobs();
-
-        return Assert.IsType<AxListBoxItem>(list.ContainerFromItem(tile));
-    }
-
     /// <summary>Силуэт плитки.</summary>
     private static AxIcon Silhouette(ProjectWindowStudio studio, string name) =>
-        TileItem(studio, name).GetVisualDescendants().OfType<AxIcon>().Single(icon => icon.Classes.Contains("tile"));
+        studio.TileItem(name).GetVisualDescendants().OfType<AxIcon>().Single(icon => icon.Classes.Contains("tile"));
 
     /// <summary>Подложка значка плитки.</summary>
     private static Border Backdrop(AxListBoxItem item) =>
@@ -1075,11 +1058,11 @@ public class ProjectWindowTilesTests
 
     /// <summary>Подложка плитки предмета модели.</summary>
     private static Border Plate(ProjectWindowStudio studio, string name) =>
-        TileItem(studio, name).GetVisualDescendants().OfType<Border>().Single(border => border.Classes.Contains("plate"));
+        studio.TileItem(name).GetVisualDescendants().OfType<Border>().Single(border => border.Classes.Contains("plate"));
 
     /// <summary>Подпись плитки.</summary>
     private static TextBlock Label(ProjectWindowStudio studio, string name) =>
-        TileItem(studio, name).GetVisualDescendants().OfType<TextBlock>().Single(text => text.Text == name);
+        studio.TileItem(name).GetVisualDescendants().OfType<TextBlock>().Single(text => text.Text == name);
 
     /// <summary>Верх контрола в координатах списка плиток.</summary>
     private static double Top(ProjectWindowStudio studio, Visual visual) =>

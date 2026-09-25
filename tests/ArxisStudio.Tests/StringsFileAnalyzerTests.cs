@@ -3,9 +3,6 @@ using System.Collections.Immutable;
 using ArxisStudio.Sdk.Analyzers;
 using ArxisStudio.Shell.Localization;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Diagnostics;
-using Microsoft.CodeAnalysis.Text;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -164,21 +161,8 @@ public class StringsFileAnalyzerTests
         yield return ("high-surrogate-before-a-letter", "{ \"a\": \"" + Slash + "uD83D" + Slash + "u0041\" }");
     }
 
-    private static async Task<ImmutableArray<Diagnostic>> AnalyzeAsync(string dictionary, string? role = "default")
+    private static Task<ImmutableArray<Diagnostic>> AnalyzeAsync(string dictionary, string? role = "default")
     {
-        var references = AppDomain.CurrentDomain.GetAssemblies()
-            .Where(assembly => !assembly.IsDynamic && assembly.Location.Length > 0)
-            .Select(assembly => assembly.Location)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(location => (MetadataReference)MetadataReference.CreateFromFile(location))
-            .ToList();
-
-        var compilation = CSharpCompilation.Create(
-            "Probe",
-            [CSharpSyntaxTree.ParseText("public sealed class Probe { }", cancellationToken: TestContext.Current.CancellationToken)],
-            references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-
         const string path = "C:/probe/lang/en.json";
 
         var roles = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -186,19 +170,7 @@ public class StringsFileAnalyzerTests
         if (role is not null)
             roles[path] = role;
 
-        var analyzed = compilation.WithAnalyzers(
-            ImmutableArray.Create<DiagnosticAnalyzer>(new StringsFileAnalyzer()),
-            new AnalyzerOptions([new Given(path, dictionary)], new StringsRoles(roles)));
-
-        return await analyzed.GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
-    }
-
-    /// <summary>Файл, переданный анализатору входом сборки.</summary>
-    private sealed class Given(string path, string content) : AdditionalText
-    {
-        public override string Path => path;
-
-        public override SourceText GetText(CancellationToken cancellationToken = default) =>
-            SourceText.From(content);
+        return AnalyzerRun.Probe(AnalyzerRun.EmptyProbe)
+            .RunAsync(new StringsFileAnalyzer(), [new AdditionalFile(path, dictionary)], new StringsRoles(roles));
     }
 }

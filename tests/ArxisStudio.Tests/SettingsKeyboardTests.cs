@@ -1,11 +1,9 @@
 using ArxisStudio.Controls;
-using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Services;
 using ArxisStudio.Settings;
-using ArxisStudio.Shell;
 using ArxisStudio.Shell.Settings;
 using ArxisStudio.ViewModels;
 using Avalonia;
@@ -13,10 +11,10 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
-using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
+using static ArxisStudio.Tests.SettingsHarness;
 
 namespace ArxisStudio.Tests;
 
@@ -39,8 +37,6 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class SettingsKeyboardTests : IDisposable
 {
-    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(5);
-
     private readonly SettingsHarness _harness = new();
 
     public void Dispose()
@@ -70,7 +66,7 @@ public class SettingsKeyboardTests : IDisposable
 
         Escape(settings);
 
-        Assert.Same(shown, await Task.WhenAny(shown, Task.Delay(Patience)));
+        await ClosedAsync(shown);
 
         owner.Close();
     }
@@ -83,7 +79,7 @@ public class SettingsKeyboardTests : IDisposable
 
         Escape(settings);
 
-        Assert.Same(shown, await Task.WhenAny(shown, Task.Delay(Patience)));
+        await ClosedAsync(shown);
 
         owner.Close();
     }
@@ -114,9 +110,7 @@ public class SettingsKeyboardTests : IDisposable
         Assert.False(shown.IsCompleted, "ответ «нет» закрыл настройки");
         Assert.Equal("20", row.Text);
 
-        settings.Cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-
-        Assert.Same(shown, await Task.WhenAny(shown, Task.Delay(Patience)));
+        await CloseAsync(settings, shown);
 
         owner.Close();
     }
@@ -144,7 +138,7 @@ public class SettingsKeyboardTests : IDisposable
 
         Escape(settings);
 
-        Assert.Same(shown, await Task.WhenAny(shown, Task.Delay(Patience)));
+        await ClosedAsync(shown);
 
         owner.Close();
     }
@@ -162,7 +156,7 @@ public class SettingsKeyboardTests : IDisposable
 
         Escape(settings);
 
-        Assert.Same(shown, await Task.WhenAny(shown, Task.Delay(Patience)));
+        await ClosedAsync(shown);
 
         owner.Close();
     }

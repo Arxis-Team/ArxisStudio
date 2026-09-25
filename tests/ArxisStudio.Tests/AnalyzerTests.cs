@@ -1,9 +1,6 @@
 using System.Collections.Immutable;
-using System.Reflection;
 using ArxisStudio.Sdk.Analyzers;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Diagnostics;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -136,14 +133,26 @@ public class AnalyzerTests
     }
 
     /// <summary>
-    /// Собирает код и возвращает то, что нашёл в нём анализатор.
+    /// Проба, которая не собирается, валит проверку, а не проходит её.
     /// </summary>
     /// <remarks>
-    /// Ссылки берутся из сборок процесса тестов, но нужные сначала приходится
-    /// тронуть: сборка загружается при первом обращении к её типу, и без этого
-    /// библиотеки контролов в списке просто не окажется.
+    /// Анализатор читает то, что разобралось, и на пробе с опечаткой молчит — а тест, ждущий
+    /// тишины, прошёл бы, ничего не проверив. Сторож в <see cref="AnalyzerRun.Compiling"/> стоит
+    /// ровно против этого, и сторожу, которому исправные пробы не дают работы, нужна своя
+    /// сломанная.
     /// </remarks>
-    private static async Task<ImmutableArray<Diagnostic>> AnalyzeAsync(string body, string extra = "")
+    [Fact]
+    public void A_probe_that_does_not_compile_fails_the_check()
+    {
+        var probe = AnalyzerRun.Probe("public sealed class Probe { public void Build() => Missing(); }");
+
+        Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => probe.Compiling());
+    }
+
+    /// <summary>
+    /// Собирает код и возвращает то, что нашёл в нём анализатор.
+    /// </summary>
+    private static Task<ImmutableArray<Diagnostic>> AnalyzeAsync(string body, string extra = "")
     {
         var source = $$"""
             using System;
@@ -159,38 +168,16 @@ public class AnalyzerTests
             {{extra}}
             """;
 
-        Type[] anchors =
-        [
-            typeof(object),
-            typeof(Avalonia.Controls.Button),
-            typeof(Avalonia.Visual),
-            typeof(ArxisStudio.Controls.AxButton),
-        ];
+        var probe = AnalyzerRun.Probe(
+            source,
+            AnalyzerRun.References(
+            [
+                typeof(object),
+                typeof(Avalonia.Controls.Button),
+                typeof(Avalonia.Visual),
+                typeof(ArxisStudio.Controls.AxButton),
+            ]));
 
-        var references = AppDomain.CurrentDomain.GetAssemblies()
-            .Concat(anchors.Select(anchor => anchor.Assembly))
-            .Where(assembly => !assembly.IsDynamic && assembly.Location.Length > 0)
-            .Select(assembly => assembly.Location)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(location => (MetadataReference)MetadataReference.CreateFromFile(location))
-            .ToList();
-
-        var compilation = CSharpCompilation.Create(
-            "Probe",
-            [CSharpSyntaxTree.ParseText(source)],
-            references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-
-        // Ошибки самого кода означали бы, что тест проверяет не то, что думает.
-        var broken = compilation.GetDiagnostics()
-            .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToList();
-
-        Assert.True(broken.Count == 0, string.Join("; ", broken.Select(diagnostic => diagnostic.GetMessage())));
-
-        var analyzed = compilation.WithAnalyzers(
-            ImmutableArray.Create<DiagnosticAnalyzer>(new AvaloniaWidgetAnalyzer()));
-
-        return await analyzed.GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
+        return probe.Compiling().RunAsync(new AvaloniaWidgetAnalyzer());
     }
 }

@@ -1,11 +1,8 @@
 using ArxisStudio.Docking;
-using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
-using ArxisStudio.Shell;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
 
@@ -27,18 +24,11 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class PluginFocusTests : IDisposable
 {
-    private readonly StudioLog _log = new();
-    private readonly PluginGuard _guard = new();
-    private readonly PluginContributionRegistry _contributions = new();
-
-    private StudioPlugins? _plugins;
+    private readonly StudioPluginsHarness _studio = new();
 
     public void Dispose()
     {
-        // Хост отпускается первым: пока жив контекст загрузки, его файлы
-        // держит процесс.
-        _plugins?.Stop();
-
+        _studio.Dispose();
         GC.SuppressFinalize(this);
     }
 
@@ -155,36 +145,8 @@ public class PluginFocusTests : IDisposable
         [.. panel.GetVisualDescendants().OfType<Control>().Where(candidate => candidate.Focusable)];
 
     /// <summary>Поднимает модуль с панелью, которая называет свою цель.</summary>
-    private (StudioDock Dock, StudioPlugins Plugins) Raised()
-    {
-        var view = new DockView();
-        var dock = new StudioDock(view);
-
-        new Window { Width = 900, Height = 600, Content = view }.Show();
-        dock.Shown();
-
-        var plugins = new StudioPlugins(_log, _guard, new StudioTaskRegistry(), _contributions)
-        {
-            Assemblies = [TestAssembly.EmitModule("Probe.Aim", Source, Manifest)],
-            Commands = new StudioCommands(),
-            Dock = dock,
-            ToolBar = new StudioToolBar(new ToolBarStrip(), new ToolBarStrip(), new ToolBarStrip()),
-            Documents = new StudioDocuments(dock, _contributions.EditorFor, new Quiet()),
-            Services = new Dictionary<Type, object>
-            {
-                [typeof(PluginContributionRegistry)] = _contributions,
-                [typeof(PluginGuard)] = _guard,
-            },
-            Catalog = () => [],
-        };
-
-        _plugins = plugins;
-
-        plugins.LoadModules();
-        Dispatcher.UIThread.RunJobs();
-
-        return (dock, plugins);
-    }
+    private (StudioDock Dock, StudioPlugins Plugins) Raised() =>
+        (_studio.Dock, _studio.Raise("Probe.Aim", Source, Manifest));
 
     /// <summary>Панель с двумя местами для каретки; названо второе.</summary>
     private const string Source = """
@@ -259,14 +221,6 @@ public class PluginFocusTests : IDisposable
                 new StackPanel { Children = { new Border { Focusable = true, Height = 20 } } };
         }
         """;
-
-    /// <summary>Статус, которому некому докладывать.</summary>
-    private sealed class Quiet : IStudioStatus
-    {
-        public void Show(string message)
-        {
-        }
-    }
 
     private const string Manifest = """
         {

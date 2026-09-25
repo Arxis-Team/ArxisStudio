@@ -15,20 +15,11 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class HelloFriendExampleTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-friend-{Guid.NewGuid():N}");
-
-    public HelloFriendExampleTests() => Directory.CreateDirectory(_root);
+    private readonly string _root = TempFolder.Create("friend");
 
     public void Dispose()
     {
-        try
-        {
-            if (Directory.Exists(_root))
-                Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }
@@ -46,8 +37,8 @@ public class HelloFriendExampleTests : IDisposable
     {
         var catalog = new PluginCatalog(_root);
 
-        Assert.Null(catalog.InstallFromArchive(Archive("Arxis.HelloPlugin", "arxis.hello.axplugin")).Error);
-        Assert.Null(catalog.InstallFromArchive(Archive("Arxis.HelloFriend", "arxis.hello-friend.axplugin")).Error);
+        Assert.Null(catalog.InstallFromArchive(Repository.File("src", "Plugins", "Arxis.HelloPlugin", "arxis.hello.axplugin")).Error);
+        Assert.Null(catalog.InstallFromArchive(Repository.File("src", "Plugins", "Arxis.HelloFriend", "arxis.hello-friend.axplugin")).Error);
 
         var commands = new StudioCommands();
 
@@ -80,7 +71,7 @@ public class HelloFriendExampleTests : IDisposable
     {
         var catalog = new PluginCatalog(_root);
 
-        Assert.Null(catalog.InstallFromArchive(Archive("Arxis.HelloFriend", "arxis.hello-friend.axplugin")).Error);
+        Assert.Null(catalog.InstallFromArchive(Repository.File("src", "Plugins", "Arxis.HelloFriend", "arxis.hello-friend.axplugin")).Error);
 
         var friend = catalog.Scan().Single();
         var button = Assert.Single(friend.Manifest!.Contributions.ToolBar);
@@ -100,7 +91,7 @@ public class HelloFriendExampleTests : IDisposable
     {
         var catalog = new PluginCatalog(_root);
 
-        Assert.Null(catalog.InstallFromArchive(Archive("Arxis.HelloFriend", "arxis.hello-friend.axplugin")).Error);
+        Assert.Null(catalog.InstallFromArchive(Repository.File("src", "Plugins", "Arxis.HelloFriend", "arxis.hello-friend.axplugin")).Error);
 
         var friend = catalog.Scan().Single();
         var declared = Assert.Single(friend.Manifest!.Dependencies);
@@ -112,18 +103,5 @@ public class HelloFriendExampleTests : IDisposable
         var resolution = PluginGraph.Resolve([friend], present: []);
 
         Assert.Contains("arxis.hello", resolution.Refused[friend.Id]);
-    }
-
-    private static string Archive(string project, string file)
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            var candidate = Path.Combine(directory.FullName, "src", "Plugins", project, file);
-
-            if (File.Exists(candidate))
-                return candidate;
-        }
-
-        throw new InvalidOperationException($"Не найден архив {file}");
     }
 }

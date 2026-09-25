@@ -1,7 +1,5 @@
 using ArxisStudio.Controls;
-using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
-using ArxisStudio.Sdk;
 using ArxisStudio.Shell;
 using ArxisStudio.Services;
 using ArxisStudio.Shell.Localization;
@@ -33,23 +31,18 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class WelcomeProjectsTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-welcome-{Guid.NewGuid():N}");
-    private readonly StudioLog _log = new();
-    private readonly PluginGuard _guard = new();
-    private readonly StudioTaskRegistry _tasks = new();
-    private readonly PluginContributionRegistry _contributions = new();
+    private readonly string _root = TempFolder.Create("welcome");
+    private readonly StudioPluginsHarness _studio = new();
 
     private string StateFile => Path.Combine(_root, "recent.json");
-
-    public WelcomeProjectsTests() => Directory.CreateDirectory(_root);
 
     /// <summary>Убирает за собой папку и возвращает студии язык, на котором её застали.</summary>
     public void Dispose()
     {
+        _studio.Dispose();
         Localizer.Instance.SetLanguage(Localizer.FallbackLanguage);
 
-        if (Directory.Exists(_root))
-            Directory.Delete(_root, recursive: true);
+        TempFolder.Erase(_root, strict: true);
 
         GC.SuppressFinalize(this);
     }
@@ -510,10 +503,6 @@ public class WelcomeProjectsTests : IDisposable
     private WelcomeViewModel Model(params string[] _) =>
         new(new RecentProjects(StateFile), new PluginCatalog(Path.Combine(_root, "plugins")));
 
-    /// <summary>Собирает окно над своим файлом недавних и показывает его.</summary>
-    /// <param name="model">Модель показанного окна — её и проверяют.</param>
-    /// <param name="_">Решения, положенные до сборки окна.</param>
-    /// <param name="canOpen">Есть ли кому открывать.</param>
     /// <summary>
     /// Экран Welcome говорит то, чего не сделал запуск.
     /// </summary>
@@ -569,6 +558,10 @@ public class WelcomeProjectsTests : IDisposable
         window.Close();
     }
 
+    /// <summary>Собирает окно над своим файлом недавних и показывает его.</summary>
+    /// <param name="model">Модель показанного окна — её и проверяют.</param>
+    /// <param name="_">Решения, положенные до сборки окна.</param>
+    /// <param name="canOpen">Есть ли кому открывать.</param>
     private WelcomeWindow Window(out WelcomeViewModel model, string? _ = null, bool canOpen = true)
     {
         var window = new WelcomeWindow(
@@ -615,27 +608,5 @@ public class WelcomeProjectsTests : IDisposable
     }
 
     /// <summary>Служба расширений, собранная, но не поднятая, — как в PluginsPageTests.</summary>
-    private StudioPlugins Extensions()
-    {
-        var dock = new StudioDock(new DockView());
-
-        return new StudioPlugins(_log, _guard, _tasks, _contributions)
-        {
-            Commands = new StudioCommands(_guard),
-            Dock = dock,
-            ToolBar = new StudioToolBar(new ToolBarStrip(), new ToolBarStrip(), new ToolBarStrip()),
-            Documents = new StudioDocuments(dock, _contributions.EditorFor, new Silence()),
-            Services = new Dictionary<Type, object>(),
-            Catalog = () => [],
-            Assemblies = [],
-        };
-    }
-
-    /// <summary>Строка состояния, которая молчит.</summary>
-    private sealed class Silence : IStudioStatus
-    {
-        public void Show(string message)
-        {
-        }
-    }
+    private StudioPlugins Extensions() => _studio.Build();
 }

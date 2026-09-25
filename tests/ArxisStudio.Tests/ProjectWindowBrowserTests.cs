@@ -1,6 +1,5 @@
 using ArxisStudio.Modules.Project.Browse;
 using ArxisStudio.Modules.Project.Model;
-using ArxisStudio.ProjectSystem;
 using Xunit;
 
 namespace ArxisStudio.Tests;

@@ -15,21 +15,14 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class PluginHostRecordsTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-records-{Guid.NewGuid():N}");
+    private readonly string _root = TempFolder.Reserve("records");
 
     public void Dispose()
     {
         GC.Collect();
         GC.WaitForPendingFinalizers();
 
-        try
-        {
-            if (Directory.Exists(_root))
-                Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }
@@ -339,21 +332,7 @@ public class PluginHostRecordsTests : IDisposable
     /// <summary>Кладёт плагин в папку каталога и отдаёт запись о нём.</summary>
     private InstalledPlugin Plugin(string id, string assembly, string source, string activation)
     {
-        var folder = Path.Combine(_root, id);
-
-        Directory.CreateDirectory(Path.Combine(folder, "bin"));
-
-        File.WriteAllText(Path.Combine(folder, "plugin.json"), $$"""
-            {
-              "id": "{{id}}",
-              "name": "{{id}}",
-              "version": "1.0.0",
-              "entry": "bin/{{assembly}}.dll",
-              "activation": [ "{{activation}}" ]
-            }
-            """);
-
-        TestAssembly.EmitFile(Path.Combine(folder, "bin", $"{assembly}.dll"), assembly, source);
+        TestAssembly.EmitPlugin(_root, id, assembly, source, activation);
 
         return new PluginCatalog(_root).Scan().Single(plugin => plugin.Id == id);
     }

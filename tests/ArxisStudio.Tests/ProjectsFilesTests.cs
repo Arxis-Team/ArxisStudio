@@ -1,8 +1,6 @@
 using System.Text;
 using ArxisStudio.LocalHistory;
-using ArxisStudio.Modules.Projects;
 using ArxisStudio.Modules.Projects.Files;
-using ArxisStudio.Modules.Projects.History;
 using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
 using Xunit;
@@ -16,28 +14,8 @@ namespace ArxisStudio.Tests;
 /// Провайдер теста MSBuild не зовёт — снимок он собирает сам, но папки проектов в нём настоящие, и
 /// диск правится настоящий. Историю служба ведёт во временной папке теста.
 /// </remarks>
-public sealed class ProjectsFilesTests : IDisposable
+public sealed class ProjectsFilesTests() : ProjectsOnDisk("projects-files")
 {
-    private readonly string _root = Directory.CreateDirectory(
-        Path.Combine(Path.GetTempPath(), $"arxis-projects-files-{Guid.NewGuid():N}")).FullName;
-
-    private string Solution => Path.Combine(_root, "solution");
-
-    private string Lib => Path.Combine(Solution, "Lib");
-
-    private static CancellationToken Token => TestContext.Current.CancellationToken;
-
-    public void Dispose()
-    {
-        try
-        {
-            Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
-    }
-
     /// <summary>
     /// Файл вместе с вложенным переименовывается одним действием истории, и модель перечитана.
     /// </summary>
@@ -45,7 +23,7 @@ public sealed class ProjectsFilesTests : IDisposable
     public async Task A_file_and_its_companion_are_renamed_as_one_action()
     {
         using var studio = await OpenAsync();
-        var changed = Record(studio);
+        var changed = studio.RecordFileChanges();
 
         var result = await studio.Files.MoveAsync(
         [
@@ -59,14 +37,14 @@ public sealed class ProjectsFilesTests : IDisposable
         Assert.True(File.Exists(At("Views/Main.axaml")) && File.Exists(At("Views/Main.axaml.cs")), "файлы не переехали");
         Assert.False(File.Exists(At("Views/MainWindow.axaml")), "под старым именем файл остался");
 
-        var action = Store(studio).Actions[^1];
+        var action = studio.HistoryStore.Actions[^1];
 
         Assert.Equal("Переименование MainWindow.axaml", action.Label);
         Assert.Equal(HistoryOrigin.Studio, action.Origin);
         Assert.All(action.Changes, change => Assert.Equal(HistoryChangeKind.Moved, change.Kind));
         Assert.Equal(2, action.Changes.Length);
-        Assert.NotNull(Store(studio).Known(At("Views/Main.axaml.cs")));
-        Assert.Null(Store(studio).Known(At("Views/MainWindow.axaml.cs")));
+        Assert.NotNull(studio.HistoryStore.Known(At("Views/Main.axaml.cs")));
+        Assert.Null(studio.HistoryStore.Known(At("Views/MainWindow.axaml.cs")));
 
         Assert.Equal(2, Assert.Single(changed).Moved.Length);
         Assert.Equal(ProjectsLoadReason.Files, studio.Projects.Status.LastLoad?.Reason);
@@ -114,7 +92,7 @@ public sealed class ProjectsFilesTests : IDisposable
         Assert.DoesNotContain("Views\\Readme.txt", text, StringComparison.Ordinal);
         Assert.Equal(text.Split('\n').Length - 1, text.Split("\r\n").Length - 1);
 
-        var action = Store(studio).Actions[^1];
+        var action = studio.HistoryStore.Actions[^1];
 
         Assert.Contains(action.Changes, change => change is { Kind: HistoryChangeKind.Moved, IsDirectory: true });
         Assert.Contains(action.Changes, change => change.Kind == HistoryChangeKind.Modified && change.Path == At("Lib.csproj"));
@@ -158,7 +136,7 @@ public sealed class ProjectsFilesTests : IDisposable
     public async Task A_copy_is_written_as_created_with_its_content()
     {
         using var studio = await OpenAsync();
-        var changed = Record(studio);
+        var changed = studio.RecordFileChanges();
 
         var result = await studio.Files.CopyAsync([Pair("Greeter.cs", "Greeter2.cs"), Pair("Views", "Views2")], "Копирование", Token);
 
@@ -168,11 +146,11 @@ public sealed class ProjectsFilesTests : IDisposable
         Assert.Equal(File.ReadAllText(At("Greeter.cs")), File.ReadAllText(At("Greeter2.cs")));
         Assert.True(File.Exists(At("Views2/MainWindow.axaml.cs")), "папка скопировалась не вся");
 
-        var changes = Store(studio).Actions[^1].Changes;
+        var changes = studio.HistoryStore.Actions[^1].Changes;
         var copy = Assert.Single(changes, change => change.Path == At("Greeter2.cs"));
 
         Assert.Equal(HistoryChangeKind.Created, copy.Kind);
-        Assert.Equal(Store(studio).Known(At("Greeter.cs"))?.Content, copy.After);
+        Assert.Equal(studio.HistoryStore.Known(At("Greeter.cs"))?.Content, copy.After);
         Assert.Contains(changes, change => change is { Kind: HistoryChangeKind.Created, IsDirectory: true } && change.Path == At("Views2"));
         Assert.Equal(2, Assert.Single(changed).Copied.Length);
     }
@@ -194,7 +172,7 @@ public sealed class ProjectsFilesTests : IDisposable
         Assert.Equal(ProjectsDiagnosticCodes.FileOperationFailed, result.Code);
         Assert.False(Directory.Exists(At("Views2")), "созданное до отказа осталось");
         Assert.False(File.Exists(At("settings.json")), "файл, которому отказали, появился");
-        Assert.Empty(Store(studio).Actions);
+        Assert.Empty(studio.HistoryStore.Actions);
     }
 
     /// <summary>
@@ -209,7 +187,7 @@ public sealed class ProjectsFilesTests : IDisposable
     public async Task A_creation_lands_byte_for_byte_with_the_directories_on_its_way()
     {
         using var studio = await OpenAsync();
-        var changed = Record(studio);
+        var changed = studio.RecordFileChanges();
         var content = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes("<UserControl />\r\n")).ToArray();
 
         var result = await studio.Files.CreateAsync(
@@ -226,7 +204,7 @@ public sealed class ProjectsFilesTests : IDisposable
         Assert.True(Directory.Exists(At("Assets")), "каталог не создался");
         Assert.Empty(File.ReadAllBytes(At("Empty.txt")));
 
-        var store = Store(studio);
+        var store = studio.HistoryStore;
         var action = store.Actions[^1];
 
         Assert.Equal("Создание About.axaml", action.Label);
@@ -277,7 +255,7 @@ public sealed class ProjectsFilesTests : IDisposable
 
         Assert.False(File.Exists(At("Twice.txt")) || File.Exists(At("Note.txt")) || Directory.Exists(At("bin/Debug"))
             || File.Exists(Path.Combine(Solution, "Todo.md")), "отказ тронул диск");
-        Assert.Empty(Store(studio).Actions);
+        Assert.Empty(studio.HistoryStore.Actions);
     }
 
     /// <summary>
@@ -300,7 +278,7 @@ public sealed class ProjectsFilesTests : IDisposable
 
         Assert.Equal(ProjectsDiagnosticCodes.FileOperationFailed, Code(result));
         Assert.False(Directory.Exists(At("Fresh")), "созданное до отказа осталось");
-        Assert.Empty(Store(studio).Actions);
+        Assert.Empty(studio.HistoryStore.Actions);
     }
 
     /// <summary>
@@ -318,7 +296,7 @@ public sealed class ProjectsFilesTests : IDisposable
 
         Assert.False(result.HasErrors, Said(result));
 
-        var undone = await studio.History.UndoAsync(Store(studio).Actions[^1].Id, Token);
+        var undone = await studio.History.UndoAsync(studio.HistoryStore.Actions[^1].Id, Token);
 
         Assert.False(undone.HasErrors, Said(undone));
         Assert.False(Directory.Exists(At("Views/Dialogs")), "каталог, заведённый созданием, остался");
@@ -333,14 +311,14 @@ public sealed class ProjectsFilesTests : IDisposable
 
         await studio.Files.CreateAsync([new FileCreation(Canon("Fresh.cs")) { Content = "class Fresh { }"u8.ToArray() }], "Создание Fresh.cs", Token);
 
-        var host = Host(studio);
+        var host = studio.Service;
         var watcher = host.Session?.History ?? throw new InvalidOperationException("история сессии не ведётся");
 
         watcher.Report(At("Fresh.cs"));
         watcher.Flush();
-        await Settle(host.History);
+        await ProjectsStudio.SettleAsync(host.History);
 
-        Assert.Equal(["Создание Fresh.cs"], Store(studio).Actions.Select(action => action.Label));
+        Assert.Equal(["Создание Fresh.cs"], studio.HistoryStore.Actions.Select(action => action.Label));
     }
 
     /// <summary>
@@ -361,7 +339,7 @@ public sealed class ProjectsFilesTests : IDisposable
         Assert.False(result.HasErrors, Said(result));
         Assert.False(File.Exists(At("Greeter.cs")) || Directory.Exists(At("Views")), "удалённое осталось на диске");
 
-        var store = Store(studio);
+        var store = studio.HistoryStore;
         var changes = store.Actions[^1].Changes;
         var gone = changes.Single(change => change.Path == At("Greeter.cs"));
 
@@ -413,7 +391,7 @@ public sealed class ProjectsFilesTests : IDisposable
 
         Assert.True(File.Exists(At("Greeter.cs")) && File.Exists(At("appsettings.json")) && Directory.Exists(At("Views"))
             && File.Exists(At("bin/Debug/Lib.dll")) && !File.Exists(At("bin/Debug/Greeter.cs")), "отказ тронул диск");
-        Assert.Empty(Store(studio).Actions);
+        Assert.Empty(studio.HistoryStore.Actions);
     }
 
     /// <summary>
@@ -426,7 +404,7 @@ public sealed class ProjectsFilesTests : IDisposable
     [Fact]
     public async Task A_solution_beside_its_project_stays_out_of_reach()
     {
-        var single = Directory.CreateDirectory(Path.Combine(_root, "single")).FullName;
+        var single = Directory.CreateDirectory(Path.Combine(Root, "single")).FullName;
         var entry = CanonicalPath.Create(Path.Combine(single, "App.slnx"));
 
         File.WriteAllText(entry.Value, "<Solution />");
@@ -465,7 +443,7 @@ public sealed class ProjectsFilesTests : IDisposable
         Assert.Equal(ProjectsDiagnosticCodes.FileOperationFailed, result.Code);
         Assert.True(File.Exists(At("Greeter.cs")), "перенесённое до отказа не вернулось");
         Assert.False(File.Exists(At("Hello.cs")), "перенесённое до отказа осталось на новом месте");
-        Assert.Empty(Store(studio).Actions);
+        Assert.Empty(studio.HistoryStore.Actions);
     }
 
     /// <summary>
@@ -476,7 +454,7 @@ public sealed class ProjectsFilesTests : IDisposable
     public async Task A_delete_the_disk_refused_halfway_keeps_what_went_in_the_history()
     {
         using var studio = await OpenAsync();
-        var changed = Record(studio);
+        var changed = studio.RecordFileChanges();
 
         Result result;
 
@@ -489,7 +467,7 @@ public sealed class ProjectsFilesTests : IDisposable
         Assert.False(File.Exists(At("Greeter.cs")));
         Assert.True(File.Exists(At("appsettings.json")));
 
-        var gone = Assert.Single(Store(studio).Actions[^1].Changes, change => change.Kind == HistoryChangeKind.Deleted);
+        var gone = Assert.Single(studio.HistoryStore.Actions[^1].Changes, change => change.Kind == HistoryChangeKind.Deleted);
 
         Assert.Equal(At("Greeter.cs"), gone.Path);
         Assert.NotNull(gone.Before);
@@ -506,15 +484,15 @@ public sealed class ProjectsFilesTests : IDisposable
 
         await studio.Files.MoveAsync([Pair("Greeter.cs", "Hello.cs")], "Переименование Greeter.cs", Token);
 
-        var host = Host(studio);
+        var host = studio.Service;
         var watcher = host.Session?.History ?? throw new InvalidOperationException("история сессии не ведётся");
 
         watcher.Report(At("Greeter.cs"));
         watcher.Report(At("Hello.cs"));
         watcher.Flush();
-        await Settle(host.History);
+        await ProjectsStudio.SettleAsync(host.History);
 
-        Assert.Equal(["Переименование Greeter.cs"], Store(studio).Actions.Select(action => action.Label));
+        Assert.Equal(["Переименование Greeter.cs"], studio.HistoryStore.Actions.Select(action => action.Label));
     }
 
     /// <summary>
@@ -535,18 +513,18 @@ public sealed class ProjectsFilesTests : IDisposable
 
         await studio.Files.MoveAsync([Pair("Fresh.cs", "Moved.cs")], "Переименование Fresh.cs", Token);
 
-        var host = Host(studio);
+        var host = studio.Service;
         var watcher = host.Session?.History ?? throw new InvalidOperationException("история сессии не ведётся");
 
         watcher.Report(At("Fresh.cs"));
         watcher.Report(At("Moved.cs"));
         watcher.Flush();
-        await Settle(host.History);
+        await ProjectsStudio.SettleAsync(host.History);
 
         Assert.DoesNotContain(
-            Store(studio).Actions.Where(action => action.Origin == HistoryOrigin.External).SelectMany(action => action.Changes),
+            studio.HistoryStore.Actions.Where(action => action.Origin == HistoryOrigin.External).SelectMany(action => action.Changes),
             change => change.Path == At("Moved.cs"));
-        Assert.NotNull(Store(studio).Known(At("Moved.cs")));
+        Assert.NotNull(studio.HistoryStore.Known(At("Moved.cs")));
     }
 
     /// <summary>
@@ -578,7 +556,7 @@ public sealed class ProjectsFilesTests : IDisposable
     {
         using var studio = await OpenAsync();
 
-        var outside = Directory.CreateDirectory(Path.Combine(_root, "outside")).FullName;
+        var outside = Directory.CreateDirectory(Path.Combine(Root, "outside")).FullName;
         var logo = CanonicalPath.Create(Path.Combine(outside, "logo.png"));
 
         File.WriteAllText(logo.Value, "картинка");
@@ -588,7 +566,7 @@ public sealed class ProjectsFilesTests : IDisposable
         Assert.False(result.HasErrors, Said(result));
         Assert.Equal("картинка", File.ReadAllText(At("logo.png")));
         Assert.True(File.Exists(logo.Value), "копия унесла источник");
-        Assert.Equal(HistoryChangeKind.Created, Assert.Single(Store(studio).Actions[^1].Changes).Kind);
+        Assert.Equal(HistoryChangeKind.Created, Assert.Single(studio.HistoryStore.Actions[^1].Changes).Kind);
 
         Assert.Equal(ProjectsDiagnosticCodes.OutsideProjects,
             Code(await studio.Files.CopyAsync([new FileMove(logo, CanonicalPath.Create(Path.Combine(outside, "copy.png")))], "Копия", Token)));
@@ -605,7 +583,7 @@ public sealed class ProjectsFilesTests : IDisposable
 
         var settings = File.ReadAllBytes(At("appsettings.json"));
         var greeter = File.ReadAllBytes(At("Greeter.cs"));
-        var store = Store(studio);
+        var store = studio.HistoryStore;
 
         var copied = await studio.Files.CopyAsync(
             [new FileMove(Canon("Greeter.cs"), Canon("appsettings.json")) { Replace = true }], "Вставка Greeter.cs", Token);
@@ -657,7 +635,7 @@ public sealed class ProjectsFilesTests : IDisposable
         Assert.Equal(settings, File.ReadAllBytes(At("appsettings.json")));
         Assert.True(File.Exists(At("Greeter.cs")), "источник пропал");
         Assert.Empty(Directory.GetFiles(Lib, "*.tmp", SearchOption.AllDirectories));
-        Assert.Empty(Store(studio).Actions);
+        Assert.Empty(studio.HistoryStore.Actions);
     }
 
     /// <summary>Папку на месте назначения служба не сливает и не стирает — занятая папка остаётся отказом.</summary>
@@ -698,15 +676,15 @@ public sealed class ProjectsFilesTests : IDisposable
         Assert.False(result.HasErrors, Said(result));
         Assert.Equal("class Fresh { }", File.ReadAllText(At("Greeter.cs")));
 
-        var host = Host(studio);
+        var host = studio.Service;
         var watcher = host.Session?.History ?? throw new InvalidOperationException("история сессии не ведётся");
 
         watcher.Report(At("Fresh.cs"));
         watcher.Report(At("Greeter.cs"));
         watcher.Flush();
-        await Settle(host.History);
+        await ProjectsStudio.SettleAsync(host.History);
 
-        var store = Store(studio);
+        var store = studio.HistoryStore;
 
         Assert.DoesNotContain(
             store.Actions.Where(action => action.Origin == HistoryOrigin.External).SelectMany(action => action.Changes),
@@ -714,90 +692,11 @@ public sealed class ProjectsFilesTests : IDisposable
         Assert.Equal(store.Capture(At("Greeter.cs"))!.Content, store.Known(At("Greeter.cs"))?.Content);
     }
 
-    private string History => Path.Combine(_root, "history");
-
-    private string App => Path.Combine(Solution, "App");
-
-    /// <summary>Решение на диске, открытое службой с историей, — и опорный снимок истории снят.</summary>
-    private async Task<ProjectsStudio> OpenAsync()
+    /// <summary>Решение раскладывается с заметкой рядом — файлом, который не входит ни в один проект.</summary>
+    private protected override void Lay()
     {
-        Directory.CreateDirectory(Path.Combine(Lib, "Views"));
-        File.WriteAllText(Path.Combine(Solution, "Hello.slnx"), "<Solution />");
+        base.Lay();
         File.WriteAllText(Path.Combine(Solution, "Notes.md"), "# рядом с решением, но не в проекте");
-        File.WriteAllText(At("Lib.csproj"), """
-            <Project Sdk="Microsoft.NET.Sdk">
-              <ItemGroup>
-                <None Update="Views\Readme.txt" CopyToOutputDirectory="Always" />
-              </ItemGroup>
-            </Project>
-            """.ReplaceLineEndings("\r\n"), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
-        File.WriteAllText(At("Greeter.cs"), "class Greeter { }");
-        File.WriteAllText(At("appsettings.json"), "{ }");
-        File.WriteAllText(At("Views/MainWindow.axaml"), "<Window />");
-        File.WriteAllText(At("Views/MainWindow.axaml.cs"), "partial class MainWindow { }");
-        File.WriteAllText(At("Views/Readme.txt"), "прочти");
-        Directory.CreateDirectory(App);
-        File.WriteAllText(Path.Combine(App, "App.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\" />");
-        File.WriteAllText(Path.Combine(App, "Program.cs"), "class Program { }");
-
-        var studio = new ProjectsStudio(historyRoot: History);
-
-        studio.Provider.Projects =
-        [
-            ("Lib", ["Greeter.cs", "appsettings.json", "Views/MainWindow.axaml", "Views/MainWindow.axaml.cs"]),
-            ("App", ["Program.cs"]),
-        ];
-
-        var opened = await studio.Projects.OpenAsync(CanonicalPath.Create(Path.Combine(Solution, "Hello.slnx")), Token);
-
-        Assert.True(opened.HasSnapshot, "решение не открылось");
-
-        await Settle(Host(studio).History);
-
-        return studio;
-    }
-
-    private static ProjectsHost Host(ProjectsStudio studio) =>
-        ((ProjectsModule)Assert.Single(studio.Module.Entries)).Host ?? throw new InvalidOperationException("служба не поднята");
-
-    private static LocalHistoryStore Store(ProjectsStudio studio) =>
-        Host(studio).History.Store ?? throw new InvalidOperationException("история не открылась");
-
-    private static List<FilesChangedEventArgs> Record(ProjectsStudio studio)
-    {
-        var seen = new List<FilesChangedEventArgs>();
-
-        studio.Files.Changed += (_, change) => seen.Add(change);
-
-        return seen;
-    }
-
-    private string At(string relative) =>
-        Path.GetFullPath(Path.Combine(Lib, relative.Replace('/', Path.DirectorySeparatorChar)));
-
-    private CanonicalPath Canon(string relative) => CanonicalPath.Create(At(relative));
-
-    private FileMove Pair(string from, string to) => new(Canon(from), Canon(to));
-
-    private static string? Code(ProjectOperationResult result) => result.Diagnostics.FirstOrDefault()?.Code;
-
-    private static string Said(ProjectOperationResult result) =>
-        string.Join("; ", result.Diagnostics.Select(diagnostic => $"{diagnostic.Code} {diagnostic.Message}"));
-
-    private static async Task Settle(HistoryRecorder recorder)
-    {
-        for (var round = 0; round < 4; round++)
-        {
-            var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
-            Assert.True(recorder.Enqueue(() =>
-            {
-                done.TrySetResult();
-                return Task.CompletedTask;
-            }), "очередь истории закрыта");
-
-            await done.Task.WaitAsync(TimeSpan.FromSeconds(30), Token);
-        }
     }
 
     /// <summary>Итог с кодом первой диагностики — чтобы ассерты читались.</summary>

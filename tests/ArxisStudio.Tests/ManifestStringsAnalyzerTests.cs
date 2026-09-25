@@ -1,9 +1,6 @@
 using System.Collections.Immutable;
 using ArxisStudio.Sdk.Analyzers;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Diagnostics;
-using Microsoft.CodeAnalysis.Text;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -252,33 +249,20 @@ public class ManifestStringsAnalyzerTests
         Assert.Empty(found);
     }
 
-    private static async Task<ImmutableArray<Diagnostic>> AnalyzeAsync(
+    private static Task<ImmutableArray<Diagnostic>> AnalyzeAsync(
         string manifest,
         string? dictionary,
         string manifestName = "plugin.json",
         string dictionaryPath = "C:/probe/lang/en.json",
         string? translation = null)
     {
-        var references = AppDomain.CurrentDomain.GetAssemblies()
-            .Where(assembly => !assembly.IsDynamic && assembly.Location.Length > 0)
-            .Select(assembly => assembly.Location)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(location => (MetadataReference)MetadataReference.CreateFromFile(location))
-            .ToList();
-
-        var compilation = CSharpCompilation.Create(
-            "Probe",
-            [CSharpSyntaxTree.ParseText("public sealed class Probe { }")],
-            references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-
-        var files = new List<AdditionalText> { new Given($"C:/probe/{manifestName}", manifest) };
+        var files = new List<AdditionalText> { new AdditionalFile($"C:/probe/{manifestName}", manifest) };
 
         var roles = new Dictionary<string, string>(StringComparer.Ordinal);
 
         if (dictionary is not null)
         {
-            files.Add(new Given(dictionaryPath, dictionary));
+            files.Add(new AdditionalFile(dictionaryPath, dictionary));
             roles[dictionaryPath] = "default";
         }
 
@@ -287,23 +271,11 @@ public class ManifestStringsAnalyzerTests
         {
             const string translationPath = "C:/probe/lang/de.json";
 
-            files.Add(new Given(translationPath, translation));
+            files.Add(new AdditionalFile(translationPath, translation));
             roles[translationPath] = "translation";
         }
 
-        var analyzed = compilation.WithAnalyzers(
-            ImmutableArray.Create<DiagnosticAnalyzer>(new ManifestStringsAnalyzer()),
-            new AnalyzerOptions([.. files], new StringsRoles(roles)));
-
-        return await analyzed.GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
-    }
-
-    /// <summary>Файл, переданный анализатору входом сборки.</summary>
-    private sealed class Given(string path, string content) : AdditionalText
-    {
-        public override string Path => path;
-
-        public override SourceText GetText(CancellationToken cancellationToken = default) =>
-            SourceText.From(content);
+        return AnalyzerRun.Probe(AnalyzerRun.EmptyProbe)
+            .RunAsync(new ManifestStringsAnalyzer(), files, new StringsRoles(roles));
     }
 }

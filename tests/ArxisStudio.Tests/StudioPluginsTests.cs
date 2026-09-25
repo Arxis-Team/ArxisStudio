@@ -1,6 +1,5 @@
 using System.Reflection;
 using System.Text;
-using ArxisStudio.Controls;
 using ArxisStudio.Docking;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Modules.Sample;
@@ -38,22 +37,9 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class StudioPluginsTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-plugins-{Guid.NewGuid():N}");
-    private readonly ToolBarStrip _left = new();
-    private readonly ToolBarStrip _center = new();
-    private readonly ToolBarStrip _right = new();
-    private readonly DockView _view = new();
-    private readonly StudioLog _log = new();
-    private readonly PluginGuard _guard = new();
-    private readonly StudioTaskRegistry _tasks = new();
-    private readonly PluginContributionRegistry _contributions = new();
-    private readonly StudioCommands _commands;
-    private readonly StudioDock _dock;
-    private readonly StudioToolBar _toolbar;
-    private readonly StudioDocuments _documents;
+    private readonly string _root = TempFolder.Reserve("plugins");
+    private readonly StudioPluginsHarness _studio = new();
     private readonly StudioShortcuts _keys;
-
-    private StudioPlugins? _plugins;
 
     // Каталог — единственное, что тест подменяет: плагин на диске настоящий, а
     // меняются обстоятельства, в которых студия его застаёт.
@@ -62,11 +48,7 @@ public class StudioPluginsTests : IDisposable
 
     public StudioPluginsTests()
     {
-        _commands = new StudioCommands(_guard);
-        _keys = new StudioShortcuts(_commands.Invoke);
-        _dock = new StudioDock(_view);
-        _toolbar = new StudioToolBar(_left, _center, _right) { Invoke = _commands.Invoke };
-        _documents = new StudioDocuments(_dock, _contributions.EditorFor, new Silence());
+        _keys = new StudioShortcuts(_studio.Commands.Invoke);
 
         new Window
         {
@@ -80,9 +62,9 @@ public class StudioPluginsTests : IDisposable
                     {
                         [DockPanel.DockProperty] = Avalonia.Controls.Dock.Top,
                         Orientation = Orientation.Horizontal,
-                        Children = { _left, _center, _right },
+                        Children = { _studio.Left, _studio.Center, _studio.Right },
                     },
-                    _view,
+                    _studio.View,
                 },
             },
         }.Show();
@@ -94,19 +76,12 @@ public class StudioPluginsTests : IDisposable
     {
         // Хост отпускается первым: пока жив контекст загрузки плагина, его
         // файлы держит процесс, и папку не убрать.
-        _plugins?.Stop();
+        _studio.Dispose();
 
         GC.Collect();
         GC.WaitForPendingFinalizers();
 
-        try
-        {
-            if (Directory.Exists(_root))
-                Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
 
         GC.SuppressFinalize(this);
     }
@@ -124,9 +99,9 @@ public class StudioPluginsTests : IDisposable
         Assert.Empty(plugins.Installed);
         Assert.Empty(plugins.Modules);
         Assert.Empty(plugins.Reloadable);
-        Assert.Empty(_toolbar.Shown("left"));
-        Assert.Empty(_toolbar.Shown("right"));
-        Assert.DoesNotContain(_log.Records, record => record.Level == StudioLogLevel.Error);
+        Assert.Empty(_studio.ToolBar.Shown("left"));
+        Assert.Empty(_studio.ToolBar.Shown("right"));
+        Assert.DoesNotContain(_studio.Log.Records, record => record.Level == StudioLogLevel.Error);
     }
 
     /// <summary>Встроенный модуль поднимается и ставит свою панель.</summary>
@@ -139,7 +114,7 @@ public class StudioPluginsTests : IDisposable
 
         Assert.Equal("arxis.sample", module.Id);
         Assert.True(module.IsBuiltIn);
-        Assert.Contains(_dock.Items.Known(), id => id.StartsWith("arxis.sample:", StringComparison.Ordinal));
+        Assert.Contains(_studio.Dock.Items.Known(), id => id.StartsWith("arxis.sample:", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -166,7 +141,7 @@ public class StudioPluginsTests : IDisposable
         {
             var plugins = Start(modules: typeof(TerminalModule).Assembly);
 
-            Assert.Contains(_dock.Items.Known(), id => id.StartsWith("arxis.terminal:", StringComparison.Ordinal));
+            Assert.Contains(_studio.Dock.Items.Known(), id => id.StartsWith("arxis.terminal:", StringComparison.Ordinal));
 
             // Панель встала и заняла хаб: до прощания просьба идёт прямо ей.
             var before = new List<TerminalRequest>();
@@ -213,11 +188,11 @@ public class StudioPluginsTests : IDisposable
         Assert.Equal("arxis.hello", Assert.Single(plugins.Installed).Id);
         Assert.Equal("arxis.hello", Assert.Single(plugins.Reloadable).Id);
 
-        Assert.Contains("arxis.hello:hello.panel", _dock.Items.Known());
-        Assert.Contains("hello.greet", _commands.Registered);
+        Assert.Contains("arxis.hello:hello.panel", _studio.Dock.Items.Known());
+        Assert.Contains("hello.greet", _studio.Commands.Registered);
 
-        Assert.Contains(StudioToolBar.Key("arxis.hello", "hello.menu"), _toolbar.Shown("right"));
-        Assert.Contains(StudioToolBar.Key("arxis.hello", "hello.strip"), _toolbar.Shown("right"));
+        Assert.Contains(StudioToolBar.Key("arxis.hello", "hello.menu"), _studio.ToolBar.Shown("right"));
+        Assert.Contains(StudioToolBar.Key("arxis.hello", "hello.strip"), _studio.ToolBar.Shown("right"));
     }
 
     /// <summary>
@@ -236,10 +211,10 @@ public class StudioPluginsTests : IDisposable
         var plugins = Start(sleeping: true);
 
         Assert.Empty(plugins.Reloadable);
-        Assert.Empty(_dock.Items.Known());
-        Assert.DoesNotContain("hello.greet", _commands.Registered);
+        Assert.Empty(_studio.Dock.Items.Known());
+        Assert.DoesNotContain("hello.greet", _studio.Commands.Registered);
 
-        Assert.Contains(StudioToolBar.Key("arxis.hello", "hello.menu"), _toolbar.Shown("right"));
+        Assert.Contains(StudioToolBar.Key("arxis.hello", "hello.menu"), _studio.ToolBar.Shown("right"));
     }
 
     /// <summary>
@@ -262,11 +237,11 @@ public class StudioPluginsTests : IDisposable
         // Один вызов делает всё: будит хозяина и зовёт зарегистрированную им
         // команду. Ответить «не нашлось», разбудив, значило бы потерять то самое
         // нажатие, ради которого будили.
-        Assert.True(_commands.Invoke("hello.greet"), "команда не нашла хозяина даже после подъёма");
+        Assert.True(_studio.Commands.Invoke("hello.greet"), "команда не нашла хозяина даже после подъёма");
 
         Assert.Equal("arxis.hello", Assert.Single(plugins.Reloadable).Id);
-        Assert.Contains("arxis.hello:hello.panel", _dock.Items.Known());
-        Assert.Contains("hello.greet", _commands.Registered);
+        Assert.Contains("arxis.hello:hello.panel", _studio.Dock.Items.Known());
+        Assert.Contains("hello.greet", _studio.Commands.Registered);
     }
 
     /// <summary>
@@ -344,7 +319,7 @@ public class StudioPluginsTests : IDisposable
 
     /// <summary>Служба создания над службой расширений — так её связывает окно.</summary>
     private StudioNewItems NewItems(StudioPlugins plugins) =>
-        new(_log, _guard, _contributions)
+        new(_studio.Log, _studio.Guard, _studio.Contributions)
         {
             Contributing = () => plugins.Contributing,
             Activate = plugins.Activate,
@@ -366,7 +341,7 @@ public class StudioPluginsTests : IDisposable
 
         var plugins = Start();
 
-        _commands.Invoke("hello.greet");
+        _studio.Commands.Invoke("hello.greet");
 
         // Умерла ли прежняя копия — вопрос отдельный, и у него свой набор:
         // ответ зависит от сборщика мусора, а в живом окне панель прежней копии
@@ -374,8 +349,8 @@ public class StudioPluginsTests : IDisposable
         await plugins.ReloadAsync("arxis.hello");
 
         Assert.Equal("arxis.hello", Assert.Single(plugins.Reloadable).Id);
-        Assert.Equal(1, _commands.Registered.Count(id => id == "hello.greet"));
-        Assert.Contains("arxis.hello:hello.panel", _dock.Items.Known());
+        Assert.Equal(1, _studio.Commands.Registered.Count(id => id == "hello.greet"));
+        Assert.Contains("arxis.hello:hello.panel", _studio.Dock.Items.Known());
     }
 
     /// <summary>Плагина, которого нет на диске, перезагружать нечего.</summary>
@@ -387,7 +362,7 @@ public class StudioPluginsTests : IDisposable
         await plugins.ReloadAsync("arxis.nobody");
 
         Assert.Empty(plugins.AwaitingRestart);
-        Assert.Contains(_log.Records, record =>
+        Assert.Contains(_studio.Log.Records, record =>
             record.Level == StudioLogLevel.Warning && record.Message.Contains("arxis.nobody"));
     }
 
@@ -406,7 +381,7 @@ public class StudioPluginsTests : IDisposable
 
         var plugins = Start(modules: typeof(SampleModule).Assembly);
 
-        _commands.Invoke("hello.greet");
+        _studio.Commands.Invoke("hello.greet");
 
         Assert.Equal("arxis.hello", Assert.Single(plugins.Reloadable).Id);
         Assert.Contains(plugins.Modules, module => module.Id == "arxis.sample");
@@ -429,7 +404,7 @@ public class StudioPluginsTests : IDisposable
         Assert.Contains(plugins.Contributing, plugin => plugin.Id == "arxis.hello");
 
         for (var failure = 0; failure < PluginGuard.FailureLimit; failure++)
-            _guard.Report("arxis.hello", "проба", new InvalidOperationException("сломалось"));
+            _studio.Guard.Report("arxis.hello", "проба", new InvalidOperationException("сломалось"));
 
         Assert.DoesNotContain(plugins.Contributing, plugin => plugin.Id == "arxis.hello");
     }
@@ -453,12 +428,12 @@ public class StudioPluginsTests : IDisposable
         Assert.Equal(1, Counter(panel, "Built"));
 
         for (var failure = 0; failure < PluginGuard.FailureLimit; failure++)
-            _guard.Report("arxis.farewell-disabled", "проба", new InvalidOperationException("сломалось"));
+            _studio.Guard.Report("arxis.farewell-disabled", "проба", new InvalidOperationException("сломалось"));
 
         Pump();
 
         Assert.Equal(1, Counter(panel, "Released"));
-        Assert.DoesNotContain(_dock.Items.Known(), id => id.StartsWith("arxis.farewell-disabled:", StringComparison.Ordinal));
+        Assert.DoesNotContain(_studio.Dock.Items.Known(), id => id.StartsWith("arxis.farewell-disabled:", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -478,10 +453,10 @@ public class StudioPluginsTests : IDisposable
 
         var plugins = Start(modules: module);
 
-        (TopLevel.GetTopLevel(_view) as Window)!.UpdateLayout();
+        (TopLevel.GetTopLevel(_studio.View) as Window)!.UpdateLayout();
         Pump();
 
-        var surface = Assert.IsType<PluginSurface>(_dock.Items.Find("arxis.farewell-restart:farewell.panel")?.Content);
+        var surface = Assert.IsType<PluginSurface>(_studio.Dock.Items.Find("arxis.farewell-restart:farewell.panel")?.Content);
 
         Assert.True(surface.IsBroken, "панель обязана упасть на замере — иначе проверять нечего");
         Assert.Equal(0, Counter(panel, "Released"));
@@ -517,10 +492,10 @@ public class StudioPluginsTests : IDisposable
 
         Start(modules: module);
 
-        (TopLevel.GetTopLevel(_view) as Window)!.UpdateLayout();
+        (TopLevel.GetTopLevel(_studio.View) as Window)!.UpdateLayout();
         Pump();
 
-        var surface = Assert.IsType<PluginSurface>(_dock.Items.Find("arxis.caret-restart:farewell.panel")?.Content);
+        var surface = Assert.IsType<PluginSurface>(_studio.Dock.Items.Find("arxis.caret-restart:farewell.panel")?.Content);
 
         Assert.True(surface.IsBroken, "панель обязана упасть на замере — иначе проверять нечего");
 
@@ -616,21 +591,7 @@ public class StudioPluginsTests : IDisposable
     [AvaloniaFact]
     public async Task A_plugin_that_forgot_its_settings_subscription_still_unloads()
     {
-        var folder = Path.Combine(_root, "arxis.forgetful");
-
-        Directory.CreateDirectory(Path.Combine(folder, "bin"));
-
-        File.WriteAllText(Path.Combine(folder, "plugin.json"), """
-            {
-              "id": "arxis.forgetful",
-              "name": "Забывчивый",
-              "version": "1.0.0",
-              "entry": "bin/Probe.Forgetful.dll",
-              "activation": [ "onStartup" ]
-            }
-            """);
-
-        TestAssembly.EmitFile(Path.Combine(folder, "bin", "Probe.Forgetful.dll"), "Probe.Forgetful", """
+        TestAssembly.EmitPlugin(_root, "arxis.forgetful", "Probe.Forgetful", name: "Забывчивый", source: """
             using ArxisStudio.Sdk;
 
             namespace Probe;
@@ -668,7 +629,7 @@ public class StudioPluginsTests : IDisposable
         Install();
 
         var plugins = Start();
-        var page = new ArxisStudio.Settings.PluginsPage(new PluginCatalog(_root), plugins, new Dialogs());
+        var page = new ArxisStudio.Settings.PluginsPage(new PluginCatalog(_root), plugins, new DialogAnswers());
         var problems = new List<string>();
 
         await page.ToggleAsync(Assert.Single(page.Cards));
@@ -729,21 +690,7 @@ public class StudioPluginsTests : IDisposable
     {
         const string id = "probe.held";
 
-        var folder = Path.Combine(_root, id);
-
-        Directory.CreateDirectory(Path.Combine(folder, "bin"));
-
-        File.WriteAllText(Path.Combine(folder, "plugin.json"), $$"""
-            {
-              "id": "{{id}}",
-              "name": "Держится",
-              "version": "1.0.0",
-              "entry": "bin/Probe.Held.dll",
-              "activation": [ "onStartup" ]
-            }
-            """);
-
-        TestAssembly.EmitFile(Path.Combine(folder, "bin", "Probe.Held.dll"), "Probe.Held", """
+        var folder = TestAssembly.EmitPlugin(_root, id, "Probe.Held", name: "Держится", source: """
             using ArxisStudio.Controls;
             using ArxisStudio.Sdk;
             using Avalonia;
@@ -774,7 +721,7 @@ public class StudioPluginsTests : IDisposable
         Copy(folder, incoming);
 
         var plugins = Start();
-        var dialogs = new Dialogs { Folder = incoming };
+        var dialogs = new DialogAnswers { Folder = incoming };
         var page = new ArxisStudio.Settings.PluginsPage(new PluginCatalog(_root), plugins, dialogs);
         var asked = new List<string>();
         var required = Localizer.Instance["restart.required"];
@@ -790,7 +737,7 @@ public class StudioPluginsTests : IDisposable
 
             Assert.Equal([id], asked);
             Assert.Contains("Badge", plugins.AwaitingRestart[id], StringComparison.Ordinal);
-            Assert.Contains(_log.Records, record =>
+            Assert.Contains(_studio.Log.Records, record =>
                 record.Level == StudioLogLevel.Warning && record.Message.Contains("Badge", StringComparison.Ordinal));
 
             page.Refresh();
@@ -850,18 +797,18 @@ public class StudioPluginsTests : IDisposable
 
         var plugins = Start(sleeping: true);
 
-        Assert.Contains(StudioToolBar.Key("arxis.hello", "hello.menu"), _toolbar.Shown("right"));
+        Assert.Contains(StudioToolBar.Key("arxis.hello", "hello.menu"), _studio.ToolBar.Shown("right"));
         Assert.NotNull(_keys.Gesture("hello.greet"));
 
         Assert.Null(new PluginCatalog(_root).SetEnabled("arxis.hello", false));
         Assert.Null(await plugins.ApplyAsync(["arxis.hello"], []));
 
-        Assert.DoesNotContain(StudioToolBar.Key("arxis.hello", "hello.menu"), _toolbar.Shown("right"));
+        Assert.DoesNotContain(StudioToolBar.Key("arxis.hello", "hello.menu"), _studio.ToolBar.Shown("right"));
         Assert.Null(_keys.Gesture("hello.greet"));
 
-        Assert.False(_commands.Invoke("hello.greet"), "выключенный плагин разбужен своей командой");
+        Assert.False(_studio.Commands.Invoke("hello.greet"), "выключенный плагин разбужен своей командой");
         Assert.Empty(plugins.Reloadable);
-        Assert.DoesNotContain("arxis.hello:hello.panel", _dock.Items.Known());
+        Assert.DoesNotContain("arxis.hello:hello.panel", _studio.Dock.Items.Known());
     }
 
     /// <summary>
@@ -935,7 +882,7 @@ public class StudioPluginsTests : IDisposable
         Assert.Contains("arxis.nowhere", complaint, StringComparison.Ordinal);
         Assert.Contains("arxis.nowhere", plugins.Unrisen["arxis.needy"], StringComparison.Ordinal);
 
-        Assert.Contains(_log.Records, record =>
+        Assert.Contains(_studio.Log.Records, record =>
             record.Level == StudioLogLevel.Error && record.Message.Contains("Нуждающийся", StringComparison.Ordinal));
     }
 
@@ -952,7 +899,7 @@ public class StudioPluginsTests : IDisposable
         var plugins = Start();
 
         Assert.False(plugins.Blame(new InvalidOperationException("своё"), "проба"));
-        Assert.Empty(_guard.Faulty);
+        Assert.Empty(_studio.Guard.Faulty);
     }
 
     /// <summary>
@@ -969,12 +916,12 @@ public class StudioPluginsTests : IDisposable
 
         var plugins = Start();
 
-        _commands.Invoke("hello.greet");
-        Assert.Contains("hello.greet", _commands.Registered);
+        _studio.Commands.Invoke("hello.greet");
+        Assert.Contains("hello.greet", _studio.Commands.Registered);
 
         plugins.Stop();
 
-        Assert.DoesNotContain("hello.greet", _commands.Registered);
+        Assert.DoesNotContain("hello.greet", _studio.Commands.Registered);
     }
 
     /// <summary>
@@ -999,13 +946,13 @@ public class StudioPluginsTests : IDisposable
         var plugins = Start();
         var note = Path.Combine(Path.GetTempPath(), "Список.note");
 
-        _contributions.Add("arxis.hello", "Hello", [typeof(NoteEditor).Assembly]);
+        _studio.Contributions.Add("arxis.hello", "Hello", [typeof(NoteEditor).Assembly]);
 
-        Assert.NotNull(_contributions.EditorFor(note));
+        Assert.NotNull(_studio.Contributions.EditorFor(note));
 
         plugins.Stop();
 
-        Assert.Null(_contributions.EditorFor(note));
+        Assert.Null(_studio.Contributions.EditorFor(note));
     }
 
     /// <summary>
@@ -1030,7 +977,7 @@ public class StudioPluginsTests : IDisposable
 
         await plugins.ReloadAsync("arxis.hello");
 
-        Assert.Contains(_log.Records, record =>
+        Assert.Contains(_studio.Log.Records, record =>
             record.Level == StudioLogLevel.Warning && record.Message.Contains("каталоге плагинов"));
     }
 
@@ -1053,9 +1000,9 @@ public class StudioPluginsTests : IDisposable
         var plugins = Start();
 
         Assert.Empty(plugins.Reloadable);
-        Assert.Empty(_toolbar.Shown("right"));
+        Assert.Empty(_studio.ToolBar.Shown("right"));
 
-        Assert.Contains(_log.Records, record => record.Level == StudioLogLevel.Error);
+        Assert.Contains(_studio.Log.Records, record => record.Level == StudioLogLevel.Error);
     }
 
     /// <summary>
@@ -1112,10 +1059,10 @@ public class StudioPluginsTests : IDisposable
             ["arxis.falling", "arxis.sample"],
             plugins.Modules.Select(module => module.Id).Order());
 
-        Assert.Contains(_log.Records, record =>
+        Assert.Contains(_studio.Log.Records, record =>
             record.Level == StudioLogLevel.Error && record.Message.Contains("модуль уронил студию"));
 
-        Assert.DoesNotContain(_log.Records, record =>
+        Assert.DoesNotContain(_studio.Log.Records, record =>
             record.Level == StudioLogLevel.Error && record.Message.Contains("arxis.sample"));
     }
 
@@ -1187,7 +1134,7 @@ public class StudioPluginsTests : IDisposable
 
         Assert.Equal("arxis.hello", Assert.Single(plugins.Installed).Id);
         Assert.Equal("arxis.hello", Assert.Single(plugins.Reloadable).Id);
-        Assert.Single(_toolbar.Shown("right"), StudioToolBar.Key("arxis.hello", "hello.menu"));
+        Assert.Single(_studio.ToolBar.Shown("right"), StudioToolBar.Key("arxis.hello", "hello.menu"));
     }
 
     /// <summary>Ставит пример плагина во временную папку студии.</summary>
@@ -1233,11 +1180,6 @@ public class StudioPluginsTests : IDisposable
         return installed;
     }
 
-    /// <summary>
-    /// Поднимает службу так же, как её поднимает окно.
-    /// </summary>
-    /// <param name="sleeping">Отложить подъём плагинов до вызова их команды.</param>
-    /// <param name="modules">Встроенные модули; без них студия — пустой каркас.</param>
     /// <summary>
     /// Студия берёт службу проектов из экспортов — той же дорогой, что и плагин.
     /// </summary>
@@ -1300,6 +1242,11 @@ public class StudioPluginsTests : IDisposable
         Assert.Null(plugins.Settings.ProjectFile);
     }
 
+    /// <summary>
+    /// Поднимает службу так же, как её поднимает окно.
+    /// </summary>
+    /// <param name="sleeping">Отложить подъём плагинов до вызова их команды.</param>
+    /// <param name="modules">Встроенные модули; без них студия — пустой каркас.</param>
     private StudioPlugins Start(bool sleeping = false, params Assembly[] modules)
     {
         var plugins = Build(sleeping, modules);
@@ -1311,34 +1258,12 @@ public class StudioPluginsTests : IDisposable
     }
 
     /// <summary>Собирает службу, никого не поднимая.</summary>
-    private StudioPlugins Build(bool sleeping = false, params Assembly[] modules)
-    {
-        var plugins = new StudioPlugins(_log, _guard, _tasks, _contributions)
-        {
-            Commands = _commands,
-            Dock = _dock,
-            ToolBar = _toolbar,
-            Documents = _documents,
-            Shortcuts = _keys,
-            Services = new Dictionary<Type, object>
-            {
-                [typeof(PluginContributionRegistry)] = _contributions,
-                [typeof(PluginGuard)] = _guard,
-            },
-
-            // Папка плагинов — своя на тест: настоящая принадлежит человеку, и
-            // прогон, читающий её, отвечал бы по-разному на разных машинах. По той
-            // же причине своё и хранилище настроек: приветствие примера человек
-            // вправе поменять у себя.
-            Catalog = () => Scan(sleeping),
-            Settings = new PluginSettingsStore(userFile: Path.Combine(_root, "plugin-settings.json")),
-            Assemblies = modules,
-        };
-
-        _plugins = plugins;
-
-        return plugins;
-    }
+    /// <remarks>
+    /// Папка плагинов — своя на тест: настоящая принадлежит человеку, и прогон, читающий её,
+    /// отвечал бы по-разному на разных машинах.
+    /// </remarks>
+    private StudioPlugins Build(bool sleeping = false, params Assembly[] modules) =>
+        _studio.Build(catalog: () => Scan(sleeping), modules: modules, shortcuts: _keys);
 
     /// <summary>Модуль, публикующий подставную службу проектов с уже открытым решением.</summary>
     private const string ProjectsSource = """
@@ -1396,29 +1321,4 @@ public class StudioPluginsTests : IDisposable
     /// <summary>Проект, который отдаёт подставная служба.</summary>
     private static readonly CanonicalPath ProbeSolution =
         CanonicalPath.Create(Path.Combine(Path.GetTempPath(), "Проба", "Проба.slnx"));
-
-    /// <summary>Диалоги менеджера: папку отдают названную, на вопросы соглашаются.</summary>
-    private sealed class Dialogs : ArxisStudio.Settings.IPluginDialogs
-    {
-        public string? Folder { get; init; }
-
-        public Task<string?> AskFolderAsync(string title) => Task.FromResult(Folder);
-
-        public Task<string?> AskArchiveAsync(string title) => Task.FromResult<string?>(null);
-
-        public Task<bool> ConfirmAsync(string title, string message, string confirm, bool danger) => Task.FromResult(true);
-
-        public void Reveal(string path)
-        {
-        }
-    }
-
-    /// <summary>Строка состояния, которой здесь никто не смотрит.</summary>
-    private sealed class Silence : IStudioStatus
-    {
-        /// <inheritdoc/>
-        public void Show(string message)
-        {
-        }
-    }
 }

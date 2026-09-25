@@ -26,8 +26,8 @@ public class PluginStringsTests : IDisposable
     {
         Localizer.Instance.SetLanguage(Localizer.FallbackLanguage);
 
-        foreach (var folder in _folders.Where(Directory.Exists))
-            Directory.Delete(folder, recursive: true);
+        foreach (var folder in _folders)
+            TempFolder.Erase(folder, strict: true);
 
         GC.SuppressFinalize(this);
     }

@@ -2,20 +2,17 @@ using System.Text;
 using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Icons;
-using ArxisStudio.Modules.Project.Browse;
 using ArxisStudio.Modules.Project.Dialogs;
 using ArxisStudio.Modules.Project.Model;
 using ArxisStudio.Modules.Project.Panels;
 using ArxisStudio.Modules.Project.Tree;
 using ArxisStudio.Projects;
-using ArxisStudio.ProjectSystem;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
-using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Xunit;
 using static ArxisStudio.Tests.ProjectWindowDialogs;
@@ -43,7 +40,7 @@ public class ProjectWindowAddTests
     {
         using var studio = await Opened(Real());
 
-        Expand(studio, "Views");
+        studio.Expand("Views");
 
         foreach (var name in new[] { "App", "Views", "MainWindow.axaml", "Program.cs" })
             Assert.Equal(studio.Strings["project.add"], studio.Panel.Items(studio.Select(name))[0].Header);
@@ -155,7 +152,7 @@ public class ProjectWindowAddTests
 
         using var studio = await Opened(Real(), files);
 
-        Expand(studio, "Views");
+        studio.Expand("Views");
 
         var views = studio.Row("Views").Node.Path;
 
@@ -208,7 +205,7 @@ public class ProjectWindowAddTests
         using var studio = new ProjectWindowStudio(files: files, history: history, newItems: Real());
 
         await studio.Open();
-        Expand(studio, "Views");
+        studio.Expand("Views");
 
         var notes = studio.Row("Views").Node.Path.Combine("Notes.txt");
 
@@ -580,20 +577,8 @@ public class ProjectWindowAddTests
     private static StudioNewItems Real() =>
         new(new StudioLog(), new PluginGuard(), new PluginContributionRegistry()) { Contributing = () => StudioModules.Describe() };
 
-    private static async Task<ProjectWindowStudio> Opened(IStudioNewItems? newItems, FilesProbe? files = null, bool twoColumns = false)
-    {
-        var studio = new ProjectWindowStudio(twoColumns: twoColumns, files: files ?? new FilesProbe(), newItems: newItems);
-
-        await studio.Open();
-
-        return studio;
-    }
-
-    private static void Expand(ProjectWindowStudio studio, string name)
-    {
-        studio.Model.Tree.Expand(studio.Row(name));
-        Dispatcher.UIThread.RunJobs();
-    }
+    private static Task<ProjectWindowStudio> Opened(IStudioNewItems? newItems, FilesProbe? files = null, bool twoColumns = false) =>
+        ProjectWindowStudio.OpenedAsync(files, twoColumns, newItems: newItems);
 
     /// <summary>«Добавить ▸» в меню строки, выбранной одной; пусто — его нет.</summary>
     private static AxMenuItem? Add(ProjectWindowStudio studio, string name) => Add(studio, studio.Row(name));

@@ -9,16 +9,13 @@ namespace ArxisStudio.Tests;
 /// </summary>
 public class DockLayoutStoreTests : IDisposable
 {
-    private readonly string _directory = Path.Combine(Path.GetTempPath(), $"arxis-layout-{Guid.NewGuid():N}");
-
-    public DockLayoutStoreTests() => Directory.CreateDirectory(_directory);
+    private readonly string _directory = TempFolder.Create("layout");
 
     private string File => Path.Combine(_directory, "layout.json");
 
     public void Dispose()
     {
-        if (Directory.Exists(_directory))
-            Directory.Delete(_directory, recursive: true);
+        TempFolder.Erase(_directory, strict: true);
 
         GC.SuppressFinalize(this);
     }

@@ -27,20 +27,11 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class NarrowLabelTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"arxis-narrow-{Guid.NewGuid():N}");
-
-    public NarrowLabelTests() => Directory.CreateDirectory(_root);
+    private readonly string _root = TempFolder.Create("narrow");
 
     public void Dispose()
     {
-        try
-        {
-            if (Directory.Exists(_root))
-                Directory.Delete(_root, recursive: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        TempFolder.Erase(_root);
     }
 
     /// <summary>Вкладка узкой группы сокращает имя и оставляет крестик на месте.</summary>
