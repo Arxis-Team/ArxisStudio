@@ -4,9 +4,9 @@
 [submodule "external/ArxisStudio.ProjectSystem"]
 	path = external/ArxisStudio.ProjectSystem
 	url = https://github.com/Arxis-Team/ArxisStudio.ProjectSystem.git
-[submodule "external/ArxisStudio.DesignEditor"]
-	path = external/ArxisStudio.DesignEditor
-	url = https://github.com/Arxis-Team/ArxisStudio.DesignEditor.git
+[submodule "external/ArxisStudio.Surface"]
+	path = external/ArxisStudio.Surface
+	url = https://github.com/Arxis-Team/ArxisStudio.Surface.git
 [submodule "external/ArxisStudio.Controls"]
 	path = external/ArxisStudio.Controls
 	url = https://github.com/Arxis-Team/ArxisStudio.Controls.git

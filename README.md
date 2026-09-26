@@ -27,8 +27,8 @@
 | [ArxisStudio.ProjectSystem](https://github.com/Arxis-Team/ArxisStudio.ProjectSystem) | Модель решения: неизменяемые снимки, провайдер MSBuild, правка пакетов NuGet. Собираются ядро и два движка; адаптер разметки ждёт своего шага |
 
 Ещё два подмодуля — [Markup](https://github.com/Arxis-Team/ArxisStudio.Markup)
-(разметка без потерь) и [DesignEditor](https://github.com/Arxis-Team/ArxisStudio.DesignEditor)
-(канва) — остаются зарегистрированными, но ни один проект на них не ссылается:
+(разметка без потерь) и [Surface](https://github.com/Arxis-Team/ArxisStudio.Surface)
+(канва: ядро, инструменты и дизайнер форм; прежде DesignEditor) — остаются зарегистрированными, но ни один проект на них не ссылается:
 они ждут возвращения дизайнера. В `ArxisStudio.slnx` их нет — решение перечисляет
 то, что собирается; работать с ними нужно их собственными решениями, они лежат в
 корне каждого подмодуля. Так же проверяется и ProjectSystem: студия собирает его
