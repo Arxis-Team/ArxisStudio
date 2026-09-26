@@ -140,6 +140,23 @@ public class WelcomeProjectsTests : IDisposable
     public void A_real_solution_draws_no_complaint() =>
         Assert.Null(Model().Complaint(Solution("WaveChat.sln")));
 
+    /// <summary>Фильтры диалога выбора проекта названы на языке студии.</summary>
+    /// <remarks>
+    /// Имя фильтра показывает диалог системы, а первое стояло в коде по-русски и оставалось русским
+    /// при английской студии.
+    /// </remarks>
+    [Fact]
+    public void The_picker_filters_are_named_in_the_studio_language()
+    {
+        Localizer.Instance.SetLanguage(Localizer.FallbackLanguage);
+
+        Assert.Equal(["Solutions and projects", "All files"], WelcomeWindow.ProjectTypes().Select(type => type.Name));
+
+        Localizer.Instance.SetLanguage("ru");
+
+        Assert.Equal(["Решения и проекты", "Все файлы"], WelcomeWindow.ProjectTypes().Select(type => type.Name));
+    }
+
     // ===== Окно: строка, меню, клавиши =====
 
     /// <summary>Строка показывает имя, путь и время открытия.</summary>

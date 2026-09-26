@@ -12,6 +12,7 @@
   "projects.search": "Поиск проектов",
   "projects.new": "Новый проект",
   "projects.open": "Открыть",
+  "projects.open.types": "Решения и проекты",
   "projects.clone": "Клонировать из Git",
   "projects.empty": "Пока нет ни одного проекта — создайте новый или откройте существующий",
   "projects.remove": "Убрать из списка",

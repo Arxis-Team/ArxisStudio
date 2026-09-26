@@ -232,15 +232,8 @@ public sealed record StudioPlacement(int X, int Y, double Width, double Height, 
     /// вставшее за ним, человек не нашёл бы. Размер переводится в пиксели масштабом того экрана,
     /// на котором окно стояло.
     /// </remarks>
-    public PixelPoint Land(IReadOnlyList<PixelRect> screens, PixelRect? fallback)
-    {
-        var scaling = Scaling > 0 ? Scaling : 1;
-
-        return DockFloat.Landed(
-            new PixelRect(X, Y, (int)Math.Ceiling(Width * scaling), (int)Math.Ceiling(Height * scaling)),
-            screens,
-            fallback);
-    }
+    public PixelPoint Land(IReadOnlyList<PixelRect> screens, PixelRect? fallback) =>
+        DockFloat.Landed(new PixelPoint(X, Y), new Size(Width, Height), Scaling, screens, fallback);
 
     /// <summary>
     /// Ставит окно на записанное место — до показа.

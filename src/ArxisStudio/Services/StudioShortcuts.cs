@@ -1,3 +1,4 @@
+using ArxisStudio.Themes.Arxis;
 using Avalonia.Controls;
 using System.Globalization;
 using Avalonia.Input;
@@ -231,10 +232,12 @@ public sealed class StudioShortcuts(Func<string, bool> invoke)
     /// <param name="gesture">Сочетание.</param>
     /// <remarks>
     /// Одно место на всю студию: <c>ToString()</c> у жеста отдаёт инвариантную запись, и
-    /// разошедшиеся экраны — палитра, клавиши, меню — писали бы одно и то же по-разному.
+    /// разошедшиеся экраны — палитра, клавиши, меню — писали бы одно и то же по-разному. Пишет
+    /// преобразователь темы — тот же, что у шаблона меню: имя Enter он поправляет платформе, и своя
+    /// запись здесь писала бы в палитре «Return», когда меню пишет «Enter».
     /// </remarks>
     public static string? Written(KeyGesture? gesture) =>
-        gesture?.ToString("p", CultureInfo.CurrentCulture);
+        gesture is null ? null : AxGestureText.Write(gesture, CultureInfo.CurrentCulture);
 
     /// <summary>
     /// Сочетание этой команды — жестом, а не строкой; <c>null</c> — никаким.

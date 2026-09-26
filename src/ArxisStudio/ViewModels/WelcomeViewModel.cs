@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using ArxisStudio.Extensibility;
-using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
@@ -31,8 +30,6 @@ public enum WelcomeSection
 /// </remarks>
 public sealed class WelcomeViewModel : INotifyPropertyChanged
 {
-    private readonly IStudioLog? _log;
-
     private WelcomeSection _section = WelcomeSection.Projects;
     private bool _settingsOpen;
     private bool _pluginsOpen;
@@ -42,22 +39,15 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
     /// <summary>Создаёт модель экрана.</summary>
     /// <param name="recent">Список недавних проектов.</param>
     /// <param name="plugins">Каталог плагинов.</param>
-    /// <param name="log">Журнал студии; null — молча.</param>
     /// <remarks>
-    /// Языки, принесённые плагинами, подхватываются сразу: выбирать язык
-    /// человек пойдёт в настройки, а список собирается на ходу — из того, что
-    /// стоит в папке плагинов.
+    /// Языков, принесённых плагинами, модель не собирает: их собирают запуск и окно настроек перед
+    /// каждым показом — выбирают язык там.
     /// </remarks>
-    public WelcomeViewModel(
-        RecentProjects recent,
-        PluginCatalog plugins,
-        IStudioLog? log = null)
+    public WelcomeViewModel(RecentProjects recent, PluginCatalog plugins)
     {
         Recent = recent;
         Plugins = plugins;
-        _log = log;
 
-        ApplyLanguagePacks();
         RefreshRecent();
     }
 
@@ -177,17 +167,6 @@ public sealed class WelcomeViewModel : INotifyPropertyChanged
 
     /// <summary>Открыт раздел обучения.</summary>
     public bool IsLearn => Section == WelcomeSection.Learn;
-
-    /// <summary>
-    /// Пересобирает языки, принесённые плагинами.
-    /// </summary>
-    /// <remarks>
-    /// Языковой пакет — плагин, и всё, что делает с плагинами менеджер, —
-    /// установка, включение, выключение, удаление — меняет список языков
-    /// студии. Держать его в стороне значило бы оставлять в настройках
-    /// язык, которого уже нет.
-    /// </remarks>
-    public void ApplyLanguagePacks() => LanguagePacks.Apply(Plugins, _log);
 
     /// <summary>
     /// Пересобирает показанный список из файла, отбирая поиском.

@@ -50,9 +50,17 @@ internal sealed class SettingsHarness : IDisposable
     public StudioPlugins Plugins =>
         _extensions ??= _studio.Build(catalog: new PluginCatalog(Path.Combine(_home, "plugins")).Scan);
 
+    /// <summary>Убирает папку харнесса — и языки, которые окно собрало из неё.</summary>
+    /// <remarks>
+    /// Окно собирает языки пакетов из каталога харнесса, а тот уходит вместе с папкой. Словарь студии
+    /// один на процесс, и соседу иначе достался бы язык из стёртой папки.
+    /// </remarks>
     public void Dispose()
     {
         _studio.Dispose();
+
+        Localizer.Instance.UsePacks(null);
+        PluginStrings.UseTranslations(null);
 
         TempFolder.Erase(_home, strict: true);
     }
@@ -158,6 +166,29 @@ internal sealed class SettingsHarness : IDisposable
 
         Directory.CreateDirectory(folder);
         File.WriteAllText(Path.Combine(folder, "plugin.json"), System.Text.Json.JsonSerializer.Serialize(manifest));
+    }
+
+    /// <summary>Кладёт в каталог харнесса языковой пакет — манифест и словарь в одну строку.</summary>
+    /// <param name="id">Идентификатор пакета — он же имя папки.</param>
+    /// <param name="code">Код языка — он же имя словаря.</param>
+    /// <param name="name">Имя языка в списке.</param>
+    public void InstallLanguage(string id, string code, string name)
+    {
+        var folder = Path.Combine(_home, "plugins", id);
+        var manifest = new Dictionary<string, object>
+        {
+            ["id"] = id,
+            ["name"] = name,
+            ["version"] = "1.0.0",
+            ["contributions"] = new Dictionary<string, object>
+            {
+                ["languages"] = new[] { new Dictionary<string, object> { ["code"] = code, ["name"] = name, ["file"] = $"lang/{code}.json" } },
+            },
+        };
+
+        Directory.CreateDirectory(Path.Combine(folder, "lang"));
+        File.WriteAllText(Path.Combine(folder, "plugin.json"), System.Text.Json.JsonSerializer.Serialize(manifest));
+        File.WriteAllText(Path.Combine(folder, "lang", $"{code}.json"), """{ "projects.recent": "Zuletzt" }""");
     }
 
     /// <summary>Закрывает окно «Отменой» и ждёт, пока завершится задача его показа.</summary>

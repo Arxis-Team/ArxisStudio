@@ -43,6 +43,10 @@ public partial class SettingsWindow : AxWindow
     // Перезапуск студии; null — окно открыли без него, и спрашивать о нём некому.
     private StudioRestart? _restart;
 
+    // Обычные границы окна: развёрнутое возвращается после перезапуска развёрнутым, а сняв
+    // разворот — к прежнему размеру, а не к размеру экрана.
+    private readonly NormalBounds _normalBounds;
+
     private bool _closing;
 
     /// <summary>
@@ -57,6 +61,8 @@ public partial class SettingsWindow : AxWindow
     public SettingsWindow()
     {
         InitializeComponent();
+
+        _normalBounds = new NormalBounds(this);
 
         Cancel.Click += OnCancelClick;
         Save.Click += OnSaveClick;
@@ -109,6 +115,11 @@ public partial class SettingsWindow : AxWindow
     /// «Плагины» в полосе Welcome ведёт в менеджер, и звать его по месту в
     /// дереве значило бы ломать вход при каждой перестановке разделов.
     /// </para>
+    /// <para>
+    /// Языки пакетов окно собирает само, перед показом: язык выбирают здесь, а пакет могли поставить,
+    /// выключить или удалить менеджером минуту назад. Собирал их прежде Welcome, и настройки,
+    /// открытые из студии, показывали список, каким он был на запуске.
+    /// </para>
     /// </remarks>
     public static Task ShowAsync(
         Window owner,
@@ -124,6 +135,8 @@ public partial class SettingsWindow : AxWindow
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(extensions);
         ArgumentNullException.ThrowIfNull(catalog);
+
+        LanguagePacks.Apply(catalog, extensions.Log);
 
         var window = new SettingsWindow { _restart = restart };
         var plugins = new PluginsPage(catalog, extensions, new SettingsDialogs(window), [.. declaring.Where(extension => extension.IsBuiltIn)]);
@@ -156,7 +169,7 @@ public partial class SettingsWindow : AxWindow
         Search = _model?.Search ?? string.Empty,
         Plugin = _plugins?.Card?.Plugin.Id,
         Folded = _plugins?.Folded ?? new Dictionary<string, bool>(),
-        Window = StudioPlacement.Of(this, Position, ClientSize),
+        Window = _normalBounds.Placement,
     };
 
     /// <summary>
@@ -193,7 +206,8 @@ public partial class SettingsWindow : AxWindow
         _plugins?.Fold(restore.Folded);
         _plugins?.Pick(restore.Plugin);
 
-        restore.Window?.Put(this);
+        if (restore.Window is { } placement)
+            _normalBounds.Put(placement);
     }
 
     /// <summary>

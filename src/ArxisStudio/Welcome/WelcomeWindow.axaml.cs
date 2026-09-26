@@ -1,6 +1,5 @@
 ﻿using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
-using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using ArxisStudio.Settings;
 using ArxisStudio.Shell;
@@ -40,19 +39,17 @@ public partial class WelcomeWindow : AxWindow
     /// <param name="recent">Список недавних проектов.</param>
     /// <param name="plugins">Каталог плагинов.</param>
     /// <param name="extensions">Расширения студии: у них общее хранилище настроек.</param>
-    /// <param name="log">Журнал студии; null — молча.</param>
     public WelcomeWindow(
         ISettingsStore settings,
         RecentProjects recent,
         PluginCatalog plugins,
-        StudioPlugins extensions,
-        IStudioLog? log = null)
+        StudioPlugins extensions)
     {
         ArgumentNullException.ThrowIfNull(extensions);
 
         _settings = settings;
         _extensions = extensions;
-        _model = new WelcomeViewModel(recent, plugins, log);
+        _model = new WelcomeViewModel(recent, plugins);
         CanOpenProjects = () => extensions.Projects is not null;
         DataContext = _model;
 
@@ -120,9 +117,7 @@ public partial class WelcomeWindow : AxWindow
     /// <param name="plugins">Дверь «Плагины»: окно открывается на менеджере, и отмечена она.</param>
     /// <param name="restore">С чем окно застал перезапуск; null — открыть как обычно.</param>
     /// <remarks>
-    /// Языковые пакеты перечитываются перед показом: пакет могли поставить
-    /// менеджером минуту назад, и список языков собирается на ходу, а не
-    /// знается наперёд.
+    /// Языковые пакеты перечитывает само окно, перед показом, — одной дорогой для Welcome и студии.
     /// <para>
     /// О перезапуске спрашивают, когда окно закрылось, — тем же правилом, что у окна студии:
     /// «Сохранить» применяет плагины, и вопросу нужен живой хозяин.
@@ -130,7 +125,6 @@ public partial class WelcomeWindow : AxWindow
     /// </remarks>
     internal async Task OpenSettingsAsync(bool plugins, SettingsSession? restore = null)
     {
-        _model.ApplyLanguagePacks();
         Door(plugins, open: true);
 
         try
@@ -309,19 +303,26 @@ public partial class WelcomeWindow : AxWindow
         {
             Title = Localizer.Instance["projects.open"],
             AllowMultiple = false,
-            FileTypeFilter =
-            [
-                new FilePickerFileType("Решение / проект")
-                {
-                    Patterns = ["*.sln", "*.slnx", "*.csproj", "*.fsproj", "*.vbproj"],
-                },
-                new FilePickerFileType(Localizer.Instance["common.all"]) { Patterns = ["*"] },
-            ],
+            FileTypeFilter = ProjectTypes(),
         });
 
         if (files.Count > 0 && files[0].TryGetLocalPath() is { } path)
             OpenProject(path);
     }
+
+    /// <summary>Фильтры диалога выбора проекта: решения и проекты, затем все файлы.</summary>
+    /// <remarks>
+    /// Имена — из словаря: их показывает диалог системы, и первое, написанное строкой в коде,
+    /// оставалось русским при любом языке студии.
+    /// </remarks>
+    internal static IReadOnlyList<FilePickerFileType> ProjectTypes() =>
+    [
+        new FilePickerFileType(Localizer.Instance["projects.open.types"])
+        {
+            Patterns = ["*.sln", "*.slnx", "*.csproj", "*.fsproj", "*.vbproj"],
+        },
+        new FilePickerFileType(Localizer.Instance["common.all"]) { Patterns = ["*"] },
+    ];
 
     private void OnNewProjectClick(object? sender, RoutedEventArgs e) =>
         _model.Status = Localizer.Instance["projects.new.later"];

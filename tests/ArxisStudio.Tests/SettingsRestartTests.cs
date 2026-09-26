@@ -212,6 +212,96 @@ public class SettingsRestartTests : IDisposable
     }
 
     /// <summary>
+    /// Развёрнутое окно настроек отдаёт перезапуску обычные границы и признак разворота, а не экран.
+    /// </summary>
+    /// <remarks>
+    /// Окно снимало место тем, что видно сейчас: развёрнутое — размером экрана. Вернувшись
+    /// развёрнутым, оно и после снятого разворота оставалось во весь экран. Главное окно помнило
+    /// обычные границы и прежде; правило теперь одно у обоих. Система сообщает новые место и размер
+    /// раньше нового вида окна — тест делает так же.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_maximized_settings_window_hands_the_restart_its_normal_bounds()
+    {
+        var (owner, settings, shown) = _harness.Open();
+        var size = settings.ClientSize;
+        var position = settings.Position;
+
+        settings.Position = new PixelPoint(0, 0);
+        settings.Width = 1900;
+        settings.Height = 1000;
+        settings.WindowState = WindowState.Maximized;
+        Dispatcher.UIThread.RunJobs();
+
+        var placement = settings.Snapshot().Window!;
+
+        Assert.True(placement.Maximized, "разворот не записан");
+        Assert.Equal((size.Width, size.Height), (placement.Width, placement.Height));
+        Assert.Equal(position, new PixelPoint(placement.X, placement.Y));
+
+        await CloseAsync(settings, shown);
+        owner.Close();
+    }
+
+    /// <summary>
+    /// Сдвинутое, а потом растянутое окно отдаёт перезапуску то место и тот размер, где стоит.
+    /// </summary>
+    /// <remarks>
+    /// Хранитель слушает место и размер порознь, и проверяются они порознь: сдвиг без растяжки и
+    /// растяжка без сдвига.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_moved_and_resized_settings_window_hands_the_restart_where_it_stands()
+    {
+        var (owner, settings, shown) = _harness.Open();
+        var before = settings.ClientSize;
+
+        settings.Position = new PixelPoint(40, 30);
+        Dispatcher.UIThread.RunJobs();
+
+        var moved = settings.Snapshot().Window!;
+
+        Assert.Equal(new PixelPoint(40, 30), new PixelPoint(moved.X, moved.Y));
+
+        settings.Width = before.Width + 100;
+        settings.Height = before.Height + 50;
+        Dispatcher.UIThread.RunJobs();
+
+        var resized = settings.Snapshot().Window!;
+
+        Assert.NotEqual(before, settings.ClientSize);
+        Assert.Equal((settings.ClientSize.Width, settings.ClientSize.Height), (resized.Width, resized.Height));
+        Assert.False(resized.Maximized);
+
+        await CloseAsync(settings, shown);
+        owner.Close();
+    }
+
+    /// <summary>
+    /// Окно, вернувшееся развёрнутым, отдаёт следующему перезапуску те же обычные границы.
+    /// </summary>
+    /// <remarks>
+    /// Развёрнутым окно обычным ещё не бывало, и узнать, куда ему вернуться, кроме записи прежней
+    /// копии, неоткуда. Хранитель берёт границы из неё сразу, до показа, — иначе следующий
+    /// перезапуск вернул бы окно без места вовсе.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_settings_window_that_came_back_maximized_keeps_its_normal_bounds()
+    {
+        var restore = new SettingsSession { Window = new StudioPlacement(123, 77, 900, 600, 1, Maximized: true) };
+        var (owner, settings, shown) = _harness.Open(restore: restore);
+
+        var placement = settings.Snapshot().Window;
+
+        Assert.NotNull(placement);
+        Assert.True(placement.Maximized, "разворот не записан");
+        Assert.Equal((123, 77, 900d, 600d), (placement.X, placement.Y, placement.Width, placement.Height));
+
+        await CloseAsync(settings, shown);
+        owner.Close();
+    }
+
+    /// <summary>
     /// Welcome возвращается с разделом, поиском недавних и окном настроек, открытым той же дверью.
     /// </summary>
     [AvaloniaFact]

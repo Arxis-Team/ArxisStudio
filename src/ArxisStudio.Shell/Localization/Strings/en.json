@@ -12,6 +12,7 @@
   "projects.search": "Search projects",
   "projects.new": "New Project",
   "projects.open": "Open",
+  "projects.open.types": "Solutions and projects",
   "projects.clone": "Clone from Git",
   "projects.empty": "No projects yet — create a new one or open an existing project",
   "projects.remove": "Remove from list",

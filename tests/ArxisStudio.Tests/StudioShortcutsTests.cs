@@ -239,6 +239,22 @@ public class StudioShortcutsTests
         Assert.Null(keys.Gesture("нет.такой"));
     }
 
+    /// <summary>Enter палитра пишет так же, как меню, — Enter, а не Return.</summary>
+    /// <remarks>
+    /// У Avalonia Enter и Return — одно значение клавиши, и запись платформы, у которой нет для неё
+    /// своего слова, выходит «Return». Меню поправляет это преобразователем темы, и палитра со
+    /// страницей клавиш пишут тем же преобразователем, а не своей записью.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Enter_is_told_the_way_the_menu_writes_it()
+    {
+        var keys = new StudioShortcuts(_ => true);
+
+        keys.Bind("Ctrl+Enter", "studio.run");
+
+        Assert.Equal("Ctrl+Enter", keys.Gesture("studio.run"));
+    }
+
     /// <summary>
     /// Сочетание, отданное человеком, достаётся ему, а студия получает отказ.
     /// </summary>

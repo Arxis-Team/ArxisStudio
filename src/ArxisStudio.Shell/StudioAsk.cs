@@ -71,15 +71,16 @@ public static class StudioAsk
         // бы вместе с темой.
         alert.Bind(TemplatedControl.ForegroundProperty, alert.GetResourceObservable(question ? "AxAccentBrush" : "AxWarningBrush"));
 
+        var text = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap };
+
+        // Предел строки — ключом темы, как и ширина поля у вопроса об имени: размер экрана
+        // объявляется в теме и больше нигде.
+        text.Bind(Layoutable.MaxWidthProperty, text.GetResourceObservable("AxDialogMessageMaxWidth"));
+
         var dialog = new AxDialog
         {
             Title = title,
-            Content = new TextBlock
-            {
-                Text = message,
-                TextWrapping = TextWrapping.Wrap,
-                MaxWidth = 420,
-            },
+            Content = text,
             AlertIcon = alert,
             Buttons = Footer(cancel, agree),
         };
@@ -113,8 +114,10 @@ public static class StudioAsk
     {
         ArgumentNullException.ThrowIfNull(owner);
 
-        var box = new AxTextBox { PlaceholderText = hint, Width = 260 };
+        var box = new AxTextBox { PlaceholderText = hint };
         var cancel = new AxButton { Content = Localizer.Instance["common.cancel"] };
+
+        box.Bind(Layoutable.WidthProperty, box.GetResourceObservable("AxDialogFieldWidth"));
         var save = new AxButton { Content = confirm, Appearance = AxButtonAppearance.Primary };
 
         var dialog = new AxDialog

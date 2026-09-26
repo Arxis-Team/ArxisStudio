@@ -4,7 +4,7 @@ using Xunit;
 namespace ArxisStudio.Tests;
 
 /// <summary>
-/// Запрет: длина или толщина в разметке студии, написанная числом.
+/// Запрет: длина или толщина в разметке и в коде студии, написанная числом.
 /// </summary>
 /// <remarks>
 /// Отступы держал храповик, скругления — запрет, а размеры не держал никто, и числа расползлись по
@@ -44,6 +44,17 @@ public class LiteralSizeTests
     /// <summary>Место, где длина вообще упомянута: им меряется полнота счётчика.</summary>
     private static readonly Regex Declarations = new(
         $"""(?:\b(?:{Properties})=")|(?:\bProperty="(?:{Properties})")""",
+        RegexOptions.Compiled);
+
+    /// <summary>Сколько длин в коде студии написано числом.</summary>
+    /// <remarks>
+    /// Ноль, как и в разметке. Опускается коммитом, который число убрал, и не поднимается ничем.
+    /// </remarks>
+    private const int CodeCeiling = 0;
+
+    /// <summary>Длина в коде: число, присвоенное свойству длины, — кроме объявления константы.</summary>
+    private static readonly Regex CodeSizes = new(
+        $"""(?<!\bconst\s+[\w.<>?]+\s+)\b(?:{Properties})\s*=\s*(-?[\d.]+)""",
         RegexOptions.Compiled);
 
     /// <summary>Длин числом ровно столько, сколько говорит потолок.</summary>
@@ -88,6 +99,42 @@ public class LiteralSizeTests
                 $"{Sizes.Count(text)} — значит в файле форма записи, которой он не знает");
         }
     }
+
+    /// <summary>В коде студии длин числом ровно столько, сколько говорит потолок.</summary>
+    /// <remarks>
+    /// Счёт разметки кода не видел, и числа ушли туда: предел строки вопроса и ширина поля имени в
+    /// <c>StudioAsk</c> стояли числами, когда разметка давно дошла до нуля. Константа не в счёт: она
+    /// называет число, а длину контролу задаёт присваивание, — ширина, до которой декодируется
+    /// значок плагина, это размер растра, а не вёрстка.
+    /// </remarks>
+    [Fact]
+    public void Literal_sizes_in_studio_code_are_exactly_as_many_as_the_ceiling_says()
+    {
+        var sources = CodeSources.All().ToList();
+
+        Assert.Contains(sources, source => source.Name.EndsWith("StudioAsk.cs", StringComparison.Ordinal));
+
+        var counted = sources
+            .Select(source => (source.Name, Count: CodeLiterals(source.Text)))
+            .Where(row => row.Count > 0)
+            .OrderByDescending(row => row.Count)
+            .ToList();
+
+        var total = counted.Sum(row => row.Count);
+        var where = string.Join(", ", counted.Select(row => $"{row.Name} — {row.Count}"));
+
+        Assert.True(
+            total == CodeCeiling,
+            total > CodeCeiling
+                ? $"длин числом в коде студии стало {total} при потолке {CodeCeiling}: длину берут " +
+                  $"привязкой к ключу темы — размеры экранов в Metrics.axaml. Числа — в {where}"
+                : $"длин числом в коде студии осталось {total} при потолке {CodeCeiling}: опустите " +
+                  "CodeCeiling тем же коммитом, которым их убрали");
+    }
+
+    /// <summary>Считает длины в коде, написанные числом; ноль — не выбранная длина, а её нет.</summary>
+    private static int CodeLiterals(string text) =>
+        CodeSizes.Matches(text).Count(match => match.Groups[1].Value.Any(symbol => symbol is >= '1' and <= '9'));
 
     /// <summary>Считает длины, написанные числом; размер самого окна не в счёт.</summary>
     private static int Literals(string text)

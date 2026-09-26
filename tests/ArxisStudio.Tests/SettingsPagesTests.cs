@@ -3,6 +3,7 @@ using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Settings;
 using ArxisStudio.Shell;
+using ArxisStudio.Shell.Localization;
 using ArxisStudio.ViewModels;
 using Avalonia;
 using Avalonia.Controls;
@@ -36,6 +37,30 @@ public class SettingsPagesTests : IDisposable
     {
         _harness.Dispose();
         GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Язык пакета, поставленного после запуска, окно предлагает — из какой двери его ни открой.
+    /// </summary>
+    /// <remarks>
+    /// Языки пакетов собирали запуск и Welcome перед своим окном настроек. Открытое из студии
+    /// показывало список, каким он был на запуске: пакет, поставленный менеджером, появлялся в нём
+    /// только после перезапуска, а удалённый оставался. Теперь их собирает само окно — дорога у обеих
+    /// дверей одна, и харнесс открывает его ею.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_language_pack_installed_after_start_is_offered_by_the_window()
+    {
+        _harness.InstallLanguage("arxis.lang-de", "de", "Deutsch");
+
+        Assert.DoesNotContain(Localizer.Instance.Languages, language => language.Code == "de");
+
+        var (owner, settings, shown) = _harness.Open();
+
+        Assert.Contains(Localizer.Instance.Languages, language => language is { Code: "de", Name: "Deutsch" });
+
+        await CloseAsync(settings, shown);
+        owner.Close();
     }
 
     /// <summary>

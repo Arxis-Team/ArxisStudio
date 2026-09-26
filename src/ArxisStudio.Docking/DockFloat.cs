@@ -136,6 +136,10 @@ public class DockFloat : AxWindow
     /// сменили его разрешение, принесли ноутбук домой — и окно возвращается
     /// туда, где смотреть его некому. Найти его после этого нечем: кнопки в
     /// панели задач у окна при студии нет.
+    /// <para>
+    /// Размер записан в точках, и в пиксели его переводит масштаб того экрана, на который окно
+    /// встанет: записанного, если он на месте, иначе основного — туда окно и вернётся.
+    /// </para>
     /// </remarks>
     public void Restore(DockWindow window)
     {
@@ -144,13 +148,37 @@ public class DockFloat : AxWindow
         View.Root = window.Root;
         Width = window.Width;
         Height = window.Height;
+
+        var position = new PixelPoint((int)window.X, (int)window.Y);
+
         Position = Landed(
-            new PixelRect((int)window.X, (int)window.Y, (int)window.Width, (int)window.Height),
+            position,
+            new Size(window.Width, window.Height),
+            (Screens.ScreenFromPoint(position) ?? Screens.Primary)?.Scaling ?? 1,
             [.. Screens.All.Select(screen => screen.Bounds)],
             Screens.Primary?.WorkingArea);
 
         Retitle();
     }
+
+    /// <summary>
+    /// Место окна, которое видно хотя бы на одном мониторе, — по месту в пикселях и размеру в точках.
+    /// </summary>
+    /// <param name="position">Левый верхний угол в пикселях экрана.</param>
+    /// <param name="size">Размер в точках — так его держит окно.</param>
+    /// <param name="scaling">Масштаб экрана, на котором окно встанет; не больше нуля — единица.</param>
+    /// <param name="screens">Мониторы, какие есть сейчас, — в пикселях.</param>
+    /// <param name="fallback">Рабочая область основного монитора; null — некуда возвращать.</param>
+    /// <returns>Записанное место или новое, если записанное потерялось.</returns>
+    /// <remarks>
+    /// Позиция у Avalonia в пикселях, а размер — в точках, и сверять место с экранами можно только в
+    /// одних единицах. Оторванное окно их смешивало: на экране с масштабом 2 прямоугольник выходил
+    /// вдвое меньше окна, и окно, свешенное за край, считалось потерянным, а возвращённое вставало
+    /// правее середины. Правило одно и для места главного окна, которое помнит перезапуск.
+    /// </remarks>
+    public static PixelPoint Landed(
+        PixelPoint position, Size size, double scaling, IReadOnlyList<PixelRect> screens, PixelRect? fallback) =>
+        Landed(new PixelRect(position, PixelSize.FromSize(size, scaling > 0 ? scaling : 1)), screens, fallback);
 
     /// <summary>
     /// Место окна, которое видно хотя бы на одном мониторе.

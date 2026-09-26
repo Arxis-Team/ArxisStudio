@@ -2436,6 +2436,30 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
+    /// Размер оторванного окна переводится в пиксели масштабом экрана, а место уже в пикселях.
+    /// </summary>
+    /// <remarks>
+    /// Раскладка пишет место в пикселях, а размер в точках, и движок сверял их как одно. На экране с
+    /// масштабом 2 окно шириной 400 точек — это 800 пикселей: свешенное за левый край на 700, оно
+    /// задевает экран, а прямоугольник вдвое меньше считал его потерянным. Возвращённое с
+    /// исчезнувшего монитора вставало правее середины — центр мерился по половине окна.
+    /// </remarks>
+    [Fact]
+    public void The_size_of_a_torn_window_is_turned_into_pixels_by_the_scaling_of_its_screen()
+    {
+        var primary = new PixelRect(0, 0, 3840, 2100);
+        var screens = new[] { new PixelRect(0, 0, 3840, 2160) };
+
+        Assert.Equal(
+            new PixelPoint(-700, 100),
+            DockFloat.Landed(new PixelPoint(-700, 100), new Size(400, 300), 2, screens, primary));
+
+        Assert.Equal(
+            new PixelPoint(1520, 750),
+            DockFloat.Landed(new PixelPoint(5000, 100), new Size(400, 300), 2, screens, primary));
+    }
+
+    /// <summary>
     /// Прощаясь, студия закрывает и оторванные окна.
     /// </summary>
     /// <remarks>

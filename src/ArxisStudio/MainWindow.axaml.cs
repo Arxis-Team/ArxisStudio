@@ -69,8 +69,7 @@ public partial class MainWindow : AxWindow
     private readonly StudioRestart _restart;
 
     // Обычные границы окна: развёрнутое помнит, куда вернуться, и перезапуск возвращает туда же.
-    private Avalonia.PixelPoint _normalPosition;
-    private Avalonia.Size _normalSize;
+    private readonly NormalBounds _normalBounds;
 
     /// <summary>
     /// Жизнь расширений студии — чтобы запуск мог поднимать их по шагам.
@@ -268,19 +267,9 @@ public partial class MainWindow : AxWindow
         {
             _dock.Shown();
             Dispatcher.UIThread.Post(() => _dock.Greet(), DispatcherPriority.Loaded);
-            Remember();
         };
 
-        // Границы помнятся, пока окно в обычном виде: развёрнутое отвечает размером экрана, а
-        // вернуться после перезапуска надо к тому, что было до разворота. Отложенно: система
-        // сообщает новые место и размер раньше, чем новый вид окна, и разворот, спрошенный сразу,
-        // записался бы обычными границами.
-        PositionChanged += (_, _) => Dispatcher.UIThread.Post(Remember, DispatcherPriority.Background);
-        PropertyChanged += (_, change) =>
-        {
-            if (change.Property == ClientSizeProperty)
-                Dispatcher.UIThread.Post(Remember, DispatcherPriority.Background);
-        };
+        _normalBounds = new NormalBounds(this);
 
         Closing += (_, _) => _dock.Farewell();
 
@@ -581,33 +570,9 @@ public partial class MainWindow : AxWindow
     /// <summary>«Перезапустить» в строке состояния: без вопроса — человек попросил сам.</summary>
     private async void OnRestartClick(object? sender, RoutedEventArgs e) => await _restart.RestartAsync();
 
-    /// <summary>Запоминает обычные границы окна, если оно сейчас в обычном виде.</summary>
-    private void Remember()
-    {
-        if (WindowState != WindowState.Normal)
-            return;
-
-        _normalPosition = Position;
-        _normalSize = ClientSize;
-    }
-
-    /// <summary>
-    /// Ставит окно туда, где его застал перезапуск, — до показа.
-    /// </summary>
+    /// <summary>Ставит окно туда, где его застал перезапуск, — до показа.</summary>
     /// <param name="placement">Место из сессии.</param>
-    /// <remarks>
-    /// Обычные границы запоминаются сразу: окно, поднятое развёрнутым, обычным ещё не бывало, а
-    /// следующий перезапуск должен вернуть к тем же границам, а не к размеру экрана.
-    /// </remarks>
-    internal void Place(StudioPlacement placement)
-    {
-        ArgumentNullException.ThrowIfNull(placement);
-
-        placement.Put(this);
-
-        _normalPosition = Position;
-        _normalSize = new Avalonia.Size(placement.Width, placement.Height);
-    }
+    internal void Place(StudioPlacement placement) => _normalBounds.Put(placement);
 
     /// <summary>
     /// Снимок рабочего места для перезапуска: место окна, проект, документы, выбранные вкладки и
@@ -620,7 +585,7 @@ public partial class MainWindow : AxWindow
     internal StudioSession Snapshot() => new()
     {
         Studio = true,
-        Window = _normalSize is { Width: > 0, Height: > 0 } ? StudioPlacement.Of(this, _normalPosition, _normalSize) : null,
+        Window = _normalBounds.Placement,
         Project = _plugins.Project.Path,
         Documents = [.. _documents.Opened.Select(document => document.Path)],
         Onstage = _dock.Onstage,
