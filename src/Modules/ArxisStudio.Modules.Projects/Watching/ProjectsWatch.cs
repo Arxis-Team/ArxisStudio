@@ -19,6 +19,14 @@ namespace ArxisStudio.Modules.Projects.Watching;
 /// Слежение модель не перечитывает: оно говорит, что она устарела, и называет причины. Решает
 /// служба — она и склеивает перемены с загрузкой, уже стоящей в очереди.
 /// </para>
+/// <para>
+/// <b>Своя правка службы.</b> Служба файлов перечитывает модель сама, и пачка её же перемен,
+/// разобранная посреди этого перечитывания, сверилась бы со снимком, который оно заменит, —
+/// вторая загрузка ради прочитанного первой. Поэтому на время правки и перечитывания приговоры
+/// придерживаются (<see cref="Hold"/>) и сверяются потом со свежим снимком. Состав сверяется с
+/// диском точно; входы оценки снимок сверяет по пути, и для них правка оставляет отпечатки
+/// содержимого: эхо с тем же содержимым модель уже прочла, другое содержимое — перемена снаружи.
+/// </para>
 /// </remarks>
 internal sealed class ProjectsWatch : IProjectsWatch
 {
@@ -29,14 +37,21 @@ internal sealed class ProjectsWatch : IProjectsWatch
     private readonly ProjectFileWatcher _files;
     private readonly ProjectTreeWatcher _folders;
     private readonly Lock _gate = new();
+    private readonly List<CanonicalPath> _heldInputs = [];
+    private readonly List<CanonicalPath> _heldMembers = [];
+
+    // Входы, чьё содержимое прочла модель после правки службы: путь — отпечаток, null — файла нет.
+    private readonly Dictionary<CanonicalPath, string?> _expected = [];
+
     private ImmutableArray<CanonicalPath> _watched = [];
     private SolutionSnapshot? _snapshot;
+    private int _holds;
     private bool _disposed;
 
     /// <summary>Заводит слежение.</summary>
     /// <param name="stale">Кому сказать, что модель устарела, и почему.</param>
     /// <param name="coalescing">Сколько ждать тишины и сколько копить самое большее.</param>
-    /// <param name="disk">Диск для проверки состава; null — настоящий.</param>
+    /// <param name="disk">Диск для проверки состава и отпечатков; null — настоящий.</param>
     public ProjectsWatch(
         Action<ImmutableArray<CanonicalPath>> stale,
         FileChangeCoalescingOptions coalescing,
@@ -47,7 +62,7 @@ internal sealed class ProjectsWatch : IProjectsWatch
         _inputs = new FileChangeCoalescer(OnInputs, coalescing);
         _members = new FileChangeCoalescer(OnMembers, coalescing);
         _files = new ProjectFileWatcher(_inputs.Add);
-        _folders = new ProjectTreeWatcher(OnFolder, root => Report([root]));
+        _folders = new ProjectTreeWatcher(OnFolder, root => Tell([root]));
     }
 
     /// <inheritdoc/>
@@ -87,6 +102,47 @@ internal sealed class ProjectsWatch : IProjectsWatch
     }
 
     /// <inheritdoc/>
+    public IWatchHold Hold()
+    {
+        lock (_gate)
+        {
+            if (_disposed)
+                return NoWatchHold.Instance;
+
+            _holds++;
+        }
+
+        return new Holding(this);
+    }
+
+    /// <summary>
+    /// Сообщает о пути так, как сообщили бы оба наблюдателя: тестам — чтобы не ждать настоящих событий.
+    /// </summary>
+    /// <param name="fullPath">Полный путь.</param>
+    internal void Report(string fullPath)
+    {
+        if (!CanonicalPath.TryCreate(fullPath, out var path))
+            return;
+
+        bool input;
+
+        lock (_gate)
+            input = _watched.Contains(path);
+
+        if (input)
+            _inputs.Add(path);
+
+        OnFolder(path);
+    }
+
+    /// <summary>Отдаёт накопленное сразу, не дожидаясь тишины.</summary>
+    internal void Flush()
+    {
+        _inputs.Flush();
+        _members.Flush();
+    }
+
+    /// <inheritdoc/>
     public void Dispose()
     {
         lock (_gate)
@@ -95,6 +151,9 @@ internal sealed class ProjectsWatch : IProjectsWatch
                 return;
 
             _disposed = true;
+            _heldInputs.Clear();
+            _heldMembers.Clear();
+            _expected.Clear();
         }
 
         _files.Dispose();
@@ -105,13 +164,16 @@ internal sealed class ProjectsWatch : IProjectsWatch
 
     private void OnInputs(ImmutableArray<CanonicalPath> batch)
     {
-        if (Volatile.Read(ref _snapshot) is not { } snapshot)
-            return;
+        lock (_gate)
+        {
+            if (_holds > 0)
+            {
+                _heldInputs.AddRange(batch);
+                return;
+            }
+        }
 
-        var invalidation = snapshot.Invalidate(batch);
-
-        if (!invalidation.IsEmpty)
-            Report(invalidation.Causes);
+        Tell(Invalidated(batch));
     }
 
     private void OnFolder(CanonicalPath path)
@@ -122,17 +184,99 @@ internal sealed class ProjectsWatch : IProjectsWatch
 
     private void OnMembers(ImmutableArray<CanonicalPath> batch)
     {
-        if (Volatile.Read(ref _snapshot) is not { } snapshot)
-            return;
+        lock (_gate)
+        {
+            if (_holds > 0)
+            {
+                _heldMembers.AddRange(batch);
+                return;
+            }
+        }
 
-        var changed = MembershipFilter.Changed(snapshot, batch, _disk);
-
-        if (!changed.IsEmpty)
-            Report(changed);
+        Tell(Changed(batch));
     }
 
-    private void Report(ImmutableArray<CanonicalPath> causes)
+    /// <summary>Входы из пачки, которые модель ещё не прочла, — по снимку, опубликованному последним.</summary>
+    private ImmutableArray<CanonicalPath> Invalidated(IEnumerable<CanonicalPath> batch)
     {
+        if (Volatile.Read(ref _snapshot) is not { } snapshot)
+            return [];
+
+        var invalidation = snapshot.Invalidate(batch.Where(path => !IsEcho(path)));
+
+        return invalidation.IsEmpty ? [] : invalidation.Causes;
+    }
+
+    /// <summary>Пути из пачки, которые меняют состав проектов, — по снимку, опубликованному последним.</summary>
+    private ImmutableArray<CanonicalPath> Changed(IEnumerable<CanonicalPath> batch) =>
+        Volatile.Read(ref _snapshot) is { } snapshot ? MembershipFilter.Changed(snapshot, batch, _disk) : [];
+
+    /// <summary>
+    /// Эхо правки службы: вход лежит таким, каким его прочла модель после правки.
+    /// </summary>
+    /// <remarks>
+    /// Разошедшийся отпечаток забывается сразу: файл трогали после правки, и запомненное больше
+    /// ничего не значит — следующая его перемена судится как всякая другая.
+    /// </remarks>
+    private bool IsEcho(CanonicalPath path)
+    {
+        string? expected;
+
+        lock (_gate)
+        {
+            if (!_expected.TryGetValue(path, out expected))
+                return false;
+        }
+
+        if (_disk.TryFingerprint(path, out var print) && print == expected)
+            return true;
+
+        lock (_gate)
+        {
+            if (_expected.TryGetValue(path, out var still) && still == expected)
+                _expected.Remove(path);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Отпускает придержку; последняя отпущенная сверяет придержанное со снимком, опубликованным
+    /// последним.
+    /// </summary>
+    private void Release(Holding holding)
+    {
+        List<CanonicalPath> inputs;
+        List<CanonicalPath> members;
+
+        lock (_gate)
+        {
+            if (_disposed)
+                return;
+
+            if (holding.IsConfirmed)
+            {
+                foreach (var (path, print) in holding.Expected)
+                    _expected[path] = print;
+            }
+
+            if (--_holds > 0)
+                return;
+
+            inputs = [.. _heldInputs];
+            members = [.. _heldMembers];
+            _heldInputs.Clear();
+            _heldMembers.Clear();
+        }
+
+        Tell([.. Changed(members).Concat(Invalidated(inputs)).Distinct()]);
+    }
+
+    private void Tell(ImmutableArray<CanonicalPath> causes)
+    {
+        if (causes.IsEmpty)
+            return;
+
         lock (_gate)
         {
             if (_disposed)
@@ -140,5 +284,54 @@ internal sealed class ProjectsWatch : IProjectsWatch
         }
 
         _stale(causes);
+    }
+
+    /// <summary>Одна придержка: что правка оставила на диске и прочла ли это модель.</summary>
+    /// <param name="watch">Чьё слежение придержано.</param>
+    private sealed class Holding(ProjectsWatch watch) : IWatchHold
+    {
+        private readonly Lock _gate = new();
+        private readonly Dictionary<CanonicalPath, string?> _expected = [];
+        private int _confirmed;
+        private int _released;
+
+        /// <summary>Перечитывание после правки опубликовало снимок.</summary>
+        public bool IsConfirmed => Volatile.Read(ref _confirmed) != 0;
+
+        /// <summary>Отпечатки, снятые после правки.</summary>
+        public IReadOnlyList<KeyValuePair<CanonicalPath, string?>> Expected
+        {
+            get
+            {
+                lock (_gate)
+                    return [.. _expected];
+            }
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>Непрочитанный вход не запоминается: его эхо судится как всякая перемена.</remarks>
+        public void Expect(IEnumerable<CanonicalPath> inputs)
+        {
+            ArgumentNullException.ThrowIfNull(inputs);
+
+            foreach (var input in inputs)
+            {
+                if (!watch._disk.TryFingerprint(input, out var print))
+                    continue;
+
+                lock (_gate)
+                    _expected[input] = print;
+            }
+        }
+
+        /// <inheritdoc/>
+        public void Confirm() => Volatile.Write(ref _confirmed, 1);
+
+        /// <inheritdoc/>
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _released, 1) == 0)
+                watch.Release(this);
+        }
     }
 }

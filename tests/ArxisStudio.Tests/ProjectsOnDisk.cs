@@ -1,4 +1,6 @@
+using System.Collections.Immutable;
 using System.Text;
+using ArxisStudio.Modules.Projects.Watching;
 using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
 using Xunit;
@@ -83,18 +85,28 @@ public abstract class ProjectsOnDisk : IDisposable
     /// <summary>Решение на диске, открытое службой, — и опорный снимок истории снят.</summary>
     /// <param name="history">Вести ли историю.</param>
     /// <param name="write">Раскладывать ли решение заново: второй запуск открывает то, что оставил первый.</param>
-    private protected async Task<ProjectsStudio> OpenAsync(bool history = true, bool write = true)
+    /// <param name="watch">
+    /// Слежение за диском; null — не следить. Слежению нужен снимок, который знает диск, и с ним
+    /// провайдер перечисляет папки проектов на каждой загрузке — как маски SDK.
+    /// </param>
+    private protected async Task<ProjectsStudio> OpenAsync(
+        bool history = true,
+        bool write = true,
+        Func<Action<ImmutableArray<CanonicalPath>>, IProjectsWatch?>? watch = null)
     {
         if (write)
             Lay();
 
-        var studio = new ProjectsStudio(historyRoot: history ? HistoryRoot : null);
+        var studio = new ProjectsStudio(watch: watch, historyRoot: history ? HistoryRoot : null);
 
         studio.Provider.Projects =
         [
             ("Lib", ["Greeter.cs", "appsettings.json", "Views/MainWindow.axaml", "Views/MainWindow.axaml.cs"]),
             ("App", ["Program.cs"]),
         ];
+
+        if (watch is not null)
+            studio.Provider.Answer = request => Solutions.Of(request, [("Lib", Listed(Lib)), ("App", Listed(App))]);
 
         var opened = await studio.Projects.OpenAsync(CanonicalPath.Create(Path.Combine(Solution, "Hello.slnx")), Token);
 
@@ -104,6 +116,15 @@ public abstract class ProjectsOnDisk : IDisposable
 
         return studio;
     }
+
+    /// <summary>Файлы папки проекта путями от неё — всё, кроме файла самого проекта.</summary>
+    /// <param name="folder">Папка проекта.</param>
+    private static string[] Listed(string folder) =>
+    [
+        .. Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories)
+            .Where(file => !file.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+            .Select(file => Path.GetRelativePath(folder, file).Replace(Path.DirectorySeparatorChar, '/')),
+    ];
 
     /// <summary>Полный путь файла проекта <c>Lib</c>.</summary>
     /// <param name="relative">Путь от папки проекта, через прямую черту.</param>

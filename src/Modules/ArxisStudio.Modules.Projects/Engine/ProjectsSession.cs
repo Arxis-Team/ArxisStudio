@@ -114,6 +114,16 @@ internal sealed class ProjectsSession
     }
 
     /// <summary>
+    /// Придерживает приговоры слежения, пока служба правит диск и перечитывает модель.
+    /// </summary>
+    /// <returns>Придержку слежения; слежения нет — пустую.</returns>
+    public IWatchHold Hold()
+    {
+        lock (_watchGate)
+            return _watch?.Hold() ?? NoWatchHold.Instance;
+    }
+
+    /// <summary>
     /// Ведёт локальную историю по текущему снимку, меняет набор папок или гасит её.
     /// </summary>
     /// <param name="factory">Как завести историю сессии; null — не вести.</param>

@@ -270,6 +270,10 @@ internal sealed class FakeWatch(Action<ImmutableArray<CanonicalPath>> stale) : I
     public void Stale(ImmutableArray<CanonicalPath> causes) => stale(causes);
 
     /// <inheritdoc/>
+    /// <remarks>Приговоры здесь говорит тест, и придерживать нечего.</remarks>
+    public IWatchHold Hold() => NoWatchHold.Instance;
+
+    /// <inheritdoc/>
     public void Dispose() => IsDisposed = true;
 }
 
@@ -291,4 +295,13 @@ internal sealed class FakeDisk : IDiskView
     /// <inheritdoc/>
     public IEnumerable<CanonicalPath> FilesUnder(CanonicalPath directory) =>
         Files.Where(file => file != directory && file.StartsWith(directory));
+
+    /// <inheritdoc/>
+    /// <remarks>Отпечаток файла — его путь: содержимого у диска из множеств нет.</remarks>
+    public bool TryFingerprint(CanonicalPath path, out string? print)
+    {
+        print = Files.Contains(path) ? path.Value : null;
+
+        return true;
+    }
 }

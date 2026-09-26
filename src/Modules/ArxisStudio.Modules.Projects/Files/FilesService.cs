@@ -1,5 +1,7 @@
+using System.Collections.Immutable;
 using ArxisStudio.LocalHistory;
 using ArxisStudio.Modules.Projects.Delivery;
+using ArxisStudio.Modules.Projects.Watching;
 using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
 using ArxisStudio.Sdk;
@@ -18,8 +20,16 @@ namespace ArxisStudio.Modules.Projects.Files;
 /// <para>
 /// <b>Порядок.</b> Правка идёт очередью записи на диск — той же, что у локальной истории (почему —
 /// в <see cref="FileWorker"/>); удачная перечитывает модель полосой движка и ждёт этого, а потом
-/// сообщает <see cref="Changed"/> в поток интерфейса. Если перечитывание уже стоит в очереди — его
-/// поставило слежение, увидев правку на диске, — ждётся оно: второе было бы лишним.
+/// сообщает <see cref="Changed"/> в поток интерфейса. Если перечитывание уже стоит в очереди, ждётся
+/// оно: второе было бы лишним.
+/// </para>
+/// <para>
+/// <b>Одно перечитывание на правку.</b> Слежение видит правку раньше, чем её перечитали, и пачка,
+/// разобранная посреди перечитывания, сверилась бы с прежним снимком и попросила бы вторую
+/// загрузку — так и было: каждое переименование перечитывало модель дважды. Теперь с первой записи
+/// на диск до конца перечитывания приговоры слежения придержаны, а входы оценки запомнены такими,
+/// какими правка их оставила; придержанное сверяется со свежим снимком. Перемена снаружи, которую
+/// перечитывание не увидело, загрузку по-прежнему просит.
 /// </para>
 /// </remarks>
 internal sealed class FilesService : IStudioFiles
@@ -116,6 +126,7 @@ internal sealed class FilesService : IStudioFiles
         }
 
         var outcome = new TaskCompletionSource<FileWorkResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        IWatchHold? hold = null;
 
         var queued = _host.History.Enqueue(() =>
         {
@@ -133,9 +144,17 @@ internal sealed class FilesService : IStudioFiles
                 return Task.CompletedTask;
             }
 
+            // Придерживается здесь, а не до очереди: пока правка ждёт своей очереди, перемены
+            // снаружи судятся без задержки.
+            hold = session.Hold();
+
             try
             {
-                outcome.TrySetResult(work(snapshot, _host.History.Store));
+                var done = work(snapshot, _host.History.Store);
+
+                // Сейчас, до перечитывания: оно начнётся позже и прочтёт входы такими или новее.
+                hold.Expect(Inputs(snapshot, done.Change));
+                outcome.TrySetResult(done);
             }
             catch (Exception e) when (e is not OutOfMemoryException)
             {
@@ -147,15 +166,55 @@ internal sealed class FilesService : IStudioFiles
 
         ObjectDisposedException.ThrowIf(!queued, this);
 
-        var done = await outcome.Task.ConfigureAwait(false);
+        try
+        {
+            var done = await outcome.Task.ConfigureAwait(false);
 
-        if (done.Rereads)
-            await _host.RereadAsync(session, ProjectsLoadReason.Files).ConfigureAwait(false);
+            if (done.Rereads && await _host.RereadAsync(session, ProjectsLoadReason.Files).ConfigureAwait(false))
+                hold?.Confirm();
 
-        if (done.Change is { } change)
-            _thread.Post(() => Changed?.Invoke(this, change));
+            if (done.Change is { } change)
+                _thread.Post(() => Changed?.Invoke(this, change));
 
-        return done.Result;
+            return done.Result;
+        }
+        finally
+        {
+            hold?.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Входы оценки, которые правка могла переписать: файлы проектов — в них переписываются
+    /// ссылки, — решение и входы под путями, которые правка тронула.
+    /// </summary>
+    /// <param name="snapshot">Снимок, над которым шла правка.</param>
+    /// <param name="change">Что правка сделала; null — ничего.</param>
+    /// <remarks>
+    /// Не все входы: их у проекта сотни, от SDK до пакетов, а правка трогает свои файлы. Лишний
+    /// запомненный вход безвреден — модель после правки его прочла, — пропущенный стоит одной
+    /// загрузки.
+    /// </remarks>
+    private static IEnumerable<CanonicalPath> Inputs(SolutionSnapshot snapshot, FilesChangedEventArgs? change)
+    {
+        ImmutableArray<CanonicalPath> touched = change is null
+            ? []
+            :
+            [
+                .. change.Moved.SelectMany(move => new[] { move.From, move.To }),
+                .. change.Copied.Select(copy => copy.To),
+                .. change.Deleted,
+                .. change.Created,
+            ];
+
+        return snapshot.Projects
+            .Select(project => project.ProjectFilePath)
+            .Append(snapshot.EntryPoint.Path)
+            .Concat(snapshot.Projects
+                .SelectMany(project => project.EvaluationInputs)
+                .Where(input => touched.Any(input.StartsWith)))
+            .Where(path => !path.IsEmpty)
+            .Distinct();
     }
 
     private static IEnumerable<FileMove> Pairs(IReadOnlyList<FileMove> pairs)

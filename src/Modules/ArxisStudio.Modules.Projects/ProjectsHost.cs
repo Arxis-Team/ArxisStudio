@@ -106,14 +106,20 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
     /// </summary>
     /// <param name="session">Чья модель.</param>
     /// <param name="reason">Почему.</param>
+    /// <returns>
+    /// Модель перечитана после правки и снимок опубликован; <c>false</c> — загрузка не удалась или
+    /// не состоялась: служба остановлена, сессия сменилась или перечитать взялась загрузка, вставшая
+    /// в очередь в тот же миг.
+    /// </returns>
     /// <remarks>
-    /// Загрузка, уже стоящая в очереди, — её поставило слежение, увидев правку, — ждётся вместо
-    /// своей: она прочтёт тот же диск. Ждать её приходится вне полосы: изнутри полосы ожидание дела,
-    /// стоящего в ней следом, не кончилось бы никогда.
+    /// Загрузка, уже стоящая в очереди, ждётся вместо своей: она начнётся позже правки и прочтёт тот
+    /// же диск. Ждать её приходится вне полосы: изнутри полосы ожидание дела, стоящего в ней следом,
+    /// не кончилось бы никогда.
     /// </remarks>
-    internal async Task RereadAsync(ProjectsSession session, ProjectsLoadReason reason)
+    internal async Task<bool> RereadAsync(ProjectsSession session, ProjectsLoadReason reason)
     {
         var queued = new TaskCompletionSource<LoadItem?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reread = false;
 
         var accepted = _lane.Enqueue(async () =>
         {
@@ -130,7 +136,7 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
 
             try
             {
-                await Reread(session, reason);
+                reread = await Reread(session, reason);
             }
             finally
             {
@@ -138,16 +144,20 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
             }
         });
 
-        if (!accepted || await queued.Task.ConfigureAwait(false) is not { } waiting)
-            return;
+        if (!accepted)
+            return false;
+
+        if (await queued.Task.ConfigureAwait(false) is not { } waiting)
+            return reread;
 
         try
         {
-            await waiting.Result.ConfigureAwait(false);
+            return (await waiting.Result.ConfigureAwait(false)).HasSnapshot;
         }
         catch (Exception e) when (e is not OutOfMemoryException)
         {
             // Провал загрузки служба уже записала в LastLoad; правке файлов он не отказ.
+            return false;
         }
     }
 
@@ -796,14 +806,15 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
     /// </remarks>
     /// <param name="session">Чью модель перечитать.</param>
     /// <param name="reason">Почему её перечитывают.</param>
-    private async Task Reread(ProjectsSession session, ProjectsLoadReason reason)
+    /// <returns>Модель перечитана здесь же и снимок опубликован.</returns>
+    private async Task<bool> Reread(ProjectsSession session, ProjectsLoadReason reason)
     {
         LoadItem item;
 
         lock (_gate)
         {
             if (_stopped || _session != session || session.Pending is not null)
-                return;
+                return false;
 
             item = new LoadItem(session, reason);
             session.Pending = item;
@@ -812,6 +823,8 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
         }
 
         await RunAsync(item);
+
+        return item.Result.IsCompletedSuccessfully && item.Result.Result.HasSnapshot;
     }
 
     /// <summary>
