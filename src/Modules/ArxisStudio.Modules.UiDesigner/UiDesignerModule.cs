@@ -11,7 +11,7 @@ namespace ArxisStudio.Modules.UiDesigner;
 /// </remarks>
 public sealed class UiDesignerModule : StudioPlugin
 {
-    /// <summary>Показать доску форм и отдать ей клавиатуру.</summary>
+    /// <summary>Показать дизайнер и отдать ему клавиатуру.</summary>
     public const string ShowCommand = "ui-designer.show";
 
     /// <summary>Идентификатор панели: он же объявлен в манифесте.</summary>

@@ -1,9 +1,9 @@
 {
   "module.uiDesigner": "Дизайнер интерфейса",
   "module.uiDesigner.description": "Формы открытого решения карточками на холсте: обзор, масштаб, раскладка и открытие",
-  "panel.board": "Формы",
-  "command.board.show": "Показать доску форм",
-  "settings.board.grid": "Сетка на доске форм",
+  "panel.board": "Дизайнер",
+  "command.board.show": "Показать дизайнер",
+  "settings.board.grid": "Сетка в дизайнере",
 
   "board.count": "Форм: {0}",
   "board.zoom": "{0} %",

@@ -1,9 +1,9 @@
 {
   "module.uiDesigner": "UI Designer",
   "module.uiDesigner.description": "The forms of the open solution as cards on a canvas: pan, zoom, arrange and open them",
-  "panel.board": "Forms",
-  "command.board.show": "Show Forms Board",
-  "settings.board.grid": "Show the grid on the forms board",
+  "panel.board": "Designer",
+  "command.board.show": "Show Designer",
+  "settings.board.grid": "Show the grid in the designer",
 
   "board.count": "Forms: {0}",
   "board.zoom": "{0} %",
