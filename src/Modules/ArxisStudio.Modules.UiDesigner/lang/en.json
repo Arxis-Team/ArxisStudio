@@ -1,0 +1,30 @@
+{
+  "module.uiDesigner": "UI Designer",
+  "module.uiDesigner.description": "The forms of the open solution as cards on a canvas: pan, zoom, arrange and open them",
+  "panel.board": "Forms",
+  "command.board.show": "Show Forms Board",
+  "settings.board.grid": "Show the grid on the forms board",
+
+  "board.count": "Forms: {0}",
+  "board.zoom": "{0} %",
+  "board.loading": "Reloading the solution",
+  "board.fit": "Fit All",
+  "board.frame": "Frame Selection",
+  "board.actual": "Actual Size",
+  "board.arrange": "Arrange",
+  "board.grid": "Grid",
+  "board.open": "Open",
+
+  "board.kind.window": "Window",
+  "board.kind.userControl": "User control",
+  "board.kind.control": "Control",
+  "board.kind.unreadable": "The markup cannot be read",
+
+  "board.state.closed": "No solution is open",
+  "board.state.closed.hint": "Open a solution: its forms will appear here as cards.",
+  "board.state.opening": "Opening {0}…",
+  "board.state.failed": "The solution did not open",
+  "board.state.noService": "The projects service is not running: there is nothing to show.",
+  "board.state.empty": "The solution has no forms",
+  "board.state.empty.hint": "Windows and user controls from .axaml files appear here."
+}

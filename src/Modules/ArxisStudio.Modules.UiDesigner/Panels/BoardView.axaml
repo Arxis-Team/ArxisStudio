@@ -1,0 +1,164 @@
+<!--
+    Доска форм: полоса действий и холст Surface с карточками форм решения.
+
+    Холст — ядро Surface без слоёв выше: панорама средней кнопкой, зум колесом к курсору, рамка выбора,
+    тяга с прилипанием к сетке, стрелки и отмена. Карточка — данные, а не контейнер: холст держит
+    контейнеры только у видимых карточек и место читает привязкой ItemLocationBinding. Шаблон карточки
+    — на AxCard: ширина у темы постоянная, высота — наименьшая, и крупный текст растит карточку вниз.
+
+    Тему ядра доска подключает своими ресурсами: контролы Surface носят свои ControlTheme, и найти их
+    студия может только здесь. Кисти ядра доска заменяет токенами палитры кодом (BoardLooks), а
+    рамке выбора даёт скругление карточки: рамка ядра лежит поверх контейнера прямоугольником, и
+    вокруг скруглённой карточки углы торчали бы.
+
+    Состояния — решение не открыто, открывается, не открылось, форм нет — лежат поверх холста, а не
+    подменяют его, как у окна проекта.
+-->
+<AxUserControl xmlns="https://github.com/Arxis-Team/ArxisStudio"
+               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+               xmlns:a="https://github.com/avaloniaui"
+               xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
+               xmlns:s="https://github.com/Arxis-Team/ArxisStudio.Surface"
+               xmlns:b="using:ArxisStudio.Modules.UiDesigner.Board"
+               x:Class="ArxisStudio.Modules.UiDesigner.Panels.BoardView"
+               x:DataType="b:BoardModel">
+
+  <AxUserControl.Resources>
+    <a:ResourceDictionary>
+      <a:ResourceDictionary.MergedDictionaries>
+        <a:ResourceInclude Source="avares://ArxisStudio.Surface/Themes/SurfaceTheme.axaml"/>
+      </a:ResourceDictionary.MergedDictionaries>
+    </a:ResourceDictionary>
+  </AxUserControl.Resources>
+
+  <AxUserControl.Styles>
+    <a:Style Selector="s|SurfaceItem /template/ a|Border#PART_SelectionBorder">
+      <a:Setter Property="CornerRadius" Value="{a:DynamicResource AxCornerRadiusLarge}"/>
+    </a:Style>
+  </AxUserControl.Styles>
+
+  <a:DockPanel>
+
+    <a:Border a:DockPanel.Dock="Top" Padding="{a:DynamicResource AxToolBarPadding}">
+      <a:DockPanel>
+
+        <a:StackPanel a:DockPanel.Dock="Right" Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceHair}"
+                      VerticalAlignment="Center">
+
+          <AxSpinner IsVisible="{a:Binding IsLoading}" VerticalAlignment="Center"
+                     a:ToolTip.Tip="{Text board.loading}"
+                     a:AutomationProperties.Name="{Text board.loading}"/>
+
+          <AxButton x:Name="Fit" Appearance="Toolbar" IsEnabled="{a:Binding IsReady}"
+                    a:ToolTip.Tip="{Text board.fit}"
+                    a:AutomationProperties.Name="{Text board.fit}">
+            <AxIcon Data="{x:Static ax:AxIcons.FitToScreen}"/>
+          </AxButton>
+
+          <!--
+              Масштаб словами — он же кнопка «100 %», как в Figma и Unity. Не квадрат полосы: тот под
+              одну иконку, и «100 %» в нём обрезалось бы до «1…».
+          -->
+          <AxButton x:Name="Actual" Appearance="Subtle" Size="Compact" VerticalAlignment="Center"
+                    IsEnabled="{a:Binding IsReady}"
+                    a:ToolTip.Tip="{Text board.actual}"
+                    a:AutomationProperties.Name="{Text board.actual}"/>
+
+          <AxButton x:Name="ArrangeAll" Appearance="Toolbar" IsEnabled="{a:Binding IsReady}"
+                    a:ToolTip.Tip="{Text board.arrange}"
+                    a:AutomationProperties.Name="{Text board.arrange}">
+            <AxIcon Data="{x:Static ax:AxIcons.Grid}"/>
+          </AxButton>
+
+          <AxToggleButton x:Name="GridToggle" Appearance="Toolbar"
+                          a:ToolTip.Tip="{Text board.grid}"
+                          a:AutomationProperties.Name="{Text board.grid}">
+            <AxIcon Data="{x:Static ax:AxIcons.GridSnap}"/>
+          </AxToggleButton>
+
+        </a:StackPanel>
+
+        <a:TextBlock Text="{a:Binding Summary}" IsVisible="{a:Binding IsReady}"
+                     AxText.Tone="Secondary" VerticalAlignment="Center"
+                     Margin="{a:DynamicResource AxSpaceTightThickness}"/>
+
+      </a:DockPanel>
+    </a:Border>
+
+    <AxDivider a:DockPanel.Dock="Top"/>
+
+    <a:Panel>
+
+      <s:SurfaceView x:Name="Sheet"
+                     ItemsSource="{a:Binding Cards}"
+                     ItemLocationBinding="{a:Binding Location}"
+                     SelectionMode="Multiple"
+                     Focusable="True"
+                     IsVisible="{a:Binding IsReady}"
+                     a:AutomationProperties.Name="{Text panel.board}">
+        <s:SurfaceView.ItemTemplate>
+          <a:DataTemplate x:DataType="b:FormCard">
+            <AxCard Width="{a:DynamicResource AxFormCardWidth}" MinHeight="{a:DynamicResource AxFormCardMinHeight}"
+                    a:ToolTip.Tip="{a:Binding Path}">
+              <a:StackPanel Spacing="{a:DynamicResource AxSpaceTight}">
+                <a:DockPanel>
+                  <!--
+                      Строки переносятся, а не обрезаются: ширина карточки постоянная, и при крупном
+                      тексте имя файла и класс уходили бы в многоточие. Карточка растёт вниз, а шаг
+                      раскладки доска берёт по самой высокой из видимых.
+                  -->
+                  <AxIcon a:DockPanel.Dock="Left" Data="{a:Binding Glyph}" VerticalAlignment="Top"
+                          Margin="{a:DynamicResource AxGapIconTextThickness}"
+                          a:ToolTip.Tip="{a:Binding KindText}"/>
+                  <a:TextBlock Text="{a:Binding Name}" TextWrapping="Wrap"/>
+                </a:DockPanel>
+                <a:TextBlock Text="{a:Binding Detail}" IsVisible="{a:Binding HasDetail}" AxText.Role="Small"
+                             AxText.Tone="{a:Binding DetailTone}" TextWrapping="Wrap"/>
+                <a:TextBlock Text="{a:Binding Footer}" AxText.Role="Small" AxText.Tone="Tertiary"
+                             TextWrapping="Wrap"/>
+              </a:StackPanel>
+            </AxCard>
+          </a:DataTemplate>
+        </s:SurfaceView.ItemTemplate>
+      </s:SurfaceView>
+
+      <a:StackPanel IsVisible="{a:Binding IsClosed}" Spacing="{a:DynamicResource AxGapFormRow}"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Margin="{a:DynamicResource AxSpaceWideThickness}">
+        <a:TextBlock Text="{Text board.state.closed}" AxText.Tone="Secondary" HorizontalAlignment="Center"/>
+        <a:TextBlock Text="{Text board.state.closed.hint}" AxText.Role="Small" AxText.Tone="Tertiary"
+                     HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
+      </a:StackPanel>
+
+      <a:TextBlock IsVisible="{a:Binding IsNoService}" Text="{Text board.state.noService}"
+                   AxText.Tone="Secondary" HorizontalAlignment="Center" VerticalAlignment="Center"
+                   TextWrapping="Wrap" TextAlignment="Center" Margin="{a:DynamicResource AxSpaceWideThickness}"/>
+
+      <a:StackPanel IsVisible="{a:Binding IsOpening}" Orientation="Horizontal" Spacing="{a:DynamicResource AxGapIconText}"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+        <AxSpinner VerticalAlignment="Center"/>
+        <a:TextBlock Text="{a:Binding Opening}" AxText.Tone="Secondary" VerticalAlignment="Center"/>
+      </a:StackPanel>
+
+      <a:StackPanel IsVisible="{a:Binding IsFailed}" Spacing="{a:DynamicResource AxGapFormRow}"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Margin="{a:DynamicResource AxSpaceWideThickness}">
+        <a:TextBlock Text="{Text board.state.failed}" AxText.Tone="Secondary" HorizontalAlignment="Center"/>
+        <a:TextBlock Text="{a:Binding Failure}" AxText.Role="Small" AxText.Tone="Error"
+                     HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
+      </a:StackPanel>
+
+      <!-- Решение открыто, а форм нет: холст под надписью остаётся — на нём просто ничего не стоит. -->
+      <a:StackPanel IsVisible="{a:Binding IsEmpty}" Spacing="{a:DynamicResource AxGapFormRow}"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
+                    Margin="{a:DynamicResource AxSpaceWideThickness}">
+        <a:TextBlock Text="{Text board.state.empty}" AxText.Tone="Secondary" HorizontalAlignment="Center"/>
+        <a:TextBlock Text="{Text board.state.empty.hint}" AxText.Role="Small" AxText.Tone="Tertiary"
+                     HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
+      </a:StackPanel>
+
+    </a:Panel>
+
+  </a:DockPanel>
+
+</AxUserControl>

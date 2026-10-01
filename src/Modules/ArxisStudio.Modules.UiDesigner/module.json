@@ -1,0 +1,24 @@
+{
+  "id": "arxis.ui-designer",
+  "name": "%module.uiDesigner%",
+  "version": "0.1.0",
+  "publisher": "Arxis",
+  "description": "%module.uiDesigner.description%",
+  "tags": [ "tools", "design" ],
+  "dependencies": [
+    { "id": "arxis.projects", "min": "1.6", "optional": true }
+  ],
+  "contributions": {
+    "commands": [
+      { "id": "ui-designer.show", "title": "%command.board.show%", "icon": "arxis:Window" }
+    ],
+    "toolWindows": [
+      { "id": "ui-designer.board", "title": "%panel.board%", "icon": "arxis:Window",
+        "placement": { "side": "center" } }
+    ],
+    "settings": [
+      { "key": "ui-designer.grid", "type": "bool", "scope": "user", "title": "%settings.board.grid%", "default": true }
+    ]
+  },
+  "activation": [ "onStartup" ]
+}

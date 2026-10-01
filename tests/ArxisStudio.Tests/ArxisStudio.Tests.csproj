@@ -146,6 +146,8 @@
                           StudioModule="true" Private="false" ExcludeAssets="runtime"/>
         <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Project/ArxisStudio.Modules.Project.csproj"
                           StudioModule="true" Private="false" ExcludeAssets="runtime"/>
+        <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.UiDesigner/ArxisStudio.Modules.UiDesigner.csproj"
+                          StudioModule="true" Private="false" ExcludeAssets="runtime"/>
     </ItemGroup>
 
     <Import Project="../../src/ArxisStudio/build/ArxisStudio.Modules.targets"/>

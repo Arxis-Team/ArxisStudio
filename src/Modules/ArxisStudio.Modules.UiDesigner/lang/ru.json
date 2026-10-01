@@ -1,0 +1,30 @@
+{
+  "module.uiDesigner": "Дизайнер интерфейса",
+  "module.uiDesigner.description": "Формы открытого решения карточками на холсте: обзор, масштаб, раскладка и открытие",
+  "panel.board": "Формы",
+  "command.board.show": "Показать доску форм",
+  "settings.board.grid": "Сетка на доске форм",
+
+  "board.count": "Форм: {0}",
+  "board.zoom": "{0} %",
+  "board.loading": "Решение перечитывается",
+  "board.fit": "Вписать всё",
+  "board.frame": "Показать выбранное",
+  "board.actual": "Масштаб 100 %",
+  "board.arrange": "Упорядочить",
+  "board.grid": "Сетка",
+  "board.open": "Открыть",
+
+  "board.kind.window": "Окно",
+  "board.kind.userControl": "Пользовательский элемент",
+  "board.kind.control": "Контрол",
+  "board.kind.unreadable": "Разметка не читается",
+
+  "board.state.closed": "Решение не открыто",
+  "board.state.closed.hint": "Откройте решение — его формы встанут здесь карточками.",
+  "board.state.opening": "Открываю {0}…",
+  "board.state.failed": "Решение не открылось",
+  "board.state.noService": "Служба проектов не запущена: показывать нечего.",
+  "board.state.empty": "В решении нет форм",
+  "board.state.empty.hint": "Здесь встают окна и пользовательские элементы из файлов .axaml."
+}

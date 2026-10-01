@@ -22,6 +22,7 @@ public static class StudioModules
         typeof(Modules.Console.ConsoleModule).Assembly,
         typeof(Modules.Projects.ProjectsModule).Assembly,
         typeof(Modules.Project.ProjectModule).Assembly,
+        typeof(Modules.UiDesigner.UiDesignerModule).Assembly,
     ];
 
     /// <summary>
