@@ -74,7 +74,9 @@ internal sealed class HistoryService : IStudioHistory
                 var action = actions[at];
 
                 // Отмену Ctrl+Z не отменяет: он идёт назад по сделанному, а не качается туда-обратно.
-                if (action.Origin != HistoryOrigin.Studio || action.Undoes is not null || undone.Contains(action.Id))
+                // Сохранение документа — тоже мимо: у редактора своя история, и откат на диске разошёлся
+                // бы с тем, что он держит у себя.
+                if (action.Origin != HistoryOrigin.Studio || action.Undoes is not null || action.IsSave || undone.Contains(action.Id))
                     continue;
 
                 if (HistoryUndo.Belongs(action, snapshot))
@@ -161,6 +163,7 @@ internal sealed class HistoryService : IStudioHistory
         Changes = [.. action.Changes.Select(Contract).OfType<LocalHistoryChange>()],
         Undoes = action.Undoes,
         IsUndone = undone,
+        IsSave = action.IsSave,
     };
 
     /// <summary>Правка словами контракта; null — путь в журнале не разобрался.</summary>

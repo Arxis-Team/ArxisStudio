@@ -159,6 +159,45 @@ internal static class FileChecks
         return null;
     }
 
+    /// <summary>Проверяет запись по снимку и диску.</summary>
+    /// <param name="writes">Что записать.</param>
+    /// <param name="snapshot">Снимок открытого решения.</param>
+    /// <param name="words">Слова отказов.</param>
+    /// <returns>Отказ; null — можно.</returns>
+    /// <remarks>
+    /// Записать можно только то, что уже лежит: создаёт файлы <c>CreateAsync</c>, и запись, промахнувшаяся
+    /// путём, не должна заводить файл там, где его не ждали. Ожидаемое сверяется байт в байт — о
+    /// кодировке и переводах строк запись ничего не знает и знать не должна.
+    /// </remarks>
+    public static ProjectDiagnostic? Check(IReadOnlyList<FileWrite> writes, SolutionSnapshot snapshot, FileWords words)
+    {
+        foreach (var write in writes)
+        {
+            var path = write.Path;
+
+            if (Guard(snapshot, path, words, holdsProjects: false) is { } refused)
+                return refused;
+
+            if (!File.Exists(path.Value))
+                return Refused(ProjectsDiagnosticCodes.Missing, words.Missing(path.Value), path);
+
+            if (write.Expected is not { } expected)
+                continue;
+
+            try
+            {
+                if (!File.ReadAllBytes(path.Value).AsSpan().SequenceEqual(expected.Span))
+                    return Refused(ProjectsDiagnosticCodes.ContentChanged, words.ContentChanged(path.Value), path);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                return Refused(ProjectsDiagnosticCodes.FileOperationFailed, words.Failed(e.Message), path);
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Путь внутри правки: в папке проекта, не выход сборки, не сам проект и не решение.
     /// </summary>

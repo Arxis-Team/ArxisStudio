@@ -158,6 +158,10 @@ internal sealed class HistoryJournal
 
         public string? Scope { get; set; }
 
+        // Пишется только у сохранения: пустое значение журнал не пишет, а прежняя версия незнакомое
+        // поле пропускает.
+        public bool Save { get; set; }
+
         public static Entry Of(HistoryAction action) => new()
         {
             Id = action.Id,
@@ -167,6 +171,7 @@ internal sealed class HistoryJournal
             Changes = [.. action.Changes.Select(Line.Of)],
             Undoes = action.Undoes,
             Scope = action.Scope,
+            Save = action.IsSave,
         };
 
         /// <remarks>
@@ -192,6 +197,7 @@ internal sealed class HistoryJournal
                 Changes = [.. changes.OfType<HistoryChange>()],
                 Undoes = Undoes,
                 Scope = Scope,
+                IsSave = Save,
             };
         }
     }

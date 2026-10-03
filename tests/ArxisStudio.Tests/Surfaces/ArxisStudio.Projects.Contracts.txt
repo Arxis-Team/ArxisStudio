@@ -1,3 +1,17 @@
+ArxisStudio.Projects.FileChangeOrigin : enum
+ArxisStudio.Projects.FileChangeOrigin :: External = 0
+ArxisStudio.Projects.FileChangeOrigin :: Studio = 1
+ArxisStudio.Projects.FileContentChange : sealed record : System.IEquatable<ArxisStudio.Projects.FileContentChange>
+ArxisStudio.Projects.FileContentChange :: .ctor(ArxisStudio.ProjectSystem.FileChange Change, ArxisStudio.Projects.FileChangeOrigin Origin)
+ArxisStudio.Projects.FileContentChange :: ArxisStudio.ProjectSystem.FileChange Change { get; init; }
+ArxisStudio.Projects.FileContentChange :: ArxisStudio.Projects.FileChangeOrigin Origin { get; init; }
+ArxisStudio.Projects.FileContentChange :: System.Boolean Equals(ArxisStudio.Projects.FileContentChange? other)
+ArxisStudio.Projects.FileContentChange :: System.Void Deconstruct(out ArxisStudio.ProjectSystem.FileChange Change, out ArxisStudio.Projects.FileChangeOrigin Origin)
+ArxisStudio.Projects.FileContentChange :: static System.Boolean op_Equality(ArxisStudio.Projects.FileContentChange? left, ArxisStudio.Projects.FileContentChange? right)
+ArxisStudio.Projects.FileContentChange :: static System.Boolean op_Inequality(ArxisStudio.Projects.FileContentChange? left, ArxisStudio.Projects.FileContentChange? right)
+ArxisStudio.Projects.FileContentChangedEventArgs : sealed class : System.EventArgs
+ArxisStudio.Projects.FileContentChangedEventArgs :: .ctor(System.Collections.Immutable.ImmutableArray<ArxisStudio.Projects.FileContentChange> changes)
+ArxisStudio.Projects.FileContentChangedEventArgs :: System.Collections.Immutable.ImmutableArray<ArxisStudio.Projects.FileContentChange> Changes { get; }
 ArxisStudio.Projects.FileCreation : sealed record : System.IEquatable<ArxisStudio.Projects.FileCreation>
 ArxisStudio.Projects.FileCreation :: .ctor(ArxisStudio.ProjectSystem.CanonicalPath Path)
 ArxisStudio.Projects.FileCreation :: ArxisStudio.ProjectSystem.CanonicalPath Path { get; init; }
@@ -16,6 +30,15 @@ ArxisStudio.Projects.FileMove :: System.Boolean Replace { get; init; }
 ArxisStudio.Projects.FileMove :: System.Void Deconstruct(out ArxisStudio.ProjectSystem.CanonicalPath From, out ArxisStudio.ProjectSystem.CanonicalPath To)
 ArxisStudio.Projects.FileMove :: static System.Boolean op_Equality(ArxisStudio.Projects.FileMove? left, ArxisStudio.Projects.FileMove? right)
 ArxisStudio.Projects.FileMove :: static System.Boolean op_Inequality(ArxisStudio.Projects.FileMove? left, ArxisStudio.Projects.FileMove? right)
+ArxisStudio.Projects.FileWrite : sealed record : System.IEquatable<ArxisStudio.Projects.FileWrite>
+ArxisStudio.Projects.FileWrite :: .ctor(ArxisStudio.ProjectSystem.CanonicalPath Path, System.ReadOnlyMemory<System.Byte> Content)
+ArxisStudio.Projects.FileWrite :: ArxisStudio.ProjectSystem.CanonicalPath Path { get; init; }
+ArxisStudio.Projects.FileWrite :: System.Boolean Equals(ArxisStudio.Projects.FileWrite? other)
+ArxisStudio.Projects.FileWrite :: System.ReadOnlyMemory<System.Byte> Content { get; init; }
+ArxisStudio.Projects.FileWrite :: System.ReadOnlyMemory<System.Byte>? Expected { get; init; }
+ArxisStudio.Projects.FileWrite :: System.Void Deconstruct(out ArxisStudio.ProjectSystem.CanonicalPath Path, out System.ReadOnlyMemory<System.Byte> Content)
+ArxisStudio.Projects.FileWrite :: static System.Boolean op_Equality(ArxisStudio.Projects.FileWrite? left, ArxisStudio.Projects.FileWrite? right)
+ArxisStudio.Projects.FileWrite :: static System.Boolean op_Inequality(ArxisStudio.Projects.FileWrite? left, ArxisStudio.Projects.FileWrite? right)
 ArxisStudio.Projects.FilesChangedEventArgs : sealed class : System.EventArgs
 ArxisStudio.Projects.FilesChangedEventArgs :: .ctor(System.Collections.Immutable.ImmutableArray<ArxisStudio.Projects.FileMove> moved, System.Collections.Immutable.ImmutableArray<ArxisStudio.Projects.FileMove> copied, System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath> deleted)
 ArxisStudio.Projects.FilesChangedEventArgs :: .ctor(System.Collections.Immutable.ImmutableArray<ArxisStudio.Projects.FileMove> moved, System.Collections.Immutable.ImmutableArray<ArxisStudio.Projects.FileMove> copied, System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath> deleted, System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath> created)
@@ -33,6 +56,8 @@ ArxisStudio.Projects.IStudioFiles :: System.Threading.Tasks.Task<ArxisStudio.Pro
 ArxisStudio.Projects.IStudioFiles :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> CreateAsync(System.Collections.Generic.IReadOnlyList<ArxisStudio.Projects.FileCreation> items, System.String label, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Projects.IStudioFiles :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> DeleteAsync(System.Collections.Generic.IReadOnlyList<ArxisStudio.ProjectSystem.CanonicalPath> paths, System.String label, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Projects.IStudioFiles :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> MoveAsync(System.Collections.Generic.IReadOnlyList<ArxisStudio.Projects.FileMove> moves, System.String label, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Projects.IStudioFiles :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> WriteAsync(System.Collections.Generic.IReadOnlyList<ArxisStudio.Projects.FileWrite> writes, System.String label, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Projects.IStudioFiles :: event System.EventHandler<ArxisStudio.Projects.FileContentChangedEventArgs> ContentChanged
 ArxisStudio.Projects.IStudioFiles :: event System.EventHandler<ArxisStudio.Projects.FilesChangedEventArgs> Changed
 ArxisStudio.Projects.IStudioHistory : interface
 ArxisStudio.Projects.IStudioHistory :: ArxisStudio.Projects.LocalHistoryAction? LastStudioAction { get; }
@@ -47,8 +72,16 @@ ArxisStudio.Projects.IStudioHistory :: event System.EventHandler Changed
 ArxisStudio.Projects.IStudioPackages : interface
 ArxisStudio.Projects.IStudioPackages :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> InstallAsync(ArxisStudio.ProjectSystem.ProjectIdentity project, System.String packageId, System.String version, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Projects.IStudioPackages :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> UninstallAsync(ArxisStudio.ProjectSystem.ProjectIdentity project, System.String packageId, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Projects.IStudioProjectProfile : interface : System.IAsyncDisposable
+ArxisStudio.Projects.IStudioProjectProfile :: ArxisStudio.ProjectSystem.ProjectMetadata GlobalProperties { get; }
+ArxisStudio.Projects.IStudioProjectProfile :: ArxisStudio.Projects.ProjectProfileKind Kind { get; }
+ArxisStudio.Projects.IStudioProjectProfile :: ArxisStudio.Projects.ProjectsStatus Status { get; }
+ArxisStudio.Projects.IStudioProjectProfile :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.ProjectOperationResult> ExecuteAsync(ArxisStudio.ProjectSystem.ProjectOperationRequest request, System.IProgress<ArxisStudio.ProjectSystem.ProjectOperationProgress>? progress = null, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Projects.IStudioProjectProfile :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.WorkspaceLoadResult> RefreshAsync(System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Projects.IStudioProjectProfile :: event System.EventHandler<ArxisStudio.Projects.ProjectsChangedEventArgs> Changed
 ArxisStudio.Projects.IStudioProjects : interface
 ArxisStudio.Projects.IStudioProjects :: ArxisStudio.ProjectSystem.SolutionSnapshot? Current { get; }
+ArxisStudio.Projects.IStudioProjects :: ArxisStudio.Projects.IStudioProjectProfile OpenProfile(ArxisStudio.Projects.ProjectProfileRequest request)
 ArxisStudio.Projects.IStudioProjects :: ArxisStudio.Projects.ProjectsStatus Status { get; }
 ArxisStudio.Projects.IStudioProjects :: System.Threading.Tasks.Task CloseAsync()
 ArxisStudio.Projects.IStudioProjects :: System.Threading.Tasks.Task<ArxisStudio.ProjectSystem.WorkspaceLoadResult> OpenAsync(ArxisStudio.ProjectSystem.CanonicalPath entryPoint, System.Threading.CancellationToken cancellationToken = null)
@@ -59,6 +92,7 @@ ArxisStudio.Projects.LocalHistoryAction : sealed record : System.IEquatable<Arxi
 ArxisStudio.Projects.LocalHistoryAction :: .ctor()
 ArxisStudio.Projects.LocalHistoryAction :: System.Boolean Equals(ArxisStudio.Projects.LocalHistoryAction? other)
 ArxisStudio.Projects.LocalHistoryAction :: System.Boolean IsLabel { get; }
+ArxisStudio.Projects.LocalHistoryAction :: System.Boolean IsSave { get; init; }
 ArxisStudio.Projects.LocalHistoryAction :: System.Boolean IsUndone { get; init; }
 ArxisStudio.Projects.LocalHistoryAction :: System.Collections.Immutable.ImmutableArray<ArxisStudio.Projects.LocalHistoryChange> Changes { get; init; }
 ArxisStudio.Projects.LocalHistoryAction :: System.Int64? Undoes { get; init; }
@@ -106,6 +140,7 @@ ArxisStudio.Projects.LocalHistoryRevision :: static System.Boolean op_Equality(A
 ArxisStudio.Projects.LocalHistoryRevision :: static System.Boolean op_Inequality(ArxisStudio.Projects.LocalHistoryRevision? left, ArxisStudio.Projects.LocalHistoryRevision? right)
 ArxisStudio.Projects.ProjectOperation : sealed record : System.IEquatable<ArxisStudio.Projects.ProjectOperation>
 ArxisStudio.Projects.ProjectOperation :: .ctor()
+ArxisStudio.Projects.ProjectOperation :: ArxisStudio.Projects.ProjectProfileKind? Profile { get; init; }
 ArxisStudio.Projects.ProjectOperation :: System.Boolean Equals(ArxisStudio.Projects.ProjectOperation? other)
 ArxisStudio.Projects.ProjectOperation :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectIdentity> Projects { get; init; }
 ArxisStudio.Projects.ProjectOperation :: System.String? Configuration { get; init; }
@@ -119,6 +154,16 @@ ArxisStudio.Projects.ProjectOperationEventArgs :: .ctor(ArxisStudio.Projects.Pro
 ArxisStudio.Projects.ProjectOperationEventArgs :: ArxisStudio.ProjectSystem.ProjectOperationResult? Result { get; }
 ArxisStudio.Projects.ProjectOperationEventArgs :: ArxisStudio.Projects.ProjectOperation Operation { get; }
 ArxisStudio.Projects.ProjectOperationEventArgs :: System.Boolean IsCancelled { get; }
+ArxisStudio.Projects.ProjectProfileKind : enum
+ArxisStudio.Projects.ProjectProfileKind :: Design = 0
+ArxisStudio.Projects.ProjectProfileRequest : sealed record : System.IEquatable<ArxisStudio.Projects.ProjectProfileRequest>
+ArxisStudio.Projects.ProjectProfileRequest :: .ctor(ArxisStudio.Projects.ProjectProfileKind Kind)
+ArxisStudio.Projects.ProjectProfileRequest :: ArxisStudio.Projects.ProjectProfileKind Kind { get; init; }
+ArxisStudio.Projects.ProjectProfileRequest :: System.Boolean Equals(ArxisStudio.Projects.ProjectProfileRequest? other)
+ArxisStudio.Projects.ProjectProfileRequest :: System.Collections.Immutable.ImmutableArray<System.String> AdditionalProperties { get; init; }
+ArxisStudio.Projects.ProjectProfileRequest :: System.Void Deconstruct(out ArxisStudio.Projects.ProjectProfileKind Kind)
+ArxisStudio.Projects.ProjectProfileRequest :: static System.Boolean op_Equality(ArxisStudio.Projects.ProjectProfileRequest? left, ArxisStudio.Projects.ProjectProfileRequest? right)
+ArxisStudio.Projects.ProjectProfileRequest :: static System.Boolean op_Inequality(ArxisStudio.Projects.ProjectProfileRequest? left, ArxisStudio.Projects.ProjectProfileRequest? right)
 ArxisStudio.Projects.ProjectsChangedEventArgs : sealed class : System.EventArgs
 ArxisStudio.Projects.ProjectsChangedEventArgs :: .ctor(ArxisStudio.Projects.ProjectsStatus previous, ArxisStudio.Projects.ProjectsStatus current, System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectSnapshot> added, System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectSnapshot> removed, System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectSnapshot> modified, System.Boolean solutionChanged)
 ArxisStudio.Projects.ProjectsChangedEventArgs :: ArxisStudio.Projects.ProjectsChanges Changes { get; }
@@ -138,6 +183,7 @@ ArxisStudio.Projects.ProjectsChanges :: Snapshot = 4
 ArxisStudio.Projects.ProjectsChanges :: State = 2
 ArxisStudio.Projects.ProjectsDiagnosticCodes : static class
 ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String ChangedSince = "PRJ1010"
+ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String ContentChanged = "PRJ1012"
 ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String FileOperationFailed = "PRJ1008"
 ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String HistoryUnavailable = "PRJ1009"
 ArxisStudio.Projects.ProjectsDiagnosticCodes :: const System.String IntoItself = "PRJ1006"

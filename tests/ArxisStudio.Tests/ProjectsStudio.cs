@@ -54,6 +54,11 @@ internal sealed class ProjectsStudio : IDisposable
                 QuietPeriod = TimeSpan.FromMilliseconds(50),
                 MaximumDelay = TimeSpan.FromMilliseconds(500),
             },
+            ContentCoalescing = new FileChangeCoalescingOptions
+            {
+                QuietPeriod = TimeSpan.FromMilliseconds(50),
+                MaximumDelay = TimeSpan.FromMilliseconds(500),
+            },
         };
 
         var services = new Dictionary<Type, object>

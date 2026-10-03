@@ -226,6 +226,33 @@ public sealed class LocalHistoryStoreTests : IDisposable
     }
 
     /// <summary>
+    /// Пометка сохранения переживает хранилище, а в журнал пишется только у сохранения.
+    /// </summary>
+    /// <remarks>
+    /// Поле необязательное: прежняя версия студии его не знает и читает сохранение обычным действием.
+    /// Пиши журнал его у каждой строки — он рос бы на поле, которое почти всегда пусто.
+    /// </remarks>
+    [Fact]
+    public void A_save_mark_outlives_the_store_and_is_written_only_for_saves()
+    {
+        using (var store = LocalHistoryStore.Open(History))
+        {
+            store.Record("Переименование", HistoryOrigin.Studio, [Created("a.cs")]);
+            store.Record("Сохранение MainWindow.axaml", HistoryOrigin.Studio, [Created("b.cs")], save: true);
+        }
+
+        using var reopened = LocalHistoryStore.Open(History);
+
+        Assert.Equal([false, true], reopened.Actions.Select(action => action.IsSave));
+
+        var lines = Directory.EnumerateFiles(History, "*.jsonl", SearchOption.AllDirectories)
+            .SelectMany(System.IO.File.ReadLines)
+            .ToList();
+
+        Assert.Single(lines, line => line.Contains("\"save\"", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// Отменённым считается то, чью отмену не отменили: отмена отмены возвращает действие в силу.
     /// </summary>
     [Fact]

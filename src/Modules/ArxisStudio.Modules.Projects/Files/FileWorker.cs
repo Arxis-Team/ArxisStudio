@@ -116,6 +116,122 @@ internal static class FileWorker
         return Done(new FilesChangedEventArgs([], [], [], [.. items.Select(item => item.Path)]));
     }
 
+    /// <summary>
+    /// Записывает содержимое файлов: сверка пачки, запись через временный файл рядом, история —
+    /// одним сохранением.
+    /// </summary>
+    /// <param name="writes">Что записать.</param>
+    /// <param name="label">Метка действия для человека.</param>
+    /// <param name="snapshot">Снимок открытого решения.</param>
+    /// <param name="store">История; null — не ведётся.</param>
+    /// <param name="words">Слова отказов.</param>
+    /// <remarks>
+    /// <para>
+    /// Прежнее содержимое снимается в историю до первого байта: записанное отменяют, возвращая его оттуда.
+    /// Каждый файл пишется во временный рядом и встаёт на место подменой — оборванная запись не оставит
+    /// половины файла. Отказ диска посередине пачки возвращает уже записанное прежними байтами.
+    /// </para>
+    /// <para>
+    /// История узнаёт новое состояние сразу (<c>Learn</c>): наблюдатель, увидевший запись следом, найдёт её
+    /// уже записанной и не назовёт внешней. Модель перечитывается, только если записан вход оценки —
+    /// <c>.props</c> или <c>.targets</c> внутри проекта.
+    /// </para>
+    /// </remarks>
+    public static FileWorkResult Write(
+        IReadOnlyList<FileWrite> writes,
+        string label,
+        SolutionSnapshot snapshot,
+        LocalHistoryStore? store,
+        FileWords words)
+    {
+        if (FileChecks.Check(writes, snapshot, words) is { } refused)
+            return new FileWorkResult(ProjectOperationResult.Failed(refused), null);
+
+        var before = store is null ? [] : writes.Select(write => store.Capture(write.Path.Value)).ToList();
+        var written = new List<(string Path, byte[] Previous)>();
+
+        try
+        {
+            foreach (var write in writes)
+            {
+                var path = write.Path.Value;
+                var previous = File.ReadAllBytes(path);
+
+                Replace(path, write.Content.Span);
+                written.Add((path, previous));
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            for (var at = written.Count - 1; at >= 0; at--)
+            {
+                var (path, previous) = written[at];
+
+                Quietly(() => Replace(path, previous));
+            }
+
+            return Failed(words, e);
+        }
+
+        if (store is not null)
+        {
+            var changes = new List<HistoryChange>();
+
+            for (var at = 0; at < writes.Count; at++)
+            {
+                var path = writes[at].Path.Value;
+
+                if (store.Capture(path) is not { } after)
+                    continue;
+
+                store.Learn(path, after);
+
+                // Записали то же, что лежало: перемены нет, и действия из неё не выйдет.
+                if (before[at] is { } was && was.Content is not null && was.Content == after.Content)
+                    continue;
+
+                changes.Add(new HistoryChange
+                {
+                    Kind = HistoryChangeKind.Modified,
+                    Path = path,
+                    Before = before[at]?.Content,
+                    After = after.Content,
+                    TooLarge = after.TooLarge || before[at]?.TooLarge == true,
+                });
+            }
+
+            if (changes.Count > 0)
+            {
+                store.Record(label, HistoryOrigin.Studio, changes, save: true);
+                store.Flush();
+            }
+        }
+
+        return new FileWorkResult(ProjectOperationResult.Succeeded(), null)
+        {
+            Rereads = writes.Any(write => HistoryUndo.IsBuildInput(write.Path.Value)),
+        };
+    }
+
+    /// <summary>Пишет файл во временный рядом и ставит его на место подменой.</summary>
+    private static void Replace(string path, ReadOnlySpan<byte> content)
+    {
+        var temporary = Temporary(path);
+
+        try
+        {
+            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                stream.Write(content);
+
+            File.Move(temporary, path, overwrite: true);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Quietly(() => File.Delete(temporary));
+            throw;
+        }
+    }
+
     /// <summary>Каталоги, которые заведёт создание: просимые и недостающие на пути — от мелких к глубоким.</summary>
     private static List<string> Folders(IReadOnlyList<FileCreation> items)
     {

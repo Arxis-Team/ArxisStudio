@@ -49,5 +49,12 @@
   "module.projects.files.exists": "{0} already exists",
   "module.projects.files.intoItself": "{0} cannot be moved into itself",
   "module.projects.files.missing": "{0} was not found",
-  "module.projects.files.failed": "The disk refused: {0}"
+  "module.projects.files.failed": "The disk refused: {0}",
+  "module.projects.task.design.load": "Reading {0} for the designer",
+  "module.projects.task.design.restore": "Restoring {0} for the designer",
+  "module.projects.task.design.build": "Building {0} for the designer",
+  "module.projects.task.design.rebuild": "Rebuilding {0} for the designer",
+  "module.projects.task.design.clean": "Cleaning {0} for the designer",
+  "module.projects.profile.stale": "The profile was read again: build the request from its new snapshot",
+  "module.projects.files.contentChanged": "{0} was changed on disk outside the editor: writing would overwrite it"
 }

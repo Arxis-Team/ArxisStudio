@@ -54,4 +54,10 @@ public static class ProjectsDiagnosticCodes
     /// и предупреждает, возврат — отказывает.
     /// </summary>
     public const string NotStored = "PRJ1011";
+
+    /// <summary>
+    /// На диске не то, что просивший видел последним: файл переписали мимо него, и запись затёрла бы
+    /// чужое. Появилось в версии 1.7.
+    /// </summary>
+    public const string ContentChanged = "PRJ1012";
 }

@@ -31,6 +31,15 @@ public sealed record ProjectOperation
 
     /// <summary>Конфигурация, с которой операция началась; null — та, которую выбирает сам проект.</summary>
     public string? Configuration { get; init; }
+
+    /// <summary>
+    /// Профиль, над чьей оценкой шла операция; null — над моделью службы.
+    /// </summary>
+    /// <remarks>
+    /// Так окно сборки и журнал отличают сборку дизайнера от сборки человека: обе идут одной полосой
+    /// и приходят теми же событиями <see cref="IStudioBuild"/>. Появилось в версии 1.7.
+    /// </remarks>
+    public ProjectProfileKind? Profile { get; init; }
 }
 
 /// <summary>

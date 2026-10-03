@@ -1325,6 +1325,8 @@ public class StudioPluginsTests : IDisposable
                 throw new NotSupportedException();
 
             public Task CloseAsync() => throw new NotSupportedException();
+
+            public IStudioProjectProfile OpenProfile(ProjectProfileRequest request) => throw new NotSupportedException();
         }
 
         public sealed class ProbeModule : StudioPlugin

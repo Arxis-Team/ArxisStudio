@@ -35,6 +35,64 @@ public sealed record FileCreation(CanonicalPath Path)
     public bool IsDirectory { get; init; }
 }
 
+/// <summary>
+/// Что записать в файл: путь, новое содержимое и то, что просивший видел на диске последним.
+/// </summary>
+/// <param name="Path">Файл: полный путь, внутри папок проектов.</param>
+/// <param name="Content">Новое содержимое — байты как есть, с отметкой порядка байт, если она нужна.</param>
+/// <remarks>Появилось в версии 1.7.</remarks>
+public sealed record FileWrite(CanonicalPath Path, ReadOnlyMemory<byte> Content)
+{
+    /// <summary>
+    /// Что просивший видел на диске последним — прочитанное или записанное им прошлый раз; null — не
+    /// сверять.
+    /// </summary>
+    /// <remarks>
+    /// На диске другое — файл переписали мимо просившего — и запись отказывает
+    /// <see cref="ProjectsDiagnosticCodes.ContentChanged"/>: молча она затёрла бы чужое. Так редактор,
+    /// у которого рядом открыт Rider, узнаёт о его сохранении раньше, чем потеряет его.
+    /// </remarks>
+    public ReadOnlyMemory<byte>? Expected { get; init; }
+}
+
+/// <summary>Откуда перемена содержимого.</summary>
+/// <remarks>Появилось в версии 1.7.</remarks>
+public enum FileChangeOrigin
+{
+    /// <summary>Мимо студии: другой редактор, система контроля версий, сборка.</summary>
+    External,
+
+    /// <summary>Студия: файл записала <see cref="IStudioFiles.WriteAsync"/>, и на диске ровно записанное.</summary>
+    Studio,
+}
+
+/// <summary>Перемена файла и откуда она.</summary>
+/// <param name="Change">Что случилось с путём — так, как это сказал коалесцер.</param>
+/// <param name="Origin">Кто это сделал.</param>
+/// <remarks>Появилось в версии 1.7.</remarks>
+public sealed record FileContentChange(FileChange Change, FileChangeOrigin Origin);
+
+/// <summary>
+/// Перемены файлов решения на диске — пачкой, как их склеил коалесцер.
+/// </summary>
+/// <remarks>
+/// Пачка говорит, что верно на её конце, путь за путём (ADR 0025 ProjectSystem): сохранение через
+/// временный файл — одно <see cref="FileChangeKind.Changed"/>, а не пять событий. Что пачка значит
+/// для модели, отвечает <see cref="SolutionSnapshot.Classify"/>. Появилось в версии 1.7.
+/// </remarks>
+public sealed class FileContentChangedEventArgs : EventArgs
+{
+    /// <summary>Заводит пачку.</summary>
+    /// <param name="changes">Перемены по порядку.</param>
+    public FileContentChangedEventArgs(ImmutableArray<FileContentChange> changes)
+    {
+        Changes = changes.IsDefault ? [] : changes;
+    }
+
+    /// <summary>Перемены по порядку.</summary>
+    public ImmutableArray<FileContentChange> Changes { get; }
+}
+
 /// <summary>Что сделала правка файлов.</summary>
 /// <remarks>
 /// Приходит тем, кто держит файлы открытыми: редактор, у которого документ переехал, должен
@@ -87,7 +145,8 @@ public sealed class FilesChangedEventArgs : EventArgs
 }
 
 /// <summary>
-/// Файлы открытого решения: создать, переместить, скопировать, удалить.
+/// Файлы открытого решения: создать, переместить, скопировать, удалить, записать — и что с ними
+/// случилось на диске.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -190,7 +249,59 @@ public interface IStudioFiles
         string label,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Записывает содержимое файлов — пачкой, одним действием истории: так сохраняет документ редактор.
+    /// </summary>
+    /// <param name="writes">Что куда записать; файл должен быть, а пути — внутри папок проектов.</param>
+    /// <param name="label">Метка действия для человека: «Сохранение MainWindow.axaml».</param>
+    /// <param name="cancellationToken">Отмена — пока запись не началась.</param>
+    /// <returns>Итог; провал приходит с диагностиками.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>Всё или ничего.</b> Пачка сверяется целиком до первого байта: нет файла, файл проекта или
+    /// решение, ожидание разошлось с диском (<see cref="FileWrite.Expected"/>) — отказ, и не записано
+    /// ничего. Пишется каждый файл через временный рядом и подменой — оборванная запись не оставит
+    /// половины файла, — а диск, отказавший посередине пачки, возвращает уже записанное.
+    /// </para>
+    /// <para>
+    /// <b>История.</b> Прежнее содержимое уходит в локальную историю, и вернуть его можно оттуда. Действие
+    /// помечено сохранением (<see cref="LocalHistoryAction.IsSave"/>): общая отмена окна проекта его не
+    /// берёт, у редактора своя история.
+    /// </para>
+    /// <para>
+    /// <b>Модель запись не перечитывает</b>: содержимое документа модели не меняет, а файлы проектов и
+    /// решения так не пишутся. <see cref="Changed"/> о записи не говорит — переездов и удалений в ней нет;
+    /// о ней скажет <see cref="ContentChanged"/> с <see cref="FileChangeOrigin.Studio"/>.
+    /// </para>
+    /// <para>Появилось в версии 1.7.</para>
+    /// </remarks>
+    /// <exception cref="ArgumentException">Пачка пуста, в ней пустой путь, путь повторён или метка пуста.</exception>
+    /// <exception cref="OperationCanceledException">Отменено до начала.</exception>
+    /// <exception cref="ObjectDisposedException">Служба остановлена.</exception>
+    Task<ProjectOperationResult> WriteAsync(
+        IReadOnlyList<FileWrite> writes,
+        string label,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Правка прошла: что создано, что куда уехало, что скопировано, что удалено.</summary>
     /// <remarks>Приходит в поток интерфейса после того, как модель перечитана.</remarks>
     event EventHandler<FilesChangedEventArgs>? Changed;
+
+    /// <summary>
+    /// Файлы решения поменялись на диске — студией или мимо неё.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Слежение за содержимым живёт, пока есть подписчик: первый заводит его над папками проектов
+    /// открытого решения, последний гасит. Приходит в поток интерфейса пачками, по порядку.
+    /// </para>
+    /// <para>
+    /// Перемену, на конце которой на диске ровно то, что записала <see cref="WriteAsync"/>, служба узнаёт
+    /// по отпечатку и метит <see cref="FileChangeOrigin.Studio"/>: редактору не нужно принимать своё
+    /// же сохранение за чужое. Всё прочее — <see cref="FileChangeOrigin.External"/>, и выход сборки тоже:
+    /// отсеять его — дело <see cref="SolutionSnapshot.Classify"/>.
+    /// </para>
+    /// <para>Появилось в версии 1.7.</para>
+    /// </remarks>
+    event EventHandler<FileContentChangedEventArgs>? ContentChanged;
 }

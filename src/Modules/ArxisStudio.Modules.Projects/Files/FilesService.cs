@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
+using System.Security.Cryptography;
 using ArxisStudio.LocalHistory;
 using ArxisStudio.Modules.Projects.Delivery;
 using ArxisStudio.Modules.Projects.Watching;
@@ -24,6 +26,12 @@ namespace ArxisStudio.Modules.Projects.Files;
 /// оно: второе было бы лишним.
 /// </para>
 /// <para>
+/// <b>Запись и слежение за содержимым.</b> Запись (<see cref="WriteAsync"/>) запоминает отпечаток
+/// записанного, и слежение (<see cref="ContentWatch"/>), увидев на конце пачки ровно эти байты, метит
+/// перемену студийной. Слежение живёт, пока есть подписчик на <see cref="ContentChanged"/>: первый
+/// заводит его у сессии, последний гасит.
+/// </para>
+/// <para>
 /// <b>Одно перечитывание на правку.</b> Слежение видит правку раньше, чем её перечитали, и пачка,
 /// разобранная посреди перечитывания, сверилась бы с прежним снимком и попросила бы вторую
 /// загрузку — так и было: каждое переименование перечитывало модель дважды. Теперь с первой записи
@@ -37,6 +45,10 @@ internal sealed class FilesService : IStudioFiles
     private readonly ProjectsHost _host;
     private readonly FileWords _words;
     private readonly IProjectsThread _thread;
+    private readonly ConcurrentDictionary<CanonicalPath, string> _written = new();
+    private readonly Lock _contentGate = new();
+    private EventHandler<FileContentChangedEventArgs>? _contentChanged;
+    private int _contentSubscribers;
 
     /// <summary>Заводит службу.</summary>
     /// <param name="host">Служба проектов: сессия, снимок, очереди.</param>
@@ -51,6 +63,111 @@ internal sealed class FilesService : IStudioFiles
 
     /// <inheritdoc/>
     public event EventHandler<FilesChangedEventArgs>? Changed;
+
+    /// <inheritdoc/>
+    public event EventHandler<FileContentChangedEventArgs>? ContentChanged
+    {
+        add
+        {
+            if (value is null)
+                return;
+
+            bool first;
+
+            lock (_contentGate)
+            {
+                _contentChanged += value;
+                first = ++_contentSubscribers == 1;
+            }
+
+            if (first)
+                _host.WatchContent();
+        }
+
+        remove
+        {
+            if (value is null)
+                return;
+
+            bool last;
+
+            lock (_contentGate)
+            {
+                var before = _contentChanged;
+
+                _contentChanged -= value;
+
+                if (ReferenceEquals(before, _contentChanged))
+                    return;
+
+                last = --_contentSubscribers == 0;
+            }
+
+            if (last)
+                _host.WatchContent();
+        }
+    }
+
+    /// <summary>Есть кому слушать перемены содержимого — слежению за ним жить.</summary>
+    internal bool IsContentWatched
+    {
+        get
+        {
+            lock (_contentGate)
+                return _contentSubscribers > 0;
+        }
+    }
+
+    /// <summary>
+    /// Пачка слежения за содержимым: откуда каждая перемена — и в поток интерфейса.
+    /// </summary>
+    /// <param name="batch">Пачка коалесцера; зовётся в его потоке.</param>
+    /// <remarks>
+    /// Отпечаток снимается здесь, а не в потоке интерфейса: чтение файла ему не по чину. Записанное
+    /// студией узнаётся по байтам на конце пачки; разошлись — файл с тех пор переписали снаружи, и
+    /// ожидание больше не нужно.
+    /// </remarks>
+    internal void OnContent(ImmutableArray<FileChange> batch)
+    {
+        var changes = ImmutableArray.CreateBuilder<FileContentChange>(batch.Length);
+
+        foreach (var change in batch)
+        {
+            var origin = FileChangeOrigin.External;
+
+            // Временный файл, подменивший цель, коалесцер обычно склеивает в одно «изменено». Разорви
+            // пачка запись посередине — цель придёт переименованием из временного, и её байты те же.
+            if (change.Kind is FileChangeKind.Renamed)
+                _written.TryRemove(change.OldPath, out _);
+
+            if (change.Kind is FileChangeKind.Changed or FileChangeKind.Created or FileChangeKind.Renamed
+                && _written.TryGetValue(change.Path, out var print))
+            {
+                if (DiskView.Instance.TryFingerprint(change.Path, out var now) && string.Equals(now, print, StringComparison.Ordinal))
+                    origin = FileChangeOrigin.Studio;
+                else
+                    _written.TryRemove(KeyValuePair.Create(change.Path, print));
+            }
+            else if (change.Kind is FileChangeKind.Deleted)
+            {
+                _written.TryRemove(change.Path, out _);
+            }
+
+            changes.Add(new FileContentChange(change, origin));
+        }
+
+        var args = new FileContentChangedEventArgs(changes.MoveToImmutable());
+
+        _thread.Post(() =>
+        {
+            EventHandler<FileContentChangedEventArgs>? handlers;
+
+            lock (_contentGate)
+                handlers = _contentChanged;
+
+            handlers?.Invoke(this, args);
+        });
+    }
 
     /// <inheritdoc/>
     public Task<ProjectOperationResult> CreateAsync(
@@ -99,6 +216,50 @@ internal sealed class FilesService : IStudioFiles
             throw new ArgumentException("Удалять нечего: пачка пуста или в ней пустой путь", nameof(paths));
 
         return RunAsync(new FileWork(FileWorkKind.Delete, [], [.. paths], Label(label)), cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task<ProjectOperationResult> WriteAsync(
+        IReadOnlyList<FileWrite> writes,
+        string label,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(writes);
+
+        if (writes.Count == 0 || writes.Any(write => write is null || write.Path.IsEmpty))
+            throw new ArgumentException("Записывать нечего: пачка пуста или в ней пустой путь", nameof(writes));
+
+        if (writes.Select(write => write.Path).Distinct().Count() != writes.Count)
+            throw new ArgumentException("Один файл назван в пачке дважды", nameof(writes));
+
+        // Пачка снимается сейчас: список и байты зовущего могут поменяться, пока запись ждёт очереди.
+        List<FileWrite> batch =
+        [
+            .. writes.Select(write => write with
+            {
+                Content = write.Content.ToArray(),
+                // Явно: null массива при неявном переводе стал бы пустыми, но заданными байтами.
+                Expected = write.Expected is { } expected ? expected.ToArray() : (ReadOnlyMemory<byte>?)null,
+            }),
+        ];
+        var text = Label(label);
+
+        return EditAsync((snapshot, store) =>
+        {
+            // Отпечатки — раньше первого байта: слежение может увидеть запись раньше, чем она вернётся.
+            foreach (var write in batch)
+                _written[write.Path] = Convert.ToHexString(SHA256.HashData(write.Content.Span));
+
+            var done = FileWorker.Write(batch, text, snapshot, store, _words);
+
+            if (done.Result.HasErrors)
+            {
+                foreach (var write in batch)
+                    _written.TryRemove(write.Path, out _);
+            }
+
+            return done;
+        }, cancellationToken);
     }
 
     private Task<ProjectOperationResult> RunAsync(FileWork work, CancellationToken cancellationToken) =>
@@ -152,8 +313,11 @@ internal sealed class FilesService : IStudioFiles
             {
                 var done = work(snapshot, _host.History.Store);
 
-                // Сейчас, до перечитывания: оно начнётся позже и прочтёт входы такими или новее.
-                hold.Expect(Inputs(snapshot, done.Change));
+                // Сейчас, до перечитывания: оно начнётся позже и прочтёт входы такими или новее. Правке,
+                // которая модель не перечитывает, запоминать нечего — подтверждать будет некому.
+                if (done.Rereads)
+                    hold.Expect(Inputs(snapshot, done.Change));
+
                 outcome.TrySetResult(done);
             }
             catch (Exception e) when (e is not OutOfMemoryException)

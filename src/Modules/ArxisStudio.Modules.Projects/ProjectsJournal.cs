@@ -28,12 +28,14 @@ internal sealed class ProjectsJournal(IStudioLog log)
     /// <param name="causes">Какие файлы вызвали перезагрузку.</param>
     /// <param name="result">Что вышло.</param>
     /// <param name="elapsed">Сколько заняло.</param>
+    /// <param name="profile">Чей профиль читали; null — модель службы.</param>
     public void Loaded(
         ProjectsLoadReason reason,
         WorkspaceLoadRequest request,
         ImmutableArray<CanonicalPath> causes,
         WorkspaceLoadResult result,
-        TimeSpan elapsed)
+        TimeSpan elapsed,
+        ProjectProfileKind? profile = null)
     {
         // Какой MSBuild нашёлся — один раз за службу: регистрация одна на процесс, и первая
         // загрузка — первое место, где об этом можно сказать правду.
@@ -54,6 +56,10 @@ internal sealed class ProjectsJournal(IStudioLog log)
             _ when causes.IsDefaultOrEmpty => "перезагружено",
             _ => $"перезагружено, изменилось: {Causes(causes)}",
         };
+
+        // Профиль читает то же решение своей оценкой: в журнале его строка отличается от строки службы.
+        if (profile is { } kind)
+            why = $"{why} {For(kind)}";
 
         ProjectDiagnostic? failure = null;
 
@@ -92,6 +98,9 @@ internal sealed class ProjectsJournal(IStudioLog log)
     {
         var operation = item.Operation;
         var what = item.Edit is { } edit ? $"{Name(edit.Kind)} {edit.PackageId}" : Name(operation.Kind);
+
+        if (operation.Profile is { } profile)
+            what = $"{what} {For(profile)}";
         var file = operation.EntryPoint.FileName;
 
         if (result is null)
@@ -123,6 +132,10 @@ internal sealed class ProjectsJournal(IStudioLog log)
         ProjectOperationKind.Rebuild => "пересборка",
         _ => "очистка",
     };
+
+    /// <summary>Для кого читали или собирали: вид профиля словами журнала; вид пока один — дизайн.</summary>
+    /// <param name="kind">Вид профиля.</param>
+    private static string For(ProjectProfileKind kind) => kind == ProjectProfileKind.Design ? "для дизайнера" : "для профиля";
 
     /// <summary>Как правка пакетов называется в журнале.</summary>
     /// <param name="kind">Что делали.</param>

@@ -64,6 +64,9 @@ internal sealed class OperationItem
     /// </remarks>
     public PackageEditRequest? Edit { get; init; }
 
+    /// <summary>Операция профиля: над чьей оценкой и с каким запросом; null — над моделью службы.</summary>
+    public ProfileRun? Profile { get; init; }
+
     /// <summary>Где живут версии пакетов; null — рядом со ссылкой.</summary>
     public PackageVersionLayout? Layout { get; init; }
 

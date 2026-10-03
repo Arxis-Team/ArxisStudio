@@ -250,6 +250,9 @@ internal sealed class ProjectsProbe : IStudioProjects
         throw new NotSupportedException();
 
     /// <inheritdoc/>
+    public IStudioProjectProfile OpenProfile(ProjectProfileRequest request) => throw new NotSupportedException();
+
+    /// <inheritdoc/>
     public Task CloseAsync() => throw new NotSupportedException();
 
     /// <summary>Ответ на записанную просьбу: снимка нет, и служба ничего не открыла.</summary>

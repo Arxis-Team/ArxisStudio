@@ -131,6 +131,22 @@ public interface IStudioProjects
     Task<WorkspaceLoadResult> SetConfigurationAsync(string? configuration, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Открывает профиль: своя оценка открытого со своими глобальными свойствами — для того, кто
+    /// собирает рядом с IDE, а не поверх неё.
+    /// </summary>
+    /// <param name="request">Какой профиль и что ему прочесть сверх обычного.</param>
+    /// <returns>Держатель профиля; отпускают его <see cref="IAsyncDisposable.DisposeAsync"/>.</returns>
+    /// <remarks>
+    /// Профиль одного вида один на службу: второй держатель получает тот же, и движок у них общий.
+    /// Первый открывает его, последний отпускает. Открытый при открытом решении профиль начинает
+    /// читать сразу, а дальше перечитывается следом за службой. Появилось в версии 1.7.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Просьбы нет.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Вид профиля неизвестен.</exception>
+    /// <exception cref="ObjectDisposedException">Служба остановлена.</exception>
+    IStudioProjectProfile OpenProfile(ProjectProfileRequest request);
+
+    /// <summary>
     /// Закрывает открытое.
     /// </summary>
     /// <returns>Задача, которая завершится, когда движок отпустит решение.</returns>

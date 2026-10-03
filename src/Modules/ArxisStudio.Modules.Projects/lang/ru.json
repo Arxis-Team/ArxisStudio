@@ -49,5 +49,12 @@
   "module.projects.files.exists": "{0} уже существует",
   "module.projects.files.intoItself": "Каталог {0} нельзя перенести в него самого",
   "module.projects.files.missing": "{0} не найден",
-  "module.projects.files.failed": "Диск отказал: {0}"
+  "module.projects.files.failed": "Диск отказал: {0}",
+  "module.projects.task.design.load": "Чтение {0} для дизайнера",
+  "module.projects.task.design.restore": "Восстановление {0} для дизайнера",
+  "module.projects.task.design.build": "Сборка {0} для дизайнера",
+  "module.projects.task.design.rebuild": "Пересборка {0} для дизайнера",
+  "module.projects.task.design.clean": "Очистка {0} для дизайнера",
+  "module.projects.profile.stale": "Профиль прочитан заново: запрос собирают по его новому снимку",
+  "module.projects.files.contentChanged": "{0} изменился на диске мимо редактора: запись затёрла бы чужое"
 }

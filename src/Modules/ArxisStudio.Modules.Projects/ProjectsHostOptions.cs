@@ -48,6 +48,10 @@ internal sealed class ProjectsHostOptions
     /// <summary>Склейка событий локальной истории.</summary>
     public FileChangeCoalescingOptions HistoryCoalescing { get; init; } = FileChangeCoalescingOptions.Default;
 
+    /// <summary>Склейка событий слежения за содержимым файлов.</summary>
+    /// <remarks>Тестам — чтобы не ждать склейки по умолчанию.</remarks>
+    public FileChangeCoalescingOptions ContentCoalescing { get; init; } = FileChangeCoalescingOptions.Default;
+
     /// <summary>
     /// Куда девать исключение подписчика; null — бросить заново в потоке интерфейса.
     /// </summary>

@@ -15,10 +15,10 @@
 
 | Служба | Берётся | О чём она |
 |---|---|---|
-| `IStudioProjects` | `context.Projects()` | что открыто, снимок, перемены, открыть/перечитать/закрыть |
+| `IStudioProjects` | `context.Projects()` | что открыто, снимок, перемены, открыть/перечитать/закрыть, профиль — своя оценка открытого |
 | `IStudioBuild` | `context.Build()` | восстановить, собрать, пересобрать, очистить |
 | `IStudioPackages` | `context.Packages()` | поставить и убрать пакет NuGet |
-| `IStudioFiles` | `context.Files()` | создать, переместить, скопировать, удалить файлы решения |
+| `IStudioFiles` | `context.Files()` | создать, переместить, скопировать, удалить, записать файлы решения; что с ними стало на диске |
 | `IStudioHistory` | `context.History()` | что было с файлами, вернуть файл, отменить действие |
 
 Разведены они по тому, чем занят берущий: подписчику снимков события сборки не нужны, а тому, кто
@@ -33,7 +33,7 @@
   "id": "arxis.outline",
   "sdk": { "min": "5.0" },
   "dependencies": [
-    { "id": "arxis.projects", "min": "1.6" }
+    { "id": "arxis.projects", "min": "1.7" }
   ]
 }
 ```
@@ -47,7 +47,9 @@
 - **1.3** — файлы: `IStudioFiles`;
 - **1.4** — вставка: копия извне решения и замена занятого (`FileMove.Replace`);
 - **1.5** — локальная история: `IStudioHistory`;
-- **1.6** — создание: `IStudioFiles.CreateAsync`.
+- **1.6** — создание: `IStudioFiles.CreateAsync`;
+- **1.7** — профиль и запись: `IStudioProjects.OpenProfile`, `IStudioFiles.WriteAsync` и
+  `IStudioFiles.ContentChanged`.
 
 Просите ту, которой вам хватает: плагин, читающий снимки, с границей `1.0` поднимется и в студии,
 где сборки ещё не было.
@@ -349,6 +351,93 @@ public static class Builder
 проекта, — поэтому отменённая операция итога не приносит вовсе: сказать, что успело собраться, он
 уже не может.
 
+## Своя оценка: профиль
+
+Сборка человека пишет в `bin/Debug`, и туда же пишет IDE, открытая рядом, — Rider или Visual Studio.
+Дизайнеру, которому свои типы нужно собирать между правками, писать туда нельзя: запущенное IDE
+приложение держит выход (`MSB3027`), а две сборки, начатые вместе, пишут одну промежуточную папку.
+Для этого есть **профиль** — та же модель, прочитанная со своими глобальными свойствами, и операции
+над ней:
+
+```csharp
+using System;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using ArxisStudio.Projects;
+using ArxisStudio.ProjectSystem;
+using ArxisStudio.Sdk;
+
+namespace Guide.Profiling;
+
+/// <summary>Сборки рядом с IDE: своя оценка открытого и операции над ней.</summary>
+public sealed class DesignBuilds : IAsyncDisposable
+{
+    private readonly IStudioProjectProfile _profile;
+
+    private DesignBuilds(IStudioProjectProfile profile) => _profile = profile;
+
+    /// <summary>Открывает профиль дизайна; службы нет — null.</summary>
+    public static DesignBuilds? Open(IStudioContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        var request = new ProjectProfileRequest(ProjectProfileKind.Design) { AdditionalProperties = ["IsTestProject"] };
+
+        return context.Projects() is { } projects ? new DesignBuilds(projects.OpenProfile(request)) : null;
+    }
+
+    /// <summary>Собирает проект в его папку дизайнера: <c>bin/ArxisStudio/</c>, рядом с выходом IDE.</summary>
+    /// <returns>Что сказать человеку.</returns>
+    public async Task<string> BuildAsync(string projectName, CancellationToken cancellationToken)
+    {
+        // Запрос строят по снимку профиля, а не службы: у профиля свой движок и свои идентичности.
+        if (_profile.Status.Snapshot is not { } snapshot)
+            return "профиль ещё не прочитан";
+
+        if (snapshot.Projects.FirstOrDefault(project => project.Name == projectName) is not { } project)
+            return $"{projectName} в решении нет";
+
+        var result = await _profile.ExecuteAsync(
+            new ProjectOperationRequest
+            {
+                Kind = ProjectOperationKind.Build,
+                Workspace = snapshot.Workspace,
+                EntryPointPath = snapshot.EntryPoint.Path,
+                Projects = [project.Identity],
+            },
+            cancellationToken: cancellationToken);
+
+        return result.HasErrors
+            ? $"не собралось: {result.Diagnostics.First(diagnostic => diagnostic.IsError).Message}"
+            : "собрано";
+    }
+
+    /// <inheritdoc/>
+    public ValueTask DisposeAsync() => _profile.DisposeAsync();
+}
+```
+
+**Один на вид.** Второй `OpenProfile` того же вида отдаёт тот же профиль, и движок у держателей
+общий: первый открывает его, последний отпускает. Свойства, которые держатели просили прочесть
+(`AdditionalProperties`), складываются, и новое имя перечитывает профиль для всех.
+
+**Следует за службой.** Профиль читает то же решение в той же конфигурации и перечитывается следом
+за каждой загрузкой службы, по той же причине. Открыли другое решение — номер сессии в
+`Status.Session` сменился вместе с номером службы; закрыли — профиль закрыт. `Changed` у профиля
+своё и приходит так же, как у службы: в поток интерфейса, по порядку, со склейкой.
+
+**Та же полоса.** Загрузки и операции профиля идут очередью службы — за сборкой человека, а не рядом
+с ней: MSBuild один на процесс. Человек видит их задачами студии «… для дизайнера», журнал — строками
+«сборка для дизайнера», а `IStudioBuild.Started` и `Completed` приходят те же, только с
+`ProjectOperation.Profile`.
+
+**Запрос исполняется как есть.** Сборке профиль восстановления не добавляет — когда оно нужно, решает
+просящий, — но свои глобальные свойства кладёт поверх свойств запроса: собрать мимо папок дизайнера
+нельзя, даже забыв их назвать. Удачное восстановление перечитывает модель службы, а за ней и профиль:
+`obj/project.assets.json` у них общий. Запрос, собранный по прежнему снимку, — после того как сессия
+сменилась, — отказ `PRJ1002`; ничего не открыто — `PRJ1001`.
+
 ## Поставить пакет
 
 ```csharp
@@ -447,6 +536,100 @@ public static class Creating
 масок его не увидит, пока файл туда не добавят. Удачное создание перечитывает модель причиной
 `ProjectsLoadReason.Files` раньше, чем вернуться, — новый файл уже в снимке, — и говорит
 `IStudioFiles.Changed` списком `Created`: что создано так, как его просили, без каталогов на пути.
+
+## Записать и следить за содержимым
+
+Документ, который правят в студии, — форму дизайнера, свой текстовый формат, — сохраняют через
+службу файлов, а не `File.WriteAllBytes`: так прежнее содержимое уходит в локальную историю, а
+сохранение поверх чужой правки не затирает её молча.
+
+```csharp
+using System;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using ArxisStudio.Projects;
+using ArxisStudio.ProjectSystem;
+
+namespace Guide.Saving;
+
+/// <summary>Документ, который сохраняет редактор: с проверкой, что на диске всё ещё его версия.</summary>
+public sealed class SavedDocument : IDisposable
+{
+    private readonly IStudioFiles _files;
+    private readonly CanonicalPath _path;
+    private byte[] _onDisk;
+
+    /// <summary>Заводит документ над прочитанным файлом.</summary>
+    public SavedDocument(IStudioFiles files, CanonicalPath path, byte[] onDisk)
+    {
+        ArgumentNullException.ThrowIfNull(files);
+
+        _files = files;
+        _path = path;
+        _onDisk = onDisk;
+        _files.ContentChanged += OnContentChanged;
+    }
+
+    /// <summary>Файл поменялся мимо редактора: в Rider, системой контроля версий, другим плагином.</summary>
+    public event EventHandler? ChangedOutside;
+
+    /// <summary>Сохраняет текст; файл, переписанный мимо редактора, не затирается.</summary>
+    /// <returns>Что сказать человеку.</returns>
+    public async Task<string> SaveAsync(string text)
+    {
+        var bytes = Encoding.UTF8.GetBytes(text);
+        var result = await _files.WriteAsync(
+            [new FileWrite(_path, bytes) { Expected = _onDisk }],
+            $"Сохранение {_path.FileName}");
+
+        if (result.Diagnostics.Any(diagnostic => diagnostic.Code == ProjectsDiagnosticCodes.ContentChanged))
+            return "файл изменён снаружи — сперва решите, чья версия";
+
+        if (result.HasErrors)
+            return string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message));
+
+        _onDisk = bytes;
+
+        return "сохранено";
+    }
+
+    /// <inheritdoc/>
+    public void Dispose() => _files.ContentChanged -= OnContentChanged;
+
+    private void OnContentChanged(object? sender, FileContentChangedEventArgs e)
+    {
+        // Своё сохранение служба узнаёт по отпечатку и метит студийным — принимать его заново незачем.
+        if (e.Changes.Any(change => change.Change.Path == _path && change.Origin == FileChangeOrigin.External))
+            ChangedOutside?.Invoke(this, EventArgs.Empty);
+    }
+}
+```
+
+**Сверка.** `Expected` — то, что редактор видел на диске последним. Разошлось — файл переписали мимо
+него, и запись отказывает `PRJ1012`: решать, чья версия, редактору, а не службе. Без `Expected`
+запись не сверяет ничего. Пачка проверяется целиком до первого байта, и отказ одной записи — отказ
+всей пачки.
+
+**Только существующее и только своё.** Запись не создаёт файлов — нет файла, `PRJ1007`, — и не
+пишет файлы проектов, решение и выход сборки (`PRJ1004`): ссылки в них правят переносом, а пакеты —
+службой пакетов. Каждый файл пишется во временный рядом и встаёт на место подменой, а диск,
+отказавший посередине пачки (`PRJ1008`), возвращает уже записанное.
+
+**История.** Прежнее содержимое уходит в историю одним действием с меткой, которую вы дали, и оно
+помечено сохранением (`LocalHistoryAction.IsSave`). Общая отмена окна проекта сохранения проходит
+мимо: у редактора своя история правок, и откат на диске разошёлся бы с тем, что он держит у себя.
+Вернуть сохранённое можно из окна истории, выбрав.
+
+**Модель запись не перечитывает** — содержимое документа модели не меняет; перечитает, только если
+записан `.props` или `.targets` внутри проекта. `Changed` о записи молчит: переездов и удалений в
+ней нет.
+
+**Слежение за содержимым** живёт, пока на `ContentChanged` есть подписчик: первый заводит его над
+папками проектов открытого решения, последний гасит. Пачка приходит в поток интерфейса такой, какой
+её склеил коалесцер ядра: сохранение через временный файл — одно `Changed`, а не пять событий
+(ADR 0025 ProjectSystem). Что пачка значит для модели, отвечает `SolutionSnapshot.Classify`; выход
+сборки тоже приходит внешним, и отсеивает его она.
 
 ## Переместить, скопировать, удалить
 
@@ -607,8 +790,8 @@ public static class Rewinding
 можно отменить.
 
 `LastStudioAction` — то, что отменил бы Ctrl+Z в окне проекта: последнее действие этого запуска
-студии над файлами открытого решения, не метка, не отмена и ещё не отменённое. Правки мимо студии
-сюда не попадают — их отменяют, выбрав в истории.
+студии над файлами открытого решения, не метка, не отмена, не сохранение документа и ещё не
+отменённое. Правки мимо студии сюда не попадают — их отменяют, выбрав в истории.
 
 **Возврат** переписывает один файл содержимым из истории, а пропавший заводит заново — тоже новым
 действием. Нынешнее содержимое уходит в историю раньше, чем его перепишут, поэтому файл больше
@@ -702,4 +885,4 @@ public static class Findings
   XML-комментариями: у каждого метода написано, что он обещает и чем отвечает на провал.
 - [external/ArxisStudio.ProjectSystem](../external/ArxisStudio.ProjectSystem) — сама модель:
   снимки, идентичности, диагностики, коды `APS*`.
-- [docs/plan.md](plan.md), записи 119–129 и 252–257 — как это строилось и почему устроено так.
+- [docs/plan.md](plan.md), записи 119–129, 252–257 и 333 — как это строилось и почему устроено так.

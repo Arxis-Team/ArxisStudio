@@ -647,6 +647,9 @@ internal sealed class FilesProbe : IStudioFiles
     /// <summary>Удаления, по порядку.</summary>
     public List<IReadOnlyList<CanonicalPath>> Deleted { get; } = [];
 
+    /// <summary>Записи, по порядку.</summary>
+    public List<IReadOnlyList<FileWrite>> Written { get; } = [];
+
     /// <summary>Метки действий, по порядку.</summary>
     public List<string> Labels { get; } = [];
 
@@ -658,6 +661,13 @@ internal sealed class FilesProbe : IStudioFiles
 
     /// <inheritdoc/>
     public event EventHandler<FilesChangedEventArgs>? Changed;
+
+    /// <inheritdoc/>
+    public event EventHandler<FileContentChangedEventArgs>? ContentChanged;
+
+    /// <summary>Говорит подписчикам, что файлы поменялись на диске, — как сказала бы настоящая служба.</summary>
+    /// <param name="change">Пачка перемен.</param>
+    public void Publish(FileContentChangedEventArgs change) => ContentChanged?.Invoke(this, change);
 
     /// <inheritdoc/>
     public Task<ProjectOperationResult> CreateAsync(IReadOnlyList<FileCreation> items, string label, CancellationToken cancellationToken = default)
@@ -689,6 +699,16 @@ internal sealed class FilesProbe : IStudioFiles
         Deleted.Add(paths);
 
         return Done(label, new FilesChangedEventArgs([], [], [.. paths]));
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>Запись переменой не считается: перемен для открытых файлов у неё нет, как и у настоящей.</remarks>
+    public Task<ProjectOperationResult> WriteAsync(IReadOnlyList<FileWrite> writes, string label, CancellationToken cancellationToken = default)
+    {
+        Written.Add(writes);
+        Labels.Add(label);
+
+        return Task.FromResult(Answer?.Invoke() ?? ProjectOperationResult.Succeeded());
     }
 
     private Task<ProjectOperationResult> Done(string label, FilesChangedEventArgs change)

@@ -22,6 +22,7 @@ internal sealed class ProjectsSession
     private readonly Lock _watchGate = new();
     private IProjectsWatch? _watch;
     private HistoryWatcher? _history;
+    private ContentWatch? _content;
     private SolutionSnapshot? _snapshot;
     private int _retired;
 
@@ -150,6 +151,43 @@ internal sealed class ProjectsSession
         }
     }
 
+    /// <summary>
+    /// Следит за содержимым файлов по текущему снимку, меняет набор папок или гасит слежение.
+    /// </summary>
+    /// <param name="factory">Как завести слежение; null — не следить: подписчиков нет.</param>
+    /// <remarks>
+    /// По своему выключателю, как история: перемены содержимого нужны редакторам, и только пока они
+    /// слушают, а за составом служба следит для себя.
+    /// </remarks>
+    public void Content(Func<ContentWatch>? factory)
+    {
+        lock (_watchGate)
+        {
+            if (IsRetired)
+                return;
+
+            if (factory is null || Snapshot is not { } snapshot)
+            {
+                _content?.Dispose();
+                _content = null;
+                return;
+            }
+
+            _content ??= factory();
+            _content.Follow(snapshot);
+        }
+    }
+
+    /// <summary>За содержимым файлов следят. Тестам — слежение живёт, только пока его слушают.</summary>
+    internal bool IsWatchingContent
+    {
+        get
+        {
+            lock (_watchGate)
+                return _content is not null;
+        }
+    }
+
     /// <summary>История сессии; null — не ведётся. Тестам — чтобы отдать накопленное сразу.</summary>
     internal HistoryWatcher? History
     {
@@ -176,6 +214,8 @@ internal sealed class ProjectsSession
             _watch = null;
             _history?.Dispose();
             _history = null;
+            _content?.Dispose();
+            _content = null;
         }
 
         _lifetime.Cancel();

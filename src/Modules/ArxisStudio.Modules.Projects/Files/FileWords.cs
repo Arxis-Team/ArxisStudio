@@ -22,6 +22,9 @@ internal sealed class FileWords(IStudioStrings strings)
     /// <summary>Пути нет.</summary>
     public string Missing(string path) => Format("module.projects.files.missing", path);
 
+    /// <summary>Файл переписали мимо просившего: запись затёрла бы чужое.</summary>
+    public string ContentChanged(string path) => Format("module.projects.files.contentChanged", path);
+
     /// <summary>Диск отказал.</summary>
     public string Failed(string reason) => Format("module.projects.files.failed", reason);
 

@@ -6,7 +6,9 @@ using ArxisStudio.Modules.Projects.Engine;
 using ArxisStudio.Modules.Projects.Files;
 using ArxisStudio.Modules.Projects.History;
 using ArxisStudio.Projects;
+using ArxisStudio.Modules.Projects.Watching;
 using ArxisStudio.ProjectSystem;
+using ArxisStudio.ProjectSystem.MSBuild;
 using ArxisStudio.ProjectSystem.NuGet;
 using ArxisStudio.Sdk;
 
@@ -34,6 +36,11 @@ namespace ArxisStudio.Modules.Projects;
 /// <b>Ожидаемое — результат.</b> Провал загрузки — это диагностики в итоге и в <c>LastLoad</c>. До
 /// шва студии доходят только собственные ошибки службы: задача студии приписывает их модулю.
 /// </para>
+/// <para>
+/// <b>Профили</b> — своя оценка открытого со своими свойствами — живут под тем же замком и той же
+/// полосой. Профиль следует за сессией: она сменилась — его оценка заводится заново
+/// (<see cref="RebindProfiles"/>); загрузка службы дала снимок — следом встаёт загрузка профиля.
+/// </para>
 /// </remarks>
 internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPackages
 {
@@ -46,6 +53,7 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
     private readonly HistoryRecorder _history;
     private readonly ProjectsJournal _journal;
     private readonly Lock _gate = new();
+    private readonly Dictionary<ProjectProfileKind, ProjectProfile> _profiles = [];
 
     private ProjectsStatus _status = ProjectsStatus.Closed;
     private ProjectsSession? _session;
@@ -194,6 +202,7 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
             return Task.FromCanceled<WorkspaceLoadResult>(cancellationToken);
 
         ProjectsSession? retired = null;
+        List<ProfileSession> gone = [];
         var opened = false;
         LoadItem item;
 
@@ -207,10 +216,13 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
                 session = new ProjectsSession(++_sessions, entryPoint, _options.Workspace());
                 _session = session;
                 opened = true;
+                gone = RebindProfiles();
             }
 
             item = Enqueue(session, ProjectsLoadReason.Open, [], pinned: false);
         }
+
+        ReleaseProfiles(gone);
 
         if (retired is not null)
             _ = Retire(retired);
@@ -278,6 +290,159 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
         }
 
         return item.Wait(cancellationToken, Leave);
+    }
+
+    /// <inheritdoc/>
+    public IStudioProjectProfile OpenProfile(ProjectProfileRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Enum.IsDefined(request.Kind))
+            throw new ArgumentOutOfRangeException(nameof(request), request.Kind, "Такого профиля нет");
+
+        List<ProfileSession> gone;
+        ProfileHandle handle;
+
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_stopped, this);
+
+            if (!_profiles.TryGetValue(request.Kind, out var profile))
+            {
+                profile = new ProjectProfile(
+                    request.Kind,
+                    PropertiesOf(request.Kind),
+                    created => new ChangePublisher(created, _thread, _options.SubscriberFailed));
+
+                _profiles.Add(request.Kind, profile);
+            }
+
+            profile.Holders++;
+
+            var widened = profile.Widen(request.AdditionalProperties);
+            var fresh = profile.Session is null;
+
+            gone = RebindProfiles();
+
+            // Читать сразу есть смысл, когда службе есть что показать и её загрузка не идёт: идущая
+            // поставит загрузку профиля следом сама.
+            if ((fresh || widened)
+                && profile.Session is { } bound
+                && bound.Owner is { Snapshot: not null, Pending: null, Running: null })
+            {
+                EnqueueProfile(profile, bound, fresh ? ProjectsLoadReason.Open : ProjectsLoadReason.Reload, pinned: true);
+            }
+
+            RepublishProfile(profile, SnapshotStep.None);
+            handle = new ProfileHandle(this, profile);
+        }
+
+        ReleaseProfiles(gone);
+
+        return handle;
+    }
+
+    /// <summary>Перечитывает профиль — или присоединяется к загрузке профиля, уже стоящей в очереди.</summary>
+    /// <param name="profile">Чей профиль.</param>
+    /// <param name="cancellationToken">Отмена ожидания.</param>
+    internal Task<WorkspaceLoadResult> RefreshProfileAsync(ProjectProfile profile, CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested)
+            return Task.FromCanceled<WorkspaceLoadResult>(cancellationToken);
+
+        LoadItem item;
+        ProfileSession bound;
+
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_stopped, this);
+
+            if (profile.Session is not { } session)
+                return Task.FromResult(WorkspaceLoadResult.Failure(Refusals.Diagnostic(ProjectsDiagnosticCodes.NothingOpen, NothingOpen)));
+
+            bound = session;
+            item = EnqueueProfile(profile, session, ProjectsLoadReason.Reload, pinned: false);
+        }
+
+        return item.Wait(cancellationToken, left => LeaveProfile(profile, bound, left));
+    }
+
+    /// <summary>Ставит операцию профиля в очередь службы.</summary>
+    /// <param name="profile">Чей профиль.</param>
+    /// <param name="request">Запрос просившего.</param>
+    /// <param name="progress">Куда говорить о ходе просившему.</param>
+    /// <param name="cancellationToken">Отмена и ожидания, и операции.</param>
+    internal Task<ProjectOperationResult> ExecuteProfileAsync(
+        ProjectProfile profile,
+        ProjectOperationRequest request,
+        IProgress<ProjectOperationProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        if (!Enum.IsDefined(request.Kind))
+            throw new ArgumentOutOfRangeException(nameof(request), request.Kind, "Такой операции над проектом нет");
+
+        if (cancellationToken.IsCancellationRequested)
+            return Task.FromCanceled<ProjectOperationResult>(cancellationToken);
+
+        OperationItem item;
+
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_stopped, this);
+
+            if (_session is not { } session || profile.Session is not { } bound || bound.Owner != session)
+                return Task.FromResult(Refusals.Of(ProjectsDiagnosticCodes.NothingOpen, NothingOpen));
+
+            // Запрос строят по снимку профиля: запрос к прежней оценке собрал бы не то, что видно.
+            if (request.Workspace != bound.Workspace.Identity)
+                return Task.FromResult(Refusals.Of(ProjectsDiagnosticCodes.ProjectNotOpen, _context.Strings["module.projects.profile.stale"]));
+
+            var operation = new ProjectOperation
+            {
+                Id = ++_operationNumber,
+                Kind = request.Kind,
+                EntryPoint = request.EntryPointPath,
+                Projects = request.Projects.IsDefault ? [] : request.Projects,
+                Configuration = request.Configuration,
+                Profile = profile.Kind,
+            };
+
+            item = new OperationItem(session, operation, progress)
+            {
+                Profile = new ProfileRun(profile, bound, request with
+                {
+                    GlobalProperties = Over(request.GlobalProperties, profile.GlobalProperties),
+                }),
+            };
+
+            _lane.Enqueue(() => RunOperationAsync(item));
+        }
+
+        return item.Wait(cancellationToken);
+    }
+
+    /// <summary>
+    /// Держатель отпустил профиль; последний отпускает и его оценку.
+    /// </summary>
+    /// <param name="profile">Чей профиль.</param>
+    /// <returns>Задача, которая завершится, когда движок оценки отпущен.</returns>
+    internal Task ReleaseProfileAsync(ProjectProfile profile)
+    {
+        ProfileSession? gone = null;
+
+        lock (_gate)
+        {
+            profile.Holders--;
+
+            if (profile.Holders > 0)
+                return Task.CompletedTask;
+
+            gone = profile.Session;
+            profile.Session = null;
+            RepublishProfile(profile, SnapshotStep.None);
+        }
+
+        return gone is null ? Task.CompletedTask : ReleaseProfile(gone);
     }
 
     /// <inheritdoc/>
@@ -598,6 +763,10 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
 
                 retired = Settle(session);
                 Republish(step);
+
+                // Профили следуют за службой: загрузка, давшая снимок, ставит следом загрузку каждого.
+                if (result?.Snapshot is not null)
+                    FollowProfiles(session, reason, causes);
             }
         }
 
@@ -683,6 +852,13 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
             if (item.Result.IsCompleted || _session != session)
                 return;
 
+            // Оценку профиля отпустили, пока операция стояла: собирать её не для кого.
+            if (item.Profile is { Session.IsRetired: true })
+            {
+                item.Cancel();
+                return;
+            }
+
             Volatile.Write(ref _running, operation);
         }
 
@@ -694,7 +870,8 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
 
         try
         {
-            using var stop = CancellationTokenSource.CreateLinkedTokenSource(session.Lifetime, item.Abandoned);
+            using var stop = CancellationTokenSource.CreateLinkedTokenSource(
+                session.Lifetime, item.Abandoned, item.Profile?.Session.Lifetime ?? CancellationToken.None);
 
             result = await _thread.InvokeAsync(() => _context.Tasks.RunAsync(
                 Title(item),
@@ -709,8 +886,11 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
         }
 
         // Итог, пришедший после отказа, — отменённый: просивший уже узнал об отмене.
-        if (session.Lifetime.IsCancellationRequested || item.Abandoned.IsCancellationRequested)
+        if (session.Lifetime.IsCancellationRequested || item.Abandoned.IsCancellationRequested
+            || item.Profile is { Session.IsRetired: true })
+        {
             result = null;
+        }
 
         Volatile.Write(ref _running, null);
 
@@ -745,6 +925,9 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
         var operation = item.Operation;
         var progress = item.Progress(task, Blame);
 
+        if (item.Profile is { } run)
+            return await ExecuteProfileAsync(session, run, progress, both.Token);
+
         // Правка пакетов — своя работа с тем же концом: файл, потом восстановление. Отменяет
         // провалившееся восстановление сама библиотека, возвращая файлы байт в байт; здесь —
         // очередь, задача человека и перечитывание модели после удачи.
@@ -777,6 +960,43 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
         // на полосе: поставить перезагрузку в очередь значило бы ждать самого себя.
         if (operation.Kind == ProjectOperationKind.Restore && !result.HasErrors)
             await Reread(session, ProjectsLoadReason.Restore);
+
+        return result;
+    }
+
+    /// <summary>
+    /// Работа операции профиля: запрос как есть над его движком; удачное восстановление перечитывает
+    /// модель службы, а за ней и профиль.
+    /// </summary>
+    /// <param name="session">Сессия службы.</param>
+    /// <param name="run">Операция профиля.</param>
+    /// <param name="progress">Куда говорить о ходе.</param>
+    /// <param name="cancellationToken">Отмена.</param>
+    /// <remarks>
+    /// Восстановление у профиля и службы общее — <c>obj/project.assets.json</c>, — и после него модель
+    /// службы устарела тоже. Слежение службы на это время придержано, а выходы восстановления
+    /// запомнены такими, какими оно их оставило: иначе слежение попросило бы вторую загрузку ради
+    /// того, что перечитывание здесь уже прочло.
+    /// </remarks>
+    private async Task<ProjectOperationResult> ExecuteProfileAsync(
+        ProjectsSession session,
+        ProfileRun run,
+        IProgress<ProjectOperationProgress> progress,
+        CancellationToken cancellationToken)
+    {
+        var restore = run.Request.Kind == ProjectOperationKind.Restore;
+        using var hold = restore ? session.Hold() : NoWatchHold.Instance;
+
+        var result = await run.Session.Workspace.ExecuteAsync(run.Request, progress, cancellationToken);
+
+        if (restore && !result.HasErrors)
+        {
+            if (session.Snapshot is { } snapshot)
+                hold.Expect(snapshot.Projects.SelectMany(project => project.RestoreOutputs));
+
+            if (await Reread(session, ProjectsLoadReason.Restore))
+                hold.Confirm();
+        }
 
         return result;
     }
@@ -984,11 +1204,18 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
         return session;
     }
 
-    /// <summary>Отпускает сессию: её работа отменяется сразу, движок — очередью.</summary>
+    /// <summary>Отпускает сессию: её работа отменяется сразу, движок — очередью; оценки профилей — тоже.</summary>
     private Task Retire(ProjectsSession session)
     {
         if (!session.Retire())
             return Task.CompletedTask;
+
+        List<ProfileSession> gone;
+
+        lock (_gate)
+            gone = RebindProfiles();
+
+        ReleaseProfiles(gone);
 
         var released = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -1015,6 +1242,256 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
         }
     }
 
+    /// <summary>
+    /// Ставит оценку каждого держимого профиля на текущую сессию службы. Под замком.
+    /// </summary>
+    /// <returns>Оценки, которые кончились: их движки отпускает <see cref="ReleaseProfiles"/> вне замка.</returns>
+    /// <remarks>
+    /// Зовётся везде, где сессия могла смениться: при открытии другого пути и при конце сессии. Оценка
+    /// той же сессии остаётся; у профиля без держателей её нет вовсе.
+    /// </remarks>
+    private List<ProfileSession> RebindProfiles()
+    {
+        var gone = new List<ProfileSession>();
+
+        foreach (var profile in _profiles.Values)
+        {
+            var wanted = profile.Holders > 0 && _session is { IsRetired: false } ? _session : null;
+
+            if (profile.Session?.Owner == wanted)
+                continue;
+
+            if (profile.Session is { } previous)
+                gone.Add(previous);
+
+            profile.Session = wanted is null ? null : new ProfileSession(wanted, _options.Workspace());
+            RepublishProfile(profile, SnapshotStep.None);
+        }
+
+        return gone;
+    }
+
+    /// <summary>Отпускает кончившиеся оценки профилей: работа отменяется сразу, движки — очередью.</summary>
+    private void ReleaseProfiles(List<ProfileSession> gone)
+    {
+        foreach (var session in gone)
+            _ = ReleaseProfile(session);
+    }
+
+    private Task ReleaseProfile(ProfileSession session)
+    {
+        if (!session.Retire())
+            return Task.CompletedTask;
+
+        var released = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        if (!_lane.Enqueue(() => DisposeProfileAsync(session, released)))
+            _ = DisposeProfileAsync(session, released);
+
+        return released.Task;
+    }
+
+    private async Task DisposeProfileAsync(ProfileSession session, TaskCompletionSource released)
+    {
+        try
+        {
+            await session.Workspace.DisposeAsync();
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            _context.Log.Write(StudioLogLevel.Warning, ProjectsModule.LogSource,
+                $"Движок профиля {session.Owner.EntryPoint.FileName} не отпустился: {e.Message}");
+        }
+        finally
+        {
+            released.TrySetResult();
+        }
+    }
+
+    /// <summary>Ставит следом за загрузкой службы загрузку каждого профиля её сессии. Под замком.</summary>
+    private void FollowProfiles(ProjectsSession session, ProjectsLoadReason reason, ImmutableArray<CanonicalPath> causes)
+    {
+        foreach (var profile in _profiles.Values)
+        {
+            if (profile.Session is { } bound && bound.Owner == session)
+                EnqueueProfile(profile, bound, reason, pinned: true).AddCauses(causes);
+        }
+    }
+
+    /// <summary>
+    /// Ставит загрузку профиля или присоединяет просьбу к уже стоящей. Под замком.
+    /// </summary>
+    private LoadItem EnqueueProfile(ProjectProfile profile, ProfileSession session, ProjectsLoadReason reason, bool pinned)
+    {
+        if (session.Pending is not { } item)
+        {
+            item = new LoadItem(session.Owner, reason);
+            session.Pending = item;
+            _lane.Enqueue(() => RunProfileLoadAsync(profile, session, item));
+        }
+        else
+        {
+            item.Strengthen(reason);
+        }
+
+        if (pinned)
+            item.Pin();
+        else
+            item.Join();
+
+        RepublishProfile(profile, SnapshotStep.None);
+
+        return item;
+    }
+
+    /// <summary>Ждущий загрузку профиля ушёл; не начатая и никем больше не ждущая снимается.</summary>
+    private void LeaveProfile(ProjectProfile profile, ProfileSession session, LoadItem item)
+    {
+        lock (_gate)
+        {
+            item.Waiters--;
+
+            if (item.Waiters > 0 || item.IsPinned || item.Result.IsCompleted)
+                return;
+
+            if (session.Pending == item)
+            {
+                session.Pending = null;
+                RepublishProfile(profile, SnapshotStep.None);
+            }
+        }
+
+        item.Abandon();
+    }
+
+    /// <summary>Загрузка профиля, когда до неё дошла очередь.</summary>
+    private async Task RunProfileLoadAsync(ProjectProfile profile, ProfileSession session, LoadItem item)
+    {
+        WorkspaceLoadRequest request;
+        ProjectsLoadReason reason;
+        ImmutableArray<CanonicalPath> causes;
+
+        lock (_gate)
+        {
+            if (session.Pending == item)
+                session.Pending = null;
+
+            if (item.Result.IsCompleted || profile.Session != session || _session != session.Owner)
+            {
+                if (profile.Session == session)
+                    RepublishProfile(profile, SnapshotStep.None);
+
+                item.Cancel();
+                return;
+            }
+
+            session.Running = item;
+            reason = item.Reason;
+            causes = item.Causes;
+            request = new WorkspaceLoadRequest
+            {
+                EntryPointPath = session.Owner.EntryPoint,
+                Workspace = session.Workspace.Identity,
+                Configuration = session.Owner.Configuration,
+                GlobalProperties = profile.GlobalProperties,
+                Options = WorkspaceLoadOptions.Default with { AdditionalProperties = profile.Properties },
+            };
+        }
+
+        var clock = Stopwatch.StartNew();
+        WorkspaceLoadResult? result = null;
+        Exception? error = null;
+
+        try
+        {
+            using var stop = CancellationTokenSource.CreateLinkedTokenSource(session.Lifetime, item.Abandoned);
+            var token = stop.Token;
+
+            result = await _thread.InvokeAsync(() => _context.Tasks.RunAsync(
+                ProfileTitle(request.EntryPointPath),
+                (_, cancel) => LoadAsync(session.Workspace, request, cancel, token)));
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            error = e;
+        }
+
+        if (session.IsRetired || item.Abandoned.IsCancellationRequested)
+            result = null;
+
+        var step = result?.Snapshot is { } snapshot ? SnapshotDiff.Step(session.Snapshot, snapshot) : SnapshotStep.None;
+
+        lock (_gate)
+        {
+            session.Running = null;
+
+            if (profile.Session == session)
+            {
+                if (result is not null)
+                {
+                    if (result.Snapshot is { } published)
+                        session.Snapshot = published;
+
+                    session.LastLoad = new ProjectsLoad { Reason = reason, Result = result, Causes = causes };
+                }
+
+                RepublishProfile(profile, step);
+            }
+        }
+
+        if (result is not null)
+        {
+            _journal.Loaded(reason, request, causes, result, clock.Elapsed, profile.Kind);
+            item.Complete(result);
+        }
+        else if (error is not null)
+        {
+            item.Fail(error);
+        }
+        else
+        {
+            item.Cancel();
+        }
+    }
+
+    /// <summary>Выводит запись профиля и публикует её, если что-то поменялось. Под замком.</summary>
+    private static void RepublishProfile(ProjectProfile profile, SnapshotStep step)
+    {
+        var next = profile.Derive();
+
+        if (step.IsEmpty && SessionStatus.Same(profile.Status, next))
+            return;
+
+        next = next with { Sequence = ++profile.Sequence };
+
+        profile.Status = next;
+        profile.Publisher.Publish(next, step);
+    }
+
+    /// <summary>Глобальные свойства профиля этого вида.</summary>
+    private static ProjectMetadata PropertiesOf(ProjectProfileKind kind) => kind switch
+    {
+        ProjectProfileKind.Design => MSBuildDesignOutput.GlobalProperties,
+        _ => ProjectMetadata.Empty,
+    };
+
+    /// <summary>Свойства просившего, а поверх — свойства профиля: имена MSBuild без учёта регистра.</summary>
+    private static ProjectMetadata Over(ProjectMetadata asked, ProjectMetadata profile)
+    {
+        var merged = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (name, value) in asked)
+            merged[name] = value;
+
+        foreach (var (name, value) in profile)
+            merged[name] = value;
+
+        return ProjectMetadata.Create(merged);
+    }
+
     /// <summary>Перемена на диске: модель сессии устарела.</summary>
     private void Stale(ProjectsSession session, ImmutableArray<CanonicalPath> causes)
     {
@@ -1031,7 +1508,17 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
     {
         session.Watch(Volatile.Read(ref _watching) == 1 ? _options.Watch : null, causes => Stale(session, causes));
         session.Remember(_history.IsOn ? _history.Watch : null);
+        session.Content(Files.IsContentWatched ? WatchContentOf : null);
     }
+
+    /// <summary>Подписчики на перемены содержимого появились или ушли: слежению текущей сессии — жить или гаснуть.</summary>
+    internal void WatchContent()
+    {
+        if (Session is { } session)
+            session.Content(Files.IsContentWatched ? WatchContentOf : null);
+    }
+
+    private ContentWatch WatchContentOf() => new(Files.OnContent, _options.ContentCoalescing);
 
     private void OnSettingsChanged(object? sender, string key)
     {
@@ -1081,9 +1568,26 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
         _context.Strings[reason == ProjectsLoadReason.Open ? "module.projects.task.open" : "module.projects.task.reload"],
         entryPoint.FileName);
 
-    /// <summary>Имя задачи студии: у правки пакетов оно называет пакет, а не решение.</summary>
+    /// <summary>Имя задачи студии для загрузки профиля; вид у профилей пока один — дизайн.</summary>
+    private string ProfileTitle(CanonicalPath entryPoint) => string.Format(
+        CultureInfo.CurrentCulture,
+        _context.Strings["module.projects.task.design.load"],
+        entryPoint.FileName);
+
+    /// <summary>Имя задачи студии: у правки пакетов оно называет пакет, а не решение; у профиля — его.</summary>
     /// <param name="item">Операция.</param>
-    private string Title(OperationItem item) => item.Edit is { } edit
+    private string Title(OperationItem item) => item.Profile is not null
+        ? string.Format(
+            CultureInfo.CurrentCulture,
+            _context.Strings[item.Operation.Kind switch
+            {
+                ProjectOperationKind.Restore => "module.projects.task.design.restore",
+                ProjectOperationKind.Build => "module.projects.task.design.build",
+                ProjectOperationKind.Rebuild => "module.projects.task.design.rebuild",
+                _ => "module.projects.task.design.clean",
+            }],
+            item.Operation.EntryPoint.FileName)
+        : item.Edit is { } edit
         ? string.Format(
             CultureInfo.CurrentCulture,
             _context.Strings[edit.Kind == PackageEditKind.Uninstall

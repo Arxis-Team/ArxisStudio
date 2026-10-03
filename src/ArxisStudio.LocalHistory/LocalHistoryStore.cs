@@ -222,9 +222,10 @@ public sealed class LocalHistoryStore : IDisposable
     /// <param name="origin">Кто сделал.</param>
     /// <param name="changes">Правки по порядку.</param>
     /// <param name="undoes">Какое действие это отменяет; null — это не отмена.</param>
+    /// <param name="save">Это сохранение документа редактором (<see cref="HistoryAction.IsSave"/>).</param>
     /// <returns>Записанное действие — с номером и временем.</returns>
     /// <exception cref="ArgumentException">Метка пуста или правок нет.</exception>
-    public HistoryAction Record(string label, HistoryOrigin origin, IEnumerable<HistoryChange> changes, long? undoes = null)
+    public HistoryAction Record(string label, HistoryOrigin origin, IEnumerable<HistoryChange> changes, long? undoes = null, bool save = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(label);
         ArgumentNullException.ThrowIfNull(changes);
@@ -234,7 +235,7 @@ public sealed class LocalHistoryStore : IDisposable
         if (list.IsEmpty)
             throw new ArgumentException("Действие без правок записывать незачем", nameof(changes));
 
-        return Append(label, origin, list, undoes, scope: null);
+        return Append(label, origin, list, undoes, scope: null, save);
     }
 
     /// <summary>Ставит метку: отметку на времени без правок.</summary>
@@ -247,7 +248,7 @@ public sealed class LocalHistoryStore : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(label);
         ArgumentException.ThrowIfNullOrEmpty(scope);
 
-        return Append(label, HistoryOrigin.Studio, [], undoes: null, scope);
+        return Append(label, HistoryOrigin.Studio, [], undoes: null, scope, save: false);
     }
 
     /// <summary>Действие по номеру; null — его нет или оно пережило срок.</summary>
@@ -298,7 +299,7 @@ public sealed class LocalHistoryStore : IDisposable
         return undone;
     }
 
-    private HistoryAction Append(string label, HistoryOrigin origin, ImmutableArray<HistoryChange> changes, long? undoes, string? scope)
+    private HistoryAction Append(string label, HistoryOrigin origin, ImmutableArray<HistoryChange> changes, long? undoes, string? scope, bool save)
     {
         lock (_gate)
         {
@@ -313,6 +314,7 @@ public sealed class LocalHistoryStore : IDisposable
                 Changes = changes,
                 Undoes = undoes,
                 Scope = scope,
+                IsSave = save,
             };
 
             _journal.Append(action);
