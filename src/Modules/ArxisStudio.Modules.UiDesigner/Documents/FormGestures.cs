@@ -21,8 +21,7 @@ namespace ArxisStudio.Modules.UiDesigner.Documents;
 /// <para>
 /// <b>Числа — сейчас, элементы — в правке.</b> Числа снимаются при событии: размер — из того, что ядро
 /// записало в изменение, положение в <c>Canvas</c> — с контрола, куда его поставил шов ядра. Элемент
-/// находится путём уже внутри правки, в тексте, каким его оставили правки перед ней: правка идёт
-/// очередью документа, а элемент прежнего разбора редактор отвергнет.
+/// находится путём уже внутри правки (<see cref="FormEdits"/>).
 /// </para>
 /// <para>
 /// <b>Удаление и перестановку делает текст.</b> Ядро дерево не правит: пока на просьбу никто не ответил,
@@ -33,56 +32,34 @@ internal sealed class FormGestures : IDisposable
 {
     private readonly UiDesignerView _sheet;
     private readonly UiDesignerFormItem _form;
-    private readonly IXamlDocumentHandle _document;
+    private readonly FormEdits _edits;
     private readonly Func<IXamlDesignView?> _view;
     private readonly IStudioStrings _strings;
-    private readonly Action<IReadOnlyList<XamlElementPath>> _select;
-    private readonly Action<string> _refused;
 
     /// <summary>Слушает жесты холста.</summary>
     /// <param name="sheet">Холст.</param>
     /// <param name="form">Карточка формы: она и есть корень документа.</param>
-    /// <param name="document">Документ формы.</param>
+    /// <param name="edits">Правки документа формы.</param>
     /// <param name="view">Показ документа сейчас; null — показа нет.</param>
     /// <param name="strings">Словарь модуля: имена шагов истории.</param>
-    /// <param name="select">Что выбрать, когда правка, сдвинувшая пути, показана.</param>
-    /// <param name="refused">Куда сказать, что жест не записан.</param>
     public FormGestures(
         UiDesignerView sheet,
         UiDesignerFormItem form,
-        IXamlDocumentHandle document,
+        FormEdits edits,
         Func<IXamlDesignView?> view,
-        IStudioStrings strings,
-        Action<IReadOnlyList<XamlElementPath>> select,
-        Action<string> refused)
+        IStudioStrings strings)
     {
         _sheet = sheet;
         _form = form;
-        _document = document;
+        _edits = edits;
         _view = view;
         _strings = strings;
-        _select = select;
-        _refused = refused;
 
         sheet.EditCompleted += OnEditCompleted;
         sheet.DeleteRequested += OnDeleteRequested;
         sheet.ReorderRequested += OnReorderRequested;
         sheet.UndoRequested += OnUndoRequested;
         sheet.RedoRequested += OnRedoRequested;
-    }
-
-    /// <summary>Отменяет или возвращает шаг истории документа.</summary>
-    /// <param name="back">Отменить, а не вернуть.</param>
-    public async Task StepAsync(bool back)
-    {
-        try
-        {
-            _ = back ? await _document.UndoAsync() : await _document.RedoAsync();
-        }
-        catch (ObjectDisposedException)
-        {
-            // Документ закрыт: отменять нечего.
-        }
     }
 
     /// <inheritdoc/>
@@ -141,9 +118,9 @@ internal sealed class FormGestures : IDisposable
         var label = string.Format(
             CultureInfo.CurrentCulture,
             _strings[e.Kind == SurfaceEditKind.Move ? "form.edit.position" : "form.edit.size"],
-            NameOf(writes[0].Path));
+            _edits.NameOf(writes[0].Path));
 
-        _ = EditAsync(label, editor =>
+        _ = _edits.EditAsync(label, editor =>
         {
             foreach (var write in writes)
             {
@@ -153,7 +130,7 @@ internal sealed class FormGestures : IDisposable
                 if (write.Plain)
                     editor.SetAttribute(element, XamlQualifiedName.Parse(write.Name), write.Value);
                 else
-                    WriteSize(editor, element, write.Name, write.Value);
+                    FormEdits.Size(editor, element, write.Name, write.Value);
             }
         }, select: null);
     }
@@ -165,32 +142,12 @@ internal sealed class FormGestures : IDisposable
             .Where(target => !ReferenceEquals(target.Target, _form))
             .Select(target => _view()?.PathOf(target.Target))
             .OfType<XamlElementPath>()
-            .Where(path => !path.Equals(XamlElementPath.Root))
-            .Distinct()
             .ToList();
 
         // Ответ на просьбу и есть удаление: без него ядро не сделало бы ничего, а клавиша ушла бы дальше.
         e.Handled = true;
 
-        if (paths.Count == 0)
-            return;
-
-        var label = paths.Count == 1
-            ? string.Format(CultureInfo.CurrentCulture, _strings["form.edit.delete"], NameOf(paths[0]))
-            : string.Format(CultureInfo.CurrentCulture, _strings["form.edit.deleteMany"], paths.Count);
-
-        // Удалённое выбрать нельзя: выбор переходит к тому, в чём оно стояло, — его путь удаление не двигает.
-        var after = paths.Select(path => path.Parent ?? XamlElementPath.Root).Take(1).ToList();
-
-        _ = EditAsync(label, editor =>
-        {
-            // Все элементы — из одного текста и до удаления: пути разрешены против него. Вложенное в
-            // удаляемое уходит вместе с ним и отдельной правкой не пишется — правки перекрылись бы.
-            var elements = paths.Select(path => path.Resolve(editor.Document)).OfType<XamlElement>().ToList();
-
-            foreach (var element in elements.Where(element => !elements.Any(other => IsInside(element, other))))
-                editor.RemoveElement(element);
-        }, after);
+        _ = _edits.DeleteAsync(paths);
     }
 
     private void OnReorderRequested(object? sender, UiDesignerReorderRequestedEventArgs e)
@@ -198,82 +155,27 @@ internal sealed class FormGestures : IDisposable
         if (_view() is not { } view || view.PathOf(e.Target) is not { Steps.Length: > 0 } path)
             return;
 
-        var anchor = e.Anchor is { } before ? view.PathOf(before) : null;
-
         // Ядро не начнёт перестановку в потоке, если на неё никто не отвечает: ответ здесь и есть жест.
         e.Handled = true;
 
-        var label = string.Format(CultureInfo.CurrentCulture, _strings["form.edit.move"], NameOf(path));
-        var moved = new List<XamlElementPath>(1);
-
-        _ = EditAsync(label, editor =>
-        {
-            if (path.Resolve(editor.Document) is not { Parent: XamlElement parent } element)
-                return;
-
-            // Якорь, а не индекс ядра: ядро считает детей панели, документ — элементы содержимого, и у сетки
-            // с определениями строк они расходятся. Сосед, перед которым встаёт контрол, переживает разницу.
-            var siblings = parent.ContentElements.ToList();
-            var from = siblings.IndexOf(element);
-            var to = anchor?.Resolve(editor.Document) is { } at ? siblings.IndexOf(at) : siblings.Count;
-
-            if (from < 0 || to < 0 || to == from || to == from + 1)
-                return;
-
-            editor.MoveElement(element, parent, to);
-
-            // Перенос — удаление и вставка против прежнего текста: стоявший выше места встаёт на одну позицию
-            // раньше названной.
-            moved.Add(Moved(path, to > from ? to - 1 : to));
-        }, moved);
+        _ = _edits.MoveAsync(path, e.Anchor is { } before ? view.PathOf(before) : null);
     }
 
     private void OnUndoRequested(object? sender, SurfaceHistoryRequestedEventArgs e)
     {
         e.Handled = true;
-        _ = StepAsync(back: true);
+        _ = _edits.StepAsync(back: true);
     }
 
     private void OnRedoRequested(object? sender, SurfaceHistoryRequestedEventArgs e)
     {
         e.Handled = true;
-        _ = StepAsync(back: false);
+        _ = _edits.StepAsync(back: false);
     }
-
-    /// <summary>Правит документ; правка показана — выбирает, что сказано.</summary>
-    /// <param name="label">Имя шага истории.</param>
-    /// <param name="edit">Правка.</param>
-    /// <param name="select">Что выбрать после неё; null — выбор остаётся.</param>
-    private async Task EditAsync(string label, Action<XamlDocumentEditor> edit, IReadOnlyList<XamlElementPath>? select)
-    {
-        try
-        {
-            var outcome = await _document.EditAsync(label, edit);
-
-            if (outcome.TextChanged && select is { Count: > 0 })
-                _select(select);
-        }
-        catch (ObjectDisposedException)
-        {
-            // Документ закрыт, пока шёл жест: писать некуда.
-        }
-        catch (Exception e) when (e is InvalidOperationException or ArgumentException)
-        {
-            // Редактор отказал: правка, которой синтаксис не допускает, или перекрытые правки. В тексте не
-            // изменилось ничего, и человеку говорится, почему жест не записан.
-            _refused(e.Message);
-        }
-    }
-
-    /// <summary>Как назвать элемент в имени шага: тип, а с именем — тип и имя.</summary>
-    private string NameOf(XamlElementPath path) =>
-        path.Resolve(_document.Syntax) is { } element
-            ? element.Identity is { Length: > 0 } name ? $"{element.Name.LocalName} «{name}»" : element.Name.LocalName
-            : path.ToString();
 
     /// <summary>
-    /// Ширина и высота — той дорогой, какой размер читает дизайнер, и только сменившиеся: тянули правый
-    /// край — высота остаётся за раскладкой, а не застывает числом.
+    /// Ширина и высота — только сменившиеся: тянули правый край — высота остаётся за раскладкой, а не
+    /// застывает числом.
     /// </summary>
     private static void Size(List<Write> writes, XamlElementPath path, GeometryChange change)
     {
@@ -287,53 +189,8 @@ internal sealed class FormGestures : IDisposable
     /// <summary>Сдвинулось ли число так, что это видно в файле целыми.</summary>
     private static bool Changed(double before, double after) => Math.Abs(before - after) >= 0.5;
 
-    /// <summary>
-    /// Размер пишется туда, откуда его берёт дизайнер.
-    /// </summary>
-    /// <remarks>
-    /// Шаблоны пишут окна с <c>d:DesignWidth</c> и <c>d:DesignHeight</c> и без <c>Width</c>, а в режиме
-    /// дизайна побеждают именно они: размер, записанный в <c>Width</c>, лёг бы в файл, а живое окно
-    /// вернулось бы к размеру дизайна с первым же обновлением. Поэтому элемент, назвавший размер дизайна,
-    /// получает его; обычный атрибут — тоже, если он уже написан: двух разных чисел об одном в файле не
-    /// остаётся.
-    /// </remarks>
-    private static void WriteSize(XamlDocumentEditor editor, XamlElement element, string name, string value)
-    {
-        var design = element.DesignTimeAttributes.FirstOrDefault(attribute =>
-            string.Equals(attribute.Name.LocalName, "Design" + name, StringComparison.Ordinal));
-
-        if (design is not null)
-            editor.SetAttribute(element, design.Name, value);
-
-        if (design is null || element.GetAttribute(name) is not null)
-            editor.SetAttribute(element, XamlQualifiedName.Parse(name), value);
-    }
-
-    /// <summary>Путь соседа: тот же родитель, другое место среди его содержимого.</summary>
-    private static XamlElementPath Moved(XamlElementPath path, int index)
-    {
-        var last = path.Steps[^1];
-        var parent = path.Parent is { Steps.IsEmpty: false } above ? above.ToString() : string.Empty;
-
-        return XamlElementPath.Parse(last.MemberName is null
-            ? string.Create(CultureInfo.InvariantCulture, $"{parent}/{index}")
-            : string.Create(CultureInfo.InvariantCulture, $"{parent}/{last.MemberName}:{index}"));
-    }
-
     private static string Whole(double value) =>
         double.IsFinite(value) ? Math.Round(value).ToString(CultureInfo.InvariantCulture) : string.Empty;
-
-    /// <summary>Лежит ли элемент внутри другого.</summary>
-    private static bool IsInside(XamlElement element, XamlElement other)
-    {
-        for (var parent = element.Parent; parent is not null; parent = parent.Parent)
-        {
-            if (ReferenceEquals(parent, other))
-                return true;
-        }
-
-        return false;
-    }
 
     /// <summary>Запись одного атрибута: где, что и как — плоско или дорогой размера.</summary>
     private sealed record Write(XamlElementPath Path, string Name, string Value, bool Plain);

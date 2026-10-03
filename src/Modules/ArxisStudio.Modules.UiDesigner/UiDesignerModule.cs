@@ -17,6 +17,15 @@ public sealed class UiDesignerModule : StudioPlugin
     /// <summary>Идентификатор панели: он же объявлен в манифесте.</summary>
     public const string PanelId = "ui-designer.board";
 
+    /// <summary>Иерархия формы впереди.</summary>
+    public const string HierarchyId = "ui-designer.hierarchy";
+
+    /// <summary>Инспектор выбранного на форме.</summary>
+    public const string InspectorId = "ui-designer.inspector";
+
+    /// <summary>Палитра контролов.</summary>
+    public const string ToolboxId = "ui-designer.toolbox";
+
     /// <summary>Настройка: сетка на холсте доски и вкладок формы.</summary>
     public const string GridKey = "ui-designer.grid";
 

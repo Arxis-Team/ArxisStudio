@@ -1,6 +1,7 @@
 using System.Globalization;
 using ArxisStudio.Modules.UiDesigner.Board;
 using ArxisStudio.Modules.UiDesigner.Model;
+using ArxisStudio.Modules.UiDesigner.Workbench;
 using ArxisStudio.ProjectSystem;
 using ArxisStudio.Sdk;
 using ArxisStudio.Surface;
@@ -49,6 +50,7 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
     private readonly IStudioContext _context;
     private readonly IStudioXamlDocuments _documents;
     private readonly IStudioXamlDesign? _design;
+    private readonly DesignerWorkbench _bench;
     private readonly UiDesignerOptions _options;
     private readonly CanonicalPath _path;
     private readonly LiveFormView _view;
@@ -59,7 +61,9 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
 
     private IXamlDocumentHandle? _document;
     private IXamlDesignView? _shown;
+    private FormEdits? _edits;
     private FormGestures? _gestures;
+    private readonly FormDrops _drops;
     private IDisposable? _frozen;
     private IDisposable? _gesture;
     private ITimer? _autoSave;
@@ -92,6 +96,7 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
         _context = context;
         _documents = documents;
         _design = context.XamlDesign();
+        _bench = DesignerWorkbench.Of(context);
         _options = options;
         _path = path;
         _view = new LiveFormView();
@@ -148,6 +153,8 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
             _participation = _design.Register(this);
         }
 
+        _drops = new FormDrops(this, sheet, context.XamlTypes(), context.Strings, Say);
+
         ApplyMode(ModeOf(context.Settings.Get<string>(UiDesignerModule.ViewKey)));
         ShowState();
 
@@ -182,8 +189,17 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
     /// <summary>Документ, когда он открыт, — тестам.</summary>
     internal IXamlDocumentHandle? Document => _document;
 
-    /// <summary>Показ, когда он есть, — тестам.</summary>
+    /// <summary>Показ, когда он есть: панели спрашивают у него члены и значения.</summary>
     internal IXamlDesignView? Shown => _shown;
+
+    /// <summary>Правки формы по путям, когда документ открыт: ими правят и панели.</summary>
+    internal FormEdits? Edits => _edits;
+
+    /// <summary>Холст как цель перетаскивания — тестам.</summary>
+    internal FormDrops Drops => _drops;
+
+    /// <summary>Файл формы.</summary>
+    internal CanonicalPath Path => _path;
 
     /// <inheritdoc/>
     /// <remarks>
@@ -239,12 +255,20 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
     }
 
     /// <inheritdoc/>
+    /// <remarks>Панели модуля смотрят на форму впереди: показанная — эта.</remarks>
+    public override void OnActivated() => _bench.Activated(this);
+
+    /// <inheritdoc/>
+    public override void OnDeactivated() => _bench.Deactivated(this);
+
+    /// <inheritdoc/>
     public override async ValueTask DisposeAsync()
     {
         if (_disposed)
             return;
 
         _disposed = true;
+        _bench.Deactivated(this);
         await _lifetime.CancelAsync();
 
         _autoSave?.Dispose();
@@ -276,6 +300,7 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
         Watch(null);
 
         _gestures?.Dispose();
+        _drops.Dispose();
         _controls.Dispose();
 
         // Сперва то, что держит объекты поколения: выбор, корень, приложение, показ. Потом аренда — последняя
@@ -371,7 +396,8 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
             document.Changed += OnDocumentChanged;
             document.ExternalConflict += OnExternalConflict;
 
-            _gestures = new FormGestures(_view.Sheet, _form, document, () => _shown, _context.Strings, Select, Refused);
+            _edits = new FormEdits(document, _context.Strings, Select, Refused);
+            _gestures = new FormGestures(_view.Sheet, _form, _edits, () => _shown, _context.Strings);
 
             SetModified(document.IsModified);
             ShowConflict();
@@ -393,6 +419,7 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
             TakeRoot();
             TakeApplication();
             ShowState();
+            _ = _drops.ListAsync();
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
         {
@@ -429,6 +456,7 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
 
         Mark();
         Reselect();
+        _bench.Changed(this);
     }
 
     /// <summary>Ставит карточке приложение формы: его стили, ресурсы, шаблоны данных и тему.</summary>
@@ -539,6 +567,7 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
         {
             Mark();
             Reselect();
+            _bench.Changed(this);
         }
 
         if ((changes & XamlDocumentChanges.Conflict) != 0)
@@ -552,8 +581,14 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
 
     private void OnDesignStateChanged(object? sender, EventArgs e)
     {
-        if (!_disposed)
-            ShowState();
+        if (_disposed)
+            return;
+
+        ShowState();
+
+        // Сборка и замена меняют, что из контролов проекта собрано: несобранный стал собранным.
+        if (_design?.State == XamlDesignState.Live)
+            _ = _drops.ListAsync();
     }
 
     /// <summary>
@@ -603,18 +638,18 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
     /// </remarks>
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || _gestures is null || _view.GetPlatformSettings()?.HotkeyConfiguration is not { } keys)
+        if (e.Handled || _edits is null || _view.GetPlatformSettings()?.HotkeyConfiguration is not { } keys)
             return;
 
         if (keys.Undo.Any(gesture => gesture.Matches(e)))
         {
             e.Handled = true;
-            _ = _gestures.StepAsync(back: true);
+            _ = _edits.StepAsync(back: true);
         }
         else if (keys.Redo.Any(gesture => gesture.Matches(e)))
         {
             e.Handled = true;
-            _ = _gestures.StepAsync(back: false);
+            _ = _edits.StepAsync(back: false);
         }
     }
 

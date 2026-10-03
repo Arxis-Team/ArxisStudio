@@ -110,6 +110,9 @@ internal sealed class XamlStudio : IAsyncDisposable
 
         Design = Exports.Get(typeof(IStudioXamlDesign)) as IStudioXamlDesign
             ?? throw new InvalidOperationException("служба поколения XAML не опубликована");
+
+        Types = Exports.Get(typeof(IStudioXamlTypes)) as IStudioXamlTypes
+            ?? throw new InvalidOperationException("служба типов XAML не опубликована");
     }
 
     /// <summary>Папка теста.</summary>
@@ -171,6 +174,9 @@ internal sealed class XamlStudio : IAsyncDisposable
 
     /// <summary>Поколение — тем же путём.</summary>
     public IStudioXamlDesign Design { get; }
+
+    /// <summary>Типы, которые ставят в форму, — тем же путём.</summary>
+    public IStudioXamlTypes Types { get; }
 
     /// <summary>Сбои чужого кода, которые в студии ушли бы ей необработанными.</summary>
     public ConcurrentQueue<Exception> Failures { get; } = new();

@@ -1,0 +1,119 @@
+<!--
+    Инспектор выбранного на форме: шапка — тип и имя, поиск, под ним строки членов по разделам, как сетка
+    свойств Visual Studio и Rider. Строка — имя члена и редактор по типу его значения: флажок, сегменты или
+    список у перечисления, поле у числа и текста, поле с образцом у кисти; привязка и ресурс только
+    показаны. Пустое поле подсказывает, к чему пришёл объект и откуда: «14 · наследовано».
+
+    Enter и уход фокуса фиксируют набранное, Esc возвращает написанное, стрелки шагают число — с Shift на
+    десять. Кнопка справа снимает атрибут: член возвращается к стилю, наследованию и умолчанию.
+-->
+<AxUserControl xmlns="https://github.com/Arxis-Team/ArxisStudio"
+               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+               xmlns:a="https://github.com/avaloniaui"
+               xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
+               xmlns:w="using:ArxisStudio.Modules.UiDesigner.Workbench"
+               x:Class="ArxisStudio.Modules.UiDesigner.Panels.InspectorView"
+               x:DataType="w:InspectorModel">
+
+  <a:Grid RowDefinitions="Auto,Auto,*">
+
+    <a:StackPanel a:Grid.Row="0" Spacing="{a:DynamicResource AxSpaceHair}"
+                  Margin="{a:DynamicResource AxSpaceThickness}" IsVisible="{a:Binding HasSelection}">
+      <a:TextBlock x:Name="Kind" Text="{a:Binding Title}" AxText.Role="Title" TextTrimming="CharacterEllipsis"/>
+      <a:TextBlock Text="{a:Binding Detail}" AxText.Role="Small" AxText.Tone="Secondary" TextTrimming="CharacterEllipsis"/>
+      <a:Grid ColumnDefinitions="Auto,*" ColumnSpacing="{a:DynamicResource AxGapControls}" IsVisible="{a:Binding CanName}">
+        <a:TextBlock Text="{Text inspector.name}" VerticalAlignment="Center"/>
+        <AxTextBox x:Name="NameBox" a:Grid.Column="1" Size="Compact" Text="{a:Binding Name, Mode=OneWay}"
+                   PlaceholderText="{Text inspector.name.none}"
+                   a:AutomationProperties.Name="{Text inspector.name}"/>
+      </a:Grid>
+      <a:TextBlock x:Name="NameError" IsVisible="False" AxText.Tone="Error" TextWrapping="Wrap"/>
+    </a:StackPanel>
+
+    <AxSearchField x:Name="Search" a:Grid.Row="1" Margin="{a:DynamicResource AxSpaceSidesThickness}"
+                   PlaceholderText="{Text inspector.search}" IsVisible="{a:Binding HasSelection}"
+                   a:AutomationProperties.Name="{Text inspector.search}"/>
+
+    <a:Panel a:Grid.Row="2">
+
+      <AxListBox x:Name="Rows" ItemsSource="{a:Binding Items}" a:AutomationProperties.Name="{Text panel.inspector}">
+        <AxListBox.Styles>
+          <!--
+              Заголовок раздела — не строка: его не выбирают, и клавиатура его проходит. Диктор читает строку
+              по имени члена: без него он прочёл бы имя класса модели.
+          -->
+          <a:Style Selector="AxListBoxItem" x:DataType="w:InspectorItem">
+            <a:Setter Property="Focusable" Value="{a:Binding IsRow}"/>
+            <a:Setter Property="IsHitTestVisible" Value="{a:Binding IsRow}"/>
+            <a:Setter Property="a:AutomationProperties.Name" Value="{a:Binding Label}"/>
+          </a:Style>
+        </AxListBox.Styles>
+        <AxListBox.DataTemplates>
+
+          <a:DataTemplate x:DataType="w:InspectorGroup">
+            <AxGroupHeader Content="{a:Binding Title}"/>
+          </a:DataTemplate>
+
+          <a:DataTemplate x:DataType="w:InspectorRow">
+            <!--
+                Сегменты — своей строкой во всю ширину под именем: четыре значения выравнивания в поле рядом с
+                именем узкого инспектора не помещаются.
+            -->
+            <a:Grid ColumnDefinitions="2*,3*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="{a:DynamicResource AxGapControls}">
+
+              <a:TextBlock Text="{a:Binding Member}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                           a:ToolTip.Tip="{a:Binding Member}"/>
+
+              <a:Panel a:Grid.Column="1">
+
+                <a:DockPanel IsVisible="{a:Binding IsText}">
+                  <a:Border a:DockPanel.Dock="Left" IsVisible="{a:Binding IsBrush}"
+                            Width="{a:DynamicResource AxIconSize}" Height="{a:DynamicResource AxIconSize}"
+                            CornerRadius="{a:DynamicResource AxCornerRadiusSmall}" Background="{a:Binding Swatch}"
+                            Margin="{a:DynamicResource AxGapIconTextThickness}" VerticalAlignment="Center"/>
+                  <AxTextBox Classes="value" Size="Compact" Text="{a:Binding Draft, Mode=TwoWay}"
+                             PlaceholderText="{a:Binding Hint}"
+                             a:AutomationProperties.Name="{a:Binding Member}"/>
+                </a:DockPanel>
+
+                <AxCheckBox IsVisible="{a:Binding IsFlag}" IsChecked="{a:Binding Flag, Mode=TwoWay}"
+                            a:AutomationProperties.Name="{a:Binding Member}"/>
+
+                <AxComboBox IsVisible="{a:Binding IsChoice}" Size="Compact" HorizontalAlignment="Stretch"
+                            ItemsSource="{a:Binding Choices}" SelectedItem="{a:Binding Choice, Mode=TwoWay}"
+                            PlaceholderText="{a:Binding Hint}"
+                            a:AutomationProperties.Name="{a:Binding Member}"/>
+
+                <a:TextBlock IsVisible="{a:Binding IsReadOnly}" Text="{a:Binding Written}" AxText.Tone="Secondary"
+                             VerticalAlignment="Center" TextTrimming="CharacterEllipsis" a:ToolTip.Tip="{a:Binding Written}"/>
+
+              </a:Panel>
+
+              <AxButton a:Grid.Column="2" Classes="reset" Appearance="Toolbar" IsVisible="{a:Binding IsWritten}"
+                        a:ToolTip.Tip="{Text inspector.reset}" a:AutomationProperties.Name="{Text inspector.reset}">
+                <AxIcon Data="{x:Static ax:AxIcons.Undo}"/>
+              </AxButton>
+
+              <AxSegmentedControl a:Grid.Row="1" a:Grid.ColumnSpan="3" IsVisible="{a:Binding IsSegmented}"
+                                  ItemsSource="{a:Binding Choices}" SelectedIndex="{a:Binding ChoiceIndex, Mode=TwoWay}"
+                                  Margin="{a:DynamicResource AxSpaceHairAboveThickness}"
+                                  a:AutomationProperties.Name="{a:Binding Member}"/>
+
+              <a:TextBlock a:Grid.Row="2" a:Grid.Column="1" a:Grid.ColumnSpan="2" Text="{a:Binding Error}"
+                           IsVisible="{a:Binding HasError}" AxText.Tone="Error" TextWrapping="Wrap"/>
+
+            </a:Grid>
+          </a:DataTemplate>
+
+        </AxListBox.DataTemplates>
+      </AxListBox>
+
+      <a:TextBlock x:Name="Empty" Text="{Text inspector.empty}" AxText.Tone="Secondary" TextWrapping="Wrap"
+                   TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center"
+                   Margin="{a:DynamicResource AxSpaceWideThickness}" IsVisible="{a:Binding !HasSelection}"/>
+
+    </a:Panel>
+
+  </a:Grid>
+
+</AxUserControl>

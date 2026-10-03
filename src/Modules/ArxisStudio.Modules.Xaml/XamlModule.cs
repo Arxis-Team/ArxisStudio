@@ -11,8 +11,8 @@ namespace ArxisStudio.Modules.Xaml;
 /// открытым документом решения — оценка и загрузка стоят секунд, а модули поднимаются задолго до того,
 /// как человек что-то открыл, и многие так и не откроют ни одной формы.
 /// <para>
-/// Служб две, и публикуются они экспортом, как у плагина: документы и поколение. Другой дороги к ним
-/// у соседей нет — дизайнер форм берёт их тем путём, каким их получит чужой плагин.
+/// Служб три, и публикуются они экспортом, как у плагина: документы, поколение и типы для формы. Другой
+/// дороги к ним у соседей нет — дизайнер форм берёт их тем путём, каким их получит чужой плагин.
 /// </para>
 /// </remarks>
 public sealed class XamlModule : StudioPlugin
@@ -69,5 +69,8 @@ public sealed class XamlModule : StudioPlugin
 
         if (!exports.Publish<IStudioXamlDesign>(service))
             context.Log.Write(StudioLogLevel.Error, LogSource, "Служба поколения XAML не опубликована: её тип уже занят");
+
+        if (!exports.Publish<IStudioXamlTypes>(service))
+            context.Log.Write(StudioLogLevel.Error, LogSource, "Служба типов XAML не опубликована: её тип уже занят");
     }
 }

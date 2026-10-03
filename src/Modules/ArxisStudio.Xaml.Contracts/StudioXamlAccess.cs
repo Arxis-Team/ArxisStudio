@@ -4,10 +4,11 @@ namespace ArxisStudio.Xaml;
 
 /// <summary>Дорога к службам XAML из контекста плагина.</summary>
 /// <remarks>
-/// Служб две, и разведены они по тому, чем занят берущий, как у службы проектов: документы — тому,
+/// Служб три, и разведены они по тому, чем занят берущий, как у службы проектов: документы — тому,
 /// кто открывает, правит и показывает разметку; поколение типов проекта — тому, кто держит построенное
-/// из него и должен отпускать это на замену. Обе публикует модуль <c>arxis.xaml</c>; плагину, который
-/// их берёт, стоит объявить модулю нижнюю границу <c>1.0</c>.
+/// из него и должен отпускать это на замену; типы для формы — палитре, которой нужны имена. Все три
+/// публикует модуль <c>arxis.xaml</c>; плагину, который их берёт, стоит объявить модулю нижнюю границу —
+/// <c>1.0</c> для первых двух, <c>1.1</c> для типов, членов и тяги разметки.
 /// </remarks>
 public static class StudioXamlAccess
 {
@@ -45,5 +46,18 @@ public static class StudioXamlAccess
         ArgumentNullException.ThrowIfNull(context);
 
         return context.GetService<IStudioExports>()?.Get<IStudioXamlDesign>();
+    }
+
+    /// <summary>
+    /// Типы, которые можно поставить в форму: контролы проекта и вопрос, разрешится ли имя.
+    /// </summary>
+    /// <param name="context">Контекст плагина.</param>
+    /// <returns>Служба или null — по тем же причинам, что и у <see cref="XamlDocuments"/>.</returns>
+    /// <remarks>Появилось в контракте 1.1: плагину, который её берёт, стоит объявить модулю границу <c>1.1</c>.</remarks>
+    public static IStudioXamlTypes? XamlTypes(this IStudioContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        return context.GetService<IStudioExports>()?.Get<IStudioXamlTypes>();
     }
 }

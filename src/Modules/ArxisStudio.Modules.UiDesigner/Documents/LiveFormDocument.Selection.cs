@@ -26,13 +26,29 @@ internal sealed partial class LiveFormDocument
     /// <summary>Текст, который показывает просмотр XAML; тестам.</summary>
     internal XamlDocument? Code => _code;
 
-    /// <summary>Выбирает элементы: правка, сдвинувшая пути, показана, и выбрать надо то, что она оставила.</summary>
-    /// <param name="paths">Пути в нынешнем тексте.</param>
-    private void Select(IReadOnlyList<XamlElementPath> paths)
+    /// <summary>
+    /// Выбирает элементы — по просьбе панели или после правки, сдвинувшей пути: выбрать надо то, что она
+    /// оставила.
+    /// </summary>
+    /// <param name="paths">Пути в нынешнем тексте, первый главный.</param>
+    internal void Select(IReadOnlyList<XamlElementPath> paths)
     {
-        _selection = [.. paths.Distinct()];
+        ArgumentNullException.ThrowIfNull(paths);
+
+        SetSelection([.. paths.Distinct()]);
         ShowSelectionInCode(reveal: true);
         Reselect();
+    }
+
+    /// <summary>Ставит выбор; сменился — говорит верстаку, и панели показывают его.</summary>
+    private void SetSelection(List<XamlElementPath> paths)
+    {
+        var same = paths.SequenceEqual(_selection);
+
+        _selection = paths;
+
+        if (!same)
+            _bench.Selected(this);
     }
 
     /// <summary>
@@ -68,7 +84,7 @@ internal sealed partial class LiveFormDocument
         var paths = Resolved(document.Syntax);
         var targets = paths.Select(path => TargetOf(shown, path)).OfType<Control>().Distinct().ToList();
 
-        _selection = paths;
+        SetSelection(paths);
 
         if (!SameAsSheet(targets))
         {
@@ -151,7 +167,7 @@ internal sealed partial class LiveFormDocument
 
         if (primary.Equals(XamlElementPath.Root))
         {
-            _selection = [];
+            SetSelection([]);
 
             using (Syncing())
                 _view.Sheet.SelectedItems?.Clear();
@@ -161,7 +177,7 @@ internal sealed partial class LiveFormDocument
             return true;
         }
 
-        _selection = [primary.Parent ?? XamlElementPath.Root];
+        SetSelection([primary.Parent ?? XamlElementPath.Root]);
         SelectOnSheet();
         ShowSelectionInCode(reveal: true);
 
@@ -174,7 +190,7 @@ internal sealed partial class LiveFormDocument
         if (_syncing > 0 || _reselecting || _frozen is not null)
             return;
 
-        _selection = [.. e.NewTargets.Select(target => PathOfTarget(target.Target)).OfType<XamlElementPath>().Distinct()];
+        SetSelection([.. e.NewTargets.Select(target => PathOfTarget(target.Target)).OfType<XamlElementPath>().Distinct()]);
         ShowSelectionInCode(reveal: true);
     }
 
@@ -184,7 +200,7 @@ internal sealed partial class LiveFormDocument
         if (_code is not { } syntax || XamlHighlighter.ElementAt(syntax, e.Offset) is not { } element)
             return;
 
-        _selection = [XamlElementPath.Of(element)];
+        SetSelection([XamlElementPath.Of(element)]);
         _view.Code.Highlight = new AxCodeRange(element.Span.Start, element.Span.Length);
         SelectOnSheet();
     }

@@ -1,0 +1,59 @@
+<!--
+    Палитра контролов: поиск и список по разделам — контролы проекта первыми, потом Avalonia, как Toolbox у
+    Visual Studio. Несобранный контрол проекта помечен: бросок сначала соберёт проект.
+
+    Контрол несут на форму мышью — ядро дизайнера показывает, куда он встанет, — или ставят без мыши: Enter
+    и двойной щелчок вставляют его в выбранную панель, а рядом с выбранным контролом — после него.
+-->
+<AxUserControl xmlns="https://github.com/Arxis-Team/ArxisStudio"
+               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+               xmlns:a="https://github.com/avaloniaui"
+               xmlns:w="using:ArxisStudio.Modules.UiDesigner.Workbench"
+               x:Class="ArxisStudio.Modules.UiDesigner.Panels.ToolboxView"
+               x:DataType="w:ToolboxModel">
+
+  <a:Grid RowDefinitions="Auto,*">
+
+    <AxSearchField x:Name="Search" Margin="{a:DynamicResource AxSpaceThickness}"
+                   PlaceholderText="{Text toolbox.search}" a:AutomationProperties.Name="{Text toolbox.search}"/>
+
+    <a:Panel a:Grid.Row="1">
+
+      <AxListBox x:Name="Entries" ItemsSource="{a:Binding Items}" a:AutomationProperties.Name="{Text panel.toolbox}">
+        <AxListBox.Styles>
+          <!--
+              Заголовок раздела — не строка: его не выбирают, не несут, и клавиатура его проходит. Диктор читает
+              строку по имени контрола: без него он прочёл бы имя класса модели.
+          -->
+          <a:Style Selector="AxListBoxItem" x:DataType="w:ToolboxItem">
+            <a:Setter Property="Focusable" Value="{a:Binding IsEntry}"/>
+            <a:Setter Property="IsHitTestVisible" Value="{a:Binding IsEntry}"/>
+            <a:Setter Property="a:AutomationProperties.Name" Value="{a:Binding Label}"/>
+          </a:Style>
+        </AxListBox.Styles>
+        <AxListBox.DataTemplates>
+
+          <a:DataTemplate x:DataType="w:ToolboxGroup">
+            <AxGroupHeader Content="{a:Binding Title}"/>
+          </a:DataTemplate>
+
+          <a:DataTemplate x:DataType="w:ToolboxEntry">
+            <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxGapIconText}" Background="Transparent"
+                          a:ToolTip.Tip="{a:Binding Tip}">
+              <a:TextBlock Text="{a:Binding Name}"/>
+              <a:TextBlock Text="{Text toolbox.unbuilt.mark}" IsVisible="{a:Binding IsUnbuilt}" AxText.Tone="Tertiary"/>
+            </a:StackPanel>
+          </a:DataTemplate>
+
+        </AxListBox.DataTemplates>
+      </AxListBox>
+
+      <a:TextBlock Text="{Text toolbox.empty}" IsVisible="{a:Binding IsEmpty}" AxText.Tone="Secondary" TextWrapping="Wrap"
+                   TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center"
+                   Margin="{a:DynamicResource AxSpaceWideThickness}"/>
+
+    </a:Panel>
+
+  </a:Grid>
+
+</AxUserControl>
