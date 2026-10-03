@@ -348,6 +348,7 @@ public class DockGroupView : TemplatedControl
                 }
 
                 _bound.Add(tab.Bind(ContentControl.ContentProperty, item.GetObservable(DockItem.TitleProperty)));
+                _bound.Add(tab.Bind(AxTabItem.IsModifiedProperty, item.GetObservable(DockItem.IsModifiedProperty)));
                 _tabs.Items.Add(tab);
                 _shown.Add(id);
             }

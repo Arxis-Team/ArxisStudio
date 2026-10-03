@@ -46,6 +46,10 @@ internal sealed class StudioRestarter(
         var pid = Environment.ProcessId;
         var file = StudioSession.FileFor(StudioPaths.UserData, pid);
 
+        // Документы — раньше сессии: новая копия откроет их с тем, что в них сохранено.
+        if (desktop.Windows.Contains(studio) && !await studio.ConfirmRestartAsync())
+            return Refuse("документы не сохранились или отказались закрыться");
+
         // Шире, чем бросает запись: перезапуск зовут из обработчиков щелчка, и сбой снимка, дошедший
         // до них, унёс бы студию вместе со всем, что перезапуск обещал вернуть.
         try

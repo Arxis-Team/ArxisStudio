@@ -9,6 +9,19 @@ using Avalonia.Media;
 
 namespace ArxisStudio.Shell;
 
+/// <summary>Ответ на вопрос о несохранённом.</summary>
+public enum StudioSaveChoice
+{
+    /// <summary>Сохранить и закрыть.</summary>
+    Save,
+
+    /// <summary>Закрыть, не сохраняя.</summary>
+    Discard,
+
+    /// <summary>Не закрывать.</summary>
+    Cancel,
+}
+
 /// <summary>
 /// Вопрос, на который студия не вправе ответить за человека.
 /// </summary>
@@ -95,6 +108,62 @@ public static class StudioAsk
         dialog.Opened += (_, _) => (danger ? cancel : agree).Focus(NavigationMethod.Tab);
 
         return await dialog.ShowDialog<bool?>(owner) == true;
+    }
+
+    /// <summary>
+    /// Спрашивает, что делать с несохранённым: сохранить, не сохранять или не закрывать.
+    /// </summary>
+    /// <param name="owner">Окно, которому принадлежит вопрос.</param>
+    /// <param name="names">Что не сохранено — имена документов.</param>
+    /// <returns>Ответ; Esc и крестик — «Отмена»: закрытие останавливается.</returns>
+    /// <remarks>
+    /// Один вопрос на все документы, как «Save changes to the following items?» у Visual Studio и
+    /// Rider: закрывая окно с пятью вкладками, отвечают один раз, а не пять. Клавиатура — на
+    /// «Сохранить»: Enter ничего не теряет. «Не сохранять» стоит отдельно слева: это ответ, который
+    /// отнимает сделанное, и рядом с согласием ему не место.
+    /// </remarks>
+    public static async Task<StudioSaveChoice> SaveChangesAsync(Window owner, IReadOnlyList<string> names)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        ArgumentNullException.ThrowIfNull(names);
+
+        var discard = new AxButton { Content = Localizer.Instance["documents.save.discard"] };
+        var cancel = new AxButton { Content = Localizer.Instance["common.cancel"] };
+        var save = new AxButton { Content = Localizer.Instance["documents.save.save"], Appearance = AxButtonAppearance.Primary };
+        var alert = new AxIcon { Data = AxIcons.Question };
+
+        alert.Bind(TemplatedControl.ForegroundProperty, alert.GetResourceObservable("AxAccentBrush"));
+
+        var text = new TextBlock
+        {
+            Text = Localizer.Instance["documents.save.message"] + Environment.NewLine + string.Join(Environment.NewLine, names),
+            TextWrapping = TextWrapping.Wrap,
+        };
+
+        text.Bind(Layoutable.MaxWidthProperty, text.GetResourceObservable("AxDialogMessageMaxWidth"));
+
+        var answers = Footer(cancel, save);
+        var footer = new DockPanel { Children = { discard, answers } };
+
+        DockPanel.SetDock(discard, Dock.Left);
+        answers.HorizontalAlignment = HorizontalAlignment.Right;
+        discard.Bind(Layoutable.MinWidthProperty, discard.GetResourceObservable("AxDialogButtonMinWidth"));
+        discard.Bind(Layoutable.MarginProperty, discard.GetResourceObservable("AxSpaceWideTrailingThickness"));
+
+        var dialog = new AxDialog
+        {
+            Title = Localizer.Instance["documents.save.title"],
+            Content = text,
+            AlertIcon = alert,
+            Buttons = footer,
+        };
+
+        discard.Click += (_, _) => dialog.Close(StudioSaveChoice.Discard);
+        cancel.Click += (_, _) => dialog.Close(StudioSaveChoice.Cancel);
+        save.Click += (_, _) => dialog.Close(StudioSaveChoice.Save);
+        dialog.Opened += (_, _) => save.Focus(NavigationMethod.Tab);
+
+        return await dialog.ShowDialog<StudioSaveChoice?>(owner) ?? StudioSaveChoice.Cancel;
     }
 
     /// <summary>

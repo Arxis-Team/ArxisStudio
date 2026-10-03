@@ -610,6 +610,15 @@ public sealed class StudioDock
         Edit(root => Place(root, id, where));
     }
 
+    /// <summary>Отмечает документ несохранённым или снимает отметку — точкой на его вкладке.</summary>
+    /// <param name="id">Имя документа.</param>
+    /// <param name="modified">Есть ли несохранённое.</param>
+    public void Modified(string id, bool modified)
+    {
+        if (Items.Find(id) is { } item)
+            item.IsModified = modified;
+    }
+
     /// <summary>Открывает документ вкладкой в области документов.</summary>
     /// <param name="owner">Чей редактор его построил.</param>
     /// <param name="id">Имя документа.</param>

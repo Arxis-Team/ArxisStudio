@@ -63,6 +63,20 @@ public sealed class StudioContext(
         services is not null && services.TryGetValue(typeof(T), out var service) ? service as T : null;
 }
 
+/// <summary>Просьба плагина о перезапуске — с его именем, которое знает только выдавший контекст.</summary>
+/// <param name="pluginId">Чья служба.</param>
+/// <param name="require">Куда отдать просьбу: идентификатор и причина.</param>
+internal sealed class PluginRestart(string pluginId, Action<string, string> require) : IStudioRestart
+{
+    /// <inheritdoc/>
+    public void Require(string reason)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+
+        require(pluginId, reason);
+    }
+}
+
 /// <summary>Выдаёт контекст каждому поднимаемому плагину.</summary>
 /// <param name="log">Журнал студии.</param>
 /// <param name="commands">Команды студии.</param>
@@ -77,6 +91,7 @@ public sealed class StudioContext(
 /// <param name="exports">Реестр экспортов; null — обмена реализациями нет.</param>
 /// <param name="toolbar">Полоса студии; null — состояние элементов менять негде.</param>
 /// <param name="dock">Док студии; null — панели на экран доставать нечем.</param>
+/// <param name="restart">Куда отдать просьбу плагина о перезапуске; null — просить некого.</param>
 public sealed class StudioContextFactory(
     IStudioLog log,
     IStudioCommands commands,
@@ -88,7 +103,8 @@ public sealed class StudioContextFactory(
     StudioPluginRoster? plugins = null,
     StudioExportRegistry? exports = null,
     StudioToolBar? toolbar = null,
-    StudioDock? dock = null)
+    StudioDock? dock = null,
+    Action<string, string>? restart = null)
     : IStudioContextFactory
 {
     private readonly StudioTaskRegistry _tasks = tasks ?? new StudioTaskRegistry();
@@ -156,7 +172,7 @@ public sealed class StudioContextFactory(
         // знать хозяина.
         var granted = services;
 
-        if (plugins is not null || exports is not null || toolbar is not null || dock is not null)
+        if (plugins is not null || exports is not null || toolbar is not null || dock is not null || restart is not null)
         {
             var extended = services is null
                 ? new Dictionary<Type, object>()
@@ -190,6 +206,10 @@ public sealed class StudioContextFactory(
                 // интерфейсах, иначе первое незаметно получает силу второго.
                 extended[typeof(IStudioFocus)] = new PluginFocus(dock, plugin.Id);
             }
+
+            // Просьба о перезапуске — именная: студия пишет её на того, кто попросил.
+            if (restart is not null)
+                extended[typeof(IStudioRestart)] = new PluginRestart(plugin.Id, restart);
 
             granted = extended;
         }

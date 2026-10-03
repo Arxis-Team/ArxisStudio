@@ -39,6 +39,26 @@ public abstract class DocumentEditor
 /// Открытый документ: то, что стоит в центральной области, пока выбрана его
 /// вкладка.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>Несохранённое.</b> Документ, которого правят, говорит об этом сам —
+/// <see cref="SetModified"/>, — и вкладка носит точку на месте крестика. Сохраняет его
+/// <see cref="SaveAsync"/>: зовёт студия по Ctrl+S, перед закрытием и перед перезапуском.
+/// </para>
+/// <para>
+/// <b>Закрытие.</b> Прежде чем закрыть — крестиком, Ctrl+W, вместе с окном или ради
+/// перезапуска, — студия спрашивает документ (<see cref="CanCloseAsync"/>): здесь редактор с
+/// автосохранением сохраняет сам, а занятый — отказывает. Документы, оставшиеся несохранёнными,
+/// студия перечисляет человеку одним вопросом на все, как Visual Studio и Rider: «Сохранить»,
+/// «Не сохранять» или «Отмена». Перед перезапуском она не спрашивает, а сохраняет: перезапуск
+/// вернёт вкладки, и вернуть их надо с тем, что в них было.
+/// </para>
+/// <para>
+/// Все эти вызовы — код плагина, и студия зовёт их через шов: упавший отвечает за себя, а не
+/// роняет студию. Отказ закрыться у упавшего не в счёт — иначе сломанный документ держал бы
+/// открытым окно, которое человек закрывает.
+/// </para>
+/// </remarks>
 public abstract class DocumentView : IAsyncDisposable
 {
     /// <summary>Содержимое вкладки.</summary>
@@ -46,6 +66,53 @@ public abstract class DocumentView : IAsyncDisposable
 
     /// <summary>Что написано на вкладке.</summary>
     public abstract string Title { get; }
+
+    /// <summary>В документе есть несохранённое: вкладка носит точку, закрытие спросит.</summary>
+    /// <remarks>Появилось в SDK 7.14.</remarks>
+    public bool IsModified { get; private set; }
+
+    /// <summary>
+    /// Куда отдать каретку, когда документ показывают; null — первому внутри, кто может её взять.
+    /// </summary>
+    /// <remarks>
+    /// Как у <see cref="ToolWindow.FocusTarget"/>: место, с которого в документе работают, — холст,
+    /// поле редактора. Спрашивается один раз, когда документ открыт; названный контрол должен лежать
+    /// внутри <see cref="Content"/>. Появилось в SDK 7.14.
+    /// </remarks>
+    public virtual Control? FocusTarget => null;
+
+    /// <summary><see cref="IsModified"/> сменилось.</summary>
+    /// <remarks>Поднимает его <see cref="SetModified"/> — в потоке, где его позвали, то есть в потоке интерфейса.</remarks>
+    public event EventHandler? ModifiedChanged;
+
+    /// <summary>Сохраняет документ.</summary>
+    /// <returns><c>true</c> — сохранено или сохранять нечего; <c>false</c> — не вышло, и закрытие останавливается.</returns>
+    /// <remarks>
+    /// Удачное сохранение снимает отметку само: зовите <see cref="SetModified"/> с <c>false</c>. По
+    /// умолчанию сохранять нечего. Появилось в SDK 7.14.
+    /// </remarks>
+    public virtual Task<bool> SaveAsync() => Task.FromResult(true);
+
+    /// <summary>Можно ли закрыть документ сейчас.</summary>
+    /// <param name="reason">Почему закрывают.</param>
+    /// <returns><c>false</c> — нельзя: вкладка остаётся, а с ней и окно.</returns>
+    /// <remarks>
+    /// Зовётся раньше вопроса о несохранённом: редактор с автосохранением сохраняет здесь и снимает
+    /// отметку — тогда о нём человека не спросят. По умолчанию можно. Появилось в SDK 7.14.
+    /// </remarks>
+    public virtual ValueTask<bool> CanCloseAsync(DocumentCloseReason reason) => ValueTask.FromResult(true);
+
+    /// <summary>Ставит или снимает отметку несохранённого.</summary>
+    /// <param name="value">Есть ли несохранённое.</param>
+    /// <remarks>Звать из потока интерфейса: вкладка перерисовывает точку тут же.</remarks>
+    protected void SetModified(bool value)
+    {
+        if (IsModified == value)
+            return;
+
+        IsModified = value;
+        ModifiedChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     /// <summary>Вкладка документа стала активной.</summary>
     public virtual void OnActivated()
@@ -59,4 +126,18 @@ public abstract class DocumentView : IAsyncDisposable
 
     /// <inheritdoc/>
     public virtual ValueTask DisposeAsync() => ValueTask.CompletedTask;
+}
+
+/// <summary>Почему документ закрывают.</summary>
+/// <remarks>Появилось в SDK 7.14.</remarks>
+public enum DocumentCloseReason
+{
+    /// <summary>Закрывают вкладку: крестиком или Ctrl+W.</summary>
+    Tab,
+
+    /// <summary>Закрывают окно студии.</summary>
+    Window,
+
+    /// <summary>Студия перезапускается и вернёт вкладку в новой копии.</summary>
+    Restart,
 }

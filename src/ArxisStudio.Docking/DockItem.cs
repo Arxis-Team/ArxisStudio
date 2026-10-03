@@ -23,6 +23,14 @@ public sealed class DockItem : AvaloniaObject
     public static readonly StyledProperty<string?> TitleProperty =
         AvaloniaProperty.Register<DockItem, string?>(nameof(Title));
 
+    /// <summary>В документе есть несохранённое: вкладка носит точку на месте крестика.</summary>
+    /// <remarks>
+    /// Свойство, а не событие владельцу: вкладку строит вид, и привязка к нему переживает
+    /// перестройку полосы — переезд группы, отрыв в окно, — а событие пришлось бы переподписывать.
+    /// </remarks>
+    public static readonly StyledProperty<bool> IsModifiedProperty =
+        AvaloniaProperty.Register<DockItem, bool>(nameof(IsModified));
+
     /// <summary>Заводит панель.</summary>
     /// <param name="id">Имя панели — по нему на неё ссылается дерево.</param>
     /// <param name="content">Что показывать.</param>
@@ -68,5 +76,12 @@ public sealed class DockItem : AvaloniaObject
     {
         get => GetValue(TitleProperty);
         set => SetValue(TitleProperty, value);
+    }
+
+    /// <inheritdoc cref="IsModifiedProperty"/>
+    public bool IsModified
+    {
+        get => GetValue(IsModifiedProperty);
+        set => SetValue(IsModifiedProperty, value);
     }
 }

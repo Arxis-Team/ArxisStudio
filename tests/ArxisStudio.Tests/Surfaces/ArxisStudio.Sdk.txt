@@ -1,7 +1,11 @@
-# StudioSdk 7.11
+# StudioSdk 7.14
 ArxisStudio.Sdk.CommandAttribute : sealed class : System.Attribute
 ArxisStudio.Sdk.CommandAttribute :: .ctor(System.String id)
 ArxisStudio.Sdk.CommandAttribute :: System.String Id { get; }
+ArxisStudio.Sdk.DocumentCloseReason : enum
+ArxisStudio.Sdk.DocumentCloseReason :: Restart = 2
+ArxisStudio.Sdk.DocumentCloseReason :: Tab = 0
+ArxisStudio.Sdk.DocumentCloseReason :: Window = 1
 ArxisStudio.Sdk.DocumentEditor : abstract class
 ArxisStudio.Sdk.DocumentEditor :: .ctor()
 ArxisStudio.Sdk.DocumentEditor :: ArxisStudio.Sdk.IStudioContext Context { get; }
@@ -11,8 +15,14 @@ ArxisStudio.Sdk.DocumentEditor :: abstract System.Threading.Tasks.Task<System.Va
 ArxisStudio.Sdk.DocumentView : abstract class : System.IAsyncDisposable
 ArxisStudio.Sdk.DocumentView :: .ctor()
 ArxisStudio.Sdk.DocumentView :: Avalonia.Controls.Control Content { get; }
+ArxisStudio.Sdk.DocumentView :: Avalonia.Controls.Control? FocusTarget { get; }
+ArxisStudio.Sdk.DocumentView :: System.Boolean IsModified { get; }
 ArxisStudio.Sdk.DocumentView :: System.String Title { get; }
+ArxisStudio.Sdk.DocumentView :: System.Void SetModified(System.Boolean value)
+ArxisStudio.Sdk.DocumentView :: event System.EventHandler ModifiedChanged
+ArxisStudio.Sdk.DocumentView :: virtual System.Threading.Tasks.Task<System.Boolean> SaveAsync()
 ArxisStudio.Sdk.DocumentView :: virtual System.Threading.Tasks.ValueTask DisposeAsync()
+ArxisStudio.Sdk.DocumentView :: virtual System.Threading.Tasks.ValueTask<System.Boolean> CanCloseAsync(ArxisStudio.Sdk.DocumentCloseReason reason)
 ArxisStudio.Sdk.DocumentView :: virtual System.Void OnActivated()
 ArxisStudio.Sdk.DocumentView :: virtual System.Void OnDeactivated()
 ArxisStudio.Sdk.IStudioCommands : interface
@@ -66,6 +76,8 @@ ArxisStudio.Sdk.IStudioPlugins :: event System.EventHandler Changed
 ArxisStudio.Sdk.IStudioProgress : interface
 ArxisStudio.Sdk.IStudioProgress :: System.Void Report(System.Double fraction, System.String? message = null)
 ArxisStudio.Sdk.IStudioProgress :: System.Void Report(System.String message)
+ArxisStudio.Sdk.IStudioRestart : interface
+ArxisStudio.Sdk.IStudioRestart :: System.Void Require(System.String reason)
 ArxisStudio.Sdk.IStudioSettings : interface
 ArxisStudio.Sdk.IStudioSettings :: System.Void Set(System.String key, System.Object? value)
 ArxisStudio.Sdk.IStudioSettings :: T? Get<T>(System.String key)

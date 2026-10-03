@@ -337,7 +337,8 @@ public sealed class StudioPlugins
             plugins: roster,
             exports: _exports,
             toolbar: ToolBar,
-            dock: Dock);
+            dock: Dock,
+            restart: Require);
 
         var host = new PluginHost(_contexts);
 
@@ -831,6 +832,27 @@ public sealed class StudioPlugins
         _awaiting[pluginId] = reason;
 
         RestartRequired?.Invoke(this, pluginId);
+    }
+
+    /// <summary>
+    /// Плагин просит перезапуск (<see cref="IStudioRestart"/>): его изменения применит только новый процесс.
+    /// </summary>
+    /// <param name="pluginId">Кто просит.</param>
+    /// <param name="reason">Почему — для автора, в журнал.</param>
+    /// <remarks>
+    /// Просят из любого потока — служба дизайна узнаёт о новой версии пакета посреди своей работы, —
+    /// а запись и вопрос живут в потоке интерфейса.
+    /// </remarks>
+    private void Require(string pluginId, string reason)
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => Require(pluginId, reason));
+            return;
+        }
+
+        _log.Write(StudioLogLevel.Info, "Restart", $"{Named(pluginId)} просит перезапуск: {reason}");
+        Await(pluginId, reason);
     }
 
     /// <summary>Построенные панели и элементы полосы — заводятся, когда полоса и раскладка уже названы.</summary>

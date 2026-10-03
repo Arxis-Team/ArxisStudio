@@ -1,5 +1,8 @@
-﻿using ArxisStudio.Extensibility;
+﻿using System.Globalization;
+using ArxisStudio.Docking;
+using ArxisStudio.Extensibility;
 using ArxisStudio.Sdk;
+using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
 
 namespace ArxisStudio.Services;
@@ -23,6 +26,13 @@ namespace ArxisStudio.Services;
 /// и содержимое, показ и скрытие — рабочей дорогой, закрытие — прощальной, которая доходит и до
 /// отключённого за сбои. Иначе бросающий <c>DisposeAsync</c> обрывал перезагрузку плагина на
 /// середине: задачи уже остановлены, остальные документы открыты, хост никого не поднял.
+/// </para>
+/// <para>
+/// <b>Несохранённое и закрытие</b> (SDK 7.14). Отметку несохранённого документ ставит сам, а вкладка
+/// носит её точкой. Закрыть документ — крестиком, Ctrl+W, вместе с окном или ради перезапуска — можно,
+/// только если он согласен (<see cref="DocumentView.CanCloseAsync"/>), а оставшееся несохранённым
+/// человек решает одним вопросом на все (<see cref="Ask"/>). Перед перезапуском вопроса нет:
+/// несохранённое сохраняется, потому что новая копия вернёт вкладки.
 /// </para>
 /// </remarks>
 public sealed class StudioDocuments
@@ -83,6 +93,15 @@ public sealed class StudioDocuments
     public DocumentView? Shown => _shown?.View;
 
     /// <summary>
+    /// Вопрос человеку о несохранённых документах — по их именам.
+    /// </summary>
+    /// <remarks>
+    /// Шов ради тестов и ради хозяина вопроса: модальный диалог нужен окну-владельцу, и ставит его
+    /// главное окно. Не поставлен — студия сохраняет: молча потерять правку хуже, чем молча её записать.
+    /// </remarks>
+    public Func<IReadOnlyList<string>, Task<StudioSaveChoice>>? Ask { get; set; }
+
+    /// <summary>
     /// Имя документа в раскладке.
     /// </summary>
     /// <param name="filePath">Путь к файлу.</param>
@@ -124,6 +143,7 @@ public sealed class StudioDocuments
         string? error = null;
         string? title = null;
         Avalonia.Controls.Control? content = null;
+        Avalonia.Controls.Control? focus = null;
 
         var opened = await _guard.RunAsync(match.PluginId, $"открытие {Path.GetFileName(filePath)}", async () =>
         {
@@ -134,6 +154,10 @@ public sealed class StudioDocuments
 
             title = view.Title;
             content = view.Content;
+
+            // Цель каретки спрашивается здесь же и один раз — как у панели: документ, отвечающий
+            // разное в разное время, получил бы разное поведение на ровном месте.
+            focus = view.FocusTarget;
         });
 
         if (!opened || view is null || title is null || content is null)
@@ -153,8 +177,18 @@ public sealed class StudioDocuments
         // Показывать отдельно нечего: раскладка кончает открытие показом, а
         // показ приходит сюда же выбором вкладки. Свой вызов рядом был бы
         // вторым источником того же правила — и разошёлся бы с первым.
-        _open.Add(new OpenDocument(id, filePath, view, match.PluginId));
+        var document = new OpenDocument(id, filePath, view, match.PluginId);
+
+        _open.Add(document);
         _dock.Open(match.PluginId, id, title, content);
+
+        if (focus is not null)
+            DockFocus.SetTarget(content, focus);
+
+        // Отметку документ ставит сам и сам о ней говорит; читается она свойством SDK, а не кодом
+        // плагина, и шов ей не нужен.
+        view.ModifiedChanged += (_, _) => _dock.Modified(id, document.View.IsModified);
+        _dock.Modified(id, view.IsModified);
     }
 
     /// <summary>
@@ -193,8 +227,9 @@ public sealed class StudioDocuments
         _guard.Run(shown.PluginId, "скрытие документа", shown.View.OnDeactivated);
     }
 
-    /// <summary>Закрывает документ по просьбе человека — крестиком на вкладке.</summary>
+    /// <summary>Закрывает документ по просьбе человека — крестиком на вкладке или Ctrl+W.</summary>
     /// <param name="id">Имя документа в раскладке.</param>
+    /// <remarks>Документ, не согласившийся закрыться, и несохранённое, которое человек не отпустил, оставляют вкладку.</remarks>
     public async Task CloseAsync(string id)
     {
         if (_open.FirstOrDefault(open => string.Equals(open.Id, id, StringComparison.Ordinal))
@@ -203,11 +238,122 @@ public sealed class StudioDocuments
             return;
         }
 
+        if (!await ConfirmAsync([document], DocumentCloseReason.Tab))
+            return;
+
+        // Пока спрашивали, документ могли закрыть другой дорогой — выгрузкой его плагина.
+        if (!_open.Contains(document))
+            return;
+
         await ReleaseAsync(document);
 
         // Место закрытого документа занял сосед — его и показываем.
         Show(_dock.Showing);
     }
+
+    /// <summary>
+    /// Можно ли закрыть эти документы: каждый согласен, а несохранённое сохранено или отпущено.
+    /// </summary>
+    /// <param name="documents">Что закрывают.</param>
+    /// <param name="reason">Почему.</param>
+    /// <returns><c>false</c> — закрытие останавливается: документ отказал, человек нажал «Отмена» или не сохранилось.</returns>
+    /// <remarks>
+    /// <para>
+    /// Сначала спрашивается каждый документ — здесь редактор с автосохранением сохраняет сам, — и
+    /// только оставшееся несохранённым идёт человеку одним вопросом. Перед перезапуском вопроса нет:
+    /// несохранённое сохраняется, потому что новая копия вернёт вкладки.
+    /// </para>
+    /// <para>
+    /// Упавший вопрос — не отказ: шов называет виновника в журнале, а сломанный документ не держит
+    /// открытым окно, которое человек закрывает. Упавшее сохранение — отказ: сохранить просили, и
+    /// закрыть, не сохранив, значит потерять правку.
+    /// </para>
+    /// </remarks>
+    public async Task<bool> ConfirmAsync(IReadOnlyList<OpenDocument> documents, DocumentCloseReason reason)
+    {
+        ArgumentNullException.ThrowIfNull(documents);
+
+        foreach (var document in documents)
+        {
+            var agreed = true;
+
+            await _guard.RunAsync(
+                document.PluginId,
+                $"вопрос о закрытии {Path.GetFileName(document.Path)}",
+                async () => agreed = await document.View.CanCloseAsync(reason));
+
+            if (!agreed)
+                return false;
+        }
+
+        var modified = documents.Where(document => document.View.IsModified).ToList();
+
+        if (modified.Count == 0)
+            return true;
+
+        var choice = reason == DocumentCloseReason.Restart || Ask is not { } ask
+            ? StudioSaveChoice.Save
+            : await ask([.. modified.Select(document => Path.GetFileName(document.Path))]);
+
+        return choice switch
+        {
+            StudioSaveChoice.Save => await SaveEachAsync(modified),
+            StudioSaveChoice.Discard => true,
+            _ => false,
+        };
+    }
+
+    /// <summary>
+    /// Нужен ли вопрос перед закрытием: есть несохранённое или документ, решающий о закрытии сам.
+    /// </summary>
+    /// <remarks>
+    /// Окно закрывается синхронно, а вопрос асинхронный: ради него первое закрытие отменяется и
+    /// повторяется после ответа. Без нужды отменять его незачем, и документ, оставивший
+    /// <see cref="DocumentView.CanCloseAsync"/> как есть, согласен всегда — об этом говорят
+    /// метаданные его типа, а не вызов его кода.
+    /// </remarks>
+    public bool NeedsConfirmation => _open.Any(document => document.View.IsModified || Decides(document.View));
+
+    /// <summary>Сохраняет показанный документ — по Ctrl+S.</summary>
+    /// <returns><c>false</c> — показанного нет или сохранить не вышло.</returns>
+    public Task<bool> SaveShownAsync() =>
+        _shown is { } shown ? SaveAsync(shown) : Task.FromResult(false);
+
+    /// <summary>Сохраняет все несохранённые документы — по Ctrl+Shift+S.</summary>
+    /// <returns><c>false</c> — хоть один не сохранился.</returns>
+    public Task<bool> SaveAllAsync() => SaveEachAsync([.. _open.Where(document => document.View.IsModified)]);
+
+    private async Task<bool> SaveEachAsync(List<OpenDocument> documents)
+    {
+        var all = true;
+
+        // Каждый, а не до первого отказа: отказ одного — не повод не сохранить соседей.
+        foreach (var document in documents)
+            all &= await SaveAsync(document);
+
+        return all;
+    }
+
+    /// <summary>Сохраняет документ через шов; не вышло — строка состояния называет его.</summary>
+    private async Task<bool> SaveAsync(OpenDocument document)
+    {
+        var saved = false;
+        var name = Path.GetFileName(document.Path);
+
+        var ran = await _guard.RunAsync(document.PluginId, $"сохранение {name}", async () => saved = await document.View.SaveAsync());
+
+        if (ran && saved)
+            return true;
+
+        _status.Show(string.Format(CultureInfo.CurrentCulture, Localizer.Instance["documents.save.failed"], name));
+
+        return false;
+    }
+
+    /// <summary>Документ решает о закрытии сам: его тип переопределил <see cref="DocumentView.CanCloseAsync"/>.</summary>
+    private static bool Decides(DocumentView view) =>
+        view.GetType().GetMethod(nameof(DocumentView.CanCloseAsync), [typeof(DocumentCloseReason)])?.DeclaringType
+            != typeof(DocumentView);
 
     /// <summary>
     /// Закрывает документы, открытые редактором этого плагина.

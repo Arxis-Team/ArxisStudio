@@ -145,7 +145,10 @@ public partial class MainWindow : AxWindow
         // Реестр вкладов и документы получают тот же шов, что и остальная студия: сбой редактора
         // считается тому же плагину и тем же счётом, что сбой его панели или команды.
         _contributions = new PluginContributionRegistry(_guard);
-        _documents = new StudioDocuments(_dock, _contributions.EditorFor, _status, _guard);
+        _documents = new StudioDocuments(_dock, _contributions.EditorFor, _status, _guard)
+        {
+            Ask = names => StudioAsk.SaveChangesAsync(this, names),
+        };
 
         // Раскладка поднимается до панелей: иначе они успели бы разойтись по
         // стандартным местам, а прочитанное дерево тут же смело бы их оттуда.
@@ -279,7 +282,14 @@ public partial class MainWindow : AxWindow
 
         _normalBounds = new NormalBounds(this);
 
-        Closing += (_, _) => _dock.Farewell();
+        // Документы решают о закрытии раньше, чем окно закроется (StudioClosing): порядок в Closed
+        // прежний — к нему документы уже согласны, и спрашивать там было бы поздно, хост к тому мигу
+        // остановлен.
+        StudioClosing.Attach(
+            this,
+            () => _documents.NeedsConfirmation,
+            () => _documents.ConfirmAsync([.. _documents.Opened], DocumentCloseReason.Window),
+            _dock.Farewell);
 
         Closed += async (_, _) =>
         {
@@ -463,10 +473,17 @@ public partial class MainWindow : AxWindow
         // или хочет чистый процесс. Сочетания у него нет: случайно перезапускать незачем.
         _commands.Register("studio.restart", () => _ = _restart.RestartAsync());
 
+        // Сохраняют показанный документ, а не тот, где каретка: каретка бывает и в панели, а
+        // сохранять в панели нечего — так делают Visual Studio и Rider.
+        _commands.Register("studio.save", () => _ = _documents.SaveShownAsync());
+        _commands.Register("studio.saveAll", () => _ = _documents.SaveAllAsync());
+
         Bind("Ctrl+W", "studio.close");
         Bind("F6", "studio.panel.next");
         Bind("Shift+F6", "studio.panel.previous");
         Bind("Ctrl+Shift+P", "studio.palette");
+        Bind("Ctrl+S", "studio.save");
+        Bind("Ctrl+Shift+S", "studio.saveAll");
 
         // Переход между панелями и палитра слышны и там, где клавиатуру держит терминал: без этого
         // из него уходили только мышью или Shift+Esc. Ctrl+W сюда не входит: в оболочке он стирает
@@ -474,6 +491,11 @@ public partial class MainWindow : AxWindow
         _shortcuts.Pass("studio.panel.next");
         _shortcuts.Pass("studio.panel.previous");
         _shortcuts.Pass("studio.palette");
+
+        // Сохранение — тоже: из поля ввода панели и из терминала Ctrl+S сохраняет документ, как в
+        // Rider, а не уходит в контрол, которому сохранять нечего.
+        _shortcuts.Pass("studio.save");
+        _shortcuts.Pass("studio.saveAll");
 
         _shortcuts.Attach(this);
         _shortcuts.Follow(_dock);
@@ -564,6 +586,8 @@ public partial class MainWindow : AxWindow
     private static PaletteEntry[] Own() =>
     [
         new(Localizer.Instance["command.close"], "studio.close"),
+        new(Localizer.Instance["command.save"], "studio.save"),
+        new(Localizer.Instance["command.saveAll"], "studio.saveAll"),
         new(Localizer.Instance["command.panel.next"], "studio.panel.next"),
         new(Localizer.Instance["command.panel.previous"], "studio.panel.previous"),
         new(Localizer.Instance["command.restart"], "studio.restart"),
@@ -627,6 +651,17 @@ public partial class MainWindow : AxWindow
     /// откроет те же.
     /// </remarks>
     internal Task PrepareForRestartAsync() => _documents.CloseAllAsync();
+
+    /// <summary>
+    /// Спрашивает документы перед перезапуском и сохраняет несохранённое — до того, как снимут сессию.
+    /// </summary>
+    /// <returns><c>false</c> — документ отказал или не сохранился: перезапуск не начинается.</returns>
+    /// <remarks>
+    /// Новая копия откроет те же файлы, и открыть их надо с тем, что в них было: сохранение после
+    /// снятия сессии уже не дошло бы до неё вовремя.
+    /// </remarks>
+    internal Task<bool> ConfirmRestartAsync() =>
+        _documents.ConfirmAsync([.. _documents.Opened], DocumentCloseReason.Restart);
 
     /// <summary>Строка состояния как служба для модулей и плагинов.</summary>
     /// <param name="model">Модель окна, которая её показывает.</param>
