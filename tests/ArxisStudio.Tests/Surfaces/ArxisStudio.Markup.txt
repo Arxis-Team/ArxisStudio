@@ -1,0 +1,276 @@
+# StudioSdk 7.15
+ArxisStudio.Markup.CompositeMarkupSourceProvider : sealed class : ArxisStudio.Markup.IMarkupSourceProvider
+ArxisStudio.Markup.CompositeMarkupSourceProvider :: .ctor(ArxisStudio.Markup.IMarkupSourceProvider[] providers)
+ArxisStudio.Markup.CompositeMarkupSourceProvider :: .ctor(System.Collections.Generic.IEnumerable<ArxisStudio.Markup.IMarkupSourceProvider> providers)
+ArxisStudio.Markup.CompositeMarkupSourceProvider :: System.Collections.Generic.IReadOnlyList<ArxisStudio.Markup.IMarkupSourceProvider> Providers { get; }
+ArxisStudio.Markup.CompositeMarkupSourceProvider :: System.Threading.Tasks.ValueTask<ArxisStudio.Markup.MarkupSource> TryGetSourceAsync(System.Uri uri, System.Threading.CancellationToken cancellationToken)
+ArxisStudio.Markup.DocumentChangeKind : enum
+ArxisStudio.Markup.DocumentChangeKind :: Changed = 1
+ArxisStudio.Markup.DocumentChangeKind :: Closed = 2
+ArxisStudio.Markup.DocumentChangeKind :: Opened = 0
+ArxisStudio.Markup.DocumentChangedEventArgs : sealed class : System.EventArgs
+ArxisStudio.Markup.DocumentChangedEventArgs :: .ctor(ArxisStudio.Markup.DocumentChangeKind kind, ArxisStudio.Markup.MarkupDocument? oldDocument, ArxisStudio.Markup.MarkupDocument? newDocument)
+ArxisStudio.Markup.DocumentChangedEventArgs :: ArxisStudio.Markup.DocumentChangeKind Kind { get; }
+ArxisStudio.Markup.DocumentChangedEventArgs :: ArxisStudio.Markup.MarkupDocument? NewDocument { get; }
+ArxisStudio.Markup.DocumentChangedEventArgs :: ArxisStudio.Markup.MarkupDocument? OldDocument { get; }
+ArxisStudio.Markup.DocumentChangedEventArgs :: ArxisStudio.Markup.MarkupDocumentId DocumentId { get; }
+ArxisStudio.Markup.DocumentVersion : readonly record struct : System.IComparable<ArxisStudio.Markup.DocumentVersion>, System.IEquatable<ArxisStudio.Markup.DocumentVersion>
+ArxisStudio.Markup.DocumentVersion :: .ctor(System.Int64 Value)
+ArxisStudio.Markup.DocumentVersion :: ArxisStudio.Markup.DocumentVersion Next()
+ArxisStudio.Markup.DocumentVersion :: System.Boolean Equals(ArxisStudio.Markup.DocumentVersion other)
+ArxisStudio.Markup.DocumentVersion :: System.Int32 CompareTo(ArxisStudio.Markup.DocumentVersion other)
+ArxisStudio.Markup.DocumentVersion :: System.Int64 Value { get; init; }
+ArxisStudio.Markup.DocumentVersion :: System.Void Deconstruct(out System.Int64 Value)
+ArxisStudio.Markup.DocumentVersion :: static ArxisStudio.Markup.DocumentVersion Initial { get; }
+ArxisStudio.Markup.DocumentVersion :: static System.Boolean op_Equality(ArxisStudio.Markup.DocumentVersion left, ArxisStudio.Markup.DocumentVersion right)
+ArxisStudio.Markup.DocumentVersion :: static System.Boolean op_GreaterThan(ArxisStudio.Markup.DocumentVersion left, ArxisStudio.Markup.DocumentVersion right)
+ArxisStudio.Markup.DocumentVersion :: static System.Boolean op_GreaterThanOrEqual(ArxisStudio.Markup.DocumentVersion left, ArxisStudio.Markup.DocumentVersion right)
+ArxisStudio.Markup.DocumentVersion :: static System.Boolean op_Inequality(ArxisStudio.Markup.DocumentVersion left, ArxisStudio.Markup.DocumentVersion right)
+ArxisStudio.Markup.DocumentVersion :: static System.Boolean op_LessThan(ArxisStudio.Markup.DocumentVersion left, ArxisStudio.Markup.DocumentVersion right)
+ArxisStudio.Markup.DocumentVersion :: static System.Boolean op_LessThanOrEqual(ArxisStudio.Markup.DocumentVersion left, ArxisStudio.Markup.DocumentVersion right)
+ArxisStudio.Markup.FileMarkupSource : sealed class : ArxisStudio.Markup.MarkupSource
+ArxisStudio.Markup.FileMarkupSource :: .ctor(System.Uri uri, System.Text.Encoding? defaultEncoding = null)
+ArxisStudio.Markup.FileMarkupSource :: System.String Path { get; }
+ArxisStudio.Markup.FileMarkupSourceProvider : sealed class : ArxisStudio.Markup.IMarkupSourceProvider
+ArxisStudio.Markup.FileMarkupSourceProvider :: .ctor(System.Text.Encoding? defaultEncoding = null)
+ArxisStudio.Markup.FileMarkupSourceProvider :: System.Threading.Tasks.ValueTask<ArxisStudio.Markup.MarkupSource> TryGetSourceAsync(System.Uri uri, System.Threading.CancellationToken cancellationToken)
+ArxisStudio.Markup.IMarkupDependencyGraph : interface
+ArxisStudio.Markup.IMarkupDependencyGraph :: System.Collections.Generic.IReadOnlySet<ArxisStudio.Markup.MarkupDocumentId> GetDependencies(ArxisStudio.Markup.MarkupDocumentId document)
+ArxisStudio.Markup.IMarkupDependencyGraph :: System.Collections.Generic.IReadOnlySet<ArxisStudio.Markup.MarkupDocumentId> GetDependents(ArxisStudio.Markup.MarkupDocumentId document)
+ArxisStudio.Markup.IMarkupDependencyGraph :: System.Void SetDependencies(ArxisStudio.Markup.MarkupDocumentId document, System.Collections.Generic.IReadOnlyCollection<ArxisStudio.Markup.MarkupDocumentId> dependencies)
+ArxisStudio.Markup.IMarkupSourceProvider : interface
+ArxisStudio.Markup.IMarkupSourceProvider :: System.Threading.Tasks.ValueTask<ArxisStudio.Markup.MarkupSource> TryGetSourceAsync(System.Uri uri, System.Threading.CancellationToken cancellationToken)
+ArxisStudio.Markup.InMemoryMarkupSourceProvider : sealed class : ArxisStudio.Markup.IMarkupSourceProvider
+ArxisStudio.Markup.InMemoryMarkupSourceProvider :: .ctor()
+ArxisStudio.Markup.InMemoryMarkupSourceProvider :: System.Boolean Contains(System.Uri uri)
+ArxisStudio.Markup.InMemoryMarkupSourceProvider :: System.Boolean Remove(System.Uri uri)
+ArxisStudio.Markup.InMemoryMarkupSourceProvider :: System.Collections.Generic.IReadOnlyCollection<System.Uri> Uris { get; }
+ArxisStudio.Markup.InMemoryMarkupSourceProvider :: System.Threading.Tasks.ValueTask<ArxisStudio.Markup.MarkupSource> TryGetSourceAsync(System.Uri uri, System.Threading.CancellationToken cancellationToken)
+ArxisStudio.Markup.InMemoryMarkupSourceProvider :: System.Void Clear()
+ArxisStudio.Markup.InMemoryMarkupSourceProvider :: System.Void Update(System.Uri uri, ArxisStudio.Markup.SourceText text)
+ArxisStudio.Markup.InMemoryMarkupSourceProvider :: System.Void Update(System.Uri uri, System.String text)
+ArxisStudio.Markup.MarkupDependencyGraph : sealed class : ArxisStudio.Markup.IMarkupDependencyGraph
+ArxisStudio.Markup.MarkupDependencyGraph :: .ctor()
+ArxisStudio.Markup.MarkupDependencyGraph :: System.Boolean IsInCycle(ArxisStudio.Markup.MarkupDocumentId document)
+ArxisStudio.Markup.MarkupDependencyGraph :: System.Boolean Remove(ArxisStudio.Markup.MarkupDocumentId document)
+ArxisStudio.Markup.MarkupDependencyGraph :: System.Boolean TryFindCycle(ArxisStudio.Markup.MarkupDocumentId document, out System.Collections.Generic.IReadOnlyList<ArxisStudio.Markup.MarkupDocumentId> cycle)
+ArxisStudio.Markup.MarkupDependencyGraph :: System.Collections.Generic.IReadOnlyCollection<ArxisStudio.Markup.MarkupDocumentId> Documents { get; }
+ArxisStudio.Markup.MarkupDependencyGraph :: System.Collections.Generic.IReadOnlySet<ArxisStudio.Markup.MarkupDocumentId> GetDependencies(ArxisStudio.Markup.MarkupDocumentId document)
+ArxisStudio.Markup.MarkupDependencyGraph :: System.Collections.Generic.IReadOnlySet<ArxisStudio.Markup.MarkupDocumentId> GetDependents(ArxisStudio.Markup.MarkupDocumentId document)
+ArxisStudio.Markup.MarkupDependencyGraph :: System.Collections.Generic.IReadOnlySet<ArxisStudio.Markup.MarkupDocumentId> GetTransitiveDependencies(ArxisStudio.Markup.MarkupDocumentId document)
+ArxisStudio.Markup.MarkupDependencyGraph :: System.Collections.Generic.IReadOnlySet<ArxisStudio.Markup.MarkupDocumentId> GetTransitiveDependents(ArxisStudio.Markup.MarkupDocumentId document)
+ArxisStudio.Markup.MarkupDependencyGraph :: System.Void Clear()
+ArxisStudio.Markup.MarkupDependencyGraph :: System.Void SetDependencies(ArxisStudio.Markup.MarkupDocumentId document, System.Collections.Generic.IReadOnlyCollection<ArxisStudio.Markup.MarkupDocumentId> dependencies)
+ArxisStudio.Markup.MarkupDiagnostic : sealed record : System.IEquatable<ArxisStudio.Markup.MarkupDiagnostic>
+ArxisStudio.Markup.MarkupDiagnostic :: .ctor(System.String Code, System.String Message, ArxisStudio.Markup.MarkupDiagnosticSeverity Severity, System.Uri? DocumentUri = null, ArxisStudio.Markup.TextSpan? Span = null)
+ArxisStudio.Markup.MarkupDiagnostic :: ArxisStudio.Markup.MarkupDiagnostic WithRelatedLocations(ArxisStudio.Markup.MarkupLocation[] locations)
+ArxisStudio.Markup.MarkupDiagnostic :: ArxisStudio.Markup.MarkupDiagnosticCategory Category { get; init; }
+ArxisStudio.Markup.MarkupDiagnostic :: ArxisStudio.Markup.MarkupDiagnosticSeverity Severity { get; init; }
+ArxisStudio.Markup.MarkupDiagnostic :: ArxisStudio.Markup.MarkupLocation? Location { get; }
+ArxisStudio.Markup.MarkupDiagnostic :: ArxisStudio.Markup.TextSpan? Span { get; init; }
+ArxisStudio.Markup.MarkupDiagnostic :: System.Boolean Equals(ArxisStudio.Markup.MarkupDiagnostic? other)
+ArxisStudio.Markup.MarkupDiagnostic :: System.Boolean IsError { get; }
+ArxisStudio.Markup.MarkupDiagnostic :: System.Collections.Immutable.ImmutableArray<ArxisStudio.Markup.MarkupLocation> RelatedLocations { get; init; }
+ArxisStudio.Markup.MarkupDiagnostic :: System.String Code { get; init; }
+ArxisStudio.Markup.MarkupDiagnostic :: System.String Message { get; init; }
+ArxisStudio.Markup.MarkupDiagnostic :: System.Uri? DocumentUri { get; init; }
+ArxisStudio.Markup.MarkupDiagnostic :: System.Void Deconstruct(out System.String Code, out System.String Message, out ArxisStudio.Markup.MarkupDiagnosticSeverity Severity, out System.Uri? DocumentUri, out ArxisStudio.Markup.TextSpan? Span)
+ArxisStudio.Markup.MarkupDiagnostic :: static ArxisStudio.Markup.MarkupDiagnostic Load(System.String code, System.String message, ArxisStudio.Markup.MarkupDiagnosticSeverity severity = Error, System.Uri? documentUri = null, ArxisStudio.Markup.TextSpan? span = null)
+ArxisStudio.Markup.MarkupDiagnostic :: static ArxisStudio.Markup.MarkupDiagnostic Parse(System.String code, System.String message, ArxisStudio.Markup.MarkupDiagnosticSeverity severity = Error, System.Uri? documentUri = null, ArxisStudio.Markup.TextSpan? span = null)
+ArxisStudio.Markup.MarkupDiagnostic :: static ArxisStudio.Markup.MarkupDiagnostic Resolution(System.String code, System.String message, ArxisStudio.Markup.MarkupDiagnosticSeverity severity = Error, System.Uri? documentUri = null, ArxisStudio.Markup.TextSpan? span = null)
+ArxisStudio.Markup.MarkupDiagnostic :: static ArxisStudio.Markup.MarkupDiagnostic Synchronization(System.String code, System.String message, ArxisStudio.Markup.MarkupDiagnosticSeverity severity = Error, System.Uri? documentUri = null, ArxisStudio.Markup.TextSpan? span = null)
+ArxisStudio.Markup.MarkupDiagnostic :: static System.Boolean op_Equality(ArxisStudio.Markup.MarkupDiagnostic? left, ArxisStudio.Markup.MarkupDiagnostic? right)
+ArxisStudio.Markup.MarkupDiagnostic :: static System.Boolean op_Inequality(ArxisStudio.Markup.MarkupDiagnostic? left, ArxisStudio.Markup.MarkupDiagnostic? right)
+ArxisStudio.Markup.MarkupDiagnosticCategory : enum
+ArxisStudio.Markup.MarkupDiagnosticCategory :: Load = 2
+ArxisStudio.Markup.MarkupDiagnosticCategory :: Parse = 0
+ArxisStudio.Markup.MarkupDiagnosticCategory :: Resolution = 1
+ArxisStudio.Markup.MarkupDiagnosticCategory :: Synchronization = 3
+ArxisStudio.Markup.MarkupDiagnosticSeverity : enum
+ArxisStudio.Markup.MarkupDiagnosticSeverity :: Error = 2
+ArxisStudio.Markup.MarkupDiagnosticSeverity :: Info = 0
+ArxisStudio.Markup.MarkupDiagnosticSeverity :: Warning = 1
+ArxisStudio.Markup.MarkupDocument : sealed class
+ArxisStudio.Markup.MarkupDocument :: .ctor(ArxisStudio.Markup.MarkupDocumentId id, System.Uri uri, ArxisStudio.Markup.SourceText text)
+ArxisStudio.Markup.MarkupDocument :: ArxisStudio.Markup.DocumentVersion Version { get; }
+ArxisStudio.Markup.MarkupDocument :: ArxisStudio.Markup.MarkupDocument WithChanges(System.Collections.Generic.IReadOnlyList<ArxisStudio.Markup.TextChange> changes)
+ArxisStudio.Markup.MarkupDocument :: ArxisStudio.Markup.MarkupDocument WithText(ArxisStudio.Markup.SourceText text)
+ArxisStudio.Markup.MarkupDocument :: ArxisStudio.Markup.MarkupDocument WithUri(System.Uri uri)
+ArxisStudio.Markup.MarkupDocument :: ArxisStudio.Markup.MarkupDocumentId Id { get; }
+ArxisStudio.Markup.MarkupDocument :: ArxisStudio.Markup.SourceText Text { get; }
+ArxisStudio.Markup.MarkupDocument :: System.Uri Uri { get; }
+ArxisStudio.Markup.MarkupDocumentId : readonly record struct : System.IEquatable<ArxisStudio.Markup.MarkupDocumentId>
+ArxisStudio.Markup.MarkupDocumentId :: .ctor(System.Guid Value)
+ArxisStudio.Markup.MarkupDocumentId :: System.Boolean Equals(ArxisStudio.Markup.MarkupDocumentId other)
+ArxisStudio.Markup.MarkupDocumentId :: System.Guid Value { get; init; }
+ArxisStudio.Markup.MarkupDocumentId :: System.Void Deconstruct(out System.Guid Value)
+ArxisStudio.Markup.MarkupDocumentId :: static ArxisStudio.Markup.MarkupDocumentId New()
+ArxisStudio.Markup.MarkupDocumentId :: static System.Boolean op_Equality(ArxisStudio.Markup.MarkupDocumentId left, ArxisStudio.Markup.MarkupDocumentId right)
+ArxisStudio.Markup.MarkupDocumentId :: static System.Boolean op_Inequality(ArxisStudio.Markup.MarkupDocumentId left, ArxisStudio.Markup.MarkupDocumentId right)
+ArxisStudio.Markup.MarkupLocation : readonly record struct : System.IEquatable<ArxisStudio.Markup.MarkupLocation>
+ArxisStudio.Markup.MarkupLocation :: .ctor(System.Uri DocumentUri, ArxisStudio.Markup.TextSpan? Span = null, System.String? Message = null)
+ArxisStudio.Markup.MarkupLocation :: ArxisStudio.Markup.TextSpan? Span { get; init; }
+ArxisStudio.Markup.MarkupLocation :: System.Boolean Equals(ArxisStudio.Markup.MarkupLocation other)
+ArxisStudio.Markup.MarkupLocation :: System.String? Message { get; init; }
+ArxisStudio.Markup.MarkupLocation :: System.Uri DocumentUri { get; }
+ArxisStudio.Markup.MarkupLocation :: System.Void Deconstruct(out System.Uri DocumentUri, out ArxisStudio.Markup.TextSpan? Span, out System.String? Message)
+ArxisStudio.Markup.MarkupLocation :: static System.Boolean op_Equality(ArxisStudio.Markup.MarkupLocation left, ArxisStudio.Markup.MarkupLocation right)
+ArxisStudio.Markup.MarkupLocation :: static System.Boolean op_Inequality(ArxisStudio.Markup.MarkupLocation left, ArxisStudio.Markup.MarkupLocation right)
+ArxisStudio.Markup.MarkupSource : abstract class
+ArxisStudio.Markup.MarkupSource :: .ctor(System.Uri uri)
+ArxisStudio.Markup.MarkupSource :: System.Uri Uri { get; }
+ArxisStudio.Markup.MarkupSource :: abstract System.Threading.Tasks.ValueTask<ArxisStudio.Markup.SourceText> GetTextAsync(System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Markup.MarkupTransaction : sealed class : System.IDisposable
+ArxisStudio.Markup.MarkupTransaction :: ArxisStudio.Markup.MarkupDocument AddDocument(System.Uri uri, ArxisStudio.Markup.SourceText text)
+ArxisStudio.Markup.MarkupTransaction :: ArxisStudio.Markup.MarkupDocument ApplyChanges(ArxisStudio.Markup.MarkupDocumentId id, System.Collections.Generic.IReadOnlyList<ArxisStudio.Markup.TextChange> changes)
+ArxisStudio.Markup.MarkupTransaction :: ArxisStudio.Markup.MarkupDocument GetDocument(ArxisStudio.Markup.MarkupDocumentId id)
+ArxisStudio.Markup.MarkupTransaction :: ArxisStudio.Markup.MarkupDocument UpdateDocument(ArxisStudio.Markup.MarkupDocumentId id, ArxisStudio.Markup.SourceText text)
+ArxisStudio.Markup.MarkupTransaction :: ArxisStudio.Markup.MarkupTransactionState State { get; }
+ArxisStudio.Markup.MarkupTransaction :: System.Boolean HasChanges { get; }
+ArxisStudio.Markup.MarkupTransaction :: System.Boolean RemoveDocument(ArxisStudio.Markup.MarkupDocumentId id)
+ArxisStudio.Markup.MarkupTransaction :: System.Boolean TryGetDocument(ArxisStudio.Markup.MarkupDocumentId id, out ArxisStudio.Markup.MarkupDocument? document)
+ArxisStudio.Markup.MarkupTransaction :: System.Int32 ChangedDocumentCount { get; }
+ArxisStudio.Markup.MarkupTransaction :: System.String Description { get; }
+ArxisStudio.Markup.MarkupTransaction :: System.Void Commit()
+ArxisStudio.Markup.MarkupTransaction :: System.Void Dispose()
+ArxisStudio.Markup.MarkupTransaction :: System.Void Rollback()
+ArxisStudio.Markup.MarkupTransactionState : enum
+ArxisStudio.Markup.MarkupTransactionState :: Active = 0
+ArxisStudio.Markup.MarkupTransactionState :: Committed = 1
+ArxisStudio.Markup.MarkupTransactionState :: RolledBack = 2
+ArxisStudio.Markup.MarkupWorkspace : sealed class
+ArxisStudio.Markup.MarkupWorkspace :: .ctor(ArxisStudio.Markup.IMarkupSourceProvider sourceProvider)
+ArxisStudio.Markup.MarkupWorkspace :: ArxisStudio.Markup.IMarkupSourceProvider SourceProvider { get; }
+ArxisStudio.Markup.MarkupWorkspace :: ArxisStudio.Markup.MarkupDocument AddDocument(System.Uri uri, ArxisStudio.Markup.SourceText text)
+ArxisStudio.Markup.MarkupWorkspace :: ArxisStudio.Markup.MarkupDocument ApplyChanges(ArxisStudio.Markup.MarkupDocumentId id, System.Collections.Generic.IReadOnlyList<ArxisStudio.Markup.TextChange> changes)
+ArxisStudio.Markup.MarkupWorkspace :: ArxisStudio.Markup.MarkupDocument ChangeUri(ArxisStudio.Markup.MarkupDocumentId id, System.Uri uri)
+ArxisStudio.Markup.MarkupWorkspace :: ArxisStudio.Markup.MarkupDocument GetDocument(ArxisStudio.Markup.MarkupDocumentId id)
+ArxisStudio.Markup.MarkupWorkspace :: ArxisStudio.Markup.MarkupDocument UpdateDocument(ArxisStudio.Markup.MarkupDocumentId id, ArxisStudio.Markup.SourceText text)
+ArxisStudio.Markup.MarkupWorkspace :: ArxisStudio.Markup.MarkupTransaction BeginTransaction(System.String description)
+ArxisStudio.Markup.MarkupWorkspace :: System.Boolean CanRedo { get; }
+ArxisStudio.Markup.MarkupWorkspace :: System.Boolean CanUndo { get; }
+ArxisStudio.Markup.MarkupWorkspace :: System.Boolean CloseDocument(ArxisStudio.Markup.MarkupDocumentId id)
+ArxisStudio.Markup.MarkupWorkspace :: System.Boolean Redo()
+ArxisStudio.Markup.MarkupWorkspace :: System.Boolean TryGetDocument(ArxisStudio.Markup.MarkupDocumentId id, out ArxisStudio.Markup.MarkupDocument? document)
+ArxisStudio.Markup.MarkupWorkspace :: System.Boolean TryGetDocumentByUri(System.Uri uri, out ArxisStudio.Markup.MarkupDocument? document)
+ArxisStudio.Markup.MarkupWorkspace :: System.Boolean Undo()
+ArxisStudio.Markup.MarkupWorkspace :: System.Collections.Generic.IReadOnlyCollection<ArxisStudio.Markup.MarkupDocument> Documents { get; }
+ArxisStudio.Markup.MarkupWorkspace :: System.Int32 Count { get; }
+ArxisStudio.Markup.MarkupWorkspace :: System.String? RedoDescription { get; }
+ArxisStudio.Markup.MarkupWorkspace :: System.String? UndoDescription { get; }
+ArxisStudio.Markup.MarkupWorkspace :: System.Threading.Tasks.ValueTask<ArxisStudio.Markup.MarkupDocument> OpenDocumentAsync(System.Uri uri, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Markup.MarkupWorkspace :: System.Void ClearHistory()
+ArxisStudio.Markup.MarkupWorkspace :: event System.EventHandler<ArxisStudio.Markup.DocumentChangedEventArgs> DocumentChanged
+ArxisStudio.Markup.SourceText : abstract class
+ArxisStudio.Markup.SourceText :: .ctor(System.Text.Encoding encoding, System.Boolean hasByteOrderMark)
+ArxisStudio.Markup.SourceText :: ArxisStudio.Markup.SourceText WithChange(ArxisStudio.Markup.TextChange change)
+ArxisStudio.Markup.SourceText :: ArxisStudio.Markup.TextLineCollection Lines { get; }
+ArxisStudio.Markup.SourceText :: System.Boolean HasByteOrderMark { get; }
+ArxisStudio.Markup.SourceText :: System.Boolean IsEmpty { get; }
+ArxisStudio.Markup.SourceText :: System.Char this[System.Int32 index] { get; }
+ArxisStudio.Markup.SourceText :: System.Int32 Length { get; }
+ArxisStudio.Markup.SourceText :: System.Text.Encoding Encoding { get; }
+ArxisStudio.Markup.SourceText :: abstract ArxisStudio.Markup.SourceText WithChanges(System.Collections.Generic.IReadOnlyList<ArxisStudio.Markup.TextChange> changes)
+ArxisStudio.Markup.SourceText :: abstract System.ReadOnlySpan<System.Char> ToCharSpan()
+ArxisStudio.Markup.SourceText :: abstract System.String GetText(ArxisStudio.Markup.TextSpan span)
+ArxisStudio.Markup.SourceText :: static ArxisStudio.Markup.SourceText From(System.String text, System.Text.Encoding? encoding = null, System.Boolean hasByteOrderMark = false)
+ArxisStudio.Markup.SourceText :: static System.Threading.Tasks.ValueTask<ArxisStudio.Markup.SourceText> FromAsync(System.IO.Stream stream, System.Text.Encoding? encoding = null, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Markup.StreamMarkupSource : sealed class : ArxisStudio.Markup.MarkupSource, System.IDisposable
+ArxisStudio.Markup.StreamMarkupSource :: .ctor(System.Uri uri, System.IO.Stream stream, System.Text.Encoding? defaultEncoding = null, System.Boolean leaveOpen = false)
+ArxisStudio.Markup.StreamMarkupSource :: System.Void Dispose()
+ArxisStudio.Markup.TextChange : readonly record struct : System.IEquatable<ArxisStudio.Markup.TextChange>
+ArxisStudio.Markup.TextChange :: .ctor(ArxisStudio.Markup.TextSpan Span, System.String NewText)
+ArxisStudio.Markup.TextChange :: ArxisStudio.Markup.TextSpan Span { get; init; }
+ArxisStudio.Markup.TextChange :: System.Boolean Equals(ArxisStudio.Markup.TextChange other)
+ArxisStudio.Markup.TextChange :: System.Boolean IsDeletion { get; }
+ArxisStudio.Markup.TextChange :: System.Boolean IsInsertion { get; }
+ArxisStudio.Markup.TextChange :: System.Int32 Delta { get; }
+ArxisStudio.Markup.TextChange :: System.String NewText { get; }
+ArxisStudio.Markup.TextChange :: System.Void Deconstruct(out ArxisStudio.Markup.TextSpan Span, out System.String NewText)
+ArxisStudio.Markup.TextChange :: static ArxisStudio.Markup.TextChange Delete(ArxisStudio.Markup.TextSpan span)
+ArxisStudio.Markup.TextChange :: static ArxisStudio.Markup.TextChange Insert(System.Int32 position, System.String text)
+ArxisStudio.Markup.TextChange :: static System.Boolean op_Equality(ArxisStudio.Markup.TextChange left, ArxisStudio.Markup.TextChange right)
+ArxisStudio.Markup.TextChange :: static System.Boolean op_Inequality(ArxisStudio.Markup.TextChange left, ArxisStudio.Markup.TextChange right)
+ArxisStudio.Markup.TextLine : sealed class
+ArxisStudio.Markup.TextLine :: ArxisStudio.Markup.TextSpan Span { get; }
+ArxisStudio.Markup.TextLine :: ArxisStudio.Markup.TextSpan SpanIncludingLineBreak { get; }
+ArxisStudio.Markup.TextLine :: System.Int32 End { get; }
+ArxisStudio.Markup.TextLine :: System.Int32 EndIncludingLineBreak { get; }
+ArxisStudio.Markup.TextLine :: System.Int32 LineBreakLength { get; }
+ArxisStudio.Markup.TextLine :: System.Int32 LineNumber { get; }
+ArxisStudio.Markup.TextLine :: System.Int32 Start { get; }
+ArxisStudio.Markup.TextLine :: System.String GetLineBreak()
+ArxisStudio.Markup.TextLine :: System.String ToDebugString()
+ArxisStudio.Markup.TextLine :: System.String ToStringIncludingLineBreak()
+ArxisStudio.Markup.TextLineCollection : sealed class : System.Collections.Generic.IEnumerable<ArxisStudio.Markup.TextLine>, System.Collections.Generic.IReadOnlyCollection<ArxisStudio.Markup.TextLine>, System.Collections.Generic.IReadOnlyList<ArxisStudio.Markup.TextLine>, System.Collections.IEnumerable
+ArxisStudio.Markup.TextLineCollection :: ArxisStudio.Markup.TextLine GetLineFromPosition(System.Int32 position)
+ArxisStudio.Markup.TextLineCollection :: ArxisStudio.Markup.TextLine this[System.Int32 index] { get; }
+ArxisStudio.Markup.TextLineCollection :: ArxisStudio.Markup.TextPosition GetPosition(System.Int32 position)
+ArxisStudio.Markup.TextLineCollection :: System.Collections.Generic.IEnumerator<ArxisStudio.Markup.TextLine> GetEnumerator()
+ArxisStudio.Markup.TextLineCollection :: System.Int32 Count { get; }
+ArxisStudio.Markup.TextLineCollection :: System.Int32 GetLineNumberFromPosition(System.Int32 position)
+ArxisStudio.Markup.TextLineCollection :: System.Int32 GetOffset(ArxisStudio.Markup.TextPosition position)
+ArxisStudio.Markup.TextMarkupSource : sealed class : ArxisStudio.Markup.MarkupSource
+ArxisStudio.Markup.TextMarkupSource :: .ctor(System.Uri uri, ArxisStudio.Markup.SourceText text)
+ArxisStudio.Markup.TextMarkupSource :: .ctor(System.Uri uri, System.String text)
+ArxisStudio.Markup.TextPosition : readonly record struct : System.IComparable<ArxisStudio.Markup.TextPosition>, System.IEquatable<ArxisStudio.Markup.TextPosition>
+ArxisStudio.Markup.TextPosition :: .ctor(System.Int32 Line, System.Int32 Column)
+ArxisStudio.Markup.TextPosition :: System.Boolean Equals(ArxisStudio.Markup.TextPosition other)
+ArxisStudio.Markup.TextPosition :: System.Int32 Column { get; }
+ArxisStudio.Markup.TextPosition :: System.Int32 CompareTo(ArxisStudio.Markup.TextPosition other)
+ArxisStudio.Markup.TextPosition :: System.Int32 Line { get; }
+ArxisStudio.Markup.TextPosition :: System.Void Deconstruct(out System.Int32 Line, out System.Int32 Column)
+ArxisStudio.Markup.TextPosition :: static System.Boolean op_Equality(ArxisStudio.Markup.TextPosition left, ArxisStudio.Markup.TextPosition right)
+ArxisStudio.Markup.TextPosition :: static System.Boolean op_GreaterThan(ArxisStudio.Markup.TextPosition left, ArxisStudio.Markup.TextPosition right)
+ArxisStudio.Markup.TextPosition :: static System.Boolean op_GreaterThanOrEqual(ArxisStudio.Markup.TextPosition left, ArxisStudio.Markup.TextPosition right)
+ArxisStudio.Markup.TextPosition :: static System.Boolean op_Inequality(ArxisStudio.Markup.TextPosition left, ArxisStudio.Markup.TextPosition right)
+ArxisStudio.Markup.TextPosition :: static System.Boolean op_LessThan(ArxisStudio.Markup.TextPosition left, ArxisStudio.Markup.TextPosition right)
+ArxisStudio.Markup.TextPosition :: static System.Boolean op_LessThanOrEqual(ArxisStudio.Markup.TextPosition left, ArxisStudio.Markup.TextPosition right)
+ArxisStudio.Markup.TextProjection : sealed class
+ArxisStudio.Markup.TextProjection :: ArxisStudio.Markup.SourceText Source { get; }
+ArxisStudio.Markup.TextProjection :: ArxisStudio.Markup.SourceText Text { get; }
+ArxisStudio.Markup.TextProjection :: ArxisStudio.Markup.TextProjectionPosition Map(ArxisStudio.Markup.TextPosition projectedPosition)
+ArxisStudio.Markup.TextProjection :: ArxisStudio.Markup.TextProjectionPosition Map(System.Int32 projectedOffset)
+ArxisStudio.Markup.TextProjection :: ArxisStudio.Markup.TextSpan GetProjectedSpan(ArxisStudio.Markup.TextSpan sourceSpan)
+ArxisStudio.Markup.TextProjection :: System.Boolean IsIdentity { get; }
+ArxisStudio.Markup.TextProjection :: System.Collections.Immutable.ImmutableArray<ArxisStudio.Markup.TextProjectionSegment> Segments { get; }
+ArxisStudio.Markup.TextProjection :: System.Int32 GetProjectedOffset(System.Int32 sourceOffset)
+ArxisStudio.Markup.TextProjection :: System.Uri? SourceUri { get; }
+ArxisStudio.Markup.TextProjection :: static ArxisStudio.Markup.TextProjection Identity(ArxisStudio.Markup.SourceText source, System.Uri? sourceUri = null)
+ArxisStudio.Markup.TextProjectionBuilder : sealed class
+ArxisStudio.Markup.TextProjectionBuilder :: .ctor(ArxisStudio.Markup.SourceText source, System.Uri? sourceUri = null)
+ArxisStudio.Markup.TextProjectionBuilder :: ArxisStudio.Markup.TextProjection ToProjection()
+ArxisStudio.Markup.TextProjectionBuilder :: System.Boolean IsEmpty { get; }
+ArxisStudio.Markup.TextProjectionBuilder :: System.Void Replace(ArxisStudio.Markup.TextSpan span, ArxisStudio.Markup.TextProjection replacement, ArxisStudio.Markup.TextSpan replacementSpan)
+ArxisStudio.Markup.TextProjectionBuilder :: System.Void Replace(ArxisStudio.Markup.TextSpan span, System.String text)
+ArxisStudio.Markup.TextProjectionPosition : readonly record struct : System.IEquatable<ArxisStudio.Markup.TextProjectionPosition>
+ArxisStudio.Markup.TextProjectionPosition :: .ctor(System.Uri? SourceUri, System.Int32 Offset, System.Boolean IsOriginal)
+ArxisStudio.Markup.TextProjectionPosition :: System.Boolean Equals(ArxisStudio.Markup.TextProjectionPosition other)
+ArxisStudio.Markup.TextProjectionPosition :: System.Boolean IsOriginal { get; init; }
+ArxisStudio.Markup.TextProjectionPosition :: System.Int32 Offset { get; init; }
+ArxisStudio.Markup.TextProjectionPosition :: System.Uri? SourceUri { get; init; }
+ArxisStudio.Markup.TextProjectionPosition :: System.Void Deconstruct(out System.Uri? SourceUri, out System.Int32 Offset, out System.Boolean IsOriginal)
+ArxisStudio.Markup.TextProjectionPosition :: static System.Boolean op_Equality(ArxisStudio.Markup.TextProjectionPosition left, ArxisStudio.Markup.TextProjectionPosition right)
+ArxisStudio.Markup.TextProjectionPosition :: static System.Boolean op_Inequality(ArxisStudio.Markup.TextProjectionPosition left, ArxisStudio.Markup.TextProjectionPosition right)
+ArxisStudio.Markup.TextProjectionSegment : sealed class
+ArxisStudio.Markup.TextProjectionSegment :: ArxisStudio.Markup.TextSpan ProjectedSpan { get; }
+ArxisStudio.Markup.TextProjectionSegment :: ArxisStudio.Markup.TextSpan SourceSpan { get; }
+ArxisStudio.Markup.TextProjectionSegment :: System.Boolean IsOriginal { get; }
+ArxisStudio.Markup.TextProjectionSegment :: System.Boolean IsSynthesized { get; }
+ArxisStudio.Markup.TextProjectionSegment :: System.Uri? SourceUri { get; }
+ArxisStudio.Markup.TextSpan : readonly record struct : System.IEquatable<ArxisStudio.Markup.TextSpan>
+ArxisStudio.Markup.TextSpan :: .ctor(System.Int32 Start, System.Int32 Length)
+ArxisStudio.Markup.TextSpan :: ArxisStudio.Markup.TextSpan? Overlap(ArxisStudio.Markup.TextSpan span)
+ArxisStudio.Markup.TextSpan :: System.Boolean Contains(ArxisStudio.Markup.TextSpan span)
+ArxisStudio.Markup.TextSpan :: System.Boolean Contains(System.Int32 position)
+ArxisStudio.Markup.TextSpan :: System.Boolean Equals(ArxisStudio.Markup.TextSpan other)
+ArxisStudio.Markup.TextSpan :: System.Boolean IntersectsWith(ArxisStudio.Markup.TextSpan span)
+ArxisStudio.Markup.TextSpan :: System.Boolean IsEmpty { get; }
+ArxisStudio.Markup.TextSpan :: System.Boolean OverlapsWith(ArxisStudio.Markup.TextSpan span)
+ArxisStudio.Markup.TextSpan :: System.Int32 End { get; }
+ArxisStudio.Markup.TextSpan :: System.Int32 Length { get; }
+ArxisStudio.Markup.TextSpan :: System.Int32 Start { get; }
+ArxisStudio.Markup.TextSpan :: System.Void Deconstruct(out System.Int32 Start, out System.Int32 Length)
+ArxisStudio.Markup.TextSpan :: static ArxisStudio.Markup.TextSpan FromBounds(System.Int32 start, System.Int32 end)
+ArxisStudio.Markup.TextSpan :: static System.Boolean op_Equality(ArxisStudio.Markup.TextSpan left, ArxisStudio.Markup.TextSpan right)
+ArxisStudio.Markup.TextSpan :: static System.Boolean op_Inequality(ArxisStudio.Markup.TextSpan left, ArxisStudio.Markup.TextSpan right)

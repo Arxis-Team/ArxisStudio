@@ -1,0 +1,18 @@
+{
+  "id": "arxis.xaml",
+  "name": "%module.xaml%",
+  "version": "1.0.0",
+  "publisher": "Arxis",
+  "description": "%module.xaml.description%",
+  "tags": [ "tools", "design" ],
+  "dependencies": [
+    { "id": "arxis.projects", "min": "1.7" }
+  ],
+  "provides": { "contracts": [ "bin/ArxisStudio.Xaml.Contracts.dll" ] },
+  "contributions": {
+    "settings": [
+      { "key": "xaml.buildDelay", "type": "number", "scope": "user", "title": "%settings.xaml.buildDelay%", "default": 400 }
+    ]
+  },
+  "activation": [ "onStartup" ]
+}

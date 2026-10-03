@@ -1,0 +1,20 @@
+{
+  "module.xaml": "XAML",
+  "module.xaml.description": "XAML: живые документы разметки решения и поколение типов проекта, в котором они строятся",
+  "settings.xaml.buildDelay": "Пауза перед сборкой дизайна после сохранения кода, мс",
+  "module.xaml.changedOutside": "Изменено вне студии",
+  "module.xaml.save": "Сохранено дизайнером: {0}",
+  "module.xaml.rebuild": "пересборка по просьбе",
+  "module.xaml.restart.held": "Прежние типы проекта ещё держатся в этом процессе: новые покажет только перезапуск",
+  "module.xaml.restart.packages": "Пакет проекта сменил версию: новую загрузит только перезапуск",
+  "module.xaml.nothingOpen": "Решение не открыто",
+  "module.xaml.noProjects": "Службы проектов нет",
+  "module.xaml.notMarkup": "{0} — не файл разметки",
+  "module.xaml.notInSolution": "{0} не принадлежит ни одному проекту открытого решения",
+  "module.xaml.startFailed": "Типы проекта не загрузились: {0}",
+  "module.xaml.noGeneration": "В дизайнере ничего не открыто",
+  "module.xaml.alreadyShown": "{0} уже показан",
+  "module.xaml.closed": "{0} закрыт",
+  "module.xaml.saveRefused": "{0} не сохранён: {1}",
+  "module.xaml.swapHeld": "держит: {0}"
+}

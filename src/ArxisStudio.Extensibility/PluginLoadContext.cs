@@ -56,7 +56,12 @@ internal sealed class PluginLoadContext(string name, string entryPath)
         // Модель проектов — точным именем, а не семейством: семейство отдало бы
         // плагинам и её движки — MSBuild, NuGet, адаптер разметки, — а их держит
         // служба проектов, и второй экземпляр движка в процессе был бы бедой.
-        name.Equals("ArxisStudio.ProjectSystem", StringComparison.Ordinal);
+        name.Equals("ArxisStudio.ProjectSystem", StringComparison.Ordinal) ||
+        // Синтаксис и правка разметки — тоже точными именами: документ, его
+        // редактор и путь элемента ходят через контракт службы XAML, а загрузчик
+        // строит объекты поколения, и его держит сама служба.
+        name.Equals("ArxisStudio.Markup", StringComparison.Ordinal) ||
+        name.Equals("ArxisStudio.Markup.Xaml", StringComparison.Ordinal);
 
     /// <summary>Само имя или имя из его семейства: <c>Avalonia</c>, <c>Avalonia.Base</c>, но не <c>AvaloniaEdit</c>.</summary>
     private static bool Family(string name, string root) =>

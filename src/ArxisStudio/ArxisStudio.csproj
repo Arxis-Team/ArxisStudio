@@ -88,6 +88,18 @@
     </ItemGroup>
 
     <!--
+        Синтаксис разметки — общие сборки по той же причине, что ядро модели: документ, его редактор
+        и путь элемента ходят через контракт службы XAML, и плагин берёт их из основного контекста.
+        Загрузчик Markup общим не стал — его везёт служба в modules/arxis.xaml/bin, — а рантайм-загрузчик
+        Avalonia, на котором он стоит, из семейства Avalonia, то есть общий, и лежит здесь же.
+    -->
+    <ItemGroup>
+        <ProjectReference Include="../../external/ArxisStudio.Markup/src/ArxisStudio.Markup/ArxisStudio.Markup.csproj"/>
+        <ProjectReference Include="../../external/ArxisStudio.Markup/src/ArxisStudio.Markup.Xaml/ArxisStudio.Markup.Xaml.csproj"/>
+        <PackageReference Include="Avalonia.Markup.Xaml.Loader"/>
+    </ItemGroup>
+
+    <!--
         Встроенные модули. Порядок подъёма задаёт StudioModules.Assemblies; здесь — только то,
         как модуль попадает в выход. Компилироваться против него можно — студия называет его
         сборку в списке модулей, — а сам он и всё, что он тянет, ложится в modules. Новый модуль
@@ -112,6 +124,8 @@
         <ProjectReference Include="../Modules/ArxisStudio.Modules.Console/ArxisStudio.Modules.Console.csproj"
                           StudioModule="true" Private="false" ExcludeAssets="runtime"/>
         <ProjectReference Include="../Modules/ArxisStudio.Modules.Projects/ArxisStudio.Modules.Projects.csproj"
+                          StudioModule="true" Private="false" ExcludeAssets="runtime"/>
+        <ProjectReference Include="../Modules/ArxisStudio.Modules.Xaml/ArxisStudio.Modules.Xaml.csproj"
                           StudioModule="true" Private="false" ExcludeAssets="runtime"/>
         <ProjectReference Include="../Modules/ArxisStudio.Modules.Project/ArxisStudio.Modules.Project.csproj"
                           StudioModule="true" Private="false" ExcludeAssets="runtime"/>

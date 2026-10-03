@@ -78,6 +78,15 @@
                           Private="false" ExcludeAssets="runtime"/>
         <ProjectReference Include="../../src/ArxisStudio.LocalHistory/ArxisStudio.LocalHistory.csproj"
                           Private="false" ExcludeAssets="runtime"/>
+
+        <!--
+            Загрузчик Markup и адаптер ProjectSystem — та же история у службы XAML: везёт их модуль в
+            своей папке, а тест ссылается только ради их типов.
+        -->
+        <ProjectReference Include="../../external/ArxisStudio.Markup/src/ArxisStudio.Markup.Xaml.Loader/ArxisStudio.Markup.Xaml.Loader.csproj"
+                          Private="false" ExcludeAssets="runtime"/>
+        <ProjectReference Include="../../external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem.Markup.Xaml/ArxisStudio.ProjectSystem.Markup.Xaml.csproj"
+                          Private="false" ExcludeAssets="runtime"/>
     </ItemGroup>
 
     <!--
@@ -135,6 +144,8 @@
     <ItemGroup>
         <ProjectReference Include="../../src/Modules/ArxisStudio.Projects.Contracts/ArxisStudio.Projects.Contracts.csproj"
                           Private="false" ExcludeAssets="runtime"/>
+        <ProjectReference Include="../../src/Modules/ArxisStudio.Xaml.Contracts/ArxisStudio.Xaml.Contracts.csproj"
+                          Private="false" ExcludeAssets="runtime"/>
 
         <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Sample/ArxisStudio.Modules.Sample.csproj"
                           StudioModule="true" Private="false" ExcludeAssets="runtime"/>
@@ -143,6 +154,8 @@
         <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Console/ArxisStudio.Modules.Console.csproj"
                           StudioModule="true" Private="false" ExcludeAssets="runtime"/>
         <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Projects/ArxisStudio.Modules.Projects.csproj"
+                          StudioModule="true" Private="false" ExcludeAssets="runtime"/>
+        <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Xaml/ArxisStudio.Modules.Xaml.csproj"
                           StudioModule="true" Private="false" ExcludeAssets="runtime"/>
         <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Project/ArxisStudio.Modules.Project.csproj"
                           StudioModule="true" Private="false" ExcludeAssets="runtime"/>

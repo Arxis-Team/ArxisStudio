@@ -1,0 +1,20 @@
+{
+  "module.xaml": "XAML",
+  "module.xaml.description": "XAML: live markup documents of the solution and the generation of the project's types they are built in",
+  "settings.xaml.buildDelay": "Pause before the designer builds saved code, ms",
+  "module.xaml.changedOutside": "Changed outside the studio",
+  "module.xaml.save": "Saved from the designer: {0}",
+  "module.xaml.rebuild": "asked to rebuild",
+  "module.xaml.restart.held": "The project's previous types are still held in this process: only a restart shows the new ones",
+  "module.xaml.restart.packages": "A package of the project changed its version: only a restart loads the new one",
+  "module.xaml.nothingOpen": "No solution is open",
+  "module.xaml.noProjects": "The projects service is not available",
+  "module.xaml.notMarkup": "{0} is not a markup file",
+  "module.xaml.notInSolution": "{0} belongs to no project of the open solution",
+  "module.xaml.startFailed": "The project's types did not load: {0}",
+  "module.xaml.noGeneration": "Nothing is open in the designer",
+  "module.xaml.alreadyShown": "{0} is shown already",
+  "module.xaml.closed": "{0} is closed",
+  "module.xaml.saveRefused": "{0} was not saved: {1}",
+  "module.xaml.swapHeld": "held by: {0}"
+}

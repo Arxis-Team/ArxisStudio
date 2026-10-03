@@ -1,0 +1,113 @@
+ArxisStudio.Xaml.IStudioXamlDesign : interface
+ArxisStudio.Xaml.IStudioXamlDesign :: ArxisStudio.Xaml.XamlBuildOutcome? LastBuild { get; }
+ArxisStudio.Xaml.IStudioXamlDesign :: ArxisStudio.Xaml.XamlDesignState State { get; }
+ArxisStudio.Xaml.IStudioXamlDesign :: System.IDisposable Defer(System.String reason)
+ArxisStudio.Xaml.IStudioXamlDesign :: System.IDisposable Register(ArxisStudio.Xaml.IXamlDesignParticipant participant)
+ArxisStudio.Xaml.IStudioXamlDesign :: System.String? StateReason { get; }
+ArxisStudio.Xaml.IStudioXamlDesign :: System.Threading.Tasks.Task<ArxisStudio.Xaml.XamlBuildOutcome> RebuildAsync(System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Xaml.IStudioXamlDesign :: event System.EventHandler StateChanged
+ArxisStudio.Xaml.IStudioXamlDocuments : interface
+ArxisStudio.Xaml.IStudioXamlDocuments :: ArxisStudio.Xaml.XamlFileKind Classify(ArxisStudio.ProjectSystem.CanonicalPath path)
+ArxisStudio.Xaml.IStudioXamlDocuments :: System.Threading.Tasks.Task<ArxisStudio.Xaml.IXamlDocumentHandle> OpenAsync(ArxisStudio.ProjectSystem.CanonicalPath path, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Xaml.IXamlDesignParticipant : interface
+ArxisStudio.Xaml.IXamlDesignParticipant :: System.Threading.Tasks.ValueTask ReleaseAsync(System.Threading.CancellationToken cancellationToken)
+ArxisStudio.Xaml.IXamlDesignParticipant :: System.Threading.Tasks.ValueTask RestoreAsync(System.Threading.CancellationToken cancellationToken)
+ArxisStudio.Xaml.IXamlDesignView : interface : System.IDisposable
+ArxisStudio.Xaml.IXamlDesignView :: ArxisStudio.Markup.Xaml.XamlElementPath? PathOf(System.Object live)
+ArxisStudio.Xaml.IXamlDesignView :: ArxisStudio.ProjectSystem.CanonicalPath ApplicationFile { get; }
+ArxisStudio.Xaml.IXamlDesignView :: ArxisStudio.Xaml.IXamlDocumentHandle Document { get; }
+ArxisStudio.Xaml.IXamlDesignView :: Avalonia.Application? Application { get; }
+ArxisStudio.Xaml.IXamlDesignView :: Avalonia.Controls.Control? Root { get; }
+ArxisStudio.Xaml.IXamlDesignView :: System.Collections.Generic.IReadOnlyList<System.Object> GetDeclaredObjects()
+ArxisStudio.Xaml.IXamlDesignView :: System.Object? ObjectAt(ArxisStudio.Markup.Xaml.XamlElementPath path)
+ArxisStudio.Xaml.IXamlDesignView :: event System.EventHandler ApplicationChanged
+ArxisStudio.Xaml.IXamlDesignView :: event System.EventHandler RootChanged
+ArxisStudio.Xaml.IXamlDocumentHandle : interface : System.IAsyncDisposable
+ArxisStudio.Xaml.IXamlDocumentHandle :: ArxisStudio.Markup.Xaml.XamlDocument Syntax { get; }
+ArxisStudio.Xaml.IXamlDocumentHandle :: ArxisStudio.ProjectSystem.CanonicalPath Path { get; }
+ArxisStudio.Xaml.IXamlDocumentHandle :: ArxisStudio.Xaml.XamlDocumentState State { get; }
+ArxisStudio.Xaml.IXamlDocumentHandle :: System.Boolean CanRedo { get; }
+ArxisStudio.Xaml.IXamlDocumentHandle :: System.Boolean CanUndo { get; }
+ArxisStudio.Xaml.IXamlDocumentHandle :: System.Boolean HasConflict { get; }
+ArxisStudio.Xaml.IXamlDocumentHandle :: System.Boolean IsClosed { get; }
+ArxisStudio.Xaml.IXamlDocumentHandle :: System.Boolean IsDeleted { get; }
+ArxisStudio.Xaml.IXamlDocumentHandle :: System.Boolean IsModified { get; }
+ArxisStudio.Xaml.IXamlDocumentHandle :: System.Collections.Immutable.ImmutableArray<ArxisStudio.Markup.MarkupDiagnostic> Diagnostics { get; }
+ArxisStudio.Xaml.IXamlDocumentHandle :: System.String? RedoLabel { get; }
+ArxisStudio.Xaml.IXamlDocumentHandle :: System.String? UndoLabel { get; }
+ArxisStudio.Xaml.IXamlDocumentHandle :: System.Threading.Tasks.Task ResolveConflictAsync(ArxisStudio.Xaml.XamlConflictChoice choice, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Xaml.IXamlDocumentHandle :: System.Threading.Tasks.Task SaveAsync(System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Xaml.IXamlDocumentHandle :: System.Threading.Tasks.Task<ArxisStudio.Xaml.IXamlDesignView> ShowAsync(ArxisStudio.Xaml.IXamlRootLender? lender, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Xaml.IXamlDocumentHandle :: System.Threading.Tasks.Task<ArxisStudio.Xaml.XamlEditOutcome> EditAsync(System.String label, System.Action<ArxisStudio.Markup.Xaml.XamlDocumentEditor> edit, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Xaml.IXamlDocumentHandle :: System.Threading.Tasks.Task<ArxisStudio.Xaml.XamlEditOutcome> RedoAsync(System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Xaml.IXamlDocumentHandle :: System.Threading.Tasks.Task<ArxisStudio.Xaml.XamlEditOutcome> UndoAsync(System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Xaml.IXamlDocumentHandle :: event System.EventHandler<ArxisStudio.Xaml.XamlDocumentChangesEventArgs> Changed
+ArxisStudio.Xaml.IXamlDocumentHandle :: event System.EventHandler<ArxisStudio.Xaml.XamlExternalConflictEventArgs> ExternalConflict
+ArxisStudio.Xaml.IXamlRootLender : interface
+ArxisStudio.Xaml.IXamlRootLender :: System.IDisposable Lend(System.Object root)
+ArxisStudio.Xaml.StudioXamlAccess : static class
+ArxisStudio.Xaml.StudioXamlAccess :: static ArxisStudio.Xaml.IStudioXamlDesign? XamlDesign(ArxisStudio.Sdk.IStudioContext context)
+ArxisStudio.Xaml.StudioXamlAccess :: static ArxisStudio.Xaml.IStudioXamlDocuments? XamlDocuments(ArxisStudio.Sdk.IStudioContext context)
+ArxisStudio.Xaml.XamlBuildOutcome : sealed record : System.IEquatable<ArxisStudio.Xaml.XamlBuildOutcome>
+ArxisStudio.Xaml.XamlBuildOutcome :: .ctor(System.Boolean Succeeded, System.String Reason, System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectDiagnostic> Diagnostics, System.Boolean TypesChanged, System.TimeSpan Duration)
+ArxisStudio.Xaml.XamlBuildOutcome :: System.Boolean Equals(ArxisStudio.Xaml.XamlBuildOutcome? other)
+ArxisStudio.Xaml.XamlBuildOutcome :: System.Boolean Succeeded { get; init; }
+ArxisStudio.Xaml.XamlBuildOutcome :: System.Boolean TypesChanged { get; init; }
+ArxisStudio.Xaml.XamlBuildOutcome :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectDiagnostic> Diagnostics { get; init; }
+ArxisStudio.Xaml.XamlBuildOutcome :: System.String Reason { get; init; }
+ArxisStudio.Xaml.XamlBuildOutcome :: System.TimeSpan Duration { get; init; }
+ArxisStudio.Xaml.XamlBuildOutcome :: System.Void Deconstruct(out System.Boolean Succeeded, out System.String Reason, out System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectDiagnostic> Diagnostics, out System.Boolean TypesChanged, out System.TimeSpan Duration)
+ArxisStudio.Xaml.XamlBuildOutcome :: static System.Boolean op_Equality(ArxisStudio.Xaml.XamlBuildOutcome? left, ArxisStudio.Xaml.XamlBuildOutcome? right)
+ArxisStudio.Xaml.XamlBuildOutcome :: static System.Boolean op_Inequality(ArxisStudio.Xaml.XamlBuildOutcome? left, ArxisStudio.Xaml.XamlBuildOutcome? right)
+ArxisStudio.Xaml.XamlConflictChoice : enum
+ArxisStudio.Xaml.XamlConflictChoice :: KeepMine = 1
+ArxisStudio.Xaml.XamlConflictChoice :: TakeTheirs = 0
+ArxisStudio.Xaml.XamlDesignState : enum
+ArxisStudio.Xaml.XamlDesignState :: Building = 3
+ArxisStudio.Xaml.XamlDesignState :: Failed = 8
+ArxisStudio.Xaml.XamlDesignState :: Idle = 0
+ArxisStudio.Xaml.XamlDesignState :: Live = 2
+ArxisStudio.Xaml.XamlDesignState :: RestartRequired = 6
+ArxisStudio.Xaml.XamlDesignState :: Starting = 1
+ArxisStudio.Xaml.XamlDesignState :: SwapPending = 4
+ArxisStudio.Xaml.XamlDesignState :: Swapping = 5
+ArxisStudio.Xaml.XamlDesignState :: Unsupported = 7
+ArxisStudio.Xaml.XamlDocumentChanges : [Flags] enum
+ArxisStudio.Xaml.XamlDocumentChanges :: Closed = 128
+ArxisStudio.Xaml.XamlDocumentChanges :: Conflict = 64
+ArxisStudio.Xaml.XamlDocumentChanges :: Deleted = 32
+ArxisStudio.Xaml.XamlDocumentChanges :: None = 0
+ArxisStudio.Xaml.XamlDocumentChanges :: Objects = 16
+ArxisStudio.Xaml.XamlDocumentChanges :: Path = 8
+ArxisStudio.Xaml.XamlDocumentChanges :: Saved = 2
+ArxisStudio.Xaml.XamlDocumentChanges :: State = 4
+ArxisStudio.Xaml.XamlDocumentChanges :: Text = 1
+ArxisStudio.Xaml.XamlDocumentChangesEventArgs : sealed class : System.EventArgs
+ArxisStudio.Xaml.XamlDocumentChangesEventArgs :: .ctor(ArxisStudio.Xaml.XamlDocumentChanges changes)
+ArxisStudio.Xaml.XamlDocumentChangesEventArgs :: ArxisStudio.Xaml.XamlDocumentChanges Changes { get; }
+ArxisStudio.Xaml.XamlDocumentState : enum
+ArxisStudio.Xaml.XamlDocumentState :: Behind = 2
+ArxisStudio.Xaml.XamlDocumentState :: Broken = 3
+ArxisStudio.Xaml.XamlDocumentState :: Detached = 0
+ArxisStudio.Xaml.XamlDocumentState :: Live = 1
+ArxisStudio.Xaml.XamlEditOutcome : sealed record : System.IEquatable<ArxisStudio.Xaml.XamlEditOutcome>
+ArxisStudio.Xaml.XamlEditOutcome :: .ctor(System.Boolean TextChanged, ArxisStudio.Xaml.XamlDocumentState State, System.Collections.Immutable.ImmutableArray<ArxisStudio.Markup.MarkupDiagnostic> Diagnostics)
+ArxisStudio.Xaml.XamlEditOutcome :: ArxisStudio.Xaml.XamlDocumentState State { get; init; }
+ArxisStudio.Xaml.XamlEditOutcome :: System.Boolean Equals(ArxisStudio.Xaml.XamlEditOutcome? other)
+ArxisStudio.Xaml.XamlEditOutcome :: System.Boolean TextChanged { get; init; }
+ArxisStudio.Xaml.XamlEditOutcome :: System.Collections.Immutable.ImmutableArray<ArxisStudio.Markup.MarkupDiagnostic> Diagnostics { get; init; }
+ArxisStudio.Xaml.XamlEditOutcome :: System.Void Deconstruct(out System.Boolean TextChanged, out ArxisStudio.Xaml.XamlDocumentState State, out System.Collections.Immutable.ImmutableArray<ArxisStudio.Markup.MarkupDiagnostic> Diagnostics)
+ArxisStudio.Xaml.XamlEditOutcome :: static System.Boolean op_Equality(ArxisStudio.Xaml.XamlEditOutcome? left, ArxisStudio.Xaml.XamlEditOutcome? right)
+ArxisStudio.Xaml.XamlEditOutcome :: static System.Boolean op_Inequality(ArxisStudio.Xaml.XamlEditOutcome? left, ArxisStudio.Xaml.XamlEditOutcome? right)
+ArxisStudio.Xaml.XamlExternalConflictEventArgs : sealed class : System.EventArgs
+ArxisStudio.Xaml.XamlExternalConflictEventArgs :: .ctor(ArxisStudio.ProjectSystem.CanonicalPath path, System.String diskText)
+ArxisStudio.Xaml.XamlExternalConflictEventArgs :: ArxisStudio.ProjectSystem.CanonicalPath Path { get; }
+ArxisStudio.Xaml.XamlExternalConflictEventArgs :: System.String DiskText { get; }
+ArxisStudio.Xaml.XamlFileKind : enum
+ArxisStudio.Xaml.XamlFileKind :: Application = 4
+ArxisStudio.Xaml.XamlFileKind :: Control = 3
+ArxisStudio.Xaml.XamlFileKind :: Resources = 6
+ArxisStudio.Xaml.XamlFileKind :: Styles = 5
+ArxisStudio.Xaml.XamlFileKind :: Unknown = 0
+ArxisStudio.Xaml.XamlFileKind :: UserControl = 2
+ArxisStudio.Xaml.XamlFileKind :: Window = 1

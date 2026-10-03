@@ -22,7 +22,7 @@ Surface, тоже модулем; запуск вернётся плагином
 ## Команды
 
 ```bash
-git submodule update --init external/ArxisStudio.Controls external/ArxisStudio.Icons external/ArxisStudio.Themes.Arxis external/ArxisStudio.Fonts.Cascadia external/ArxisStudio.ProjectSystem external/ArxisStudio.Surface
+git submodule update --init external/ArxisStudio.Controls external/ArxisStudio.Icons external/ArxisStudio.Themes.Arxis external/ArxisStudio.Fonts.Cascadia external/ArxisStudio.Markup external/ArxisStudio.ProjectSystem external/ArxisStudio.Surface
 ```
 
 ```bash
@@ -191,6 +191,7 @@ def call(name, args=None, port=5171):
 | [ArxisStudio.Extensibility](src/ArxisStudio.Extensibility) | хост плагинов: контексты загрузки, граф, контракты, шов сбоев | Sdk, Shell |
 | [ArxisStudio.LocalHistory](src/ArxisStudio.LocalHistory) | локальная история: содержимое по адресу, журнал по дням, известное состояние, срок | ничего, кроме платформы |
 | [ArxisStudio.Projects.Contracts](src/Modules/ArxisStudio.Projects.Contracts) | контракт службы проектов: состояние, перемены, дорога из контекста | Sdk, ядро ProjectSystem — и ни одного движка |
+| [ArxisStudio.Xaml.Contracts](src/Modules/ArxisStudio.Xaml.Contracts) | контракт службы XAML: документы, показ, поколение типов проекта | Sdk, ядро ProjectSystem, синтаксис Markup, Avalonia — и ни загрузчика, ни адаптера |
 | [ArxisStudio](src/ArxisStudio) | приложение и вся склейка | всё |
 
 Направление держит сборка, а не уговор. Таргет `AxDockingBoundary` в
@@ -221,7 +222,7 @@ def call(name, args=None, port=5171):
 редактор документов — пробный `src/Plugins/Arxis.CodeViewer` на AvaloniaEdit: он показывает
 текстовый файл на просмотр и уйдёт, когда появится настоящий; чем платит плагин за чужую
 библиотеку контролов, сказано в [docs/plugin-markup.md](docs/plugin-markup.md).
-Рабочих модулей пять, а не образцов — `src/Modules/ArxisStudio.Modules.Terminal`,
+Рабочих модулей шесть, а не образцов — `src/Modules/ArxisStudio.Modules.Terminal`,
 `src/Modules/ArxisStudio.Modules.Console`,
 `src/Modules/ArxisStudio.Modules.Projects` — служба без единой панели, отдающая соседям контракт
 `ArxisStudio.Projects.Contracts` (объявлен в `provides.contracts`), — и
@@ -248,6 +249,21 @@ def call(name, args=None, port=5171):
 декода спрашивает `SKCodec`: `Bitmap.DecodeToWidth` растягивает мелкое. Модуль ссылается на
 SkiaSharp только для компиляции, и версия в `Directory.Packages.props` двигается вместе с
 Avalonia.Skia.
+
+Шестой — `src/Modules/ArxisStudio.Modules.Xaml`, служба XAML (`arxis.xaml`): тоже без единой панели и
+тоже отдаёт соседям контракт — `ArxisStudio.Xaml.Contracts`. Документы разметки решения у неё живые:
+своя история правок у каждого и объекты, построенные из текста в **поколении** — типах проекта,
+загруженных в выгружаемый контекст адаптером ProjectSystem (`ProjectDesignHost`). Своего MSBuild у неё
+нет: снимки и сборки даёт профиль дизайна (`StudioDesignSource`), пишет она `IStudioFiles.WriteAsync` со
+сверкой ожидаемого (`StudioDesignWriter`), а перемены на диске слышит через `ContentChanged`. Служб две —
+документы (`context.XamlDocuments()`) и поколение (`context.XamlDesign()`). Документ один на файл и живёт,
+пока не отпущена последняя аренда; показ (`ShowAsync`) один на документ. Сессия одна на решение:
+поднимается первым открытым документом, кончается с решением, со службой или через простой после
+последнего отпущенного документа. На замену поколения показы отдают корни раньше участников
+(`Register`) и берут новые раньше них. Участников хост зовёт, держа свою очередь, поэтому ни показ, ни
+участник не ждут там службу: приложение формы показ берёт уже после замены. Не ушло поколение —
+служба просит перезапуск (`IStudioRestart`). Автору плагина написано [docs/xaml.md](docs/xaml.md), и
+примеры оттуда компилируются.
 
 Отличий ровно два: список модулей объявлен в самой студии
 ([`StudioModules.Assemblies`](src/ArxisStudio/Services/StudioModules.cs) — сюда добавляют новый
@@ -330,8 +346,12 @@ JIT компилирует метод целиком до первой его с
 `ArxisStudio.Controls`, `ArxisStudio.Icons` — семейством, то есть именем целиком или с точкой за
 ним, а не по первым буквам: чужая `AvaloniaEdit` остаётся своей у плагина, — и точным именем
 `ArxisStudio.ProjectSystem`, ядро модели проектов: снимки решения видят все плагины, а его движки (`.MSBuild`, `.NuGet`) общими не
-становятся — их держит служба проектов. Копия любой общей сборки рядом с плагином стала бы вторым
-экземпляром того же типа, и приведение упало бы. Поверхности ядра и контракта службы проектов закреплены в
+становятся — их держит служба проектов. Точными же именами общие `ArxisStudio.Markup` и
+`ArxisStudio.Markup.Xaml`, синтаксис разметки: документ, его редактор и путь элемента ходят через
+контракт службы XAML, а загрузчик (`.Markup.Xaml.Loader`) и адаптер ProjectSystem держит служба XAML.
+Рантайм-загрузчик Avalonia, на котором стоит загрузчик Markup, — из семейства Avalonia и лежит в `lib/`.
+Копия любой общей сборки рядом с плагином стала бы вторым
+экземпляром того же типа, и приведение упало бы. Поверхности ядра, синтаксиса Markup и контрактов служб проектов и XAML закреплены в
 `tests/ArxisStudio.Tests/Surfaces`: сдвиг указателя или правка контракта, их поменявшие, падают там, а не у автора плагина. Контрактные сборки (`provides.contracts`) грузятся
 в основной контекст один раз и **не выгружаются**: их обновление честно просит перезапуск, а
 [`PluginContracts`](src/ArxisStudio.Extensibility/PluginContracts.cs) это говорит вместо того,
@@ -389,7 +409,7 @@ NuGet, а у человека плагин падает на первом же �
 `ArxisRelease` и `Version` — то, что версией называют люди; совместимость плагинов мерится
 `sdk.min` в манифесте против `StudioSdk.Version`.
 
-`StudioSdk.Version` (сейчас `7.14`) двигают, когда меняется контракт, и минор — когда добавляется.
+`StudioSdk.Version` (сейчас `7.15`) двигают, когда меняется контракт, и минор — когда добавляется.
 `Satisfies` сравнивает мажор и минор, поэтому снятое обещание — это новый мажор, а не «оно и так
 не использовалось».
 
@@ -513,7 +533,7 @@ csproj — при заведении нового не забудьте.
 
 ## Тесты
 
-2030 тестов, headless-UI на `Avalonia.Headless.XUnit`, и пакет завязан на **xunit v3**. Тесту,
+2104 теста, headless-UI на `Avalonia.Headless.XUnit`, и пакет завязан на **xunit v3**. Тесту,
 которому нужно живое дерево контролов, нужен `[AvaloniaFact]`, а не `[Fact]`: он поднимает
 приложение из `TestApp` и загоняет тело в UI-поток. Рисование настоящее (`UseSkia`,
 `UseHeadlessDrawing = false`) — заглушка не зовёт декодер картинок и на любой файл отвечает
@@ -558,10 +578,12 @@ ShellStyles, DockingStyles. Порядок решает, кто кого пер�
 
 ## Подмодули
 
-Собираются шесть из семи: **Controls** (контролы `Ax*`, lookless), **Icons** (контуры 16×16 и
+Собираются все семь: **Controls** (контролы `Ax*`, lookless), **Icons** (контуры 16×16 и
 `AxIcon`), **Themes.Arxis** (палитры, шаблоны, метрики), **Fonts.Cascadia** (шрифт ресурсом),
-**ProjectSystem** — не весь, а ядро модели, провайдер MSBuild и правку пакетов: их держит служба
-проектов, а адаптер разметки ждёт своего шага, — и **Surface** — тоже не весь, а ядро холста
+**Markup** (lossless XAML DOM и round-trip) — все три пакета: синтаксис общий и лежит в `lib/`,
+загрузчик везёт служба XAML, — **ProjectSystem** — не весь, а ядро модели, провайдер MSBuild, правку
+пакетов и адаптер разметки: первые три держит служба проектов, адаптер — служба XAML, — и
+**Surface** — тоже не весь, а ядро холста
 (`src/Surface`): его везёт модуль дизайнера в своём `bin`, и плагинам оно не общее. Слои выше —
 инструменты `Surface.Editing`, дизайнер `Surface.UiDesigner`, редактор узлов `Surface.Nodes` — студия
 не собирает, и модуль на них не ссылается. Библиотека остаётся `net8.0` — это её наименьшая среда для
@@ -608,14 +630,14 @@ ShellStyles, DockingStyles. Порядок решает, кто кого пер�
 точку броска, стоящее передвигается, — встаёт выбранным, и клавиатура переходит к холсту, чтобы Ctrl+Z
 отменил именно бросок.
 
-Зарегистрирован и не собирается **Markup** (lossless XAML DOM и round-trip). Он и слои Surface с
-тех пор, как сняли дизайнер, ушли вперёд: Surface разделён на слои, вырастил редактор узлов и элемент
-формы `UiDesignerFormItem`, а Markup отдал ему заместителя окна — пакета `Markup.Xaml.Design` в нём
-больше нет (запись 320), — и оба ждут возвращения дизайнера. Образец дизайнера на трёх семействах
-разом — `samples/UiDesigner.Demo` в Surface (запись 323): ему нужны ProjectSystem и Markup рядом, а в
-ProjectSystem дизайнера больше нет. В `ArxisStudio.slnx` Markup и слоёв Surface нет, и работать с
-ними нужно их собственными решениями, они лежат в корне каждого подмодуля. Так же проверяются
-ProjectSystem и ядро Surface: студия собирает их исходники, а их тесты гоняют их собственные решения.
+Слои Surface с тех пор, как сняли дизайнер, ушли вперёд: Surface разделён на слои, вырастил редактор
+узлов и элемент формы `UiDesignerFormItem`, а Markup отдал ему заместителя окна — пакета
+`Markup.Xaml.Design` в нём больше нет (запись 320). Слои ждут живого дизайнера, а Markup с записи 335
+собирается: служба XAML стоит на нём. Образец дизайнера на трёх семействах разом —
+`samples/UiDesigner.Demo` в Surface (запись 323): ему нужны ProjectSystem и Markup рядом. В
+`ArxisStudio.slnx` слоёв Surface нет, и работать с ними нужно решением Surface, оно лежит в корне
+подмодуля. Так же проверяются Markup, ProjectSystem и ядро Surface: студия собирает их исходники, а их
+тесты гоняют их собственные решения.
 
 **API подмодулей можно менять** — это не замороженные зависимости. Если интеграции нужен новый
 или изменённый публичный API, правьте прямо в подмодуле и коммитьте в его репозиторий, соблюдая

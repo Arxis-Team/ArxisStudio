@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+        Служба XAML: живые документы разметки решения и поколения типов проекта, в которых они строятся.
+        Интерфейса у модуля нет, как у службы проектов: его потребители — дизайнер форм и плагины, и
+        берут они службу через контракт ArxisStudio.Xaml.Contracts, а не через этот проект.
+
+        Загрузчик Markup и адаптер ProjectSystem — свои сборки модуля, едут в его bin. Синтаксис Markup
+        общий и лежит в lib/: его типы ходят через контракт. Поколение держит адаптер
+        (ProjectDesignHost), а модуль кормит его тем, что у студии своё: снимками и сборками профиля
+        дизайна службы проектов, записью через её службу файлов и переменами с её слежения. Второго
+        владельца MSBuild в процессе нет.
+
+        Раскладка по папкам, и она же порядок зависимостей:
+
+          Session/    профиль, хост и всё, что живёт одно решение
+          Documents/  документы, аренды, показы и вид файла по корню
+
+        Documents знает Session только через то, что сессия даёт документу; в корне — граница модуля:
+        манифест, точка входа, сама служба, её шов для тестов и ключи настроек.
+    -->
+    <PropertyGroup>
+        <RootNamespace>ArxisStudio.Modules.Xaml</RootNamespace>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Avalonia"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
+        <ProjectReference Include="../ArxisStudio.Xaml.Contracts/ArxisStudio.Xaml.Contracts.csproj"/>
+        <ProjectReference Include="../../../external/ArxisStudio.ProjectSystem/src/ArxisStudio.ProjectSystem.Markup.Xaml/ArxisStudio.ProjectSystem.Markup.Xaml.csproj"/>
+
+        <!--
+            Контракт соседа — только для компиляции: возит его владелец, модуль «Проекты». Копия в
+            своей папке дала бы вторую сборку того же контракта, и AXL1002 не дал бы собрать студию.
+        -->
+        <ProjectReference Include="../ArxisStudio.Projects.Contracts/ArxisStudio.Projects.Contracts.csproj"
+                          Private="false" ExcludeAssets="runtime"/>
+    </ItemGroup>
+
+    <!--
+        Анализатор — отдельной строкой, как у всякого модуля: через цепочку ProjectReference
+        анализаторы не передаются.
+    -->
+    <ItemGroup>
+        <ProjectReference Include="../../ArxisStudio.Sdk.Analyzers/ArxisStudio.Sdk.Analyzers.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <AdditionalFiles Include="module.json"/>
+    </ItemGroup>
+
+    <!-- Тестам открыты сессия и документы: проверяется поведение службы, с потоком и движком теста. -->
+    <ItemGroup>
+        <InternalsVisibleTo Include="ArxisStudio.Tests"/>
+    </ItemGroup>
+
+</Project>

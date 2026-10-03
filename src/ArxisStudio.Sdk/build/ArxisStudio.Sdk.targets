@@ -227,11 +227,11 @@
             <!--
                 Общие сборки одним выражением — тем же правилом, что у
                 PluginLoadContext.IsShared: имя семейства целиком или с точкой за
-                ним, а модель проектов — точным именем. По первым буквам узнавать
+                ним, а модель проектов и синтаксис разметки — точными именами. По первым буквам узнавать
                 нельзя: под «Avalonia» без точки попадали чужие библиотеки вроде
                 AvaloniaEdit, в студии не лежащие, и в пакет плагина они не ехали.
             -->
-            <_AxSharedName>^((Avalonia|ArxisStudio\.Sdk|ArxisStudio\.Controls|ArxisStudio\.Icons)(\..+)?|ArxisStudio\.ProjectSystem)$</_AxSharedName>
+            <_AxSharedName>^((Avalonia|ArxisStudio\.Sdk|ArxisStudio\.Controls|ArxisStudio\.Icons)(\..+)?|ArxisStudio\.ProjectSystem|ArxisStudio\.Markup|ArxisStudio\.Markup\.Xaml)$</_AxSharedName>
 
             <!--
                 Спутники Avalonia, которые студия везёт в lib/ рядом с ней.
@@ -258,7 +258,9 @@
             и не должно ехать в плагине. Правится в двух местах сразу.
 
             Модель проектов общая точным именем, а не префиксом: её движки —
-            ArxisStudio.ProjectSystem.MSBuild и .NuGet — общими не становятся.
+            ArxisStudio.ProjectSystem.MSBuild и .NuGet — общими не становятся. Так же
+            синтаксис разметки: ArxisStudio.Markup и .Markup.Xaml общие, а загрузчик
+            .Markup.Xaml.Loader строит объекты поколения, и его держит служба XAML.
 
             Файлы документации (.xml) нужны автору плагина, а не студии, и в
             пакет не едут.
