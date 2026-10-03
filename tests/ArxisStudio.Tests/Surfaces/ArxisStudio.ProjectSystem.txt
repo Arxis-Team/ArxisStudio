@@ -1,4 +1,4 @@
-# StudioSdk 6.0
+# StudioSdk 7.12
 ArxisStudio.ProjectSystem.AnalyzerReferenceInfo : sealed record : System.IEquatable<ArxisStudio.ProjectSystem.AnalyzerReferenceInfo>
 ArxisStudio.ProjectSystem.AnalyzerReferenceInfo :: .ctor()
 ArxisStudio.ProjectSystem.AnalyzerReferenceInfo :: ArxisStudio.ProjectSystem.ProjectMetadata Metadata { get; init; }
@@ -37,11 +37,24 @@ ArxisStudio.ProjectSystem.CanonicalPath :: static System.Boolean op_GreaterThanO
 ArxisStudio.ProjectSystem.CanonicalPath :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.CanonicalPath left, ArxisStudio.ProjectSystem.CanonicalPath right)
 ArxisStudio.ProjectSystem.CanonicalPath :: static System.Boolean op_LessThan(ArxisStudio.ProjectSystem.CanonicalPath left, ArxisStudio.ProjectSystem.CanonicalPath right)
 ArxisStudio.ProjectSystem.CanonicalPath :: static System.Boolean op_LessThanOrEqual(ArxisStudio.ProjectSystem.CanonicalPath left, ArxisStudio.ProjectSystem.CanonicalPath right)
+ArxisStudio.ProjectSystem.FileChange : readonly record struct : System.IEquatable<ArxisStudio.ProjectSystem.FileChange>
+ArxisStudio.ProjectSystem.FileChange :: .ctor(ArxisStudio.ProjectSystem.CanonicalPath Path, ArxisStudio.ProjectSystem.FileChangeKind Kind)
+ArxisStudio.ProjectSystem.FileChange :: ArxisStudio.ProjectSystem.CanonicalPath OldPath { get; init; }
+ArxisStudio.ProjectSystem.FileChange :: ArxisStudio.ProjectSystem.CanonicalPath Path { get; init; }
+ArxisStudio.ProjectSystem.FileChange :: ArxisStudio.ProjectSystem.FileChangeKind Kind { get; init; }
+ArxisStudio.ProjectSystem.FileChange :: System.Boolean Equals(ArxisStudio.ProjectSystem.FileChange other)
+ArxisStudio.ProjectSystem.FileChange :: System.Void Deconstruct(out ArxisStudio.ProjectSystem.CanonicalPath Path, out ArxisStudio.ProjectSystem.FileChangeKind Kind)
+ArxisStudio.ProjectSystem.FileChange :: static ArxisStudio.ProjectSystem.FileChange Overflow { get; }
+ArxisStudio.ProjectSystem.FileChange :: static ArxisStudio.ProjectSystem.FileChange Renamed(ArxisStudio.ProjectSystem.CanonicalPath oldPath, ArxisStudio.ProjectSystem.CanonicalPath newPath)
+ArxisStudio.ProjectSystem.FileChange :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.FileChange left, ArxisStudio.ProjectSystem.FileChange right)
+ArxisStudio.ProjectSystem.FileChange :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.FileChange left, ArxisStudio.ProjectSystem.FileChange right)
 ArxisStudio.ProjectSystem.FileChangeCoalescer : sealed class : System.IDisposable
 ArxisStudio.ProjectSystem.FileChangeCoalescer :: .ctor(System.Action<System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath>> onBatch, ArxisStudio.ProjectSystem.FileChangeCoalescingOptions? options = null, System.TimeProvider? timeProvider = null)
 ArxisStudio.ProjectSystem.FileChangeCoalescer :: System.Void Add(ArxisStudio.ProjectSystem.CanonicalPath path)
+ArxisStudio.ProjectSystem.FileChangeCoalescer :: System.Void Add(ArxisStudio.ProjectSystem.FileChange change)
 ArxisStudio.ProjectSystem.FileChangeCoalescer :: System.Void Dispose()
 ArxisStudio.ProjectSystem.FileChangeCoalescer :: System.Void Flush()
+ArxisStudio.ProjectSystem.FileChangeCoalescer :: static ArxisStudio.ProjectSystem.FileChangeCoalescer ForChanges(System.Action<System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.FileChange>> onChanges, ArxisStudio.ProjectSystem.FileChangeCoalescingOptions? options = null, System.TimeProvider? timeProvider = null)
 ArxisStudio.ProjectSystem.FileChangeCoalescingOptions : sealed record : System.IEquatable<ArxisStudio.ProjectSystem.FileChangeCoalescingOptions>
 ArxisStudio.ProjectSystem.FileChangeCoalescingOptions :: .ctor()
 ArxisStudio.ProjectSystem.FileChangeCoalescingOptions :: System.Boolean Equals(ArxisStudio.ProjectSystem.FileChangeCoalescingOptions? other)
@@ -50,6 +63,20 @@ ArxisStudio.ProjectSystem.FileChangeCoalescingOptions :: System.TimeSpan QuietPe
 ArxisStudio.ProjectSystem.FileChangeCoalescingOptions :: static ArxisStudio.ProjectSystem.FileChangeCoalescingOptions Default { get; }
 ArxisStudio.ProjectSystem.FileChangeCoalescingOptions :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.FileChangeCoalescingOptions? left, ArxisStudio.ProjectSystem.FileChangeCoalescingOptions? right)
 ArxisStudio.ProjectSystem.FileChangeCoalescingOptions :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.FileChangeCoalescingOptions? left, ArxisStudio.ProjectSystem.FileChangeCoalescingOptions? right)
+ArxisStudio.ProjectSystem.FileChangeKind : enum
+ArxisStudio.ProjectSystem.FileChangeKind :: Changed = 0
+ArxisStudio.ProjectSystem.FileChangeKind :: Created = 1
+ArxisStudio.ProjectSystem.FileChangeKind :: Deleted = 2
+ArxisStudio.ProjectSystem.FileChangeKind :: Overflow = 4
+ArxisStudio.ProjectSystem.FileChangeKind :: Renamed = 3
+ArxisStudio.ProjectSystem.FileRename : readonly record struct : System.IEquatable<ArxisStudio.ProjectSystem.FileRename>
+ArxisStudio.ProjectSystem.FileRename :: .ctor(ArxisStudio.ProjectSystem.CanonicalPath OldPath, ArxisStudio.ProjectSystem.CanonicalPath NewPath)
+ArxisStudio.ProjectSystem.FileRename :: ArxisStudio.ProjectSystem.CanonicalPath NewPath { get; init; }
+ArxisStudio.ProjectSystem.FileRename :: ArxisStudio.ProjectSystem.CanonicalPath OldPath { get; init; }
+ArxisStudio.ProjectSystem.FileRename :: System.Boolean Equals(ArxisStudio.ProjectSystem.FileRename other)
+ArxisStudio.ProjectSystem.FileRename :: System.Void Deconstruct(out ArxisStudio.ProjectSystem.CanonicalPath OldPath, out ArxisStudio.ProjectSystem.CanonicalPath NewPath)
+ArxisStudio.ProjectSystem.FileRename :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.FileRename left, ArxisStudio.ProjectSystem.FileRename right)
+ArxisStudio.ProjectSystem.FileRename :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.FileRename left, ArxisStudio.ProjectSystem.FileRename right)
 ArxisStudio.ProjectSystem.FileSpan : readonly record struct : System.IEquatable<ArxisStudio.ProjectSystem.FileSpan>
 ArxisStudio.ProjectSystem.FileSpan :: System.Boolean Equals(ArxisStudio.ProjectSystem.FileSpan other)
 ArxisStudio.ProjectSystem.FileSpan :: System.Boolean IsEmpty { get; }
@@ -158,6 +185,14 @@ ArxisStudio.ProjectSystem.ProjectItem :: required System.String Include { get; i
 ArxisStudio.ProjectSystem.ProjectItem :: required System.String ItemType { get; init; }
 ArxisStudio.ProjectSystem.ProjectItem :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.ProjectItem? left, ArxisStudio.ProjectSystem.ProjectItem? right)
 ArxisStudio.ProjectSystem.ProjectItem :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.ProjectItem? left, ArxisStudio.ProjectSystem.ProjectItem? right)
+ArxisStudio.ProjectSystem.ProjectItemChange : sealed record : System.IEquatable<ArxisStudio.ProjectSystem.ProjectItemChange>
+ArxisStudio.ProjectSystem.ProjectItemChange :: .ctor(ArxisStudio.ProjectSystem.ProjectIdentity Project, ArxisStudio.ProjectSystem.ProjectItem Item)
+ArxisStudio.ProjectSystem.ProjectItemChange :: ArxisStudio.ProjectSystem.ProjectIdentity Project { get; init; }
+ArxisStudio.ProjectSystem.ProjectItemChange :: ArxisStudio.ProjectSystem.ProjectItem Item { get; init; }
+ArxisStudio.ProjectSystem.ProjectItemChange :: System.Boolean Equals(ArxisStudio.ProjectSystem.ProjectItemChange? other)
+ArxisStudio.ProjectSystem.ProjectItemChange :: System.Void Deconstruct(out ArxisStudio.ProjectSystem.ProjectIdentity Project, out ArxisStudio.ProjectSystem.ProjectItem Item)
+ArxisStudio.ProjectSystem.ProjectItemChange :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.ProjectItemChange? left, ArxisStudio.ProjectSystem.ProjectItemChange? right)
+ArxisStudio.ProjectSystem.ProjectItemChange :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.ProjectItemChange? left, ArxisStudio.ProjectSystem.ProjectItemChange? right)
 ArxisStudio.ProjectSystem.ProjectItemOrigin : enum
 ArxisStudio.ProjectSystem.ProjectItemOrigin :: Declared = 1
 ArxisStudio.ProjectSystem.ProjectItemOrigin :: Generated = 3
@@ -239,7 +274,9 @@ ArxisStudio.ProjectSystem.ProjectSnapshot :: ArxisStudio.ProjectSystem.ProjectMe
 ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Boolean HasErrors { get; }
 ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.AnalyzerReferenceInfo> AnalyzerReferences { get; }
 ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.AssemblyReferenceInfo> AssemblyReferences { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath> BuildDirectories { get; }
 ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath> EvaluationInputs { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath> RestoreOutputs { get; }
 ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.FrameworkReferenceInfo> FrameworkReferences { get; }
 ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.OutputArtifact> Outputs { get; }
 ArxisStudio.ProjectSystem.ProjectSnapshot :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.PackageReferenceInfo> PackageReferences { get; }
@@ -265,7 +302,9 @@ ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: ArxisStudio.ProjectSystem.Pr
 ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IDictionary<System.String, System.String> Properties { get; }
 ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IList<ArxisStudio.ProjectSystem.AnalyzerReferenceInfo> AnalyzerReferences { get; }
 ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IList<ArxisStudio.ProjectSystem.AssemblyReferenceInfo> AssemblyReferences { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IList<ArxisStudio.ProjectSystem.CanonicalPath> BuildDirectories { get; }
 ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IList<ArxisStudio.ProjectSystem.CanonicalPath> EvaluationInputs { get; }
+ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IList<ArxisStudio.ProjectSystem.CanonicalPath> RestoreOutputs { get; }
 ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IList<ArxisStudio.ProjectSystem.FrameworkReferenceInfo> FrameworkReferences { get; }
 ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IList<ArxisStudio.ProjectSystem.OutputArtifact> Outputs { get; }
 ArxisStudio.ProjectSystem.ProjectSnapshotBuilder :: System.Collections.Generic.IList<ArxisStudio.ProjectSystem.PackageReferenceInfo> PackageReferences { get; }
@@ -344,6 +383,7 @@ ArxisStudio.ProjectSystem.SolutionIdentity :: static System.Boolean op_LessThan(
 ArxisStudio.ProjectSystem.SolutionIdentity :: static System.Boolean op_LessThanOrEqual(ArxisStudio.ProjectSystem.SolutionIdentity left, ArxisStudio.ProjectSystem.SolutionIdentity right)
 ArxisStudio.ProjectSystem.SolutionSnapshot : sealed class
 ArxisStudio.ProjectSystem.SolutionSnapshot :: ArxisStudio.ProjectSystem.SolutionIdentity Solution { get; }
+ArxisStudio.ProjectSystem.SolutionSnapshot :: ArxisStudio.ProjectSystem.WorkspaceChangeSet Classify(System.Collections.Generic.IEnumerable<ArxisStudio.ProjectSystem.FileChange> changes)
 ArxisStudio.ProjectSystem.SolutionSnapshot :: ArxisStudio.ProjectSystem.WorkspaceEntryPoint EntryPoint { get; }
 ArxisStudio.ProjectSystem.SolutionSnapshot :: ArxisStudio.ProjectSystem.WorkspaceIdentity Workspace { get; }
 ArxisStudio.ProjectSystem.SolutionSnapshot :: ArxisStudio.ProjectSystem.WorkspaceInvalidation Invalidate(System.Collections.Generic.IEnumerable<ArxisStudio.ProjectSystem.CanonicalPath> changedPaths)
@@ -351,6 +391,7 @@ ArxisStudio.ProjectSystem.SolutionSnapshot :: ArxisStudio.ProjectSystem.Workspac
 ArxisStudio.ProjectSystem.SolutionSnapshot :: ArxisStudio.ProjectSystem.WorkspaceVersion Version { get; }
 ArxisStudio.ProjectSystem.SolutionSnapshot :: System.Boolean HasErrors { get; }
 ArxisStudio.ProjectSystem.SolutionSnapshot :: System.Boolean TryGetFolder(ArxisStudio.ProjectSystem.ProjectIdentity project, out ArxisStudio.ProjectSystem.SolutionFolder? folder)
+ArxisStudio.ProjectSystem.SolutionSnapshot :: System.Boolean TryGetItem(ArxisStudio.ProjectSystem.CanonicalPath path, out ArxisStudio.ProjectSystem.ProjectSnapshot? project, out ArxisStudio.ProjectSystem.ProjectItem? item)
 ArxisStudio.ProjectSystem.SolutionSnapshot :: System.Boolean TryGetProject(ArxisStudio.ProjectSystem.CanonicalPath projectFilePath, out ArxisStudio.ProjectSystem.ProjectSnapshot? project)
 ArxisStudio.ProjectSystem.SolutionSnapshot :: System.Boolean TryGetProject(ArxisStudio.ProjectSystem.ProjectIdentity identity, out ArxisStudio.ProjectSystem.ProjectSnapshot? project)
 ArxisStudio.ProjectSystem.SolutionSnapshot :: System.Boolean TryGetProjectForFile(ArxisStudio.ProjectSystem.CanonicalPath filePath, out ArxisStudio.ProjectSystem.ProjectSnapshot? project)
@@ -375,6 +416,15 @@ ArxisStudio.ProjectSystem.SolutionSnapshotBuilder :: System.Collections.Generic.
 ArxisStudio.ProjectSystem.SolutionSnapshotBuilder :: System.Collections.Generic.IList<System.String> Platforms { get; }
 ArxisStudio.ProjectSystem.SolutionSnapshotBuilder :: System.String? Name { get; set; }
 ArxisStudio.ProjectSystem.SolutionSnapshotBuilder :: System.String? ProviderName { get; set; }
+ArxisStudio.ProjectSystem.WorkspaceChangeSet : sealed class
+ArxisStudio.ProjectSystem.WorkspaceChangeSet :: ArxisStudio.ProjectSystem.WorkspaceInvalidation Invalidation { get; }
+ArxisStudio.ProjectSystem.WorkspaceChangeSet :: System.Boolean IsEmpty { get; }
+ArxisStudio.ProjectSystem.WorkspaceChangeSet :: System.Boolean RequiresRescan { get; }
+ArxisStudio.ProjectSystem.WorkspaceChangeSet :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.FileRename> Renames { get; }
+ArxisStudio.ProjectSystem.WorkspaceChangeSet :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectIdentity> MembershipChanged { get; }
+ArxisStudio.ProjectSystem.WorkspaceChangeSet :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectIdentity> ProjectsToEvaluate { get; }
+ArxisStudio.ProjectSystem.WorkspaceChangeSet :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectItemChange> ItemsEdited { get; }
+ArxisStudio.ProjectSystem.WorkspaceChangeSet :: static ArxisStudio.ProjectSystem.WorkspaceChangeSet None { get; }
 ArxisStudio.ProjectSystem.WorkspaceChangedEventArgs : sealed class : System.EventArgs
 ArxisStudio.ProjectSystem.WorkspaceChangedEventArgs :: ArxisStudio.ProjectSystem.SolutionSnapshot Snapshot { get; }
 ArxisStudio.ProjectSystem.WorkspaceChangedEventArgs :: ArxisStudio.ProjectSystem.SolutionSnapshot? Previous { get; }
@@ -418,6 +468,7 @@ ArxisStudio.ProjectSystem.WorkspaceLoadOptions : sealed record : System.IEquatab
 ArxisStudio.ProjectSystem.WorkspaceLoadOptions :: .ctor()
 ArxisStudio.ProjectSystem.WorkspaceLoadOptions :: System.Boolean Equals(ArxisStudio.ProjectSystem.WorkspaceLoadOptions? other)
 ArxisStudio.ProjectSystem.WorkspaceLoadOptions :: System.Boolean IncludeItems { get; init; }
+ArxisStudio.ProjectSystem.WorkspaceLoadOptions :: System.Collections.Immutable.ImmutableArray<System.String> AdditionalProperties { get; init; }
 ArxisStudio.ProjectSystem.WorkspaceLoadOptions :: static ArxisStudio.ProjectSystem.WorkspaceLoadOptions Default { get; }
 ArxisStudio.ProjectSystem.WorkspaceLoadOptions :: static System.Boolean op_Equality(ArxisStudio.ProjectSystem.WorkspaceLoadOptions? left, ArxisStudio.ProjectSystem.WorkspaceLoadOptions? right)
 ArxisStudio.ProjectSystem.WorkspaceLoadOptions :: static System.Boolean op_Inequality(ArxisStudio.ProjectSystem.WorkspaceLoadOptions? left, ArxisStudio.ProjectSystem.WorkspaceLoadOptions? right)

@@ -21,6 +21,16 @@ public static class StudioSdk
 {
     /// <summary>Версия контракта этой студии.</summary>
     /// <remarks>
+    /// 7.12 — ядро модели проектов, которое плагин видит общим, выросло. Перемена файла несёт свой вид:
+    /// <c>FileChange</c> с <c>FileChangeKind</c> и переименованием <c>FileRename</c>, коалесцер их
+    /// принимает (<c>FileChangeCoalescer.ForChanges</c>, <c>Add</c>). Снимок разбирает пачку перемен сам —
+    /// <c>SolutionSnapshot.Classify</c> отдаёт <c>WorkspaceChangeSet</c>: что перечитать, чей состав
+    /// сменился, какие элементы правлены (<c>ProjectItemChange</c>), что переименовано, — и находит
+    /// элемент по пути (<c>TryGetItem</c>). Проект называет каталоги, куда пишут сборка и восстановление
+    /// (<c>BuildDirectories</c>, <c>RestoreOutputs</c>), а загрузка просит оценить сверх обычного
+    /// (<c>WorkspaceLoadOptions.AdditionalProperties</c>). Первым потребителем станет служба XAML.
+    /// Младший номер: добавлено, снятого нет.
+    /// <para>
     /// 7.11 — перетаскивание между панелями: панель несёт мышью своё в чужую, и обе стороны говорят на
     /// SDK. Источник — служба <c>IStudioDragDrop</c>: <c>DragAsync</c>, когда тягу от первого движения до
     /// отпускания ведёт студия, и <c>Begin</c> — сеанс <c>IStudioDragSession</c> для источника со своим
@@ -30,6 +40,7 @@ public static class StudioSdk
     /// <c>StudioDataFormat&lt;T&gt;</c>, пути — <c>StudioDataFormats.Files</c>; что видно у курсора —
     /// <c>StudioDragVisual</c>; порог жеста — <c>StudioDragDrop.Threshold</c>. Первые потребители — окно
     /// проекта, источник, и доска дизайнера, цель. Младший номер: добавлено, снятого нет.
+    /// </para>
     /// <para>
     /// 7.10 — центральная область окна называется в манифесте словом: <c>placement.side</c> знает
     /// пятое значение <c>center</c>, и панель встаёт в неё вкладкой рядом с документами. Имя группы
@@ -241,7 +252,7 @@ public static class StudioSdk
     /// 4.1 — добавлены теги манифеста (<c>tags</c>).
     /// </para>
     /// </remarks>
-    public const string Version = "7.11";
+    public const string Version = "7.12";
 
     /// <summary>
     /// Довольна ли эта версия SDK тем, что просит плагин.
