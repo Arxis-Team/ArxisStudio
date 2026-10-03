@@ -1,11 +1,11 @@
 {
   "module.uiDesigner": "Дизайнер интерфейса",
-  "module.uiDesigner.description": "Формы открытого решения карточками на холсте: обзор, масштаб, раскладка и открытие",
+  "module.uiDesigner.description": "Формы открытого решения — все на одном холсте или каждая в своей вкладке: обзор, масштаб, раскладка и открытие",
   "panel.board": "Дизайнер",
   "command.board.show": "Показать дизайнер",
   "settings.board.grid": "Сетка в дизайнере",
+  "settings.board.tabs": "Каждая форма в своей вкладке",
 
-  "board.count": "Форм: {0}",
   "board.zoom": "{0} %",
   "board.loading": "Решение перечитывается",
   "board.fit": "Вписать всё",
@@ -14,6 +14,22 @@
   "board.arrange": "Упорядочить",
   "board.grid": "Сетка",
   "board.open": "Открыть",
+  "board.mode.board": "Все формы на одной доске",
+  "board.mode.tabs": "Каждая форма в своей вкладке",
+  "board.remove": "Убрать с доски",
+  "board.return": "Вернуть на доску",
+  "board.return.all": "Вернуть все",
+  "board.removed.one": "«{0}» убрана с доски, файл на месте. Ctrl+Z вернёт её",
+  "board.removed.many": "Форм убрано с доски: {0}, файлы на месте. Ctrl+Z вернёт их",
+  "board.returned.one": "«{0}» снова на доске",
+  "board.returned.many": "Форм возвращено на доску: {0}",
+
+  "board.drop.return": "Вернуть «{0}» на доску",
+  "board.drop.move": "Передвинуть «{0}» сюда",
+  "board.drop.many": "Поставить сюда форм: {0}",
+  "board.drop.none": "Сюда кладут формы и контролы — файлы .axaml",
+  "board.drop.notForm.one": "«{0}» — не форма и не контрол этого решения",
+  "board.drop.notForm.many": "Среди них нет форм и контролов этого решения",
 
   "board.kind.window": "Окно",
   "board.kind.userControl": "Пользовательский элемент",
@@ -26,5 +42,10 @@
   "board.state.failed": "Решение не открылось",
   "board.state.noService": "Служба проектов не запущена: показывать нечего.",
   "board.state.empty": "В решении нет форм",
-  "board.state.empty.hint": "Здесь встают окна и пользовательские элементы из файлов .axaml."
+  "board.state.empty.hint": "Здесь встают окна и пользовательские элементы из файлов .axaml.",
+  "board.state.allRemoved": "Все формы убраны с доски",
+  "board.state.allRemoved.hint": "Файлы на месте: вернуть формы можно здесь или из меню холста.",
+
+  "form.size.none": "размер не объявлен",
+  "form.notForm": "{0}: разметка не читается или это не форма"
 }

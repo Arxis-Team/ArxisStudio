@@ -1,0 +1,30 @@
+<!--
+    Что несут мышью — у курсора, над любым окном студии: значок и подпись источника, а под ними ответ
+    цели, что сделает отпускание или почему здесь нельзя. Одета как всплывающая подсказка темы: тот же
+    фон, обводка, тень и поля, — она и есть подсказка, только едет за курсором. Мышь она не ловит:
+    поймай она её, под курсором всегда была бы она сама, и цель перестала бы меняться.
+
+    Лежит в слое оверлеев окна, а не в разметке панели, поэтому ключи темы названы прямо здесь.
+-->
+<ax:AxUserControl xmlns="https://github.com/avaloniaui"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
+                  x:Class="ArxisStudio.Dragging.DragGhost"
+                  IsHitTestVisible="False">
+
+  <Border Background="{DynamicResource AxToolTipFillBrush}"
+          BorderBrush="{DynamicResource AxToolTipStrokeBrush}"
+          BorderThickness="{DynamicResource AxHairlineThickness}"
+          CornerRadius="{DynamicResource AxCornerRadius}"
+          BoxShadow="{DynamicResource AxShadowPopup}"
+          Padding="{DynamicResource AxTooltipPadding}">
+    <StackPanel Spacing="{DynamicResource AxSpaceHair}">
+      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource AxGapIconText}">
+        <ax:AxIcon x:Name="Glyph" VerticalAlignment="Center"/>
+        <TextBlock x:Name="Caption" VerticalAlignment="Center"/>
+      </StackPanel>
+      <TextBlock x:Name="Answer" IsVisible="False" ax:AxText.Role="Small" ax:AxText.Tone="Secondary"/>
+    </StackPanel>
+  </Border>
+
+</ax:AxUserControl>

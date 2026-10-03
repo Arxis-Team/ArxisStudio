@@ -1,4 +1,4 @@
-# StudioSdk 7.5
+# StudioSdk 7.11
 ArxisStudio.Sdk.CommandAttribute : sealed class : System.Attribute
 ArxisStudio.Sdk.CommandAttribute :: .ctor(System.String id)
 ArxisStudio.Sdk.CommandAttribute :: System.String Id { get; }
@@ -29,6 +29,19 @@ ArxisStudio.Sdk.IStudioContext :: System.String? ProjectPath { get; }
 ArxisStudio.Sdk.IStudioContext :: T? GetService<T>()
 ArxisStudio.Sdk.IStudioDocuments : interface
 ArxisStudio.Sdk.IStudioDocuments :: System.Threading.Tasks.Task OpenAsync(System.String filePath)
+ArxisStudio.Sdk.IStudioDragDrop : interface
+ArxisStudio.Sdk.IStudioDragDrop :: ArxisStudio.Sdk.IStudioDragSession Begin(Avalonia.Controls.Control source, ArxisStudio.Sdk.StudioDragData data, Avalonia.Input.DragDropEffects allowedEffects, ArxisStudio.Sdk.StudioDragVisual visual)
+ArxisStudio.Sdk.IStudioDragDrop :: System.Threading.Tasks.Task<Avalonia.Input.DragDropEffects> DragAsync(Avalonia.Controls.Control source, Avalonia.Input.PointerEventArgs trigger, ArxisStudio.Sdk.StudioDragData data, Avalonia.Input.DragDropEffects allowedEffects, ArxisStudio.Sdk.StudioDragVisual visual)
+ArxisStudio.Sdk.IStudioDragSession : interface : System.IDisposable
+ArxisStudio.Sdk.IStudioDragSession :: ArxisStudio.Sdk.StudioDragData Data { get; }
+ArxisStudio.Sdk.IStudioDragSession :: Avalonia.Input.DragDropEffects AllowedEffects { get; }
+ArxisStudio.Sdk.IStudioDragSession :: Avalonia.Input.DragDropEffects Drop()
+ArxisStudio.Sdk.IStudioDragSession :: Avalonia.Input.DragDropEffects Effect { get; }
+ArxisStudio.Sdk.IStudioDragSession :: Avalonia.Input.DragDropEffects Over(Avalonia.Point position, Avalonia.Input.KeyModifiers keyModifiers)
+ArxisStudio.Sdk.IStudioDragSession :: Avalonia.Visual? ElementAt(Avalonia.Point position)
+ArxisStudio.Sdk.IStudioDragSession :: System.Boolean IsActive { get; }
+ArxisStudio.Sdk.IStudioDragSession :: System.String? Hint { get; }
+ArxisStudio.Sdk.IStudioDragSession :: System.Void OverOwn(Avalonia.Point position, Avalonia.Input.DragDropEffects effect, System.String? hint = null)
 ArxisStudio.Sdk.IStudioExports : interface
 ArxisStudio.Sdk.IStudioExports :: System.Boolean Publish<T>(T implementation)
 ArxisStudio.Sdk.IStudioExports :: T? Get<T>()
@@ -259,6 +272,49 @@ ArxisStudio.Sdk.Plugins.PluginTranslation :: System.String Id { get; init; }
 ArxisStudio.Sdk.Plugins.PluginTranslation :: System.Void Deconstruct(out System.String Id, out System.String File)
 ArxisStudio.Sdk.Plugins.PluginTranslation :: static System.Boolean op_Equality(ArxisStudio.Sdk.Plugins.PluginTranslation? left, ArxisStudio.Sdk.Plugins.PluginTranslation? right)
 ArxisStudio.Sdk.Plugins.PluginTranslation :: static System.Boolean op_Inequality(ArxisStudio.Sdk.Plugins.PluginTranslation? left, ArxisStudio.Sdk.Plugins.PluginTranslation? right)
+ArxisStudio.Sdk.StudioDataFormat<T> : sealed class
+ArxisStudio.Sdk.StudioDataFormat<T> :: .ctor(System.String id)
+ArxisStudio.Sdk.StudioDataFormat<T> :: System.String Id { get; }
+ArxisStudio.Sdk.StudioDataFormats : static class
+ArxisStudio.Sdk.StudioDataFormats :: static ArxisStudio.Sdk.StudioDataFormat<System.Collections.Generic.IReadOnlyList<System.String>> Files { get; }
+ArxisStudio.Sdk.StudioDragData : sealed class
+ArxisStudio.Sdk.StudioDragData :: .ctor()
+ArxisStudio.Sdk.StudioDragData :: ArxisStudio.Sdk.StudioDragData With<T>(ArxisStudio.Sdk.StudioDataFormat<T> format, T value)
+ArxisStudio.Sdk.StudioDragData :: System.Boolean Contains<T>(ArxisStudio.Sdk.StudioDataFormat<T> format)
+ArxisStudio.Sdk.StudioDragData :: System.Boolean TryGet<T>(ArxisStudio.Sdk.StudioDataFormat<T> format, out T? value)
+ArxisStudio.Sdk.StudioDragData :: System.Collections.Generic.IReadOnlyCollection<System.String> Formats { get; }
+ArxisStudio.Sdk.StudioDragData :: System.Collections.Generic.IReadOnlyList<System.String> Files { get; }
+ArxisStudio.Sdk.StudioDragData :: static ArxisStudio.Sdk.StudioDragData FromFiles(System.Collections.Generic.IEnumerable<System.String> paths)
+ArxisStudio.Sdk.StudioDragDrop : static class
+ArxisStudio.Sdk.StudioDragDrop :: const System.Double Threshold = 6
+ArxisStudio.Sdk.StudioDragDrop :: static System.Boolean GetAllowDrop(Avalonia.Interactivity.Interactive element)
+ArxisStudio.Sdk.StudioDragDrop :: static System.Void AddDragEnterHandler(Avalonia.Interactivity.Interactive element, System.EventHandler<ArxisStudio.Sdk.StudioDragEventArgs> handler)
+ArxisStudio.Sdk.StudioDragDrop :: static System.Void AddDragLeaveHandler(Avalonia.Interactivity.Interactive element, System.EventHandler<ArxisStudio.Sdk.StudioDragEventArgs> handler)
+ArxisStudio.Sdk.StudioDragDrop :: static System.Void AddDragOverHandler(Avalonia.Interactivity.Interactive element, System.EventHandler<ArxisStudio.Sdk.StudioDragEventArgs> handler)
+ArxisStudio.Sdk.StudioDragDrop :: static System.Void AddDropHandler(Avalonia.Interactivity.Interactive element, System.EventHandler<ArxisStudio.Sdk.StudioDragEventArgs> handler)
+ArxisStudio.Sdk.StudioDragDrop :: static System.Void RemoveDragEnterHandler(Avalonia.Interactivity.Interactive element, System.EventHandler<ArxisStudio.Sdk.StudioDragEventArgs> handler)
+ArxisStudio.Sdk.StudioDragDrop :: static System.Void RemoveDragLeaveHandler(Avalonia.Interactivity.Interactive element, System.EventHandler<ArxisStudio.Sdk.StudioDragEventArgs> handler)
+ArxisStudio.Sdk.StudioDragDrop :: static System.Void RemoveDragOverHandler(Avalonia.Interactivity.Interactive element, System.EventHandler<ArxisStudio.Sdk.StudioDragEventArgs> handler)
+ArxisStudio.Sdk.StudioDragDrop :: static System.Void RemoveDropHandler(Avalonia.Interactivity.Interactive element, System.EventHandler<ArxisStudio.Sdk.StudioDragEventArgs> handler)
+ArxisStudio.Sdk.StudioDragDrop :: static System.Void SetAllowDrop(Avalonia.Interactivity.Interactive element, System.Boolean value)
+ArxisStudio.Sdk.StudioDragDrop :: static readonly Avalonia.AttachedProperty<System.Boolean> AllowDropProperty
+ArxisStudio.Sdk.StudioDragDrop :: static readonly Avalonia.Interactivity.RoutedEvent<ArxisStudio.Sdk.StudioDragEventArgs> DragEnterEvent
+ArxisStudio.Sdk.StudioDragDrop :: static readonly Avalonia.Interactivity.RoutedEvent<ArxisStudio.Sdk.StudioDragEventArgs> DragLeaveEvent
+ArxisStudio.Sdk.StudioDragDrop :: static readonly Avalonia.Interactivity.RoutedEvent<ArxisStudio.Sdk.StudioDragEventArgs> DragOverEvent
+ArxisStudio.Sdk.StudioDragDrop :: static readonly Avalonia.Interactivity.RoutedEvent<ArxisStudio.Sdk.StudioDragEventArgs> DropEvent
+ArxisStudio.Sdk.StudioDragEventArgs : sealed class : Avalonia.Interactivity.RoutedEventArgs
+ArxisStudio.Sdk.StudioDragEventArgs :: .ctor(Avalonia.Interactivity.RoutedEvent<ArxisStudio.Sdk.StudioDragEventArgs> routedEvent, ArxisStudio.Sdk.StudioDragData data, Avalonia.Input.DragDropEffects allowedEffects, Avalonia.Visual root, Avalonia.Point position, Avalonia.Input.KeyModifiers keyModifiers)
+ArxisStudio.Sdk.StudioDragEventArgs :: ArxisStudio.Sdk.StudioDragData Data { get; }
+ArxisStudio.Sdk.StudioDragEventArgs :: Avalonia.Input.DragDropEffects AllowedEffects { get; }
+ArxisStudio.Sdk.StudioDragEventArgs :: Avalonia.Input.DragDropEffects Effect { get; set; }
+ArxisStudio.Sdk.StudioDragEventArgs :: Avalonia.Input.KeyModifiers KeyModifiers { get; }
+ArxisStudio.Sdk.StudioDragEventArgs :: Avalonia.Point GetPosition(Avalonia.Visual relativeTo)
+ArxisStudio.Sdk.StudioDragEventArgs :: System.String? Hint { get; set; }
+ArxisStudio.Sdk.StudioDragVisual : sealed class
+ArxisStudio.Sdk.StudioDragVisual :: .ctor(System.String label)
+ArxisStudio.Sdk.StudioDragVisual :: Avalonia.Media.Geometry? Icon { get; init; }
+ArxisStudio.Sdk.StudioDragVisual :: Avalonia.Media.IBrush? IconBrush { get; init; }
+ArxisStudio.Sdk.StudioDragVisual :: System.String Label { get; }
 ArxisStudio.Sdk.StudioLogLevel : enum
 ArxisStudio.Sdk.StudioLogLevel :: Debug = 0
 ArxisStudio.Sdk.StudioLogLevel :: Error = 3

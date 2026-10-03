@@ -17,7 +17,8 @@
         "placement": { "side": "center" } }
     ],
     "settings": [
-      { "key": "ui-designer.grid", "type": "bool", "scope": "user", "title": "%settings.board.grid%", "default": true }
+      { "key": "ui-designer.grid", "type": "bool", "scope": "user", "title": "%settings.board.grid%", "default": true },
+      { "key": "ui-designer.tabs", "type": "bool", "scope": "user", "title": "%settings.board.tabs%", "default": false }
     ]
   },
   "activation": [ "onStartup" ]

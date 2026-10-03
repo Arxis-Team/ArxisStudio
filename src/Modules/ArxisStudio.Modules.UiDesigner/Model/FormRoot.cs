@@ -28,6 +28,7 @@ internal enum FormKind
 /// <param name="Width">Ширина: <c>Width</c>, а нет её — <c>d:DesignWidth</c>.</param>
 /// <param name="Height">Высота той же дорогой.</param>
 /// <param name="Problem">Почему файл не прочитан; у прочитанного — null.</param>
+/// <param name="Title"><c>Title</c> окна, если объявлен строкой, а не привязкой.</param>
 /// <remarks>
 /// Читается один корень, а не документ: доске нужно знать, форма ли это и какая, а разбор целиком —
 /// работа Markup, когда он придёт. Читатель потоковый, DTD запрещён: файл приходит из решения, то есть
@@ -39,7 +40,8 @@ internal sealed record FormRoot(
     string? ClassName,
     double? Width,
     double? Height,
-    string? Problem)
+    string? Problem,
+    string? Title = null)
 {
     /// <summary>Пространство имён разметки XAML: в нём <c>x:Class</c>.</summary>
     public const string XamlNamespace = "http://schemas.microsoft.com/winfx/2006/xaml";
@@ -122,7 +124,8 @@ internal sealed record FormRoot(
                 reader.GetAttribute("Class", XamlNamespace),
                 Length(reader.GetAttribute("Width")) ?? Length(reader.GetAttribute("DesignWidth", DesignNamespace)),
                 Length(reader.GetAttribute("Height")) ?? Length(reader.GetAttribute("DesignHeight", DesignNamespace)),
-                null);
+                null,
+                Text(reader.GetAttribute("Title")));
         }
         catch (XmlException e)
         {
@@ -139,6 +142,13 @@ internal sealed record FormRoot(
 
     private static FormRoot Unreadable(string? problem) =>
         new(FormKind.Unreadable, string.Empty, null, null, null, problem ?? string.Empty);
+
+    /// <summary>
+    /// Текст атрибута, если это текст: привязка и расширение разметки (<c>{Binding Title}</c>) —
+    /// не подпись, а выражение, и показывать его как подпись было бы неправдой.
+    /// </summary>
+    private static string? Text(string? value) =>
+        string.IsNullOrWhiteSpace(value) || value.TrimStart().StartsWith('{') ? null : value;
 
     /// <summary>
     /// Длина атрибута, если это число: <c>Auto</c>, привязка и ресурс размером не считаются.

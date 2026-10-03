@@ -232,7 +232,7 @@ public sealed partial class ProjectPanel : ToolWindow
             bool Ready() => _editing is { IsBusy: false } && _model?.IsReady == true;
 
             _fileDrop = new FileDrop(view, model, Ready, MarkDrop, DropFiles, row => Keep(() => model.Tree.Expand(row)));
-            _fileDrag = new FileDrag(view, _fileDrop, Context.Strings, CarryFiles);
+            _fileDrag = new FileDrag(view, _fileDrop, Context.Strings, Context.GetService<IStudioDragDrop>(), CarryFiles);
 
             _release.Add(() =>
             {

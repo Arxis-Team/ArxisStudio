@@ -1,6 +1,8 @@
+using ArxisStudio.Dragging;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Modules.UiDesigner;
 using ArxisStudio.Modules.UiDesigner.Board;
+using ArxisStudio.Modules.UiDesigner.Documents;
 using ArxisStudio.Modules.UiDesigner.Panels;
 using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
@@ -9,6 +11,7 @@ using ArxisStudio.Services;
 using ArxisStudio.Surface;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -29,14 +32,24 @@ internal sealed class UiDesignerStudio : IDisposable
     private readonly PluginHost _host;
     private readonly IStudioContext _context;
 
-    public UiDesignerStudio(bool service = true)
+    /// <summary>Поднимает модуль и показывает доску в окне.</summary>
+    /// <param name="service">Есть ли у студии служба проектов.</param>
+    /// <param name="drags">Тяга студии, общая с соседним окном; пусто — своя, над одним этим окном.</param>
+    public UiDesignerStudio(bool service = true, StudioDrags? drags = null)
     {
+        Drags = drags ?? new StudioDrags(() => Window is { } window ? [window] : [], Log);
+
         var exports = new StudioExportRegistry();
 
         if (service)
             exports.Publish(typeof(IStudioProjects), Projects, "arxis.projects", "Проекты");
 
-        var services = new Dictionary<Type, object> { [typeof(IStudioDocuments)] = Documents };
+        var services = new Dictionary<Type, object>
+        {
+            [typeof(IStudioDocuments)] = Documents,
+            [typeof(IStudioStatus)] = Status,
+            [typeof(IStudioDragDrop)] = Drags,
+        };
         var store = new PluginSettingsStore(null, Path.Combine(Root, "plugin-settings.json"));
 
         _host = new PluginHost(new StudioContextFactory(Log, new StudioCommands(), null, services, settings: store, exports: exports));
@@ -61,6 +74,11 @@ internal sealed class UiDesignerStudio : IDisposable
     public ProjectsProbe Projects { get; } = new() { Accepts = true };
 
     public DocumentsProbe Documents { get; } = new();
+
+    public StatusProbe Status { get; } = new();
+
+    /// <summary>Тяга студии: ею на доску несут из соседнего окна.</summary>
+    public StudioDrags Drags { get; }
 
     public StudioLog Log { get; } = new();
 
@@ -124,6 +142,37 @@ internal sealed class UiDesignerStudio : IDisposable
 
     public FormCard Card(string name) => Model.Cards.Single(card => card.Name == name);
 
+    /// <summary>
+    /// Даёт окнам кадр: попадание тяги идёт по сцене отрисовки, а новому окну её кладёт только такт.
+    /// </summary>
+    public static void Frame()
+    {
+        Dispatcher.UIThread.RunJobs();
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>
+    /// Открывает тягу студии к доске — от её же вида, как открыл бы её сосед: несут пути.
+    /// </summary>
+    /// <param name="allowed">Что разрешает несущий.</param>
+    /// <param name="files">Пути.</param>
+    public IStudioDragSession Carry(DragDropEffects allowed, params string[] files)
+    {
+        Frame();
+
+        return Drags.Begin(View, StudioDragData.FromFiles(files), allowed, new StudioDragVisual("…"));
+    }
+
+    /// <summary>Открывает тягу, разрешающую копию и ссылку, — как несёт окно проекта.</summary>
+    /// <param name="files">Пути.</param>
+    public IStudioDragSession Carry(params string[] files) =>
+        Carry(DragDropEffects.Copy | DragDropEffects.Link, files);
+
+    /// <summary>Точка холста в координатах вида — так её отдают сеансу тяги.</summary>
+    /// <param name="inSheet">Точка в координатах холста.</param>
+    public Point OnSheet(Point inSheet) => View.Sheet.TranslatePoint(inSheet, View)!.Value;
+
     /// <summary>Контейнер карточки на холсте; холст держит его, только пока карточка видна.</summary>
     public SurfaceItem Container(FormCard card) =>
         Assert.IsType<SurfaceItem>(View.Sheet.ContainerFromItem(card));
@@ -160,6 +209,45 @@ internal sealed class UiDesignerStudio : IDisposable
     {
         button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent) { Source = button });
         Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>
+    /// Нажимает переключатель так, как его нажимает мышь: он сперва переворачивает себя, потом сообщает
+    /// о щелчке.
+    /// </summary>
+    public void Toggle(ToggleButton button)
+    {
+        button.IsChecked = button.IsChecked != true;
+        Click(button);
+    }
+
+    /// <summary>Редактор документов модуля, подключённый к его контексту, — как его подключает студия.</summary>
+    public FormEditor Editor()
+    {
+        var editor = new FormEditor();
+
+        editor.Attach(_context);
+
+        return editor;
+    }
+
+    /// <summary>
+    /// Открывает форму редактором и ставит вкладку в окно вместо доски.
+    /// </summary>
+    /// <param name="include">Путь формы от папки проекта App.</param>
+    public async Task<FormDocument> OpenTabAsync(string include)
+    {
+        var (view, error) = await Editor().OpenAsync(PathOf(include).Value);
+        var document = Assert.IsType<FormDocument>(view);
+
+        Assert.Null(error);
+
+        Window.Content = document.Content;
+        Dispatcher.UIThread.RunJobs();
+        document.OnActivated();
+        Dispatcher.UIThread.RunJobs();
+
+        return document;
     }
 
     private Point Middle(Visual target)

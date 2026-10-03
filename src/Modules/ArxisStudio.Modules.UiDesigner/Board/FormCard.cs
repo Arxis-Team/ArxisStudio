@@ -4,6 +4,7 @@ using ArxisStudio.Controls;
 using ArxisStudio.Icons;
 using ArxisStudio.Modules.UiDesigner.Model;
 using ArxisStudio.ProjectSystem;
+using ArxisStudio.Sdk;
 using Avalonia;
 using Avalonia.Media;
 
@@ -64,13 +65,7 @@ internal sealed class FormCard : INotifyPropertyChanged
     public bool IsUnreadable => Kind == FormKind.Unreadable;
 
     /// <summary>Значок вида: окно, элемент, контрол, беда.</summary>
-    public Geometry Glyph => Kind switch
-    {
-        FormKind.Window => AxIcons.Window,
-        FormKind.UserControl => AxIcons.Component,
-        FormKind.Control => AxIcons.Template,
-        _ => AxIcons.WarningTriangle,
-    };
+    public Geometry Glyph => GlyphOf(Kind);
 
     /// <summary>
     /// Вторая строка: класс за разметкой, у нечитаемой — почему.
@@ -108,6 +103,32 @@ internal sealed class FormCard : INotifyPropertyChanged
 
     /// <summary>Место в координатах модели.</summary>
     public Spot Spot => new(_location.X, _location.Y);
+
+    /// <summary>Значок вида формы — один на карточке доски и на рамке во вкладке.</summary>
+    /// <param name="kind">Вид формы.</param>
+    public static Geometry GlyphOf(FormKind kind) => kind switch
+    {
+        FormKind.Window => AxIcons.Window,
+        FormKind.UserControl => AxIcons.Component,
+        FormKind.Control => AxIcons.Template,
+        _ => AxIcons.WarningTriangle,
+    };
+
+    /// <summary>Вид формы словами — подсказка значка на карточке и на рамке во вкладке.</summary>
+    /// <param name="strings">Словари модуля.</param>
+    /// <param name="kind">Вид формы.</param>
+    public static string KindTextOf(IStudioStrings strings, FormKind kind)
+    {
+        ArgumentNullException.ThrowIfNull(strings);
+
+        return strings[kind switch
+        {
+            FormKind.Window => "board.kind.window",
+            FormKind.UserControl => "board.kind.userControl",
+            FormKind.Control => "board.kind.control",
+            _ => "board.kind.unreadable",
+        }];
+    }
 
     /// <summary>Перечитанный снимок принёс новое о том же файле.</summary>
     /// <param name="file">Файл и проект.</param>

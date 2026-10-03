@@ -1,4 +1,5 @@
 using ArxisStudio.Controls;
+using ArxisStudio.Dragging;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Icons;
 using ArxisStudio.Modules.Project;
@@ -52,6 +53,9 @@ internal sealed class ProjectWindowStudio : IDisposable
     /// <param name="files">Служба файлов; пусто — её нет, как у студии без службы проектов 1.3.</param>
     /// <param name="history">Служба истории; пусто — её нет, как у студии без службы проектов 1.5.</param>
     /// <param name="newItems">Служба создания студии; пусто — её нет, и «Добавить ▸» окну не собрать.</param>
+    /// <param name="drags">
+    /// Тяга студии, общая с соседним окном; пусто — своя, над одним этим окном.
+    /// </param>
     public ProjectWindowStudio(
         bool service = true,
         double width = 520,
@@ -60,9 +64,11 @@ internal sealed class ProjectWindowStudio : IDisposable
         bool? twoColumns = false,
         FilesProbe? files = null,
         HistoryProbe? history = null,
-        IStudioNewItems? newItems = null)
+        IStudioNewItems? newItems = null,
+        StudioDrags? drags = null)
     {
         Projects = projects ?? new ProjectsProbe { Accepts = true };
+        Drags = drags ?? new StudioDrags(() => Window is { } window ? [window] : [], Log);
         Files = files;
         History = history;
         SystemFiles.Override = () => Clipboard;
@@ -78,7 +84,12 @@ internal sealed class ProjectWindowStudio : IDisposable
         if (history is not null)
             exports.Publish(typeof(IStudioHistory), history, "arxis.projects", "Проекты");
 
-        var services = new Dictionary<Type, object> { [typeof(IStudioDocuments)] = Documents, [typeof(IStudioStatus)] = Status };
+        var services = new Dictionary<Type, object>
+        {
+            [typeof(IStudioDocuments)] = Documents,
+            [typeof(IStudioStatus)] = Status,
+            [typeof(IStudioDragDrop)] = Drags,
+        };
 
         if (newItems is not null)
             services[typeof(IStudioNewItems)] = newItems;
@@ -122,6 +133,9 @@ internal sealed class ProjectWindowStudio : IDisposable
 
     /// <summary>Строка состояния: что окно сказало.</summary>
     public StatusProbe Status { get; } = new();
+
+    /// <summary>Тяга студии: подсказка у курсора и чужие цели.</summary>
+    public StudioDrags Drags { get; }
 
     /// <summary>Журнал студии.</summary>
     public StudioLog Log { get; } = new();

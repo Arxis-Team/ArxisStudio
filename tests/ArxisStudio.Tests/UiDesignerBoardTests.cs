@@ -8,6 +8,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Xunit;
 using static ArxisStudio.Tests.UiDesignerStudio;
 
@@ -42,7 +43,56 @@ public class UiDesignerBoardTests
         Assert.Equal("App.Views.MainWindow", window.Detail);
         Assert.Contains("800", window.Footer);
         Assert.Equal(studio.Strings["board.kind.userControl"], studio.Card("Card.axaml").KindText);
-        Assert.Equal(string.Format(studio.Strings["board.count"], 2), studio.Model.Summary);
+    }
+
+    /// <summary>
+    /// Полоса доски не считает формы: в ней только органы — режим и холст, а слова в ней одни — масштаб.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task The_toolbar_counts_nothing()
+    {
+        using var studio = new UiDesignerStudio();
+
+        await studio.Open(studio.Solution(
+            ("Views/MainWindow.axaml", WindowXaml("MainWindow")),
+            ("Views/Card.axaml", ControlXaml("Card"))));
+
+        var toolbar = studio.View.Fit.GetVisualAncestors().OfType<Border>().First();
+        var words = toolbar.GetVisualDescendants().OfType<TextBlock>()
+            .Where(text => text.IsEffectivelyVisible && !string.IsNullOrEmpty(text.Text))
+            .Select(text => text.Text)
+            .ToList();
+
+        Assert.Equal([studio.View.Actual.Content as string], words);
+    }
+
+    /// <summary>
+    /// Режим дизайнера — пара переключателей: включён ровно один, щелчок по включённому его не гасит, а
+    /// настройка из окна настроек переставляет пару.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task The_mode_switches_are_a_pair_that_follows_the_setting()
+    {
+        using var studio = new UiDesignerStudio();
+
+        await studio.Open(studio.Solution(("Views/MainWindow.axaml", WindowXaml("MainWindow"))));
+
+        var board = studio.View.BoardMode;
+        var tabs = studio.View.TabsMode;
+
+        Assert.Equal((true, false), (board.IsChecked, tabs.IsChecked));
+
+        studio.Toggle(tabs);
+        Assert.True(studio.Settings.Get<bool?>(UiDesignerModule.TabsKey), "переключатель вкладок не записал режим");
+        Assert.Equal((false, true), (board.IsChecked, tabs.IsChecked));
+
+        studio.Toggle(tabs);
+        Assert.True(studio.Settings.Get<bool?>(UiDesignerModule.TabsKey), "щелчок по включённому режиму его погасил");
+        Assert.Equal((false, true), (board.IsChecked, tabs.IsChecked));
+
+        studio.Settings.Set(UiDesignerModule.TabsKey, false);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal((true, false), (board.IsChecked, tabs.IsChecked));
     }
 
     /// <summary>
@@ -193,6 +243,9 @@ public class UiDesignerBoardTests
         var without = studio.Solution(("Views/A.axaml", WindowXaml("A")));
 
         await studio.Open(without, sequence: 2);
+
+        // Файл доски пишется правкой: сдвиг оставшейся карточки — запись, при которой чистится лишнее.
+        studio.Card("A.axaml").Location += new Vector(20, 0);
         studio.Model.Moved();
         await studio.Built();
 
@@ -202,6 +255,32 @@ public class UiDesignerBoardTests
         await studio.Open(full, sequence: 3);
 
         Assert.Equal(place, studio.Card("B.axaml").Location);
+    }
+
+    /// <summary>
+    /// История сообщает о всякой своей перемене, но файл доски пишется, только если карточки сдвинулись:
+    /// очистка истории при смене решения файл не трогает.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_history_change_that_moves_nothing_writes_nothing()
+    {
+        using var studio = new UiDesignerStudio();
+
+        await studio.Open(studio.Solution(("Views/A.axaml", WindowXaml("A")), ("Views/B.axaml", WindowXaml("B"))));
+
+        studio.Card("A.axaml").Location = new Point(1000, 1000);
+        studio.Click(studio.View.ArrangeAll);
+        await studio.Built();
+
+        var longAgo = new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        File.SetLastWriteTimeUtc(studio.BoardFile, longAgo);
+        Assert.True(studio.Panel.History!.CanUndo);
+
+        studio.Panel.History.Clear();
+        await studio.Built();
+
+        Assert.Equal(longAgo, File.GetLastWriteTimeUtc(studio.BoardFile));
     }
 
     /// <summary>Место формы, которой нет и на диске, из файла уходит.</summary>
@@ -218,6 +297,9 @@ public class UiDesignerBoardTests
 
         File.Delete(studio.PathOf("Views/B.axaml").Value);
         await studio.Open(without, sequence: 2);
+
+        // Файл доски пишется правкой: сдвиг оставшейся карточки — запись, при которой чистится лишнее.
+        studio.Card("A.axaml").Location += new Vector(20, 0);
         studio.Model.Moved();
         await studio.Built();
 
@@ -310,8 +392,9 @@ public class UiDesignerBoardTests
         var boardMenu = studio.Panel.Menu.Items([]).OfType<AxMenuItem>().ToList();
 
         Assert.Equal(
-            [studio.Strings["board.open"], studio.Strings["board.frame"]],
+            [studio.Strings["board.open"], studio.Strings["board.frame"], studio.Strings["board.remove"]],
             cardMenu.Select(item => item.Header));
+        Assert.Equal("Delete", cardMenu[^1].InputGesture?.ToString());
         Assert.Equal(
             [studio.Strings["board.fit"], studio.Strings["board.arrange"]],
             boardMenu.Select(item => item.Header));
@@ -344,6 +427,8 @@ public class UiDesignerBoardTests
         Assert.False(File.Exists(studio.BoardFile), "пустая доска записала файл");
     }
 
-    private static Dictionary<CanonicalPath, Spot> Read(UiDesignerStudio studio) =>
+    private static Dictionary<CanonicalPath, Spot> Read(UiDesignerStudio studio) => Board(studio).Spots;
+
+    private static BoardData Board(UiDesignerStudio studio) =>
         BoardFile.Read(studio.BoardFile, CanonicalPath.Create(Path.Combine(studio.Root, "Forms")));
 }

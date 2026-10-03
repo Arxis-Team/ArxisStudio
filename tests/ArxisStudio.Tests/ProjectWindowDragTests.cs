@@ -1,10 +1,16 @@
+using ArxisStudio.Dragging;
 using ArxisStudio.Modules.Project.Panels;
 using ArxisStudio.Modules.Project.Tree;
 using ArxisStudio.Projects;
+using ArxisStudio.Sdk;
+using ArxisStudio.Services;
 using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Media;
 using Avalonia.Threading;
 using Xunit;
 using static ArxisStudio.Tests.ProjectWindowDialogs;
@@ -46,8 +52,10 @@ public class ProjectWindowDragTests
 
         Assert.Equal(DragDropEffects.Move, drag.Effect);
         Assert.True(views.IsDropTarget, "каталог под курсором не отмечен целью");
-        Assert.NotNull(drag.Ghost?.Parent);
-        Assert.Equal("App.axaml", Assert.IsType<Carried>(drag.Ghost!.DataContext).Label);
+        var ghost = Assert.IsType<DragGhost>(studio.Drags.Ghost);
+
+        Assert.NotNull(ghost.Parent);
+        Assert.Equal("App.axaml", ghost.Label);
 
         studio.Release(studio.Item(views));
 
@@ -62,7 +70,8 @@ public class ProjectWindowDragTests
         Assert.Empty(files.Copied);
         Assert.Equal(Format(studio, "project.paste.moved.label", "App.axaml"), Assert.Single(files.Labels));
         Assert.Contains(Format(studio, "project.paste.moved", "App.axaml"), studio.Status.Said);
-        Assert.Null(drag.Ghost);
+        Assert.Null(studio.Drags.Ghost);
+        Assert.Null(ghost.Parent);
         Assert.False(views.IsDropTarget, "отметка цели пережила отпускание");
         Assert.False(app.IsCut, "унесённое мышью осталось вырезанным по старому пути");
     }
@@ -118,7 +127,7 @@ public class ProjectWindowDragTests
         studio.Grab(studio.Item(program));
 
         Assert.Equal(2, studio.View.Tree.SelectedItems!.Count);
-        Assert.Equal(Format(studio, "project.drag.many", "Program.cs", 1), Assert.IsType<Carried>(studio.Panel.Drag!.Ghost!.DataContext).Label);
+        Assert.Equal(Format(studio, "project.drag.many", "Program.cs", 1), studio.Drags.Ghost!.Label);
 
         studio.Release(studio.Item(views));
 
@@ -167,7 +176,7 @@ public class ProjectWindowDragTests
         studio.Window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, string.Empty);
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Null(drag.Ghost);
+        Assert.Null(studio.Drags.Ghost);
         Assert.False(views.IsDropTarget, "брошенная тяга оставила отметку");
         Assert.Same(before, tree.Cursor);
 
@@ -201,7 +210,7 @@ public class ProjectWindowDragTests
         studio.Window.MouseMove(at + new Vector(FileDrag.Threshold / 2, 0), RawInputModifiers.LeftMouseButton);
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Null(studio.Panel.Drag!.Ghost);
+        Assert.Null(studio.Drags.Ghost);
 
         studio.Window.MouseUp(at, MouseButton.Left);
         Dispatcher.UIThread.RunJobs();
@@ -210,9 +219,83 @@ public class ProjectWindowDragTests
 
         studio.Grab(studio.Item(studio.Row("App")));
 
-        Assert.Null(studio.Panel.Drag.Ghost);
+        Assert.Null(studio.Drags.Ghost);
 
         studio.Release(studio.Item(studio.Row("Views")));
+    }
+
+    /// <summary>
+    /// За край окна файлы несут тягой студии: чужая цель — здесь панель в окне поверх — получает их пути,
+    /// первым — тот, за который взялись, и разрешение взять копию или сослаться, но не перенести; у курсора
+    /// её ответ, а отпущенное там окно проекта само не переносит и не копирует.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Carried_past_the_edge_the_files_offer_a_copy_and_a_link_but_not_a_move()
+    {
+        var windows = new List<TopLevel>();
+        var drags = new StudioDrags(() => windows, new StudioLog());
+        var files = new FilesProbe();
+
+        using var studio = new ProjectWindowStudio(files: files, drags: drags);
+
+        await studio.Open();
+
+        // Окно поверх — того же размера, что окно проекта: безголовая платформа кладёт окна одно на
+        // другое и места окна в перевод точек не берёт. Цель в нём — справа, над краем дерева.
+        var target = new Border { Background = Brushes.Transparent, Width = 200, Height = 200 };
+        var upper = new Window { Width = studio.Window.Width, Height = studio.Window.Height, Content = new Canvas { Children = { target } } };
+        var offered = DragDropEffects.None;
+        IReadOnlyList<string> carried = [];
+        var dropped = false;
+
+        Canvas.SetLeft(target, 300);
+        StudioDragDrop.SetAllowDrop(target, true);
+        StudioDragDrop.AddDragOverHandler(target, (_, e) =>
+        {
+            offered = e.AllowedEffects;
+            carried = e.Data.Files;
+            e.Effect = DragDropEffects.Copy;
+            e.Hint = "сюда";
+        });
+        StudioDragDrop.AddDropHandler(target, (_, _) => dropped = true);
+        upper.Show();
+        windows.Add(upper);
+        windows.Add(studio.Window);
+        Dispatcher.UIThread.RunJobs();
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        Dispatcher.UIThread.RunJobs();
+
+        try
+        {
+            var program = studio.Row("Program.cs");
+            var manifest = studio.Row("app.manifest");
+            var outside = new Point(400, 100);
+
+            // Взялись за второй по дереву: первым его несут потому, что взялись, а не по порядку.
+            Choose(studio, program, manifest);
+            studio.Grab(studio.Item(program));
+            studio.Carry(outside);
+
+            Assert.Equal(DragDropEffects.Copy | DragDropEffects.Link, offered);
+            Assert.Equal([program.Node.Path.Value, manifest.Node.Path.Value], carried);
+            Assert.Equal(DragDropEffects.Copy, studio.Panel.Drag!.Effect);
+            Assert.Equal("сюда", drags.Ghost!.Hint);
+            Assert.Same(OverlayLayer.GetOverlayLayer(upper), drags.Ghost.Parent);
+
+            studio.Window.MouseUp(outside, MouseButton.Left);
+            Dispatcher.UIThread.RunJobs();
+            await Task.Yield();
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.True(dropped, "чужая цель не услышала отпускания");
+            Assert.Null(drags.Current);
+            Assert.Empty(files.Moved);
+            Assert.Empty(files.Copied);
+        }
+        finally
+        {
+            upper.Close();
+        }
     }
 
     /// <summary>
@@ -241,7 +324,10 @@ public class ProjectWindowDragTests
         studio.Grab(studio.TileItem("Program.cs"));
         studio.Release(studio.TileItem("Models"));
 
-        await Settled(studio, () => pane.Selected?.Name == "Program.cs" && pane.Shown.IsKeyboardFocusWithin);
+        // Колонка — тоже часть ожидания: выбранная плитка и клавиатура в колонке верны и до переноса,
+        // с нажатия, и без неё ожидание могло кончиться раньше, чем колонка дошла до каталога.
+        await Settled(studio, () => studio.Model.Browser.Current?.Name == "Models"
+            && pane.Selected?.Name == "Program.cs" && pane.Shown.IsKeyboardFocusWithin);
 
         Assert.Equal(studio.Row("Models").Node.Path.Combine("Program.cs"), Assert.Single(files.Moved[0]).To);
         Assert.Equal("Models", studio.Model.Browser.Current!.Name);
@@ -253,7 +339,8 @@ public class ProjectWindowDragTests
         studio.Grab(studio.TileItem("app.manifest"));
         studio.Release(studio.Item(studio.Row("Views")));
 
-        await Settled(studio, () => pane.Selected?.Name == "app.manifest" && pane.Shown.IsKeyboardFocusWithin);
+        await Settled(studio, () => studio.Model.Browser.Current?.Name == "Views"
+            && pane.Selected?.Name == "app.manifest" && pane.Shown.IsKeyboardFocusWithin);
 
         Assert.Equal(studio.Row("Views").Node.Path.Combine("app.manifest"), Assert.Single(files.Moved[1]).To);
         Assert.Equal("Views", studio.Model.Browser.Current!.Name);
@@ -407,7 +494,7 @@ public class ProjectWindowDragTests
         studio.Window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, string.Empty);
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Null(drag.Ghost);
+        Assert.Null(studio.Drags.Ghost);
         Assert.False(crumbs.IsOverflowOpen, "брошенная тяга оставила меню открытым");
 
         // Щелчок в стороне: время в безголовом прогоне стоит, и следующее нажатие иначе сочлось бы двойным.

@@ -98,11 +98,13 @@ public class UiDesignerModelTests
             var main = folder.Combine("src/App/Views/MainWindow.axaml");
             var card = folder.Combine("src/App/Views/Card.axaml");
 
-            BoardFile.Write(file, folder, new Dictionary<CanonicalPath, Spot>
-            {
-                [main] = new Spot(280.004, -160),
-                [card] = new Spot(0, 0),
-            });
+            BoardFile.Write(file, folder, new BoardData(
+                new Dictionary<CanonicalPath, Spot>
+                {
+                    [main] = new Spot(280.004, -160),
+                    [card] = new Spot(0, 0),
+                },
+                []));
 
             var text = File.ReadAllText(file);
 
@@ -115,8 +117,10 @@ public class UiDesignerModelTests
 
             var read = BoardFile.Read(file, folder);
 
-            Assert.Equal(new Spot(280, -160), read[main]);
-            Assert.Equal(new Spot(0, 0), read[card]);
+            Assert.Equal(new Spot(280, -160), read.Spots[main]);
+            Assert.Equal(new Spot(0, 0), read.Spots[card]);
+            Assert.Empty(read.Removed);
+            Assert.DoesNotContain("removed", text);
         }
         finally
         {
@@ -136,12 +140,13 @@ public class UiDesignerModelTests
             var file = Path.Combine(root, "board.json");
 
             File.WriteAllText(file, "{ \"forms\": { \"a.axaml\": { \"x\": 1 ");
-            Assert.Empty(BoardFile.Read(file, folder));
+            Assert.Empty(BoardFile.Read(file, folder).Spots);
 
-            File.WriteAllText(file, "{ \"forms\": { \"a.axaml\": { \"x\": \"left\", \"y\": 0 }, \"b.axaml\": { \"x\": 4, \"y\": 8 } } }");
-            Assert.Equal([new Spot(4, 8)], BoardFile.Read(file, folder).Values);
+            File.WriteAllText(file, "{ \"forms\": { \"a.axaml\": { \"x\": \"left\", \"y\": 0 }, \"b.axaml\": { \"x\": 4, \"y\": 8 } }, \"removed\": [ 7, \"c.axaml\" ] }");
+            Assert.Equal([new Spot(4, 8)], BoardFile.Read(file, folder).Spots.Values);
+            Assert.Equal([folder.Combine("c.axaml")], BoardFile.Read(file, folder).Removed);
 
-            Assert.Empty(BoardFile.Read(Path.Combine(root, "missing.json"), folder));
+            Assert.Empty(BoardFile.Read(Path.Combine(root, "missing.json"), folder).Spots);
         }
         finally
         {

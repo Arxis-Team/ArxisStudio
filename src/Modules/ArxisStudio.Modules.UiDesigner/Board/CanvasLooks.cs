@@ -3,7 +3,7 @@ using Avalonia.Controls;
 namespace ArxisStudio.Modules.UiDesigner.Board;
 
 /// <summary>
-/// Холст Surface в цветах студии: кисти ядра — токенами палитры Arxis.
+/// Холст Surface в цветах студии: кисти ядра — токенами палитры Arxis, у доски и у вкладки формы.
 /// </summary>
 /// <remarks>
 /// Ядро рисует свои цвета ключами <c>Surface.*</c> из собственной темы, и у него они свои числа. Значение
@@ -12,7 +12,7 @@ namespace ArxisStudio.Modules.UiDesigner.Board;
 /// <para>
 /// Кисть кладётся в ресурсы самого холста плоской записью. Свои записи словарь находит раньше
 /// тематических и подключённых (запись 322 плана), поэтому плоская запись видна в любом варианте — и
-/// при смене варианта её перекладывают: вид зовёт <see cref="Apply"/> на
+/// при смене варианта её перекладывают: <see cref="SheetControls"/> зовёт <see cref="Apply"/> на
 /// <c>ActualThemeVariantChanged</c>.
 /// </para>
 /// <para>
@@ -21,7 +21,7 @@ namespace ArxisStudio.Modules.UiDesigner.Board;
 /// подложке почти сливается с дорожкой, и крупная линия от мелкой не отличалась бы.
 /// </para>
 /// </remarks>
-internal static class BoardLooks
+internal static class CanvasLooks
 {
     /// <summary>Ключ ядра — токен палитры.</summary>
     public static IReadOnlyList<(string Surface, string Token)> Map { get; } =

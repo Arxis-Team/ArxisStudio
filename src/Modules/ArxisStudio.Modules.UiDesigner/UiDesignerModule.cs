@@ -17,8 +17,18 @@ public sealed class UiDesignerModule : StudioPlugin
     /// <summary>Идентификатор панели: он же объявлен в манифесте.</summary>
     public const string PanelId = "ui-designer.board";
 
-    /// <summary>Настройка: сетка на холсте доски.</summary>
+    /// <summary>Настройка: сетка на холсте доски и вкладок формы.</summary>
     public const string GridKey = "ui-designer.grid";
+
+    /// <summary>
+    /// Настройка: режим дизайнера — каждая форма в своей вкладке, а не все на одной доске.
+    /// </summary>
+    /// <remarks>
+    /// Режим решает, кто открывает форму: во вкладках — редактор документов модуля
+    /// (<see cref="Documents.FormEditor"/>), на доске — тот, кто открывал её до него, просмотрщик
+    /// разметки. Доска при этом остаётся обзором в обоих режимах.
+    /// </remarks>
+    public const string TabsKey = "ui-designer.tabs";
 
     private IStudioContext? _context;
 

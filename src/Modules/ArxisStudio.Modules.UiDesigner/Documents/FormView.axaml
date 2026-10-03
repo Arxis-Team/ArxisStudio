@@ -1,0 +1,111 @@
+<!--
+    Вкладка формы: полоса и холст Surface с одной формой — рамкой её размера.
+
+    Полоса — та же, что у доски, без того, что к одной форме не относится: «Упорядочить» раскладывает
+    много карточек, а режим дизайнера выбирают на доске. Холст тот же: панорама, зум к курсору, сетка
+    той же настройкой, цвета студии кодом (CanvasLooks).
+
+    Рамку не тянут и не выбирают: двигать одну форму по пустому холсту незачем, а выбор внутри формы
+    придёт вместе с её содержимым. Поэтому контейнер ядра глух к указателю, и колесо, панорама и рамка
+    выбора достаются холсту целиком.
+-->
+<AxUserControl xmlns="https://github.com/Arxis-Team/ArxisStudio"
+               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+               xmlns:a="https://github.com/avaloniaui"
+               xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
+               xmlns:s="https://github.com/Arxis-Team/ArxisStudio.Surface"
+               xmlns:d="using:ArxisStudio.Modules.UiDesigner.Documents"
+               x:Class="ArxisStudio.Modules.UiDesigner.Documents.FormView"
+               x:DataType="d:FormSheet">
+
+  <AxUserControl.Resources>
+    <a:ResourceDictionary>
+      <a:ResourceDictionary.MergedDictionaries>
+        <a:ResourceInclude Source="avares://ArxisStudio.Surface/Themes/SurfaceTheme.axaml"/>
+      </a:ResourceDictionary.MergedDictionaries>
+    </a:ResourceDictionary>
+  </AxUserControl.Resources>
+
+  <AxUserControl.Styles>
+    <a:Style Selector="s|SurfaceItem">
+      <a:Setter Property="IsHitTestVisible" Value="False"/>
+    </a:Style>
+  </AxUserControl.Styles>
+
+  <!--
+      Холст стоит в дереве раньше полосы, хотя на экране он под ней. Студия отдаёт каретку вкладке —
+      ещё до раскладки — первому, кто может её взять, по порядку дерева, и это должен быть холст, а не
+      первая кнопка полосы: иначе F, стрелки и зум с клавиатуры молчали бы, пока по холсту не щёлкнут.
+      Порядок, а не перехват: корень, который берёт каретку и перекладывает её холсту, при отдаче до
+      раскладки не оставлял её никому.
+  -->
+  <a:Grid RowDefinitions="Auto,Auto,*">
+
+    <s:SurfaceView x:Name="Sheet" a:Grid.Row="2" Focusable="True"
+                   a:AutomationProperties.Name="{a:Binding Caption}">
+      <s:SurfaceView.ItemTemplate>
+        <a:DataTemplate x:DataType="d:FormSheet">
+          <a:StackPanel Spacing="{a:DynamicResource AxSpaceTight}">
+
+            <!-- Подпись над рамкой, как имя фрейма в Figma: что за файл, чей заголовок и какой размер. -->
+            <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxGapIconText}">
+              <AxIcon Data="{a:Binding Glyph}" VerticalAlignment="Center"
+                      a:ToolTip.Tip="{a:Binding KindText}"/>
+              <a:TextBlock Text="{a:Binding Caption}" AxText.Role="Small" AxText.Tone="Secondary"
+                           VerticalAlignment="Center"/>
+              <a:TextBlock Text="{a:Binding SizeText}" AxText.Role="Small" AxText.Tone="Tertiary"
+                           VerticalAlignment="Center"/>
+            </a:StackPanel>
+
+            <!-- Клиентская область формы: ровно объявленный размер, без хрома окна. -->
+            <a:Border x:Name="Frame" Width="{a:Binding Width}" Height="{a:Binding Height}"
+                      HorizontalAlignment="Left"
+                      Background="{a:DynamicResource AxSurfaceBaseBrush}"
+                      BorderBrush="{a:DynamicResource AxStrokeControlBrush}"
+                      BorderThickness="{a:DynamicResource AxHairlineThickness}">
+              <a:StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Spacing="{a:DynamicResource AxSpaceTight}"
+                            Margin="{a:DynamicResource AxSpaceWideThickness}">
+                <a:TextBlock Text="{a:Binding Element}" AxText.Tone="Tertiary" HorizontalAlignment="Center"/>
+                <a:TextBlock Text="{a:Binding ClassName}" IsVisible="{a:Binding HasClass}"
+                             AxText.Role="Small" AxText.Tone="Tertiary"
+                             HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"/>
+                <a:TextBlock Text="{a:Binding Problem}" IsVisible="{a:Binding IsUnreadable}"
+                             AxText.Role="Small" AxText.Tone="Error"
+                             HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"/>
+              </a:StackPanel>
+            </a:Border>
+
+          </a:StackPanel>
+        </a:DataTemplate>
+      </s:SurfaceView.ItemTemplate>
+    </s:SurfaceView>
+
+    <a:Border a:Grid.Row="0" Padding="{a:DynamicResource AxToolBarPadding}">
+      <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceHair}"
+                    HorizontalAlignment="Right" VerticalAlignment="Center">
+
+        <AxButton x:Name="Fit" Appearance="Toolbar"
+                  a:ToolTip.Tip="{Text board.fit}"
+                  a:AutomationProperties.Name="{Text board.fit}">
+          <AxIcon Data="{x:Static ax:AxIcons.FitToScreen}"/>
+        </AxButton>
+
+        <AxButton x:Name="Actual" Appearance="Subtle" Size="Compact" VerticalAlignment="Center"
+                  a:ToolTip.Tip="{Text board.actual}"
+                  a:AutomationProperties.Name="{Text board.actual}"/>
+
+        <AxToggleButton x:Name="GridToggle" Appearance="Toolbar"
+                        a:ToolTip.Tip="{Text board.grid}"
+                        a:AutomationProperties.Name="{Text board.grid}">
+          <AxIcon Data="{x:Static ax:AxIcons.GridSnap}"/>
+        </AxToggleButton>
+
+      </a:StackPanel>
+    </a:Border>
+
+    <AxDivider a:Grid.Row="1"/>
+
+  </a:Grid>
+
+</AxUserControl>

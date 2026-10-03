@@ -1,4 +1,5 @@
 ﻿using ArxisStudio.Controls;
+using ArxisStudio.Dragging;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Icons;
 using ArxisStudio.Palette;
@@ -196,6 +197,13 @@ public partial class MainWindow : AxWindow
                 [typeof(IStudioDocuments)] = new DocumentSink(_documents),
                 [typeof(IStudioStatus)] = _status,
                 [typeof(IStudioNewItems)] = newItems,
+
+                // Окна сверху вниз: оторванные — собственные окна главного и лежат поверх него.
+                // Упавшую цель приписывают по стеку, как всякое исключение из обработчика плагина.
+                [typeof(IStudioDragDrop)] = new StudioDrags(
+                    () => [.. _dock.Floating, this],
+                    _log,
+                    error => _plugins?.Blame(error, "сбой цели перетаскивания") == true),
                 [typeof(PluginContributionRegistry)] = _contributions,
                 [typeof(PluginGuard)] = _guard,
             },

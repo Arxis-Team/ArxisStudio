@@ -34,11 +34,18 @@ public class UiDesignerModuleTests
         Assert.Equal([UiDesignerModule.PanelId], manifest.Contributions.ToolWindows.Select(panel => panel.Id));
         Assert.Equal([UiDesignerModule.ShowCommand], manifest.Contributions.Commands.Select(command => command.Id));
 
-        var grid = Assert.Single(manifest.Contributions.Settings);
+        var settings = manifest.Contributions.Settings;
+        var grid = settings.Single(setting => setting.Key == UiDesignerModule.GridKey);
+        var tabs = settings.Single(setting => setting.Key == UiDesignerModule.TabsKey);
 
-        Assert.Equal(UiDesignerModule.GridKey, grid.Key);
+        Assert.Equal(2, settings.Count);
         Assert.True(grid.IsBool, "сетка объявлена не переключателем");
         Assert.True(grid.Default is JsonElement { ValueKind: JsonValueKind.True }, "сетка по умолчанию выключена, а холст её рисует");
+        Assert.True(tabs.IsBool, "режим объявлен не переключателем");
+        Assert.True(
+            tabs.Default is JsonElement { ValueKind: JsonValueKind.False },
+            "по умолчанию дизайнер должен открываться доской — так он вёл себя до режима вкладок");
+        Assert.All(settings, setting => Assert.False(setting.IsProject, $"{setting.Key} уехала бы с проектом, а это вкус человека"));
     }
 
     /// <summary>
