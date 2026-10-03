@@ -27,6 +27,8 @@
   </Folder>
   <Folder Name="/external/ArxisStudio.Surface/" />
   <Folder Name="/external/ArxisStudio.Surface/src/">
+    <Project Path="external/ArxisStudio.Surface/src/Surface.Editing/ArxisStudio.Surface.Editing.csproj" />
+    <Project Path="external/ArxisStudio.Surface/src/Surface.UiDesigner/ArxisStudio.Surface.UiDesigner.csproj" />
     <Project Path="external/ArxisStudio.Surface/src/Surface/ArxisStudio.Surface.csproj" />
   </Folder>
   <Folder Name="/external/ArxisStudio.Themes.Arxis/" />

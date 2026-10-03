@@ -1,0 +1,129 @@
+<!--
+    Живая вкладка формы: холст дизайнера с одной формой, просмотр её XAML и полоса над ними.
+
+    Холст — дизайнер Surface.UiDesigner: форма на нём — элемент формы с корнем, который построила служба
+    XAML, и выбирают, двигают, тянут за ручки и удаляют прямо в ней. XAML под холстом, как в Blend, —
+    только просмотр: правят холстом, а текст показывает, что вышло и где стоит выбранное.
+
+    Вид — дизайн, XAML или оба через разделитель — выбирают сегментами на полосе. Там же органы холста —
+    те же, что у доски, — и чип состояния типов проекта: загружаются, живые, собираются, ждут замены,
+    нужен перезапуск. О том, что требует ответа, говорят баннеры над холстом: файл изменён на диске поверх
+    правок здесь, сборка не прошла, проект на другой Avalonia, разметка не разбирается.
+-->
+<AxUserControl xmlns="https://github.com/Arxis-Team/ArxisStudio"
+               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+               xmlns:a="https://github.com/avaloniaui"
+               xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
+               xmlns:s="https://github.com/Arxis-Team/ArxisStudio.Surface"
+               x:Class="ArxisStudio.Modules.UiDesigner.Documents.LiveFormView">
+
+  <AxUserControl.Resources>
+    <a:ResourceDictionary>
+      <a:ResourceDictionary.MergedDictionaries>
+        <a:ResourceInclude Source="avares://ArxisStudio.Surface.UiDesigner/Themes/UiDesignerTheme.axaml"/>
+      </a:ResourceDictionary.MergedDictionaries>
+    </a:ResourceDictionary>
+  </AxUserControl.Resources>
+
+  <AxUserControl.Styles>
+    <!--
+        Форма на холсте своей жизнью не живёт: кнопка формы не берёт нажатие, поле — каретку. Выбирать
+        это не мешает — ядро ищет выбранное по прямоугольникам, а нажатие достаётся карточке. Режим
+        карточки — размеченный (что редактируется, говорит документ), и тема элемента формы гасит ввод
+        только загруженному содержимому, поэтому гасит его здесь вкладка: попадание и обход Tab — эта
+        запись, программный фокус — сама вкладка.
+    -->
+    <a:Style Selector="s|UiDesignerFormItem /template/ a|Decorator#PART_FormHost">
+      <a:Setter Property="IsHitTestVisible" Value="False"/>
+      <a:Setter Property="a:KeyboardNavigation.TabNavigation" Value="None"/>
+    </a:Style>
+  </AxUserControl.Styles>
+
+  <!--
+      Холст стоит в дереве раньше полосы, хотя на экране он под ней: клавиатура, отданная вкладке до
+      раскладки, достаётся ему, а не первой кнопке полосы. Цель каретки вкладки — тоже холст.
+  -->
+  <a:Grid RowDefinitions="Auto,Auto,Auto,*">
+
+    <a:Grid x:Name="Body" a:Grid.Row="3" RowDefinitions="3*,Auto,2*">
+
+      <s:UiDesignerView x:Name="Sheet" a:Grid.Row="0" Focusable="True" SelectionMode="Multiple"/>
+
+      <AxSplitter x:Name="Split" a:Grid.Row="1" Orientation="Horizontal"/>
+
+      <AxCodeView x:Name="Code" a:Grid.Row="2"/>
+
+    </a:Grid>
+
+    <a:Border a:Grid.Row="0" Padding="{a:DynamicResource AxToolBarPadding}">
+      <a:Grid ColumnDefinitions="Auto,*,Auto">
+
+        <AxSegmentedControl x:Name="Mode" a:Grid.Column="0" VerticalAlignment="Center"
+                            a:AutomationProperties.Name="{Text form.mode}">
+          <AxSegmentItem Content="{Text form.mode.design}"/>
+          <AxSegmentItem Content="{Text form.mode.xaml}"/>
+          <AxSegmentItem Content="{Text form.mode.split}"/>
+        </AxSegmentedControl>
+
+        <a:StackPanel a:Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
+                      Spacing="{a:DynamicResource AxGapIconText}"
+                      Margin="{a:DynamicResource AxSpaceWideLeadingThickness}">
+          <AxSpinner x:Name="Busy" IsVisible="False" VerticalAlignment="Center"/>
+          <AxChip x:Name="State" IsVisible="False" VerticalAlignment="Center"/>
+        </a:StackPanel>
+
+        <a:StackPanel a:Grid.Column="2" Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceHair}"
+                      VerticalAlignment="Center">
+
+          <AxButton x:Name="Fit" Appearance="Toolbar"
+                    a:ToolTip.Tip="{Text board.fit}"
+                    a:AutomationProperties.Name="{Text board.fit}">
+            <AxIcon Data="{x:Static ax:AxIcons.FitToScreen}"/>
+          </AxButton>
+
+          <AxButton x:Name="Actual" Appearance="Subtle" Size="Compact" VerticalAlignment="Center"
+                    a:ToolTip.Tip="{Text board.actual}"
+                    a:AutomationProperties.Name="{Text board.actual}"/>
+
+          <AxToggleButton x:Name="GridToggle" Appearance="Toolbar"
+                          a:ToolTip.Tip="{Text board.grid}"
+                          a:AutomationProperties.Name="{Text board.grid}">
+            <AxIcon Data="{x:Static ax:AxIcons.GridSnap}"/>
+          </AxToggleButton>
+
+        </a:StackPanel>
+
+      </a:Grid>
+    </a:Border>
+
+    <AxDivider a:Grid.Row="1"/>
+
+    <a:StackPanel a:Grid.Row="2">
+
+      <AxBanner x:Name="Conflict" Severity="Warning" IsVisible="False">
+        <AxBanner.Actions>
+          <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceHair}">
+            <AxButton x:Name="TakeTheirs" Appearance="Subtle" Size="Compact" Content="{Text form.conflict.theirs}"/>
+            <AxButton x:Name="KeepMine" Appearance="Subtle" Size="Compact" Content="{Text form.conflict.mine}"/>
+          </a:StackPanel>
+        </AxBanner.Actions>
+        <a:TextBlock x:Name="ConflictText" TextWrapping="Wrap"/>
+      </AxBanner>
+
+      <AxBanner x:Name="Notice" Severity="Warning" IsVisible="False">
+        <AxBanner.Actions>
+          <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceHair}">
+            <AxButton x:Name="ShowProblem" Appearance="Subtle" Size="Compact" Content="{Text form.showProblem}"
+                      IsVisible="False"/>
+            <AxButton x:Name="Rebuild" Appearance="Subtle" Size="Compact" Content="{Text form.rebuild}"
+                      IsVisible="False"/>
+          </a:StackPanel>
+        </AxBanner.Actions>
+        <a:TextBlock x:Name="NoticeText" TextWrapping="Wrap"/>
+      </AxBanner>
+
+    </a:StackPanel>
+
+  </a:Grid>
+
+</AxUserControl>

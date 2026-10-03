@@ -336,13 +336,21 @@ internal sealed class XamlDesignSession : IAsyncDisposable
 
     private void OnGateChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(_owner.Report);
 
+    /// <remarks>
+    /// Строка журнала собрана из полей итога, а не из его <c>ToString</c> и причины: их пишет адаптер
+    /// по-английски. Ход по проектам журнал службы проектов уже рассказал.
+    /// </remarks>
     private void OnBuildCompleted(object? sender, ProjectDesignBuildCompletedEventArgs e)
     {
         var result = e.Result;
+        var succeeded = result.Status == ProjectOperationStatus.Succeeded;
 
         _owner.Log(
-            result.Status == ProjectOperationStatus.Succeeded ? StudioLogLevel.Info : StudioLogLevel.Warning,
-            $"Сборка дизайна ({result.Reason}): {result}");
+            succeeded ? StudioLogLevel.Info : StudioLogLevel.Warning,
+            $"Сборка дизайна — {(succeeded ? "готово" : "не удалось")}, проектов {result.Projects.Length}"
+            + (result.Restored ? ", с восстановлением" : string.Empty)
+            + (result.TypesChanged ? ", типы сменились" : string.Empty)
+            + $", {result.Duration.TotalMilliseconds:F0} мс");
 
         foreach (var diagnostic in result.Diagnostics.Where(diagnostic => diagnostic.Severity == ProjectDiagnosticSeverity.Error))
             _owner.Log(StudioLogLevel.Error, $"{diagnostic.Code}: {diagnostic.Message}");
@@ -350,10 +358,17 @@ internal sealed class XamlDesignSession : IAsyncDisposable
         _owner.Built(Outcome(result));
     }
 
-    private void OnSwapCompleted(object? sender, ProjectDesignSwapCompletedEventArgs e) =>
+    /// <remarks>Как и у сборки — из полей отчёта, по шагам замены.</remarks>
+    private void OnSwapCompleted(object? sender, ProjectDesignSwapCompletedEventArgs e)
+    {
+        var report = e.Report;
+
         _owner.Log(
-            e.Report.Reclaimed ? StudioLogLevel.Info : StudioLogLevel.Warning,
-            $"Замена поколения ({e.Report.Reason}): {e.Report}");
+            report.Reclaimed ? StudioLogLevel.Info : StudioLogLevel.Warning,
+            $"Замена поколения — {(report.Reclaimed ? "прежнее ушло" : "прежнее держится")}: "
+            + $"отпускание {report.Release.TotalMilliseconds:F0} мс, разбор {report.Teardown.TotalMilliseconds:F0} мс, "
+            + $"проверка ухода {report.Reclaim.TotalMilliseconds:F0} мс, новое {report.Rebuild.TotalMilliseconds:F0} мс");
+    }
 
     private void OnRestartRequired(object? sender, ProjectDesignRestartEventArgs e)
     {
@@ -428,20 +443,24 @@ internal sealed class XamlDesignSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// Участник хоста от всей службы: показы отдают корни раньше участников контракта и берут новые
-    /// раньше них.
+    /// Участник хоста от всей службы: участники контракта отпускают своё раньше показов и берут новое
+    /// после них.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// Отпуская, участник ещё видит корень на своём холсте и успевает заморозить кадр с формой — человек
+    /// видит формы, а не пустоту, пока типы меняются; показы отдают корни следом. Беря новое, участник
+    /// находит новый корень уже стоящим.
+    /// </para>
+    /// <para>
     /// Хост зовёт его, держа свою очередь, поэтому ни показ, ни участник не ждут здесь хоста: приложение
     /// формы показ берёт уже после замены.
+    /// </para>
     /// </remarks>
     private sealed class ParticipantFan(XamlDesignSession session) : IProjectDesignParticipant
     {
         public async ValueTask ReleaseAsync(CancellationToken cancellationToken)
         {
-            foreach (var view in Views())
-                view.LetGo();
-
             foreach (var participant in session._owner.Participants)
             {
                 try
@@ -453,6 +472,9 @@ internal sealed class XamlDesignSession : IAsyncDisposable
                     session._owner.Fail(e);
                 }
             }
+
+            foreach (var view in Views())
+                view.LetGo();
         }
 
         public async ValueTask RestoreAsync(CancellationToken cancellationToken)

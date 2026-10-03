@@ -20,6 +20,13 @@ namespace ArxisStudio.Modules.UiDesigner.Board;
 /// две различимые ступени тона на утопленной подложке в обоих вариантах. Тонкая обводка темы на светлой
 /// подложке почти сливается с дорожкой, и крупная линия от мелкой не отличалась бы.
 /// </para>
+/// <para>
+/// Живая вкладка добавляет кисти дизайнера и инструментов: рамки и ручки выбора, точку вставки,
+/// подсветку контейнера. Это цвет студии — акцент и выбор, — а не формы. Своих чисел ядро не теряет:
+/// направляющие и интервалы сохраняют его цвета, отличные от акцента нарочно, а заголовок окна формы
+/// рисуется в теме формы, как окно её приложения, а не студии. Белая ручка — тоже ядра: на тёмном
+/// холсте она читается лучше токена подложки.
+/// </para>
 /// </remarks>
 internal static class CanvasLooks
 {
@@ -36,6 +43,20 @@ internal static class CanvasLooks
         ("SurfaceItem.HoverBrush", "AxStrokeStrongBrush"),
         ("Surface.Simplified.ItemFill", "AxSurfacePanelBrush"),
         ("Surface.Simplified.ItemStroke", "AxStrokeSubtleBrush"),
+        ("Surface.SelectionAdorner.Brush", "AxAccentBrush"),
+        ("Surface.SelectionAdorner.PrimaryBrush", "AxAccentBrush"),
+        ("Surface.SelectionAdorner.SecondaryBrush", "AxAccentHoverBrush"),
+        ("Surface.SelectionAdorner.GroupBrush", "AxAccentBrush"),
+        ("Surface.SelectionAdorner.GroupFill", "AxSelectionInactiveBrush"),
+        ("Surface.SelectionAdorner.LockedBrush", "AxTextDisabledBrush"),
+        ("Surface.SelectionAdorner.HandlePointerOverBackground", "AxAccentHoverBrush"),
+        ("Surface.SelectionAdorner.HandlePressedBackground", "AxAccentFillPressedBrush"),
+        ("UiDesigner.ReorderIndicatorBrush", "AxAccentBrush"),
+        ("UiDesigner.DropIndicatorBrush", "AxAccentBrush"),
+        ("UiDesigner.DropAreaBrush", "AxSelectionInactiveBrush"),
+        ("UiDesignerItem.BorderBrush", "AxAccentBrush"),
+        ("UiDesignerItem.HighlightBrush", "AxSelectionInactiveBrush"),
+        ("UiDesigner.Form.Fault.Foreground", "AxErrorTextBrush"),
     ];
 
     /// <summary>

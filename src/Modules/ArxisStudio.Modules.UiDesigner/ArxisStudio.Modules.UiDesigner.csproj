@@ -1,10 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <!--
-        Дизайнер интерфейса, первый шаг: доска форм решения. Формы — файлы .axaml открытого решения —
-        стоят карточками на холсте ядра Surface: панорама, зум, сетка, выделение, тяга и отмена — его, а
-        что лежит на холсте и где, решает модуль. Карточки станут живыми формами, когда придут слои
-        Surface.UiDesigner и Markup; до тех пор модуль берёт только ядро и сам на них не ссылается.
+        Дизайнер интерфейса: доска форм решения и живая вкладка формы. Формы — файлы .axaml открытого
+        решения — стоят карточками на холсте ядра Surface: панорама, зум, сетка, выделение, тяга и отмена —
+        его, а что лежит на холсте и где, решает модуль. Вкладка формы стоит на дизайнере Surface.UiDesigner
+        и на службе XAML: живой документ, его корень и правка — её, а модуль переводит жесты холста в
+        правку текста. Без службы вкладка показывает рамку формы, как прежде.
 
         Зависимости внутри модуля идут в одну сторону: Model (снимок → формы, раскладка, файл доски;
         без Avalonia) → Board (карточки, состояние доски, тема и органы холста, меню) → Panels (доска) и
@@ -25,18 +26,22 @@
         <ProjectReference Include="../../../external/ArxisStudio.Controls/src/ArxisStudio.Controls.csproj"/>
 
         <!--
-            Ядро холста — своя сборка модуля: едет в его bin, как пакеты у терминала. Слои выше
-            (Editing, Nodes, UiDesigner) не подключаются: доске нужны поверхность и её контракт правок,
-            а не ручки, узлы или формы. Avalonia.Skia, которую ядро тянет, студия везёт в lib/, и в
+            Холст — свои сборки модуля: едут в его bin, как пакеты у терминала. Ядро держит доску,
+            инструменты (ручки, привязка, направляющие) и дизайнер — вкладку формы. Редактор узлов не
+            подключается: он не о формах. Avalonia.Skia, которую ядро тянет, студия везёт в lib/, и в
             папку модуля она не ложится.
         -->
         <ProjectReference Include="../../../external/ArxisStudio.Surface/src/Surface/ArxisStudio.Surface.csproj"/>
+        <ProjectReference Include="../../../external/ArxisStudio.Surface/src/Surface.Editing/ArxisStudio.Surface.Editing.csproj"/>
+        <ProjectReference Include="../../../external/ArxisStudio.Surface/src/Surface.UiDesigner/ArxisStudio.Surface.UiDesigner.csproj"/>
 
         <!--
             Контракт соседа — только для компиляции: возит его владелец, модуль «Проекты». Копия в
             своей папке дала бы вторую сборку того же контракта, и AXL1002 не дал бы собрать студию.
         -->
         <ProjectReference Include="../ArxisStudio.Projects.Contracts/ArxisStudio.Projects.Contracts.csproj"
+                          Private="false" ExcludeAssets="runtime"/>
+        <ProjectReference Include="../ArxisStudio.Xaml.Contracts/ArxisStudio.Xaml.Contracts.csproj"
                           Private="false" ExcludeAssets="runtime"/>
     </ItemGroup>
 

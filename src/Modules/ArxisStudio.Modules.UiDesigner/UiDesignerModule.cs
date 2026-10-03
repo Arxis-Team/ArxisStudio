@@ -30,6 +30,18 @@ public sealed class UiDesignerModule : StudioPlugin
     /// </remarks>
     public const string TabsKey = "ui-designer.tabs";
 
+    /// <summary>
+    /// Настройка: живая вкладка формы сохраняет сама — при уходе из окна студии, при закрытии вкладки и
+    /// после паузы в правках.
+    /// </summary>
+    public const string AutoSaveKey = "ui-designer.autoSave";
+
+    /// <summary>
+    /// Настройка: что показывает новая живая вкладка формы — <c>design</c>, <c>xaml</c> или <c>split</c>.
+    /// </summary>
+    /// <remarks>Её пишет выбор вида на полосе вкладки: следующая открывается так, как работали в прошлой.</remarks>
+    public const string ViewKey = "ui-designer.view";
+
     private IStudioContext? _context;
 
     /// <inheritdoc/>

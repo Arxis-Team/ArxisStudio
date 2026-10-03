@@ -36,7 +36,8 @@ internal sealed class XamlStudio : IAsyncDisposable
 
     /// <summary>Поднимает обе службы.</summary>
     /// <param name="idleRelease">Простой до конца сессии; по умолчанию — до закрытия решения.</param>
-    public XamlStudio(TimeSpan? idleRelease = null)
+    /// <param name="services">Службы сверх своих — швы модулей, которые тест поднимет рядом.</param>
+    public XamlStudio(TimeSpan? idleRelease = null, IReadOnlyDictionary<Type, object>? services = null)
     {
         Root = TempFolder.Create("xaml");
         _settings = Path.Combine(Root, "plugin-settings.json");
@@ -64,18 +65,21 @@ internal sealed class XamlStudio : IAsyncDisposable
             IdleRelease = idleRelease ?? Timeout.InfiniteTimeSpan,
         };
 
-        var services = new Dictionary<Type, object>
+        var all = new Dictionary<Type, object>
         {
             [typeof(ProjectsHostOptions)] = projects,
             [typeof(XamlServiceOptions)] = xaml,
             [typeof(IStudioStatus)] = Status,
         };
 
+        foreach (var (type, service) in services ?? new Dictionary<Type, object>())
+            all[type] = service;
+
         Contexts = new StudioContextFactory(
             Log,
             Commands,
             projectPath: null,
-            services,
+            all,
             settings: new PluginSettingsStore(projectPath: null, userFile: _settings),
             guard: Guard,
             plugins: Roster,

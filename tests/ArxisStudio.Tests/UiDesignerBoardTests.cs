@@ -80,19 +80,20 @@ public class UiDesignerBoardTests
         var board = studio.View.BoardMode;
         var tabs = studio.View.TabsMode;
 
+        // По умолчанию формы открывает дизайнер — каждую своей вкладкой.
+        Assert.Equal((false, true), (board.IsChecked, tabs.IsChecked));
+
+        studio.Toggle(board);
+        Assert.False(studio.Settings.Get<bool?>(UiDesignerModule.TabsKey), "переключатель доски не записал режим");
         Assert.Equal((true, false), (board.IsChecked, tabs.IsChecked));
 
-        studio.Toggle(tabs);
-        Assert.True(studio.Settings.Get<bool?>(UiDesignerModule.TabsKey), "переключатель вкладок не записал режим");
-        Assert.Equal((false, true), (board.IsChecked, tabs.IsChecked));
+        studio.Toggle(board);
+        Assert.False(studio.Settings.Get<bool?>(UiDesignerModule.TabsKey), "щелчок по включённому режиму его погасил");
+        Assert.Equal((true, false), (board.IsChecked, tabs.IsChecked));
 
-        studio.Toggle(tabs);
-        Assert.True(studio.Settings.Get<bool?>(UiDesignerModule.TabsKey), "щелчок по включённому режиму его погасил");
-        Assert.Equal((false, true), (board.IsChecked, tabs.IsChecked));
-
-        studio.Settings.Set(UiDesignerModule.TabsKey, false);
+        studio.Settings.Set(UiDesignerModule.TabsKey, true);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal((true, false), (board.IsChecked, tabs.IsChecked));
+        Assert.Equal((false, true), (board.IsChecked, tabs.IsChecked));
     }
 
     /// <summary>

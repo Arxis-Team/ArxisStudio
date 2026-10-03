@@ -251,7 +251,10 @@ public sealed class Preview : IXamlDesignParticipant, IDisposable
 
     public ValueTask ReleaseAsync(CancellationToken cancellationToken)
     {
-        // Корень показ уже отдал — RootChanged пришёл раньше. Своё — запомненные объекты, типы — здесь.
+        // Корень ещё на месте: холст успел бы заморозить с ним кадр. Своё отпускают здесь — рамку,
+        // запомненные объекты; показ отдаст корень следом.
+        Frame.Child = null;
+
         return ValueTask.CompletedTask;
     }
 
@@ -289,8 +292,9 @@ public sealed class Preview : IXamlDesignParticipant, IDisposable
 `bin/ArxisStudio/` и `obj/ArxisStudio/`, рядом с выходом IDE, а не поверх него, — и заменяет
 поколение. Прежнее уходит из процесса, **только если его не держит никто**:
 
-1. показы отдают корни — `RootChanged`, корень пуст;
-2. участники (`Register`) отпускают своё — `ReleaseAsync`;
+1. участники (`Register`) отпускают своё — `ReleaseAsync`; корень ещё на месте, и холст успевает
+   заморозить кадр с формой;
+2. показы отдают корни — `RootChanged`, корень пуст;
 3. поколение выгружается и доказывает, что ушло;
 4. показы берут новые корни, участники — своё (`RestoreAsync`).
 

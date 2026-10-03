@@ -27,6 +27,7 @@ public class UiDesignerFormTabTests
         using var studio = new UiDesignerStudio();
 
         studio.Solution(("Views/MainWindow.axaml", WindowXaml("MainWindow")));
+        studio.Settings.Set(UiDesignerModule.TabsKey, false);
 
         Assert.False(studio.Editor().CanOpen(studio.PathOf("Views/MainWindow.axaml").Value));
     }
@@ -217,11 +218,11 @@ public class UiDesignerFormTabTests
         studio.Solution(("Views/MainWindow.axaml", WindowXaml("MainWindow")));
 
         var path = studio.PathOf("Views/MainWindow.axaml").Value;
-
-        Assert.Null(harness.Contributions.EditorFor(path));
-
         var (manifest, _) = ModuleManifest.Load(typeof(UiDesignerModule).Assembly);
         var tabs = manifest!.Contributions.Settings.Single(setting => setting.Key == UiDesignerModule.TabsKey);
+
+        Assert.Null(plugins.Settings.Write("arxis.ui-designer", tabs, false));
+        Assert.Null(harness.Contributions.EditorFor(path));
 
         Assert.Null(plugins.Settings.Write("arxis.ui-designer", tabs, true));
 

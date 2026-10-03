@@ -1,6 +1,9 @@
 using System.Globalization;
 using ArxisStudio.Modules.UiDesigner.Model;
+using ArxisStudio.Projects;
+using ArxisStudio.ProjectSystem;
 using ArxisStudio.Sdk;
+using ArxisStudio.Xaml;
 
 namespace ArxisStudio.Modules.UiDesigner.Documents;
 
@@ -17,6 +20,11 @@ namespace ArxisStudio.Modules.UiDesigner.Documents;
 /// Формой считается то, что считает ею доска: окно, пользовательский элемент, другой контрол в корне.
 /// Приложение и словари стилей дизайнер не берёт и в режиме вкладок, а разметку с нечитаемым корнем
 /// отдаёт тексту — сломанное чинят там, где его видно.
+/// </para>
+/// <para>
+/// Вкладка живая (<see cref="LiveFormDocument"/>), когда у студии есть служба XAML, а форма — файл
+/// открытого решения: строить её не из чего, кроме типов проекта. Иначе — рамка её размера
+/// (<see cref="FormDocument"/>), как до службы.
 /// </para>
 /// <para>
 /// Вкладка студии одна на файл: открытая прежде вкладка того же файла — текстом или формой — выводится
@@ -45,8 +53,18 @@ public sealed class FormEditor : DocumentEditor
             return Task.FromResult<(DocumentView?, string?)>((null, problem));
         }
 
-        return Task.FromResult<(DocumentView?, string?)>((new FormDocument(Context, filePath, root), null));
+        var path = CanonicalPath.Create(filePath);
+
+        DocumentView view = Context.XamlDocuments() is { } documents && InSolution(path)
+            ? new LiveFormDocument(Context, documents, path, root, Context.GetService<UiDesignerOptions>() ?? UiDesignerOptions.Default)
+            : new FormDocument(Context, filePath, root);
+
+        return Task.FromResult<(DocumentView?, string?)>((view, null));
     }
+
+    /// <summary>Файл — часть открытого решения: служба XAML строит только его формы.</summary>
+    private bool InSolution(CanonicalPath path) =>
+        Context.Projects()?.Status.Snapshot is { } snapshot && snapshot.TryGetProjectForFile(path, out _);
 
     private static bool IsMarkup(string filePath) =>
         Path.GetExtension(filePath).Equals(FormFiles.Extension, StringComparison.OrdinalIgnoreCase);

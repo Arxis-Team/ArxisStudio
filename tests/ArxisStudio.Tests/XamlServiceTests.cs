@@ -249,11 +249,11 @@ public class XamlServiceTests
     }
 
     /// <summary>
-    /// На замену поколения показ отдаёт корень раньше участников и берёт новый раньше них: участник,
-    /// отпускающий своё, корня уже не видит, а взявшийся за своё — видит новый.
+    /// На замену поколения участник отпускает своё, пока корень ещё показан, — холст успевает заморозить
+    /// кадр, — показ отдаёт корень следом, берёт новый первым, и участник, взявшийся за своё, видит его.
     /// </summary>
     [AvaloniaFact]
-    public async Task The_view_gives_its_root_up_before_the_participants_and_takes_the_new_one_first()
+    public async Task Participants_let_go_while_the_root_is_shown_and_take_up_the_new_one()
     {
         await using var studio = new XamlStudio();
         var path = studio.Write("MainView.axaml", Form);
@@ -276,7 +276,7 @@ public class XamlServiceTests
         var report = await studio.Session.Host.SwapAsync("проверка порядка", Token);
 
         Assert.True(report.Reclaimed, report.ToString());
-        Assert.Equal(["корень отдан", "участник отпустил без корня", "корень взят", "участник взялся при корне"], order);
+        Assert.Equal(["участник отпустил при корне", "корень отдан", "корень взят", "участник взялся при корне"], order);
         Assert.IsType<UserControl>(view.Root);
         Assert.False(before.IsAlive, "прежний корень пережил замену поколения");
         Assert.Equal(XamlDocumentState.Live, handle.State);

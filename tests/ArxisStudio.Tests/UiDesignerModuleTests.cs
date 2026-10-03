@@ -1,6 +1,7 @@
 using System.Text.Json;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Modules.UiDesigner;
+using ArxisStudio.Modules.UiDesigner.Documents;
 using ArxisStudio.Sdk;
 using ArxisStudio.Sdk.Plugins;
 using ArxisStudio.Services;
@@ -37,14 +38,25 @@ public class UiDesignerModuleTests
         var settings = manifest.Contributions.Settings;
         var grid = settings.Single(setting => setting.Key == UiDesignerModule.GridKey);
         var tabs = settings.Single(setting => setting.Key == UiDesignerModule.TabsKey);
+        var autoSave = settings.Single(setting => setting.Key == UiDesignerModule.AutoSaveKey);
+        var view = settings.Single(setting => setting.Key == UiDesignerModule.ViewKey);
 
-        Assert.Equal(2, settings.Count);
+        Assert.Equal(4, settings.Count);
         Assert.True(grid.IsBool, "сетка объявлена не переключателем");
         Assert.True(grid.Default is JsonElement { ValueKind: JsonValueKind.True }, "сетка по умолчанию выключена, а холст её рисует");
         Assert.True(tabs.IsBool, "режим объявлен не переключателем");
         Assert.True(
-            tabs.Default is JsonElement { ValueKind: JsonValueKind.False },
-            "по умолчанию дизайнер должен открываться доской — так он вёл себя до режима вкладок");
+            tabs.Default is JsonElement { ValueKind: JsonValueKind.True },
+            "формы по умолчанию должен открывать дизайнер: живая вкладка — его работа, а доска остаётся обзором");
+        Assert.True(autoSave.IsBool, "автосохранение объявлено не переключателем");
+        Assert.True(
+            autoSave.Default is JsonElement { ValueKind: JsonValueKind.True },
+            "форма по умолчанию должна сохраняться сама, как в IntelliJ");
+        Assert.True(
+            view.Default is JsonElement { ValueKind: JsonValueKind.String } text
+            && LiveFormDocument.ModeOf(text.GetString()) == LiveFormDocument.FormViewMode.Split
+            && LiveFormDocument.NameOf(LiveFormDocument.FormViewMode.Split) == text.GetString(),
+            "новая вкладка формы по умолчанию должна показывать холст и XAML под ним");
         Assert.All(settings, setting => Assert.False(setting.IsProject, $"{setting.Key} уехала бы с проектом, а это вкус человека"));
     }
 
