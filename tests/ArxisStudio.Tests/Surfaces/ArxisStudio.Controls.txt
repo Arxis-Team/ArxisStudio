@@ -1,4 +1,4 @@
-# StudioSdk 7.9
+# StudioSdk 7.13
 ArxisStudio.Controls.AxAvatar : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Controls.AxAvatar :: .ctor()
 ArxisStudio.Controls.AxAvatar :: ArxisStudio.Controls.AxAvatarShape Shape { get; set; }
@@ -94,6 +94,95 @@ ArxisStudio.Controls.AxCodeBlock :: static readonly Avalonia.StyledProperty<Aval
 ArxisStudio.Controls.AxCodeBlock :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> TagBrushProperty
 ArxisStudio.Controls.AxCodeBlock :: static readonly Avalonia.StyledProperty<System.Double> LineHeightRatioProperty
 ArxisStudio.Controls.AxCodeBlock :: static readonly Avalonia.StyledProperty<System.String> TextProperty
+ArxisStudio.Controls.AxCodeCaretMovedEventArgs : sealed class : Avalonia.Interactivity.RoutedEventArgs
+ArxisStudio.Controls.AxCodeCaretMovedEventArgs :: .ctor(Avalonia.Interactivity.RoutedEvent routedEvent, System.Int32 offset)
+ArxisStudio.Controls.AxCodeCaretMovedEventArgs :: System.Int32 Offset { get; }
+ArxisStudio.Controls.AxCodeRange : readonly record struct : System.IEquatable<ArxisStudio.Controls.AxCodeRange>
+ArxisStudio.Controls.AxCodeRange :: .ctor(System.Int32 Start, System.Int32 Length)
+ArxisStudio.Controls.AxCodeRange :: System.Boolean Equals(ArxisStudio.Controls.AxCodeRange other)
+ArxisStudio.Controls.AxCodeRange :: System.Boolean IsEmpty { get; }
+ArxisStudio.Controls.AxCodeRange :: System.Int32 End { get; }
+ArxisStudio.Controls.AxCodeRange :: System.Int32 Length { get; init; }
+ArxisStudio.Controls.AxCodeRange :: System.Int32 Start { get; init; }
+ArxisStudio.Controls.AxCodeRange :: System.Void Deconstruct(out System.Int32 Start, out System.Int32 Length)
+ArxisStudio.Controls.AxCodeRange :: static System.Boolean op_Equality(ArxisStudio.Controls.AxCodeRange left, ArxisStudio.Controls.AxCodeRange right)
+ArxisStudio.Controls.AxCodeRange :: static System.Boolean op_Inequality(ArxisStudio.Controls.AxCodeRange left, ArxisStudio.Controls.AxCodeRange right)
+ArxisStudio.Controls.AxCodeRole : enum
+ArxisStudio.Controls.AxCodeRole :: Attribute = 2
+ArxisStudio.Controls.AxCodeRole :: Comment = 4
+ArxisStudio.Controls.AxCodeRole :: Directive = 7
+ArxisStudio.Controls.AxCodeRole :: Error = 8
+ArxisStudio.Controls.AxCodeRole :: Extension = 5
+ArxisStudio.Controls.AxCodeRole :: Prefix = 6
+ArxisStudio.Controls.AxCodeRole :: String = 3
+ArxisStudio.Controls.AxCodeRole :: Tag = 1
+ArxisStudio.Controls.AxCodeRole :: Text = 0
+ArxisStudio.Controls.AxCodeSpan : readonly record struct : System.IEquatable<ArxisStudio.Controls.AxCodeSpan>
+ArxisStudio.Controls.AxCodeSpan :: .ctor(System.Int32 Start, System.Int32 Length, ArxisStudio.Controls.AxCodeRole Role)
+ArxisStudio.Controls.AxCodeSpan :: ArxisStudio.Controls.AxCodeRole Role { get; init; }
+ArxisStudio.Controls.AxCodeSpan :: System.Boolean Equals(ArxisStudio.Controls.AxCodeSpan other)
+ArxisStudio.Controls.AxCodeSpan :: System.Int32 End { get; }
+ArxisStudio.Controls.AxCodeSpan :: System.Int32 Length { get; init; }
+ArxisStudio.Controls.AxCodeSpan :: System.Int32 Start { get; init; }
+ArxisStudio.Controls.AxCodeSpan :: System.Void Deconstruct(out System.Int32 Start, out System.Int32 Length, out ArxisStudio.Controls.AxCodeRole Role)
+ArxisStudio.Controls.AxCodeSpan :: static System.Boolean op_Equality(ArxisStudio.Controls.AxCodeSpan left, ArxisStudio.Controls.AxCodeSpan right)
+ArxisStudio.Controls.AxCodeSpan :: static System.Boolean op_Inequality(ArxisStudio.Controls.AxCodeSpan left, ArxisStudio.Controls.AxCodeSpan right)
+ArxisStudio.Controls.AxCodeView : class : Avalonia.Controls.Primitives.TemplatedControl
+ArxisStudio.Controls.AxCodeView :: .ctor()
+ArxisStudio.Controls.AxCodeView :: ArxisStudio.Controls.AxCodeRange Selection { get; }
+ArxisStudio.Controls.AxCodeView :: ArxisStudio.Controls.AxCodeRange? Highlight { get; set; }
+ArxisStudio.Controls.AxCodeView :: Avalonia.Media.IBrush? AttributeBrush { get; set; }
+ArxisStudio.Controls.AxCodeView :: Avalonia.Media.IBrush? CaretBrush { get; set; }
+ArxisStudio.Controls.AxCodeView :: Avalonia.Media.IBrush? CommentBrush { get; set; }
+ArxisStudio.Controls.AxCodeView :: Avalonia.Media.IBrush? DirectiveBrush { get; set; }
+ArxisStudio.Controls.AxCodeView :: Avalonia.Media.IBrush? ErrorBrush { get; set; }
+ArxisStudio.Controls.AxCodeView :: Avalonia.Media.IBrush? ExtensionBrush { get; set; }
+ArxisStudio.Controls.AxCodeView :: Avalonia.Media.IBrush? HighlightBrush { get; set; }
+ArxisStudio.Controls.AxCodeView :: Avalonia.Media.IBrush? HighlightMarkerBrush { get; set; }
+ArxisStudio.Controls.AxCodeView :: Avalonia.Media.IBrush? LineNumberBrush { get; set; }
+ArxisStudio.Controls.AxCodeView :: Avalonia.Media.IBrush? PrefixBrush { get; set; }
+ArxisStudio.Controls.AxCodeView :: Avalonia.Media.IBrush? SelectionBrush { get; set; }
+ArxisStudio.Controls.AxCodeView :: Avalonia.Media.IBrush? StringBrush { get; set; }
+ArxisStudio.Controls.AxCodeView :: Avalonia.Media.IBrush? TagBrush { get; set; }
+ArxisStudio.Controls.AxCodeView :: Avalonia.Thickness GutterPadding { get; set; }
+ArxisStudio.Controls.AxCodeView :: System.Boolean ShowLineNumbers { get; set; }
+ArxisStudio.Controls.AxCodeView :: System.Collections.Generic.IReadOnlyList<ArxisStudio.Controls.AxCodeSpan>? Spans { get; set; }
+ArxisStudio.Controls.AxCodeView :: System.Double CaretThickness { get; set; }
+ArxisStudio.Controls.AxCodeView :: System.Double HighlightMarkerWidth { get; set; }
+ArxisStudio.Controls.AxCodeView :: System.Double LineHeightRatio { get; set; }
+ArxisStudio.Controls.AxCodeView :: System.Int32 CaretOffset { get; set; }
+ArxisStudio.Controls.AxCodeView :: System.String SelectedText { get; }
+ArxisStudio.Controls.AxCodeView :: System.String? Text { get; set; }
+ArxisStudio.Controls.AxCodeView :: System.Threading.Tasks.Task CopyAsync()
+ArxisStudio.Controls.AxCodeView :: System.Void ScrollIntoView(ArxisStudio.Controls.AxCodeRange range)
+ArxisStudio.Controls.AxCodeView :: System.Void ScrollIntoView(System.Int32 offset)
+ArxisStudio.Controls.AxCodeView :: System.Void Select(System.Int32 start, System.Int32 length)
+ArxisStudio.Controls.AxCodeView :: System.Void SelectAll()
+ArxisStudio.Controls.AxCodeView :: event System.EventHandler<ArxisStudio.Controls.AxCodeCaretMovedEventArgs> CaretMoved
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.DirectProperty<ArxisStudio.Controls.AxCodeView, ArxisStudio.Controls.AxCodeRange> SelectionProperty
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.Interactivity.RoutedEvent<ArxisStudio.Controls.AxCodeCaretMovedEventArgs> CaretMovedEvent
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<ArxisStudio.Controls.AxCodeRange?> HighlightProperty
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> AttributeBrushProperty
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> CaretBrushProperty
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> CommentBrushProperty
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> DirectiveBrushProperty
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> ErrorBrushProperty
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> ExtensionBrushProperty
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> HighlightBrushProperty
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> HighlightMarkerBrushProperty
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> LineNumberBrushProperty
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> PrefixBrushProperty
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> SelectionBrushProperty
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> StringBrushProperty
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> TagBrushProperty
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<Avalonia.Thickness> GutterPaddingProperty
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<System.Boolean> ShowLineNumbersProperty
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<System.Collections.Generic.IReadOnlyList<ArxisStudio.Controls.AxCodeSpan>> SpansProperty
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<System.Double> CaretThicknessProperty
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<System.Double> HighlightMarkerWidthProperty
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<System.Double> LineHeightRatioProperty
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<System.Int32> CaretOffsetProperty
+ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<System.String> TextProperty
 ArxisStudio.Controls.AxComboBox : class : Avalonia.Controls.ComboBox
 ArxisStudio.Controls.AxComboBox :: .ctor()
 ArxisStudio.Controls.AxComboBox :: ArxisStudio.Controls.AxControlSize Size { get; set; }

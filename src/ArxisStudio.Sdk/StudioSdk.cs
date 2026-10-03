@@ -21,6 +21,14 @@ public static class StudioSdk
 {
     /// <summary>Версия контракта этой студии.</summary>
     /// <remarks>
+    /// 7.13 — просмотр кода в наборе контролов: <c>AxCodeView</c> показывает текст только для чтения —
+    /// номера строк, подсветку кусками хозяина (<c>AxCodeSpan</c> со смещением, длиной и ролью
+    /// <c>AxCodeRole</c>), отметку <c>Highlight</c> отрезком <c>AxCodeRange</c>, каретку и выделение;
+    /// каретку, поставленную человеком, сообщает <c>CaretMoved</c> с <c>AxCodeCaretMovedEventArgs</c>, а
+    /// место показывает <c>ScrollIntoView</c>. Строятся только видимые строки. Тема получила роли
+    /// <c>AxCodeExtension</c>, <c>AxCodePrefix</c>, <c>AxCodeDirective</c>, <c>AxCodeError</c> и заливку
+    /// отметки <c>AxCodeHighlightFill</c>. Младший номер: добавлено, снятого нет.
+    /// <para>
     /// 7.12 — ядро модели проектов, которое плагин видит общим, выросло. Перемена файла несёт свой вид:
     /// <c>FileChange</c> с <c>FileChangeKind</c> и переименованием <c>FileRename</c>, коалесцер их
     /// принимает (<c>FileChangeCoalescer.ForChanges</c>, <c>Add</c>). Снимок разбирает пачку перемен сам —
@@ -30,6 +38,7 @@ public static class StudioSdk
     /// (<c>BuildDirectories</c>, <c>RestoreOutputs</c>), а загрузка просит оценить сверх обычного
     /// (<c>WorkspaceLoadOptions.AdditionalProperties</c>). Первым потребителем станет служба XAML.
     /// Младший номер: добавлено, снятого нет.
+    /// </para>
     /// <para>
     /// 7.11 — перетаскивание между панелями: панель несёт мышью своё в чужую, и обе стороны говорят на
     /// SDK. Источник — служба <c>IStudioDragDrop</c>: <c>DragAsync</c>, когда тягу от первого движения до
@@ -252,7 +261,7 @@ public static class StudioSdk
     /// 4.1 — добавлены теги манифеста (<c>tags</c>).
     /// </para>
     /// </remarks>
-    public const string Version = "7.12";
+    public const string Version = "7.13";
 
     /// <summary>
     /// Довольна ли эта версия SDK тем, что просит плагин.
