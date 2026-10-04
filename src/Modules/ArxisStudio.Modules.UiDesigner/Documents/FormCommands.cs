@@ -1,12 +1,26 @@
 using System.Globalization;
 using ArxisStudio.Markup.Xaml;
 using ArxisStudio.Sdk;
+using ArxisStudio.Xaml;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 
 namespace ArxisStudio.Modules.UiDesigner.Documents;
+
+/// <summary>Форма, выбранное в которой правят команды: её выбор, документ и показ.</summary>
+internal interface IFormTarget
+{
+    /// <summary>Выбор в форме — пути элементов, первый главный.</summary>
+    IReadOnlyList<XamlElementPath> Selection { get; }
+
+    /// <summary>Документ формы, когда он взят.</summary>
+    IXamlDocumentHandle? Document { get; }
+
+    /// <summary>Показ формы, когда он есть.</summary>
+    IXamlDesignView? Shown { get; }
+}
 
 /// <summary>
 /// Правки строения выбранного — вырезать, копировать, вставить, дублировать, удалить, обернуть, снять
@@ -32,17 +46,17 @@ internal sealed class FormCommands
     /// <summary>Пустой набор членов: месту в раскладке нечего читать.</summary>
     private static readonly IReadOnlySet<string> NoSlots = new HashSet<string>(StringComparer.Ordinal);
 
-    private readonly LiveFormDocument _form;
+    private readonly IFormTarget _form;
     private readonly FormEdits _edits;
     private readonly IStudioStrings _strings;
     private readonly Action<string> _say;
 
     /// <summary>Команды формы.</summary>
-    /// <param name="form">Вкладка формы: её выбор и показ.</param>
+    /// <param name="form">Форма на холсте: её выбор, документ и показ.</param>
     /// <param name="edits">Правки её документа.</param>
     /// <param name="strings">Словарь модуля.</param>
     /// <param name="say">Строка состояния.</param>
-    public FormCommands(LiveFormDocument form, FormEdits edits, IStudioStrings strings, Action<string> say)
+    public FormCommands(IFormTarget form, FormEdits edits, IStudioStrings strings, Action<string> say)
     {
         _form = form;
         _edits = edits;

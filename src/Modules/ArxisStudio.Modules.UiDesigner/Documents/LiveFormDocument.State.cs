@@ -92,7 +92,7 @@ internal sealed partial class LiveFormDocument
 
         // Холст снова виден: форма, сменившаяся под видом «XAML», снимается теперь — спрятанную не снять.
         if (sheet)
-            QueueSnapshot();
+            _canvas.QueueSnapshots();
     }
 
     /// <summary>Вид выбрали на полосе: он же — вид следующих вкладок, а клавиатура — тому, что видно.</summary>
@@ -166,7 +166,7 @@ internal sealed partial class LiveFormDocument
     /// </summary>
     private FormNotice? Notice()
     {
-        if (_problem is { } problem)
+        if (_session.Problem is { } problem)
             return new FormNotice(AxBannerSeverity.Error, problem);
 
         var reason = _design?.StateReason ?? string.Empty;
@@ -183,7 +183,7 @@ internal sealed partial class LiveFormDocument
                 return new FormNotice(AxBannerSeverity.Warning, Format("form.unsupported", reason));
         }
 
-        if (_document is { } document)
+        if (_session.Document is { } document)
         {
             if (document.IsClosed)
                 return new FormNotice(AxBannerSeverity.Information, _context.Strings["form.closed"]);
@@ -212,7 +212,7 @@ internal sealed partial class LiveFormDocument
     /// </remarks>
     private void ShowConflict()
     {
-        if (_document is not { HasConflict: true, IsClosed: false })
+        if (_session.Document is not { HasConflict: true, IsClosed: false })
         {
             Hide(_view.Conflict);
             return;
@@ -250,20 +250,8 @@ internal sealed partial class LiveFormDocument
     /// <summary>Отвечает на вопрос о чужой записи; оставленные правки сохраняются поверх файла как обычно.</summary>
     private async Task ResolveAsync(XamlConflictChoice choice)
     {
-        if (_document is not { } document)
-            return;
-
-        try
-        {
-            await document.ResolveConflictAsync(choice, _lifetime.Token);
-        }
-        catch (Exception e) when (e is ObjectDisposedException or OperationCanceledException)
-        {
-            return;
-        }
-
-        ShowConflict();
-        ScheduleAutoSave();
+        if (await _session.ResolveAsync(choice) && !_disposed)
+            ShowConflict();
     }
 
     private void OnRebuild(object? sender, RoutedEventArgs e) => _ = RebuildAsync();
@@ -271,12 +259,12 @@ internal sealed partial class LiveFormDocument
     /// <summary>Собирает дизайн заново; ход и итог показывает чип, а отказ — строка состояния.</summary>
     private async Task RebuildAsync()
     {
-        if (_design is null)
+        if (_design is null || _disposed)
             return;
 
         try
         {
-            await _design.RebuildAsync(_lifetime.Token);
+            await _design.RebuildAsync(_canvas.Lifetime);
         }
         catch (InvalidOperationException e)
         {

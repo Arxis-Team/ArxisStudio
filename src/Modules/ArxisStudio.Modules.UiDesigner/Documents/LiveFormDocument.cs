@@ -1,4 +1,5 @@
 using System.Globalization;
+using ArxisStudio.Markup.Xaml;
 using ArxisStudio.Modules.UiDesigner.Board;
 using ArxisStudio.Modules.UiDesigner.Model;
 using ArxisStudio.ProjectSystem;
@@ -11,7 +12,6 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform;
-using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 
@@ -28,14 +28,9 @@ namespace ArxisStudio.Modules.UiDesigner.Documents;
 /// объявленного размера, а чип на полосе говорит, что идёт.
 /// </para>
 /// <para>
-/// <b>Правят текст.</b> Жест холста — правка документа одним шагом его истории (<see cref="FormGestures"/>),
-/// и живое дерево перестраивает уже служба. Холст ничего не пишет в контролы мимо текста: что видно, то и
-/// в файле.
-/// </para>
-/// <para>
-/// <b>Поколение не держит.</b> Вкладка — участник замены: на замену холст замирает стоп-кадром, отдаёт
-/// корень и приложение формы и выбор; после — берёт новые и выбирает те же элементы по путям. Между
-/// заменами вкладка помнит пути (<see cref="Markup.Xaml.XamlElementPath"/>), а не контролы.
+/// <b>Правят на холсте — так же, как на доске.</b> Документ формы держит сессия (<see cref="FormSession"/>),
+/// а выбор, жесты, правки строения, меню и XAML — холст форм (<see cref="FormCanvas"/>), один у вкладки и
+/// у доски. У вкладки он с одной формой; своё у неё — полоса, вид и баннеры.
 /// </para>
 /// <para>
 /// <b>Сохраняет сама</b>, как IntelliJ: при уходе из окна студии, при закрытии вкладки и перезапуске и
@@ -44,31 +39,19 @@ namespace ArxisStudio.Modules.UiDesigner.Documents;
 /// затирается, а становится вопросом на баннере.
 /// </para>
 /// </remarks>
-internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignParticipant, IXamlRootLender
+internal sealed partial class LiveFormDocument : DocumentView, IFormCanvasHost
 {
     private readonly IStudioContext _context;
-    private readonly IStudioXamlDocuments _documents;
     private readonly IStudioXamlDesign? _design;
-    private readonly UiDesignerOptions _options;
     private readonly CanonicalPath _path;
     private readonly LiveFormView _view;
     private readonly UiDesignerFormItem _form;
     private readonly SheetControls _controls;
-    private readonly CancellationTokenSource _lifetime = new();
-    private readonly IDisposable? _participation;
-    private readonly Snapshots.FormClaim? _claim;
+    private readonly FormCanvas _canvas;
+    private readonly FormSession _session;
+    private readonly FormSlot _slot;
 
-    private IXamlDocumentHandle? _document;
-    private IXamlDesignView? _shown;
-    private FormEdits? _edits;
-    private FormGestures? _gestures;
-    private IDisposable? _frozen;
-    private IDisposable? _gesture;
-    private ITimer? _autoSave;
-    private Window? _window;
-    private string? _problem;
     private string? _dismissed;
-    private string? _saveFailure;
     private bool _framed;
     private bool _rootFramed;
     private bool _disposed;
@@ -92,36 +75,26 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
         ArgumentNullException.ThrowIfNull(options);
 
         _context = context;
-        _documents = documents;
         _design = context.XamlDesign();
-        _options = options;
         _path = path;
-        _snapshots = Snapshots.FormSnapshots.For(options);
         _view = new LiveFormView();
 
-        // Размеченный режим: что на форме редактируется, говорит документ — объявленное им помечается
-        // (Mark). Загруженный режим предлагал бы к выбору и внутренности контролов проекта: их разметка
-        // построила своё, и элемента в этом документе у него нет.
+        // Размеченный режим: что на форме редактируется, говорит документ — объявленное им помечается.
+        // Загруженный режим предлагал бы к выбору и внутренности контролов проекта: их разметка построила
+        // своё, и элемента в этом документе у него нет.
         _form = new UiDesignerFormItem
         {
             ContentMode = SurfaceContentMode.Annotated,
             Width = root.Width ?? SheetControls.LengthOf(_view, "AxFormFrameWidth"),
             Height = root.Height ?? SheetControls.LengthOf(_view, "AxFormFrameHeight"),
         };
-        _form.AddHandler(InputElement.GettingFocusEvent, OnFormGettingFocus, RoutingStrategies.Bubble, handledEventsToo: true);
 
         var sheet = _view.Sheet;
 
         sheet.ItemsSource = new[] { _form };
         _controls = new SheetControls(context, sheet, _view.Fit, _view.Actual, _view.GridToggle, Everything);
+        _canvas = new FormCanvas(context, sheet, _view.Code, this, options);
 
-        // Esc — к тому, в чём стоит выбранное, как в дизайнерах Visual Studio; на корне снимает выбор.
-        var clear = IndexOf(sheet.KeyCommands, SurfaceKeyCommands.ClearSelection);
-
-        sheet.KeyCommands.Remove(SurfaceKeyCommands.ClearSelection);
-        sheet.KeyCommands.Insert(
-            Math.Max(0, clear),
-            new SurfaceKeyCommand(ParentCommand, new KeyGesture(Key.Escape), _ => SelectParent()));
         sheet.KeyCommands.Add(new SurfaceKeyCommand(FrameCommand, BoardMenu.FrameKey, _ =>
         {
             _controls.FrameAll();
@@ -129,13 +102,13 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
             return true;
         }));
 
-        WireStructure(sheet);
+        _session = new FormSession(context, documents, path, options, _canvas);
+        _slot = _canvas.Add(_session, _form);
 
-        sheet.SurfaceSelectionChanged += OnSheetSelectionChanged;
-        sheet.PropertyChanged += OnSheetPropertyChanged;
+        _canvas.RootTaken += OnRootTaken;
+        _session.Changed += OnSessionChanged;
         sheet.Loaded += OnSheetLoaded;
 
-        _view.Code.CaretMoved += OnCaretMoved;
         _view.Mode.SelectionChanged += OnModeChanged;
         _view.TakeTheirs.Click += OnTakeTheirs;
         _view.KeepMine.Click += OnKeepMine;
@@ -143,27 +116,19 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
         _view.ShowProblem.Click += OnShowProblem;
         _view.Notice.Closed += OnNoticeClosed;
         _view.Conflict.Closed += OnConflictClosed;
-        _view.AttachedToVisualTree += OnAttached;
-        _view.DetachedFromVisualTree += OnDetached;
         _view.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Bubble);
 
         if (_design is not null)
-        {
             _design.StateChanged += OnDesignStateChanged;
-            _participation = _design.Register(this);
-        }
 
         ApplyMode(ModeOf(context.Settings.Get<string>(UiDesignerModule.ViewKey)));
         ShowState();
 
         // Показ у документа один: фоновый снимок этой формы его отпустит, а новых не будет, пока вкладка жива.
-        _claim = Snapshots.FormCaptures.Of(context)?.Claim(path.Value);
+        _session.Claim();
 
         Opening = OpenAsync();
     }
-
-    /// <summary>Идентификатор команды холста «к родителю».</summary>
-    public const string ParentCommand = "ui-designer.parent";
 
     /// <summary>Идентификатор команды холста «показать всё».</summary>
     public const string FrameCommand = "ui-designer.frame";
@@ -178,7 +143,7 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
     /// <remarks>Холст — с него работают; в виде одного XAML холста не видно, и каретку берёт текст.</remarks>
     public override Control? FocusTarget => _mode == FormViewMode.Xaml ? _view.Code : _view.Sheet;
 
-    /// <summary>Открытие документа: тестам — дождаться его.</summary>
+    /// <summary>Открытие документа и его показ: тестам — дождаться их.</summary>
     internal Task Opening { get; }
 
     /// <summary>Разметка — тестам.</summary>
@@ -188,10 +153,29 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
     internal UiDesignerFormItem Form => _form;
 
     /// <summary>Документ, когда он открыт, — тестам.</summary>
-    internal IXamlDocumentHandle? Document => _document;
+    internal IXamlDocumentHandle? Document => _session.Document;
 
-    /// <summary>Показ, когда он есть: команды формы спрашивают у него объекты элементов.</summary>
-    internal IXamlDesignView? Shown => _shown;
+    /// <summary>Показ, когда он есть, — тестам.</summary>
+    internal IXamlDesignView? Shown => _session.Shown;
+
+    /// <summary>Выбор вкладки — пути элементов, первый главный; тестам.</summary>
+    internal IReadOnlyList<XamlElementPath> Selection => _canvas.Selection;
+
+    /// <summary>Текст, который показывает просмотр XAML; тестам.</summary>
+    internal XamlDocument? Code => _canvas.Code;
+
+    /// <summary>Правки строения выбранного, когда документ открыт, — тестам.</summary>
+    internal FormCommands? Commands => _canvas.Commands;
+
+    /// <summary>Последняя запись снимка — тестам: дождаться, а не спать.</summary>
+    internal Task Snapshotting => _slot.Snapshotting;
+
+    /// <summary>Выбирает элементы формы; тестам.</summary>
+    /// <param name="paths">Пути в нынешнем тексте, первый главный.</param>
+    internal void Select(IReadOnlyList<XamlElementPath> paths) => _canvas.Select(_slot, paths);
+
+    /// <summary>Пункты контекстного меню холста — тем же путём, каким их собирает меню; тестам.</summary>
+    internal IReadOnlyList<Control> MenuItems() => _canvas.MenuItems();
 
     /// <inheritdoc/>
     /// <remarks>
@@ -200,37 +184,13 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
     /// </remarks>
     public override async Task<bool> SaveAsync()
     {
-        if (_document is not { IsModified: true } document)
-            return true;
-
-        if (document.HasConflict)
+        if (_session.Document is { IsModified: true, HasConflict: true })
         {
             ShowConflict();
             return false;
         }
 
-        try
-        {
-            await document.SaveAsync(_lifetime.Token);
-            _saveFailure = null;
-
-            return true;
-        }
-        catch (IOException e)
-        {
-            Say(Format("form.saveFailed", _path.FileName, e.Message));
-
-            return false;
-        }
-        catch (ObjectDisposedException)
-        {
-            // Документ закрыла служба: решение кончилось, писать больше некуда.
-            return false;
-        }
-        catch (OperationCanceledException)
-        {
-            return false;
-        }
+        return await _session.SaveAsync();
     }
 
     /// <inheritdoc/>
@@ -240,36 +200,31 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
     /// </remarks>
     public override async ValueTask<bool> CanCloseAsync(DocumentCloseReason reason)
     {
-        if (AutoSaves)
-            await AutoSaveAsync();
+        if (_session.AutoSaves)
+            await _session.AutoSaveAsync();
 
         return true;
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Холст — раньше сессии: он отдаёт выбор, корень и приложение формы, а сессия потом отпускает показ и
+    /// документ — последняя аренда его закрывает.
+    /// </remarks>
     public override async ValueTask DisposeAsync()
     {
         if (_disposed)
             return;
 
         _disposed = true;
-        await _lifetime.CancelAsync();
-
-        _autoSave?.Dispose();
-        _gesture?.Dispose();
-        _participation?.Dispose();
 
         if (_design is not null)
             _design.StateChanged -= OnDesignStateChanged;
 
-        var sheet = _view.Sheet;
+        _canvas.RootTaken -= OnRootTaken;
+        _session.Changed -= OnSessionChanged;
+        _view.Sheet.Loaded -= OnSheetLoaded;
 
-        sheet.SurfaceSelectionChanged -= OnSheetSelectionChanged;
-        sheet.PropertyChanged -= OnSheetPropertyChanged;
-        sheet.Loaded -= OnSheetLoaded;
-        UnwireStructure(sheet);
-
-        _view.Code.CaretMoved -= OnCaretMoved;
         _view.Mode.SelectionChanged -= OnModeChanged;
         _view.TakeTheirs.Click -= OnTakeTheirs;
         _view.KeepMine.Click -= OnKeepMine;
@@ -277,230 +232,75 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
         _view.ShowProblem.Click -= OnShowProblem;
         _view.Notice.Closed -= OnNoticeClosed;
         _view.Conflict.Closed -= OnConflictClosed;
-        _view.AttachedToVisualTree -= OnAttached;
-        _view.DetachedFromVisualTree -= OnDetached;
         _view.RemoveHandler(InputElement.KeyDownEvent, OnKeyDown);
-        _form.RemoveHandler(InputElement.GettingFocusEvent, OnFormGettingFocus);
 
-        Watch(null);
-
-        _gestures?.Dispose();
         _controls.Dispose();
+        _canvas.Dispose();
 
-        // Сперва то, что держит объекты поколения: выбор, корень, приложение, показ. Потом аренда — последняя
-        // закрывает документ.
-        using (Syncing())
-            sheet.SelectedItems?.Clear();
-
-        _form.Root = null;
-        _form.ApplicationRoot = null;
-        _frozen?.Dispose();
-        _frozen = null;
-
-        if (_shown is { } shown)
-        {
-            _shown = null;
-            shown.RootChanged -= OnRootChanged;
-            shown.ApplicationChanged -= OnApplicationChanged;
-            shown.Dispose();
-        }
-
-        if (_document is { } document)
-        {
-            _document = null;
-            document.Changed -= OnDocumentChanged;
-            document.ExternalConflict -= OnExternalConflict;
-
-            try
-            {
-                await document.DisposeAsync();
-            }
-            catch (Exception e) when (e is ObjectDisposedException or InvalidOperationException)
-            {
-                // Служба уже остановилась: её документы закрыла она сама.
-            }
-        }
-
-        // Заявка — последней: показ отпущен, и фоновый снимок формы его уже не встретит.
-        _claim?.Dispose();
-        _lifetime.Dispose();
+        await _session.DisposeAsync();
     }
 
     /// <inheritdoc/>
-    /// <remarks>
-    /// Замена поколения: холст замирает на кадре — человек видит форму, а не пустоту, — и отдаёт всё, что
-    /// построено из уходящих типов: выбор, корень, приложение. Пути выбора остаются у вкладки.
-    /// </remarks>
-    public ValueTask ReleaseAsync(CancellationToken cancellationToken)
+    void IFormCanvasHost.Step(bool back)
     {
-        _frozen ??= _view.Sheet.Freeze();
-
-        using (Syncing())
-            _view.Sheet.SelectedItems?.Clear();
-
-        _form.Root = null;
-        _form.ApplicationRoot = null;
-
-        return ValueTask.CompletedTask;
+        if (_session.Edits is { } edits)
+            _ = edits.StepAsync(back);
     }
 
     /// <inheritdoc/>
-    /// <remarks>Показ уже взял новый корень (его <c>RootChanged</c> пришёл раньше): осталось ожить и выбрать.</remarks>
-    public ValueTask RestoreAsync(CancellationToken cancellationToken)
+    /// <remarks>Форма вкладки — сама вкладка: убирать её некуда, закрывают вкладку.</remarks>
+    void IFormCanvasHost.Remove(IReadOnlyList<FormSlot> forms)
     {
-        TakeRoot();
-        TakeApplication();
-
-        _frozen?.Dispose();
-        _frozen = null;
-
-        return ValueTask.CompletedTask;
     }
 
     /// <inheritdoc/>
-    /// <remarks>
-    /// Окно на время записи сессии отдаётся целиком: пока карточка держит его содержимое, окно пусто, и
-    /// запись ушла бы в окно, которого никто не видит. Чужой корень — не наш: отдавать нечего.
-    /// </remarks>
-    public IDisposable Lend(object root) =>
-        ReferenceEquals(_form.Root, root) ? _form.SuspendRoot() : Nothing.Instance;
+    void IFormCanvasHost.FrameAll() => _controls.FrameAll();
+
+    /// <inheritdoc/>
+    void IFormCanvasHost.LeftWindow()
+    {
+        if (_session.AutoSaves)
+            _ = _session.AutoSaveAsync();
+    }
 
     /// <summary>Берёт документ у службы, потом показ.</summary>
     private async Task OpenAsync()
     {
-        try
-        {
-            var document = await _documents.OpenAsync(_path, _lifetime.Token);
-
-            if (_disposed)
-            {
-                await document.DisposeAsync();
-                return;
-            }
-
-            _document = document;
-            document.Changed += OnDocumentChanged;
-            document.ExternalConflict += OnExternalConflict;
-
-            _edits = new FormEdits(document, _context.Strings, Select, Refused);
-            _gestures = new FormGestures(_view.Sheet, _form, _edits, () => _shown, _context.Strings);
-            TakeCommands(_edits);
-
-            SetModified(document.IsModified);
-            ShowConflict();
-            ShowState();
-            _ = RefreshCodeAsync();
-
-            if (_claim is { } claim)
-                await claim.Released;
-
-            var shown = await document.ShowAsync(this, _lifetime.Token);
-
-            if (_disposed)
-            {
-                shown.Dispose();
-                return;
-            }
-
-            _shown = shown;
-            shown.RootChanged += OnRootChanged;
-            shown.ApplicationChanged += OnApplicationChanged;
-
-            TakeRoot();
-            TakeApplication();
-            ShowState();
-        }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
-        {
-            // Вкладку закрыли, пока документ открывался.
-        }
-        catch (ObjectDisposedException) when (_disposed)
-        {
-        }
-        catch (Exception e) when (e is InvalidOperationException or ArgumentException or ObjectDisposedException or IOException)
-        {
-            _problem = Format("form.openFailed", e.Message);
-            ShowState();
-        }
+        await _session.OpenAsync();
+        await _session.ShowAsync();
     }
 
-    /// <summary>Ставит карточке корень показа и помечает объявленное документом.</summary>
-    /// <remarks>
-    /// Первый корень форма вписывает в холст: до него карточка стояла объявленным размером, без
-    /// заголовка окна, и кадр, снятый тогда, обрезал бы заголовок сверху. Корень, сменившийся потом, —
-    /// правка или замена типов, — кадр не трогает: масштаб к этому времени выбирал человек.
-    /// </remarks>
-    private void TakeRoot()
+    /// <summary>Что сменилось у формы — отметка несохранённого, вопрос о чужой записи, баннер и чип.</summary>
+    private void OnSessionChanged(object? sender, FormChanges changes)
     {
-        var root = _shown?.Root;
-
-        if (!ReferenceEquals(_form.Root, root))
-            _form.Root = root;
-
-        if (root is not null && !_rootFramed)
-        {
-            _rootFramed = true;
-            Dispatcher.UIThread.Post(_controls.FrameAll, DispatcherPriority.Loaded);
-        }
-
-        Mark();
-        Reselect();
-        QueueSnapshot();
-    }
-
-    /// <summary>Ставит карточке приложение формы: его стили, ресурсы, шаблоны данных и тему.</summary>
-    /// <remarks>
-    /// Со сменой приложения карточка ставит содержимое формы в дерево заново — тему своего типа контрол
-    /// ищет при входе, — и выбор холста на миг уходит с контролов: его возвращают пути. Вариант темы
-    /// ставится раньше приложения, чтобы содержимое вошло в дерево уже под ним.
-    /// </remarks>
-    private void TakeApplication()
-    {
-        var application = _shown?.Application;
-
-        _form.ApplicationThemeVariant = application is null ? ThemeVariant.Default : VariantOf(application);
-
-        if (ReferenceEquals(_form.ApplicationRoot, application))
+        if (_disposed)
             return;
 
-        using (Syncing())
-            _form.ApplicationRoot = application;
+        if ((changes & (FormChanges.Opened | FormChanges.Text | FormChanges.Saved)) != 0)
+            SetModified(_session.Document?.IsModified ?? false);
 
-        Reselect();
-        QueueSnapshot();
+        if ((changes & (FormChanges.Opened | FormChanges.Conflict)) != 0)
+            ShowConflict();
+
+        if ((changes & (FormChanges.Opened | FormChanges.Root | FormChanges.State | FormChanges.Deleted | FormChanges.Closed | FormChanges.Problem)) != 0)
+            ShowState();
     }
-
-    /// <summary>Тема, к которой пришло бы приложение формы при работе.</summary>
-    /// <remarks>
-    /// Объявленную сторону приложение называет само — <c>RequestedThemeVariant</c> в <c>App.axaml</c>, — а
-    /// «по умолчанию» при работе решает платформа, а не студия: тёмная студия — сведение о студии, а не о
-    /// проекте. Без приложения тему не знает никто, и карточка наследует студийную. Ту же тему берёт и
-    /// фоновый снимок (<see cref="Snapshots.FormCaptures"/>): форма на плитке та же, что во вкладке.
-    /// </remarks>
-    internal static ThemeVariant VariantOf(Application application) =>
-        application.RequestedThemeVariant is { } requested && requested != ThemeVariant.Default
-            ? requested
-            : Application.Current?.PlatformSettings?.GetColorValues().ThemeVariant == PlatformThemeVariant.Dark
-                ? ThemeVariant.Dark
-                : ThemeVariant.Light;
 
     /// <summary>
-    /// Помечает контролы, которые документ объявил сам: только их холст предлагает к выбору.
+    /// Первый корень форма вписывает в холст: до него карточка стояла объявленным размером, без заголовка
+    /// окна, и кадр, снятый тогда, обрезал бы заголовок сверху.
     /// </summary>
     /// <remarks>
-    /// Корень не помечается: за него стоит карточка, и её ручки и есть размер формы. Метка внутри кнопки
-    /// построена её шаблоном и элемента не имеет — показ её не называет.
+    /// Корень, сменившийся потом, — правка или замена типов, — кадр не трогает: масштаб к этому времени
+    /// выбирал человек.
     /// </remarks>
-    private void Mark()
+    private void OnRootTaken(object? sender, FormSlot slot)
     {
-        if (_shown is not { } shown)
+        if (_rootFramed)
             return;
 
-        foreach (var declared in shown.GetDeclaredObjects())
-        {
-            if (declared is Control control && !ArxisStudio.Surface.UiDesigner.Layout.GetIsTracked(control))
-                ArxisStudio.Surface.UiDesigner.Layout.SetIsTracked(control, true);
-        }
+        _rootFramed = true;
+        Dispatcher.UIThread.Post(_controls.FrameAll, DispatcherPriority.Loaded);
     }
 
     /// <summary>Всё на холсте: карточка, а у окна — и его заголовок над ней.</summary>
@@ -525,99 +325,10 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
         Dispatcher.UIThread.Post(_controls.FrameAll, DispatcherPriority.Loaded);
     }
 
-    private void OnRootChanged(object? sender, EventArgs e)
-    {
-        if (!_disposed)
-            TakeRoot();
-    }
-
-    private void OnApplicationChanged(object? sender, EventArgs e)
-    {
-        if (!_disposed && _frozen is null)
-            TakeApplication();
-    }
-
-    private void OnDocumentChanged(object? sender, XamlDocumentChangesEventArgs e)
-    {
-        if (_disposed || _document is not { } document)
-            return;
-
-        var changes = e.Changes;
-
-        if ((changes & (XamlDocumentChanges.Text | XamlDocumentChanges.Saved)) != 0)
-            SetModified(document.IsModified);
-
-        if ((changes & XamlDocumentChanges.Text) != 0)
-        {
-            _saveFailure = null;
-            _ = RefreshCodeAsync();
-            ScheduleAutoSave();
-        }
-
-        if ((changes & (XamlDocumentChanges.Text | XamlDocumentChanges.Objects)) != 0)
-        {
-            Mark();
-            Reselect();
-        }
-
-        // Снимок отвечает файлу: снимается документ, сошедшийся с диском, — сохранённый или принятый
-        // снаружи, — а не каждая правка. Отметка сохранённого сдвигается при каждом таком схождении.
-        if ((changes & XamlDocumentChanges.Saved) != 0 && !document.IsModified)
-            QueueSnapshot();
-
-        if ((changes & XamlDocumentChanges.Conflict) != 0)
-            ShowConflict();
-
-        if ((changes & (XamlDocumentChanges.State | XamlDocumentChanges.Deleted | XamlDocumentChanges.Closed)) != 0)
-            ShowState();
-    }
-
-    private void OnExternalConflict(object? sender, XamlExternalConflictEventArgs e) => ShowConflict();
-
     private void OnDesignStateChanged(object? sender, EventArgs e)
     {
         if (!_disposed)
             ShowState();
-    }
-
-    /// <summary>
-    /// Пока на холсте идёт жест, замена типов ждёт: перестроенный под рукой холст бросил бы жест на середине.
-    /// </summary>
-    private void OnSheetPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
-    {
-        if (e.Property != SurfaceView.IsInteractingProperty || _design is null)
-            return;
-
-        if (_view.Sheet.IsInteracting)
-        {
-            _gesture ??= _design.Defer(Format("form.defer.gesture", _path.FileName));
-        }
-        else
-        {
-            _gesture?.Dispose();
-            _gesture = null;
-        }
-    }
-
-    /// <summary>
-    /// Фокус в форму не заходит: кнопка формы не нажимается, поле не берёт текст, а Delete и Ctrl+A
-    /// остаются у холста.
-    /// </summary>
-    /// <remarks>
-    /// Обход Tab запирает стиль вкладки на хосте формы; сюда доходит фокус, пришедший иначе, — из кода
-    /// самого контрола формы. Неотменимую перемену уводят на холст: он в фокусе ничего не печатает.
-    /// </remarks>
-    private void OnFormGettingFocus(object? sender, FocusChangingEventArgs e)
-    {
-        if (e.NewFocusedElement is not Visual target
-            || ReferenceEquals(target, _form)
-            || !_form.IsVisualAncestorOf(target))
-        {
-            return;
-        }
-
-        if (!e.TryCancel())
-            e.TrySetNewFocusedElement(_view.Sheet);
     }
 
     /// <summary>Отмена и возврат — история документа, откуда бы на вкладке ни нажали.</summary>
@@ -627,128 +338,23 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
     /// </remarks>
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || _edits is null || _view.GetPlatformSettings()?.HotkeyConfiguration is not { } keys)
+        if (e.Handled || _session.Edits is not { } edits || _view.GetPlatformSettings()?.HotkeyConfiguration is not { } keys)
             return;
 
         if (keys.Undo.Any(gesture => gesture.Matches(e)))
         {
             e.Handled = true;
-            _ = _edits.StepAsync(back: true);
+            _ = edits.StepAsync(back: true);
         }
         else if (keys.Redo.Any(gesture => gesture.Matches(e)))
         {
             e.Handled = true;
-            _ = _edits.StepAsync(back: false);
+            _ = edits.StepAsync(back: false);
         }
     }
-
-    private void OnAttached(object? sender, VisualTreeAttachmentEventArgs e)
-    {
-        Watch(TopLevel.GetTopLevel(_view) as Window);
-
-        // Вне окна вкладку не разложить и не снять: снимок, пропущенный тогда, снимается по возвращении.
-        QueueSnapshot();
-    }
-
-    private void OnDetached(object? sender, VisualTreeAttachmentEventArgs e) => Watch(null);
-
-    /// <summary>Слушает уход из окна, где стоит вкладка: оторванную вкладку несёт другое окно.</summary>
-    private void Watch(Window? window)
-    {
-        if (ReferenceEquals(window, _window))
-            return;
-
-        if (_window is not null)
-            _window.Deactivated -= OnWindowDeactivated;
-
-        _window = window;
-
-        if (_window is not null)
-            _window.Deactivated += OnWindowDeactivated;
-    }
-
-    private void OnWindowDeactivated(object? sender, EventArgs e)
-    {
-        if (AutoSaves)
-            _ = AutoSaveAsync();
-    }
-
-    /// <summary>Сохранять ли самому: настройка модуля.</summary>
-    private bool AutoSaves => _context.Settings.Get<bool?>(UiDesignerModule.AutoSaveKey) ?? true;
-
-    /// <summary>После правки — сохранение через паузу; новая правка паузу начинает заново.</summary>
-    private void ScheduleAutoSave()
-    {
-        _autoSave?.Dispose();
-        _autoSave = null;
-
-        if (_disposed || !AutoSaves || _document is not { IsModified: true } || _options.AutoSaveDelay == Timeout.InfiniteTimeSpan)
-            return;
-
-        _autoSave = _options.TimeProvider.CreateTimer(
-            _ => Dispatcher.UIThread.Post(() => _ = AutoSaveAsync()),
-            null,
-            _options.AutoSaveDelay,
-            Timeout.InfiniteTimeSpan);
-    }
-
-    /// <summary>
-    /// Сохраняет, если есть что и можно: вопрос о чужой записи и удалённый файл ждут человека.
-    /// </summary>
-    /// <remarks>
-    /// Отказ говорится строкой состояния один раз на текст: пауза и уход из окна повторяли бы его
-    /// после каждой правки.
-    /// </remarks>
-    private async Task AutoSaveAsync()
-    {
-        if (_disposed || _document is not { IsModified: true, HasConflict: false, IsDeleted: false, IsClosed: false } document)
-            return;
-
-        try
-        {
-            await document.SaveAsync(_lifetime.Token);
-        }
-        catch (IOException e) when (_saveFailure is null)
-        {
-            _saveFailure = e.Message;
-            Say(Format("form.saveFailed", _path.FileName, e.Message));
-        }
-        catch (Exception e) when (e is IOException or ObjectDisposedException or OperationCanceledException)
-        {
-            // Сказано раньше, документ закрыт или вкладка уходит.
-        }
-    }
-
-    /// <summary>Жест не записан: почему — строкой состояния.</summary>
-    private void Refused(string reason) => Say(Format("form.refused", reason));
 
     private void Say(string message) => _context.GetService<IStudioStatus>()?.Show(message);
 
     private string Format(string key, params object?[] values) =>
         string.Format(CultureInfo.CurrentCulture, _context.Strings[key], values);
-
-    private static int IndexOf(SurfaceKeyCommands commands, string id)
-    {
-        var index = 0;
-
-        foreach (var command in commands)
-        {
-            if (command.Id == id)
-                return index;
-
-            index++;
-        }
-
-        return -1;
-    }
-
-    /// <summary>Отдавать нечего: корень не наш.</summary>
-    private sealed class Nothing : IDisposable
-    {
-        public static Nothing Instance { get; } = new();
-
-        public void Dispose()
-        {
-        }
-    }
 }

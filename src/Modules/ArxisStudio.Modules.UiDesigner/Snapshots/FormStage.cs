@@ -66,7 +66,7 @@ internal sealed class FormStage : IDisposable
         ArgumentNullException.ThrowIfNull(root);
         ArgumentNullException.ThrowIfNull(declared);
 
-        Item.ApplicationThemeVariant = application is null ? ThemeVariant.Default : LiveFormDocument.VariantOf(application);
+        Item.ApplicationThemeVariant = application is null ? ThemeVariant.Default : FormSlot.VariantOf(application);
         Item.Width = declared.Width ?? SheetControls.LengthOf(_scene, "AxFormFrameWidth");
         Item.Height = declared.Height ?? SheetControls.LengthOf(_scene, "AxFormFrameHeight");
         Item.ApplicationRoot = application;

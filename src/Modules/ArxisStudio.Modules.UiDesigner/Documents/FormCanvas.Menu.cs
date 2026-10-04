@@ -1,4 +1,5 @@
 using ArxisStudio.Markup.Xaml;
+using ArxisStudio.Sdk;
 using ArxisStudio.Surface;
 using Avalonia;
 using Avalonia.Controls;
@@ -8,14 +9,10 @@ using Avalonia.Interactivity;
 namespace ArxisStudio.Modules.UiDesigner.Documents;
 
 // Правки строения с холста: клавиши и контекстное меню.
-// Часть LiveFormDocument; общее описание типа — в LiveFormDocument.cs.
-internal sealed partial class LiveFormDocument
+// Часть FormCanvas; общее описание типа — в FormCanvas.cs.
+internal sealed partial class FormCanvas
 {
-    private FormCommands? _commands;
     private FormMenu? _menu;
-
-    /// <summary>Правки строения выбранного, когда документ открыт, — тестам.</summary>
-    internal FormCommands? Commands => _commands;
 
     /// <summary>Идентификатор команды холста «вырезать».</summary>
     public const string CutCommand = "ui-designer.cut";
@@ -29,11 +26,15 @@ internal sealed partial class LiveFormDocument
     /// <summary>Идентификатор команды холста «дублировать».</summary>
     public const string DuplicateCommand = "ui-designer.duplicate";
 
+    /// <summary>Правки строения выбранного в форме, с которой работают, когда её документ открыт.</summary>
+    public FormCommands? Commands =>
+        Active is { Session.Edits: { } edits } active ? new FormCommands(active, edits, Context.Strings, Say) : null;
+
     /// <summary>Пункты контекстного меню холста — тем же путём, каким их собирает меню; тестам.</summary>
     internal IReadOnlyList<Control> MenuItems() =>
-        _commands is { } commands ? Menu.Items(commands, _view.Sheet, Canvas()) : [];
+        Commands is { } commands ? Menu.Items(commands, Sheet, Canvas()) : [];
 
-    private FormMenu Menu => _menu ??= new FormMenu(_context.Strings);
+    private FormMenu Menu => _menu ??= new FormMenu(Context.Strings);
 
     /// <summary>
     /// Ставит холсту клавиши правок строения и меню: правой кнопкой его просит ядро, клавишей меню и
@@ -61,7 +62,7 @@ internal sealed partial class LiveFormDocument
     }
 
     private SurfaceKeyCommand KeyCommand(string id, KeyGesture gesture) =>
-        new(id, gesture, sheet => _commands?.Run(gesture, sheet) ?? false);
+        new(id, gesture, sheet => Commands?.Run(gesture, sheet) ?? false);
 
     /// <summary>Правый щелчок: ядро уже перевело выбор под указатель и спрашивает, что показать.</summary>
     private void OnContextMenuRequesting(object? sender, SurfaceContextRequestingEventArgs e)
@@ -85,19 +86,19 @@ internal sealed partial class LiveFormDocument
 
         e.Handled = true;
 
-        if (!e.TryGetPosition(_view.Sheet, out _))
+        if (!e.TryGetPosition(Sheet, out _))
             ShowMenu(atPointer: false, at: MenuPoint());
     }
 
     private void ShowMenu(bool atPointer, Point? at)
     {
-        if (_commands is { } commands)
-            FormMenu.Show(_view.Sheet, Menu.Items(commands, _view.Sheet, Canvas()), atPointer, at);
+        if (Commands is { } commands)
+            FormMenu.Show(Sheet, Menu.Items(commands, Sheet, Canvas()), atPointer, at);
     }
 
     /// <summary>Пункты холста: родитель и «показать всё».</summary>
     private CanvasActions Canvas() =>
-        new(_selection.FirstOrDefault() is { Steps.IsEmpty: false }, () => SelectParent(), _controls.FrameAll);
+        new(_selection.Count > 0 && _selection[0].Path is { Steps.IsEmpty: false }, () => SelectParent(), _host.FrameAll);
 
     /// <summary>
     /// Где встанет меню, попрошенное клавишей: у левого нижнего угла выбранного, в пределах холста; без
@@ -105,19 +106,16 @@ internal sealed partial class LiveFormDocument
     /// </summary>
     private Point MenuPoint()
     {
-        var sheet = _view.Sheet;
-        var size = sheet.Bounds.Size;
+        var size = Sheet.Bounds.Size;
 
-        if (_selection.Count == 0 || sheet.SelectionBounds is not { Width: > 0, Height: > 0 } bounds)
+        if (_selection.Count == 0 || Sheet.SelectionBounds is not { Width: > 0, Height: > 0 } bounds)
             return default;
 
-        var zoom = sheet.ViewportZoom;
-        var corner = (bounds.BottomLeft - sheet.ViewportLocation) * zoom;
+        var zoom = Sheet.ViewportZoom;
+        var corner = (bounds.BottomLeft - Sheet.ViewportLocation) * zoom;
 
         return new Point(Math.Clamp(corner.X, 0, Math.Max(0, size.Width)), Math.Clamp(corner.Y, 0, Math.Max(0, size.Height)));
     }
 
-    /// <summary>Правки строения появляются с документом: им нужны его текст и правки.</summary>
-    private void TakeCommands(FormEdits edits) =>
-        _commands = new FormCommands(this, edits, _context.Strings, Say);
+    private void Say(string message) => Context.GetService<IStudioStatus>()?.Show(message);
 }

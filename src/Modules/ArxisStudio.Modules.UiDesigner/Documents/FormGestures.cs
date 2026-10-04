@@ -3,7 +3,6 @@ using ArxisStudio.Markup.Xaml;
 using ArxisStudio.Sdk;
 using ArxisStudio.Surface;
 using ArxisStudio.Surface.UiDesigner;
-using ArxisStudio.Xaml;
 using Avalonia.Controls;
 
 namespace ArxisStudio.Modules.UiDesigner.Documents;
@@ -31,28 +30,17 @@ namespace ArxisStudio.Modules.UiDesigner.Documents;
 internal sealed class FormGestures : IDisposable
 {
     private readonly UiDesignerView _sheet;
-    private readonly UiDesignerFormItem _form;
-    private readonly FormEdits _edits;
-    private readonly Func<IXamlDesignView?> _view;
+    private readonly FormCanvas _canvas;
     private readonly IStudioStrings _strings;
 
     /// <summary>Слушает жесты холста.</summary>
     /// <param name="sheet">Холст.</param>
-    /// <param name="form">Карточка формы: она и есть корень документа.</param>
-    /// <param name="edits">Правки документа формы.</param>
-    /// <param name="view">Показ документа сейчас; null — показа нет.</param>
+    /// <param name="canvas">Формы на холсте: жест правит ту, в которой сделан.</param>
     /// <param name="strings">Словарь модуля: имена шагов истории.</param>
-    public FormGestures(
-        UiDesignerView sheet,
-        UiDesignerFormItem form,
-        FormEdits edits,
-        Func<IXamlDesignView?> view,
-        IStudioStrings strings)
+    public FormGestures(UiDesignerView sheet, FormCanvas canvas, IStudioStrings strings)
     {
         _sheet = sheet;
-        _form = form;
-        _edits = edits;
-        _view = view;
+        _canvas = canvas;
         _strings = strings;
 
         sheet.EditCompleted += OnEditCompleted;
@@ -72,18 +60,33 @@ internal sealed class FormGestures : IDisposable
         _sheet.RedoRequested -= OnRedoRequested;
     }
 
+    /// <remarks>
+    /// Жест, задевший несколько форм, — по правке на каждую: у каждой своя история, и Ctrl+Z во вкладке формы
+    /// отменяет только её.
+    /// </remarks>
     private void OnEditCompleted(object? sender, SurfaceEditCompletedEventArgs e)
     {
         if (e.Kind is not (SurfaceEditKind.Move or SurfaceEditKind.Resize))
             return;
 
-        var writes = new List<Write>();
+        var forms = new List<(FormSlot Slot, List<Write> Writes)>();
 
         foreach (var change in e.Changes.OfType<GeometryChange>())
         {
+            if (_canvas.SlotOf(change.Target) is not { } slot)
+                continue;
+
+            var writes = forms.Find(form => ReferenceEquals(form.Slot, slot)).Writes;
+
+            if (writes is null)
+            {
+                writes = [];
+                forms.Add((slot, writes));
+            }
+
             // Карточка — сама форма: тянут её ручки — меняют размер корня. Где карточка стоит на холсте,
             // документ не знает: положение у формы есть только в том, что её показывает.
-            if (ReferenceEquals(change.Target, _form))
+            if (ReferenceEquals(change.Target, slot.Item))
             {
                 if (e.Kind == SurfaceEditKind.Resize)
                     Size(writes, XamlElementPath.Root, change);
@@ -91,7 +94,7 @@ internal sealed class FormGestures : IDisposable
                 continue;
             }
 
-            if (_view()?.PathOf(change.Target) is not { } path)
+            if (slot.Shown?.PathOf(change.Target) is not { } path)
                 continue;
 
             if (e.Kind == SurfaceEditKind.Resize)
@@ -110,67 +113,107 @@ internal sealed class FormGestures : IDisposable
             }
         }
 
-        writes.RemoveAll(write => write.Value.Length == 0);
-
-        if (writes.Count == 0)
-            return;
-
-        var label = string.Format(
-            CultureInfo.CurrentCulture,
-            _strings[e.Kind == SurfaceEditKind.Move ? "form.edit.position" : "form.edit.size"],
-            _edits.NameOf(writes[0].Path));
-
-        _ = _edits.EditAsync(label, editor =>
+        foreach (var (slot, writes) in forms)
         {
-            foreach (var write in writes)
-            {
-                if (write.Path.Resolve(editor.Document) is not { } element)
-                    continue;
+            writes.RemoveAll(write => write.Value.Length == 0);
 
-                if (write.Plain)
-                    editor.SetAttribute(element, XamlQualifiedName.Parse(write.Name), write.Value);
-                else
-                    FormEdits.Size(editor, element, write.Name, write.Value);
-            }
-        }, select: null);
+            if (writes.Count == 0 || slot.Session.Edits is not { } edits)
+                continue;
+
+            var label = string.Format(
+                CultureInfo.CurrentCulture,
+                _strings[e.Kind == SurfaceEditKind.Move ? "form.edit.position" : "form.edit.size"],
+                edits.NameOf(writes[0].Path));
+
+            _ = edits.EditAsync(label, editor =>
+            {
+                foreach (var write in writes)
+                {
+                    if (write.Path.Resolve(editor.Document) is not { } element)
+                        continue;
+
+                    if (write.Plain)
+                        editor.SetAttribute(element, XamlQualifiedName.Parse(write.Name), write.Value);
+                    else
+                        FormEdits.Size(editor, element, write.Name, write.Value);
+                }
+            }, select: null);
+        }
     }
 
+    /// <remarks>
+    /// Корень удалить нечем: без него нет документа, — форму, выбранную целиком, отдают хозяину холста, а
+    /// остальное уходит одной правкой на форму.
+    /// </remarks>
     private void OnDeleteRequested(object? sender, SurfaceDeleteRequestedEventArgs e)
     {
-        // Корень удалить нечем: без него нет документа. Остальное уходит одной правкой.
-        var paths = e.Targets
-            .Where(target => !ReferenceEquals(target.Target, _form))
-            .Select(target => _view()?.PathOf(target.Target))
-            .OfType<XamlElementPath>()
-            .ToList();
+        var whole = new List<FormSlot>();
+        var parts = new List<(FormSlot Slot, List<XamlElementPath> Paths)>();
+
+        foreach (var target in e.Targets)
+        {
+            if (_canvas.SlotOf(target.Target) is not { } slot)
+                continue;
+
+            if (ReferenceEquals(target.Target, slot.Item))
+            {
+                if (!whole.Contains(slot))
+                    whole.Add(slot);
+
+                continue;
+            }
+
+            if (slot.Shown?.PathOf(target.Target) is not { } path)
+                continue;
+
+            var paths = parts.Find(part => ReferenceEquals(part.Slot, slot)).Paths;
+
+            if (paths is null)
+            {
+                paths = [];
+                parts.Add((slot, paths));
+            }
+
+            paths.Add(path);
+        }
 
         // Ответ на просьбу и есть удаление: без него ядро не сделало бы ничего, а клавиша ушла бы дальше.
         e.Handled = true;
 
-        _ = _edits.DeleteAsync(paths);
+        foreach (var (slot, paths) in parts)
+        {
+            if (slot.Session.Edits is { } edits)
+                _ = edits.DeleteAsync(paths);
+        }
+
+        if (whole.Count > 0)
+            _canvas.Host.Remove(whole);
     }
 
     private void OnReorderRequested(object? sender, UiDesignerReorderRequestedEventArgs e)
     {
-        if (_view() is not { } view || view.PathOf(e.Target) is not { Steps.Length: > 0 } path)
+        if (_canvas.SlotOf(e.Target) is not { Shown: { } view, Session.Edits: { } edits }
+            || view.PathOf(e.Target) is not { Steps.Length: > 0 } path)
+        {
             return;
+        }
 
         // Ядро не начнёт перестановку в потоке, если на неё никто не отвечает: ответ здесь и есть жест.
         e.Handled = true;
 
-        _ = _edits.MoveAsync(path, e.Anchor is { } before ? view.PathOf(before) : null);
+        _ = edits.MoveAsync(path, e.Anchor is { } before ? view.PathOf(before) : null);
     }
 
     private void OnUndoRequested(object? sender, SurfaceHistoryRequestedEventArgs e)
     {
         e.Handled = true;
-        _ = _edits.StepAsync(back: true);
+        _canvas.Host.Step(back: true);
     }
 
     private void OnRedoRequested(object? sender, SurfaceHistoryRequestedEventArgs e)
     {
         e.Handled = true;
-        _ = _edits.StepAsync(back: false);
+        _canvas.Host.Step(back: false);
     }
 
     /// <summary>
