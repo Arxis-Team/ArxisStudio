@@ -1,5 +1,6 @@
 using ArxisStudio.Controls;
 using ArxisStudio.Modules.UiDesigner;
+using ArxisStudio.Modules.UiDesigner.Board;
 using ArxisStudio.Modules.UiDesigner.Model;
 using ArxisStudio.ProjectSystem;
 using Avalonia;
@@ -134,11 +135,35 @@ public class UiDesignerBoardTests
         var snapshot = studio.Solution(("Views/MainWindow.axaml", WindowXaml("MainWindow")));
 
         Directory.CreateDirectory(Path.GetDirectoryName(studio.BoardFile)!);
-        File.WriteAllText(studio.BoardFile, """{ "version": 1, "forms": { "src/App/Views/MainWindow.axaml": { "x": 560, "y": -320 } } }""");
+        File.WriteAllText(studio.BoardFile, """{ "version": 2, "forms": { "src/App/Views/MainWindow.axaml": { "x": 560, "y": -320 } } }""");
 
         await studio.Open(snapshot);
 
         Assert.Equal(new Point(560, -320), studio.Card("MainWindow.axaml").Location);
+    }
+
+    /// <summary>
+    /// Доска, разложенная под карточки без снимков, — файл первой версии — встаёт рядами нынешнего шага:
+    /// карточки со снимком выше, и прежние ряды налезли бы друг на друга. Сам файл открытие не трогает —
+    /// его коммитят вместе с проектом, и перепишет его первая правка доски.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_board_laid_out_for_cards_without_snapshots_stands_in_rows_of_the_new_pitch()
+    {
+        using var studio = new UiDesignerStudio();
+        var snapshot = studio.Solution(("Views/A.axaml", WindowXaml("A")), ("Views/B.axaml", WindowXaml("B")));
+        var first = """{ "version": 1, "forms": { "src/App/Views/A.axaml": { "x": 0, "y": 0 }, "src/App/Views/B.axaml": { "x": 0, "y": 160 } } }""";
+
+        Directory.CreateDirectory(Path.GetDirectoryName(studio.BoardFile)!);
+        File.WriteAllText(studio.BoardFile, first);
+
+        await studio.Open(snapshot);
+
+        var pitch = SheetControls.LengthOf(studio.View, "AxFormCardMinHeight") + SheetControls.LengthOf(studio.View, "AxFormCardGap");
+
+        Assert.Equal(new Point(0, 0), studio.Card("A.axaml").Location);
+        Assert.Equal(new Point(0, pitch), studio.Card("B.axaml").Location);
+        Assert.Equal(first, File.ReadAllText(studio.BoardFile));
     }
 
     /// <summary>
@@ -154,7 +179,7 @@ public class UiDesignerBoardTests
 
         Directory.CreateDirectory(Path.GetDirectoryName(studio.BoardFile)!);
         File.WriteAllText(studio.BoardFile, """
-            { "forms": { "src/App/Views/A.axaml": { "x": 900, "y": 900 }, "src/App/Views/B.axaml": { "x": -40, "y": 20 } } }
+            { "version": 2, "forms": { "src/App/Views/A.axaml": { "x": 900, "y": 900 }, "src/App/Views/B.axaml": { "x": -40, "y": 20 } } }
             """);
 
         await studio.Open(snapshot);

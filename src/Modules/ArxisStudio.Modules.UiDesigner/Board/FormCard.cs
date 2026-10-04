@@ -7,6 +7,7 @@ using ArxisStudio.ProjectSystem;
 using ArxisStudio.Sdk;
 using Avalonia;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 
 namespace ArxisStudio.Modules.UiDesigner.Board;
 
@@ -25,6 +26,8 @@ namespace ArxisStudio.Modules.UiDesigner.Board;
 internal sealed class FormCard : INotifyPropertyChanged
 {
     private Point _location;
+    private Bitmap? _preview;
+    private bool _isPreviewStale;
 
     /// <summary>Заводит карточку.</summary>
     /// <param name="file">Файл и проект.</param>
@@ -103,6 +106,47 @@ internal sealed class FormCard : INotifyPropertyChanged
 
     /// <summary>Место в координатах модели.</summary>
     public Spot Spot => new(_location.X, _location.Y);
+
+    /// <summary>Снимок формы, пока карточка на виду; null — снимка нет или карточку не видно.</summary>
+    /// <remarks>
+    /// Ставит и снимает его <see cref="BoardPreviews"/>: растр живёт, пока у карточки есть контейнер, и
+    /// освобождает его тот, кто снял.
+    /// </remarks>
+    public Bitmap? Preview
+    {
+        get => _preview;
+        set
+        {
+            if (ReferenceEquals(_preview, value))
+                return;
+
+            _preview = value;
+            Raise(nameof(Preview));
+            Raise(nameof(HasPreview));
+            Raise(nameof(ShowsStale));
+        }
+    }
+
+    /// <summary>Снимок есть.</summary>
+    public bool HasPreview => _preview is not null;
+
+    /// <summary>Снимок старше файла: форма менялась после него.</summary>
+    public bool IsPreviewStale
+    {
+        get => _isPreviewStale;
+        set
+        {
+            if (_isPreviewStale == value)
+                return;
+
+            _isPreviewStale = value;
+            Raise(nameof(IsPreviewStale));
+            Raise(nameof(ShowsStale));
+        }
+    }
+
+    /// <summary>Карточка отмечает снимок устаревшим: старое показано, но человек знает, что оно старое.</summary>
+    public bool ShowsStale => _isPreviewStale && _preview is not null;
 
     /// <summary>Значок вида формы — один на карточке доски и на рамке во вкладке.</summary>
     /// <param name="kind">Вид формы.</param>

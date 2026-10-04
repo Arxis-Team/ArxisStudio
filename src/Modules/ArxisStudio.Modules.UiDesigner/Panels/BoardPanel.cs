@@ -62,6 +62,7 @@ public sealed class BoardPanel : ToolWindow
     private BoardMenu? _menu;
     private SurfaceHistory? _history;
     private SheetControls? _controls;
+    private BoardPreviews? _snapshots;
     private IReadOnlyList<CanonicalPath> _previewed = [];
 
     /// <summary>Модель доски — тестам, чтобы ждать постройку, а не время.</summary>
@@ -75,6 +76,9 @@ public sealed class BoardPanel : ToolWindow
 
     /// <summary>Меню — тестам: попап — отдельное окно, которого у безголового прогона нет.</summary>
     internal BoardMenu? Menu => _menu;
+
+    /// <summary>Снимки на карточках — тестам: дождаться загрузки, а не спать.</summary>
+    internal BoardPreviews? Snapshots => _snapshots;
 
     /// <inheritdoc/>
     /// <remarks>Клавиатура доски — у холста: им работают, и его клавиши — стрелки, F и Enter.</remarks>
@@ -96,6 +100,9 @@ public sealed class BoardPanel : ToolWindow
 
         view.DataContext = _model;
         sheet.EstimatedItemSize = new Size(Length("AxFormCardWidth"), Length("AxFormCardMinHeight"));
+
+        if (Context.GetService<IStudioFilePreviews>() is { } previews)
+            _snapshots = new BoardPreviews(sheet, previews);
 
         Keys(sheet);
         Wire(view, sheet, _model, _history);
@@ -130,6 +137,9 @@ public sealed class BoardPanel : ToolWindow
 
         Context.Settings.Changed -= OnSettingsChanged;
 
+        // Снимки — раньше модели: растры карточек отпускаются, пока карточки ещё живы.
+        _snapshots?.Dispose();
+        _snapshots = null;
         _controls?.Dispose();
         _controls = null;
         _history?.Dispose();

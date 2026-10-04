@@ -35,7 +35,8 @@ internal sealed class UiDesignerStudio : IDisposable
     /// <summary>Поднимает модуль и показывает доску в окне.</summary>
     /// <param name="service">Есть ли у студии служба проектов.</param>
     /// <param name="drags">Тяга студии, общая с соседним окном; пусто — своя, над одним этим окном.</param>
-    public UiDesignerStudio(bool service = true, StudioDrags? drags = null)
+    /// <param name="previews">Превью файлов студии; пусто — их нет, и карточки стоят без снимков.</param>
+    public UiDesignerStudio(bool service = true, StudioDrags? drags = null, StudioFilePreviews? previews = null)
     {
         Drags = drags ?? new StudioDrags(() => Window is { } window ? [window] : [], Log);
 
@@ -52,7 +53,8 @@ internal sealed class UiDesignerStudio : IDisposable
         };
         var store = new PluginSettingsStore(null, Path.Combine(Root, "plugin-settings.json"));
 
-        _host = new PluginHost(new StudioContextFactory(Log, new StudioCommands(), null, services, settings: store, exports: exports));
+        _host = new PluginHost(
+            new StudioContextFactory(Log, new StudioCommands(), null, services, settings: store, exports: exports, previews: previews));
 
         var loaded = _host.LoadBuiltIn(typeof(UiDesignerModule).Assembly);
 

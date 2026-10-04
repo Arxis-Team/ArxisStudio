@@ -50,7 +50,8 @@
   "form.notForm": "{0}: the markup cannot be read, or it is not a form",
 
   "settings.form.autoSave": "Save forms by themselves: when the studio loses focus, when a tab closes and after a pause",
-  "settings.form.previews": "Snapshot unopened forms for project window previews when their tile is in view and the studio is idle",
+  "settings.form.previews": "Snapshot unopened forms for previews when their tile or board card is in view and the studio is idle",
+  "board.preview.stale": "The snapshot is older than the file: the form changed after it",
   "settings.form.view": "What a new form tab shows: design, xaml or split",
   "form.mode": "View",
   "form.mode.design": "Design",

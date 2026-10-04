@@ -32,11 +32,24 @@ internal sealed record BoardData(Dictionary<CanonicalPath, Spot> Spots, HashSet<
 /// Убранные формы — список <c>removed</c>. Номер формата из-за него не растёт: прежний читатель
 /// списка не знает и просто показывает такие формы, то есть понимает файл, а не ломается на нём.
 /// </para>
+/// <para>
+/// <b>Вторая версия</b> — места, отмеренные под карточку со снимком формы. Первая отмеряла их под
+/// карточку в 120 точек, рядами через 160 (<see cref="FirstRowPitch"/>), и карточка со снимком выше —
+/// ряды первой версии налезли бы друг на друга. Поэтому места первой версии при чтении растягиваются по
+/// вертикали на нынешний шаг рядов, а файл переписывается не сам, а первой правкой доски: открыть доску
+/// не значит править файл, который коммитят вместе с проектом.
+/// </para>
 /// </remarks>
 internal static class BoardFile
 {
-    /// <summary>Номер формата: растёт, когда старый читатель перестаёт понимать новый файл.</summary>
-    public const int Version = 1;
+    /// <summary>
+    /// Номер формата: растёт, когда старый читатель перестаёт понимать новый файл — или когда меняется
+    /// то, в чём отмерены места.
+    /// </summary>
+    public const int Version = 2;
+
+    /// <summary>Шаг рядов первой версии: карточка без снимка в 120 точек и зазор в 40.</summary>
+    public const double FirstRowPitch = 160;
 
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 
@@ -67,8 +80,12 @@ internal static class BoardFile
     /// </summary>
     /// <param name="file">Файл доски.</param>
     /// <param name="folder">Папка решения.</param>
+    /// <param name="rowPitch">
+    /// Нынешний шаг рядов: на него растягиваются места первой версии. По умолчанию — шаг первой версии,
+    /// и места читаются как записаны.
+    /// </param>
     /// <returns>Места и убранные формы; файла нет или он испорчен — пусто.</returns>
-    public static BoardData Read(string file, CanonicalPath folder)
+    public static BoardData Read(string file, CanonicalPath folder, double rowPitch = FirstRowPitch)
     {
         ArgumentException.ThrowIfNullOrEmpty(file);
 
@@ -88,6 +105,9 @@ internal static class BoardFile
             return board;
         }
 
+        // Номера нет — файл первой версии: она писала его всегда, но ручная правка могла его снять.
+        var stretch = Number(root?["version"]) is >= 2 ? 1 : rowPitch / FirstRowPitch;
+
         if (root?["forms"] is JsonObject forms)
         {
             foreach (var (key, value) in forms)
@@ -97,7 +117,7 @@ internal static class BoardFile
                     && Number(place["y"]) is { } y
                     && PathOf(folder, key) is { } path)
                 {
-                    board.Spots[path] = new Spot(x, y);
+                    board.Spots[path] = new Spot(x, Round(y * stretch));
                 }
             }
         }

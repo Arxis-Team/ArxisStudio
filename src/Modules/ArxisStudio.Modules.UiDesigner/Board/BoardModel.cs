@@ -560,6 +560,9 @@ internal sealed class BoardModel : INotifyPropertyChanged, IDisposable
         var board = changed ? BoardFile.PathFor(entry) : null;
         var folder = BoardFile.FolderOf(entry);
 
+        // Шаг рядов — здесь, в потоке интерфейса: его меряют по видимым карточкам, а файл читается в фоне.
+        var rowPitch = _pitch().Y;
+
         _building = building;
 
         // Модель, заведённая вне потока интерфейса, сводит доску там, где кончилось чтение: переносить
@@ -575,7 +578,7 @@ internal sealed class BoardModel : INotifyPropertyChanged, IDisposable
                     // Доска читается, только когда решение сменилось: у того же решения она уже на экране,
                     // и файл, перечитанный поверх, вернул бы карточки на места до последней тяги.
                     var saved = !changed ? null
-                        : board is not null && folder is { } at ? BoardFile.Read(board, at)
+                        : board is not null && folder is { } at ? BoardFile.Read(board, at, rowPitch)
                         : BoardData.Empty();
 
                     return (scan, saved);

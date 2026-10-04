@@ -4,7 +4,8 @@
     Холст — ядро Surface без слоёв выше: панорама средней кнопкой, зум колесом к курсору, рамка выбора,
     тяга, стрелки и отмена. Карточка — данные, а не контейнер: холст держит контейнеры только у видимых
     карточек и место читает привязкой ItemLocationBinding. Шаблон карточки — на AxCard: ширина у темы
-    постоянная, высота — наименьшая, и крупный текст растит карточку вниз.
+    постоянная, высота — наименьшая, и крупный текст растит карточку вниз. Сверху на карточке — снимок
+    формы: его ставит видимой карточке BoardPreviews и снимает вместе с контейнером.
 
     Тему ядра доска подключает своими ресурсами: контролы Surface носят свои ControlTheme, и найти их
     студия может только здесь. Кисти ядра доска заменяет токенами палитры кодом (CanvasLooks), а
@@ -42,6 +43,24 @@
         <AxCard Width="{a:DynamicResource AxFormCardWidth}" MinHeight="{a:DynamicResource AxFormCardMinHeight}"
                 a:ToolTip.Tip="{a:Binding Path}">
           <a:StackPanel Spacing="{a:DynamicResource AxSpaceTight}">
+            <!--
+                Снимок формы — сверху, обложкой: форму узнают по виду раньше, чем прочтут имя. Место под
+                него стоит всегда: снимок приходит позже карточки — из файла или из фоновой съёмки, — и
+                карточка не прыгает, когда он встанет. Пустое место — та же утопленная подложка.
+            -->
+            <a:Border Classes="preview" Height="{a:DynamicResource AxFormCardPreviewHeight}">
+              <a:Panel>
+                <a:Image Source="{a:Binding Preview}" IsVisible="{a:Binding HasPreview}" Stretch="Uniform"
+                         a:RenderOptions.BitmapInterpolationMode="HighQuality"
+                         a:AutomationProperties.AccessibilityView="Raw"/>
+                <a:Border Classes="stale" IsVisible="{a:Binding ShowsStale}"
+                          HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                          a:ToolTip.Tip="{Text board.preview.stale}"
+                          a:AutomationProperties.Name="{Text board.preview.stale}">
+                  <AxIcon Data="{x:Static ax:AxIcons.Refresh}"/>
+                </a:Border>
+              </a:Panel>
+            </a:Border>
             <a:DockPanel>
               <!--
                   Строки переносятся, а не обрезаются: ширина карточки постоянная, и при крупном
@@ -64,6 +83,30 @@
   </AxUserControl.Resources>
 
   <AxUserControl.Styles>
+    <!--
+        Место снимка — утопленная подложка в скруглении поменьше карточки: снимок обрезается по нему, а
+        форма другой пропорции стоит посередине на той же подложке.
+    -->
+    <a:Style Selector="a|Border.preview">
+      <a:Setter Property="Background" Value="{a:DynamicResource AxSurfaceSunkenBrush}"/>
+      <a:Setter Property="CornerRadius" Value="{a:DynamicResource AxCornerRadius}"/>
+      <a:Setter Property="ClipToBounds" Value="True"/>
+    </a:Style>
+    <!--
+        Снимок старше файла — та же нейтральная отметка, что на плитках окна проекта: значок обновления в
+        кружке на углу снимка. Старый снимок — сведение, а не тревога, и акцент на доске уже занят выбором.
+    -->
+    <a:Style Selector="a|Border.stale">
+      <a:Setter Property="Background" Value="{a:DynamicResource AxSurfaceRaisedBrush}"/>
+      <a:Setter Property="BorderBrush" Value="{a:DynamicResource AxStrokeControlBrush}"/>
+      <a:Setter Property="BorderThickness" Value="{a:DynamicResource AxHairlineThickness}"/>
+      <a:Setter Property="CornerRadius" Value="{a:DynamicResource AxCornerRadiusPill}"/>
+      <a:Setter Property="Margin" Value="{a:DynamicResource AxSpaceTightThickness}"/>
+    </a:Style>
+    <a:Style Selector="a|Border.stale > AxIcon">
+      <a:Setter Property="Foreground" Value="{a:DynamicResource AxTextSecondaryBrush}"/>
+    </a:Style>
+
     <a:Style Selector="s|SurfaceItem /template/ a|Border#PART_SelectionBorder">
       <a:Setter Property="CornerRadius" Value="{a:DynamicResource AxCornerRadiusLarge}"/>
     </a:Style>
