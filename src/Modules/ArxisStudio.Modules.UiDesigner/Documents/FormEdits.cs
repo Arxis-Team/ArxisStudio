@@ -18,8 +18,11 @@ namespace ArxisStudio.Modules.UiDesigner.Documents;
 /// <b>Элементы — в правке.</b> Путь разрешается уже внутри правки, в тексте, каким его оставили правки
 /// перед ней: правки идут очередью документа, а элемент прежнего разбора редактор отвергнет.
 /// </para>
+/// <para>
+/// Правки строения — буфер обмена, дубликат, обёртка — в <c>FormEdits.Structure.cs</c>.
+/// </para>
 /// </remarks>
-internal sealed class FormEdits
+internal sealed partial class FormEdits
 {
     private readonly IXamlDocumentHandle _document;
     private readonly IStudioStrings _strings;
@@ -94,7 +97,13 @@ internal sealed class FormEdits
     /// <summary>Убирает элементы из документа одной правкой; корень остаётся.</summary>
     /// <param name="paths">Пути элементов.</param>
     /// <remarks>Удалённое выбрать нельзя: выбор переходит к тому, в чём стоял первый, — его путь удаление не двигает.</remarks>
-    public Task DeleteAsync(IReadOnlyList<XamlElementPath> paths)
+    public Task DeleteAsync(IReadOnlyList<XamlElementPath> paths) => RemoveAsync(paths, "form.edit.delete", "form.edit.deleteMany");
+
+    /// <summary>Убирает элементы одной правкой, назвав шаг истории так, как его назвал жест.</summary>
+    /// <param name="paths">Пути элементов.</param>
+    /// <param name="one">Ключ имени шага для одного элемента.</param>
+    /// <param name="many">Ключ имени шага для нескольких.</param>
+    private Task RemoveAsync(IReadOnlyList<XamlElementPath> paths, string one, string many)
     {
         ArgumentNullException.ThrowIfNull(paths);
 
@@ -104,8 +113,8 @@ internal sealed class FormEdits
             return Task.CompletedTask;
 
         var label = doomed.Count == 1
-            ? Format("form.edit.delete", NameOf(doomed[0]))
-            : string.Format(CultureInfo.CurrentCulture, _strings["form.edit.deleteMany"], doomed.Count);
+            ? Format(one, NameOf(doomed[0]))
+            : string.Format(CultureInfo.CurrentCulture, _strings[many], doomed.Count);
 
         var after = doomed.Select(path => path.Parent ?? XamlElementPath.Root).Take(1).ToList();
 

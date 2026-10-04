@@ -5,6 +5,7 @@ using ArxisStudio.Modules.UiDesigner.Workbench;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.VisualTree;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -62,6 +63,31 @@ public class DesignerHierarchyTests
 
         Assert.Equal(Input, Assert.Single(document.Selection));
         Assert.Same(Live(document, Input), Assert.Single(document.View.Sheet.SelectedTargets).Target);
+    }
+
+    /// <summary>
+    /// Выбранная в дереве строка выбирает элемент на холсте, а клавиатура остаётся в дереве: следующая
+    /// стрелка — шаг по строкам, а не сдвиг выбранного.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Choosing_a_row_leaves_the_keyboard_in_the_tree()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", Form);
+        var panel = studio.Panel<HierarchyPanel>();
+        var tree = panel.View!.Tree;
+
+        // Каретку держит строка дерева, а не само дерево.
+        var row = Assert.IsAssignableFrom<Control>(tree.ContainerFromItem(panel.Nodes[0]));
+
+        Assert.True(row.Focus(), "строка дерева не взяла клавиатуру");
+
+        tree.SelectedItem = panel.Nodes[0].Children[0].Children[1];
+        LiveFormStudio.Frame();
+
+        Assert.Same(Live(document, Input), Assert.Single(document.View.Sheet.SelectedTargets).Target);
+        Assert.True(tree.IsKeyboardFocusWithin, "выбор в дереве увёл клавиатуру на холст");
+        Assert.False(document.View.Sheet.IsKeyboardFocusWithin);
     }
 
     /// <summary>Delete в дереве убирает выбранный элемент из текста, и выбор переходит к его родителю.</summary>
@@ -133,6 +159,36 @@ public class DesignerHierarchyTests
         await XamlStudio.UntilAsync(() => panel.Nodes[0].Children[0].Children[0].Type == "Button", "отмена не вернула порядок");
     }
 
+    /// <summary>
+    /// Правка из дерева перестраивает его, а клавиатура остаётся у выбранной строки: Ctrl со стрелкой дважды
+    /// подряд переставляет элемент дважды.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task The_keyboard_stays_in_the_tree_across_its_own_edits()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", Form);
+        var panel = studio.Panel<HierarchyPanel>();
+        var tree = panel.View!.Tree;
+
+        document.Select([XamlElementPath.Parse("/0/2")]);
+        LiveFormStudio.Frame();
+
+        var row = tree.GetVisualDescendants().OfType<TreeViewItem>()
+            .First(item => item.DataContext is HierarchyNode { Type: "TextBlock" });
+
+        Assert.True(row.Focus(), "строка не взяла клавиатуру");
+
+        LiveFormStudio.Press(Focused(tree), Key.Up, KeyModifiers.Control);
+        await XamlStudio.UntilAsync(() => panel.Nodes[0].Children[0].Children[1].Type == "TextBlock", "подпись не поднялась");
+        LiveFormStudio.Frame();
+
+        Assert.True(tree.IsKeyboardFocusWithin, "перестроенное дерево потеряло клавиатуру");
+
+        LiveFormStudio.Press(Focused(tree), Key.Up, KeyModifiers.Control);
+        await XamlStudio.UntilAsync(() => panel.Nodes[0].Children[0].Children[0].Type == "TextBlock", "вторая клавиша не дошла");
+    }
+
     /// <summary>Свёрнутое человеком остаётся свёрнутым, когда правка перестраивает дерево.</summary>
     [AvaloniaFact]
     public async Task What_was_collapsed_stays_collapsed_across_an_edit()
@@ -174,6 +230,10 @@ public class DesignerHierarchyTests
     }
 
     private static string Text(LiveFormDocument document) => document.Document!.Syntax.SourceText.ToString();
+
+    /// <summary>Где сейчас клавиатура окна: туда платформа и доставит нажатие.</summary>
+    private static Control Focused(Control where) =>
+        Assert.IsAssignableFrom<Control>(TopLevel.GetTopLevel(where)?.FocusManager?.GetFocusedElement());
 
     private static Control Live(LiveFormDocument document, XamlElementPath path) =>
         Assert.IsAssignableFrom<Control>(document.Shown!.ObjectAt(path));

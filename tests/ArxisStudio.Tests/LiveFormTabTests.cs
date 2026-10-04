@@ -249,6 +249,9 @@ public class LiveFormTabTests
         Assert.Same(GoButton(document), sheet.SelectedTargets.Single().Target);
         Assert.Equal(Range(document, "Go"), code.Highlight);
         Assert.Equal(PathTo(document, "Go"), Assert.Single(document.Selection));
+
+        // Холст выбор только показывает: следующая стрелка — каретки в коде, а не сдвиг выбранного.
+        Assert.True(code.IsKeyboardFocusWithin, "каретка в XAML увела клавиатуру на холст");
     }
 
     /// <summary>

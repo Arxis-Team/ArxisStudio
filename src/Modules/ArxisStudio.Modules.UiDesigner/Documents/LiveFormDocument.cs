@@ -131,6 +131,8 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
             return true;
         }));
 
+        WireStructure(sheet);
+
         sheet.SurfaceSelectionChanged += OnSheetSelectionChanged;
         sheet.PropertyChanged += OnSheetPropertyChanged;
         sheet.Loaded += OnSheetLoaded;
@@ -283,6 +285,7 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
         sheet.SurfaceSelectionChanged -= OnSheetSelectionChanged;
         sheet.PropertyChanged -= OnSheetPropertyChanged;
         sheet.Loaded -= OnSheetLoaded;
+        UnwireStructure(sheet);
 
         _view.Code.CaretMoved -= OnCaretMoved;
         _view.Mode.SelectionChanged -= OnModeChanged;
@@ -398,6 +401,7 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
 
             _edits = new FormEdits(document, _context.Strings, Select, Refused);
             _gestures = new FormGestures(_view.Sheet, _form, _edits, () => _shown, _context.Strings);
+            TakeCommands(_edits);
 
             SetModified(document.IsModified);
             ShowConflict();

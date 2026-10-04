@@ -76,6 +76,11 @@ internal sealed partial class LiveFormDocument
     }
 
     /// <summary>Ставит выбор холста по путям; путь, которого в тексте больше нет, уступает родителю.</summary>
+    /// <remarks>
+    /// Клавиатура остаётся там, где работает человек: выбор, сделанный в иерархии, в XAML или правкой из
+    /// панели, холст только показывает. Взятая холстом, она уходила бы из дерева после каждой стрелки, из
+    /// кода — после каждого щелчка, а из открытого меню иерархии — раньше, чем человек его увидит.
+    /// </remarks>
     private void SelectOnSheet()
     {
         if (_shown is not { Root: not null } shown || _document is not { } document || _frozen is not null)
@@ -94,7 +99,7 @@ internal sealed partial class LiveFormDocument
                     _view.Sheet.SelectedItems?.Clear();
 
                 for (var index = 0; index < targets.Count; index++)
-                    _view.Sheet.SelectTarget(targets[index], additive: index > 0);
+                    _view.Sheet.SelectTarget(targets[index], additive: index > 0, takeFocus: false);
             }
         }
 

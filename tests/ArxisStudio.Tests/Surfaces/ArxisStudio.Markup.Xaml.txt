@@ -1,4 +1,4 @@
-# StudioSdk 7.15
+# StudioSdk 7.16
 ArxisStudio.Markup.Xaml.XamlAttribute : class : ArxisStudio.Markup.Xaml.XamlSyntaxNode
 ArxisStudio.Markup.Xaml.XamlAttribute :: ArxisStudio.Markup.TextSpan NameSpan { get; }
 ArxisStudio.Markup.Xaml.XamlAttribute :: ArxisStudio.Markup.TextSpan? ValueSpan { get; }
@@ -77,6 +77,7 @@ ArxisStudio.Markup.Xaml.XamlDocument :: ArxisStudio.Markup.Xaml.XamlDocument Set
 ArxisStudio.Markup.Xaml.XamlDocument :: ArxisStudio.Markup.Xaml.XamlDocument SetPropertyElement(ArxisStudio.Markup.Xaml.XamlElement element, ArxisStudio.Markup.Xaml.XamlQualifiedName name, System.String contentXaml)
 ArxisStudio.Markup.Xaml.XamlDocument :: ArxisStudio.Markup.Xaml.XamlDocument UnwrapElement(ArxisStudio.Markup.Xaml.XamlElement element)
 ArxisStudio.Markup.Xaml.XamlDocument :: ArxisStudio.Markup.Xaml.XamlDocument WrapElement(ArxisStudio.Markup.Xaml.XamlElement element, System.String wrapperXaml)
+ArxisStudio.Markup.Xaml.XamlDocument :: ArxisStudio.Markup.Xaml.XamlDocument WrapElements(System.Collections.Generic.IEnumerable<ArxisStudio.Markup.Xaml.XamlElement> elements, System.String wrapperXaml)
 ArxisStudio.Markup.Xaml.XamlDocument :: ArxisStudio.Markup.Xaml.XamlDocumentEditor Edit()
 ArxisStudio.Markup.Xaml.XamlDocument :: ArxisStudio.Markup.Xaml.XamlElement? Root { get; }
 ArxisStudio.Markup.Xaml.XamlDocument :: System.Boolean IsWellFormed { get; }
@@ -114,6 +115,7 @@ ArxisStudio.Markup.Xaml.XamlDocumentEditor :: ArxisStudio.Markup.Xaml.XamlDocume
 ArxisStudio.Markup.Xaml.XamlDocumentEditor :: ArxisStudio.Markup.Xaml.XamlDocumentEditor SetPropertyElement(ArxisStudio.Markup.Xaml.XamlElement element, ArxisStudio.Markup.Xaml.XamlQualifiedName name, System.String contentXaml)
 ArxisStudio.Markup.Xaml.XamlDocumentEditor :: ArxisStudio.Markup.Xaml.XamlDocumentEditor UnwrapElement(ArxisStudio.Markup.Xaml.XamlElement element)
 ArxisStudio.Markup.Xaml.XamlDocumentEditor :: ArxisStudio.Markup.Xaml.XamlDocumentEditor WrapElement(ArxisStudio.Markup.Xaml.XamlElement element, System.String wrapperXaml)
+ArxisStudio.Markup.Xaml.XamlDocumentEditor :: ArxisStudio.Markup.Xaml.XamlDocumentEditor WrapElements(System.Collections.Generic.IEnumerable<ArxisStudio.Markup.Xaml.XamlElement> elements, System.String wrapperXaml)
 ArxisStudio.Markup.Xaml.XamlDocumentEditor :: ArxisStudio.Markup.Xaml.XamlQualifiedName Qualify(ArxisStudio.Markup.Xaml.XamlElement scope, System.String namespaceUri, System.String localName, System.String? preferredPrefix = null)
 ArxisStudio.Markup.Xaml.XamlDocumentEditor :: ArxisStudio.Markup.Xaml.XamlQualifiedName QualifyAttribute(ArxisStudio.Markup.Xaml.XamlElement scope, System.String namespaceUri, System.String localName, System.String? preferredPrefix = null)
 ArxisStudio.Markup.Xaml.XamlDocumentEditor :: System.Boolean HasChanges { get; }

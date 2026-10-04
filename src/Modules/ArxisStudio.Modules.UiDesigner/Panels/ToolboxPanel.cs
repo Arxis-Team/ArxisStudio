@@ -24,7 +24,8 @@ namespace ArxisStudio.Modules.UiDesigner.Panels;
 /// <para>
 /// <b>Без мыши</b> — Enter и двойной щелчок: контрол встаёт в выбранную панель, в конец, а рядом с
 /// выбранным не-панелью — сразу после него. Ничего не выбрано — в панель, которая стоит в корне формы.
-/// Тяга без клавиатурной дороги была бы жестом, который не всем доступен (WCAG 2.5.7).
+/// Правило общее со вставкой из буфера (<see cref="FormLanding"/>). Тяга без клавиатурной дороги была бы
+/// жестом, который не всем доступен (WCAG 2.5.7).
 /// </para>
 /// </remarks>
 [ToolWindow(UiDesignerModule.ToolboxId)]
@@ -118,7 +119,7 @@ public sealed class ToolboxPanel : ToolWindow
             return false;
         }
 
-        if (Target(form, shown, document.Syntax) is not { } target)
+        if (FormLanding.For(form.Selection, shown, document.Syntax) is not { } target)
         {
             Say(string.Format(CultureInfo.CurrentCulture, Context.Strings["toolbox.full"], entry.Name));
             return false;
@@ -141,47 +142,6 @@ public sealed class ToolboxPanel : ToolWindow
         var name = form.Edits?.NameOf(parent) ?? parent.ToString();
 
         return await form.Drops.WriteAsync(entry.Type, new DropIntent(parent, index, fragment, name));
-    }
-
-    /// <summary>
-    /// Куда встанет контрол без точки: в выбранную панель, в конец; рядом с выбранным не-панелью — в
-    /// ближайшую панель над ним, после него; без выбора — в корень-панель или в панель, стоящую в корне; в
-    /// пустой корень — содержимым.
-    /// </summary>
-    /// <returns>Путь родителя и место; null — встать некуда: корень держит одно содержимое, и оно занято.</returns>
-    private static (XamlElementPath Parent, int Index)? Target(LiveFormDocument form, IXamlDesignView shown, XamlDocument syntax)
-    {
-        var primary = form.Selection.FirstOrDefault();
-
-        if (primary is not null && !primary.Equals(XamlElementPath.Root) && primary.Resolve(syntax) is { } selected)
-        {
-            if (shown.DescribeElement(primary) is { HoldsChildren: true })
-                return (primary, selected.ContentElements.Count());
-
-            // После выбранного — в ближайшую панель над ним: рамка и кнопка держат одно содержимое, и второе
-            // стало бы ошибкой загрузки. Встаёт после того предка выбранного, что стоит в этой панели.
-            for (var child = primary; child.Parent is { } parent; child = parent)
-            {
-                if (shown.DescribeElement(parent) is { HoldsChildren: true } && child.Resolve(syntax) is { IndexInContent: >= 0 } placed)
-                    return (parent, placed.IndexInContent + 1);
-            }
-        }
-
-        if (syntax.Root is not { } root)
-            return null;
-
-        if (shown.DescribeElement(XamlElementPath.Root) is { HoldsChildren: true })
-            return (XamlElementPath.Root, root.ContentElements.Count());
-
-        var content = root.ContentElements.ToList();
-
-        if (content.Count == 0)
-            return (XamlElementPath.Root, 0);
-
-        if (content.Count == 1 && XamlElementPath.Of(content[0]) is { } inner && shown.DescribeElement(inner) is { HoldsChildren: true })
-            return (inner, content[0].ContentElements.Count());
-
-        return null;
     }
 
     private void OnFormChanged(object? sender, EventArgs e) => _ = ListAsync();

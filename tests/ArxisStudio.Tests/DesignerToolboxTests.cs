@@ -87,12 +87,22 @@ public class DesignerToolboxTests
 
         document.Select([Stack]);
         list.SelectedItem = Entry(panel, "CheckBox");
+        LiveFormStudio.Frame();
+
+        // Каретку держит строка списка, а не сам список.
+        var row = Assert.IsAssignableFrom<Control>(list.ContainerFromItem(Entry(panel, "CheckBox")));
+
+        Assert.True(row.Focus(), "строка палитры не взяла клавиатуру");
         LiveFormStudio.Press(list, Key.Enter);
 
         await XamlStudio.UntilAsync(() => Element(document, "/0/3")?.Name.LocalName == "CheckBox", "флажок не встал в конец панели");
 
         Assert.Equal("Check", Element(document, "/0/3")!.GetAttribute("Content")?.GetValueText());
         await XamlStudio.UntilAsync(() => document.Selection.SequenceEqual([XamlElementPath.Parse("/0/3")]), "вставленное не выбрано");
+        LiveFormStudio.Frame();
+
+        // Вставленное выбрано и на холсте, а клавиатура осталась в палитре: следующий Enter ставит ещё один.
+        Assert.True(list.IsKeyboardFocusWithin, "выбор вставленного увёл клавиатуру из палитры");
 
         await document.Document!.UndoAsync();
         await XamlStudio.UntilAsync(() => Element(document, "/0/3") is null, "отмена не убрала вставку одним шагом");
@@ -178,6 +188,9 @@ public class DesignerToolboxTests
         await XamlStudio.UntilAsync(() => Element(document, "/0/3")?.Name.LocalName == "CheckBox", "брошенное не встало в конец панели");
         Assert.Equal("Да", Element(document, "/0/3")!.GetAttribute("Content")?.GetValueText());
         Assert.Null(document.View.Sheet.DropIndicator);
+
+        // Жест кончился на холсте — клавиатура у него: Ctrl+Z отменит бросок, стрелки сдвинут брошенное.
+        Assert.True(document.View.Sheet.IsKeyboardFocusWithin, "после броска клавиатура не у холста");
     }
 
     /// <summary>Саму форму и файл, который не контрол проекта, холст не берёт и говорит почему.</summary>

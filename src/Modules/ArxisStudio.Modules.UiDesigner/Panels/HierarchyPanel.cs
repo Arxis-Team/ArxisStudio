@@ -2,10 +2,12 @@ using ArxisStudio.Markup.Xaml;
 using ArxisStudio.Modules.UiDesigner.Documents;
 using ArxisStudio.Modules.UiDesigner.Workbench;
 using ArxisStudio.Sdk;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace ArxisStudio.Modules.UiDesigner.Panels;
 
@@ -20,7 +22,8 @@ namespace ArxisStudio.Modules.UiDesigner.Panels;
 /// <para>
 /// Клавиатура — дерева: стрелки ходят и раскрывают, набор ищет по раскрытому. Своё у иерархии —
 /// Delete, убирающий выбранное из документа, и Ctrl со стрелкой вверх или вниз, переставляющий элемент
-/// среди соседей, — клавиатурная дорога туда, куда на холсте ведёт тяга (WCAG 2.5.7).
+/// среди соседей, — клавиатурная дорога туда, куда на холсте ведёт тяга (WCAG 2.5.7). Буфер обмена,
+/// дубликат и меню — те же, что у холста (<see cref="FormCommands"/>, <see cref="FormMenu"/>).
 /// </para>
 /// </remarks>
 [ToolWindow(UiDesignerModule.HierarchyId)]
@@ -30,6 +33,7 @@ public sealed class HierarchyPanel : ToolWindow
 
     private DesignerWorkbench? _bench;
     private HierarchyView? _view;
+    private FormMenu? _menu;
     private LiveFormDocument? _form;
     private IReadOnlyList<HierarchyNode> _nodes = [];
     private Dictionary<XamlElementPath, HierarchyNode> _byPath = [];
@@ -53,6 +57,7 @@ public sealed class HierarchyPanel : ToolWindow
 
         _view = view;
         _bench = bench;
+        _menu = new FormMenu(Context.Strings);
 
         bench.FormChanged += OnFormChanged;
         bench.SelectionChanged += OnSelectionChanged;
@@ -60,6 +65,7 @@ public sealed class HierarchyPanel : ToolWindow
 
         view.Tree.SelectionChanged += OnTreeSelectionChanged;
         view.Tree.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
+        view.Tree.ContextRequested += OnContextRequested;
 
         Rebuild();
 
@@ -80,12 +86,18 @@ public sealed class HierarchyPanel : ToolWindow
         {
             view.Tree.SelectionChanged -= OnTreeSelectionChanged;
             view.Tree.RemoveHandler(InputElement.KeyDownEvent, OnKeyDown);
+            view.Tree.ContextRequested -= OnContextRequested;
         }
 
         _bench = null;
         _view = null;
+        _menu = null;
         _form = null;
     }
+
+    /// <summary>Пункты меню иерархии — тем же путём, каким их собирает меню; тестам.</summary>
+    internal IReadOnlyList<Control> MenuItems() =>
+        _form?.Commands is { } commands && _menu is { } menu && _view is { } view ? menu.Items(commands, view.Tree, canvas: null) : [];
 
     private void OnFormChanged(object? sender, EventArgs e)
     {
@@ -100,10 +112,17 @@ public sealed class HierarchyPanel : ToolWindow
     private void OnSelectionChanged(object? sender, EventArgs e) => ShowSelection();
 
     /// <summary>Строит дерево заново из текста формы впереди.</summary>
+    /// <remarks>
+    /// Строки — новые, и строка, державшая клавиатуру, уходит из дерева вместе с ней. Правка, сделанная из
+    /// дерева, — Delete, Ctrl со стрелкой, вставка — оставляла бы клавиатуру нигде, и вторая такая же клавиша
+    /// не делала бы ничего; поэтому клавиатура возвращается выбранной строке.
+    /// </remarks>
     private void Rebuild()
     {
         if (_view is not { } view)
             return;
+
+        var keyboard = view.Tree.IsKeyboardFocusWithin;
 
         foreach (var node in _byPath.Values)
         {
@@ -123,7 +142,26 @@ public sealed class HierarchyPanel : ToolWindow
         view.Empty.IsVisible = _nodes.Count == 0;
 
         ShowSelection();
+
+        if (keyboard)
+            KeepKeyboard();
     }
+
+    /// <summary>
+    /// Отдаёт клавиатуру выбранной строке, если она не досталась никому: строку, державшую её, унесла
+    /// перестройка дерева, или меню, закрывшись, вернуло её строке, которой больше нет.
+    /// </summary>
+    /// <remarks>Чужую клавиатуру не берёт: ушедшая в другую панель там и остаётся.</remarks>
+    private void KeepKeyboard() =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_view is not { } view || TopLevel.GetTopLevel(view)?.FocusManager?.GetFocusedElement() is not null)
+                return;
+
+            var row = _form?.Selection.FirstOrDefault() is { } primary ? Container(primary) : null;
+
+            (row ?? view.Tree.ContainerFromIndex(0))?.Focus();
+        }, DispatcherPriority.Loaded);
 
     /// <summary>Ставит выбор формы на строки: раскрывает дорогу к ним и показывает главную.</summary>
     private void ShowSelection()
@@ -167,27 +205,7 @@ public sealed class HierarchyPanel : ToolWindow
     }
 
     /// <summary>Прокручивает к строке, если её не видно.</summary>
-    private void Reveal(HierarchyNode node)
-    {
-        if (_view is not { } view)
-            return;
-
-        ItemsControl? owner = view.Tree;
-
-        foreach (var step in Chain(node.Path))
-        {
-            if (owner?.ContainerFromItem(step) is not TreeViewItem container)
-                return;
-
-            if (ReferenceEquals(step, node))
-            {
-                container.BringIntoView();
-                return;
-            }
-
-            owner = container;
-        }
-    }
+    private void Reveal(HierarchyNode node) => Container(node.Path)?.BringIntoView();
 
     /// <summary>Строки от корня до этой.</summary>
     private IEnumerable<HierarchyNode> Chain(XamlElementPath path)
@@ -213,12 +231,19 @@ public sealed class HierarchyPanel : ToolWindow
     }
 
     /// <summary>
-    /// Delete и Ctrl со стрелкой — до дерева: его стрелки ходят по строкам; Ctrl+Z и Ctrl+Y — история формы.
+    /// Delete и Ctrl со стрелкой — до дерева: его стрелки ходят по строкам; Ctrl+Z и Ctrl+Y — история формы;
+    /// Ctrl+X, Ctrl+C, Ctrl+V и Ctrl+D — правки строения, как на холсте.
     /// </summary>
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_view is { } view && HistoryKeys.Step(e, view.Tree, _bench))
+        if (_view is not { } view || HistoryKeys.Step(e, view.Tree, _bench))
             return;
+
+        if (_form?.Commands is { } commands && commands.Press(e, view.Tree))
+        {
+            e.Handled = true;
+            return;
+        }
 
         if (_form is not { Edits: { } edits } form || form.Selection is not { Count: > 0 } selection)
             return;
@@ -236,6 +261,57 @@ public sealed class HierarchyPanel : ToolWindow
                 edits.MoveBy(selection[0], later: e.Key == Key.Down);
                 break;
         }
+    }
+
+    /// <summary>
+    /// Меню строки: мышью — под указателем, и щелчок мимо выбранного выбирает строку под ним; клавишей — у
+    /// главной выбранной строки.
+    /// </summary>
+    /// <remarks>Правый щелчок по выбранной строке оставляет выбор как есть — меню о нём, как в Rider и в проводнике.</remarks>
+    private void OnContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (_view is not { } view || _menu is not { } menu || _form?.Commands is not { } commands)
+            return;
+
+        var tree = view.Tree;
+        var atPointer = e.TryGetPosition(tree, out _);
+
+        if (atPointer && NodeOf(e.Source) is { } node && tree.SelectedItems?.Contains(node) != true)
+            tree.SelectedItem = node;
+
+        Control anchor = !atPointer && _form.Selection.FirstOrDefault() is { } primary && Container(primary) is { } row
+            ? row
+            : tree;
+
+        // Пункт меню правит форму, и дерево перестраивается: строка, которой меню вернёт клавиатуру, может
+        // уже уйти.
+        FormMenu.Show(anchor, menu.Items(commands, tree, canvas: null), atPointer, closed: KeepKeyboard);
+        e.Handled = true;
+    }
+
+    /// <summary>Строка дерева, которой принадлежит элемент разметки.</summary>
+    private static HierarchyNode? NodeOf(object? source) =>
+        source is StyledElement element
+            ? element.DataContext as HierarchyNode ?? (element as Visual)?.FindAncestorOfType<TreeViewItem>()?.DataContext as HierarchyNode
+            : null;
+
+    /// <summary>Контейнер строки, если он развёрнут.</summary>
+    private TreeViewItem? Container(XamlElementPath path)
+    {
+        ItemsControl? owner = _view?.Tree;
+
+        foreach (var step in Chain(path))
+        {
+            if (owner?.ContainerFromItem(step) is not TreeViewItem container)
+                return null;
+
+            if (step.Path.Equals(path))
+                return container;
+
+            owner = container;
+        }
+
+        return null;
     }
 
     /// <summary>Выбор, который ставит панель: его события — не выбор человека.</summary>

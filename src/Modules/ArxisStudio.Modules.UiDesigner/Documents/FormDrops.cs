@@ -148,6 +148,10 @@ internal sealed class FormDrops : IDisposable
 
     private void OnDragLeave(object? sender, StudioDragEventArgs e) => _sheet.HideDropIndicator();
 
+    /// <remarks>
+    /// Клавиатура переходит к холсту: жест кончился на нём, и следующий Ctrl+Z должен отменить бросок, а
+    /// стрелки — сдвигать брошенное. Выбор холста её не берёт сам — его ставит и иерархия, и код.
+    /// </remarks>
     private void OnDrop(object? sender, StudioDragEventArgs e)
     {
         e.Handled = true;
@@ -159,6 +163,7 @@ internal sealed class FormDrops : IDisposable
             return;
         }
 
+        _sheet.Focus();
         Write(type, intent);
     }
 
