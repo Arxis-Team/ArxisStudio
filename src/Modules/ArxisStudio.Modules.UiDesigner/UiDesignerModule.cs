@@ -1,13 +1,16 @@
+using ArxisStudio.Modules.UiDesigner.Snapshots;
 using ArxisStudio.Sdk;
 
 namespace ArxisStudio.Modules.UiDesigner;
 
 /// <summary>
-/// Точка входа дизайнера интерфейса: заявляет команду показа доски форм.
+/// Точка входа дизайнера интерфейса: заявляет команду показа доски форм и ставит поставщика превью форм.
 /// </summary>
 /// <remarks>
 /// Всё остальное делает панель: решение ей отдаёт служба проектов, а подписывается на неё панель при
-/// постройке — в <c>Activate</c> модуля служба может быть ещё не поднята.
+/// постройке — в <c>Activate</c> модуля служба может быть ещё не поднята. Превью форм — снимки, которые
+/// оставляет живая вкладка (<see cref="FormSnapshots"/>): их показывает всякий, кто показывает файлы
+/// плитками, через службу студии <see cref="IStudioFilePreviews"/>.
 /// </remarks>
 public sealed class UiDesignerModule : StudioPlugin
 {
@@ -43,6 +46,7 @@ public sealed class UiDesignerModule : StudioPlugin
     public const string ViewKey = "ui-designer.view";
 
     private IStudioContext? _context;
+    private IDisposable? _previews;
 
     /// <inheritdoc/>
     public override void Activate(IStudioContext context)
@@ -52,10 +56,18 @@ public sealed class UiDesignerModule : StudioPlugin
         _context = context;
 
         context.Commands.Register(ShowCommand, Show);
+
+        if (FormSnapshots.For(context) is { } snapshots && context.GetService<IStudioFilePreviews>() is { } previews)
+            _previews = previews.Register(new FormPreviewProvider(snapshots));
     }
 
     /// <inheritdoc/>
-    public override void Deactivate() => _context = null;
+    public override void Deactivate()
+    {
+        _previews?.Dispose();
+        _previews = null;
+        _context = null;
+    }
 
     private void Show()
     {

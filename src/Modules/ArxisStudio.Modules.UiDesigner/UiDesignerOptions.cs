@@ -26,4 +26,10 @@ internal sealed class UiDesignerOptions
     /// наткнётся на несохранённое здесь; короче — сохранение посреди серии правок мышью.
     /// </remarks>
     public TimeSpan AutoSaveDelay { get; init; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Папка снимков форм; null — по переменной среды <c>ARXIS_PREVIEWS</c> или в машинной папке студии,
+    /// <c>0</c> — форм не снимать.
+    /// </summary>
+    public string? SnapshotsFolder { get; init; }
 }

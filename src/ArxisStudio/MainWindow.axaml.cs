@@ -191,6 +191,7 @@ public partial class MainWindow : AxWindow
             ToolBar = _toolbar,
             Documents = _documents,
             Shortcuts = _shortcuts,
+            FilePreviews = new StudioFilePreviews(_log, _guard),
 
             // Чем студия делится с расширениями — решение оболочки, а не
             // порядка подъёма: список стоит здесь и виден целиком.

@@ -111,6 +111,9 @@ public sealed class StudioPlugins
     /// <summary>Что студия даёт расширениям сверх обязательного.</summary>
     public required IReadOnlyDictionary<Type, object> Services { get; init; }
 
+    /// <summary>Превью файлов: каждому расширению — своей обёрткой, с уборкой при выгрузке.</summary>
+    public StudioFilePreviews? FilePreviews { get; init; }
+
     /// <summary>
     /// Сборки встроенных модулей в порядке подъёма.
     /// </summary>
@@ -338,7 +341,8 @@ public sealed class StudioPlugins
             exports: _exports,
             toolbar: ToolBar,
             dock: Dock,
-            restart: Require);
+            restart: Require,
+            previews: FilePreviews);
 
         var host = new PluginHost(_contexts);
 
@@ -356,6 +360,7 @@ public sealed class StudioPlugins
             Commands.RemoveOwnedBy(id);
             Shortcuts?.RemoveOwnedBy(id);
             _exports.RemoveOwnedBy(id);
+            FilePreviews?.RemoveOwnedBy(id);
             _contributions.Remove(id);
             _contexts?.Forget(id);
         };

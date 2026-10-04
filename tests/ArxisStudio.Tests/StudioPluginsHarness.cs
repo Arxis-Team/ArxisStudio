@@ -49,6 +49,11 @@ internal sealed class StudioPluginsHarness : IDisposable
     /// <summary>Реестр вкладов: редакторы, инспекторы.</summary>
     public PluginContributionRegistry Contributions { get; } = new();
 
+    /// <summary>Превью файлов — общий реестр, как у главного окна.</summary>
+    public StudioFilePreviews Previews => _previews ??= new StudioFilePreviews(Log, Guard);
+
+    private StudioFilePreviews? _previews;
+
     /// <summary>Реестр команд.</summary>
     public StudioCommands Commands { get; }
 
@@ -103,6 +108,7 @@ internal sealed class StudioPluginsHarness : IDisposable
             ToolBar = ToolBar,
             Documents = Documents,
             Shortcuts = shortcuts,
+            FilePreviews = Previews,
             Services = new Dictionary<Type, object>
             {
                 [typeof(PluginContributionRegistry)] = Contributions,

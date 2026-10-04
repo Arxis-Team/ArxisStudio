@@ -1,4 +1,4 @@
-# StudioSdk 7.14
+# StudioSdk 7.17
 ArxisStudio.Sdk.CommandAttribute : sealed class : System.Attribute
 ArxisStudio.Sdk.CommandAttribute :: .ctor(System.String id)
 ArxisStudio.Sdk.CommandAttribute :: System.String Id { get; }
@@ -25,6 +25,20 @@ ArxisStudio.Sdk.DocumentView :: virtual System.Threading.Tasks.ValueTask Dispose
 ArxisStudio.Sdk.DocumentView :: virtual System.Threading.Tasks.ValueTask<System.Boolean> CanCloseAsync(ArxisStudio.Sdk.DocumentCloseReason reason)
 ArxisStudio.Sdk.DocumentView :: virtual System.Void OnActivated()
 ArxisStudio.Sdk.DocumentView :: virtual System.Void OnDeactivated()
+ArxisStudio.Sdk.FilePreview : sealed record : System.IEquatable<ArxisStudio.Sdk.FilePreview>
+ArxisStudio.Sdk.FilePreview :: .ctor(System.ReadOnlyMemory<System.Byte> Image)
+ArxisStudio.Sdk.FilePreview :: System.Boolean Equals(ArxisStudio.Sdk.FilePreview? other)
+ArxisStudio.Sdk.FilePreview :: System.Boolean IsStale { get; init; }
+ArxisStudio.Sdk.FilePreview :: System.ReadOnlyMemory<System.Byte> Image { get; init; }
+ArxisStudio.Sdk.FilePreview :: System.Void Deconstruct(out System.ReadOnlyMemory<System.Byte> Image)
+ArxisStudio.Sdk.FilePreview :: static System.Boolean op_Equality(ArxisStudio.Sdk.FilePreview? left, ArxisStudio.Sdk.FilePreview? right)
+ArxisStudio.Sdk.FilePreview :: static System.Boolean op_Inequality(ArxisStudio.Sdk.FilePreview? left, ArxisStudio.Sdk.FilePreview? right)
+ArxisStudio.Sdk.FilePreviewChangedEventArgs : sealed class : System.EventArgs
+ArxisStudio.Sdk.FilePreviewChangedEventArgs :: .ctor(System.String filePath)
+ArxisStudio.Sdk.FilePreviewChangedEventArgs :: System.String FilePath { get; }
+ArxisStudio.Sdk.IFilePreviewProvider : interface
+ArxisStudio.Sdk.IFilePreviewProvider :: System.Collections.Generic.IReadOnlyList<System.String> Extensions { get; }
+ArxisStudio.Sdk.IFilePreviewProvider :: System.Threading.Tasks.Task<ArxisStudio.Sdk.FilePreview> GetPreviewAsync(System.String filePath, System.Int32 pixels, System.Threading.CancellationToken cancellationToken)
 ArxisStudio.Sdk.IStudioCommands : interface
 ArxisStudio.Sdk.IStudioCommands :: System.Boolean Invoke(System.String id)
 ArxisStudio.Sdk.IStudioCommands :: System.Void Register(System.String id, System.Action handler)
@@ -55,6 +69,12 @@ ArxisStudio.Sdk.IStudioDragSession :: System.Void OverOwn(Avalonia.Point positio
 ArxisStudio.Sdk.IStudioExports : interface
 ArxisStudio.Sdk.IStudioExports :: System.Boolean Publish<T>(T implementation)
 ArxisStudio.Sdk.IStudioExports :: T? Get<T>()
+ArxisStudio.Sdk.IStudioFilePreviews : interface
+ArxisStudio.Sdk.IStudioFilePreviews :: System.Boolean CanPreview(System.String filePath)
+ArxisStudio.Sdk.IStudioFilePreviews :: System.IDisposable Register(ArxisStudio.Sdk.IFilePreviewProvider provider)
+ArxisStudio.Sdk.IStudioFilePreviews :: System.Threading.Tasks.Task<ArxisStudio.Sdk.FilePreview> GetAsync(System.String filePath, System.Int32 pixels, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Sdk.IStudioFilePreviews :: System.Void Invalidate(System.String filePath)
+ArxisStudio.Sdk.IStudioFilePreviews :: event System.EventHandler<ArxisStudio.Sdk.FilePreviewChangedEventArgs> Changed
 ArxisStudio.Sdk.IStudioFocus : interface
 ArxisStudio.Sdk.IStudioFocus :: System.Boolean Focus(System.String toolWindowId)
 ArxisStudio.Sdk.IStudioFocus :: System.Boolean IsFocused(System.String toolWindowId)

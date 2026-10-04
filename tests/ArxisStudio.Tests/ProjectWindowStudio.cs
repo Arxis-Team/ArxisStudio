@@ -56,6 +56,7 @@ internal sealed class ProjectWindowStudio : IDisposable
     /// <param name="drags">
     /// Тяга студии, общая с соседним окном; пусто — своя, над одним этим окном.
     /// </param>
+    /// <param name="previews">Превью файлов студии; пусто — их нет, и плитки показывают только картинки.</param>
     public ProjectWindowStudio(
         bool service = true,
         double width = 520,
@@ -65,7 +66,8 @@ internal sealed class ProjectWindowStudio : IDisposable
         FilesProbe? files = null,
         HistoryProbe? history = null,
         IStudioNewItems? newItems = null,
-        StudioDrags? drags = null)
+        StudioDrags? drags = null,
+        StudioFilePreviews? previews = null)
     {
         Projects = projects ?? new ProjectsProbe { Accepts = true };
         Drags = drags ?? new StudioDrags(() => Window is { } window ? [window] : [], Log);
@@ -95,7 +97,8 @@ internal sealed class ProjectWindowStudio : IDisposable
             services[typeof(IStudioNewItems)] = newItems;
         var store = new PluginSettingsStore(null, Path.Combine(_root, "plugin-settings.json"));
 
-        _host = new PluginHost(new StudioContextFactory(Log, new StudioCommands(), null, services, settings: store, exports: exports));
+        _host = new PluginHost(
+            new StudioContextFactory(Log, new StudioCommands(), null, services, settings: store, exports: exports, previews: previews));
 
         var loaded = _host.LoadBuiltIn(typeof(ProjectModule).Assembly);
 

@@ -75,6 +75,8 @@ internal sealed class XamlStudio : IAsyncDisposable
         foreach (var (type, service) in services ?? new Dictionary<Type, object>())
             all[type] = service;
 
+        Previews = new StudioFilePreviews(Log, Guard);
+
         Contexts = new StudioContextFactory(
             Log,
             Commands,
@@ -84,7 +86,8 @@ internal sealed class XamlStudio : IAsyncDisposable
             guard: Guard,
             plugins: Roster,
             exports: Exports,
-            restart: (id, reason) => Restarts.Enqueue((id, reason)));
+            restart: (id, reason) => Restarts.Enqueue((id, reason)),
+            previews: Previews);
 
         Host = new PluginHost(Contexts);
 
@@ -92,6 +95,7 @@ internal sealed class XamlStudio : IAsyncDisposable
         {
             Commands.RemoveOwnedBy(id);
             Exports.RemoveOwnedBy(id);
+            Previews.RemoveOwnedBy(id);
         };
 
         Roster.Attach(Host, () => []);
@@ -150,6 +154,9 @@ internal sealed class XamlStudio : IAsyncDisposable
 
     /// <summary>Шов сбоев.</summary>
     public PluginGuard Guard { get; } = new();
+
+    /// <summary>Превью файлов студии: дизайнер ставит в них поставщика снимков форм.</summary>
+    public StudioFilePreviews Previews { get; }
 
     /// <summary>Служба соседей.</summary>
     public StudioPluginRoster Roster { get; } = new();

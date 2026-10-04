@@ -1,12 +1,14 @@
 using ArxisStudio.Modules.Project.Model;
 using ArxisStudio.ProjectSystem;
+using ArxisStudio.Sdk;
 using Avalonia.Media.Imaging;
 using SkiaSharp;
 
 namespace ArxisStudio.Modules.Project.Browse;
 
 /// <summary>
-/// Превью картинок для плиток: декод в фоне, по размеру плитки, с кэшем и владением растром.
+/// Превью для плиток: картинки и файлы, которые умеет нарисовать поставщик студии, — декод в фоне, по
+/// размеру плитки, с кэшем и владением растром.
 /// </summary>
 /// <remarks>
 /// Образец — <c>PluginIcons</c> студии: предел размера, декод сразу в нужную ширину, запомненные
@@ -28,8 +30,16 @@ namespace ArxisStudio.Modules.Project.Browse;
 /// возвращаются туда же, и замок не нужен. Освобождать растр тоже надо там — вне его освобождение
 /// ждёт диспетчера.
 /// </para>
+/// <para>
+/// <b>Файл, который рисует поставщик</b> (<see cref="IStudioFilePreviews"/>), — форма, которой дизайнер
+/// оставил снимок, — идёт той же дорогой: картинку отдаёт поставщик, а уменьшает, держит и освобождает
+/// её служба, как картинку с диска. Его превью меняется и без перемены файла — снят первый снимок, —
+/// поэтому в ключе есть номер перемены (<see cref="Invalidate"/>), а отметка «старше файла» едет вместе с
+/// растром.
+/// </para>
 /// </remarks>
-internal sealed class Previews : IDisposable
+/// <param name="files">Превью файлов студии; null — плитки показывают только картинки.</param>
+internal sealed class Previews(IStudioFilePreviews? files = null) : IDisposable
 {
     /// <summary>
     /// Самая большая картинка, которую окно берётся уменьшать: больше — плитка остаётся силуэтом.
@@ -53,6 +63,9 @@ internal sealed class Previews : IDisposable
     private readonly Dictionary<Bitmap, Entry> _owners = new(ReferenceEqualityComparer.Instance);
     private readonly LinkedList<Entry> _idle = [];
     private readonly SemaphoreSlim _lanes = new(Lanes);
+
+    /// <summary>Номера перемен превью по файлам: новый номер — новый ключ, и превью спрашивается заново.</summary>
+    private readonly Dictionary<string, int> _revisions = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Поколение кэша: декод, начатый до очистки, в кэш после неё не ложится.</summary>
     private int _generation;
@@ -78,6 +91,25 @@ internal sealed class Previews : IDisposable
             && !string.Equals(node.Path.Extension, ".svg", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>Будет ли у узла превью: картинка — или файл, который умеет нарисовать поставщик студии.</summary>
+    /// <param name="node">Узел.</param>
+    public bool Shows(Node node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+
+        return Decodes(node) || (node is { Kind: NodeKind.File, Path.IsEmpty: false } && Provided(node.Path.Value));
+    }
+
+    /// <summary>Превью файла сменилось: следующая просьба спросит его заново.</summary>
+    /// <param name="path">Путь к файлу.</param>
+    /// <remarks>Прежний растр не освобождается сразу: его ещё рисует плитка, и уйдёт он по давности.</remarks>
+    public void Invalidate(string path)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+
+        _revisions[path] = _revisions.GetValueOrDefault(path) + 1;
+    }
+
     /// <summary>
     /// Превью файла в размер <paramref name="pixels"/> по длинной стороне; пусто — картинки не будет.
     /// </summary>
@@ -89,13 +121,15 @@ internal sealed class Previews : IDisposable
     /// снимает только ожидание: начатый декод доходит до конца и ложится в кэш, и следующая просьба
     /// того же файла его находит.
     /// </remarks>
-    public async Task<Bitmap?> RequestAsync(CanonicalPath path, int pixels, CancellationToken token)
+    public async Task<Picture?> RequestAsync(CanonicalPath path, int pixels, CancellationToken token)
     {
         if (_disposed || path.IsEmpty || pixels <= 0)
             return null;
 
         var file = path.Value;
-        var key = await Task.Run(() => KeyOf(file, pixels), token).ConfigureAwait(true);
+        var provided = !IsImage(path) && Provided(file);
+        var revision = _revisions.GetValueOrDefault(file);
+        var key = await Task.Run(() => KeyOf(file, pixels, provided, revision), token).ConfigureAwait(true);
 
         if (key is not { } found || _disposed)
             return null;
@@ -103,7 +137,7 @@ internal sealed class Previews : IDisposable
         if (_entries.TryGetValue(found, out var entry))
         {
             Touch(entry);
-            return entry.Bitmap;
+            return entry.Picture;
         }
 
         // Декод, начатый до очистки, ответит пустотой: его растр в кэш уже не ляжет. Такой не ждут, а
@@ -176,15 +210,21 @@ internal sealed class Previews : IDisposable
         Clear();
     }
 
-    private async Task<Bitmap?> DecodeAsync(Key key, int generation)
+    private async Task<Picture?> DecodeAsync(Key key, int generation)
     {
         Bitmap? bitmap;
+
+        // Картинку поставщика спрашивают в потоке интерфейса — его зовёт студия через свой шов, — а
+        // уменьшают в фоне, как файл с диска. Ответ ждут все, кто просил этот ключ, поэтому без отмены.
+        var preview = key.Provided ? await AskAsync(key).ConfigureAwait(true) : null;
 
         await _lanes.WaitAsync().ConfigureAwait(true);
 
         try
         {
-            bitmap = await Task.Run(() => Decode(key)).ConfigureAwait(true);
+            bitmap = key.Provided
+                ? preview is { } given ? await Task.Run(() => Decode(given.Image, key.Pixels)).ConfigureAwait(true) : null
+                : await Task.Run(() => Decode(key)).ConfigureAwait(true);
         }
         finally
         {
@@ -203,7 +243,7 @@ internal sealed class Previews : IDisposable
             return null;
         }
 
-        var entry = new Entry(key, bitmap);
+        var entry = new Entry(key, bitmap, preview?.IsStale == true);
 
         _entries[key] = entry;
 
@@ -215,7 +255,23 @@ internal sealed class Previews : IDisposable
         Rest(entry);
         Trim();
 
-        return bitmap;
+        return entry.Picture;
+    }
+
+    /// <summary>Картинка поставщика; null — её нет или спросить не у кого.</summary>
+    private async Task<FilePreview?> AskAsync(Key key)
+    {
+        if (files is null)
+            return null;
+
+        try
+        {
+            return await files.GetAsync(key.Path, key.Pixels, CancellationToken.None).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
     }
 
     private void Touch(Entry entry)
@@ -254,13 +310,13 @@ internal sealed class Previews : IDisposable
         }
     }
 
-    private static Key? KeyOf(string path, int pixels)
+    private static Key? KeyOf(string path, int pixels, bool provided, int revision)
     {
         try
         {
             var file = new FileInfo(path);
 
-            return file.Exists ? new Key(path, file.LastWriteTimeUtc, file.Length, pixels) : null;
+            return file.Exists ? new Key(path, file.LastWriteTimeUtc, file.Length, pixels, provided, revision) : null;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
@@ -276,23 +332,34 @@ internal sealed class Previews : IDisposable
     /// Картинка не крупнее плитки читается как есть, крупная — сразу в размер по длинной стороне:
     /// высокий кадр, уменьшенный по ширине, вышел бы втрое выше плитки.
     /// </remarks>
-    private static Bitmap? Decode(Key key)
+    private static Bitmap? Decode(Key key) => Decode(() => File.OpenRead(key.Path), key.Pixels);
+
+    /// <summary>Читает картинку поставщика тем же правилом, что файл с диска.</summary>
+    private static Bitmap? Decode(ReadOnlyMemory<byte> image, int pixels)
+    {
+        var bytes = image.ToArray();
+
+        return Decode(() => new MemoryStream(bytes, writable: false), pixels);
+    }
+
+    /// <summary>Читает картинку не крупнее <paramref name="pixels"/> по длинной стороне.</summary>
+    private static Bitmap? Decode(Func<Stream> open, int pixels)
     {
         try
         {
-            var (width, height) = Measure(key.Path);
+            var (width, height) = Measure(open);
 
             if (width <= 0 || height <= 0 || (long)width * height > MaxPixels)
                 return null;
 
-            using var stream = File.OpenRead(key.Path);
+            using var stream = open();
 
-            if (Math.Max(width, height) <= key.Pixels)
+            if (Math.Max(width, height) <= pixels)
                 return new Bitmap(stream);
 
             return width >= height
-                ? Bitmap.DecodeToWidth(stream, key.Pixels, BitmapInterpolationMode.HighQuality)
-                : Bitmap.DecodeToHeight(stream, key.Pixels, BitmapInterpolationMode.HighQuality);
+                ? Bitmap.DecodeToWidth(stream, pixels, BitmapInterpolationMode.HighQuality)
+                : Bitmap.DecodeToHeight(stream, pixels, BitmapInterpolationMode.HighQuality);
         }
         catch (Exception e) when (e is not (OutOfMemoryException or StackOverflowException))
         {
@@ -305,28 +372,41 @@ internal sealed class Previews : IDisposable
     }
 
     /// <summary>Размер картинки по заголовку, без декода.</summary>
-    private static (int Width, int Height) Measure(string path)
+    private static (int Width, int Height) Measure(Func<Stream> open)
     {
-        using var stream = File.OpenRead(path);
+        using var stream = open();
         using var codec = SKCodec.Create(stream);
 
         return codec is null ? (0, 0) : (codec.Info.Width, codec.Info.Height);
     }
 
-    /// <summary>Идущий декод и поколение кэша, в котором его начали.</summary>
-    private readonly record struct Flight(Task<Bitmap?> Task, int Generation);
+    /// <summary>Есть ли у файла поставщик превью студии.</summary>
+    private bool Provided(string path) => files?.CanPreview(path) == true;
 
-    /// <summary>Версия файла в размере: путь, время записи, длина и длинная сторона.</summary>
-    private readonly record struct Key(string Path, DateTime Written, long Length, int Pixels);
+    /// <summary>Картинка ли это, которую служба читает с диска сама, — тем же правилом, что у узла.</summary>
+    private static bool IsImage(CanonicalPath path) =>
+        FileKinds.Of(path.Extension) == FileKind.Image && !string.Equals(path.Extension, ".svg", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Идущий декод и поколение кэша, в котором его начали.</summary>
+    private readonly record struct Flight(Task<Picture?> Task, int Generation);
+
+    /// <summary>
+    /// Версия файла в размере: путь, время записи, длина и длинная сторона, — а у файла поставщика ещё и
+    /// номер перемены его превью.
+    /// </summary>
+    private readonly record struct Key(string Path, DateTime Written, long Length, int Pixels, bool Provided, int Revision);
 
     /// <summary>Прочитанное: растр или неудача, и кто его держит.</summary>
-    private sealed class Entry(Key key, Bitmap? bitmap)
+    private sealed class Entry(Key key, Bitmap? bitmap, bool stale)
     {
         /// <summary>Версия файла, которую прочли.</summary>
         public Key Key { get; } = key;
 
         /// <summary>Растр; пусто — файл не прочитался, и читать его снова не надо.</summary>
         public Bitmap? Bitmap { get; } = bitmap;
+
+        /// <summary>Что отдать плитке: растр и отметку; пусто — показать нечего.</summary>
+        public Picture? Picture { get; } = bitmap is null ? null : new Picture(bitmap, stale);
 
         /// <summary>Сколько плиток его рисует.</summary>
         public int Holds { get; set; }
@@ -335,3 +415,8 @@ internal sealed class Previews : IDisposable
         public LinkedListNode<Entry>? Idle { get; set; }
     }
 }
+
+/// <summary>Превью для плитки: растр, который держит служба, и старше ли он файла.</summary>
+/// <param name="Bitmap">Растр.</param>
+/// <param name="IsStale">Картинка старше файла: плитка показывает её с отметкой.</param>
+internal readonly record struct Picture(Bitmap Bitmap, bool IsStale);

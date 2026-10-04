@@ -1,0 +1,254 @@
+# Превью файлов
+
+Плитка окна проекта показывает не значок вида, а сам файл: картинку — картинкой, форму — снимком формы.
+Рисует превью тот, кто понимает файл, — **поставщик** его расширения; показывает тот, у кого плитки, —
+окно проекта студии или панель плагина. Друг о друге они не знают: поставщик не видит плиток, а
+показывающий — форматов. Так же разделены обработчики эскизов проводника Windows и `AssetPreview` у
+Unity.
+
+Всё, что здесь написано, закреплено тестами: примеры компилируются
+([FilePreviewsGuideTests](../tests/ArxisStudio.Tests/FilePreviewsGuideTests.cs)), реестр проверяет
+[StudioFilePreviewsTests](../tests/ArxisStudio.Tests/StudioFilePreviewsTests.cs), плитки окна проекта —
+[ProjectWindowPreviewTests](../tests/ArxisStudio.Tests/ProjectWindowPreviewTests.cs), снимки форм —
+[FormSnapshotTests](../tests/ArxisStudio.Tests/FormSnapshotTests.cs). Подробности каждого члена — в
+XML-комментариях [FilePreviews.cs](../src/ArxisStudio.Sdk/Extensibility/FilePreviews.cs); здесь —
+порядок действий и причины.
+
+Появилось в SDK 7.17 — его и просите в манифесте:
+
+```json
+{ "sdk": { "min": "7.17" } }
+```
+
+Служба берётся у контекста: `context.GetService<IStudioFilePreviews>()`. Её может не быть — у студии
+без неё нет и плиток, — и плагин, не нашедший её, просто ничего не ставит.
+
+## Поставщик: нарисовать файл своего вида
+
+Поставщик объявляет расширения и отвечает на вопрос «картинка этого файла, не крупнее стольких-то
+точек». Правила короткие, и каждое кем-то оплачено:
+
+- **Расширения — с точкой**, `.glb`, и сравниваются без учёта регистра. Читаются один раз, при
+  постановке: объявить новое значит поставить поставщика заново. Объявленное не расширением — `glb`,
+  `*.glb` — не встаёт, и журнал говорит почему.
+- **У расширения один поставщик.** Занятое другим плагином не отдаётся, и журнал называет обоих — как
+  у команд. Своё плагин переставляет и не снимая: новый поставщик вытесняет прежнего, а снятие прежней
+  записи новую не трогает.
+- **Картинка — закодированная**, байтами PNG, JPEG, BMP, ICO или WebP. Уменьшает, держит и освобождает
+  растр показывающий: у него плитки, их размер и память под них. Растр, отданный поставщиком, жил бы по
+  чужим правилам, а выгружаемый плагин держал бы им чужую плитку.
+- **Зовут в потоке интерфейса и через шов сбоев.** Упавший отвечает пустотой, и падение засчитывается
+  ему; диск и кодирование поставщик уводит в фон сам — показывающий спрашивает о каждой видимой плитке.
+  Отмена — не сбой: плитка ушла из вида, и поставщик тут ни при чём.
+- **Размер — подсказка, а не заказ.** Крупнее отдать можно — уменьшит показывающий. Дизайнер так и
+  делает: снимок у формы один, на крупнейшую плитку.
+- **Старое лучше значка.** Картинка, снятая до последней правки файла, отдаётся с `IsStale`: плитка
+  покажет её с отметкой, а не спрячет.
+- **Новая картинка — `Invalidate(path)`.** Показывающие спросят файл заново, не дожидаясь, пока его
+  перезапишут: снимок появляется и тогда, когда файл не менялся. Звать можно из любого потока —
+  подписчики слышат в потоке интерфейса.
+- **Выгрузка снимает всё сама:** поставщиков плагина и его подписки. Снять запись раньше, в
+  `Deactivate`, — вежливо, но не обязательно.
+
+```csharp
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using ArxisStudio.Sdk;
+
+namespace Guide.Previews.Providing;
+
+/// <summary>
+/// Плагин моделей: превью модели — снимок, который её редактор кладёт рядом, <c>Ship.glb.png</c>.
+/// </summary>
+public sealed class ModelsPlugin : StudioPlugin
+{
+    private IDisposable? _previews;
+
+    public override void Activate(IStudioContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        _previews = context.GetService<IStudioFilePreviews>()?.Register(new ModelPreviews());
+    }
+
+    public override void Deactivate()
+    {
+        _previews?.Dispose();
+        _previews = null;
+    }
+}
+
+/// <summary>Снимок модели с диска.</summary>
+public sealed class ModelPreviews : IFilePreviewProvider
+{
+    public IReadOnlyList<string> Extensions { get; } = [".glb", ".fbx"];
+
+    public Task<FilePreview?> GetPreviewAsync(string filePath, int pixels, CancellationToken cancellationToken)
+    {
+        // Зовут в потоке интерфейса — диск в фоне. Размер не наш вопрос: уменьшит показывающий.
+        return Task.Run<FilePreview?>(() =>
+        {
+            var picture = filePath + ".png";
+
+            if (!File.Exists(picture))
+                return null;
+
+            return new FilePreview(File.ReadAllBytes(picture))
+            {
+                // Модель переписали после снимка: старое показывают с отметкой, а не прячут.
+                IsStale = File.GetLastWriteTimeUtc(filePath) > File.GetLastWriteTimeUtc(picture),
+            };
+        }, cancellationToken);
+    }
+}
+```
+
+Свежесть здесь сверяется временем записи — так проще для примера. Дизайнер сверяет текст: пересохранённая
+без перемен форма свежа, а время у неё новое.
+
+## Показывающий: плитки своей панели
+
+- **`CanPreview` — до вопроса.** Ответ по расширению, без вызова поставщика: у файла без поставщика
+  плитку не ставят даже в очередь. Что превью есть у самого файла, он не обещает — у формы, которую ни
+  разу не открывали, снимка ещё нет, и ответ будет пустым.
+- **`GetAsync` — о видимом.** Отмена, когда плитка ушла из вида, бросает `OperationCanceledException`
+  спросившему; поставщику её не засчитывают. Пустой ответ — плитка остаётся значком.
+- **Растр — свой.** Картинку уменьшают в фоне и держат сами; освобождают явно и в потоке интерфейса:
+  нативную память Skia сборщик мусора не видит, а вне потока интерфейса освобождение ждёт диспетчера.
+- **`Changed` — спросить заново.** Приходит в потоке интерфейса, с путём файла. Отписаться в `Release`
+  панели обязательно: подписка держала бы выгруженный плагин.
+- **`IsStale` — показать с отметкой.** Окно проекта ставит на угол места под значок знак обновления в
+  кружке, с подсказкой «Превью старше файла» и тем же именем для диктора. Отметка нейтральная: старый
+  снимок — сведение, а не тревога, и акцент на плитке уже занят выбором.
+
+```csharp
+using System;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using ArxisStudio.Sdk;
+using Avalonia.Controls;
+using Avalonia.Media.Imaging;
+
+namespace Guide.Previews.Showing;
+
+/// <summary>Превью одного файла в панели — и новое, когда поставщик скажет.</summary>
+public sealed class FilePicture : IDisposable
+{
+    private const int Pixels = 128;
+
+    private readonly IStudioFilePreviews _previews;
+    private readonly string _file;
+    private CancellationTokenSource? _asking;
+
+    public FilePicture(IStudioFilePreviews previews, string file)
+    {
+        _previews = previews;
+        _file = file;
+        _previews.Changed += OnChanged;
+        _ = ShowAsync();
+    }
+
+    public Image View { get; } = new();
+
+    /// <summary>Показанное старше файла: панель ставит рядом отметку.</summary>
+    public bool IsStale { get; private set; }
+
+    public void Dispose()
+    {
+        _previews.Changed -= OnChanged;
+        _asking?.Cancel();
+        Put(null);
+    }
+
+    private void OnChanged(object? sender, FilePreviewChangedEventArgs e)
+    {
+        if (string.Equals(e.FilePath, _file, StringComparison.OrdinalIgnoreCase))
+            _ = ShowAsync();
+    }
+
+    private async Task ShowAsync()
+    {
+        if (!_previews.CanPreview(_file))
+            return;
+
+        _asking?.Cancel();
+
+        var asking = _asking = new CancellationTokenSource();
+
+        try
+        {
+            if (await _previews.GetAsync(_file, Pixels, asking.Token) is not { } preview)
+            {
+                Put(null);
+                return;
+            }
+
+            // Одна картинка — растр в натуральную величину. Сотню плиток декодируют сразу в размер.
+            var bitmap = await Task.Run(() =>
+            {
+                using var stream = new MemoryStream(preview.Image.ToArray());
+
+                return new Bitmap(stream);
+            }, asking.Token);
+
+            if (asking.IsCancellationRequested)
+            {
+                bitmap.Dispose();
+                return;
+            }
+
+            IsStale = preview.IsStale;
+            Put(bitmap);
+        }
+        catch (OperationCanceledException)
+        {
+            // Спросили заново или закрыли — этот ответ уже никому не нужен.
+        }
+    }
+
+    private void Put(Bitmap? bitmap)
+    {
+        var old = View.Source as Bitmap;
+
+        View.Source = bitmap;
+        old?.Dispose();
+    }
+}
+```
+
+Окно проекта устроено так же, только для сотен плиток: просит лишь видимые и запас вокруг них, декодирует
+не больше двух разом и сразу в ступень плитки, а размер картинки спрашивает у заголовка раньше декода —
+`Bitmap.DecodeToWidth` не только уменьшает, но и растягивает. Ушедшие плитки ждут в кэше: возврат в
+папку её не декодирует заново.
+
+## Снимки форм
+
+Дизайнер (`arxis.ui-designer`) ставит поставщика для `.axaml`: снимок формы, какой её последний раз
+показала живая вкладка, — **такой, как она лежит на диске**: несохранённая правка не снимается, ведь
+плитка показывает файл, а не вкладку. Снимает он область формы без рамки карточки и заголовка окна, на
+фоне, которым тема её приложения одевает окно: на нём форма и будет стоять. Тема окна самой студии — не
+тема приложения, и форма без приложения снимается без фона. Длинная сторона — 384 точки: крупнейшая
+плитка, 128 точек, при масштабе экрана 300 %.
+
+Снимается форма, когда она выглядит иначе: встал корень, сменилось приложение, текст сохранён или
+принят с диска, вкладка вернулась в окно. Снимок почти даром — форма уже построена и разложена:
+миллисекунда на рисование и две на PNG. Картинка, совпавшая с прежней, не пишется: показ вкладки снова
+и снова плитки зря не будит.
+
+**Снимок — кэш машины, а не файл решения.** Он зависит от шрифтов и масштаба, пересоздаётся при каждом
+показе и в репозитории человека не нужен, поэтому лежит в машинной папке студии —
+`%LocalAppData%/ArxisStudio/Previews`, как локальная история. Переменная `ARXIS_PREVIEWS` переносит
+папку, а `0` выключает снимки — так живёт процесс тестов.
+
+**Свежесть сверяется с текстом.** Рядом с картинкой лежит, с чего она снята: отпечатки текста формы и
+её `App.axaml`. Форма, переписанная снаружи, — Rider, слияние ветки, — получает отметку «старше файла»,
+а вернувшийся прежний текст снова свеж. Правка кода контролов проекта снимок не старит: её видно только
+живой форме, и следующий показ снимет заново.
+
+Форму, которую ни разу не открывали, поставщик не строит: построить её значит поднять типы проекта и
+исполнить код его контролов в потоке интерфейса, а плитки спрашивают при каждой прокрутке. Её плитка
+остаётся значком до первого открытия.

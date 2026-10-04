@@ -46,7 +46,7 @@
 
   "settings.project.twoColumns": "Показывать окно проекта в две колонки",
   "settings.project.iconSize": "Размер значков в окне проекта, в точках: 0 — список, пусто — обычный",
-  "settings.project.previews": "Показывать превью изображений на плитках окна проекта",
+  "settings.project.previews": "Показывать превью на плитках окна проекта: изображения и снимки форм",
   "project.options": "Параметры окна",
   "project.layout.one": "Одна колонка",
   "project.layout.two": "Две колонки",
@@ -202,5 +202,6 @@
   "project.added": "Создано: {0}",
   "project.added.outside": "Создано: {0} — проект его не включает",
   "project.add.identifier": "Имя должно годиться именем типа C#: буквы, цифры и «_», не с цифры",
-  "project.add.keyword": "«{0}» — ключевое слово C#"
+  "project.add.keyword": "«{0}» — ключевое слово C#",
+  "project.preview.stale": "Превью старше файла: файл менялся после него"
 }

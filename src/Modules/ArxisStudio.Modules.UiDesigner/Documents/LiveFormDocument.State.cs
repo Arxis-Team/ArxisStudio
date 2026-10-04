@@ -89,6 +89,10 @@ internal sealed partial class LiveFormDocument
         {
             _applyingMode = false;
         }
+
+        // Холст снова виден: форма, сменившаяся под видом «XAML», снимается теперь — спрятанную не снять.
+        if (sheet)
+            QueueSnapshot();
     }
 
     /// <summary>Вид выбрали на полосе: он же — вид следующих вкладок, а клавиатура — тому, что видно.</summary>

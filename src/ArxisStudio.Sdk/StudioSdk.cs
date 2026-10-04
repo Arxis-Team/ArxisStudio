@@ -21,9 +21,16 @@ public static class StudioSdk
 {
     /// <summary>Версия контракта этой студии.</summary>
     /// <remarks>
+    /// 7.17 — превью файлов: служба <c>IStudioFilePreviews</c> сводит тех, кто показывает файлы плитками,
+    /// с теми, кто умеет их нарисовать. Поставщик (<c>IFilePreviewProvider</c>) отдаёт для своих расширений
+    /// закодированную картинку (<c>FilePreview</c>, с отметкой «старше файла») и говорит о новой
+    /// (<c>Invalidate</c> → <c>Changed</c> с <c>FilePreviewChangedEventArgs</c>). Младший номер: добавлено,
+    /// снятого нет.
+    /// <para>
     /// 7.16 — редактор разметки оборачивает несколько соседей одной обёрткой: <c>WrapElements</c> у
     /// <c>XamlDocumentEditor</c> и у <c>XamlDocument</c> — группировка выбранного, как «Group Into» у Blend.
     /// Младший номер: добавлено, снятого нет.
+    /// </para>
     /// <para>
     /// 7.15 — синтаксис разметки стал общим: <c>ArxisStudio.Markup</c> и <c>ArxisStudio.Markup.Xaml</c> —
     /// документ, его редактор, путь элемента, текст и диагностики — плагин берёт из основного контекста,
@@ -282,7 +289,7 @@ public static class StudioSdk
     /// 4.1 — добавлены теги манифеста (<c>tags</c>).
     /// </para>
     /// </remarks>
-    public const string Version = "7.16";
+    public const string Version = "7.17";
 
     /// <summary>
     /// Довольна ли эта версия SDK тем, что просит плагин.

@@ -46,7 +46,7 @@
 
   "settings.project.twoColumns": "Show the project window in two columns",
   "settings.project.iconSize": "Project window icon size in points: 0 — list, empty — default",
-  "settings.project.previews": "Show image previews on project window tiles",
+  "settings.project.previews": "Show previews on project window tiles: images and form snapshots",
   "project.options": "Window Options",
   "project.layout.one": "One Column",
   "project.layout.two": "Two Columns",
@@ -202,5 +202,6 @@
   "project.added": "Created: {0}",
   "project.added.outside": "Created: {0} — the project does not include it",
   "project.add.identifier": "The name must work as a C# type name: letters, digits and “_”, not starting with a digit",
-  "project.add.keyword": "“{0}” is a C# keyword"
+  "project.add.keyword": "“{0}” is a C# keyword",
+  "project.preview.stale": "The preview is older than the file: the file changed after it"
 }

@@ -88,6 +88,7 @@ internal sealed class Tile : INotifyPropertyChanged
             Raise(nameof(IsCut));
             Raise(nameof(ShowsPreview));
             Raise(nameof(ShowsSilhouette));
+            Raise(nameof(ShowsStale));
         }
     }
 
@@ -108,8 +109,31 @@ internal sealed class Tile : INotifyPropertyChanged
             Raise(nameof(Preview));
             Raise(nameof(ShowsPreview));
             Raise(nameof(ShowsSilhouette));
+            Raise(nameof(ShowsStale));
         }
     }
+
+    /// <summary>Превью старше файла: файл менялся после снимка.</summary>
+    /// <remarks>Ставит его колонка вместе с превью — отметку отдаёт поставщик, а не плитка.</remarks>
+    public bool IsPreviewStale
+    {
+        get;
+        set
+        {
+            if (field == value)
+                return;
+
+            field = value;
+            Raise(nameof(IsPreviewStale));
+            Raise(nameof(ShowsStale));
+        }
+    }
+
+    /// <summary>
+    /// Плитка отмечает превью устаревшим: узнаваемое старое лучше значка, но человек должен знать, что
+    /// оно старое.
+    /// </summary>
+    public bool ShowsStale => IsPreviewStale && ShowsPreview;
 
     /// <summary>Плитка рисует картинку: превью есть, и файл не вырезан.</summary>
     /// <remarks>

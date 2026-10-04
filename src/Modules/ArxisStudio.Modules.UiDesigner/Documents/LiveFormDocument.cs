@@ -95,6 +95,7 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
         _design = context.XamlDesign();
         _options = options;
         _path = path;
+        _snapshots = Snapshots.FormSnapshots.For(options);
         _view = new LiveFormView();
 
         // Размеченный режим: что на форме редактируется, говорит документ — объявленное им помечается
@@ -435,6 +436,7 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
 
         Mark();
         Reselect();
+        QueueSnapshot();
     }
 
     /// <summary>Ставит карточке приложение формы: его стили, ресурсы, шаблоны данных и тему.</summary>
@@ -456,6 +458,7 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
             _form.ApplicationRoot = application;
 
         Reselect();
+        QueueSnapshot();
     }
 
     /// <summary>Тема, к которой пришло бы приложение формы при работе.</summary>
@@ -547,6 +550,11 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
             Reselect();
         }
 
+        // Снимок отвечает файлу: снимается документ, сошедшийся с диском, — сохранённый или принятый
+        // снаружи, — а не каждая правка. Отметка сохранённого сдвигается при каждом таком схождении.
+        if ((changes & XamlDocumentChanges.Saved) != 0 && !document.IsModified)
+            QueueSnapshot();
+
         if ((changes & XamlDocumentChanges.Conflict) != 0)
             ShowConflict();
 
@@ -624,7 +632,13 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
         }
     }
 
-    private void OnAttached(object? sender, VisualTreeAttachmentEventArgs e) => Watch(TopLevel.GetTopLevel(_view) as Window);
+    private void OnAttached(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        Watch(TopLevel.GetTopLevel(_view) as Window);
+
+        // Вне окна вкладку не разложить и не снять: снимок, пропущенный тогда, снимается по возвращении.
+        QueueSnapshot();
+    }
 
     private void OnDetached(object? sender, VisualTreeAttachmentEventArgs e) => Watch(null);
 

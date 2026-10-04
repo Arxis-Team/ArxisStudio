@@ -24,9 +24,10 @@ internal sealed class LiveFormStudio : IAsyncDisposable
 
     /// <summary>Поднимает службы и окно.</summary>
     /// <param name="autoSave">Пауза автосохранения; по умолчанию по паузе форма не сохраняется.</param>
-    public LiveFormStudio(TimeSpan? autoSave = null)
+    /// <param name="snapshots">Папка снимков форм; по умолчанию снимки выключены, как всему процессу тестов.</param>
+    public LiveFormStudio(TimeSpan? autoSave = null, string? snapshots = null)
     {
-        Options = new UiDesignerOptions { AutoSaveDelay = autoSave ?? Timeout.InfiniteTimeSpan };
+        Options = new UiDesignerOptions { AutoSaveDelay = autoSave ?? Timeout.InfiniteTimeSpan, SnapshotsFolder = snapshots };
         Xaml = new XamlStudio(services: new Dictionary<Type, object> { [typeof(UiDesignerOptions)] = Options });
 
         Designer = Xaml.Host.LoadBuiltIn(typeof(UiDesignerModule).Assembly);

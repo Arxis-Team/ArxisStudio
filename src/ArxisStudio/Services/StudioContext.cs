@@ -92,6 +92,7 @@ internal sealed class PluginRestart(string pluginId, Action<string, string> requ
 /// <param name="toolbar">Полоса студии; null — состояние элементов менять негде.</param>
 /// <param name="dock">Док студии; null — панели на экран доставать нечем.</param>
 /// <param name="restart">Куда отдать просьбу плагина о перезапуске; null — просить некого.</param>
+/// <param name="previews">Превью файлов; null — превью у студии нет.</param>
 public sealed class StudioContextFactory(
     IStudioLog log,
     IStudioCommands commands,
@@ -104,7 +105,8 @@ public sealed class StudioContextFactory(
     StudioExportRegistry? exports = null,
     StudioToolBar? toolbar = null,
     StudioDock? dock = null,
-    Action<string, string>? restart = null)
+    Action<string, string>? restart = null,
+    StudioFilePreviews? previews = null)
     : IStudioContextFactory
 {
     private readonly StudioTaskRegistry _tasks = tasks ?? new StudioTaskRegistry();
@@ -172,7 +174,8 @@ public sealed class StudioContextFactory(
         // знать хозяина.
         var granted = services;
 
-        if (plugins is not null || exports is not null || toolbar is not null || dock is not null || restart is not null)
+        if (plugins is not null || exports is not null || toolbar is not null || dock is not null || restart is not null
+            || previews is not null)
         {
             var extended = services is null
                 ? new Dictionary<Type, object>()
@@ -193,6 +196,11 @@ public sealed class StudioContextFactory(
             // элементов, и чей это вызов, знает лишь тот, кто выдал контекст.
             if (toolbar is not null)
                 extended[typeof(IStudioToolBar)] = new PluginToolBar(toolbar, plugin.Id);
+
+            // Превью — именные: поставщик и подписка записываются на хозяина и
+            // снимаются с его выгрузкой, а держали бы его контекст загрузки.
+            if (previews is not null)
+                extended[typeof(IStudioFilePreviews)] = new PluginFilePreviews(previews, plugin.Id);
 
             // Док — тем более именной: имя панели в нём начинается с имени
             // плагина, и подставить его может только выдавший контекст.

@@ -3,6 +3,7 @@ using ArxisStudio.Controls;
 using ArxisStudio.Modules.Project.Browse;
 using ArxisStudio.Modules.Project.Model;
 using ArxisStudio.ProjectSystem;
+using ArxisStudio.Sdk;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -63,8 +64,15 @@ internal sealed class BrowserPane : IDisposable
     /// <param name="located">Колонка ушла в контейнер — дерево слева встаёт на него.</param>
     /// <param name="resized">Человек сменил ступень — её размер уходит в настройки.</param>
     /// <param name="copy">Положить текст в буфер обмена.</param>
+    /// <param name="files">Превью файлов студии; null — плитки показывают только картинки.</param>
     public BrowserPane(
-        ProjectPanelView view, ProjectModel model, ProjectMenu menu, Action<Node> located, Action<double> resized, Action<string> copy)
+        ProjectPanelView view,
+        ProjectModel model,
+        ProjectMenu menu,
+        Action<Node> located,
+        Action<double> resized,
+        Action<string> copy,
+        IStudioFilePreviews? files = null)
     {
         _view = view;
         _model = model;
@@ -87,7 +95,7 @@ internal sealed class BrowserPane : IDisposable
         _model.Browser.Items.CollectionChanged += OnItemsChanged;
         Stops();
 
-        _previews = new TilePreviews(view.Tiles, model.Browser);
+        _previews = new TilePreviews(view.Tiles, model.Browser, files);
 
         view.Path.Navigated += OnNavigated;
         view.Size.PropertyChanged += OnSizeChanged;

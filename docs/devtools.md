@@ -95,7 +95,7 @@ Claude Code подхватывает её сам — но только пока 
    `%AppData%/ArxisStudio/restart-<номер процесса>.json`
    ([`StudioSession`](../src/ArxisStudio/Services/StudioSession.cs)).
 2. Поднимает новую копию тем же исполняемым файлом с `--restore=<файл>` и `--after=<номер>`;
-   окружение наследуется — `ARXIS_LOCAL_HISTORY`, `ARXIS_SINGLE_INSTANCE`,
+   окружение наследуется — `ARXIS_LOCAL_HISTORY`, `ARXIS_PREVIEWS`, `ARXIS_SINGLE_INSTANCE`,
    `ARXIS_DEVTOOLS_MCP_PORT` переживают перезапуск. Под `dotnet ArxisStudio.dll` первым аргументом
    идёт сборка.
 3. Новая забирает файл раньше Avalonia и стирает прочитанное. Исчезновение файла и есть ответ:

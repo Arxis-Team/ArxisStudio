@@ -285,6 +285,21 @@
                   <a:Setter Property="Width" Value="{a:Binding $parent[AxListBox].(p:TileMetrics.Glyph)}"/>
                   <a:Setter Property="Height" Value="{a:Binding $parent[AxListBox].(p:TileMetrics.Glyph)}"/>
                 </a:Style>
+                <!--
+                    Отметка «превью старше файла» — значок в кружке на углу места под значок, как значки
+                    состояния на иконках проводника: угол один у всех плиток, какой бы формы ни была
+                    картинка. Нейтральная, а не акцентная: акцент на плитке — выбор, а старый снимок —
+                    сведение, а не тревога. Обводка отделяет кружок от светлой формы под ним.
+                -->
+                <a:Style Selector="a|Border.stale">
+                  <a:Setter Property="Background" Value="{a:DynamicResource AxSurfaceRaisedBrush}"/>
+                  <a:Setter Property="BorderBrush" Value="{a:DynamicResource AxStrokeControlBrush}"/>
+                  <a:Setter Property="BorderThickness" Value="{a:DynamicResource AxHairlineThickness}"/>
+                  <a:Setter Property="CornerRadius" Value="{a:DynamicResource AxCornerRadiusPill}"/>
+                </a:Style>
+                <a:Style Selector="a|Border.stale > AxIcon">
+                  <a:Setter Property="Foreground" Value="{a:DynamicResource AxTextSecondaryBrush}"/>
+                </a:Style>
                 <a:Style Selector="a|Border.plate">
                   <a:Setter Property="Width" Value="{a:Binding $parent[AxListBox].(p:TileMetrics.Plate)}"/>
                   <a:Setter Property="Height" Value="{a:Binding $parent[AxListBox].(p:TileMetrics.Plate)}"/>
@@ -361,6 +376,17 @@
                                  Stretch="Uniform" StretchDirection="DownOnly"
                                  a:RenderOptions.BitmapInterpolationMode="HighQuality"
                                  a:AutomationProperties.AccessibilityView="Raw"/>
+                        <!--
+                            Превью старше файла — снимок формы, снятый до правки снаружи. Показывается
+                            старое — узнаваемое лучше значка, — но с отметкой в углу: человек должен знать,
+                            что видит не нынешний файл.
+                        -->
+                        <a:Border Classes="stale" IsVisible="{a:Binding ShowsStale}"
+                                  HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                  a:ToolTip.Tip="{Text project.preview.stale}"
+                                  a:AutomationProperties.Name="{Text project.preview.stale}">
+                          <AxIcon Data="{x:Static ax:AxIcons.Refresh}"/>
+                        </a:Border>
                         <a:Border Classes="plate" IsVisible="{a:Binding IsPlate}"
                                   HorizontalAlignment="Center" VerticalAlignment="Center">
                           <AxIcon HorizontalAlignment="Center" VerticalAlignment="Center"

@@ -130,7 +130,7 @@ public sealed partial class ProjectPanel : ToolWindow
             _editing is null || Context.History() is null ? null : PutLabel,
             creating ? node => Creatable(newItems!, node) : null,
             creating ? Create : null));
-        _pane = new BrowserPane(_view, _model, _menu, Located, Resize, Copy);
+        _pane = new BrowserPane(_view, _model, _menu, Located, Resize, Copy, Context.GetService<IStudioFilePreviews>());
         _pane.Show(settings.IconSize, settings.Previews);
 
         Wire(_view, _model);

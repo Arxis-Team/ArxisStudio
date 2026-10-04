@@ -1,6 +1,7 @@
 using System.Collections.Specialized;
 using ArxisStudio.Controls;
 using ArxisStudio.Modules.Project.Browse;
+using ArxisStudio.Sdk;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media.Imaging;
@@ -25,12 +26,17 @@ namespace ArxisStudio.Modules.Project.Panels;
 /// редактор снова в фокусе. Слежения за содержимым папки здесь нет: перезапись картинки не даёт
 /// событий ни одному наблюдателю студии, а свой наблюдатель ради этого — лишний поток на каждое окно.
 /// </para>
+/// <para>
+/// Превью файла, которое рисует поставщик студии, сообщает о себе само (<see cref="IStudioFilePreviews.Changed"/>):
+/// дизайнер снял форму — плитка спрашивает её заново, не дожидаясь возвращения окна.
+/// </para>
 /// </remarks>
 internal sealed class TilePreviews : IDisposable
 {
     private readonly AxListBox _tiles;
     private readonly Browser _browser;
-    private readonly Previews _previews = new();
+    private readonly IStudioFilePreviews? _files;
+    private readonly Previews _previews;
 
     /// <summary>Плитки, чьё превью закреплено в службе: снимая превью, его отпускают.</summary>
     private readonly HashSet<Tile> _holding = [];
@@ -45,10 +51,16 @@ internal sealed class TilePreviews : IDisposable
     /// <summary>Заводит превью над списком плиток.</summary>
     /// <param name="tiles">Список плиток.</param>
     /// <param name="browser">Колонка, чьи предметы он показывает.</param>
-    public TilePreviews(AxListBox tiles, Browser browser)
+    /// <param name="files">Превью файлов студии; null — плитки показывают только картинки.</param>
+    public TilePreviews(AxListBox tiles, Browser browser, IStudioFilePreviews? files = null)
     {
         _tiles = tiles;
         _browser = browser;
+        _files = files;
+        _previews = new Previews(files);
+
+        if (files is not null)
+            files.Changed += OnPreviewChanged;
 
         _tiles.AddHandler(ScrollViewer.ScrollChangedEvent, OnScrollChanged);
         _tiles.AttachedToVisualTree += OnAttached;
@@ -104,6 +116,9 @@ internal sealed class TilePreviews : IDisposable
         _browser.Refreshed -= OnRefreshed;
         Watch(null);
 
+        if (_files is not null)
+            _files.Changed -= OnPreviewChanged;
+
         _enabled = false;
         Cancel();
         Drop(_holding.ToList());
@@ -148,6 +163,13 @@ internal sealed class TilePreviews : IDisposable
     private void OnActivated(object? sender, EventArgs e) => Schedule(true);
 
     private void OnRefreshed(object? sender, EventArgs e) => Schedule(true);
+
+    /// <summary>Поставщик сменил превью файла: следующий проход спросит его заново.</summary>
+    private void OnPreviewChanged(object? sender, FilePreviewChangedEventArgs e)
+    {
+        _previews.Invalidate(e.FilePath);
+        Schedule(true);
+    }
 
     private void OnItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
@@ -207,7 +229,7 @@ internal sealed class TilePreviews : IDisposable
 
         foreach (var tile in _browser.Items)
         {
-            if (!Previews.Decodes(tile.Node) || (tile.Preview is not null && !revalidate))
+            if (!_previews.Shows(tile.Node) || (tile.Preview is not null && !revalidate))
                 continue;
 
             if (_tiles.ContainerFromItem(tile) is not Control container
@@ -226,11 +248,11 @@ internal sealed class TilePreviews : IDisposable
 
     private async Task Fill(Tile tile, int pixels, CancellationToken token)
     {
-        Bitmap? bitmap;
+        Picture? picture;
 
         try
         {
-            bitmap = await _previews.RequestAsync(tile.Node.Path, pixels, token).ConfigureAwait(true);
+            picture = await _previews.RequestAsync(tile.Node.Path, pixels, token).ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {
@@ -240,7 +262,8 @@ internal sealed class TilePreviews : IDisposable
         if (token.IsCancellationRequested || !_enabled || !_browser.Items.Contains(tile))
             return;
 
-        Put(tile, bitmap);
+        Put(tile, picture?.Bitmap);
+        tile.IsPreviewStale = picture?.IsStale == true;
     }
 
     /// <summary>Ставит плитке превью, закрепив новое и отпустив прежнее.</summary>
@@ -273,6 +296,7 @@ internal sealed class TilePreviews : IDisposable
         foreach (var tile in tiles)
         {
             _holding.Remove(tile);
+            tile.IsPreviewStale = false;
 
             if (tile.Preview is not { } old)
                 continue;
