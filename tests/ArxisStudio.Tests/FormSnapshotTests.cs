@@ -4,6 +4,7 @@ using ArxisStudio.Modules.UiDesigner;
 using ArxisStudio.Modules.UiDesigner.Documents;
 using ArxisStudio.Modules.UiDesigner.Snapshots;
 using ArxisStudio.Sdk;
+using ArxisStudio.Xaml;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
@@ -190,11 +191,12 @@ public class FormSnapshotTests
     }
 
     /// <summary>
-    /// Форма, переписанная снаружи, пока вкладка открыта, снимается заново; закрытая — остаётся прежним
-    /// снимком с отметкой «старше файла»: узнаваемое старое лучше значка.
+    /// Форма, переписанная снаружи, пока вкладка открыта, снимается заново вкладкой; закрытая — сперва
+    /// отдаёт прежний снимок с отметкой «старше файла», узнаваемое старое лучше значка, — а потом её
+    /// переснимают в фоне.
     /// </summary>
     [AvaloniaFact]
-    public async Task A_form_rewritten_outside_is_snapshotted_while_open_and_marked_stale_when_closed()
+    public async Task A_form_rewritten_outside_is_snapshotted_by_its_tab_or_else_in_the_background()
     {
         var snapshots = TempFolder.Create("snapshots");
 
@@ -219,6 +221,257 @@ public class FormSnapshotTests
 
             Assert.True(stale!.IsStale, "форма менялась после снимка, а отметки нет");
             Assert.True(Picture.Of(stale).IsGreen(0, Picture.Of(stale).Height / 2), "устаревший снимок подменён");
+
+            var captures = Captures(studio);
+
+            await XamlStudio.UntilAsync(() => captures.Taken == 1, "закрытую форму не пересняли в фоне");
+
+            var fresh = await studio.Xaml.Previews.GetAsync(path, 128, Token);
+
+            Assert.False(fresh!.IsStale, "переснятая форма осталась с отметкой");
+            Assert.True(Picture.Of(fresh).IsRed(0, Picture.Of(fresh).Height / 2), "переснят не нынешний файл");
+        }
+        finally
+        {
+            TempFolder.Erase(snapshots);
+        }
+    }
+
+    /// <summary>
+    /// Форма, которую не открывали, снимается в фоне, как только её превью спросили: без вкладки, тем же
+    /// снимком, что у вкладки, — и документ после снимка отпущен.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_form_never_opened_is_snapshotted_in_the_background_once_its_preview_is_asked()
+    {
+        var snapshots = TempFolder.Create("snapshots");
+
+        try
+        {
+            await using var studio = new LiveFormStudio(snapshots: snapshots);
+            var path = studio.Xaml.Write("Halves.axaml", Halves).Value;
+            var heard = new List<string>();
+
+            studio.Xaml.Previews.Subscribe("test", (_, e) => heard.Add(e.FilePath));
+            await studio.Xaml.OpenAsync();
+
+            Assert.Null(await studio.Xaml.Previews.GetAsync(path, 128, Token));
+
+            await XamlStudio.UntilAsync(() => heard.Contains(path), "форму не сняли в фоне");
+
+            var preview = await studio.Xaml.Previews.GetAsync(path, 128, Token);
+            var picture = Picture.Of(preview!);
+
+            Assert.False(preview!.IsStale, "снимок только что снятой формы назван устаревшим");
+            Assert.Equal(new PixelSize(FormSnapshots.Pixels, FormSnapshots.Pixels / 2), picture.Size);
+            Assert.True(picture.IsRed(0, picture.Height / 2), $"левый край не красный: {picture.At(0, picture.Height / 2)}");
+            Assert.True(picture.IsBlue(picture.Width - 2, picture.Height / 2), $"правый край не синий: {picture.At(picture.Width - 2, picture.Height / 2)}");
+            Assert.Equal(1, Captures(studio).Taken);
+            Assert.Equal(0, studio.Xaml.Session.Leases);
+        }
+        finally
+        {
+            TempFolder.Erase(snapshots);
+        }
+    }
+
+    /// <summary>
+    /// Форма, снятая в фоне, стоит на фоне окна своего приложения, как во вкладке: приложение показ берёт
+    /// следом за корнем, и снимок его дожидается.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_form_snapshotted_in_the_background_wears_its_application()
+    {
+        var snapshots = TempFolder.Create("snapshots");
+
+        try
+        {
+            await using var studio = new LiveFormStudio(snapshots: snapshots);
+
+            studio.Xaml.Write("App.axaml", """
+                <Application xmlns="https://github.com/avaloniaui"
+                             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                  <Application.Resources>
+                    <ControlTheme x:Key="{x:Type Window}" TargetType="Window">
+                      <Setter Property="Background" Value="#FF336699" />
+                    </ControlTheme>
+                  </Application.Resources>
+                </Application>
+                """);
+
+            var path = studio.Xaml.Write(
+                "Half.axaml",
+                Halves.Replace("""<Rectangle x:Name="Right" """, """<Rectangle x:Name="Right" IsVisible="False" """, StringComparison.Ordinal)).Value;
+            var captures = Captures(studio);
+
+            await studio.Xaml.OpenAsync();
+
+            Assert.Null(await studio.Xaml.Previews.GetAsync(path, 128, Token));
+            await XamlStudio.UntilAsync(() => captures.Taken == 1, "форму с приложением не сняли в фоне");
+
+            var picture = Picture.Of((await studio.Xaml.Previews.GetAsync(path, 128, Token))!);
+
+            Assert.Equal(Color.Parse("#FF336699"), picture.At(picture.Width * 3 / 4, picture.Height / 2));
+            Assert.True(picture.IsRed(picture.Width / 4, picture.Height / 2), "форма легла под фон, а не на него");
+        }
+        finally
+        {
+            TempFolder.Erase(snapshots);
+        }
+    }
+
+    /// <summary>
+    /// В фоне снимаются только формы решения: приложение, словарь стилей и файл вне решения не снимаются,
+    /// и служба XAML ради них даже не поднимается.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Only_forms_of_the_solution_are_snapshotted_in_the_background()
+    {
+        var snapshots = TempFolder.Create("snapshots");
+
+        try
+        {
+            await using var studio = new LiveFormStudio(snapshots: snapshots);
+            var application = studio.Xaml.Write("App.axaml", """<Application xmlns="https://github.com/avaloniaui" />""").Value;
+            var styles = studio.Xaml.Write("Styles.axaml", """<Styles xmlns="https://github.com/avaloniaui" />""").Value;
+            var outside = Path.Combine(studio.Xaml.Root, "Elsewhere.axaml");
+
+            File.WriteAllText(outside, Halves);
+            await studio.Xaml.OpenAsync();
+
+            foreach (var file in new[] { application, styles, outside })
+                Assert.Null(await studio.Xaml.Previews.GetAsync(file, 128, Token));
+
+            var captures = Captures(studio);
+
+            await XamlStudio.UntilAsync(() => captures.Pumping.IsCompleted, "очередь снимков не опустела");
+
+            Assert.Equal(0, captures.Taken + captures.Failed);
+            Assert.Equal(XamlDesignState.Idle, studio.Xaml.Design.State);
+        }
+        finally
+        {
+            TempFolder.Erase(snapshots);
+        }
+    }
+
+    /// <summary>Настройка дизайнера выключает фоновые снимки: форму снимает только её вкладка.</summary>
+    [AvaloniaFact]
+    public async Task Background_snapshots_are_off_when_the_designer_is_told_so()
+    {
+        var snapshots = TempFolder.Create("snapshots");
+
+        try
+        {
+            await using var studio = new LiveFormStudio(snapshots: snapshots);
+            var path = studio.Xaml.Write("Halves.axaml", Halves).Value;
+
+            studio.Context.Settings.Set(UiDesignerModule.PreviewsKey, false);
+            await studio.Xaml.OpenAsync();
+
+            Assert.Null(await studio.Xaml.Previews.GetAsync(path, 128, Token));
+
+            var captures = Captures(studio);
+
+            await XamlStudio.UntilAsync(() => captures.Pumping.IsCompleted, "очередь снимков не опустела");
+
+            Assert.Equal(0, captures.Taken);
+            Assert.Equal(XamlDesignState.Idle, studio.Xaml.Design.State);
+        }
+        finally
+        {
+            TempFolder.Erase(snapshots);
+        }
+    }
+
+    /// <summary>
+    /// Вкладка, открытая, пока форму снимают в фоне, забирает показ: снимок бросает своё, а вкладка
+    /// встаёт живой — показ у документа один, и ждать его вкладке не приходится долго.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_tab_opened_while_its_form_is_snapshotted_takes_the_show()
+    {
+        var snapshots = TempFolder.Create("snapshots");
+        var held = new TaskCompletionSource();
+        var hold = new TaskCompletionSource();
+
+        try
+        {
+            await using var studio = new LiveFormStudio(snapshots: snapshots, snapshotShown: async token =>
+            {
+                held.TrySetResult();
+                await hold.Task.WaitAsync(token);
+            });
+            var path = studio.Xaml.Write("Halves.axaml", Halves).Value;
+
+            await studio.Xaml.OpenAsync();
+            Assert.Null(await studio.Xaml.Previews.GetAsync(path, 128, Token));
+
+            await XamlStudio.UntilAsync(() => held.Task.IsCompleted, "фоновый снимок не взял показ");
+
+            var (view, error) = await studio.Editor().OpenAsync(path);
+
+            Assert.Null(error);
+
+            var document = Assert.IsType<LiveFormDocument>(view);
+
+            try
+            {
+                studio.Window.Content = document.Content;
+                Dispatcher.UIThread.RunJobs();
+
+                // Предел — чтобы снимок, не отпустивший показ, уронил тест, а не повесил его.
+                await document.Opening.WaitAsync(TimeSpan.FromSeconds(30), Token);
+                await XamlStudio.UntilAsync(() => document.Form.Root is not null, "вкладка не взяла показ у снимка");
+
+                var captures = Captures(studio);
+
+                Assert.Equal(0, captures.Taken + captures.Failed);
+                Assert.False(captures.Capturing, "брошенный снимок держится");
+            }
+            finally
+            {
+                studio.Window.Content = null;
+                await document.DisposeAsync();
+            }
+        }
+        finally
+        {
+            TempFolder.Erase(snapshots);
+        }
+    }
+
+    /// <summary>
+    /// Форма, которая не встала, остаётся значком и не пробуется снова, пока её текст тот же; исправленная —
+    /// снимается.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_form_that_does_not_stand_is_not_tried_again_until_its_text_changes()
+    {
+        var snapshots = TempFolder.Create("snapshots");
+
+        try
+        {
+            await using var studio = new LiveFormStudio(snapshots: snapshots);
+            var broken = Halves.Replace("<Canvas>", "<Canvas><Nowhere />", StringComparison.Ordinal);
+            var path = studio.Xaml.Write("Halves.axaml", broken).Value;
+            var captures = Captures(studio);
+
+            await studio.Xaml.OpenAsync();
+
+            Assert.Null(await studio.Xaml.Previews.GetAsync(path, 128, Token));
+            await XamlStudio.UntilAsync(() => captures.Failed == 1 && captures.Pumping.IsCompleted, "сломанная форма не отказала");
+
+            Assert.Null(await studio.Xaml.Previews.GetAsync(path, 128, Token));
+            await XamlStudio.UntilAsync(() => captures.Pumping.IsCompleted, "очередь снимков не опустела");
+
+            Assert.Equal(1, captures.Failed);
+            Assert.Equal(0, captures.Taken);
+
+            studio.Xaml.Write("Halves.axaml", Halves);
+
+            Assert.Null(await studio.Xaml.Previews.GetAsync(path, 128, Token));
+            await XamlStudio.UntilAsync(() => captures.Taken == 1, "исправленную форму не сняли");
         }
         finally
         {
@@ -430,6 +683,10 @@ public class FormSnapshotTests
             await Task.Delay(10, Token);
         }
     }
+
+    /// <summary>Фоновая съёмка дизайнера студии теста.</summary>
+    private static FormCaptures Captures(LiveFormStudio studio) =>
+        FormCaptures.Of(studio.Context) ?? throw new InvalidOperationException("у дизайнера нет фоновой съёмки");
 
     private static XamlElement Named(XamlDocument document, string name) =>
         document.Root!.DescendantElements().Single(element => element.Identity == name);

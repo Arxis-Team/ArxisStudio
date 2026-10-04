@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using ArxisStudio.Modules.UiDesigner;
 using ArxisStudio.Modules.UiDesigner.Snapshots;
 using ArxisStudio.Sdk;
 using Avalonia.Controls;
@@ -37,7 +38,7 @@ public class FilePreviewsGuideTests
 
     /// <summary>
     /// Руководство называет то, что в коде: версию SDK, с которой API есть, размер снимка формы,
-    /// переменную среды его папки и файлы репозитория.
+    /// переменную среды его папки, настройку фоновой съёмки и файлы репозитория.
     /// </summary>
     [Fact]
     public void The_guide_names_what_the_code_really_has()
@@ -48,6 +49,7 @@ public class FilePreviewsGuideTests
         Assert.Contains($"SDK {asked}", Guide, StringComparison.Ordinal);
         Assert.Contains($"— {FormSnapshots.Pixels} точки", Guide, StringComparison.Ordinal);
         Assert.Contains($"`{FormSnapshots.EnvironmentVariable}`", Guide, StringComparison.Ordinal);
+        Assert.Contains($"`{UiDesignerModule.PreviewsKey}`", Guide, StringComparison.Ordinal);
 
         foreach (var link in Regex.Matches(Guide, @"\]\((?<path>[^)#:]+)\)").Select(match => match.Groups["path"].Value))
         {

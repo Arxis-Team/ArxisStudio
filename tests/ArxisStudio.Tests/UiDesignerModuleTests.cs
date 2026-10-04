@@ -40,8 +40,9 @@ public class UiDesignerModuleTests
         var tabs = settings.Single(setting => setting.Key == UiDesignerModule.TabsKey);
         var autoSave = settings.Single(setting => setting.Key == UiDesignerModule.AutoSaveKey);
         var view = settings.Single(setting => setting.Key == UiDesignerModule.ViewKey);
+        var previews = settings.Single(setting => setting.Key == UiDesignerModule.PreviewsKey);
 
-        Assert.Equal(4, settings.Count);
+        Assert.Equal(5, settings.Count);
         Assert.True(grid.IsBool, "сетка объявлена не переключателем");
         Assert.True(grid.Default is JsonElement { ValueKind: JsonValueKind.True }, "сетка по умолчанию выключена, а холст её рисует");
         Assert.True(tabs.IsBool, "режим объявлен не переключателем");
@@ -57,6 +58,10 @@ public class UiDesignerModuleTests
             && LiveFormDocument.ModeOf(text.GetString()) == LiveFormDocument.FormViewMode.Split
             && LiveFormDocument.NameOf(LiveFormDocument.FormViewMode.Split) == text.GetString(),
             "новая вкладка формы по умолчанию должна показывать холст и XAML под ним");
+        Assert.True(previews.IsBool, "фоновые снимки объявлены не переключателем");
+        Assert.True(
+            previews.Default is JsonElement { ValueKind: JsonValueKind.True },
+            "превью форм по умолчанию должны вставать и без открытия формы");
         Assert.All(settings, setting => Assert.False(setting.IsProject, $"{setting.Key} уехала бы с проектом, а это вкус человека"));
     }
 

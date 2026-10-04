@@ -68,14 +68,7 @@ internal sealed partial class LiveFormDocument
 
         _pictureWritten = written;
 
-        var snapshot = new FormSnapshot(
-            _path.Value,
-            FormSnapshots.Hash(document.Syntax.SourceText.ToString()),
-            shown.ApplicationFile.IsEmpty ? null : shown.ApplicationFile.Value,
-            null,
-            _form.ApplicationThemeVariant.ToString(),
-            (int)Math.Round(face.Bounds.Width),
-            (int)Math.Round(face.Bounds.Height));
+        var snapshot = FormSnapshots.Describe(_path.Value, document, shown, _form.ApplicationThemeVariant, face.Bounds.Size);
 
         Snapshotting = WriteSnapshotAsync(Snapshotting, snapshots, snapshot, picture);
     }

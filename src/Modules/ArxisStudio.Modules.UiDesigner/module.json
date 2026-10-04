@@ -21,7 +21,8 @@
       { "key": "ui-designer.grid", "type": "bool", "scope": "user", "title": "%settings.board.grid%", "default": true },
       { "key": "ui-designer.tabs", "type": "bool", "scope": "user", "title": "%settings.board.tabs%", "default": true },
       { "key": "ui-designer.autoSave", "type": "bool", "scope": "user", "title": "%settings.form.autoSave%", "default": true },
-      { "key": "ui-designer.view", "type": "string", "scope": "user", "title": "%settings.form.view%", "default": "split" }
+      { "key": "ui-designer.view", "type": "string", "scope": "user", "title": "%settings.form.view%", "default": "split" },
+      { "key": "ui-designer.previews", "type": "bool", "scope": "user", "title": "%settings.form.previews%", "default": true }
     ]
   },
   "activation": [ "onStartup" ]

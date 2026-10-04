@@ -25,9 +25,19 @@ internal sealed class LiveFormStudio : IAsyncDisposable
     /// <summary>Поднимает службы и окно.</summary>
     /// <param name="autoSave">Пауза автосохранения; по умолчанию по паузе форма не сохраняется.</param>
     /// <param name="snapshots">Папка снимков форм; по умолчанию снимки выключены, как всему процессу тестов.</param>
-    public LiveFormStudio(TimeSpan? autoSave = null, string? snapshots = null)
+    /// <param name="snapshotShown">Что ждёт фоновый снимок, взяв показ формы; по умолчанию ничего.</param>
+    public LiveFormStudio(TimeSpan? autoSave = null, string? snapshots = null, Func<CancellationToken, Task>? snapshotShown = null)
     {
-        Options = new UiDesignerOptions { AutoSaveDelay = autoSave ?? Timeout.InfiniteTimeSpan, SnapshotsFolder = snapshots };
+        // Фоновые снимки — без паузы после просьбы: в тесте плитки не листают, и ждать тишины незачем. Приложение
+        // у решения теста строится сразу, а у большинства его нет вовсе — долго его ждать незачем.
+        Options = new UiDesignerOptions
+        {
+            AutoSaveDelay = autoSave ?? Timeout.InfiniteTimeSpan,
+            SnapshotsFolder = snapshots,
+            SnapshotQuiet = TimeSpan.Zero,
+            SnapshotApplicationWait = TimeSpan.FromMilliseconds(500),
+            SnapshotShown = snapshotShown,
+        };
         Xaml = new XamlStudio(services: new Dictionary<Type, object> { [typeof(UiDesignerOptions)] = Options });
 
         Designer = Xaml.Host.LoadBuiltIn(typeof(UiDesignerModule).Assembly);

@@ -2,6 +2,9 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using ArxisStudio.Sdk;
+using ArxisStudio.Xaml;
+using Avalonia;
+using Avalonia.Styling;
 
 namespace ArxisStudio.Modules.UiDesigner.Snapshots;
 
@@ -69,6 +72,29 @@ internal sealed class FormSnapshots(string folder)
     /// <summary>Отпечаток текста: SHA-256 его UTF-8.</summary>
     /// <param name="text">Текст.</param>
     public static string Hash(string text) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
+
+    /// <summary>С чего снята форма, которую показывает показ: её текст, приложение, тема и размер.</summary>
+    /// <param name="formPath">Путь к форме.</param>
+    /// <param name="document">Документ формы.</param>
+    /// <param name="shown">Его показ.</param>
+    /// <param name="theme">Вариант темы, в котором снято.</param>
+    /// <param name="size">Размер снятой области в точках.</param>
+    /// <remarks>Одно на вкладку и фоновый снимок: сведения у обоих — об одном и том же.</remarks>
+    public static FormSnapshot Describe(string formPath, IXamlDocumentHandle document, IXamlDesignView shown, ThemeVariant theme, Size size)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(shown);
+        ArgumentNullException.ThrowIfNull(theme);
+
+        return new FormSnapshot(
+            formPath,
+            Hash(document.Syntax.SourceText.ToString()),
+            shown.ApplicationFile.IsEmpty ? null : shown.ApplicationFile.Value,
+            null,
+            theme.ToString(),
+            (int)Math.Round(size.Width),
+            (int)Math.Round(size.Height));
+    }
 
     /// <summary>Пишет снимок формы — в фоне.</summary>
     /// <param name="snapshot">С чего снято.</param>

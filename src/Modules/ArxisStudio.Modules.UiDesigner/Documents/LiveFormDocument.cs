@@ -56,6 +56,7 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
     private readonly SheetControls _controls;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly IDisposable? _participation;
+    private readonly Snapshots.FormClaim? _claim;
 
     private IXamlDocumentHandle? _document;
     private IXamlDesignView? _shown;
@@ -154,6 +155,9 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
 
         ApplyMode(ModeOf(context.Settings.Get<string>(UiDesignerModule.ViewKey)));
         ShowState();
+
+        // Показ у документа один: фоновый снимок этой формы его отпустит, а новых не будет, пока вкладка жива.
+        _claim = Snapshots.FormCaptures.Of(context)?.Claim(path.Value);
 
         Opening = OpenAsync();
     }
@@ -317,6 +321,8 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
             }
         }
 
+        // Заявка — последней: показ отпущен, и фоновый снимок формы его уже не встретит.
+        _claim?.Dispose();
         _lifetime.Dispose();
     }
 
@@ -384,6 +390,9 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
             ShowConflict();
             ShowState();
             _ = RefreshCodeAsync();
+
+            if (_claim is { } claim)
+                await claim.Released;
 
             var shown = await document.ShowAsync(this, _lifetime.Token);
 
@@ -465,9 +474,10 @@ internal sealed partial class LiveFormDocument : DocumentView, IXamlDesignPartic
     /// <remarks>
     /// Объявленную сторону приложение называет само — <c>RequestedThemeVariant</c> в <c>App.axaml</c>, — а
     /// «по умолчанию» при работе решает платформа, а не студия: тёмная студия — сведение о студии, а не о
-    /// проекте. Без приложения тему не знает никто, и карточка наследует студийную.
+    /// проекте. Без приложения тему не знает никто, и карточка наследует студийную. Ту же тему берёт и
+    /// фоновый снимок (<see cref="Snapshots.FormCaptures"/>): форма на плитке та же, что во вкладке.
     /// </remarks>
-    private static ThemeVariant VariantOf(Application application) =>
+    internal static ThemeVariant VariantOf(Application application) =>
         application.RequestedThemeVariant is { } requested && requested != ThemeVariant.Default
             ? requested
             : Application.Current?.PlatformSettings?.GetColorValues().ThemeVariant == PlatformThemeVariant.Dark
