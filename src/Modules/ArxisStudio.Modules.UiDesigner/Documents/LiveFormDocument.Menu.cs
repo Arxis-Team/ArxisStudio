@@ -14,7 +14,7 @@ internal sealed partial class LiveFormDocument
     private FormCommands? _commands;
     private FormMenu? _menu;
 
-    /// <summary>Правки строения выбранного, когда документ открыт: ими правят и панели.</summary>
+    /// <summary>Правки строения выбранного, когда документ открыт, — тестам.</summary>
     internal FormCommands? Commands => _commands;
 
     /// <summary>Идентификатор команды холста «вырезать».</summary>

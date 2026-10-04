@@ -3,7 +3,7 @@ using Avalonia.Input;
 namespace ArxisStudio.Modules.UiDesigner.Documents;
 
 /// <summary>
-/// Сочетания правок строения формы — одной таблицей для холста, иерархии и подписей меню.
+/// Сочетания правок строения формы — одной таблицей для клавиш холста и подписей меню.
 /// </summary>
 /// <remarks>
 /// Те же, что у окна проекта и у Visual Studio: Ctrl+X, Ctrl+C, Ctrl+V, Delete; Ctrl+D — дубликат, как у
@@ -24,7 +24,7 @@ internal static class FormKeys
     /// <summary>Поставить копию рядом.</summary>
     public static readonly KeyGesture Duplicate = new(Key.D, KeyModifiers.Control);
 
-    /// <summary>Удалить выбранное: на холсте его ловит ядро и просит удаления, в иерархии — панель.</summary>
+    /// <summary>Удалить выбранное: его ловит ядро холста и просит удаления.</summary>
     public static readonly KeyGesture Delete = new(Key.Delete);
 
     /// <summary>К родителю — Esc, как в дизайнерах Visual Studio.</summary>

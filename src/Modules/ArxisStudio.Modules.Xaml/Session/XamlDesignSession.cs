@@ -103,12 +103,6 @@ internal sealed class XamlDesignSession : IAsyncDisposable
     /// <summary>Хост поколения.</summary>
     public ProjectDesignHost Host { get; }
 
-    /// <summary>
-    /// Снимок профиля дизайна — тот, по которому работает хост: у его проектов свои идентичности, не
-    /// основного сеанса.
-    /// </summary>
-    public SolutionSnapshot? DesignSnapshot => _source.Snapshot;
-
     /// <summary>Служба.</summary>
     public XamlService Owner => _owner;
 

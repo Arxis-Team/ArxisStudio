@@ -1,7 +1,6 @@
 using ArxisStudio.Controls;
 using ArxisStudio.Markup.Xaml;
 using ArxisStudio.Modules.UiDesigner.Documents;
-using ArxisStudio.Modules.UiDesigner.Panels;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
@@ -12,8 +11,8 @@ using Xunit;
 namespace ArxisStudio.Tests;
 
 /// <summary>
-/// Правки строения формы: буфер обмена, дубликат, обёртка и её снятие — клавишами холста и иерархии и
-/// пунктами меню, одной правкой каждая.
+/// Правки строения формы: буфер обмена, дубликат, обёртка и её снятие — клавишами холста и пунктами
+/// меню, одной правкой каждая.
 /// </summary>
 [Collection(StudioStateCollection.Name)]
 public class DesignerStructureTests
@@ -430,38 +429,6 @@ public class DesignerStructureTests
 
         Dictionary<string, AxMenuItem> Rows(IReadOnlyList<Control> menu) =>
             menu.OfType<AxMenuItem>().ToDictionary(item => KeyOf(studio, (string)item.Header!));
-    }
-
-    /// <summary>
-    /// Иерархия правит теми же клавишами и тем же меню, что холст, — без пунктов, которых у неё нет.
-    /// </summary>
-    [AvaloniaFact]
-    public async Task The_hierarchy_copies_and_pastes_with_the_canvas_keys()
-    {
-        await using var studio = new LiveFormStudio();
-        var document = await studio.OpenAsync("MainWindow.axaml", Form);
-        var panel = studio.Panel<HierarchyPanel>();
-        var tree = panel.View!.Tree;
-
-        document.Select([Caption]);
-        LiveFormStudio.Frame();
-
-        LiveFormStudio.Press(tree, Key.C, KeyModifiers.Control);
-        await ClipboardAsync(studio, text => text.Contains("Caption", StringComparison.Ordinal));
-
-        LiveFormStudio.Press(tree, Key.V, KeyModifiers.Control);
-        await XamlStudio.UntilAsync(() => Count(document, "<TextBlock") == 2, "иерархия не вставила");
-
-        var copy = Layout.Resolve(document.Document!.Syntax)!.ContentElements.Last();
-
-        Assert.Equal("1", copy.GetAttribute("Grid.Row")?.GetValueText());
-        Assert.Null(copy.Identity);
-
-        var items = panel.MenuItems().OfType<AxMenuItem>().Select(item => KeyOf(studio, (string)item.Header!)).ToList();
-
-        Assert.Contains("form.menu.paste", items);
-        Assert.DoesNotContain("form.menu.frame", items);
-        Assert.DoesNotContain("form.menu.parent", items);
     }
 
     /// <summary>Ключ словаря по тексту пункта — меню подписано словарём модуля.</summary>

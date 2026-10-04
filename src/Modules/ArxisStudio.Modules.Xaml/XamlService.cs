@@ -31,7 +31,7 @@ namespace ArxisStudio.Modules.Xaml;
 /// слышит там же.
 /// </para>
 /// </remarks>
-internal sealed partial class XamlService : IStudioXamlDocuments, IStudioXamlDesign, IStudioXamlTypes
+internal sealed class XamlService : IStudioXamlDocuments, IStudioXamlDesign
 {
     private readonly IStudioContext _context;
     private readonly IStudioProjects? _projects;

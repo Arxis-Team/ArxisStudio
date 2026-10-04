@@ -1,17 +1,13 @@
 using ArxisStudio.Markup.Xaml;
 using ArxisStudio.Xaml;
+using Avalonia.Controls;
 
 namespace ArxisStudio.Modules.UiDesigner.Documents;
 
 /// <summary>
-/// Куда встаёт новое без точки — контрол палитры по Enter и вставка из буфера: место выбирает выбор формы,
-/// а не указатель.
+/// Куда встаёт вставленное из буфера: место выбирает выбор формы, а не указатель.
 /// </summary>
 /// <remarks>
-/// <para>
-/// Правило одно у обеих дорог: контрол, поставленный Enter, и вставленный встают в одно место, и человек,
-/// научившийся одному, не угадывает второе.
-/// </para>
 /// <para>
 /// Выбрана панель — в неё, в конец. Выбран не-панель — в ближайшую панель над ним, сразу после того его
 /// предка, что стоит в этой панели: рамка и кнопка держат одно содержимое, и второе стало бы ошибкой
@@ -27,7 +23,7 @@ internal static class FormLanding
 {
     /// <summary>Куда встанет новое.</summary>
     /// <param name="selection">Выбор формы, первый главный.</param>
-    /// <param name="shown">Показ формы: панель ли элемент, знает он.</param>
+    /// <param name="shown">Показ формы: панель ли элемент, знает его объект.</param>
     /// <param name="syntax">Текст формы.</param>
     /// <returns>Путь родителя и место среди его содержимого; null — встать некуда: корень держит одно содержимое, и оно занято.</returns>
     public static (XamlElementPath Parent, int Index)? For(
@@ -43,7 +39,7 @@ internal static class FormLanding
 
         if (primary is not null && !primary.Equals(XamlElementPath.Root) && primary.Resolve(syntax) is { } selected)
         {
-            if (shown.DescribeElement(primary) is { HoldsChildren: true })
+            if (IsPanel(shown, primary))
                 return (primary, selected.ContentElements.Count());
 
             for (var child = primary; child.Parent is { } parent; child = parent)
@@ -51,7 +47,7 @@ internal static class FormLanding
                 if (child.Steps[^1].MemberName is not null)
                     continue;
 
-                if (shown.DescribeElement(parent) is { HoldsChildren: true } && child.Resolve(syntax) is { IndexInContent: >= 0 } placed)
+                if (IsPanel(shown, parent) && child.Resolve(syntax) is { IndexInContent: >= 0 } placed)
                     return (parent, placed.IndexInContent + 1);
             }
         }
@@ -59,7 +55,7 @@ internal static class FormLanding
         if (syntax.Root is not { } root)
             return null;
 
-        if (shown.DescribeElement(XamlElementPath.Root) is { HoldsChildren: true })
+        if (IsPanel(shown, XamlElementPath.Root))
             return (XamlElementPath.Root, root.ContentElements.Count());
 
         var content = root.ContentElements.ToList();
@@ -67,7 +63,7 @@ internal static class FormLanding
         if (content.Count == 0)
             return (XamlElementPath.Root, 0);
 
-        if (content.Count == 1 && XamlElementPath.Of(content[0]) is { } inner && shown.DescribeElement(inner) is { HoldsChildren: true })
+        if (content.Count == 1 && XamlElementPath.Of(content[0]) is { } inner && IsPanel(shown, inner))
             return (inner, content[0].ContentElements.Count());
 
         return null;
@@ -80,6 +76,10 @@ internal static class FormLanding
     {
         ArgumentNullException.ThrowIfNull(shown);
 
-        return shown.DescribeElement(parent) is { HoldsChildren: true };
+        return IsPanel(shown, parent);
     }
+
+    /// <summary>Построил ли элемент панель: детей у неё может быть сколько угодно.</summary>
+    /// <remarks>Объект показа спрашивается и отпускается тут же: дольше вызова его не держат.</remarks>
+    private static bool IsPanel(IXamlDesignView shown, XamlElementPath path) => shown.ObjectAt(path) is Panel;
 }

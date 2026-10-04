@@ -16,6 +16,5 @@
   "module.xaml.alreadyShown": "{0} is shown already",
   "module.xaml.closed": "{0} is closed",
   "module.xaml.saveRefused": "{0} was not saved: {1}",
-  "module.xaml.swapHeld": "held by: {0}",
-  "module.xaml.valueRejected": "«{0}» does not read as {1}"
+  "module.xaml.swapHeld": "held by: {0}"
 }

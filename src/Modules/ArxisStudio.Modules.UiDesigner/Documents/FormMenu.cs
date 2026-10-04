@@ -8,14 +8,14 @@ using Avalonia.Input;
 
 namespace ArxisStudio.Modules.UiDesigner.Documents;
 
-/// <summary>Что умеет только холст: пункты, которых у иерархии нет.</summary>
+/// <summary>Что умеет холст сверх правок строения: выбрать родителя и вписать форму.</summary>
 /// <param name="CanSelectParent">Есть ли родитель у выбранного.</param>
 /// <param name="SelectParent">Выбрать родителя.</param>
 /// <param name="Frame">Показать форму целиком.</param>
 internal sealed record CanvasActions(bool CanSelectParent, Action SelectParent, Action Frame);
 
 /// <summary>
-/// Контекстное меню формы — у холста и у иерархии одно: правки строения выбранного.
+/// Контекстное меню холста формы: правки строения выбранного, выбор родителя и «вписать всё».
 /// </summary>
 /// <remarks>
 /// <para>
@@ -38,17 +38,18 @@ internal sealed class FormMenu(IStudioStrings strings)
     /// <summary>Пункты меню.</summary>
     /// <param name="commands">Правки формы.</param>
     /// <param name="owner">Где просили меню: у его окна берётся буфер обмена.</param>
-    /// <param name="canvas">Пункты холста; null — меню иерархии.</param>
+    /// <param name="canvas">Пункты холста.</param>
     /// <returns>Пункты и черты между группами.</returns>
-    public IReadOnlyList<Control> Items(FormCommands commands, Visual owner, CanvasActions? canvas)
+    public IReadOnlyList<Control> Items(FormCommands commands, Visual owner, CanvasActions canvas)
     {
         ArgumentNullException.ThrowIfNull(commands);
         ArgumentNullException.ThrowIfNull(owner);
+        ArgumentNullException.ThrowIfNull(canvas);
 
         var take = commands.CanTake;
 
-        var items = new List<Control>
-        {
+        return
+        [
             Item("form.menu.cut", FormKeys.Cut, take, () => _ = commands.CutAsync(owner)),
             Item("form.menu.copy", FormKeys.Copy, take, () => _ = commands.CopyAsync(owner)),
             Item("form.menu.paste", FormKeys.Paste, commands.CanPaste, () => _ = commands.PasteAsync(owner)),
@@ -57,16 +58,10 @@ internal sealed class FormMenu(IStudioStrings strings)
             new AxSeparator(),
             Wrap(commands),
             Item("form.menu.unwrap", null, commands.CanUnwrap, () => _ = commands.UnwrapAsync()),
-        };
-
-        if (canvas is not null)
-        {
-            items.Add(new AxSeparator());
-            items.Add(Item("form.menu.parent", FormKeys.Parent, canvas.CanSelectParent, canvas.SelectParent));
-            items.Add(Item("form.menu.frame", BoardMenu.FrameKey, enabled: true, canvas.Frame));
-        }
-
-        return items;
+            new AxSeparator(),
+            Item("form.menu.parent", FormKeys.Parent, canvas.CanSelectParent, canvas.SelectParent),
+            Item("form.menu.frame", BoardMenu.FrameKey, enabled: true, canvas.Frame),
+        ];
     }
 
     /// <summary>Показывает меню.</summary>
@@ -75,10 +70,9 @@ internal sealed class FormMenu(IStudioStrings strings)
     /// <param name="atPointer">Просили мышью: меню встаёт под указателем.</param>
     /// <param name="at">
     /// Просили клавишей — точка в координатах якоря, где меню встанет левым верхним углом: у выбранного, а
-    /// не у края холста. Null — под якорем, как у строки списка.
+    /// не у края холста. Null — под якорем.
     /// </param>
-    /// <param name="closed">Что сделать, когда меню закроется, — например, вернуть клавиатуру.</param>
-    public static void Show(Control anchor, IReadOnlyList<Control> items, bool atPointer, Point? at = null, Action? closed = null)
+    public static void Show(Control anchor, IReadOnlyList<Control> items, bool atPointer, Point? at = null)
     {
         ArgumentNullException.ThrowIfNull(anchor);
         ArgumentNullException.ThrowIfNull(items);
@@ -90,9 +84,6 @@ internal sealed class FormMenu(IStudioStrings strings)
 
         foreach (var item in items)
             flyout.Items.Add(item);
-
-        if (closed is not null)
-            flyout.Closed += (_, _) => closed();
 
         if (!atPointer && at is { } point)
         {

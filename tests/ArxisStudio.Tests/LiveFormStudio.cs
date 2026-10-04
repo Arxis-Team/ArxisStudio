@@ -21,9 +21,6 @@ namespace ArxisStudio.Tests;
 internal sealed class LiveFormStudio : IAsyncDisposable
 {
     private readonly List<LiveFormDocument> _opened = [];
-    private readonly List<ToolWindow> _panels = [];
-    private readonly DockPanel _host = new();
-    private Control? _shown;
 
     /// <summary>Поднимает службы и окно.</summary>
     /// <param name="autoSave">Пауза автосохранения; по умолчанию по паузе форма не сохраняется.</param>
@@ -36,7 +33,7 @@ internal sealed class LiveFormStudio : IAsyncDisposable
         Assert.True(Designer.IsLoaded, Designer.Error);
 
         Context = Designer.Studio!;
-        Window = new Window { Width = 1200, Height = 800, Content = _host };
+        Window = new Window { Width = 1200, Height = 800 };
         Window.Show();
         Dispatcher.UIThread.RunJobs();
     }
@@ -91,7 +88,8 @@ internal sealed class LiveFormStudio : IAsyncDisposable
         var document = Assert.IsType<LiveFormDocument>(view);
 
         _opened.Add(document);
-        Show(document);
+        Window.Content = document.Content;
+        Dispatcher.UIThread.RunJobs();
 
         await document.Opening;
         await XamlStudio.UntilAsync(() => document.Form.Root is not null, "форма не встала на холст");
@@ -99,46 +97,6 @@ internal sealed class LiveFormStudio : IAsyncDisposable
         Frame();
 
         return document;
-    }
-
-    /// <summary>
-    /// Ставит вкладку в окно вместо прежней и показывает её — как студия показывает документ: верстак
-    /// дизайнера узнаёт, какая форма впереди.
-    /// </summary>
-    public void Show(LiveFormDocument document)
-    {
-        if (_shown is not null)
-            _host.Children.Remove(_shown);
-
-        foreach (var other in _opened.Where(other => !ReferenceEquals(other, document)))
-            other.OnDeactivated();
-
-        _shown = document.Content;
-        _host.Children.Add(_shown);
-        document.OnActivated();
-        Dispatcher.UIThread.RunJobs();
-    }
-
-    /// <summary>
-    /// Поднимает панель модуля, как её поднимает студия, — подключает к контексту дизайнера и строит, — и
-    /// ставит слева от вкладки.
-    /// </summary>
-    public T Panel<T>()
-        where T : ToolWindow, new()
-    {
-        var panel = new T();
-
-        panel.Attach(Context);
-
-        var content = panel.Content;
-
-        content.Width = 320;
-        DockPanel.SetDock(content, Dock.Left);
-        _host.Children.Insert(0, content);
-        _panels.Add(panel);
-        Frame();
-
-        return panel;
     }
 
     /// <summary>Раскладка и кадр: холст выбирает только то, у чего уже есть рамка.</summary>
@@ -182,13 +140,9 @@ internal sealed class LiveFormStudio : IAsyncDisposable
     /// <remarks>Вкладки прощаются раньше служб — как в студии, где документы закрываются до модулей.</remarks>
     public async ValueTask DisposeAsync()
     {
-        foreach (var panel in _panels)
-            panel.Release();
-
         foreach (var document in _opened)
             await document.DisposeAsync();
 
-        _host.Children.Clear();
         Window.Content = null;
         Window.Close();
         await Xaml.DisposeAsync();

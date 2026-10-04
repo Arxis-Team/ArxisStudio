@@ -19,7 +19,7 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class UiDesignerModuleTests
 {
-    /// <summary>Объявленные панели есть в сборке, команда и настройки в коде — те же, что в манифесте.</summary>
+    /// <summary>Объявленная панель есть в сборке, команда и настройка в коде — те же, что в манифесте.</summary>
     [Fact]
     public void The_manifest_and_the_code_name_the_same_panel_command_and_setting()
     {
@@ -31,16 +31,8 @@ public class UiDesignerModuleTests
             .OfType<ToolWindowAttribute>()
             .Select(attribute => attribute.Id);
 
-        string[] panels =
-        [
-            UiDesignerModule.PanelId,
-            UiDesignerModule.HierarchyId,
-            UiDesignerModule.InspectorId,
-            UiDesignerModule.ToolboxId,
-        ];
-
-        Assert.Equal(panels.Order(), built.Order());
-        Assert.Equal(panels, manifest.Contributions.ToolWindows.Select(panel => panel.Id));
+        Assert.Equal([UiDesignerModule.PanelId], built);
+        Assert.Equal([UiDesignerModule.PanelId], manifest.Contributions.ToolWindows.Select(panel => panel.Id));
         Assert.Equal([UiDesignerModule.ShowCommand], manifest.Contributions.Commands.Select(command => command.Id));
 
         var settings = manifest.Contributions.Settings;
@@ -69,25 +61,15 @@ public class UiDesignerModuleTests
     }
 
     /// <summary>
-    /// Доска встаёт в область документов: холст — рабочее место, как Scene в Unity, а не боковая панель; панели
-    /// формы — по краям.
+    /// Доска встаёт в область документов: холст — рабочее место, как Scene в Unity, а не боковая панель.
     /// </summary>
     [Fact]
     public void The_board_asks_for_the_document_area()
     {
-        var panels = Manifest().Contributions.ToolWindows;
-        var board = Assert.Single(panels, panel => panel.Id == UiDesignerModule.PanelId);
+        var panel = Assert.Single(Manifest().Contributions.ToolWindows);
 
-        Assert.Equal("center", board.Wanted.Side);
-        Assert.False(string.IsNullOrWhiteSpace(board.Title), "у доски нет заголовка");
-
-        // Панели формы — по краям, как у Visual Studio и Blend: иерархия и палитра слева, вкладкой одна к
-        // другой, инспектор справа.
-        Assert.Equal("left", Assert.Single(panels, panel => panel.Id == UiDesignerModule.HierarchyId).Wanted.Side);
-        Assert.Equal("right", Assert.Single(panels, panel => panel.Id == UiDesignerModule.InspectorId).Wanted.Side);
-        Assert.Equal(
-            "arxis.ui-designer:" + UiDesignerModule.HierarchyId,
-            Assert.Single(panels, panel => panel.Id == UiDesignerModule.ToolboxId).Wanted.Near);
+        Assert.Equal("center", panel.Wanted.Side);
+        Assert.False(string.IsNullOrWhiteSpace(panel.Title), "у доски нет заголовка");
     }
 
     /// <summary>Команда показа выводит доску вперёд и отдаёт ей клавиатуру; модуль — в списке студии.</summary>

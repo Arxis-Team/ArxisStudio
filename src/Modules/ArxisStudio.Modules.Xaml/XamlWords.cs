@@ -55,10 +55,6 @@ internal sealed class XamlWords(IStudioStrings strings)
     /// <summary>Что держит замену.</summary>
     public string SwapHeld(string reasons) => Format("module.xaml.swapHeld", reasons);
 
-    /// <summary>Текст не читается значением члена.</summary>
-    public string ValueRejected(string text, string valueType) =>
-        string.Format(CultureInfo.CurrentCulture, strings["module.xaml.valueRejected"], text, valueType);
-
     private string Format(string key, string value) =>
         string.Format(CultureInfo.CurrentCulture, strings[key], value);
 }

@@ -6,13 +6,13 @@ using ArxisStudio.Xaml;
 namespace ArxisStudio.Modules.UiDesigner.Documents;
 
 /// <summary>
-/// Правки формы по путям элементов: удаление, перестановка, запись члена, вставка, отмена — то, что
-/// делают и жесты холста, и панели дизайнера.
+/// Правки формы по путям элементов: удаление, перестановка, размер и место, отмена — то, что делают жесты
+/// холста и правки строения.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Одна правка — один шаг истории документа.</b> Запись члена в три выбранных элемента — одна
-/// правка, и Ctrl+Z отменяет её целиком.
+/// <b>Одна правка — один шаг истории документа.</b> Удаление трёх выбранных элементов — одна правка,
+/// и Ctrl+Z отменяет её целиком.
 /// </para>
 /// <para>
 /// <b>Элементы — в правке.</b> Путь разрешается уже внутри правки, в тексте, каким его оставили правки
@@ -165,112 +165,11 @@ internal sealed partial class FormEdits
         }, moved);
     }
 
-    /// <summary>Переставляет элемент на одно место среди соседей — клавиатурная дорога вместо тяги.</summary>
-    /// <param name="path">Путь элемента.</param>
-    /// <param name="later">Позже, а не раньше.</param>
-    /// <returns>Было ли куда.</returns>
-    public bool MoveBy(XamlElementPath path, bool later)
-    {
-        ArgumentNullException.ThrowIfNull(path);
-
-        if (path.Resolve(_document.Syntax) is not { Parent: XamlElement parent } element)
-            return false;
-
-        var siblings = parent.ContentElements.ToList();
-        var index = siblings.IndexOf(element);
-
-        if (index < 0 || (later ? index >= siblings.Count - 1 : index == 0))
-            return false;
-
-        // Раньше — перед прежним соседом; позже — перед тем, кто за следующим, или в конец.
-        var anchor = later
-            ? index + 2 < siblings.Count ? XamlElementPath.Of(siblings[index + 2]) : null
-            : XamlElementPath.Of(siblings[index - 1]);
-
-        _ = MoveAsync(path, anchor);
-
-        return true;
-    }
-
-    /// <summary>
-    /// Пишет член в каждый элемент одной правкой; пустое значение снимает атрибут — член возвращается к
-    /// тому, что дадут стиль, наследование и умолчание.
-    /// </summary>
-    /// <param name="paths">Пути элементов.</param>
-    /// <param name="member">Член, как его пишет документ: <c>Width</c>, <c>Canvas.Left</c>, <c>x:Name</c>.</param>
-    /// <param name="value">Значение текстом; пусто — снять.</param>
-    public Task<bool> SetAsync(IReadOnlyList<XamlElementPath> paths, string member, string value)
-    {
-        ArgumentNullException.ThrowIfNull(paths);
-        ArgumentException.ThrowIfNullOrWhiteSpace(member);
-        ArgumentNullException.ThrowIfNull(value);
-
-        if (paths.Count == 0)
-            return Task.FromResult(false);
-
-        var target = paths.Count == 1 ? NameOf(paths[0]) : paths.Count.ToString(CultureInfo.CurrentCulture);
-        var label = value.Length == 0
-            ? string.Format(CultureInfo.CurrentCulture, _strings["form.edit.clear"], member, target)
-            : string.Format(CultureInfo.CurrentCulture, _strings["form.edit.set"], member, target);
-
-        return EditAsync(label, editor =>
-        {
-            foreach (var path in paths)
-            {
-                if (path.Resolve(editor.Document) is not { } element)
-                    continue;
-
-                if (string.Equals(member, NameDirective, StringComparison.Ordinal))
-                    Name(editor, element, value);
-                else if (path.Equals(XamlElementPath.Root) && member is "Width" or "Height")
-                    Size(editor, element, member, value);
-                else if (value.Length == 0)
-                    editor.RemoveAttribute(element, XamlQualifiedName.Parse(member));
-                else
-                    editor.SetAttribute(element, XamlQualifiedName.Parse(member), value);
-            }
-        }, select: null);
-    }
-
-    /// <summary>Вставляет разметку в содержимое родителя и выбирает вставленное.</summary>
-    /// <param name="parent">Путь родителя.</param>
-    /// <param name="index">Место среди элементов его содержимого; больше их числа — в конец.</param>
-    /// <param name="fragment">Разметка.</param>
-    /// <param name="name">Как назвать шаг истории: имя вставленного.</param>
-    /// <returns>Изменился ли текст.</returns>
-    /// <remarks>
-    /// Пространство, которого у корня нет, вставка объявит на нём сама. Вставленный элемент встаёт выбранным:
-    /// то, что поставили, — то, что дальше будут править.
-    /// </remarks>
-    public Task<bool> InsertAsync(XamlElementPath parent, int index, XamlFragment fragment, string name)
-    {
-        ArgumentNullException.ThrowIfNull(parent);
-        ArgumentNullException.ThrowIfNull(fragment);
-
-        var inserted = new List<XamlElementPath>(1);
-
-        return EditAsync(Format("form.edit.add", name), editor =>
-        {
-            if (parent.Resolve(editor.Document) is not { } container)
-                return;
-
-            var at = Math.Clamp(index, 0, container.ContentElements.Count());
-
-            editor.InsertFragment(container, at, fragment);
-            inserted.Add(XamlElementPath.Parse(string.Create(
-                CultureInfo.InvariantCulture,
-                $"{(parent.Steps.IsEmpty ? string.Empty : parent.ToString())}/{at}")));
-        }, inserted);
-    }
-
     /// <summary>Как назвать элемент в имени шага: тип, а с именем — тип и имя.</summary>
     public string NameOf(XamlElementPath path) =>
         path.Resolve(_document.Syntax) is { } element
             ? element.Identity is { Length: > 0 } name ? $"{element.Name.LocalName} «{name}»" : element.Name.LocalName
             : path.ToString();
-
-    /// <summary>Директива имени: так документ называет элемент для кода за разметкой.</summary>
-    public const string NameDirective = "x:Name";
 
     /// <summary>
     /// Размер корня пишется туда, откуда его берёт дизайнер.
@@ -318,20 +217,6 @@ internal sealed partial class FormEdits
         return XamlElementPath.Parse(last.MemberName is null
             ? string.Create(CultureInfo.InvariantCulture, $"{parent}/{index}")
             : string.Create(CultureInfo.InvariantCulture, $"{parent}/{last.MemberName}:{index}"));
-    }
-
-    /// <summary>
-    /// Имя пишется директивой под приставкой, которую документ дал пространству XAML, — объявленной на
-    /// корне, если её нет.
-    /// </summary>
-    private static void Name(XamlDocumentEditor editor, XamlElement element, string value)
-    {
-        var directive = editor.QualifyAttribute(element, XamlNamespaces.Xaml, "Name", "x");
-
-        if (value.Length == 0)
-            editor.RemoveAttribute(element, directive);
-        else
-            editor.SetAttribute(element, directive, value);
     }
 
     private string Format(string key, string value) =>

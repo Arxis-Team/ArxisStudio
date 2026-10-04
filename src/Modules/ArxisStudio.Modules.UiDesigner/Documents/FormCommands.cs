@@ -10,7 +10,7 @@ namespace ArxisStudio.Modules.UiDesigner.Documents;
 
 /// <summary>
 /// Правки строения выбранного — вырезать, копировать, вставить, дублировать, удалить, обернуть, снять
-/// обёртку: одной дорогой у клавиш холста, у клавиш иерархии и у пунктов меню.
+/// обёртку: одной дорогой у клавиш холста и у пунктов его меню.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -23,15 +23,12 @@ namespace ArxisStudio.Modules.UiDesigner.Documents;
 /// Своего буфера у дизайнера нет — два буфера разошлись бы.
 /// </para>
 /// <para>
-/// <b>Место вставки</b> — правило палитры (<see cref="FormLanding"/>): в выбранную панель или после
-/// выбранного. Несколько элементов встают только туда, где мест сколько угодно, — в рамку встанет один.
+/// <b>Место вставки</b> — <see cref="FormLanding"/>: в выбранную панель или после выбранного. Несколько
+/// элементов встают только туда, где мест сколько угодно, — в рамку встанет один.
 /// </para>
 /// </remarks>
 internal sealed class FormCommands
 {
-    /// <summary>Сочетания, которые правки берут сами: Delete на холсте ловит ядро, в иерархии — панель.</summary>
-    private static readonly KeyGesture[] Gestures = [FormKeys.Copy, FormKeys.Cut, FormKeys.Paste, FormKeys.Duplicate];
-
     /// <summary>Пустой набор членов: месту в раскладке нечего читать.</summary>
     private static readonly IReadOnlySet<string> NoSlots = new HashSet<string>(StringComparer.Ordinal);
 
@@ -84,24 +81,6 @@ internal sealed class FormCommands
     private IReadOnlyList<XamlElementPath> Selection => _form.Selection;
 
     private XamlDocument? Syntax => _form.Document?.Syntax;
-
-    /// <summary>Делает правку, если нажато её сочетание и ей есть что делать.</summary>
-    /// <param name="e">Нажатие.</param>
-    /// <param name="owner">Где нажали: у его окна берётся буфер обмена.</param>
-    /// <returns>Взята ли клавиша.</returns>
-    public bool Press(KeyEventArgs e, Visual owner)
-    {
-        ArgumentNullException.ThrowIfNull(e);
-        ArgumentNullException.ThrowIfNull(owner);
-
-        foreach (var gesture in Gestures)
-        {
-            if (e.Is(gesture))
-                return Run(gesture, owner);
-        }
-
-        return false;
-    }
 
     /// <summary>Делает правку сочетания, если ей есть что делать.</summary>
     /// <param name="gesture">Сочетание из <see cref="FormKeys"/>.</param>
@@ -159,7 +138,7 @@ internal sealed class FormCommands
         return true;
     }
 
-    /// <summary>Вставляет разметку из буфера туда, куда встал бы контрол палитры, и выбирает вставленное.</summary>
+    /// <summary>Вставляет разметку из буфера в выбранную панель или после выбранного и выбирает вставленное.</summary>
     /// <param name="owner">Чьё окно даёт буфер.</param>
     /// <returns>Изменился ли текст формы.</returns>
     public async Task<bool> PasteAsync(Visual owner)
@@ -272,31 +251,37 @@ internal sealed class FormCommands
         _form.Shown is { } shown && Syntax is { } syntax ? FormLanding.For(Selection, shown, syntax) : null;
 
     /// <summary>
-    /// Члены, которыми родитель ставит элемент: присоединённые, которые объявил его тип, — <c>Grid.Row</c> у
-    /// ребёнка сетки, <c>Canvas.Left</c> у ребёнка <c>Canvas</c>.
+    /// Члены, которыми родитель ставит элемент: присоединённые, чей владелец — тип родителя или его база, —
+    /// <c>Grid.Row</c> у ребёнка сетки и у ребёнка её наследника, <c>Canvas.Left</c> у ребёнка <c>Canvas</c>.
     /// </summary>
     /// <remarks>
-    /// Спрашиваются у показа: он знает, какие присоединённые члены у элемента есть и чьи они. Без показа —
-    /// по виду имени: владелец — тот тип, которым документ написал родителя.
+    /// Тип родителя знает показ — объектом, построенным из элемента; в ответ уходят только имена типов, и
+    /// объект поколения дольше вызова не держится. Без показа — по виду имени: владелец — тот тип, которым
+    /// документ написал родителя.
     /// </remarks>
     private IReadOnlySet<string> SlotsOf(XamlElement element)
     {
-        var path = XamlElementPath.Of(element);
+        if (element.Parent is not XamlElement parent)
+            return NoSlots;
 
-        if (_form.Shown is { } shown && shown.DescribeElement(path) is { ParentTypeName: { } parentType })
+        var owners = _form.Shown?.ObjectAt(XamlElementPath.Of(parent)) is { } live
+            ? TypeNames(live.GetType())
+            : new HashSet<string>(StringComparer.Ordinal) { parent.Name.LocalName };
+
+        return element.Attributes
+            .Select(static attribute => attribute.Name.LocalName)
+            .Where(name => name.IndexOf('.', StringComparison.Ordinal) is var dot and > 0 && owners.Contains(name[..dot]))
+            .ToHashSet(StringComparer.Ordinal);
+
+        static HashSet<string> TypeNames(Type? type)
         {
-            return shown.GetMembers(path)
-                .Where(row => row.IsAttached && string.Equals(row.OwnerTypeName, parentType, StringComparison.Ordinal))
-                .Select(static row => row.Name)
-                .ToHashSet(StringComparer.Ordinal);
-        }
+            var names = new HashSet<string>(StringComparer.Ordinal);
 
-        return element.Parent is XamlElement parent
-            ? element.Attributes
-                .Select(static attribute => attribute.Name.LocalName)
-                .Where(name => name.StartsWith(parent.Name.LocalName + ".", StringComparison.Ordinal))
-                .ToHashSet(StringComparer.Ordinal)
-            : NoSlots;
+            for (; type is not null; type = type.BaseType)
+                names.Add(type.Name);
+
+            return names;
+        }
     }
 
     /// <summary>Кладёт разметку выбранного в буфер обмена окна.</summary>

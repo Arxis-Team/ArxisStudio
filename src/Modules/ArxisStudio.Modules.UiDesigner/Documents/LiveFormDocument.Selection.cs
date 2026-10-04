@@ -27,28 +27,16 @@ internal sealed partial class LiveFormDocument
     internal XamlDocument? Code => _code;
 
     /// <summary>
-    /// Выбирает элементы — по просьбе панели или после правки, сдвинувшей пути: выбрать надо то, что она
-    /// оставила.
+    /// Выбирает элементы — после правки, сдвинувшей пути: выбрать надо то, что она оставила; и тестам.
     /// </summary>
     /// <param name="paths">Пути в нынешнем тексте, первый главный.</param>
     internal void Select(IReadOnlyList<XamlElementPath> paths)
     {
         ArgumentNullException.ThrowIfNull(paths);
 
-        SetSelection([.. paths.Distinct()]);
+        _selection = [.. paths.Distinct()];
         ShowSelectionInCode(reveal: true);
         Reselect();
-    }
-
-    /// <summary>Ставит выбор; сменился — говорит верстаку, и панели показывают его.</summary>
-    private void SetSelection(List<XamlElementPath> paths)
-    {
-        var same = paths.SequenceEqual(_selection);
-
-        _selection = paths;
-
-        if (!same)
-            _bench.Selected(this);
     }
 
     /// <summary>
@@ -77,9 +65,8 @@ internal sealed partial class LiveFormDocument
 
     /// <summary>Ставит выбор холста по путям; путь, которого в тексте больше нет, уступает родителю.</summary>
     /// <remarks>
-    /// Клавиатура остаётся там, где работает человек: выбор, сделанный в иерархии, в XAML или правкой из
-    /// панели, холст только показывает. Взятая холстом, она уходила бы из дерева после каждой стрелки, из
-    /// кода — после каждого щелчка, а из открытого меню иерархии — раньше, чем человек его увидит.
+    /// Клавиатура остаётся там, где работает человек: выбор, сделанный в XAML или правкой, холст только
+    /// показывает. Взятая холстом, она уходила бы из кода после каждого щелчка.
     /// </remarks>
     private void SelectOnSheet()
     {
@@ -89,7 +76,7 @@ internal sealed partial class LiveFormDocument
         var paths = Resolved(document.Syntax);
         var targets = paths.Select(path => TargetOf(shown, path)).OfType<Control>().Distinct().ToList();
 
-        SetSelection(paths);
+        _selection = paths;
 
         if (!SameAsSheet(targets))
         {
@@ -172,7 +159,7 @@ internal sealed partial class LiveFormDocument
 
         if (primary.Equals(XamlElementPath.Root))
         {
-            SetSelection([]);
+            _selection = [];
 
             using (Syncing())
                 _view.Sheet.SelectedItems?.Clear();
@@ -182,7 +169,7 @@ internal sealed partial class LiveFormDocument
             return true;
         }
 
-        SetSelection([primary.Parent ?? XamlElementPath.Root]);
+        _selection = [primary.Parent ?? XamlElementPath.Root];
         SelectOnSheet();
         ShowSelectionInCode(reveal: true);
 
@@ -195,7 +182,7 @@ internal sealed partial class LiveFormDocument
         if (_syncing > 0 || _reselecting || _frozen is not null)
             return;
 
-        SetSelection([.. e.NewTargets.Select(target => PathOfTarget(target.Target)).OfType<XamlElementPath>().Distinct()]);
+        _selection = [.. e.NewTargets.Select(target => PathOfTarget(target.Target)).OfType<XamlElementPath>().Distinct()];
         ShowSelectionInCode(reveal: true);
     }
 
@@ -205,7 +192,7 @@ internal sealed partial class LiveFormDocument
         if (_code is not { } syntax || XamlHighlighter.ElementAt(syntax, e.Offset) is not { } element)
             return;
 
-        SetSelection([XamlElementPath.Of(element)]);
+        _selection = [XamlElementPath.Of(element)];
         _view.Code.Highlight = new AxCodeRange(element.Span.Start, element.Span.Length);
         SelectOnSheet();
     }
