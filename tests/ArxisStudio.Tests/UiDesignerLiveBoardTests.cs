@@ -263,6 +263,70 @@ public class UiDesignerLiveBoardTests
     }
 
     /// <summary>
+    /// Текст формы ещё в пути — роли считаются вне потока интерфейса, — а рядом встаёт вторая форма, и работать
+    /// становится не с чем: пришедший текст под доской не встаёт, а XAML потом идёт за выбором, как прежде.
+    /// </summary>
+    /// <remarks>
+    /// На подъёме доски гонка выглядела так: формы встают по одной, первая на миг единственная, и её текст,
+    /// подсвеченный под нагрузкой дольше обычного, вставал, когда рядом уже стояла вторая. Здесь вторая форма
+    /// встаёт, вернувшись на доску, а текст в пути держит шов, а не нагрузка.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task The_xaml_on_its_way_does_not_land_once_the_form_is_no_longer_worked_on()
+    {
+        var parking = false;
+        var parked = new TaskCompletionSource();
+        var park = new TaskCompletionSource();
+
+        await using var studio = new LiveFormStudio(codeHighlighted: async token =>
+        {
+            if (!parking)
+                return;
+
+            parking = false;
+            parked.TrySetResult();
+            await park.Task.WaitAsync(token);
+        });
+        var board = await studio.OpenBoardAsync(("MainWindow.axaml", Main), ("Badge.axaml", Badge));
+        var view = board.View!;
+        var canvas = board.Canvas!;
+        var badge = Card(board, "Badge.axaml");
+
+        try
+        {
+            // Значок уходит с доски, и окно остаётся единственным — с ним и работают: его текст пускается в путь.
+            parking = true;
+            board.Model!.Remove([badge]);
+
+            await XamlStudio.UntilAsync(() => parked.Task.IsCompleted, "текст окна не пошёл в путь");
+
+            Assert.Equal("MainWindow.axaml", canvas.Active?.Session.Path.FileName);
+
+            // Пока он в пути, значок возвращается: форм снова две, и работать не с чем.
+            board.Model.Return([badge.Path]);
+            LiveFormStudio.Frame();
+
+            Assert.True(board.Forms!.IsLive(Card(board, "Badge.axaml")), "вернувшийся значок не встал живым");
+            Assert.Null(canvas.Active);
+
+            park.TrySetResult();
+            LiveFormStudio.Frame();
+
+            Assert.Null(canvas.Code);
+            Assert.Equal(string.Empty, view.Code.Text ?? string.Empty);
+            Assert.True(view.CodeHint.IsVisible, "без формы, с которой работают, подсказки нет");
+
+            Assert.True(view.Sheet.SelectTarget(Go(board)));
+
+            await XamlStudio.UntilAsync(() => view.Code.Text == Main, "XAML формы с выбранным не показан");
+        }
+        finally
+        {
+            park.TrySetResult();
+        }
+    }
+
+    /// <summary>
     /// Форма, убранная с доски, уносит с собой и свой XAML: работать с ней больше нельзя, хотя её сессия
     /// ещё ждёт, не вернут ли форму. Под доской — текст той, с которой работают теперь: здесь оставшейся
     /// единственной.
@@ -361,6 +425,54 @@ public class UiDesignerLiveBoardTests
             LiveFormStudio.Frame();
 
             Assert.Same(item, Assert.Single(view.Sheet.SelectedTargets).Target);
+        }
+        finally
+        {
+            await CloseAsync(tab, place);
+        }
+    }
+
+    /// <summary>
+    /// Esc снимает выбор с карточки формы, которая ещё не встала живой, — и XAML снова у формы, с которой
+    /// работают: под её именем её текст, а не пустой просмотр.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Esc_off_a_form_not_yet_live_brings_back_the_xaml_of_the_form_worked_on()
+    {
+        await using var studio = new LiveFormStudio(hideDelay: TimeSpan.Zero);
+        var board = await studio.OpenBoardAsync(("MainWindow.axaml", Main), ("Badge.axaml", Badge));
+        var view = board.View!;
+        var badge = Card(board, "Badge.axaml");
+
+        // Значок уходит с доски вместе с сессией и возвращается снимком: его держит вкладка на экране рядом.
+        board.Model!.Remove([badge]);
+
+        await XamlStudio.UntilAsync(() => board.Forms!.SessionOf(badge) is null, "сессия убранного значка осталась");
+
+        var (tab, place) = await BesideAsync(studio, board, badge);
+
+        try
+        {
+            board.Model.Return([badge.Path]);
+            LiveFormStudio.Frame();
+            board.Sight!.Update();
+            LiveFormStudio.Frame();
+
+            // Живая на доске одна — окно: с ним и работают.
+            await XamlStudio.UntilAsync(() => view.Code.Text == Main, "XAML единственной живой формы не показан");
+
+            Assert.True(view.Sheet.SelectTarget(Item(board, Card(board, "Badge.axaml"))), "карточку значка не выбрать");
+            Assert.True(view.CodeHint.IsVisible, "выбрана карточка значка, а XAML показывает окно");
+
+            view.Sheet.Focus();
+            LiveFormStudio.Press(view.Sheet, Key.Escape);
+
+            Assert.Empty(view.Sheet.SelectedTargets);
+
+            await XamlStudio.UntilAsync(() => view.Code.Text == Main, "после Esc под именем окна пустой просмотр");
+
+            Assert.Equal("MainWindow.axaml", view.CodeOf.Text);
+            Assert.True(view.Code.IsVisible, "текст окна не показан");
         }
         finally
         {

@@ -64,6 +64,7 @@ internal interface IFormCanvasHost
 internal sealed partial class FormCanvas : IXamlDesignParticipant, IXamlRootLender, IDisposable
 {
     private readonly IFormCanvasHost _host;
+    private readonly UiDesignerOptions _options;
     private readonly IStudioXamlDesign? _design;
     private readonly FormSnapshots? _snapshots;
     private readonly FormGestures _gestures;
@@ -93,6 +94,7 @@ internal sealed partial class FormCanvas : IXamlDesignParticipant, IXamlRootLend
         Sheet = sheet;
         _code = code;
         _host = host;
+        _options = options;
         _design = context.XamlDesign();
         _snapshots = FormSnapshots.For(options);
 
