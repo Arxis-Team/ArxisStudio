@@ -442,6 +442,60 @@ public class FormSnapshotTests
     }
 
     /// <summary>
+    /// Вкладка, ушедшая с экрана, держит форму и от фоновой съёмки: та снимает формы, которых не держит никто, а
+    /// вкладка, вернувшись, находит свою форму той же, а не построенной заново.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_tab_off_screen_keeps_its_form_from_the_background_snapshot()
+    {
+        var snapshots = TempFolder.Create("snapshots");
+
+        try
+        {
+            await using var studio = new LiveFormStudio(snapshots: snapshots);
+            var other = studio.Xaml.Write("Other.axaml", Halves).Value;
+            var path = studio.Xaml.PathOf("Halves.axaml").Value;
+            var document = await studio.OpenAsync("Halves.axaml", Halves);
+
+            await SnapshotAsync(studio, document, path);
+
+            var shown = document.Shown;
+
+            studio.Window.Content = null;
+            LiveFormStudio.Frame();
+
+            // Файл переписан снаружи, пока вкладки нет на экране: её снимок старше файла, а снять форму вне окна
+            // нельзя.
+            studio.Xaml.Write("Halves.axaml", Halves.Replace("#FFFF0000", "#FF00FF00", StringComparison.Ordinal));
+
+            await XamlStudio.UntilAsync(
+                () => document.Document!.Syntax.SourceText.ToString().Contains("#FF00FF00", StringComparison.Ordinal),
+                "вкладка не приняла текст с диска");
+
+            var captures = Captures(studio);
+
+            Assert.True((await studio.Xaml.Previews.GetAsync(path, 128, Token))!.IsStale, "снимок формы вкладки не устарел");
+            Assert.Null(await studio.Xaml.Previews.GetAsync(other, 128, Token));
+
+            await XamlStudio.UntilAsync(() => captures.Taken > 0, "свободную форму не сняли в фоне");
+            await captures.Pumping;
+
+            Assert.Equal(1, captures.Taken);
+            Assert.True((await studio.Xaml.Previews.GetAsync(path, 128, Token))!.IsStale, "форму вкладки сняли в фоне");
+            Assert.Same(shown, document.Shown);
+
+            studio.Window.Content = document.Content;
+            LiveFormStudio.Frame();
+
+            Assert.Same(shown, document.Shown);
+        }
+        finally
+        {
+            TempFolder.Erase(snapshots);
+        }
+    }
+
+    /// <summary>
     /// Форма, которая не встала, остаётся значком и не пробуется снова, пока её текст тот же; исправленная —
     /// снимается.
     /// </summary>

@@ -57,9 +57,19 @@ internal enum FormChanges
 /// — а сессия держит документ и даёт показ, когда его просят: вкладка — сразу, доска — пока форма на виду.
 /// </para>
 /// <para>
-/// <b>Показ у документа один</b>, и делят его по старшинству (<see cref="FormShows"/>): вкладка забирает
-/// форму у доски и у фонового снимка, доска — у снимка. Сессия, которую попросили уступить, отпускает показ
-/// сама (<see cref="Hide"/>), а документ и его историю держит дальше.
+/// <b>Показ у документа один</b>, и делят его по старшинству (<see cref="FormShows"/>): вкладка на экране
+/// забирает форму у доски и у фонового снимка, доска — у снимка и у вкладки, ушедшей с экрана. Сессия, которую
+/// попросили уступить, отпускает показ сама (<see cref="Hide"/>), а документ и его историю держит дальше.
+/// </para>
+/// <para>
+/// <b>Показы идут по одному.</b> Служба занимает показ документа сразу, ещё не дождавшись его, и второй,
+/// начатый раньше, чем кончился первый, она не даст. Поэтому заявка, под которой показ ещё идёт, уходит вместе
+/// с ним (<see cref="FormHold.Yielding"/>), а новая — своей сессии или чужой — ждёт уходящих.
+/// </para>
+/// <para>
+/// <b>Форма встаёт одетой.</b> Приложение формы служба строит на каждый показ и отдаёт после корня. Если к
+/// прежнему показу оно приходило, новый ждёт его (<see cref="UiDesignerOptions.ShowApplicationWait"/>) и отдаёт
+/// корень вместе с ним: форма, перешедшая со вкладки на доску и назад, не стоит на миг без своих стилей.
 /// </para>
 /// <para>
 /// <b>Сохраняет сама</b>, как IntelliJ: после паузы в правках (<see cref="UiDesignerOptions.AutoSaveDelay"/>),
@@ -74,19 +84,20 @@ internal sealed class FormSession : IAsyncDisposable
     private readonly IStudioXamlDocuments _documents;
     private readonly UiDesignerOptions _options;
     private readonly IXamlRootLender _lender;
-    private readonly FormShowRank _rank;
     private readonly CancellationTokenSource _lifetime = new();
 
+    private FormShowRank _rank;
     private FormHold? _hold;
+    private FormHold? _showingUnder;
     private IXamlDocumentHandle? _document;
     private IXamlDesignView? _shown;
     private FormEdits? _edits;
     private Task? _opening;
     private Task? _showing;
+    private TaskCompletionSource? _dressing;
     private ITimer? _autoSave;
     private string? _saveFailure;
     private int _showTurn;
-    private int _showsInFlight;
     private bool _disposed;
 
     /// <summary>Заводит сессию формы; документ берётся по <see cref="OpenAsync"/>.</summary>
@@ -95,7 +106,7 @@ internal sealed class FormSession : IAsyncDisposable
     /// <param name="path">Файл формы.</param>
     /// <param name="options">Часы и паузы.</param>
     /// <param name="lender">Кто одалживает корень показа на время записи сессии разметки.</param>
-    /// <param name="rank">Кто показывает форму: вкладка или доска.</param>
+    /// <param name="rank">Кто показывает форму: вкладка или доска; вкладка меняет его потом (<see cref="Rank"/>).</param>
     public FormSession(
         IStudioContext context,
         IStudioXamlDocuments documents,
@@ -151,12 +162,32 @@ internal sealed class FormSession : IAsyncDisposable
     /// <summary>Держит ли форму тот, кто старше этой сессии: тогда сессия её не покажет.</summary>
     public bool IsHeldElsewhere => !_disposed && _hold is null && FormShows.Of(_context).IsHeldAbove(Path.Value, _rank);
 
+    /// <summary>Кто показывает форму.</summary>
+    /// <remarks>
+    /// Вкладка меняет его, уходя с экрана и возвращаясь: заявка сессии встаёт на новое место
+    /// (<see cref="FormShows.Rerank"/>), а показ остаётся, где был. Заявку, которая уже уходит, не трогают.
+    /// </remarks>
+    public FormShowRank Rank
+    {
+        get => _rank;
+        set
+        {
+            if (_rank == value)
+                return;
+
+            _rank = value;
+
+            if (!_disposed && _hold is { } hold)
+                FormShows.Of(_context).Rerank(hold, value);
+        }
+    }
+
     /// <summary>
     /// Заявляет форму: младшие отпускают её показ и новых не начинают, пока заявка жива.
     /// </summary>
     /// <returns>Форма за сессией; false — её держит старший.</returns>
     /// <remarks>
-    /// Показ заявляет форму и сам; заявить раньше — значит не дать снимку начаться, пока документ берётся.
+    /// Показ заявляет форму и сам; заявить раньше — значит взять её сразу, а не когда документ откроется.
     /// Заявка живёт, пока сессия показывает или собирается показать; отпускает её <see cref="Hide"/>.
     /// </remarks>
     public bool Claim()
@@ -191,12 +222,13 @@ internal sealed class FormSession : IAsyncDisposable
     /// <remarks>
     /// Тот, кто ставил корень на холст, снимает его раньше: показ, отпущенный под стоящей формой, оставил бы
     /// на холсте объекты поколения, которое служба вправе выгрузить. Идущий показ, не успевший встать,
-    /// отпускается, как только встанет.
+    /// отпускается, как только встанет, — и заявка, под которой он идёт, уходит вместе с ним.
     /// </remarks>
     public void Hide()
     {
         _showTurn++;
         _showing = null;
+        _dressing?.TrySetResult();
 
         // Корень уходит с холста раньше, чем показ отпущен: держащая его карточка отдаёт его, пока он ещё
         // показ, — а тот, кто попросил форму, покажет её уже свободной.
@@ -209,7 +241,7 @@ internal sealed class FormSession : IAsyncDisposable
             shown.Dispose();
         }
 
-        ReleaseHold();
+        LetHoldGo();
     }
 
     /// <summary>Сохраняет документ, если есть что и можно.</summary>
@@ -316,6 +348,7 @@ internal sealed class FormSession : IAsyncDisposable
         _autoSave = null;
 
         _showTurn++;
+        _dressing?.TrySetResult();
 
         if (_shown is { } shown)
         {
@@ -379,12 +412,16 @@ internal sealed class FormSession : IAsyncDisposable
         }
     }
 
-    /// <summary>Берёт документ, ждёт, пока младшие отпустят показ, и показывает.</summary>
+    /// <summary>Берёт документ, ждёт, пока младшие и уходящие отпустят показ, и показывает.</summary>
     /// <param name="turn">Очередь показа: <see cref="Hide"/>, пришедший раньше ответа, его отменяет.</param>
-    /// <remarks>Форму держит старший — показа нет: сессия стоит без корня, пока её не попросят снова.</remarks>
+    /// <remarks>
+    /// Форму держит старший — показа нет: сессия стоит без корня, пока её не попросят снова. Показ занимает
+    /// документ под заявкой: отпущенная, пока он идёт, она уходит вместе с ним, и прежний показ этой же сессии
+    /// новый ждёт так же, как чужой.
+    /// </remarks>
     private async Task ShowCoreAsync(int turn)
     {
-        _showsInFlight++;
+        FormHold? under = null;
 
         try
         {
@@ -393,12 +430,29 @@ internal sealed class FormSession : IAsyncDisposable
             if (_document is not { } document || _disposed || turn != _showTurn || !Claim())
                 return;
 
-            await _hold!.Released;
+            under = _showingUnder = _hold!;
+
+            await under.Released;
 
             if (_disposed || turn != _showTurn)
                 return;
 
             var shown = await document.ShowAsync(_lender, _lifetime.Token);
+
+            try
+            {
+                if (_options.FormShown is { } shownHook)
+                    await shownHook(_rank, _lifetime.Token);
+
+                if (!_disposed && turn == _showTurn)
+                    await DressAsync(shown);
+            }
+            catch
+            {
+                // Показ, не дошедший до холста, документ не держит.
+                shown.Dispose();
+                throw;
+            }
 
             if (_disposed || turn != _showTurn)
             {
@@ -409,6 +463,9 @@ internal sealed class FormSession : IAsyncDisposable
             _shown = shown;
             shown.RootChanged += OnRootChanged;
             shown.ApplicationChanged += OnApplicationChanged;
+
+            if (shown.Application is not null)
+                FormShows.Of(_context).Dress(Path.Value, true);
 
             Raise(FormChanges.Root | FormChanges.Application);
         }
@@ -425,12 +482,55 @@ internal sealed class FormSession : IAsyncDisposable
         }
         finally
         {
-            _showsInFlight--;
+            if (ReferenceEquals(_showingUnder, under))
+                _showingUnder = null;
 
-            // Отпустили, пока показ вставал: заявка уходит, когда показа уже нет.
-            if (turn != _showTurn)
-                ReleaseHold();
+            // Заявку отпустили, пока показ под ней шёл: она уходит теперь, когда показа уже нет.
+            if (under is not null && !ReferenceEquals(under, _hold))
+                under.Dispose();
         }
+    }
+
+    /// <summary>
+    /// Ждёт приложения формы, если оно приходило к прежнему её показу: корень встаёт вместе с ним, а не на
+    /// миг без его стилей.
+    /// </summary>
+    /// <remarks>
+    /// Не пришло за паузу (<see cref="UiDesignerOptions.ShowApplicationWait"/>) — форма встаёт как есть, а
+    /// память о приложении сбрасывается: следующий показ его не ждёт. Отпущенный показ ждать перестаёт.
+    /// </remarks>
+    private async Task DressAsync(IXamlDesignView shown)
+    {
+        var shows = FormShows.Of(_context);
+
+        if (shown.Application is not null || !shows.IsDressed(Path.Value))
+            return;
+
+        var dressing = _dressing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        void OnDressed(object? sender, EventArgs e)
+        {
+            if (shown.Application is not null)
+                dressing.TrySetResult();
+        }
+
+        shown.ApplicationChanged += OnDressed;
+
+        try
+        {
+            if (shown.Application is null)
+                await Task.WhenAny(dressing.Task, Task.Delay(_options.ShowApplicationWait, _options.TimeProvider, _lifetime.Token));
+        }
+        finally
+        {
+            shown.ApplicationChanged -= OnDressed;
+
+            if (ReferenceEquals(_dressing, dressing))
+                _dressing = null;
+        }
+
+        if (!_disposed && shown.Application is null && !dressing.Task.IsCompleted)
+            shows.Dress(Path.Value, false);
     }
 
     /// <summary>Старший взял форму: показ уходит, документ и история остаются.</summary>
@@ -440,14 +540,21 @@ internal sealed class FormSession : IAsyncDisposable
             Hide();
     }
 
-    /// <summary>Отпускает заявку, когда показа нет и он не встаёт.</summary>
-    private void ReleaseHold()
+    /// <summary>
+    /// Отпускает заявку: сразу, если показа под ней не идёт, а иначе — когда он кончится; до тех пор новые
+    /// заявки её ждут.
+    /// </summary>
+    private void LetHoldGo()
     {
-        if (_shown is not null || _showsInFlight > 0 || _hold is not { } hold)
+        if (_hold is not { } hold)
             return;
 
         _hold = null;
-        hold.Dispose();
+
+        if (ReferenceEquals(hold, _showingUnder))
+            hold.Retire();
+        else
+            hold.Dispose();
     }
 
     private void Fail(Exception e)
@@ -464,8 +571,13 @@ internal sealed class FormSession : IAsyncDisposable
 
     private void OnApplicationChanged(object? sender, EventArgs e)
     {
-        if (!_disposed && ReferenceEquals(sender, _shown))
-            Raise(FormChanges.Application);
+        if (_disposed || sender is not IXamlDesignView shown || !ReferenceEquals(shown, _shown))
+            return;
+
+        if (shown.Application is not null)
+            FormShows.Of(_context).Dress(Path.Value, true);
+
+        Raise(FormChanges.Application);
     }
 
     private void OnDocumentChanged(object? sender, XamlDocumentChangesEventArgs e)

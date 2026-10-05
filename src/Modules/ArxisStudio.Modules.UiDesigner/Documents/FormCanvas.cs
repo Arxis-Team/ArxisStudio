@@ -183,13 +183,14 @@ internal sealed partial class FormCanvas : IXamlDesignParticipant, IXamlRootLend
 
         Adopt(slot);
 
+        // Приложение — раньше корня: корень входит в дерево уже под ним и не входит второй раз.
         if (item is not null && _frozen is null)
         {
-            if (slot.TakeRoot())
-                RootTaken?.Invoke(this, slot);
-
             if (slot.TakeApplication())
                 slot.QueueSnapshot();
+
+            if (slot.TakeRoot())
+                RootTaken?.Invoke(this, slot);
 
             Reselect();
             slot.QueueSnapshot();
@@ -261,8 +262,8 @@ internal sealed partial class FormCanvas : IXamlDesignParticipant, IXamlRootLend
     {
         foreach (var slot in _slots)
         {
-            slot.TakeRoot();
             slot.TakeApplication();
+            slot.TakeRoot();
             slot.QueueSnapshot();
         }
 
@@ -355,22 +356,18 @@ internal sealed partial class FormCanvas : IXamlDesignParticipant, IXamlRootLend
         if ((changes & FormChanges.Opened) != 0 && ReferenceEquals(slot, Active))
             _ = RefreshCodeAsync();
 
-        // Корень, сменившийся под стоп-кадром, — новый корень замены: показ ставит его раньше, чем холст оживёт.
-        if ((changes & FormChanges.Root) != 0)
-        {
-            if (slot.TakeRoot())
-                RootTaken?.Invoke(this, slot);
+        // Новый показ приносит корень и приложение вместе: приложение встаёт раньше — корень входит в дерево уже
+        // одетым и не входит второй раз. Уходящий уносит корень раньше приложения: иначе форма перед уходом зря
+        // входила бы в дерево заново без своих стилей.
+        var dressFirst = session.Shown?.Root is not null;
 
-            Reselect();
-            slot.QueueSnapshot();
-        }
+        if (dressFirst)
+            FollowApplication(slot, changes);
 
-        // Приложение, сменившееся под стоп-кадром, холст возьмёт, когда оживёт.
-        if ((changes & FormChanges.Application) != 0 && _frozen is null && slot.TakeApplication())
-        {
-            Reselect();
-            slot.QueueSnapshot();
-        }
+        FollowRoot(slot, changes);
+
+        if (!dressFirst)
+            FollowApplication(slot, changes);
 
         if ((changes & FormChanges.Text) != 0 && ReferenceEquals(slot, Active))
             _ = RefreshCodeAsync();
@@ -385,6 +382,31 @@ internal sealed partial class FormCanvas : IXamlDesignParticipant, IXamlRootLend
         // — а не каждая правка.
         if ((changes & FormChanges.Saved) != 0 && session.Document is { IsModified: false })
             slot.QueueSnapshot();
+    }
+
+    /// <summary>Корень показа сменился: карточка берёт новый.</summary>
+    /// <remarks>Корень, сменившийся под стоп-кадром, — новый корень замены: показ ставит его раньше, чем холст оживёт.</remarks>
+    private void FollowRoot(FormSlot slot, FormChanges changes)
+    {
+        if ((changes & FormChanges.Root) == 0)
+            return;
+
+        if (slot.TakeRoot())
+            RootTaken?.Invoke(this, slot);
+
+        Reselect();
+        slot.QueueSnapshot();
+    }
+
+    /// <summary>Приложение формы сменилось: карточка берёт новое.</summary>
+    /// <remarks>Приложение, сменившееся под стоп-кадром, холст возьмёт, когда оживёт.</remarks>
+    private void FollowApplication(FormSlot slot, FormChanges changes)
+    {
+        if ((changes & FormChanges.Application) == 0 || _frozen is not null || !slot.TakeApplication())
+            return;
+
+        Reselect();
+        slot.QueueSnapshot();
     }
 
     private void OnSelectRequested(object? sender, IReadOnlyList<XamlElementPath> paths)

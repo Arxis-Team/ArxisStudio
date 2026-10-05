@@ -33,6 +33,14 @@ namespace ArxisStudio.Modules.UiDesigner.Documents;
 /// у доски. У вкладки он с одной формой; своё у неё — полоса, вид и баннеры.
 /// </para>
 /// <para>
+/// <b>Форма живая там, где её видно.</b> Показ у документа один. Вкладка на экране старше доски и берёт его
+/// себе; ушедшая с экрана опускается ниже доски, а показ держит, пока он никому не нужен: вернётся из другого
+/// файла — форма стоит, а не строится заново. Доска, у которой форма на виду, берёт её у такой вкладки, и
+/// правка из другого редактора видна на доске сразу. Док на каждый щелчок по вкладке перестраивает окно, и
+/// видимая вкладка снимается и ставится за один проход; доска узнаёт об уходе после прохода и переставленную
+/// вкладку не трогает.
+/// </para>
+/// <para>
 /// <b>Сохраняет сама</b>, как IntelliJ: при уходе из окна студии, при закрытии вкладки и перезапуске и
 /// после паузы в правках (<see cref="UiDesignerOptions.AutoSaveDelay"/>); выключается настройкой
 /// <see cref="UiDesignerModule.AutoSaveKey"/>. Пишет служба файлов со сверкой: переписанный мимо файл не
@@ -102,12 +110,15 @@ internal sealed partial class LiveFormDocument : DocumentView, IFormCanvasHost
             return true;
         }));
 
-        _session = new FormSession(context, documents, path, options, _canvas, FormShowRank.Tab);
+        // Вкладка ещё не на экране: форму она возьмёт, когда встанет на него.
+        _session = new FormSession(context, documents, path, options, _canvas, FormShowRank.HiddenTab);
         _slot = _canvas.Add(_session, _form);
 
         _canvas.RootTaken += OnRootTaken;
         _session.Changed += OnSessionChanged;
         sheet.Loaded += OnSheetLoaded;
+        _view.AttachedToVisualTree += OnViewAttached;
+        _view.DetachedFromVisualTree += OnViewDetached;
 
         _view.TakeTheirs.Click += OnTakeTheirs;
         _view.KeepMine.Click += OnKeepMine;
@@ -124,10 +135,7 @@ internal sealed partial class LiveFormDocument : DocumentView, IFormCanvasHost
         _modes.Changed += OnModeApplied;
         ShowState();
 
-        // Показ у документа один: фоновый снимок этой формы его отпустит, а новых не будет, пока вкладка жива.
-        _session.Claim();
-
-        Opening = OpenAsync();
+        Opening = _session.OpenAsync();
     }
 
     /// <summary>Идентификатор команды холста «показать всё».</summary>
@@ -143,7 +151,7 @@ internal sealed partial class LiveFormDocument : DocumentView, IFormCanvasHost
     /// <remarks>Холст — с него работают; в виде одного XAML холста не видно, и каретку берёт текст.</remarks>
     public override Control? FocusTarget => _modes.Caret;
 
-    /// <summary>Открытие документа и его показ: тестам — дождаться их.</summary>
+    /// <summary>Открытие документа — тестам: дождаться его. Показ начинается, когда вкладка встанет на экран.</summary>
     internal Task Opening { get; }
 
     /// <summary>Разметка — тестам.</summary>
@@ -224,6 +232,8 @@ internal sealed partial class LiveFormDocument : DocumentView, IFormCanvasHost
         _canvas.RootTaken -= OnRootTaken;
         _session.Changed -= OnSessionChanged;
         _view.Sheet.Loaded -= OnSheetLoaded;
+        _view.AttachedToVisualTree -= OnViewAttached;
+        _view.DetachedFromVisualTree -= OnViewDetached;
 
         _modes.Changed -= OnModeApplied;
         _modes.Dispose();
@@ -267,11 +277,33 @@ internal sealed partial class LiveFormDocument : DocumentView, IFormCanvasHost
     /// <inheritdoc/>
     IReadOnlyList<Control> IFormCanvasHost.MenuItems(IReadOnlyList<Control> form, SurfaceContextRequest? request) => form;
 
-    /// <summary>Берёт документ у службы, потом показ.</summary>
-    private async Task OpenAsync()
+    /// <summary>
+    /// Вкладка встала на экран: она старше доски и берёт показ формы — или только встаёт на своё место, если
+    /// показ остался у неё.
+    /// </summary>
+    private void OnViewAttached(object? sender, VisualTreeAttachmentEventArgs e)
     {
-        await _session.OpenAsync();
-        await _session.ShowAsync();
+        if (_disposed)
+            return;
+
+        _session.Rank = FormShowRank.Tab;
+
+        if (_session.Claim())
+            _ = _session.ShowAsync();
+    }
+
+    /// <summary>
+    /// Вкладка ушла с экрана: она опускается ниже доски, а показ держит, пока его не попросят.
+    /// </summary>
+    /// <remarks>
+    /// Док на каждый щелчок по вкладке перестраивает окно, и видимая вкладка снимается и ставится за один
+    /// проход. Отсрочки на это не нужно: о понижении доска узнаёт по <see cref="FormShows.Freed"/>, а он
+    /// приходит после прохода — переставленная вкладка к тому времени снова старше доски.
+    /// </remarks>
+    private void OnViewDetached(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        if (!_disposed)
+            _session.Rank = FormShowRank.HiddenTab;
     }
 
     /// <summary>Что сменилось у формы — отметка несохранённого, вопрос о чужой записи, баннер и чип.</summary>

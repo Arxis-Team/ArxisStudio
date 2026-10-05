@@ -20,20 +20,21 @@ namespace ArxisStudio.Modules.UiDesigner.Board;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Живы только видимые.</b> Форма, показавшаяся на холсте (<see cref="BoardSight"/>), встаёт живой —
-/// документ берётся у службы XAML и показывается на карточке, — а ушедшая с виду отдаёт показ через паузу
-/// (<see cref="UiDesignerOptions.BoardHideDelay"/>): листают туда и обратно — форма не строится заново.
+/// <b>Живы видимые — на любом масштабе.</b> Форма, показавшаяся на холсте (<see cref="BoardSight"/>), встаёт
+/// живой — документ берётся у службы XAML и показывается на карточке, — а ушедшая с виду отдаёт показ через
+/// паузу (<see cref="UiDesignerOptions.BoardHideDelay"/>): листают туда и обратно — форма не строится заново.
 /// Форма, в которой выбрано, показ не отдаёт, пока выбор в ней: выбранное — то, с чем работают, и меню и
 /// клавиши холста — о нём. Встают формы по одной, в простое между ними: первая форма решения поднимает
 /// сессию дизайна, и это секунды, а остальные встают за десятки миллисекунд, не останавливая холст.
 /// </para>
 /// <para>
-/// <b>Мелко — снимком.</b> Ниже <see cref="UiDesignerOptions.BoardLiveZoom"/> новые формы живыми не встают:
-/// на таком масштабе форму не правят, а живых на экране было бы десятки. Уже живые остаются живыми.
+/// <b>Вкладка на экране старше доски</b>: её форма стоит на доске снимком. Вкладка, ушедшая с экрана, — младше:
+/// доска, у которой её форма на виду, берёт её живой (<see cref="FormShows.Freed"/>), и правка из другого
+/// редактора видна на доске сразу.
 /// </para>
 /// <para>
-/// <b>Пока живая не встала</b> — и когда форму держит вкладка, — на её месте снимок: тот же, что на плитке
-/// окна проекта. Снимка нет — подложка и контур её размера.
+/// <b>Пока живая не встала</b> — и когда форму держит вкладка на экране, — на её месте снимок: тот же, что на
+/// плитке окна проекта. Снимка нет — подложка и контур её размера.
 /// </para>
 /// <para>
 /// <b>Документ живёт дольше показа.</b> Форма, ушедшая с виду, отдаёт показ, а документ — только если его
@@ -84,7 +85,6 @@ internal sealed class BoardForms : IDisposable
 
         sheet.ContainerPrepared += OnContainerPrepared;
         sheet.ContainerClearing += OnContainerClearing;
-        sheet.PropertyChanged += OnSheetPropertyChanged;
         sheet.SurfaceSelectionChanged += OnSelectionChanged;
         sight.Came += OnCame;
         sight.Went += OnWent;
@@ -155,7 +155,6 @@ internal sealed class BoardForms : IDisposable
         _disposed = true;
         _sheet.ContainerPrepared -= OnContainerPrepared;
         _sheet.ContainerClearing -= OnContainerClearing;
-        _sheet.PropertyChanged -= OnSheetPropertyChanged;
         _sheet.SurfaceSelectionChanged -= OnSelectionChanged;
         _sight.Came -= OnCame;
         _sight.Went -= OnWent;
@@ -293,16 +292,6 @@ internal sealed class BoardForms : IDisposable
             Paint(card);
     }
 
-    /// <summary>Масштаб дорос до живых форм: видимые встают.</summary>
-    private void OnSheetPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
-    {
-        if (e.Property != SurfaceView.ViewportZoomProperty || !Zoomed)
-            return;
-
-        foreach (var card in _sight.Seen.ToList())
-            Request(card);
-    }
-
     /// <summary>Форма показалась: живая остаётся, прочая встаёт.</summary>
     private void OnCame(object? sender, FormCard card)
     {
@@ -343,23 +332,22 @@ internal sealed class BoardForms : IDisposable
     /// <summary>На виду ли форма по этому пути.</summary>
     private bool Seen(CanonicalPath path) => _sight.Seen.Any(card => card.Path == path);
 
-    /// <summary>Вкладка отпустила форму: стоящая на виду встаёт живой снова.</summary>
+    /// <summary>
+    /// Вкладка отпустила форму или ушла с экрана: стоящая на виду встаёт живой снова.
+    /// </summary>
     private void OnFreed(object? sender, string formPath)
     {
         foreach (var card in _realized.Keys.Where(card => string.Equals(card.Path.Value, formPath, StringComparison.OrdinalIgnoreCase)).ToList())
             Request(card);
     }
 
-    private bool Zoomed => _sheet.ViewportZoom >= _options.BoardLiveZoom;
-
-    /// <summary>Нужна ли форма живой: на виду, масштаб позволяет, служба есть, и форму не держит вкладка.</summary>
+    /// <summary>Нужна ли форма живой: на виду, служба есть, и форму не держит вкладка на экране.</summary>
     private bool Wants(FormCard card) =>
         !_disposed
         && _documents is not null
         && card.Kind is not FormKind.Unreadable
         && _realized.ContainsKey(card)
         && _sight.Sees(card)
-        && Zoomed
         && !_shows.IsHeldAbove(card.Path.Value, FormShowRank.Board);
 
     /// <summary>Просит форму живой: встанет, когда до неё дойдёт очередь.</summary>

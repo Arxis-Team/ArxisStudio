@@ -5,6 +5,7 @@ using ArxisStudio.Modules.UiDesigner.Board;
 using ArxisStudio.Modules.UiDesigner.Documents;
 using ArxisStudio.Modules.UiDesigner.Panels;
 using ArxisStudio.Surface.UiDesigner;
+using ArxisStudio.Xaml;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -332,31 +333,39 @@ public class UiDesignerLiveBoardTests
         var badge = Card(board, "Badge.axaml");
         var main = board.Forms!.SessionOf(Card(board, "MainWindow.axaml"))!;
 
-        // Значок уходит с доски вместе с сессией и возвращается на мелком масштабе — снимком, а не живым.
+        // Значок уходит с доски вместе с сессией и возвращается снимком: его держит вкладка на экране рядом.
         board.Model!.Remove([badge]);
 
         await XamlStudio.UntilAsync(() => board.Forms.SessionOf(badge) is null, "сессия убранного значка осталась");
 
-        view.Sheet.ViewportZoom = 0.1;
-        board.Model.Return([badge.Path]);
-        LiveFormStudio.Frame();
-        board.Sight!.Update();
-        LiveFormStudio.Frame();
+        var (tab, place) = await BesideAsync(studio, board, badge);
 
-        var item = Item(board, Card(board, "Badge.axaml"));
+        try
+        {
+            board.Model.Return([badge.Path]);
+            LiveFormStudio.Frame();
+            board.Sight!.Update();
+            LiveFormStudio.Frame();
 
-        Assert.True(view.Sheet.SelectTarget(item), "карточку значка не выбрать");
-        Assert.False(board.Forms.IsLive(Card(board, "Badge.axaml")), "значок встал живым на мелком масштабе");
+            var item = Item(board, Card(board, "Badge.axaml"));
 
-        await main.Document!.EditAsync(
-            "Ширина", editor => editor.SetAttribute(editor.Document.Root!, XamlQualifiedName.Unprefixed("Width"), "420"),
-            TestContext.Current.CancellationToken);
+            Assert.True(view.Sheet.SelectTarget(item), "карточку значка не выбрать");
+            Assert.False(board.Forms.IsLive(Card(board, "Badge.axaml")), "значок встал живым, хотя его держит вкладка на экране");
 
-        await XamlStudio.UntilAsync(() => Text(main).Contains("Width=\"420\"", StringComparison.Ordinal), "правка окна не легла");
+            await main.Document!.EditAsync(
+                "Ширина", editor => editor.SetAttribute(editor.Document.Root!, XamlQualifiedName.Unprefixed("Width"), "420"),
+                TestContext.Current.CancellationToken);
 
-        LiveFormStudio.Frame();
+            await XamlStudio.UntilAsync(() => Text(main).Contains("Width=\"420\"", StringComparison.Ordinal), "правка окна не легла");
 
-        Assert.Same(item, Assert.Single(view.Sheet.SelectedTargets).Target);
+            LiveFormStudio.Frame();
+
+            Assert.Same(item, Assert.Single(view.Sheet.SelectedTargets).Target);
+        }
+        finally
+        {
+            await CloseAsync(tab, place);
+        }
     }
 
     /// <summary>Каретка в XAML под доской выбирает на доске элемент под собой — в форме этого текста.</summary>
@@ -453,7 +462,351 @@ public class UiDesignerLiveBoardTests
         await XamlStudio.UntilAsync(() => board.Forms!.IsLive(main), "закрытая вкладка не вернула форму доске");
     }
 
+    /// <summary>
+    /// Вкладка, ушедшая с экрана, — в группе выбрали доску, — отдаёт форму доске, у которой та на виду: форма на
+    /// доске живая, и файл, переписанный другим редактором, виден на ней сразу, без переключений.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_tab_off_screen_gives_its_form_to_the_board_in_view()
+    {
+        await using var studio = new LiveFormStudio();
+        var board = await studio.OpenBoardAsync(("MainWindow.axaml", Main), ("Badge.axaml", Badge));
+        var main = Card(board, "MainWindow.axaml");
+        var (tab, place) = await BesideAsync(studio, board, main);
+
+        try
+        {
+            await XamlStudio.UntilAsync(() => Item(board, main).Root is null, "доска не отдала форму вкладке на экране");
+
+            Away(place);
+
+            await XamlStudio.UntilAsync(() => board.Forms!.IsLive(main), "доска не взяла форму у вкладки, ушедшей с экрана");
+
+            Assert.Null(tab.Shown);
+            Assert.Null(tab.Form.Root);
+
+            // Так пишет файл Rider: мимо студии и целиком.
+            File.WriteAllText(main.Path.Value, Main.Replace("Width=\"400\"", "Width=\"420\"", StringComparison.Ordinal));
+
+            await XamlStudio.UntilAsync(() => Item(board, main).Root is Window { Width: 420d }, "правка снаружи не видна на доске");
+        }
+        finally
+        {
+            await CloseAsync(tab, place);
+        }
+    }
+
+    /// <summary>
+    /// Вкладка, вернувшаяся на экран, забирает форму у доски, и выбранное в ней до ухода выбрано снова: выбор
+    /// вкладка помнит путями.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_tab_back_on_screen_takes_its_form_back_with_its_selection()
+    {
+        await using var studio = new LiveFormStudio();
+        var board = await studio.OpenBoardAsync(("MainWindow.axaml", Main), ("Badge.axaml", Badge));
+        var main = Card(board, "MainWindow.axaml");
+        var (tab, place) = await BesideAsync(studio, board, main);
+
+        try
+        {
+            var go = PathTo(tab, "Go");
+
+            tab.Select([go]);
+            LiveFormStudio.Frame();
+
+            Away(place);
+
+            await XamlStudio.UntilAsync(() => board.Forms!.IsLive(main), "доска не взяла форму у вкладки, ушедшей с экрана");
+
+            Back(place, tab);
+
+            await XamlStudio.UntilAsync(() => tab.Form.Root is not null && !board.Forms!.IsLive(main), "вкладка не забрала форму назад");
+            LiveFormStudio.Frame();
+
+            Assert.Null(board.Forms!.SessionOf(main)?.Problem);
+            Assert.Equal(go, Assert.Single(tab.Selection));
+            Assert.Equal("Go", Assert.IsType<Button>(Assert.Single(tab.View.Sheet.SelectedTargets).Target).Name);
+        }
+        finally
+        {
+            await CloseAsync(tab, place);
+        }
+    }
+
+    /// <summary>
+    /// Док переставляет вкладку — снимает и ставит за один проход, как на щелчке по соседней вкладке, — и форма
+    /// остаётся у неё: тот же показ, а доска его не получала.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_tab_the_dock_replants_in_one_pass_keeps_its_show()
+    {
+        await using var studio = new LiveFormStudio();
+        var board = await studio.OpenBoardAsync(("MainWindow.axaml", Main), ("Badge.axaml", Badge));
+        var main = Card(board, "MainWindow.axaml");
+        var (tab, place) = await BesideAsync(studio, board, main);
+
+        try
+        {
+            var shown = Assert.IsAssignableFrom<IXamlDesignView>(tab.Shown);
+
+            place.Content = null;
+            place.Content = tab.Content;
+            LiveFormStudio.Frame();
+            LiveFormStudio.Frame();
+
+            Assert.Same(shown, tab.Shown);
+            Assert.Null(board.Forms!.SessionOf(main)?.Shown);
+            Assert.False(board.Forms.IsLive(main), "форма ушла на доску, пока док переставлял вкладку");
+        }
+        finally
+        {
+            await CloseAsync(tab, place);
+        }
+    }
+
+    /// <summary>
+    /// Вкладка, ушедшая с экрана, держит форму, пока доска её не видит: вернулась — форма та же, а не построена
+    /// заново.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_tab_off_screen_keeps_its_show_while_no_board_shows_it()
+    {
+        await using var studio = new LiveFormStudio();
+        var board = await studio.OpenBoardAsync(("MainWindow.axaml", Main), ("Badge.axaml", Badge));
+        var main = Card(board, "MainWindow.axaml");
+        var sheet = board.View!.Sheet;
+        var (tab, place) = await BesideAsync(studio, board, main);
+
+        try
+        {
+            var shown = Assert.IsAssignableFrom<IXamlDesignView>(tab.Shown);
+
+            sheet.ViewportLocation = new Point(100_000, 100_000);
+            LiveFormStudio.Frame();
+            board.Sight!.Update();
+
+            Assert.Empty(board.Sight.Seen);
+
+            Away(place);
+
+            Assert.Same(shown, tab.Shown);
+
+            Back(place, tab);
+
+            Assert.Same(shown, tab.Shown);
+            Assert.Same(shown.Root, tab.Form.Root);
+        }
+        finally
+        {
+            await CloseAsync(tab, place);
+        }
+    }
+
+    /// <summary>
+    /// Форма, переходящая со вкладки на доску и назад, встаёт на новом месте одетой: корень ложится на карточку,
+    /// когда приложение формы уже стоит, а не на миг без его стилей.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_form_moving_between_tab_and_board_comes_with_its_application()
+    {
+        await using var studio = new LiveFormStudio();
+
+        studio.Xaml.Write("App.axaml", """<Application xmlns="https://github.com/avaloniaui" />""");
+
+        var board = await studio.OpenBoardAsync(("MainWindow.axaml", Main), ("Badge.axaml", Badge));
+        var main = Card(board, "MainWindow.axaml");
+        var item = Item(board, main);
+
+        await XamlStudio.UntilAsync(() => item.ApplicationRoot is not null, "приложение формы не встало на доске");
+
+        var (tab, place) = await BesideAsync(studio, board, main);
+        var bare = new List<string>();
+
+        void Watch(UiDesignerFormItem card, string where) =>
+            card.PropertyChanged += (_, e) =>
+            {
+                if (e.Property == UiDesignerFormItem.RootProperty && card.Root is not null && card.ApplicationRoot is null)
+                    bare.Add(where);
+            };
+
+        try
+        {
+            Assert.NotNull(tab.Form.ApplicationRoot);
+
+            Watch(item, "доска");
+            Watch(tab.Form, "вкладка");
+
+            Away(place);
+
+            await XamlStudio.UntilAsync(() => board.Forms!.IsLive(main), "доска не взяла форму у вкладки, ушедшей с экрана");
+
+            Back(place, tab);
+
+            await XamlStudio.UntilAsync(() => tab.Form.Root is not null && !board.Forms!.IsLive(main), "вкладка не забрала форму назад");
+
+            Assert.Empty(bare);
+            Assert.NotNull(tab.Form.ApplicationRoot);
+        }
+        finally
+        {
+            await CloseAsync(tab, place);
+        }
+    }
+
+    /// <summary>
+    /// Вкладка ушла с экрана и вернулась, пока её показ ещё шёл, — доска успела попросить форму: показы
+    /// не сталкиваются, форма встаёт во вкладке, а ни вкладка, ни доска не говорят, что она не открылась.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_tab_that_leaves_while_its_show_comes_still_stands_when_back()
+    {
+        var parking = false;
+        var parked = new TaskCompletionSource();
+        var park = new TaskCompletionSource();
+
+        await using var studio = new LiveFormStudio(formShown: async (rank, token) =>
+        {
+            if (rank != FormShowRank.Tab || !parking)
+                return;
+
+            parking = false;
+            parked.TrySetResult();
+            await park.Task.WaitAsync(token);
+        });
+        var board = await studio.OpenBoardAsync(("MainWindow.axaml", Main), ("Badge.axaml", Badge));
+        var main = Card(board, "MainWindow.axaml");
+        var (view, error) = await studio.Editor().OpenAsync(main.Path.Value);
+
+        Assert.Null(error);
+
+        var tab = Assert.IsType<LiveFormDocument>(view);
+
+        await tab.Opening;
+
+        parking = true;
+
+        var place = Place(studio, board);
+
+        place.Content = tab.Content;
+        LiveFormStudio.Frame();
+
+        try
+        {
+            await XamlStudio.UntilAsync(() => parked.Task.IsCompleted, "показ вкладки не встал на стоянку");
+
+            // Показ вкладки уже занял документ: вкладка уходит, доска просит форму, вкладка возвращается.
+            Away(place);
+            Back(place, tab);
+
+            park.TrySetResult();
+
+            await XamlStudio.UntilAsync(() => tab.Form.Root is not null, "вкладка не встала, вернувшись");
+            LiveFormStudio.Frame();
+
+            Assert.False(board.Forms!.IsLive(main), "форма живая и на доске");
+            Assert.Null(board.Forms.SessionOf(main)?.Problem);
+            Assert.False(tab.View.Notice.IsVisible, $"вкладка говорит о сбое: {tab.View.NoticeText.Text}");
+        }
+        finally
+        {
+            park.TrySetResult();
+            await CloseAsync(tab, place);
+        }
+    }
+
+    /// <summary>Формы на виду встают живыми на любом масштабе: и на десятой доле — не снимками.</summary>
+    [AvaloniaFact]
+    public async Task Forms_stand_live_at_any_zoom()
+    {
+        await using var studio = new LiveFormStudio(hideDelay: TimeSpan.Zero);
+        var board = await studio.OpenBoardAsync(("MainWindow.axaml", Main), ("Badge.axaml", Badge));
+        var view = board.View!;
+        var badge = Card(board, "Badge.axaml");
+
+        board.Model!.Remove([badge]);
+
+        await XamlStudio.UntilAsync(() => board.Forms!.SessionOf(badge) is null, "сессия убранного значка осталась");
+
+        view.Sheet.ViewportZoom = 0.1;
+        board.Model.Return([badge.Path]);
+
+        await LiveFormStudio.UntilLiveAsync(board);
+
+        Assert.True(board.Forms!.IsLive(Card(board, "Badge.axaml")), "значок на мелком масштабе встал снимком");
+        Assert.True(board.Forms.IsLive(Card(board, "MainWindow.axaml")));
+    }
+
     private static FormCard Card(BoardPanel board, string name) => board.Model!.Cards.Single(card => card.Name == name);
+
+    /// <summary>
+    /// Ставит вкладку формы рядом с доской — в том же окне, как вторую группу дока, — и ждёт, пока вкладка
+    /// возьмёт форму.
+    /// </summary>
+    private static async Task<(LiveFormDocument Tab, ContentControl Place)> BesideAsync(LiveFormStudio studio, BoardPanel board, FormCard card)
+    {
+        var (view, error) = await studio.Editor().OpenAsync(card.Path.Value);
+
+        Assert.Null(error);
+
+        var tab = Assert.IsType<LiveFormDocument>(view);
+        var place = Place(studio, board);
+
+        place.Content = tab.Content;
+        LiveFormStudio.Frame();
+
+        await tab.Opening;
+        await XamlStudio.UntilAsync(() => tab.Form.Root is not null, "вкладка не взяла форму");
+        LiveFormStudio.Frame();
+
+        return (tab, place);
+    }
+
+    /// <summary>Место вкладки справа от доски — в том же окне, а доска остаётся своего размера.</summary>
+    /// <remarks>
+    /// Окно одно, как в студии. Контрол, перенесённый из окна в окно за один проход, Avalonia 12 оставляет в
+    /// очереди раскладки прежнего окна, и следующий её проход падает «wrong LayoutManager», — а форма ходит
+    /// между доской и вкладкой.
+    /// </remarks>
+    private static ContentControl Place(LiveFormStudio studio, BoardPanel board)
+    {
+        var place = new ContentControl();
+        var both = new Grid { ColumnDefinitions = new ColumnDefinitions("1200,800") };
+
+        Grid.SetColumn(place, 1);
+        studio.Window.Content = null;
+        both.Children.Add(board.Content);
+        both.Children.Add(place);
+        studio.Window.Width = 2000;
+        studio.Window.Content = both;
+        LiveFormStudio.Frame();
+
+        return place;
+    }
+
+    /// <summary>Вкладка уходит с экрана — так её прячет док, выбрав в группе другую, — и проходит раскладка.</summary>
+    private static void Away(ContentControl place)
+    {
+        place.Content = null;
+        LiveFormStudio.Frame();
+    }
+
+    /// <summary>Вкладка снова на экране.</summary>
+    private static void Back(ContentControl place, LiveFormDocument tab)
+    {
+        place.Content = tab.Content;
+        LiveFormStudio.Frame();
+    }
+
+    /// <summary>Закрывает вкладку.</summary>
+    private static async Task CloseAsync(LiveFormDocument tab, ContentControl place)
+    {
+        place.Content = null;
+        await tab.DisposeAsync();
+    }
+
+    private static XamlElementPath PathTo(LiveFormDocument tab, string name) =>
+        XamlElementPath.Of(tab.Document!.Syntax.Root!.DescendantElements().Single(element => element.Identity == name));
 
     private static UiDesignerFormItem Item(BoardPanel board, FormCard card) =>
         Assert.IsType<UiDesignerFormItem>(board.View!.Sheet.ContainerFromItem(card));

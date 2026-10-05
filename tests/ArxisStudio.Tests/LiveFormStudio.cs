@@ -31,11 +31,13 @@ internal sealed class LiveFormStudio : IAsyncDisposable
     /// <param name="snapshots">Папка снимков форм; по умолчанию снимки выключены, как всему процессу тестов.</param>
     /// <param name="snapshotShown">Что ждёт фоновый снимок, взяв показ формы; по умолчанию ничего.</param>
     /// <param name="hideDelay">Пауза, после которой форма доски, ушедшая с виду, отдаёт показ; по умолчанию — никогда.</param>
+    /// <param name="formShown">Что ждёт показ формы вкладки или доски, взяв документ; по умолчанию ничего.</param>
     public LiveFormStudio(
         TimeSpan? autoSave = null,
         string? snapshots = null,
         Func<CancellationToken, Task>? snapshotShown = null,
-        TimeSpan? hideDelay = null)
+        TimeSpan? hideDelay = null,
+        Func<FormShowRank, CancellationToken, Task>? formShown = null)
     {
         // Фоновые снимки — без паузы после просьбы: в тесте плитки не листают, и ждать тишины незачем. Приложение
         // у решения теста строится сразу, а у большинства его нет вовсе — долго его ждать незачем.
@@ -47,6 +49,7 @@ internal sealed class LiveFormStudio : IAsyncDisposable
             SnapshotApplicationWait = TimeSpan.FromMilliseconds(500),
             SnapshotShown = snapshotShown,
             BoardHideDelay = hideDelay ?? Timeout.InfiniteTimeSpan,
+            FormShown = formShown,
         };
         Xaml = new XamlStudio(services: new Dictionary<Type, object> { [typeof(UiDesignerOptions)] = Options });
 
