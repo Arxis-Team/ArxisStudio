@@ -1,11 +1,17 @@
 <!--
-    Доска форм: полоса действий и холст дизайнера с формами решения — живыми, как во вкладке.
+    Доска форм: полоса действий, холст дизайнера с формами решения — живыми, как во вкладке, — и XAML
+    формы, с которой работают.
 
     Холст — дизайнер Surface.UiDesigner: форма на нём — элемент формы своего размера с именем над ним, и
     правят её прямо здесь — выбирают, двигают, тянут за ручки, удаляют, — как во вкладке; целиком форму
     берут за имя. Форма на виду встаёт живой, а пока не встала, вне вида и когда её держит вкладка, на её
     месте стоит снимок. Сама форма — данные, а не контейнер: место холст читает привязкой
     ItemLocationBinding.
+
+    XAML под холстом — как у вкладки, только просмотр: текст формы, где выбрано или выбирали последней, с
+    отметкой выбранного; каретка в нём выбирает элемент на холсте. Над текстом — имя формы: форм здесь
+    много. Пока работать не с чем, вместо текста сказано, как его получить. Вид — дизайн, XAML или оба —
+    выбирают сегментами на полосе, той же настройкой, что у вкладок.
 
     Тему дизайнера доска подключает своими ресурсами: контролы Surface носят свои ControlTheme, и найти
     их студия может только здесь. Кисти ядра доска заменяет токенами палитры кодом (CanvasLooks).
@@ -64,20 +70,28 @@
   <a:DockPanel>
 
     <!--
-        Полоса: слева — чип состояния типов проекта, как у вкладки; справа — режим дизайнера и органы
-        холста, как полоса вида Scene в Unity. Режим стоит первым и отделён чертой: он решает, как
+        Полоса: слева — вид и чип состояния типов проекта, как у вкладки; справа — режим дизайнера и
+        органы холста, как полоса вида Scene в Unity. Режим стоит первым и отделён чертой: он решает, как
         открываются формы, а кнопки за чертой работают с этим холстом.
     -->
     <a:Border a:DockPanel.Dock="Top" Padding="{a:DynamicResource AxToolBarPadding}">
-      <a:Grid ColumnDefinitions="*,Auto">
+      <a:Grid ColumnDefinitions="Auto,*,Auto">
 
-        <a:StackPanel a:Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center"
-                      Spacing="{a:DynamicResource AxGapIconText}">
+        <AxSegmentedControl x:Name="Mode" a:Grid.Column="0" VerticalAlignment="Center"
+                            a:AutomationProperties.Name="{Text form.mode}">
+          <AxSegmentItem Content="{Text form.mode.design}"/>
+          <AxSegmentItem Content="{Text form.mode.xaml}"/>
+          <AxSegmentItem Content="{Text form.mode.split}"/>
+        </AxSegmentedControl>
+
+        <a:StackPanel a:Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
+                      Spacing="{a:DynamicResource AxGapIconText}"
+                      Margin="{a:DynamicResource AxSpaceWideLeadingThickness}">
           <AxSpinner x:Name="Busy" IsVisible="False" VerticalAlignment="Center"/>
           <AxChip x:Name="State" IsVisible="False" VerticalAlignment="Center"/>
         </a:StackPanel>
 
-        <a:StackPanel a:Grid.Column="1" Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceHair}"
+        <a:StackPanel a:Grid.Column="2" Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceHair}"
                       HorizontalAlignment="Right" VerticalAlignment="Center">
 
           <AxSpinner IsVisible="{a:Binding IsLoading}" VerticalAlignment="Center"
@@ -150,84 +164,114 @@
 
       <AxBanner x:Name="Notice" Severity="Warning" IsVisible="False">
         <AxBanner.Actions>
-          <AxButton x:Name="Rebuild" Appearance="Subtle" Size="Compact" Content="{Text form.rebuild}"
-                    IsVisible="False"/>
+          <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceHair}">
+            <AxButton x:Name="ShowProblem" Appearance="Subtle" Size="Compact" Content="{Text form.showProblem}"
+                      IsVisible="False"/>
+            <AxButton x:Name="Rebuild" Appearance="Subtle" Size="Compact" Content="{Text form.rebuild}"
+                      IsVisible="False"/>
+          </a:StackPanel>
         </AxBanner.Actions>
         <a:TextBlock x:Name="NoticeText" TextWrapping="Wrap"/>
       </AxBanner>
 
     </a:StackPanel>
 
-    <a:Panel x:Name="Stage" StudioDragDrop.AllowDrop="True">
+    <a:Grid x:Name="Body" RowDefinitions="3*,Auto,2*">
 
-      <b:FormsSheet x:Name="Sheet"
-                    ItemsSource="{a:Binding Cards}"
-                    ItemLocationBinding="{a:Binding Location}"
-                    SelectionMode="Multiple"
-                    SimplifiedZoom="0"
-                    Focusable="True"
-                    IsVisible="{a:Binding IsReady}"
-                    a:AutomationProperties.Name="{Text panel.board}"/>
+      <a:Panel x:Name="Stage" a:Grid.Row="0" StudioDragDrop.AllowDrop="True">
 
-      <a:Panel x:Name="States">
+        <b:FormsSheet x:Name="Sheet"
+                      ItemsSource="{a:Binding Cards}"
+                      ItemLocationBinding="{a:Binding Location}"
+                      SelectionMode="Multiple"
+                      SimplifiedZoom="0"
+                      Focusable="True"
+                      IsVisible="{a:Binding IsReady}"
+                      a:AutomationProperties.Name="{Text panel.board}"/>
 
-        <a:StackPanel IsVisible="{a:Binding IsClosed}" Spacing="{a:DynamicResource AxGapFormRow}"
-                      HorizontalAlignment="Center" VerticalAlignment="Center"
-                      Margin="{a:DynamicResource AxSpaceWideThickness}">
-          <a:TextBlock Text="{Text board.state.closed}" AxText.Tone="Secondary" HorizontalAlignment="Center"/>
-          <a:TextBlock Text="{Text board.state.closed.hint}" AxText.Role="Small" AxText.Tone="Tertiary"
-                       HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
-        </a:StackPanel>
+        <a:Panel x:Name="States">
 
-        <a:TextBlock IsVisible="{a:Binding IsNoService}" Text="{Text board.state.noService}"
-                     AxText.Tone="Secondary" HorizontalAlignment="Center" VerticalAlignment="Center"
-                     TextWrapping="Wrap" TextAlignment="Center" Margin="{a:DynamicResource AxSpaceWideThickness}"/>
+          <a:StackPanel IsVisible="{a:Binding IsClosed}" Spacing="{a:DynamicResource AxGapFormRow}"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Margin="{a:DynamicResource AxSpaceWideThickness}">
+            <a:TextBlock Text="{Text board.state.closed}" AxText.Tone="Secondary" HorizontalAlignment="Center"/>
+            <a:TextBlock Text="{Text board.state.closed.hint}" AxText.Role="Small" AxText.Tone="Tertiary"
+                         HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
+          </a:StackPanel>
 
-        <a:StackPanel IsVisible="{a:Binding IsOpening}" Orientation="Horizontal" Spacing="{a:DynamicResource AxGapIconText}"
-                      HorizontalAlignment="Center" VerticalAlignment="Center">
-          <AxSpinner VerticalAlignment="Center"/>
-          <a:TextBlock Text="{a:Binding Opening}" AxText.Tone="Secondary" VerticalAlignment="Center"/>
-        </a:StackPanel>
+          <a:TextBlock IsVisible="{a:Binding IsNoService}" Text="{Text board.state.noService}"
+                       AxText.Tone="Secondary" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       TextWrapping="Wrap" TextAlignment="Center" Margin="{a:DynamicResource AxSpaceWideThickness}"/>
 
-        <a:StackPanel IsVisible="{a:Binding IsFailed}" Spacing="{a:DynamicResource AxGapFormRow}"
-                      HorizontalAlignment="Center" VerticalAlignment="Center"
-                      Margin="{a:DynamicResource AxSpaceWideThickness}">
-          <a:TextBlock Text="{Text board.state.failed}" AxText.Tone="Secondary" HorizontalAlignment="Center"/>
-          <a:TextBlock Text="{a:Binding Failure}" AxText.Role="Small" AxText.Tone="Error"
-                       HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
-        </a:StackPanel>
+          <a:StackPanel IsVisible="{a:Binding IsOpening}" Orientation="Horizontal" Spacing="{a:DynamicResource AxGapIconText}"
+                        HorizontalAlignment="Center" VerticalAlignment="Center">
+            <AxSpinner VerticalAlignment="Center"/>
+            <a:TextBlock Text="{a:Binding Opening}" AxText.Tone="Secondary" VerticalAlignment="Center"/>
+          </a:StackPanel>
 
-        <!-- Решение открыто, а форм нет: холст под надписью остаётся — на нём просто ничего не стоит. -->
-        <a:StackPanel IsVisible="{a:Binding IsEmpty}" Spacing="{a:DynamicResource AxGapFormRow}"
-                      HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
-                      Margin="{a:DynamicResource AxSpaceWideThickness}">
-          <a:TextBlock Text="{Text board.state.empty}" AxText.Tone="Secondary" HorizontalAlignment="Center"/>
-          <a:TextBlock Text="{Text board.state.empty.hint}" AxText.Role="Small" AxText.Tone="Tertiary"
-                       HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
-        </a:StackPanel>
+          <a:StackPanel IsVisible="{a:Binding IsFailed}" Spacing="{a:DynamicResource AxGapFormRow}"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Margin="{a:DynamicResource AxSpaceWideThickness}">
+            <a:TextBlock Text="{Text board.state.failed}" AxText.Tone="Secondary" HorizontalAlignment="Center"/>
+            <a:TextBlock Text="{a:Binding Failure}" AxText.Role="Small" AxText.Tone="Error"
+                         HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
+          </a:StackPanel>
+
+          <!-- Решение открыто, а форм нет: холст под надписью остаётся — на нём просто ничего не стоит. -->
+          <a:StackPanel IsVisible="{a:Binding IsEmpty}" Spacing="{a:DynamicResource AxGapFormRow}"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
+                        Margin="{a:DynamicResource AxSpaceWideThickness}">
+            <a:TextBlock Text="{Text board.state.empty}" AxText.Tone="Secondary" HorizontalAlignment="Center"/>
+            <a:TextBlock Text="{Text board.state.empty.hint}" AxText.Role="Small" AxText.Tone="Tertiary"
+                         HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
+          </a:StackPanel>
+
+          <!--
+              Все формы убраны: холст пуст не потому, что форм нет, — и сказать это надо прямо, а вернуть их
+              одной кнопкой, не отправляя человека искать меню холста.
+          -->
+          <a:StackPanel IsVisible="{a:Binding IsAllRemoved}" Spacing="{a:DynamicResource AxGapFormRow}"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Margin="{a:DynamicResource AxSpaceWideThickness}">
+            <a:TextBlock Text="{Text board.state.allRemoved}" AxText.Tone="Secondary" HorizontalAlignment="Center"/>
+            <a:TextBlock Text="{Text board.state.allRemoved.hint}" AxText.Role="Small" AxText.Tone="Tertiary"
+                         HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
+            <AxButton x:Name="ReturnAll" Content="{Text board.return.all}" HorizontalAlignment="Center"/>
+          </a:StackPanel>
+
+        </a:Panel>
 
         <!--
-            Все формы убраны: холст пуст не потому, что форм нет, — и сказать это надо прямо, а вернуть их
-            одной кнопкой, не отправляя человека искать меню холста.
+            Заготовки форм, пока над доской несут формы: в масштабе холста и там, куда они встанут. Мышь слой
+            не ловит — иначе под курсором всегда была бы заготовка, а не доска.
         -->
-        <a:StackPanel IsVisible="{a:Binding IsAllRemoved}" Spacing="{a:DynamicResource AxGapFormRow}"
-                      HorizontalAlignment="Center" VerticalAlignment="Center"
-                      Margin="{a:DynamicResource AxSpaceWideThickness}">
-          <a:TextBlock Text="{Text board.state.allRemoved}" AxText.Tone="Secondary" HorizontalAlignment="Center"/>
-          <a:TextBlock Text="{Text board.state.allRemoved.hint}" AxText.Role="Small" AxText.Tone="Tertiary"
-                       HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
-          <AxButton x:Name="ReturnAll" Content="{Text board.return.all}" HorizontalAlignment="Center"/>
-        </a:StackPanel>
+        <a:Canvas x:Name="Preview" IsHitTestVisible="False" ClipToBounds="True"/>
 
       </a:Panel>
 
-      <!--
-          Заготовки форм, пока над доской несут формы: в масштабе холста и там, куда они встанут. Мышь слой
-          не ловит — иначе под курсором всегда была бы заготовка, а не доска.
-      -->
-      <a:Canvas x:Name="Preview" IsHitTestVisible="False" ClipToBounds="True"/>
+      <AxSplitter x:Name="Split" a:Grid.Row="1" Orientation="Horizontal"/>
 
-    </a:Panel>
+      <!--
+          XAML формы, с которой работают: над текстом — её имя, а пока работать не с чем, вместо текста
+          сказано, как это изменить. Подсказка мышь не ловит: под ней — тот же просмотр.
+      -->
+      <a:DockPanel x:Name="CodePane" a:Grid.Row="2">
+
+        <a:Border a:DockPanel.Dock="Top" Padding="{a:DynamicResource AxToolBarPadding}">
+          <a:TextBlock x:Name="CodeOf" AxText.Role="Small" AxText.Tone="Secondary" TextTrimming="CharacterEllipsis"/>
+        </a:Border>
+
+        <a:Panel>
+          <AxCodeView x:Name="Code"/>
+          <a:TextBlock x:Name="CodeHint" Text="{Text board.code.empty}" AxText.Tone="Secondary"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       TextWrapping="Wrap" TextAlignment="Center" IsHitTestVisible="False"
+                       Margin="{a:DynamicResource AxSpaceWideThickness}"/>
+        </a:Panel>
+
+      </a:DockPanel>
+
+    </a:Grid>
 
   </a:DockPanel>
 

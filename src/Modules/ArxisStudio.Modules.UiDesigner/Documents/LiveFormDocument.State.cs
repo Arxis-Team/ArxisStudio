@@ -10,109 +10,19 @@ namespace ArxisStudio.Modules.UiDesigner.Documents;
 // Часть LiveFormDocument; общее описание типа — в LiveFormDocument.cs.
 internal sealed partial class LiveFormDocument
 {
-    private FormViewMode _mode;
-    private GridLength? _sheetShare;
-    private GridLength? _codeShare;
-    private bool _applyingMode;
+    private readonly FormViewModes _modes;
     private TextSpan? _problemSpan;
 
-    /// <summary>Что показывает вкладка.</summary>
-    internal enum FormViewMode
-    {
-        /// <summary>Холст.</summary>
-        Design,
-
-        /// <summary>XAML.</summary>
-        Xaml,
-
-        /// <summary>Холст и XAML под ним.</summary>
-        Split,
-    }
-
     /// <summary>Вид сейчас — тестам.</summary>
-    internal FormViewMode Mode => _mode;
-
-    /// <summary>Вид по значению настройки; незнакомое — разделение.</summary>
-    /// <param name="text">Значение <see cref="UiDesignerModule.ViewKey"/>.</param>
-    internal static FormViewMode ModeOf(string? text) => text?.Trim().ToLowerInvariant() switch
-    {
-        "design" => FormViewMode.Design,
-        "xaml" => FormViewMode.Xaml,
-        _ => FormViewMode.Split,
-    };
-
-    /// <summary>Значение настройки для вида.</summary>
-    internal static string NameOf(FormViewMode mode) => mode switch
-    {
-        FormViewMode.Design => "design",
-        FormViewMode.Xaml => "xaml",
-        _ => "split",
-    };
+    internal FormViewMode Mode => _modes.Mode;
 
     /// <summary>
-    /// Показывает вид: спрятанная часть отдаёт строку целиком, а граница стоит, только когда ей есть что
-    /// разделять.
+    /// Холст снова виден: форма, сменившаяся под видом «XAML», снимается теперь — спрятанную не снять.
     /// </summary>
-    /// <remarks>
-    /// Доли разделения помнит вкладка: ушёл в один холст и вернулся — граница там, где её оставили.
-    /// </remarks>
-    private void ApplyMode(FormViewMode mode)
+    private void OnModeApplied(object? sender, EventArgs e)
     {
-        var rows = _view.Body.RowDefinitions;
-
-        if (_sheetShare is null || (_mode == FormViewMode.Split && _view.Split.IsVisible))
-        {
-            _sheetShare = rows[0].Height;
-            _codeShare = rows[2].Height;
-        }
-
-        _mode = mode;
-
-        var sheet = mode != FormViewMode.Xaml;
-        var code = mode != FormViewMode.Design;
-        var whole = new GridLength(1, GridUnitType.Star);
-
-        _view.Sheet.IsVisible = sheet;
-        _view.Code.IsVisible = code;
-        _view.Split.IsVisible = sheet && code;
-
-        rows[0].Height = !sheet ? new GridLength(0) : code ? _sheetShare.Value : whole;
-        rows[2].Height = !code ? new GridLength(0) : sheet ? _codeShare!.Value : whole;
-
-        _applyingMode = true;
-
-        try
-        {
-            _view.Mode.SelectedIndex = (int)mode;
-        }
-        finally
-        {
-            _applyingMode = false;
-        }
-
-        // Холст снова виден: форма, сменившаяся под видом «XAML», снимается теперь — спрятанную не снять.
-        if (sheet)
+        if (_modes.Mode != FormViewMode.Xaml)
             _canvas.QueueSnapshots();
-    }
-
-    /// <summary>Вид выбрали на полосе: он же — вид следующих вкладок, а клавиатура — тому, что видно.</summary>
-    private void OnModeChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_applyingMode || _view.Mode.SelectedIndex is < 0 or > (int)FormViewMode.Split)
-            return;
-
-        var mode = (FormViewMode)_view.Mode.SelectedIndex;
-
-        if (mode == _mode)
-            return;
-
-        ApplyMode(mode);
-        _context.Settings.Set(UiDesignerModule.ViewKey, NameOf(mode));
-
-        if (mode == FormViewMode.Xaml)
-            _view.Code.Focus();
-        else
-            _view.Sheet.Focus();
     }
 
     /// <summary>Чип состояния типов проекта и баннер того, что требует внимания.</summary>
@@ -224,8 +134,8 @@ internal sealed partial class LiveFormDocument
         if (_problemSpan is not { } span)
             return;
 
-        if (_mode == FormViewMode.Design)
-            ApplyMode(FormViewMode.Split);
+        if (_modes.Mode == FormViewMode.Design)
+            _modes.Apply(FormViewMode.Split);
 
         _view.Code.CaretOffset = span.Start;
         _view.Code.ScrollIntoView(span.Start);

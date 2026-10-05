@@ -499,7 +499,7 @@ public class FormSnapshotTests
 
             await SnapshotAsync(studio, document, path);
 
-            document.View.Mode.SelectedIndex = (int)LiveFormDocument.FormViewMode.Xaml;
+            document.View.Mode.SelectedIndex = (int)FormViewMode.Xaml;
             Dispatcher.UIThread.RunJobs();
 
             studio.Xaml.Write("Halves.axaml", wide);
@@ -512,7 +512,7 @@ public class FormSnapshotTests
             Assert.True(hidden!.IsStale, "форма сменилась, а превью не отмечено");
             Assert.True(Picture.Of(hidden).IsRed(0, Picture.Of(hidden).Height / 2), "снят спрятанный холст");
 
-            document.View.Mode.SelectedIndex = (int)LiveFormDocument.FormViewMode.Design;
+            document.View.Mode.SelectedIndex = (int)FormViewMode.Design;
 
             var shown = await SnapshotAsync(studio, document, path, preview => !preview.IsStale);
             var picture = Picture.Of(shown);

@@ -71,7 +71,7 @@ public class LiveFormTabTests
 
         Assert.Equal(Form, document.View.Code.Text);
         Assert.NotEmpty(document.View.Code.Spans ?? []);
-        Assert.Equal(LiveFormDocument.FormViewMode.Split, document.Mode);
+        Assert.Equal(FormViewMode.Split, document.Mode);
         Assert.True(document.View.Sheet.IsVisible && document.View.Code.IsVisible, "разделение показывает не холст и XAML");
     }
 
@@ -451,17 +451,17 @@ public class LiveFormTabTests
         var document = await studio.OpenAsync("MainWindow.axaml", Form);
         var view = document.View;
 
-        view.Mode.SelectedIndex = (int)LiveFormDocument.FormViewMode.Xaml;
+        view.Mode.SelectedIndex = (int)FormViewMode.Xaml;
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Equal(LiveFormDocument.FormViewMode.Xaml, document.Mode);
+        Assert.Equal(FormViewMode.Xaml, document.Mode);
         Assert.False(view.Sheet.IsVisible);
         Assert.True(view.Code.IsVisible);
         Assert.False(view.Split.IsVisible, "граница стоит, когда разделять нечего");
         Assert.Same(view.Code, document.FocusTarget);
         Assert.Equal("xaml", studio.Context.Settings.Get<string>(UiDesignerModule.ViewKey));
 
-        view.Mode.SelectedIndex = (int)LiveFormDocument.FormViewMode.Design;
+        view.Mode.SelectedIndex = (int)FormViewMode.Design;
         Dispatcher.UIThread.RunJobs();
 
         Assert.True(view.Sheet.IsVisible);
@@ -470,7 +470,7 @@ public class LiveFormTabTests
 
         var next = await studio.OpenAsync("Other.axaml", Form);
 
-        Assert.Equal(LiveFormDocument.FormViewMode.Design, next.Mode);
+        Assert.Equal(FormViewMode.Design, next.Mode);
     }
 
     /// <summary>

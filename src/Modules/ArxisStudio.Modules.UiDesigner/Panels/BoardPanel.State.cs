@@ -1,3 +1,4 @@
+using ArxisStudio.Markup;
 using ArxisStudio.Modules.UiDesigner.Documents;
 using ArxisStudio.Xaml;
 using Avalonia.Controls;
@@ -5,18 +6,20 @@ using Avalonia.Interactivity;
 
 namespace ArxisStudio.Modules.UiDesigner.Panels;
 
-// Чип состояния типов проекта и баннеры над холстом доски — те же, что у вкладки формы.
+// Чип состояния типов проекта, баннеры над холстом доски — те же, что у вкладки формы, — и имя формы над её XAML.
 // Часть BoardPanel; общее описание типа — в BoardPanel.cs.
 public sealed partial class BoardPanel
 {
     private FormSession? _conflicted;
     private string? _dismissed;
+    private TextSpan? _problemSpan;
 
     private void WireState(BoardView view)
     {
         view.TakeTheirs.Click += OnTakeTheirs;
         view.KeepMine.Click += OnKeepMine;
         view.Rebuild.Click += OnRebuild;
+        view.ShowProblem.Click += OnShowProblem;
         view.Notice.Closed += OnNoticeClosed;
         view.Conflict.Closed += OnConflictClosed;
 
@@ -35,6 +38,7 @@ public sealed partial class BoardPanel
         view.TakeTheirs.Click -= OnTakeTheirs;
         view.KeepMine.Click -= OnKeepMine;
         view.Rebuild.Click -= OnRebuild;
+        view.ShowProblem.Click -= OnShowProblem;
         view.Notice.Closed -= OnNoticeClosed;
         view.Conflict.Closed -= OnConflictClosed;
 
@@ -72,6 +76,21 @@ public sealed partial class BoardPanel
 
         ShowNotice(view);
         ShowConflict(view);
+        ShowCode(view);
+    }
+
+    /// <summary>
+    /// Над XAML — имя формы, с которой работают; нет её — вместо текста сказано, как её выбрать.
+    /// </summary>
+    private void ShowCode(BoardView view)
+    {
+        var active = _canvas?.Active?.Session;
+
+        // Пустой просмотр не стоит под подсказкой: у пустого текста он показал бы номер первой строки.
+        view.CodeOf.Text = active?.Path.FileName;
+        view.CodeOf.IsVisible = active is not null;
+        view.Code.IsVisible = active is not null;
+        view.CodeHint.IsVisible = active is null;
     }
 
     /// <summary>Баннер: одно сообщение, самое важное; закрытое человеком не возвращается, пока не сменится.</summary>
@@ -83,6 +102,8 @@ public sealed partial class BoardPanel
             ? Say("board.notice.form", active.Path.FileName, notice.Text)
             : notice?.Text;
 
+        _problemSpan = notice?.Span;
+
         if (notice is null || text == _dismissed)
         {
             Hide(view, view.Notice);
@@ -92,7 +113,25 @@ public sealed partial class BoardPanel
         view.Notice.Severity = notice.Severity;
         view.NoticeText.Text = text;
         view.Rebuild.IsVisible = notice.Rebuild;
+        view.ShowProblem.IsVisible = notice.Span is not null;
         view.Notice.IsVisible = true;
+    }
+
+    /// <summary>
+    /// Ведёт к месту ошибки в XAML формы, с которой работают: в одном холсте его не видно — доска открывает
+    /// разделение.
+    /// </summary>
+    private void OnShowProblem(object? sender, RoutedEventArgs e)
+    {
+        if (_problemSpan is not { } span || _view is not { } view || _modes is not { } modes)
+            return;
+
+        if (modes.Mode == FormViewMode.Design)
+            modes.Apply(FormViewMode.Split);
+
+        view.Code.CaretOffset = span.Start;
+        view.Code.ScrollIntoView(span.Start);
+        view.Code.Focus();
     }
 
     /// <summary>

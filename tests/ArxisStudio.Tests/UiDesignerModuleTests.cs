@@ -55,8 +55,8 @@ public class UiDesignerModuleTests
             "форма по умолчанию должна сохраняться сама, как в IntelliJ");
         Assert.True(
             view.Default is JsonElement { ValueKind: JsonValueKind.String } text
-            && LiveFormDocument.ModeOf(text.GetString()) == LiveFormDocument.FormViewMode.Split
-            && LiveFormDocument.NameOf(LiveFormDocument.FormViewMode.Split) == text.GetString(),
+            && FormViewModes.ModeOf(text.GetString()) == FormViewMode.Split
+            && FormViewModes.NameOf(FormViewMode.Split) == text.GetString(),
             "новая вкладка формы по умолчанию должна показывать холст и XAML под ним");
         Assert.True(previews.IsBool, "фоновые снимки объявлены не переключателем");
         Assert.True(

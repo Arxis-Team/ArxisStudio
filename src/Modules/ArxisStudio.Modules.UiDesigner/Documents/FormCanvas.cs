@@ -161,6 +161,7 @@ internal sealed partial class FormCanvas : IXamlDesignParticipant, IXamlRootLend
         session.SelectRequested += OnSelectRequested;
 
         Place(slot, item);
+        Reconsider();
 
         return slot;
     }
@@ -180,17 +181,22 @@ internal sealed partial class FormCanvas : IXamlDesignParticipant, IXamlRootLend
         using (Syncing())
             slot.Bind(item);
 
-        if (item is null || _frozen is not null)
-            return;
+        Adopt(slot);
 
-        if (slot.TakeRoot())
-            RootTaken?.Invoke(this, slot);
+        if (item is not null && _frozen is null)
+        {
+            if (slot.TakeRoot())
+                RootTaken?.Invoke(this, slot);
 
-        if (slot.TakeApplication())
+            if (slot.TakeApplication())
+                slot.QueueSnapshot();
+
+            Reselect();
             slot.QueueSnapshot();
+        }
 
-        Reselect();
-        slot.QueueSnapshot();
+        // Форма встала на холст или ушла с него: форма, с которой работают, могла смениться.
+        Reconsider();
     }
 
     /// <summary>Снимает форму с холста: выбор её уходит, карточка отдаёт корень.</summary>

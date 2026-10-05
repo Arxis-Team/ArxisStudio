@@ -37,6 +37,7 @@
   "board.kind.unreadable": "The markup cannot be read",
 
   "board.notice.form": "“{0}”: {1}",
+  "board.code.empty": "Select something on a form: its XAML appears here.",
   "board.state.closed": "No solution is open",
   "board.state.closed.hint": "Open a solution: its forms will appear here, each at its own size.",
   "board.state.opening": "Opening {0}…",

@@ -37,6 +37,7 @@
   "board.kind.unreadable": "Разметка не читается",
 
   "board.notice.form": "«{0}»: {1}",
+  "board.code.empty": "Выберите что-нибудь на форме — здесь появится её XAML.",
   "board.state.closed": "Решение не открыто",
   "board.state.closed.hint": "Откройте решение — его формы встанут здесь, каждая в свой размер.",
   "board.state.opening": "Открываю {0}…",

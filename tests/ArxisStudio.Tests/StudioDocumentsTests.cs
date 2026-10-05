@@ -402,6 +402,64 @@ public class StudioDocumentsTests
     private static string Text(string key) => Localizer.Instance[key];
 
     /// <summary>Представление документа за записью о нём.</summary>
+    /// <summary>
+    /// Редактор, показавший файл у себя, вкладки не получает: так дизайнер в режиме доски показывает форму
+    /// на своём холсте.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task An_editor_that_shows_the_file_in_its_own_panel_opens_no_tab()
+    {
+        var editor = new RevealingEditor(reveals: true);
+        var (documents, dock, _) = Studio(_ => new EditorMatch(editor, "arxis.designer"));
+
+        await documents.OpenAsync(Form);
+
+        Assert.Empty(documents.Opened);
+        Assert.DoesNotContain(StudioDocuments.Name(Form), dock.Items.Known());
+        Assert.Equal([Form], editor.Revealed);
+        Assert.Equal(0, editor.Opened);
+    }
+
+    /// <summary>
+    /// Редактор, отказавшийся показывать у себя, открывает файл вкладкой, как раньше.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task An_editor_that_declines_to_show_the_file_itself_opens_a_tab()
+    {
+        var editor = new RevealingEditor(reveals: false);
+        var (documents, _, _) = Studio(_ => new EditorMatch(editor, "arxis.designer"));
+
+        await documents.OpenAsync(Form);
+
+        Assert.Single(documents.Opened);
+        Assert.Equal([Form], editor.Revealed);
+        Assert.Equal(1, editor.Opened);
+    }
+
+    /// <summary>
+    /// Показ, упавший у редактора, записывается на его плагин, а файл открывается вкладкой: человек просил
+    /// открыть файл, и сбой показа не оставляет его ни с чем.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_reveal_that_falls_is_charged_and_the_file_opens_as_a_tab()
+    {
+        var guard = new PluginGuard();
+        var failures = new List<PluginFailure>();
+
+        guard.Failed += (_, failure) => failures.Add(failure);
+
+        var (documents, _, _) = Studio(_ => new EditorMatch(new RevealingEditor(falls: true), "arxis.designer"), guard);
+
+        await documents.OpenAsync(Form);
+
+        Assert.Single(documents.Opened);
+
+        var failure = Assert.Single(failures);
+
+        Assert.Equal("arxis.designer", failure.PluginId);
+        Assert.Equal("показ упал после ожидания", failure.Message);
+    }
+
     private static ProbeView Probe(OpenDocument document) => Assert.IsType<ProbeView>(document.View);
 
     /// <summary>
@@ -445,6 +503,42 @@ public class StudioDocumentsTests
             await Task.Yield();
 
             throw new InvalidOperationException("редактор упал после ожидания");
+        }
+    }
+
+    /// <summary>Редактор, умеющий показать файл у себя: показывает, отказывается или падает.</summary>
+    /// <param name="reveals">Показывать ли у себя.</param>
+    /// <param name="falls">Падать на показе — уже после первого ожидания.</param>
+    private sealed class RevealingEditor(bool reveals = false, bool falls = false) : DocumentEditor
+    {
+        /// <summary>Какие файлы просили показать.</summary>
+        public List<string> Revealed { get; } = [];
+
+        /// <summary>Сколько раз открывал вкладкой.</summary>
+        public int Opened { get; private set; }
+
+        /// <inheritdoc/>
+        public override bool CanOpen(string filePath) => true;
+
+        /// <inheritdoc/>
+        public override Task<(DocumentView? View, string? Error)> OpenAsync(string filePath)
+        {
+            Opened++;
+
+            return Task.FromResult<(DocumentView?, string?)>((new ProbeView(filePath), null));
+        }
+
+        /// <inheritdoc/>
+        public override async Task<bool> RevealAsync(string filePath)
+        {
+            await Task.Yield();
+
+            if (falls)
+                throw new InvalidOperationException("показ упал после ожидания");
+
+            Revealed.Add(filePath);
+
+            return reveals;
         }
     }
 

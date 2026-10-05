@@ -1,3 +1,6 @@
+using ArxisStudio.Controls;
+using ArxisStudio.Markup.Xaml;
+using ArxisStudio.Modules.UiDesigner;
 using ArxisStudio.Modules.UiDesigner.Board;
 using ArxisStudio.Modules.UiDesigner.Documents;
 using ArxisStudio.Modules.UiDesigner.Panels;
@@ -224,6 +227,195 @@ public class UiDesignerLiveBoardTests
     }
 
     /// <summary>
+    /// XAML под доской — формы, с которой работают: пока её нет, вместо текста подсказка; выбрали на
+    /// форме — её текст с отметкой выбранного и её имя над ним; выбрали на другой — текст другой.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task The_xaml_under_the_board_is_the_xaml_of_the_form_being_worked_on()
+    {
+        await using var studio = new LiveFormStudio();
+        var board = await studio.OpenBoardAsync(("MainWindow.axaml", Main), ("Badge.axaml", Badge));
+        var view = board.View!;
+        var main = board.Forms!.SessionOf(Card(board, "MainWindow.axaml"))!;
+        var badge = Card(board, "Badge.axaml");
+
+        Assert.True(view.CodeHint.IsVisible, "без формы, с которой работают, подсказки нет");
+        Assert.False(view.Code.IsVisible, "под подсказкой стоит пустой просмотр");
+        Assert.Equal(string.Empty, view.Code.Text ?? string.Empty);
+
+        Assert.True(view.Sheet.SelectTarget(Go(board)));
+
+        await XamlStudio.UntilAsync(() => view.Code.Text == Main, "XAML формы с выбранным не показан");
+
+        Assert.Equal("MainWindow.axaml", view.CodeOf.Text);
+        Assert.False(view.CodeHint.IsVisible, "подсказка осталась над текстом");
+        Assert.True(view.Code.IsVisible, "текст формы не показан");
+        Assert.Equal(Range(main, "Go"), view.Code.Highlight);
+
+        var frame = Item(board, badge).GetVisualDescendants().OfType<Border>().Single(border => border.Name == "Frame");
+
+        Assert.True(view.Sheet.SelectTarget(frame));
+
+        await XamlStudio.UntilAsync(() => view.Code.Text == Badge, "XAML не перешёл к другой форме");
+
+        Assert.Equal("Badge.axaml", view.CodeOf.Text);
+    }
+
+    /// <summary>
+    /// Форма, убранная с доски, уносит с собой и свой XAML: работать с ней больше нельзя, хотя её сессия
+    /// ещё ждёт, не вернут ли форму. Под доской — текст той, с которой работают теперь: здесь оставшейся
+    /// единственной.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_form_taken_off_the_board_takes_its_xaml_with_it()
+    {
+        await using var studio = new LiveFormStudio();
+        var board = await studio.OpenBoardAsync(("MainWindow.axaml", Main), ("Badge.axaml", Badge));
+        var view = board.View!;
+        var main = Card(board, "MainWindow.axaml");
+
+        Press(studio, Caption(Item(board, main)));
+
+        await XamlStudio.UntilAsync(() => view.Code.Text == Main, "XAML взятой формы не показан");
+
+        LiveFormStudio.Press(view.Sheet, Key.Delete);
+
+        Assert.DoesNotContain(main, board.Model!.Cards);
+
+        await XamlStudio.UntilAsync(() => view.Code.Text == Badge, "XAML убранной формы остался под доской");
+
+        Assert.Equal("Badge.axaml", view.CodeOf.Text);
+    }
+
+    /// <summary>
+    /// Форма, выбранная раньше, чем встала живой, — открытая на доске из окна проекта, — становится той, с
+    /// которой работают, когда встанет: выбор её карточки ждёт её, а XAML прежней формы под доской не
+    /// остаётся.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_form_selected_before_it_stands_live_is_worked_on_once_it_does()
+    {
+        await using var studio = new LiveFormStudio(hideDelay: TimeSpan.Zero);
+        var board = await studio.OpenBoardAsync(("MainWindow.axaml", Main), ("Badge.axaml", Badge));
+        var view = board.View!;
+        var badge = Card(board, "Badge.axaml");
+
+        studio.Context.Settings.Set(UiDesignerModule.TabsKey, false);
+
+        // Работают с окном, а значок уходит с доски — и его сессия вместе с ним.
+        Assert.True(view.Sheet.SelectTarget(Go(board)));
+
+        await XamlStudio.UntilAsync(() => view.Code.Text == Main, "XAML окна не показан");
+
+        board.Model!.Remove([badge]);
+
+        await XamlStudio.UntilAsync(() => board.Forms!.SessionOf(badge) is null, "сессия убранного значка осталась");
+
+        Assert.True(await studio.Editor().RevealAsync(badge.Path.Value), "значок не показан на доске");
+
+        await XamlStudio.UntilAsync(() => view.Code.Text == Badge, "XAML вставшего значка не показан");
+
+        Assert.Equal("Badge.axaml", view.CodeOf.Text);
+        Assert.Same(Item(board, Card(board, "Badge.axaml")), Assert.Single(view.Sheet.SelectedTargets).Target);
+    }
+
+    /// <summary>
+    /// Карточка формы, которая ещё не встала живой, остаётся выбранной, пока холст переносит на доску выбор
+    /// других форм: правка соседней формы её выбор не снимает.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_form_selected_while_it_waits_stays_selected_when_its_neighbour_changes()
+    {
+        await using var studio = new LiveFormStudio(hideDelay: TimeSpan.Zero);
+        var board = await studio.OpenBoardAsync(("MainWindow.axaml", Main), ("Badge.axaml", Badge));
+        var view = board.View!;
+        var badge = Card(board, "Badge.axaml");
+        var main = board.Forms!.SessionOf(Card(board, "MainWindow.axaml"))!;
+
+        // Значок уходит с доски вместе с сессией и возвращается на мелком масштабе — снимком, а не живым.
+        board.Model!.Remove([badge]);
+
+        await XamlStudio.UntilAsync(() => board.Forms.SessionOf(badge) is null, "сессия убранного значка осталась");
+
+        view.Sheet.ViewportZoom = 0.1;
+        board.Model.Return([badge.Path]);
+        LiveFormStudio.Frame();
+        board.Sight!.Update();
+        LiveFormStudio.Frame();
+
+        var item = Item(board, Card(board, "Badge.axaml"));
+
+        Assert.True(view.Sheet.SelectTarget(item), "карточку значка не выбрать");
+        Assert.False(board.Forms.IsLive(Card(board, "Badge.axaml")), "значок встал живым на мелком масштабе");
+
+        await main.Document!.EditAsync(
+            "Ширина", editor => editor.SetAttribute(editor.Document.Root!, XamlQualifiedName.Unprefixed("Width"), "420"),
+            TestContext.Current.CancellationToken);
+
+        await XamlStudio.UntilAsync(() => Text(main).Contains("Width=\"420\"", StringComparison.Ordinal), "правка окна не легла");
+
+        LiveFormStudio.Frame();
+
+        Assert.Same(item, Assert.Single(view.Sheet.SelectedTargets).Target);
+    }
+
+    /// <summary>Каретка в XAML под доской выбирает на доске элемент под собой — в форме этого текста.</summary>
+    [AvaloniaFact]
+    public async Task A_caret_in_the_xaml_under_the_board_selects_on_the_board()
+    {
+        await using var studio = new LiveFormStudio();
+        var board = await studio.OpenBoardAsync(("MainWindow.axaml", Main), ("Badge.axaml", Badge));
+        var view = board.View!;
+        var main = board.Forms!.SessionOf(Card(board, "MainWindow.axaml"))!;
+
+        Assert.True(view.Sheet.SelectTarget(Go(board)));
+
+        await XamlStudio.UntilAsync(() => view.Code.Text == Main, "XAML формы с выбранным не показан");
+
+        var inside = Main.IndexOf("Text=\"поле\"", StringComparison.Ordinal);
+
+        view.Code.Focus();
+        view.Code.CaretOffset = inside;
+        LiveFormStudio.Press(view.Code, Key.Right);
+
+        var input = Item(board, Card(board, "MainWindow.axaml")).GetVisualDescendants().OfType<TextBox>().Single(box => box.Name == "Input");
+
+        Assert.Same(input, view.Sheet.SelectedTargets.Single().Target);
+        Assert.Equal(Range(main, "Input"), view.Code.Highlight);
+        Assert.True(view.Code.IsKeyboardFocusWithin, "каретка в XAML увела клавиатуру на доску");
+    }
+
+    /// <summary>
+    /// Вид доски — тот же, что у вкладок: один XAML прячет холст и отдаёт клавиатуру тексту, а выбор
+    /// записывается настройкой для следующих.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task The_board_switches_its_view_like_a_tab()
+    {
+        await using var studio = new LiveFormStudio();
+        var board = await studio.OpenBoardAsync(("MainWindow.axaml", Main), ("Badge.axaml", Badge));
+        var view = board.View!;
+
+        Assert.Equal(FormViewMode.Split, board.Modes!.Mode);
+        Assert.True(view.Stage.IsVisible && view.CodePane.IsVisible, "разделение показывает не холст и XAML");
+
+        view.Mode.SelectedIndex = (int)FormViewMode.Xaml;
+        LiveFormStudio.Frame();
+
+        Assert.False(view.Stage.IsVisible, "в виде XAML холст остался");
+        Assert.True(view.CodePane.IsVisible);
+        Assert.Same(view.Code, board.FocusTarget);
+        Assert.Equal("xaml", studio.Context.Settings.Get<string>(UiDesignerModule.ViewKey));
+
+        view.Mode.SelectedIndex = (int)FormViewMode.Design;
+        LiveFormStudio.Frame();
+
+        Assert.True(view.Stage.IsVisible);
+        Assert.False(view.CodePane.IsVisible, "в виде дизайна XAML остался");
+        Assert.Same(view.Sheet, board.FocusTarget);
+    }
+
+    /// <summary>
     /// Вкладка забирает форму у доски — показ у документа один, — и на доске она стоит снимком; закрытая
     /// вкладка отдаёт её назад, и форма на виду встаёт живой снова.
     /// </summary>
@@ -270,6 +462,14 @@ public class UiDesignerLiveBoardTests
         Item(board, Card(board, "MainWindow.axaml")).GetVisualDescendants().OfType<Button>().Single(button => button.Name == "Go");
 
     private static string Text(FormSession session) => session.Document!.Syntax.SourceText.ToString();
+
+    /// <summary>Диапазон элемента в тексте формы — от открывающего тега до закрывающего.</summary>
+    private static AxCodeRange Range(FormSession session, string name)
+    {
+        var element = session.Document!.Syntax.Root!.DescendantElements().Single(element => element.Identity == name);
+
+        return new AxCodeRange(element.Span.Start, element.Span.Length);
+    }
 
     private static Control Caption(UiDesignerFormItem item) =>
         item.GetVisualDescendants().OfType<Control>().Single(part => part.Name == "PART_Caption");

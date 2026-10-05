@@ -1,4 +1,4 @@
-# StudioSdk 7.17
+# StudioSdk 7.18
 ArxisStudio.Sdk.CommandAttribute : sealed class : System.Attribute
 ArxisStudio.Sdk.CommandAttribute :: .ctor(System.String id)
 ArxisStudio.Sdk.CommandAttribute :: System.String Id { get; }
@@ -12,6 +12,7 @@ ArxisStudio.Sdk.DocumentEditor :: ArxisStudio.Sdk.IStudioContext Context { get; 
 ArxisStudio.Sdk.DocumentEditor :: System.Void Attach(ArxisStudio.Sdk.IStudioContext context)
 ArxisStudio.Sdk.DocumentEditor :: abstract System.Boolean CanOpen(System.String filePath)
 ArxisStudio.Sdk.DocumentEditor :: abstract System.Threading.Tasks.Task<System.ValueTuple<ArxisStudio.Sdk.DocumentView, System.String>> OpenAsync(System.String filePath)
+ArxisStudio.Sdk.DocumentEditor :: virtual System.Threading.Tasks.Task<System.Boolean> RevealAsync(System.String filePath)
 ArxisStudio.Sdk.DocumentView : abstract class : System.IAsyncDisposable
 ArxisStudio.Sdk.DocumentView :: .ctor()
 ArxisStudio.Sdk.DocumentView :: Avalonia.Controls.Control Content { get; }

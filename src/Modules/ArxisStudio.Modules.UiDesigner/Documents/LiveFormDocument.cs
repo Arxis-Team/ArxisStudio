@@ -109,7 +109,6 @@ internal sealed partial class LiveFormDocument : DocumentView, IFormCanvasHost
         _session.Changed += OnSessionChanged;
         sheet.Loaded += OnSheetLoaded;
 
-        _view.Mode.SelectionChanged += OnModeChanged;
         _view.TakeTheirs.Click += OnTakeTheirs;
         _view.KeepMine.Click += OnKeepMine;
         _view.Rebuild.Click += OnRebuild;
@@ -121,7 +120,8 @@ internal sealed partial class LiveFormDocument : DocumentView, IFormCanvasHost
         if (_design is not null)
             _design.StateChanged += OnDesignStateChanged;
 
-        ApplyMode(ModeOf(context.Settings.Get<string>(UiDesignerModule.ViewKey)));
+        _modes = new FormViewModes(context, _view.Mode, _view.Body, _view.Sheet, _view.Split, _view.Code);
+        _modes.Changed += OnModeApplied;
         ShowState();
 
         // Показ у документа один: фоновый снимок этой формы его отпустит, а новых не будет, пока вкладка жива.
@@ -141,7 +141,7 @@ internal sealed partial class LiveFormDocument : DocumentView, IFormCanvasHost
 
     /// <inheritdoc/>
     /// <remarks>Холст — с него работают; в виде одного XAML холста не видно, и каретку берёт текст.</remarks>
-    public override Control? FocusTarget => _mode == FormViewMode.Xaml ? _view.Code : _view.Sheet;
+    public override Control? FocusTarget => _modes.Caret;
 
     /// <summary>Открытие документа и его показ: тестам — дождаться их.</summary>
     internal Task Opening { get; }
@@ -225,7 +225,8 @@ internal sealed partial class LiveFormDocument : DocumentView, IFormCanvasHost
         _session.Changed -= OnSessionChanged;
         _view.Sheet.Loaded -= OnSheetLoaded;
 
-        _view.Mode.SelectionChanged -= OnModeChanged;
+        _modes.Changed -= OnModeApplied;
+        _modes.Dispose();
         _view.TakeTheirs.Click -= OnTakeTheirs;
         _view.KeepMine.Click -= OnKeepMine;
         _view.Rebuild.Click -= OnRebuild;

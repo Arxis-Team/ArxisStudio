@@ -13,23 +13,106 @@ using static ArxisStudio.Tests.UiDesignerStudio;
 namespace ArxisStudio.Tests;
 
 /// <summary>
-/// Режим вкладок: форма открывается своей вкладкой с холстом на одну неё, а на доске — как прежде, текстом.
+/// Режимы дизайнера: во вкладках форма открывается своей вкладкой с холстом на одну неё, а на доске —
+/// показывается на доске, выбранной целиком и в кадре; файл вне решения на доске открывает текст.
 /// </summary>
 [Collection(StudioStateCollection.Name)]
 public class UiDesignerFormTabTests
 {
     private const string Styles = "<Styles xmlns='https://github.com/avaloniaui'/>";
 
-    /// <summary>На доске дизайнер форму не берёт: её, как прежде, открывает просмотрщик разметки.</summary>
+    /// <summary>
+    /// На доске дизайнер берёт формы открытого решения — их он покажет на доске; файл вне решения доска не
+    /// знает, и его, как прежде, открывает просмотрщик разметки.
+    /// </summary>
     [AvaloniaFact]
-    public void On_the_board_the_designer_leaves_forms_to_the_text_view()
+    public async Task On_the_board_the_designer_takes_the_solutions_forms_and_leaves_the_rest_to_the_text_view()
     {
         using var studio = new UiDesignerStudio();
 
-        studio.Solution(("Views/MainWindow.axaml", WindowXaml("MainWindow")));
+        await studio.Open(studio.Solution(("Views/MainWindow.axaml", WindowXaml("MainWindow"))));
         studio.Settings.Set(UiDesignerModule.TabsKey, false);
 
-        Assert.False(studio.Editor().CanOpen(studio.PathOf("Views/MainWindow.axaml").Value));
+        var outside = Path.Combine(studio.Root, "Elsewhere.axaml");
+
+        File.WriteAllText(outside, WindowXaml("Elsewhere"));
+
+        Assert.True(studio.Editor().CanOpen(studio.PathOf("Views/MainWindow.axaml").Value), "форму решения доска не взяла");
+        Assert.False(studio.Editor().CanOpen(outside), "файл вне решения взят на доску");
+        Assert.False(await studio.Editor().RevealAsync(outside), "файл вне решения показан на доске");
+    }
+
+    /// <summary>
+    /// Форма, открытая в режиме доски, показывается на доске — выбранной целиком и в кадре, — а не
+    /// вкладкой.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task On_the_board_an_opened_form_is_shown_on_the_board_whole_and_framed()
+    {
+        using var studio = new UiDesignerStudio();
+
+        await studio.Open(studio.Solution(
+            ("Views/MainWindow.axaml", WindowXaml("MainWindow")),
+            ("Views/Card.axaml", ControlXaml("Card"))));
+        studio.Settings.Set(UiDesignerModule.TabsKey, false);
+
+        var card = studio.Card("Card.axaml");
+        var sheet = studio.View.Sheet;
+
+        sheet.ViewportLocation = new Avalonia.Point(100_000, 100_000);
+
+        Assert.True(await studio.Editor().RevealAsync(card.Path.Value), "форма не показана на доске");
+
+        UiDesignerStudio.Frame();
+
+        var item = studio.Container(card);
+        var shown = new Avalonia.Rect(sheet.ViewportLocation, sheet.Bounds.Size / sheet.ViewportZoom);
+
+        Assert.Same(item, Assert.Single(sheet.SelectedTargets).Target);
+        Assert.True(shown.Contains(new Avalonia.Rect(card.Location, item.Bounds.Size)), $"форма не в кадре: {shown}");
+    }
+
+    /// <summary>
+    /// Убранная с доски форма, открытая в режиме доски, возвращается на доску — записью истории, как из
+    /// меню: Ctrl+Z уберёт её снова.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task On_the_board_opening_a_removed_form_brings_it_back()
+    {
+        using var studio = new UiDesignerStudio();
+
+        await studio.Open(studio.Solution(
+            ("Views/MainWindow.axaml", WindowXaml("MainWindow")),
+            ("Views/Card.axaml", ControlXaml("Card"))));
+        studio.Settings.Set(UiDesignerModule.TabsKey, false);
+
+        var path = studio.PathOf("Views/Card.axaml");
+
+        studio.Model.Remove([studio.Card("Card.axaml")]);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.DoesNotContain(studio.Model.Cards, card => card.Path == path);
+        Assert.True(await studio.Editor().RevealAsync(path.Value), "убранная форма не показана");
+        Assert.Contains(studio.Model.Cards, card => card.Path == path);
+
+        // Вернувшаяся — ещё и выбрана: её контейнер свежий, и выбрать его можно только разложенным.
+        Assert.Same(studio.Container(studio.Card("Card.axaml")), Assert.Single(studio.View.Sheet.SelectedTargets).Target);
+
+        Assert.True(studio.Panel.History!.Undo(), "возврат не лёг в историю");
+        Assert.DoesNotContain(studio.Model.Cards, card => card.Path == path);
+    }
+
+    /// <summary>Во вкладках форма на доске не показывается: её открывает вкладка.</summary>
+    [AvaloniaFact]
+    public async Task In_tabs_an_opened_form_is_not_shown_on_the_board()
+    {
+        using var studio = new UiDesignerStudio();
+
+        await studio.Open(studio.Solution(("Views/MainWindow.axaml", WindowXaml("MainWindow"))));
+        studio.Settings.Set(UiDesignerModule.TabsKey, true);
+
+        Assert.False(await studio.Editor().RevealAsync(studio.PathOf("Views/MainWindow.axaml").Value));
+        Assert.Empty(studio.View.Sheet.SelectedTargets);
     }
 
     /// <summary>

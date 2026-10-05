@@ -135,6 +135,16 @@ public sealed class StudioDocuments
             return;
         }
 
+        // Редактор, который держит файл на своей панели, показывает его там, и вкладки нет. Упавший показ
+        // — его сбой, и файл открывается вкладкой, как у редактора, не умеющего показывать у себя.
+        var revealed = false;
+
+        if (await _guard.RunAsync(match.PluginId, $"показ {Path.GetFileName(filePath)}", async () => revealed = await match.Editor.RevealAsync(filePath))
+            && revealed)
+        {
+            return;
+        }
+
         _status.Show(Localizer.Instance["editor.loading"]);
 
         // Три чужих вызова одним куском: открытие, заголовок и содержимое. Документ, у которого

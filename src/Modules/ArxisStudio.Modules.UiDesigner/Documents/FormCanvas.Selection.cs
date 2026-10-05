@@ -15,6 +15,7 @@ internal sealed partial class FormCanvas
 {
     private readonly AxCodeView? _code;
     private List<Picked> _selection = [];
+    private List<Control> _waiting = [];
     private FormSlot? _lastActive;
     private FormSlot? _announced;
     private FormSlot? _codeSlot;
@@ -27,11 +28,17 @@ internal sealed partial class FormCanvas
     /// Форма, с которой работают: форма главного выбранного, без выбора — та, где выбирали последней, а у
     /// холста с одной формой — она.
     /// </summary>
-    /// <remarks>Её правки строения делает меню, её XAML показывает просмотр.</remarks>
+    /// <remarks>
+    /// Её правки строения делает меню, её XAML показывает просмотр. Считаются только формы, стоящие на
+    /// холсте: форма, ушедшая с доски, ещё держит сессию — на случай, если её вернут, — но работать с ней
+    /// уже нельзя. Выбрана карточка формы, которая ещё не встала живой, — формы, с которой работают, пока
+    /// нет: прежняя ею уже не будет, а эта станет, когда встанет.
+    /// </remarks>
     public FormSlot? Active =>
         _selection.Count > 0 ? _selection[0].Slot
-        : _lastActive is { } last && _slots.Contains(last) ? last
-        : _slots.Count == 1 ? _slots[0]
+        : _waiting.Count > 0 ? null
+        : _lastActive is { Item: not null } last && _slots.Contains(last) ? last
+        : Placed() is [var only] ? only
         : null;
 
     /// <summary>Сменилась форма, с которой работают (<see cref="Active"/>).</summary>
@@ -59,8 +66,34 @@ internal sealed partial class FormCanvas
         ArgumentNullException.ThrowIfNull(paths);
 
         _selection = [.. paths.Distinct().Select(path => new Picked(slot, path))];
+        _waiting = [];
         Follow(reveal: true);
         Reselect();
+    }
+
+    /// <summary>
+    /// Форма встала на холст: её карточку, выбранную, пока форма ещё не стояла живой, холст берёт в свой
+    /// выбор — как корень, — и без этого выбор пропал бы при первом же переносе путей на холст.
+    /// </summary>
+    private void Adopt(FormSlot slot)
+    {
+        if (slot.Item is not { } item || _waiting.Count == 0)
+            return;
+
+        var adopted = _waiting.FindAll(target => ReferenceEquals(target, item) || item.IsVisualAncestorOf(target));
+
+        if (adopted.Count == 0)
+            return;
+
+        _waiting.RemoveAll(adopted.Contains);
+
+        foreach (var target in adopted)
+        {
+            if (slot.PathOf(target) is { } path && !_selection.Contains(new Picked(slot, path)))
+                _selection.Add(new Picked(slot, path));
+        }
+
+        Follow(reveal: false);
     }
 
     /// <summary>Выбор, который ставит сам холст: его события — не выбор человека.</summary>
@@ -134,6 +167,14 @@ internal sealed partial class FormCanvas
                 targets.Add(target);
         }
 
+        // Выбранные карточки форм, которые ещё не встали, остаются выбранными: их выбор холст подхватит, когда
+        // форма встанет (Adopt), а перенос путей не должен его стереть.
+        foreach (var waiting in _waiting)
+        {
+            if (waiting.IsAttachedToVisualTree() && !targets.Contains(waiting))
+                targets.Add(waiting);
+        }
+
         _selection = resolved;
         Announce();
 
@@ -176,6 +217,19 @@ internal sealed partial class FormCanvas
     /// <returns>Было ли что выбрано: нечего — Esc уходит дальше.</returns>
     internal bool SelectParent()
     {
+        if (_selection.Count == 0 && _waiting.Count > 0)
+        {
+            // Выбрана карточка формы, которая ещё не встала: она и есть корень — Esc снимает выбор.
+            _waiting = [];
+
+            using (Syncing())
+                Sheet.SelectedItems?.Clear();
+
+            Announce();
+
+            return true;
+        }
+
         if (_selection.Count == 0)
             return false;
 
@@ -209,7 +263,19 @@ internal sealed partial class FormCanvas
         if (ReferenceEquals(_lastActive, slot))
             _lastActive = null;
 
-        if (ReferenceEquals(_codeSlot, slot))
+        Reconsider();
+    }
+
+    /// <summary>Формы, стоящие на холсте, — с карточкой.</summary>
+    private List<FormSlot> Placed() => _slots.FindAll(slot => slot.Item is not null);
+
+    /// <summary>
+    /// Форм на холсте стало больше или меньше: форма, с которой работают, могла смениться и без выбора —
+    /// единственная форма холста становится ею сама, а вставшая рядом вторая это снимает, — и XAML идёт за ней.
+    /// </summary>
+    private void Reconsider()
+    {
+        if (_code is not null && !ReferenceEquals(Active, _codeSlot))
             _ = RefreshCodeAsync(reveal: false);
 
         Announce();
@@ -222,14 +288,24 @@ internal sealed partial class FormCanvas
             return;
 
         var picked = new List<Picked>();
+        var waiting = new List<Control>();
 
         foreach (var target in e.NewTargets)
         {
-            if (SlotOf(target.Target) is { } slot && slot.PathOf(target.Target) is { } path && !picked.Contains(new Picked(slot, path)))
-                picked.Add(new Picked(slot, path));
+            if (SlotOf(target.Target) is { } slot && slot.PathOf(target.Target) is { } path)
+            {
+                if (!picked.Contains(new Picked(slot, path)))
+                    picked.Add(new Picked(slot, path));
+            }
+            else
+            {
+                // Карточка формы, которая ещё не встала: путей у неё пока нет, а выбор — есть.
+                waiting.Add(target.Target);
+            }
         }
 
         _selection = picked;
+        _waiting = waiting;
         Follow(reveal: true);
     }
 
@@ -240,6 +316,7 @@ internal sealed partial class FormCanvas
             return;
 
         _selection = [new Picked(slot, XamlElementPath.Of(element))];
+        _waiting = [];
         _lastActive = slot;
         _code.Highlight = new AxCodeRange(element.Span.Start, element.Span.Length);
         SelectOnSheet();

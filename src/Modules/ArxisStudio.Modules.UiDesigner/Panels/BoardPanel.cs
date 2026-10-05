@@ -36,8 +36,18 @@ namespace ArxisStudio.Modules.UiDesigner.Panels;
 /// всю доску. «Упорядочить» расставляет формы рядами в порядке решения.
 /// </para>
 /// <para>
+/// <b>Форма, открытая откуда угодно, — на доске</b>, когда дизайнер в режиме доски: редактор документов
+/// показывает её здесь (<see cref="RevealAsync"/>), выбранной целиком и в кадре, как Unity — сцену, а не
+/// открывает вкладкой.
+/// </para>
+/// <para>
 /// <b>История одна.</b> Ctrl+Z на доске отменяет последнее, что на ней сделано, — место формы или правку
 /// её текста (<see cref="BoardHistory"/>).
+/// </para>
+/// <para>
+/// <b>XAML — формы, с которой работают</b>: где выбрано, а без выбора — где выбирали последней. Под холстом,
+/// как у вкладки, только просмотр, с отметкой выбранного; каретка в нём выбирает на холсте. Вид — дизайн,
+/// XAML или оба — тот же, что у вкладок (<see cref="FormViewModes"/>).
 /// </para>
 /// <para>
 /// Режим дизайнера выбирают здесь же, парой переключателей в полосе: все формы на одной доске или каждая
@@ -62,6 +72,7 @@ public sealed partial class BoardPanel : ToolWindow, IFormCanvasHost
     private SheetControls? _controls;
     private BoardPreviews? _snapshots;
     private FormCanvas? _canvas;
+    private FormViewModes? _modes;
     private BoardSight? _sight;
     private BoardForms? _forms;
     private IStudioXamlDesign? _design;
@@ -90,9 +101,15 @@ public sealed partial class BoardPanel : ToolWindow, IFormCanvasHost
     /// <summary>Какие формы на виду — тестам: пересчитать сразу, а не ждать прохода диспетчера.</summary>
     internal BoardSight? Sight => _sight;
 
+    /// <summary>Вид доски — тестам.</summary>
+    internal FormViewModes? Modes => _modes;
+
     /// <inheritdoc/>
-    /// <remarks>Клавиатура доски — у холста: им работают, и его клавиши — стрелки, F, Enter и Delete.</remarks>
-    public override Control? FocusTarget => _view?.Sheet;
+    /// <remarks>
+    /// Клавиатура доски — у холста: им работают, и его клавиши — стрелки, F, Enter и Delete; в виде одного
+    /// XAML холста не видно, и каретку берёт текст.
+    /// </remarks>
+    public override Control? FocusTarget => _modes?.Caret ?? _view?.Sheet;
 
     /// <inheritdoc/>
     protected override Control Build()
@@ -109,7 +126,9 @@ public sealed partial class BoardPanel : ToolWindow, IFormCanvasHost
             Context.Strings,
             new BoardActions(Open, Frame, Arrange, Remove, Return, () => _model?.Removed ?? [], Where));
         _controls = new SheetControls(Context, sheet, view.Fit, view.Actual, view.GridToggle, Everything);
-        _canvas = new FormCanvas(Context, sheet, code: null, this, options);
+        _canvas = new FormCanvas(Context, sheet, view.Code, this, options);
+        _modes = new FormViewModes(Context, view.Mode, view.Body, view.Stage, view.Split, view.CodePane, sheet, view.Code);
+        _modes.Changed += OnModeApplied;
         _sight = new BoardSight(sheet, PlaceOf);
         _forms = new BoardForms(Context, sheet, _sight, _canvas, _history, options);
 
@@ -122,6 +141,7 @@ public sealed partial class BoardPanel : ToolWindow, IFormCanvasHost
         Wire(view, sheet, _model, _history);
         Moded();
         ShowState();
+        Boards.Of(Context).Built(this);
 
         return view;
     }
@@ -129,6 +149,8 @@ public sealed partial class BoardPanel : ToolWindow, IFormCanvasHost
     /// <inheritdoc/>
     public override void Release()
     {
+        Boards.Of(Context).Released(this);
+
         if (_view is { } view)
         {
             view.Sheet.RemoveHandler(InputElement.PointerPressedEvent, OnSheetPressed);
@@ -155,6 +177,13 @@ public sealed partial class BoardPanel : ToolWindow, IFormCanvasHost
 
         Context.Settings.Changed -= OnSettingsChanged;
 
+        if (_modes is not null)
+        {
+            _modes.Changed -= OnModeApplied;
+            _modes.Dispose();
+            _modes = null;
+        }
+
         // Живые формы — раньше снимков и холста: они отдают корни карточкам, пока карточки и холст живы, и
         // сохраняют несохранённое, прежде чем отпустить документы.
         _forms?.Dispose();
@@ -172,6 +201,45 @@ public sealed partial class BoardPanel : ToolWindow, IFormCanvasHost
         _history = null;
         _menu = null;
         _view = null;
+    }
+
+    /// <summary>
+    /// Показывает форму на доске: убранную возвращает, выбирает целиком и ставит в кадр.
+    /// </summary>
+    /// <param name="path">Файл формы.</param>
+    /// <returns>Форма показана; false — такой формы на доске нет и вернуть её нечем.</returns>
+    /// <remarks>
+    /// Доска могла только что построиться — её показали ради этой формы, — и формы на ней встают после
+    /// чтения решения: показ ждёт его. Возврат убранной — запись истории, как из меню: Ctrl+Z уберёт её снова.
+    /// </remarks>
+    internal async Task<bool> RevealAsync(CanonicalPath path)
+    {
+        if (_model is not { } model)
+            return false;
+
+        await model.Settled;
+
+        if (_model != model || _view is not { } view)
+            return false;
+
+        if (!model.Cards.Any(card => card.Path == path) && model.Removed.Any(form => form.File.Path == path))
+            Return([path]);
+
+        if (model.Cards.FirstOrDefault(card => card.Path == path) is not { } card)
+            return false;
+
+        // Вернувшейся форме контейнер даёт раскладка, и выбрать ядро может только разложенный — с рамкой:
+        // неразложенный оно не выберет, а пустой выбор холст форм потом и перенесёт на доску.
+        view.Sheet.UpdateLayout();
+
+        if (view.Sheet.ContainerFromItem(card) is not UiDesignerFormItem item)
+            return false;
+
+        // Посреди жеста ядро выбор не отдаст — форма всё равно показана: она на доске и в кадре.
+        view.Sheet.SelectTarget(item);
+        Frame([card]);
+
+        return true;
     }
 
     /// <summary>Формы, выбранные на холсте, — и целиком, и те, внутри которых выбрано, — в порядке выбора.</summary>
@@ -375,6 +443,15 @@ public sealed partial class BoardPanel : ToolWindow, IFormCanvasHost
         history.Changed += OnHistoryChanged;
         Context.Settings.Changed += OnSettingsChanged;
         WireState(view);
+    }
+
+    /// <summary>
+    /// Холст снова виден: формы, сменившиеся под видом «XAML», снимаются теперь — спрятанные не снять.
+    /// </summary>
+    private void OnModeApplied(object? sender, EventArgs e)
+    {
+        if (_modes?.Mode != FormViewMode.Xaml)
+            _canvas?.QueueSnapshots();
     }
 
     /// <summary>История сменилась — тягой, отменой, раскладкой: места, может быть, тоже — пора записать.</summary>

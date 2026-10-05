@@ -49,7 +49,8 @@ public class UiDesignerBoardTests
     }
 
     /// <summary>
-    /// Полоса доски не считает формы: в ней только органы — режим и холст, а слова в ней одни — масштаб.
+    /// Полоса доски не считает формы: в ней только органы — вид, режим и холст, а слова в ней — названия
+    /// вида и масштаб.
     /// </summary>
     [AvaloniaFact]
     public async Task The_toolbar_counts_nothing()
@@ -66,7 +67,14 @@ public class UiDesignerBoardTests
             .Select(text => text.Text)
             .ToList();
 
-        Assert.Equal([studio.View.Actual.Content as string], words);
+        Assert.Equal(
+            [
+                studio.Strings["form.mode.design"],
+                studio.Strings["form.mode.xaml"],
+                studio.Strings["form.mode.split"],
+                studio.View.Actual.Content as string,
+            ],
+            words);
     }
 
     /// <summary>
