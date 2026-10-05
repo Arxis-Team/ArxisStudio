@@ -16,8 +16,8 @@ using static ArxisStudio.Tests.UiDesignerStudio;
 namespace ArxisStudio.Tests;
 
 /// <summary>
-/// Доска — цель перетаскивания студии: на неё несут файлы форм, и в точке курсора стоит заготовка той
-/// карточки, которая встанет.
+/// Доска — цель перетаскивания студии: на неё несут файлы форм, и в точке курсора стоит заготовка формы
+/// её размера там, где она встанет.
 /// </summary>
 [Collection(StudioStateCollection.Name)]
 public class UiDesignerDropTests
@@ -41,7 +41,7 @@ public class UiDesignerDropTests
 
         var sheet = studio.View.Sheet;
         var cursor = new Point(300, 200);
-        var spot = SpotUnder(studio, cursor);
+        var spot = SpotUnder(studio, cursor, a);
 
         // Несут из чужой панели — клавиатура не у холста, и перейти к нему должна броском.
         studio.View.GridToggle.Focus();
@@ -54,10 +54,11 @@ public class UiDesignerDropTests
         Assert.Equal(DragDropEffects.Link, session.Over(studio.OnSheet(cursor), KeyModifiers.None));
         Assert.Equal(Say(studio, "board.drop.return", "A.axaml"), session.Hint);
 
-        var host = Assert.IsType<Panel>(Assert.Single(studio.View.Preview.Children));
+        var ghost = Assert.IsType<Border>(Assert.Single(studio.View.Preview.Children));
 
-        Assert.Equal((spot.X - sheet.ViewportLocation.X) * sheet.ViewportZoom, Canvas.GetLeft(host), 3);
-        Assert.Equal((spot.Y - sheet.ViewportLocation.Y) * sheet.ViewportZoom, Canvas.GetTop(host), 3);
+        Assert.Equal((spot.X - sheet.ViewportLocation.X) * sheet.ViewportZoom, Canvas.GetLeft(ghost), 3);
+        Assert.Equal((spot.Y - sheet.ViewportLocation.Y) * sheet.ViewportZoom, Canvas.GetTop(ghost), 3);
+        Assert.Equal(new Size(800, 450), new Size(ghost.Width, ghost.Height));
         Assert.DoesNotContain(a, studio.Model.Cards);
 
         Assert.Equal(DragDropEffects.Link, session.Drop());
@@ -100,7 +101,7 @@ public class UiDesignerDropTests
         var a = studio.Card("A.axaml");
         var before = a.Location;
         var cursor = new Point(420, 260);
-        var spot = SpotUnder(studio, cursor);
+        var spot = SpotUnder(studio, cursor, a);
         var session = studio.Carry(a.Path.Value);
 
         session.Over(studio.OnSheet(cursor), KeyModifiers.None);
@@ -120,11 +121,11 @@ public class UiDesignerDropTests
     }
 
     /// <summary>
-    /// Несколько форм встают сеткой от курсора — первая под ним, следующие рядами, — выбранными все;
-    /// заготовок столько же, сколько форм.
+    /// Несколько форм встают рядами от курсора — первая под ним, следующие через зазор и под рядом, —
+    /// выбранными все; заготовок столько же, сколько форм.
     /// </summary>
     [AvaloniaFact]
-    public async Task Several_forms_land_in_a_grid_from_the_cursor()
+    public async Task Several_forms_land_in_rows_from_the_cursor()
     {
         using var studio = new UiDesignerStudio();
 
@@ -135,7 +136,7 @@ public class UiDesignerDropTests
 
         var (a, b, c) = (studio.Card("A.axaml"), studio.Card("B.axaml"), studio.Card("C.axaml"));
         var cursor = new Point(200, 150);
-        var spot = SpotUnder(studio, cursor);
+        var spot = SpotUnder(studio, cursor, a);
         var session = studio.Carry(a.Path.Value, b.Path.Value, c.Path.Value);
 
         session.Over(studio.OnSheet(cursor), KeyModifiers.None);
@@ -146,7 +147,7 @@ public class UiDesignerDropTests
         session.Drop();
         await studio.Built();
 
-        var step = Length(studio, "AxFormCardWidth") + Length(studio, "AxFormCardGap");
+        var step = 800 + Length(studio, "AxFormBoardGap");
 
         Assert.Equal(new Point(spot.X, spot.Y), a.Location);
         Assert.Equal(new Point(spot.X + step, spot.Y), b.Location);
@@ -273,7 +274,7 @@ public class UiDesignerDropTests
         project.Grab(project.Item(project.Row("MainWindow.axaml")));
 
         var cursor = new Point(260, 300);
-        var spot = SpotUnder(board, board.Window.TranslatePoint(cursor, board.View.Sheet)!.Value);
+        var spot = SpotUnder(board, board.Window.TranslatePoint(cursor, board.View.Sheet)!.Value, card);
 
         project.Carry(cursor);
 
@@ -316,14 +317,18 @@ public class UiDesignerDropTests
         return (effect, hint);
     }
 
-    /// <summary>Место, куда встанет первая карточка под курсором: серединой под него, в целых точках.</summary>
-    private static Spot SpotUnder(UiDesignerStudio studio, Point inSheet)
+    /// <summary>
+    /// Место, куда встанет первая форма под курсором: серединой под него — сама форма, без заголовка окна
+    /// над ней, — в целых точках.
+    /// </summary>
+    private static Spot SpotUnder(UiDesignerStudio studio, Point inSheet, FormCard first)
     {
         var world = studio.View.Sheet.GetWorldPosition(inSheet);
+        var width = first.Root.Width ?? Length(studio, "AxFormFrameWidth");
+        var height = first.Root.Height ?? Length(studio, "AxFormFrameHeight");
+        var above = first.Kind == FormKind.Window ? Length(studio, "UiDesigner.Form.TitleBar.Height") : 0;
 
-        return new Spot(
-            Math.Round(world.X - Length(studio, "AxFormCardWidth") / 2),
-            Math.Round(world.Y - Length(studio, "AxFormCardMinHeight") / 2));
+        return new Spot(Math.Round(world.X - width / 2), Math.Round(world.Y - height / 2 - above) + above);
     }
 
     private static double Length(UiDesignerStudio studio, string key) => SheetControls.LengthOf(studio.View, key);

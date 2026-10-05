@@ -142,26 +142,17 @@ internal sealed class FormGestures : IDisposable
     }
 
     /// <remarks>
-    /// Корень удалить нечем: без него нет документа, — форму, выбранную целиком, отдают хозяину холста, а
+    /// Корень удалить нечем: без него нет документа, — формы, выбранные целиком, отдают хозяину холста, а
     /// остальное уходит одной правкой на форму.
     /// </remarks>
     private void OnDeleteRequested(object? sender, SurfaceDeleteRequestedEventArgs e)
     {
-        var whole = new List<FormSlot>();
         var parts = new List<(FormSlot Slot, List<XamlElementPath> Paths)>();
 
         foreach (var target in e.Targets)
         {
-            if (_canvas.SlotOf(target.Target) is not { } slot)
+            if (_canvas.SlotOf(target.Target) is not { } slot || ReferenceEquals(target.Target, slot.Item))
                 continue;
-
-            if (ReferenceEquals(target.Target, slot.Item))
-            {
-                if (!whole.Contains(slot))
-                    whole.Add(slot);
-
-                continue;
-            }
 
             if (slot.Shown?.PathOf(target.Target) is not { } path)
                 continue;
@@ -186,8 +177,7 @@ internal sealed class FormGestures : IDisposable
                 _ = edits.DeleteAsync(paths);
         }
 
-        if (whole.Count > 0)
-            _canvas.Host.Remove(whole);
+        _canvas.Host.Remove(e);
     }
 
     private void OnReorderRequested(object? sender, UiDesignerReorderRequestedEventArgs e)

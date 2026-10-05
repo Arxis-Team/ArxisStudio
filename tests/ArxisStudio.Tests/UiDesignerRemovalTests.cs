@@ -60,7 +60,7 @@ public class UiDesignerRemovalTests
 
         Directory.CreateDirectory(Path.GetDirectoryName(studio.BoardFile)!);
         File.WriteAllText(studio.BoardFile, """
-            { "version": 2, "forms": { "src/App/Views/A.axaml": { "x": 560, "y": -320 }, "src/App/Views/B.axaml": { "x": 0, "y": 0 } } }
+            { "version": 3, "forms": { "src/App/Views/A.axaml": { "x": 560, "y": -320 }, "src/App/Views/B.axaml": { "x": 0, "y": 0 } } }
             """);
 
         await studio.Open(snapshot);
@@ -222,7 +222,7 @@ public class UiDesignerRemovalTests
 
         Directory.CreateDirectory(Path.GetDirectoryName(studio.BoardFile)!);
         File.WriteAllText(studio.BoardFile, """
-            { "version": 2, "forms": { "src/App/Views/A.axaml": { "x": 0, "y": 0 }, "src/App/Views/Far.axaml": { "x": 6000, "y": 4000 } } }
+            { "version": 3, "forms": { "src/App/Views/A.axaml": { "x": 0, "y": 0 }, "src/App/Views/Far.axaml": { "x": 6000, "y": 4000 } } }
             """);
 
         await studio.Open(snapshot);

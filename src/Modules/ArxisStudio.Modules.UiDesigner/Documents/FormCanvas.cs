@@ -21,15 +21,24 @@ internal interface IFormCanvasHost
     /// <param name="back">Отменить, а не вернуть.</param>
     void Step(bool back);
 
-    /// <summary>Delete по корням форм: корень из документа не удалить — что делать с самой формой, решает хозяин.</summary>
-    /// <param name="forms">Формы, выбранные целиком.</param>
-    void Remove(IReadOnlyList<FormSlot> forms);
+    /// <summary>
+    /// Delete: элементы форм холст уже убрал из их текста, а корень из документа не удалить — что делать с
+    /// формами, выбранными целиком, решает хозяин.
+    /// </summary>
+    /// <param name="request">Просьба ядра: выбранное целиком — контейнеры и выбранные без контейнера.</param>
+    void Remove(SurfaceDeleteRequestedEventArgs request);
 
     /// <summary>Показать всё, что на холсте.</summary>
     void FrameAll();
 
     /// <summary>Окно студии, где стоит холст, потеряло фокус: пора сохранить.</summary>
     void LeftWindow();
+
+    /// <summary>Пункты контекстного меню холста: у вкладки — правки формы, у доски — ещё и свои.</summary>
+    /// <param name="form">Правки строения выбранного в форме, с которой работают; пусто — формы нет.</param>
+    /// <param name="request">О чём меню попросило ядро; null — попросили клавишей, у выбранного.</param>
+    /// <returns>Пункты и черты между группами.</returns>
+    IReadOnlyList<Control> MenuItems(IReadOnlyList<Control> form, SurfaceContextRequest? request);
 }
 
 /// <summary>

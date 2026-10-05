@@ -58,29 +58,48 @@ public class UiDesignerModelTests
         Assert.Equal(FormKind.Unreadable, dtd?.Kind);
     }
 
-    /// <summary>Сетка почти квадратная: тридцать карточек — шесть столбцов, а не лента.</summary>
+    /// <summary>
+    /// Ряды почти квадратные: тридцать форм — по шесть в ряду, а не лента; формы одного размера встают через
+    /// зазор, а следующий ряд — через зазор под рядом.
+    /// </summary>
     [Fact]
-    public void The_grid_is_nearly_square_and_goes_row_by_row()
+    public void Forms_go_in_nearly_square_rows()
     {
-        var spots = BoardLayout.Grid(5, new Spot(20, 40), new Pitch(280, 160));
+        var box = new Box(200, 100, 0);
+        var spots = BoardLayout.Rows([box, box, box, box, box], new Spot(20, 40), gap: 80);
 
         Assert.Equal(6, BoardLayout.Columns(30));
         Assert.Equal(1, BoardLayout.Columns(0));
         Assert.Equal(
-            [new Spot(20, 40), new Spot(300, 40), new Spot(580, 40), new Spot(20, 200), new Spot(300, 200)],
+            [new Spot(20, 40), new Spot(300, 40), new Spot(580, 40), new Spot(20, 220), new Spot(300, 220)],
             spots);
     }
 
-    /// <summary>Новые карточки встают рядами под самой нижней из поставленных, от левого края доски.</summary>
+    /// <summary>
+    /// Формы разного размера: в ряд встаёт столько самых широких, сколько столбцов; окно встаёт под своим
+    /// заголовком, а ряд ниже — под самой высокой формой ряда вместе с её заголовком.
+    /// </summary>
     [Fact]
-    public void New_cards_go_below_the_placed_ones()
+    public void Forms_of_different_sizes_keep_their_title_bars_clear()
     {
-        var pitch = new Pitch(280, 160);
+        var window = new Box(800, 450, 32);
+        var control = new Box(320, 200, 0);
 
-        Assert.Equal([new Spot(0, 0), new Spot(280, 0)], BoardLayout.Below([], 2, pitch));
         Assert.Equal(
-            [new Spot(-100, 460)],
-            BoardLayout.Below([new Spot(-100, 0), new Spot(400, 300)], 1, pitch));
+            [new Spot(0, 32), new Spot(880, 32), new Spot(0, 562)],
+            BoardLayout.Rows([window, window, control], new Spot(0, 0), gap: 80));
+    }
+
+    /// <summary>Новые формы встают рядами под самой нижней из поставленных, от левого края доски.</summary>
+    [Fact]
+    public void New_forms_go_below_the_placed_ones()
+    {
+        var box = new Box(280, 160, 0);
+
+        Assert.Equal([new Spot(0, 0), new Spot(360, 0)], BoardLayout.Below([], [box, box], gap: 80));
+        Assert.Equal(
+            [new Spot(-100, 540)],
+            BoardLayout.Below([(new Spot(-100, 0), box), (new Spot(400, 300), box)], [box], gap: 80));
     }
 
     /// <summary>
@@ -139,14 +158,48 @@ public class UiDesignerModelTests
             var folder = CanonicalPath.Create(root);
             var file = Path.Combine(root, "board.json");
 
-            File.WriteAllText(file, "{ \"forms\": { \"a.axaml\": { \"x\": 1 ");
+            File.WriteAllText(file, "{ \"version\": 3, \"forms\": { \"a.axaml\": { \"x\": 1 ");
             Assert.Empty(BoardFile.Read(file, folder).Spots);
 
-            File.WriteAllText(file, "{ \"forms\": { \"a.axaml\": { \"x\": \"left\", \"y\": 0 }, \"b.axaml\": { \"x\": 4, \"y\": 8 } }, \"removed\": [ 7, \"c.axaml\" ] }");
+            File.WriteAllText(file, "{ \"version\": 3, \"forms\": { \"a.axaml\": { \"x\": \"left\", \"y\": 0 }, \"b.axaml\": { \"x\": 4, \"y\": 8 } }, \"removed\": [ 7, \"c.axaml\" ] }");
             Assert.Equal([new Spot(4, 8)], BoardFile.Read(file, folder).Spots.Values);
             Assert.Equal([folder.Combine("c.axaml")], BoardFile.Read(file, folder).Removed);
 
             Assert.Empty(BoardFile.Read(Path.Combine(root, "missing.json"), folder).Spots);
+        }
+        finally
+        {
+            TempFolder.Erase(root);
+        }
+    }
+
+    /// <summary>
+    /// Файл прежней версии — места отмерены под карточки, а не под формы: доска их не берёт и помечает файл
+    /// устаревшим, а убранные формы помнит, как помнила. Файл без номера — первая версия.
+    /// </summary>
+    [Fact]
+    public void A_file_of_an_earlier_version_gives_no_places_but_keeps_the_removed()
+    {
+        var root = TempFolder.Create("ui-designer-outdated");
+
+        try
+        {
+            var folder = CanonicalPath.Create(root);
+            var file = Path.Combine(root, "board.json");
+
+            File.WriteAllText(file, "{ \"version\": 2, \"forms\": { \"a.axaml\": { \"x\": 4, \"y\": 8 } }, \"removed\": [ \"c.axaml\" ] }");
+
+            var second = BoardFile.Read(file, folder);
+
+            Assert.Empty(second.Spots);
+            Assert.True(second.Outdated, "файл второй версии не назван устаревшим");
+            Assert.Equal([folder.Combine("c.axaml")], second.Removed);
+
+            File.WriteAllText(file, "{ \"forms\": { \"a.axaml\": { \"x\": 4, \"y\": 8 } } }");
+            Assert.True(BoardFile.Read(file, folder).Outdated, "файл без номера не назван устаревшим");
+
+            File.WriteAllText(file, "{ \"version\": 3, \"forms\": { \"a.axaml\": { \"x\": 4, \"y\": 8 } } }");
+            Assert.False(BoardFile.Read(file, folder).Outdated, "нынешний файл назван устаревшим");
         }
         finally
         {

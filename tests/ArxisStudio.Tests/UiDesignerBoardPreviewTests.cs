@@ -1,10 +1,9 @@
-using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Modules.UiDesigner.Board;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
+using ArxisStudio.Surface.UiDesigner;
 using Avalonia;
-using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media;
@@ -16,12 +15,14 @@ using Xunit;
 namespace ArxisStudio.Tests;
 
 /// <summary>
-/// Снимки форм на карточках доски: место под снимок постоянное, снимок ставится видимой карточке и
-/// уходит вместе с её контейнером, старый — с отметкой, объявленный поставщиком — встаёт сразу.
+/// Снимки форм на доске: форма, которая не стоит живой, показывает на своём месте снимок — тот же, что на
+/// плитке окна проекта; без снимка — рамку своего размера. Снимок ставится форме на виду и уходит, когда
+/// она уходит с виду или с доски, а объявленный поставщиком — встаёт сразу.
 /// </summary>
 /// <remarks>
 /// Снимки отдаёт поставщик теста через службу превью студии — той же дорогой, какой их отдаёт дизайнер:
-/// доска знает только службу. Как дизайнер снимает формы, проверяет <see cref="FormSnapshotTests"/>.
+/// доска знает только службу. Службы XAML здесь нет, и живой форма не встаёт; живые — в
+/// <see cref="UiDesignerLiveBoardTests"/>, а как дизайнер снимает формы, проверяет <see cref="FormSnapshotTests"/>.
 /// </remarks>
 [Collection(StudioStateCollection.Name)]
 public class UiDesignerBoardPreviewTests
@@ -31,11 +32,10 @@ public class UiDesignerBoardPreviewTests
         """;
 
     /// <summary>
-    /// Снимок формы встаёт в место под него, а без снимка место стоит пустой подложкой той же высоты:
-    /// карточка не прыгает, когда снимок придёт.
+    /// Форма, которая не стоит живой, показывает снимок на своём месте — во весь свой объявленный размер.
     /// </summary>
     [AvaloniaFact]
-    public async Task A_card_shows_its_form_snapshot_in_the_place_kept_for_it()
+    public async Task A_form_that_is_not_live_shows_its_snapshot_in_its_place()
     {
         var registry = new StudioFilePreviews(new StudioLog(), new PluginGuard());
         var forms = new Forms { Image = Png(384, 192) };
@@ -47,20 +47,19 @@ public class UiDesignerBoardPreviewTests
         await Shown(studio, studio.Card("MainWindow.axaml"));
 
         var card = studio.Card("MainWindow.axaml");
-        var item = Container(studio, card);
+        var item = studio.Container(card);
 
         Assert.Equal(new PixelSize(384, 192), Assert.IsAssignableFrom<Bitmap>(card.Preview).PixelSize);
-        Assert.True(Picture(item).IsEffectivelyVisible, "снимка на карточке нет");
-        Assert.Equal(Length(studio, "AxFormCardPreviewHeight"), Well(item).Bounds.Height);
-        Assert.False(Stale(item).IsVisible, "свежий снимок отмечен устаревшим");
+        Assert.Same(card.Preview, Picture(item));
+        Assert.Equal(new Size(400, 200), item.Bounds.Size);
     }
 
     /// <summary>
-    /// Карточка с обычным текстом стоит ровно на наименьшей высоте темы: снимок и три строки в неё
-    /// влезают, и шаг раскладки — высота с зазором — ложится в клетку сетки холста.
+    /// Без снимка форма стоит рамкой своего размера — подложкой и контуром темы: на подложке холста пустое
+    /// место формы иначе не видно. Зазор доски — в клетку сетки холста.
     /// </summary>
     [AvaloniaFact]
-    public async Task A_card_with_its_snapshot_place_stands_at_the_theme_minimum()
+    public async Task A_form_without_a_snapshot_stands_as_a_frame_of_its_size()
     {
         var registry = new StudioFilePreviews(new StudioLog(), new PluginGuard());
 
@@ -68,16 +67,21 @@ public class UiDesignerBoardPreviewTests
         using var studio = new UiDesignerStudio(previews: registry);
 
         await studio.Open(studio.Solution(("MainWindow.axaml", Form)));
+        await Settled(studio);
 
-        var minimum = Length(studio, "AxFormCardMinHeight");
+        var item = studio.Container(studio.Card("MainWindow.axaml"));
 
-        Assert.Equal(minimum, Container(studio, studio.Card("MainWindow.axaml")).Bounds.Height);
-        Assert.Equal(0, (minimum + Length(studio, "AxFormCardGap")) % 20);
+        Assert.True(studio.View.TryFindResource("AxSurfaceBaseBrush", studio.View.ActualThemeVariant, out var surface));
+        Assert.True(studio.View.TryFindResource("AxStrokeControlBrush", studio.View.ActualThemeVariant, out var stroke));
+        Assert.Same(surface, item.Background);
+        Assert.Same(stroke, item.BorderBrush);
+        Assert.Equal(new Size(400, 200), item.Bounds.Size);
+        Assert.Equal(0, Length(studio, "AxFormBoardGap") % 20);
     }
 
-    /// <summary>Снимок старше файла стоит на карточке с отметкой, и диктор называет её словами.</summary>
+    /// <summary>Снимок старше файла стоит на месте формы, пока живая не встала: старое лучше пустоты.</summary>
     [AvaloniaFact]
-    public async Task A_stale_snapshot_shows_with_its_mark()
+    public async Task A_stale_snapshot_shows_until_the_form_is_live()
     {
         var registry = new StudioFilePreviews(new StudioLog(), new PluginGuard());
 
@@ -85,18 +89,18 @@ public class UiDesignerBoardPreviewTests
         using var studio = new UiDesignerStudio(previews: registry);
 
         await studio.Open(studio.Solution(("MainWindow.axaml", Form)));
-        await Shown(studio, studio.Card("MainWindow.axaml"));
 
-        var item = Container(studio, studio.Card("MainWindow.axaml"));
+        var card = studio.Card("MainWindow.axaml");
 
-        Assert.True(Picture(item).IsEffectivelyVisible, "устаревший снимок спрятан");
-        Assert.True(Stale(item).IsEffectivelyVisible, "отметки устаревшего снимка нет");
-        Assert.Equal(studio.Strings["board.preview.stale"], AutomationProperties.GetName(Stale(item)));
+        await Shown(studio, card);
+
+        Assert.True(card.IsPreviewStale);
+        Assert.Same(card.Preview, Picture(studio.Container(card)));
     }
 
     /// <summary>
-    /// Снимок, о котором поставщик объявил, встаёт на видимую карточку сразу: форму сняли в фоне, а файл
-    /// при этом не менялся.
+    /// Снимок, о котором поставщик объявил, встаёт на видимую форму сразу: форму сняли в фоне, а файл при
+    /// этом не менялся.
     /// </summary>
     [AvaloniaFact]
     public async Task A_snapshot_the_provider_announces_reaches_the_card()
@@ -120,15 +124,15 @@ public class UiDesignerBoardPreviewTests
 
         await Shown(studio, card);
 
-        Assert.True(Picture(Container(studio, card)).IsEffectivelyVisible, "объявленный снимок не встал");
+        Assert.Same(card.Preview, Picture(studio.Container(card)));
     }
 
     /// <summary>
-    /// Карточка, ушедшая с холста, отпускает снимок вместе с контейнером: растр не живёт дольше того, что
-    /// его рисует.
+    /// Форма, ушедшая с холста, отпускает снимок вместе с контейнером: растр не живёт дольше того, что его
+    /// рисует.
     /// </summary>
     [AvaloniaFact]
-    public async Task A_card_taken_off_the_board_lets_its_snapshot_go()
+    public async Task A_form_taken_off_the_board_lets_its_snapshot_go()
     {
         var registry = new StudioFilePreviews(new StudioLog(), new PluginGuard());
 
@@ -149,11 +153,49 @@ public class UiDesignerBoardPreviewTests
     }
 
     /// <summary>
-    /// Снимок, пришедший после того, как карточку убрали с холста, на неё не встаёт: держать его некому, и
-    /// растр, поставленный карточке без контейнера, не освободил бы никто.
+    /// Форма, ушедшая с виду, отпускает снимок — холст держит карточки всех форм, а растры только у видимых, —
+    /// и берёт его снова, вернувшись.
     /// </summary>
     [AvaloniaFact]
-    public async Task A_snapshot_arriving_after_the_card_left_is_not_put_on_it()
+    public async Task A_form_out_of_view_lets_its_snapshot_go_and_takes_it_again_in_view()
+    {
+        var registry = new StudioFilePreviews(new StudioLog(), new PluginGuard());
+
+        using var registration = new PluginFilePreviews(registry, "test.forms").Register(new Forms { Image = Png(384, 192) });
+        using var studio = new UiDesignerStudio(previews: registry);
+
+        await studio.Open(studio.Solution(("A.axaml", Form), ("B.axaml", Form)));
+
+        var a = studio.Card("A.axaml");
+        var sheet = studio.View.Sheet;
+
+        await Shown(studio, a);
+
+        var shown = sheet.ViewportLocation;
+
+        sheet.ViewportLocation = new Point(100_000, 100_000);
+        Dispatcher.UIThread.RunJobs();
+        studio.Panel.Sight!.Update();
+
+        Assert.Null(a.Preview);
+        Assert.Null(Picture(studio.Container(a)));
+        Assert.NotNull(studio.View.Sheet.ContainerFromItem(a));
+
+        sheet.ViewportLocation = shown;
+        Dispatcher.UIThread.RunJobs();
+        studio.Panel.Sight.Update();
+
+        await Shown(studio, a);
+
+        Assert.Same(a.Preview, Picture(studio.Container(a)));
+    }
+
+    /// <summary>
+    /// Снимок, пришедший после того, как форму убрали с холста, на неё не встаёт: держать его некому, и
+    /// растр, поставленный форме без контейнера, не освободил бы никто.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_snapshot_arriving_after_the_form_left_is_not_put_on_it()
     {
         var registry = new StudioFilePreviews(new StudioLog(), new PluginGuard());
         var forms = new Forms { Image = Png(384, 192), Hold = new TaskCompletionSource() };
@@ -186,7 +228,7 @@ public class UiDesignerBoardPreviewTests
 
                 return card.Preview is not null;
             },
-            $"снимок {card.Name} не встал на карточку");
+            $"снимок {card.Name} не встал на форму");
 
         Dispatcher.UIThread.RunJobs();
     }
@@ -199,22 +241,13 @@ public class UiDesignerBoardPreviewTests
         Dispatcher.UIThread.RunJobs();
     }
 
-    private static AxCard Container(UiDesignerStudio studio, FormCard card)
+    /// <summary>Снимок, который форма показывает на своём месте; null — его нет.</summary>
+    private static IImageBrushSource? Picture(UiDesignerFormItem item)
     {
         Dispatcher.UIThread.RunJobs();
 
-        var container = studio.View.Sheet.ContainerFromItem(card) ?? throw new InvalidOperationException($"у {card.Name} нет контейнера");
-
-        return container.GetVisualDescendants().OfType<AxCard>().Single();
+        return (item.Background as ImageBrush)?.Source;
     }
-
-    private static Border Well(Visual card) =>
-        card.GetVisualDescendants().OfType<Border>().Single(border => border.Classes.Contains("preview"));
-
-    private static Image Picture(Visual card) => card.GetVisualDescendants().OfType<Image>().Single();
-
-    private static Border Stale(Visual card) =>
-        card.GetVisualDescendants().OfType<Border>().Single(border => border.Classes.Contains("stale"));
 
     private static double Length(UiDesignerStudio studio, string key) =>
         studio.View.TryFindResource(key, studio.View.ActualThemeVariant, out var value) && value is double length

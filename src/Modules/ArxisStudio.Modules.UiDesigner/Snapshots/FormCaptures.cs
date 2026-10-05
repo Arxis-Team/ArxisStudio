@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using ArxisStudio.Modules.UiDesigner.Board;
+using ArxisStudio.Modules.UiDesigner.Documents;
 using ArxisStudio.Modules.UiDesigner.Model;
 using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
@@ -33,9 +34,10 @@ namespace ArxisStudio.Modules.UiDesigner.Snapshots;
 /// через простой после последнего отпущенного документа.
 /// </para>
 /// <para>
-/// <b>Вкладке не мешает.</b> Показ у документа один, и вкладка, открывающая форму, заявляет её
-/// (<see cref="Claim"/>): идущий снимок этой формы отпускает показ, а новых не будет — вкладка снимет
-/// сама. На замену поколения снимок — участник: отдаёт корень, бросает съёмку и вернёт форму в очередь.
+/// <b>Вкладке и доске не мешает.</b> Показ у документа один, и снимок в учёте показов
+/// (<see cref="FormShows"/>) младше всех: вкладка или доска, взявшие форму, просят его уступить — идущий
+/// снимок этой формы отпускает показ, а новых не будет, пока форму держат: снимет тот, кто показывает. На
+/// замену поколения снимок — участник: отдаёт корень, бросает съёмку и вернёт форму в очередь.
 /// </para>
 /// <para>
 /// Не снимаются не формы (приложение, словари), файлы вне решения, документ с несохранённым — снимок
@@ -54,7 +56,7 @@ internal sealed class FormCaptures : IXamlRootLender, IXamlDesignParticipant, ID
     private readonly FormSnapshots _snapshots;
     private readonly UiDesignerOptions _options;
     private readonly LinkedList<string> _queue = [];
-    private readonly Dictionary<string, int> _claims = new(StringComparer.OrdinalIgnoreCase);
+    private readonly FormShows _shows;
     private readonly Dictionary<string, string> _failed = new(StringComparer.OrdinalIgnoreCase);
     private readonly CancellationTokenSource _lifetime = new();
 
@@ -77,6 +79,7 @@ internal sealed class FormCaptures : IXamlRootLender, IXamlDesignParticipant, ID
         _context = context;
         _snapshots = snapshots;
         _options = options;
+        _shows = FormShows.Of(context);
 
         Owners.AddOrUpdate(context, this);
     }
@@ -125,30 +128,6 @@ internal sealed class FormCaptures : IXamlRootLender, IXamlDesignParticipant, ID
             _pump = PumpAsync();
     }
 
-    /// <summary>
-    /// Вкладка открывает форму: снимок этой формы отпускает показ, и в фоне её больше не снимают, пока
-    /// заявка не отпущена.
-    /// </summary>
-    /// <param name="formPath">Путь к форме.</param>
-    /// <returns>Заявка; её <see cref="FormClaim.Released"/> кончается, когда показ формы свободен.</returns>
-    public FormClaim Claim(string formPath)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(formPath);
-
-        _claims[formPath] = _claims.GetValueOrDefault(formPath) + 1;
-        Forget(formPath);
-
-        var released = Task.CompletedTask;
-
-        if (_current is { } current && string.Equals(current.Path, formPath, StringComparison.OrdinalIgnoreCase))
-        {
-            current.Cancel();
-            released = current.Finished;
-        }
-
-        return new FormClaim(this, formPath, released);
-    }
-
     /// <inheritdoc/>
     public IDisposable Lend(object root) => _stage?.Lend(root) ?? Nothing.Instance;
 
@@ -188,18 +167,6 @@ internal sealed class FormCaptures : IXamlRootLender, IXamlDesignParticipant, ID
         // Отмена без освобождения: очередь и съёмка, брошенные ею, ещё спросят признак отмены.
         _lifetime.Cancel();
         Owners.Remove(_context);
-    }
-
-    /// <summary>Снимает заявку вкладки.</summary>
-    internal void Unclaim(string formPath)
-    {
-        if (!_claims.TryGetValue(formPath, out var count))
-            return;
-
-        if (count > 1)
-            _claims[formPath] = count - 1;
-        else
-            _claims.Remove(formPath);
     }
 
     /// <summary>Снимает формы очереди одну за другой, когда тихо.</summary>
@@ -261,6 +228,11 @@ internal sealed class FormCaptures : IXamlRootLender, IXamlDesignParticipant, ID
 
         using var capture = new Capture(formPath, _lifetime.Token);
 
+        // Форму взяли вкладка или доска — снимать будут они: их просьба уступить бросает съёмку, а взятое
+        // освобождается последним, когда показ и документ уже отпущены.
+        if (_shows.TryHold(formPath, FormShowRank.Capture, capture.Cancel) is not { } hold)
+            return;
+
         _current = capture;
 
         var participation = _context.XamlDesign()?.Register(this);
@@ -279,8 +251,8 @@ internal sealed class FormCaptures : IXamlRootLender, IXamlDesignParticipant, ID
 
             shown = await document.ShowAsync(this, capture.Token);
 
-            if (_options.SnapshotShown is { } hold)
-                await hold(capture.Token);
+            if (_options.SnapshotShown is { } shownHook)
+                await shownHook(capture.Token);
 
             // Не построился текст — не показался или называет тип, которого нет, — снимать нечего: прежний
             // показ файлу не ответил бы.
@@ -313,8 +285,8 @@ internal sealed class FormCaptures : IXamlRootLender, IXamlDesignParticipant, ID
         }
         catch (OperationCanceledException) when (!_lifetime.IsCancellationRequested)
         {
-            // Вкладка заявила форму или пришла замена поколения. Замена вернёт форму в очередь, вкладка — нет:
-            // она снимет сама.
+            // Форму взяли вкладка или доска, или пришла замена поколения. Замена вернёт форму в очередь, а
+            // взявшие — нет: они снимут сами.
             if (capture.Retry && !IsClaimed(formPath))
                 _queue.AddLast(formPath);
         }
@@ -336,6 +308,7 @@ internal sealed class FormCaptures : IXamlRootLender, IXamlDesignParticipant, ID
             participation?.Dispose();
             _current = null;
             capture.Complete();
+            hold.Dispose();
         }
 
         if (snapshot is null || picture is null)
@@ -426,7 +399,8 @@ internal sealed class FormCaptures : IXamlRootLender, IXamlDesignParticipant, ID
         }
     }
 
-    private bool IsClaimed(string formPath) => _claims.ContainsKey(formPath);
+    /// <summary>Держат ли форму вкладка или доска: снимать будут они.</summary>
+    private bool IsClaimed(string formPath) => _shows.IsHeldAbove(formPath, FormShowRank.Capture);
 
     /// <summary>Файл — часть открытого решения: служба XAML строит только его формы.</summary>
     private bool InSolution(CanonicalPath path) =>
@@ -476,27 +450,5 @@ internal sealed class FormCaptures : IXamlRootLender, IXamlDesignParticipant, ID
         public void Dispose()
         {
         }
-    }
-}
-
-/// <summary>Заявка вкладки на форму: пока она не отпущена, в фоне форму не снимают.</summary>
-/// <param name="owner">Съёмка.</param>
-/// <param name="formPath">Путь к форме.</param>
-/// <param name="released">Кончается, когда показ формы свободен.</param>
-internal sealed class FormClaim(FormCaptures owner, string formPath, Task released) : IDisposable
-{
-    private bool _disposed;
-
-    /// <summary>Показ формы свободен: снимок, шедший при заявке, его отпустил.</summary>
-    public Task Released { get; } = released;
-
-    /// <inheritdoc/>
-    public void Dispose()
-    {
-        if (_disposed)
-            return;
-
-        _disposed = true;
-        owner.Unclaim(formPath);
     }
 }

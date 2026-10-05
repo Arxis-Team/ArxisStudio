@@ -9,6 +9,7 @@ using ArxisStudio.ProjectSystem;
 using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using ArxisStudio.Surface;
+using ArxisStudio.Surface.UiDesigner;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -175,9 +176,9 @@ internal sealed class UiDesignerStudio : IDisposable
     /// <param name="inSheet">Точка в координатах холста.</param>
     public Point OnSheet(Point inSheet) => View.Sheet.TranslatePoint(inSheet, View)!.Value;
 
-    /// <summary>Контейнер карточки на холсте; холст держит его, только пока карточка видна.</summary>
-    public SurfaceItem Container(FormCard card) =>
-        Assert.IsType<SurfaceItem>(View.Sheet.ContainerFromItem(card));
+    /// <summary>Карточка формы на холсте; холст держит её, только пока форма видна.</summary>
+    public UiDesignerFormItem Container(FormCard card) =>
+        Assert.IsType<UiDesignerFormItem>(View.Sheet.ContainerFromItem(card));
 
     /// <summary>Щёлкает мышью дважды в середину.</summary>
     public void DoubleClick(Visual target)

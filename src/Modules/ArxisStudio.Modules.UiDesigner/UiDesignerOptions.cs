@@ -66,4 +66,23 @@ internal sealed class UiDesignerOptions
     /// с показом в руках.
     /// </summary>
     public Func<CancellationToken, Task>? SnapshotShown { get; init; }
+
+    /// <summary>
+    /// Масштаб доски, начиная с которого форма на виду встаёт живой; мельче — стоит снимком.
+    /// </summary>
+    /// <remarks>
+    /// Четверть: окно 800 × 450 занимает на экране 200 × 112 — столько у плитки окна проекта, и править на
+    /// таком масштабе уже нечего. Живая форма строится десятки миллисекунд, а на мелком масштабе на экране
+    /// их десятки — холст стоял бы, пока они встают.
+    /// </remarks>
+    public double BoardLiveZoom { get; init; } = 0.25;
+
+    /// <summary>
+    /// Сколько форма, ушедшая с виду доски, держит показ, прежде чем отдать его;
+    /// <see cref="Timeout.InfiniteTimeSpan"/> — держит, пока не вернётся.
+    /// </summary>
+    /// <remarks>
+    /// Три секунды: листают туда и обратно — форма не строится заново, а пролистанное за край не копится.
+    /// </remarks>
+    public TimeSpan BoardHideDelay { get; init; } = TimeSpan.FromSeconds(3);
 }

@@ -28,22 +28,28 @@ internal sealed partial class FormEdits
     private readonly IStudioStrings _strings;
     private readonly Action<IReadOnlyList<XamlElementPath>> _select;
     private readonly Action<string> _refused;
+    private readonly Action? _edited;
 
     /// <summary>Правки документа формы.</summary>
     /// <param name="document">Документ формы.</param>
     /// <param name="strings">Словарь модуля: имена шагов истории.</param>
     /// <param name="select">Что выбрать, когда правка, сдвинувшая пути, показана.</param>
     /// <param name="refused">Куда сказать, что правка не записана.</param>
+    /// <param name="edited">
+    /// Правка изменила текст — шаг истории документа сделан; отмена и возврат шага сюда не говорят.
+    /// </param>
     public FormEdits(
         IXamlDocumentHandle document,
         IStudioStrings strings,
         Action<IReadOnlyList<XamlElementPath>> select,
-        Action<string> refused)
+        Action<string> refused,
+        Action? edited = null)
     {
         _document = document;
         _strings = strings;
         _select = select;
         _refused = refused;
+        _edited = edited;
     }
 
     /// <summary>Документ формы.</summary>
@@ -59,6 +65,9 @@ internal sealed partial class FormEdits
         try
         {
             var outcome = await _document.EditAsync(label, edit);
+
+            if (outcome.TextChanged)
+                _edited?.Invoke();
 
             if (outcome.TextChanged && select is { Count: > 0 })
                 _select(select);

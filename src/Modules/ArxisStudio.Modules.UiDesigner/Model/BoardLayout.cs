@@ -5,69 +5,98 @@ namespace ArxisStudio.Modules.UiDesigner.Model;
 /// <param name="Y">Сверху вниз.</param>
 internal readonly record struct Spot(double X, double Y);
 
-/// <summary>Шаг раскладки: карточка вместе с зазором до соседа.</summary>
-/// <param name="X">По горизонтали.</param>
-/// <param name="Y">По вертикали.</param>
-internal readonly record struct Pitch(double X, double Y);
+/// <summary>Форма для раскладки: её размер и место над ней — под заголовок окна.</summary>
+/// <param name="Width">Ширина формы.</param>
+/// <param name="Height">Высота формы.</param>
+/// <param name="Above">Сколько над формой занимает её хром: у окна — заголовок, у остальных — ничего.</param>
+internal readonly record struct Box(double Width, double Height, double Above);
 
 /// <summary>
-/// Где встают карточки, которым место не назначено, и как доска упорядочивается целиком.
+/// Где встают формы, которым место не назначено, и как доска упорядочивается целиком.
 /// </summary>
 /// <remarks>
-/// Сетка почти квадратная — столбцов столько, сколько корень из числа карточек, округлённый вверх: доска
-/// на тридцать форм вписывается в окно шестью рядами по шесть, а не лентой в тридцать. Порядок —
-/// порядок решения (проект, путь), так что соседи на доске — соседи и в дереве проекта.
 /// <para>
-/// Новые карточки не двигают тех, кого человек поставил сам: они встают рядами под занятой частью
-/// доски, начиная с её левого края. Место у карточки появляется один раз — дальше оно её и хранится.
+/// Формы разного размера встают рядами, слева направо: следующая — через зазор от предыдущей, а не
+/// поместилась в ряд — в новый, через зазор под самой высокой формой ряда. Ширина ряда — столько самых
+/// широких форм, сколько корень из их числа, округлённый вверх: в ряд встаёт не меньше форм, чем столбцов,
+/// и доска на тридцать форм вписывается в окно шестью рядами, а не лентой. Порядок — порядок решения
+/// (проект, путь), так что соседи на доске — соседи и в дереве проекта.
+/// </para>
+/// <para>
+/// Место формы — её левый верхний угол; заголовок окна стоит над ним, и ряд отводит под него место:
+/// заголовок не ложится на форму ряда выше.
+/// </para>
+/// <para>
+/// Новые формы не двигают тех, кого человек поставил сам: они встают рядами под занятой частью доски,
+/// начиная с её левого края. Место у формы появляется один раз — дальше оно её и хранится.
 /// </para>
 /// </remarks>
 internal static class BoardLayout
 {
-    /// <summary>Столбцов в сетке на столько карточек.</summary>
-    /// <param name="count">Число карточек.</param>
+    /// <summary>Сколько форм в ряду на столько форм.</summary>
+    /// <param name="count">Число форм.</param>
     public static int Columns(int count) => Math.Max(1, (int)Math.Ceiling(Math.Sqrt(count)));
 
     /// <summary>
-    /// Места сеткой от точки начала.
+    /// Места рядами от точки начала.
     /// </summary>
-    /// <param name="count">Сколько мест.</param>
-    /// <param name="origin">Левый верхний угол первой карточки.</param>
-    /// <param name="pitch">Шаг сетки.</param>
-    /// <param name="columns">Столбцов; не задано — по <see cref="Columns"/>.</param>
-    public static IReadOnlyList<Spot> Grid(int count, Spot origin, Pitch pitch, int? columns = null)
+    /// <param name="boxes">Формы в порядке раскладки.</param>
+    /// <param name="origin">Левый верхний угол первого ряда — вместе с заголовком окна, если первая форма окно.</param>
+    /// <param name="gap">Зазор между формами и рядами.</param>
+    /// <returns>Левые верхние углы форм — без заголовка окна.</returns>
+    public static IReadOnlyList<Spot> Rows(IReadOnlyList<Box> boxes, Spot origin, double gap)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        ArgumentNullException.ThrowIfNull(boxes);
 
-        var across = Math.Max(1, columns ?? Columns(count));
-        var spots = new Spot[count];
+        var spots = new Spot[boxes.Count];
 
-        for (var index = 0; index < count; index++)
-            spots[index] = new Spot(origin.X + index % across * pitch.X, origin.Y + index / across * pitch.Y);
+        if (boxes.Count == 0)
+            return spots;
+
+        var limit = Columns(boxes.Count) * (boxes.Max(box => box.Width) + gap) - gap;
+        var x = origin.X;
+        var top = origin.Y;
+        var height = 0.0;
+
+        for (var index = 0; index < boxes.Count; index++)
+        {
+            var box = boxes[index];
+
+            if (x > origin.X && x + box.Width > origin.X + limit)
+            {
+                top += height + gap;
+                x = origin.X;
+                height = 0;
+            }
+
+            spots[index] = new Spot(x, top + box.Above);
+            x += box.Width + gap;
+            height = Math.Max(height, box.Above + box.Height);
+        }
 
         return spots;
     }
 
     /// <summary>
-    /// Места для новых карточек — под теми, что уже стоят.
+    /// Места для новых форм — под теми, что уже стоят.
     /// </summary>
-    /// <param name="placed">Места поставленных карточек: левые верхние углы.</param>
-    /// <param name="count">Сколько новых.</param>
-    /// <param name="pitch">Шаг сетки.</param>
+    /// <param name="placed">Поставленные формы: место и размер.</param>
+    /// <param name="fresh">Новые формы в порядке их прихода.</param>
+    /// <param name="gap">Зазор между формами и рядами.</param>
     /// <returns>Места новых в порядке их прихода.</returns>
     /// <remarks>
-    /// Первый ряд новых — на шаг ниже самой нижней поставленной карточки: шаг отмерен от её верха и
-    /// включает и высоту, и зазор. Столбцов у новых — по их собственному числу: десяток новых форм рядом
-    /// с одной старой встаёт квадратом, а не лентой ширины старой доски.
+    /// Первый ряд новых — через зазор под самым низом поставленных. Ширина рядов — по числу новых: десяток
+    /// новых форм рядом с одной старой встаёт квадратом, а не лентой ширины старой доски.
     /// </remarks>
-    public static IReadOnlyList<Spot> Below(IReadOnlyCollection<Spot> placed, int count, Pitch pitch)
+    public static IReadOnlyList<Spot> Below(IReadOnlyCollection<(Spot Spot, Box Box)> placed, IReadOnlyList<Box> fresh, double gap)
     {
         ArgumentNullException.ThrowIfNull(placed);
+        ArgumentNullException.ThrowIfNull(fresh);
 
         var origin = placed.Count == 0
             ? new Spot(0, 0)
-            : new Spot(placed.Min(spot => spot.X), placed.Max(spot => spot.Y) + pitch.Y);
+            : new Spot(placed.Min(form => form.Spot.X), placed.Max(form => form.Spot.Y + form.Box.Height) + gap);
 
-        return Grid(count, origin, pitch);
+        return Rows(fresh, origin, gap);
     }
 }

@@ -118,18 +118,7 @@ internal sealed partial class LiveFormDocument
     /// <summary>Чип состояния типов проекта и баннер того, что требует внимания.</summary>
     private void ShowState()
     {
-        var (chip, busy) = (_design?.State ?? XamlDesignState.Idle) switch
-        {
-            XamlDesignState.Starting => ("form.state.starting", true),
-            XamlDesignState.Live => ("form.state.live", false),
-            XamlDesignState.Building => ("form.state.building", true),
-            XamlDesignState.SwapPending => ("form.state.swapPending", false),
-            XamlDesignState.Swapping => ("form.state.swapping", true),
-            XamlDesignState.RestartRequired => ("form.state.restart", false),
-            XamlDesignState.Unsupported => ("form.state.unsupported", false),
-            XamlDesignState.Failed => ("form.state.failed", false),
-            _ => ((string?)null, false),
-        };
+        var (chip, busy) = FormNotices.Chip(_design);
 
         _view.State.IsVisible = chip is not null;
         _view.State.Content = chip is null ? null : _context.Strings[chip];
@@ -142,7 +131,7 @@ internal sealed partial class LiveFormDocument
     /// <summary>Баннер: одно сообщение, самое важное; закрытое человеком не возвращается, пока не сменится.</summary>
     private void ShowNotice()
     {
-        var notice = Notice();
+        var notice = FormNotices.For(_design, _session, _context.Strings);
 
         _problemSpan = notice?.Span;
 
@@ -157,52 +146,6 @@ internal sealed partial class LiveFormDocument
         _view.Rebuild.IsVisible = notice.Rebuild;
         _view.ShowProblem.IsVisible = notice.Span is not null;
         _view.Notice.IsVisible = true;
-    }
-
-    /// <summary>
-    /// Что сказать над холстом, по важности: форма не открылась; типам нужен перезапуск, они не
-    /// загрузились или проект на чужой Avalonia; документ закрыт или удалён; текст не показался; сборка
-    /// дизайна упала.
-    /// </summary>
-    private FormNotice? Notice()
-    {
-        if (_session.Problem is { } problem)
-            return new FormNotice(AxBannerSeverity.Error, problem);
-
-        var reason = _design?.StateReason ?? string.Empty;
-
-        switch (_design?.State)
-        {
-            case XamlDesignState.RestartRequired:
-                return new FormNotice(AxBannerSeverity.Warning, Format("form.restart", reason));
-
-            case XamlDesignState.Failed:
-                return new FormNotice(AxBannerSeverity.Error, Format("form.failed", reason));
-
-            case XamlDesignState.Unsupported:
-                return new FormNotice(AxBannerSeverity.Warning, Format("form.unsupported", reason));
-        }
-
-        if (_session.Document is { } document)
-        {
-            if (document.IsClosed)
-                return new FormNotice(AxBannerSeverity.Information, _context.Strings["form.closed"]);
-
-            if (document.IsDeleted)
-                return new FormNotice(AxBannerSeverity.Warning, Format("form.deleted", _path.FileName));
-
-            var error = document.Diagnostics.FirstOrDefault(diagnostic => diagnostic.IsError);
-
-            if (document.State == XamlDocumentState.Broken)
-                return new FormNotice(AxBannerSeverity.Error, Format("form.broken", error?.Message), Span: error?.Span);
-
-            if (document.State == XamlDocumentState.Behind)
-                return new FormNotice(AxBannerSeverity.Warning, Format("form.behind", error?.Message), Span: error?.Span);
-        }
-
-        return _design?.LastBuild is { Succeeded: false }
-            ? new FormNotice(AxBannerSeverity.Error, _context.Strings["form.buildFailed"], Rebuild: true)
-            : null;
     }
 
     /// <summary>Вопрос о чужой записи — свой баннер, отдельно от сообщений: на него отвечают.</summary>
@@ -296,7 +239,4 @@ internal sealed partial class LiveFormDocument
     }
 
     private void OnConflictClosed(object? sender, RoutedEventArgs e) => KeepCaret();
-
-    /// <summary>Сообщение баннера.</summary>
-    private sealed record FormNotice(AxBannerSeverity Severity, string Text, bool Rebuild = false, TextSpan? Span = null);
 }

@@ -27,6 +27,10 @@ namespace ArxisStudio.Modules.UiDesigner.Board;
 /// рисуется в теме формы, как окно её приложения, а не студии. Белая ручка — тоже ядра: на тёмном
 /// холсте она читается лучше токена подложки.
 /// </para>
+/// <para>
+/// Имя над формой — текст студии: второстепенный, а у выбранной формы — цветом ссылки, потому что
+/// <c>AxAccent</c> подобран под графику, а не под буквы.
+/// </para>
 /// </remarks>
 internal static class CanvasLooks
 {
@@ -57,6 +61,8 @@ internal static class CanvasLooks
         ("UiDesignerItem.BorderBrush", "AxAccentBrush"),
         ("UiDesignerItem.HighlightBrush", "AxSelectionInactiveBrush"),
         ("UiDesigner.Form.Fault.Foreground", "AxErrorTextBrush"),
+        ("UiDesigner.Form.Caption.Foreground", "AxTextSecondaryBrush"),
+        ("UiDesigner.Form.Caption.SelectedForeground", "AxLinkBrush"),
     ];
 
     /// <summary>

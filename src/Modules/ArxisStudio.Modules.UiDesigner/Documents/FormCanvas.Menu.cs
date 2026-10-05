@@ -31,8 +31,9 @@ internal sealed partial class FormCanvas
         Active is { Session.Edits: { } edits } active ? new FormCommands(active, edits, Context.Strings, Say) : null;
 
     /// <summary>Пункты контекстного меню холста — тем же путём, каким их собирает меню; тестам.</summary>
-    internal IReadOnlyList<Control> MenuItems() =>
-        Commands is { } commands ? Menu.Items(commands, Sheet, Canvas()) : [];
+    /// <param name="request">О чём меню попросило ядро; null — клавишей, у выбранного.</param>
+    internal IReadOnlyList<Control> MenuItems(SurfaceContextRequest? request = null) =>
+        _host.MenuItems(Commands is { } commands ? Menu.Items(commands, Sheet, Canvas()) : [], request);
 
     private FormMenu Menu => _menu ??= new FormMenu(Context.Strings);
 
@@ -68,7 +69,7 @@ internal sealed partial class FormCanvas
     private void OnContextMenuRequesting(object? sender, SurfaceContextRequestingEventArgs e)
     {
         e.Handled = true;
-        ShowMenu(atPointer: e.Request.Source == SurfaceContextSource.Pointer, at: null);
+        ShowMenu(e.Request, atPointer: e.Request.Source == SurfaceContextSource.Pointer, at: null);
     }
 
     /// <summary>
@@ -87,14 +88,11 @@ internal sealed partial class FormCanvas
         e.Handled = true;
 
         if (!e.TryGetPosition(Sheet, out _))
-            ShowMenu(atPointer: false, at: MenuPoint());
+            ShowMenu(request: null, atPointer: false, at: MenuPoint());
     }
 
-    private void ShowMenu(bool atPointer, Point? at)
-    {
-        if (Commands is { } commands)
-            FormMenu.Show(Sheet, Menu.Items(commands, Sheet, Canvas()), atPointer, at);
-    }
+    private void ShowMenu(SurfaceContextRequest? request, bool atPointer, Point? at) =>
+        FormMenu.Show(Sheet, MenuItems(request), atPointer, at);
 
     /// <summary>Пункты холста: родитель и «показать всё».</summary>
     private CanvasActions Canvas() =>

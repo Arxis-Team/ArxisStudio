@@ -16,6 +16,7 @@ internal sealed partial class FormCanvas
     private readonly AxCodeView? _code;
     private List<Picked> _selection = [];
     private FormSlot? _lastActive;
+    private FormSlot? _announced;
     private FormSlot? _codeSlot;
     private XamlDocument? _shownCode;
     private int _codeTurn;
@@ -32,6 +33,9 @@ internal sealed partial class FormCanvas
         : _lastActive is { } last && _slots.Contains(last) ? last
         : _slots.Count == 1 ? _slots[0]
         : null;
+
+    /// <summary>Сменилась форма, с которой работают (<see cref="Active"/>).</summary>
+    public event EventHandler? ActiveChanged;
 
     /// <summary>Выбор формы, с которой работают, — пути элементов, первый главный.</summary>
     public IReadOnlyList<XamlElementPath> Selection => Active is { } active ? SelectionOf(active) : [];
@@ -131,6 +135,7 @@ internal sealed partial class FormCanvas
         }
 
         _selection = resolved;
+        Announce();
 
         if (!SameAsSheet(targets))
         {
@@ -184,6 +189,7 @@ internal sealed partial class FormCanvas
                 Sheet.SelectedItems?.Clear();
 
             ShowSelectionInCode(reveal: false);
+            Announce();
 
             return true;
         }
@@ -205,6 +211,8 @@ internal sealed partial class FormCanvas
 
         if (ReferenceEquals(_codeSlot, slot))
             _ = RefreshCodeAsync(reveal: false);
+
+        Announce();
     }
 
     /// <summary>Человек выбрал на холсте: пути — из показа, отметка в XAML — на главном.</summary>
@@ -235,6 +243,7 @@ internal sealed partial class FormCanvas
         _lastActive = slot;
         _code.Highlight = new AxCodeRange(element.Span.Start, element.Span.Length);
         SelectOnSheet();
+        Announce();
     }
 
     /// <summary>
@@ -249,6 +258,18 @@ internal sealed partial class FormCanvas
             _ = RefreshCodeAsync(reveal);
         else
             ShowSelectionInCode(reveal);
+
+        Announce();
+    }
+
+    /// <summary>Говорит, что форма, с которой работают, сменилась, — если сменилась.</summary>
+    private void Announce()
+    {
+        if (ReferenceEquals(Active, _announced))
+            return;
+
+        _announced = Active;
+        ActiveChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Отмечает в XAML главный выбранный элемент — от открывающего тега до закрывающего.</summary>

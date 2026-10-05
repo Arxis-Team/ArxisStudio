@@ -16,17 +16,18 @@ using static ArxisStudio.Tests.UiDesignerStudio;
 namespace ArxisStudio.Tests;
 
 /// <summary>
-/// Доска форм в окне: карточки решения, их места на холсте и в файле, отмена и открытие.
+/// Доска форм в окне: формы решения своего размера, их места на холсте и в файле, отмена и открытие.
 /// </summary>
+/// <remarks>Службы XAML здесь нет: формы стоят рамками, а живые — в <see cref="UiDesignerLiveBoardTests"/>.</remarks>
 [Collection(StudioStateCollection.Name)]
 public class UiDesignerBoardTests
 {
     /// <summary>
-    /// Окно и пользовательский элемент встают карточками, приложение — нет; строки карточки — класс и
-    /// объявленный размер.
+    /// Окно и пользовательский элемент встают на доску формами своего размера — карточками формы дизайнера,
+    /// размеченными, как во вкладке; приложение формой не встаёт.
     /// </summary>
     [AvaloniaFact]
-    public async Task Cards_stand_for_the_forms_of_the_solution()
+    public async Task The_forms_of_the_solution_stand_at_their_size()
     {
         using var studio = new UiDesignerStudio();
 
@@ -39,11 +40,12 @@ public class UiDesignerBoardTests
         Assert.Equal(["Card.axaml", "MainWindow.axaml"], studio.Model.Cards.Select(card => card.Name).Order());
 
         var window = studio.Card("MainWindow.axaml");
+        var control = studio.Container(studio.Card("Card.axaml"));
 
         Assert.Equal(FormKind.Window, window.Kind);
-        Assert.Equal("App.Views.MainWindow", window.Detail);
-        Assert.Contains("800", window.Footer);
-        Assert.Equal(studio.Strings["board.kind.userControl"], studio.Card("Card.axaml").KindText);
+        Assert.Equal(new Size(800, 450), studio.Container(window).Bounds.Size);
+        Assert.Equal(new Size(320, 200), control.Bounds.Size);
+        Assert.Equal(Surface.UiDesigner.SurfaceContentMode.Annotated, control.ContentMode);
     }
 
     /// <summary>
@@ -98,10 +100,11 @@ public class UiDesignerBoardTests
     }
 
     /// <summary>
-    /// Нерасставленные карточки встают сеткой и не налезают друг на друга, а места сразу уходят в файл.
+    /// Нерасставленные формы встают рядами и не налезают друг на друга — и заголовком окна, стоящим над
+    /// формой, тоже, — а места сразу уходят в файл.
     /// </summary>
     [AvaloniaFact]
-    public async Task New_cards_get_their_own_places_and_the_file_keeps_them()
+    public async Task New_forms_get_their_own_places_and_the_file_keeps_them()
     {
         using var studio = new UiDesignerStudio();
 
@@ -110,14 +113,23 @@ public class UiDesignerBoardTests
             ("Views/Card.axaml", ControlXaml("Card")),
             ("Views/Other.axaml", ControlXaml("Other"))));
 
+        var title = SheetControls.LengthOf(studio.View, "UiDesigner.Form.TitleBar.Height");
         var places = studio.Model.Cards
-            .Select(card => new Rect(card.Location, studio.Container(card).Bounds.Size))
+            .Select(card =>
+            {
+                var above = card.Kind == FormKind.Window ? title : 0;
+                var size = studio.Container(card).Bounds.Size;
+
+                return new Rect(card.Location.X, card.Location.Y - above, size.Width, size.Height + above);
+            })
             .ToList();
+
+        Assert.True(title > 0, "у темы дизайнера нет высоты заголовка окна");
 
         for (var left = 0; left < places.Count; left++)
         {
             for (var right = left + 1; right < places.Count; right++)
-                Assert.False(places[left].Intersects(places[right]), $"карточки налезают: {places[left]} и {places[right]}");
+                Assert.False(places[left].Intersects(places[right]), $"формы налезают: {places[left]} и {places[right]}");
         }
 
         var written = Read(studio);
@@ -127,15 +139,15 @@ public class UiDesignerBoardTests
             written[studio.PathOf("Views/Other.axaml")]);
     }
 
-    /// <summary>Карточка встаёт туда, где её оставили: место берётся из файла доски решения.</summary>
+    /// <summary>Форма встаёт туда, где её оставили: место берётся из файла доски решения.</summary>
     [AvaloniaFact]
-    public async Task A_card_comes_back_to_the_place_from_the_file()
+    public async Task A_form_comes_back_to_the_place_from_the_file()
     {
         using var studio = new UiDesignerStudio();
         var snapshot = studio.Solution(("Views/MainWindow.axaml", WindowXaml("MainWindow")));
 
         Directory.CreateDirectory(Path.GetDirectoryName(studio.BoardFile)!);
-        File.WriteAllText(studio.BoardFile, """{ "version": 2, "forms": { "src/App/Views/MainWindow.axaml": { "x": 560, "y": -320 } } }""");
+        File.WriteAllText(studio.BoardFile, """{ "version": 3, "forms": { "src/App/Views/MainWindow.axaml": { "x": 560, "y": -320 } } }""");
 
         await studio.Open(snapshot);
 
@@ -143,31 +155,46 @@ public class UiDesignerBoardTests
     }
 
     /// <summary>
-    /// Доска, разложенная под карточки без снимков, — файл первой версии — встаёт рядами нынешнего шага:
-    /// карточки со снимком выше, и прежние ряды налезли бы друг на друга. Сам файл открытие не трогает —
-    /// его коммитят вместе с проектом, и перепишет его первая правка доски.
+    /// Доска, разложенная под карточки, — файл второй версии — встаёт рядами форм: места карточек малы
+    /// для форм, и формы на них налезли бы друг на друга. Убранные помнятся, как помнились. Сам файл открытие
+    /// не трогает — его коммитят вместе с проектом, и перепишет его первая правка доски.
     /// </summary>
     [AvaloniaFact]
-    public async Task A_board_laid_out_for_cards_without_snapshots_stands_in_rows_of_the_new_pitch()
+    public async Task A_board_laid_out_for_cards_is_laid_out_again_for_forms()
     {
         using var studio = new UiDesignerStudio();
-        var snapshot = studio.Solution(("Views/A.axaml", WindowXaml("A")), ("Views/B.axaml", WindowXaml("B")));
-        var first = """{ "version": 1, "forms": { "src/App/Views/A.axaml": { "x": 0, "y": 0 }, "src/App/Views/B.axaml": { "x": 0, "y": 160 } } }""";
+        var snapshot = studio.Solution(
+            ("Views/A.axaml", WindowXaml("A")),
+            ("Views/B.axaml", WindowXaml("B")),
+            ("Views/Gone.axaml", WindowXaml("Gone")));
+        var second = """{ "version": 2, "forms": { "src/App/Views/A.axaml": { "x": 0, "y": 0 }, "src/App/Views/B.axaml": { "x": 0, "y": 240 } }, "removed": [ "src/App/Views/Gone.axaml" ] }""";
 
         Directory.CreateDirectory(Path.GetDirectoryName(studio.BoardFile)!);
-        File.WriteAllText(studio.BoardFile, first);
+        File.WriteAllText(studio.BoardFile, second);
 
         await studio.Open(snapshot);
 
-        var pitch = SheetControls.LengthOf(studio.View, "AxFormCardMinHeight") + SheetControls.LengthOf(studio.View, "AxFormCardGap");
+        var a = studio.Card("A.axaml");
+        var b = studio.Card("B.axaml");
 
-        Assert.Equal(new Point(0, 0), studio.Card("A.axaml").Location);
-        Assert.Equal(new Point(0, pitch), studio.Card("B.axaml").Location);
-        Assert.Equal(first, File.ReadAllText(studio.BoardFile));
+        Assert.Equal(["A.axaml", "B.axaml"], studio.Model.Cards.Select(card => card.Name).Order());
+        Assert.False(
+            new Rect(a.Location, new Size(800, 450)).Intersects(new Rect(b.Location, new Size(800, 450))),
+            $"формы встали на места карточек и налезли: {a.Location} и {b.Location}");
+        Assert.Equal(second, File.ReadAllText(studio.BoardFile));
+
+        // Первая правка доски переписывает файл нынешней версией — с местами форм.
+        b.Location += new Vector(20, 0);
+        studio.Model.Moved();
+        await studio.Built();
+
+        Assert.Equal(new Spot(b.Location.X, b.Location.Y), Read(studio)[b.Path]);
+        Assert.Contains(studio.PathOf("Views/Gone.axaml"), Board(studio).Removed);
+        Assert.Contains("\"version\": 3", File.ReadAllText(studio.BoardFile));
     }
 
     /// <summary>
-    /// «Упорядочить» ложится в историю холста: отмена возвращает карточки, а файл идёт следом за экраном.
+    /// «Упорядочить» ложится в историю доски: отмена возвращает формы, а файл идёт следом за экраном.
     /// </summary>
     [AvaloniaFact]
     public async Task Arranging_is_undone_and_the_file_follows_the_screen()
@@ -179,7 +206,7 @@ public class UiDesignerBoardTests
 
         Directory.CreateDirectory(Path.GetDirectoryName(studio.BoardFile)!);
         File.WriteAllText(studio.BoardFile, """
-            { "version": 2, "forms": { "src/App/Views/A.axaml": { "x": 900, "y": 900 }, "src/App/Views/B.axaml": { "x": -40, "y": 20 } } }
+            { "version": 3, "forms": { "src/App/Views/A.axaml": { "x": 900, "y": 900 }, "src/App/Views/B.axaml": { "x": -40, "y": 20 } } }
             """);
 
         await studio.Open(snapshot);
@@ -205,10 +232,11 @@ public class UiDesignerBoardTests
     }
 
     /// <summary>
-    /// Стрелка двигает выбранную карточку правкой холста, а правка доходит до файла.
+    /// Стрелка двигает форму, выбранную целиком, правкой холста; сдвиг — запись истории доски, и он доходит
+    /// до файла.
     /// </summary>
     [AvaloniaFact]
-    public async Task A_nudged_card_is_written()
+    public async Task A_nudged_form_is_written()
     {
         using var studio = new UiDesignerStudio();
 
@@ -222,12 +250,18 @@ public class UiDesignerBoardTests
         studio.Press(studio.View.Sheet, Key.Right);
         await studio.Built();
 
-        Assert.True(card.Location.X > was.X, "стрелка не сдвинула выбранную карточку");
+        Assert.True(card.Location.X > was.X, "стрелка не сдвинула выбранную форму");
         Assert.Equal(new Spot(card.Location.X, card.Location.Y), Read(studio)[card.Path]);
         Assert.True(studio.Panel.History!.CanUndo, "сдвиг не попал в историю");
+
+        Assert.True(studio.Panel.History.Undo());
+        await studio.Built();
+
+        Assert.Equal(was, card.Location);
+        Assert.Equal(new Spot(was.X, was.Y), Read(studio)[card.Path]);
     }
 
-    /// <summary>Enter открывает выбранные формы, двойной щелчок — форму под указателем.</summary>
+    /// <summary>Enter открывает формы, выбранные целиком, двойной щелчок — форму под указателем.</summary>
     [AvaloniaFact]
     public async Task Enter_and_a_double_click_open_forms_in_the_editor()
     {
@@ -253,7 +287,7 @@ public class UiDesignerBoardTests
     }
 
     /// <summary>
-    /// Проект, не загрузившийся на этот раз, уносит карточки, но не места: вернувшись, они встают туда же.
+    /// Проект, не загрузившийся на этот раз, уносит формы, но не места: вернувшись, они встают туда же.
     /// </summary>
     [AvaloniaFact]
     public async Task Forms_that_leave_for_a_while_keep_their_places()
@@ -284,7 +318,49 @@ public class UiDesignerBoardTests
     }
 
     /// <summary>
-    /// История сообщает о всякой своей перемене, но файл доски пишется, только если карточки сдвинулись:
+    /// Форма у края вида не мигает: показавшаяся остаётся на виду, пока не ушла за двойной запас, а
+    /// пришедшая издалека показывается только в одинарном.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_form_at_the_edge_of_the_view_neither_comes_nor_goes_on_every_frame()
+    {
+        using var studio = new UiDesignerStudio();
+
+        await studio.Open(studio.Solution(("Views/A.axaml", WindowXaml("A"))));
+
+        var sheet = studio.View.Sheet;
+        var sight = studio.Panel.Sight!;
+        var card = studio.Card("A.axaml");
+
+        sheet.ViewportZoom = 1;
+        Frame();
+        sight.Update();
+
+        Assert.True(sight.Sees(card), "форма на виду не видна");
+
+        // Правый край формы — левее вида на полтора запаса: за одинарным, но внутри двойного.
+        var between = new Point(
+            card.Location.X + studio.Container(card).Bounds.Width + sheet.Bounds.Width * BoardSight.Margin * 1.5,
+            card.Location.Y - 10);
+
+        sheet.ViewportLocation = between;
+        sight.Update();
+
+        Assert.True(sight.Sees(card), "форма за одинарным запасом ушла с виду");
+
+        sheet.ViewportLocation = new Point(100_000, 100_000);
+        sight.Update();
+
+        Assert.False(sight.Sees(card), "форма далеко за краем осталась на виду");
+
+        sheet.ViewportLocation = between;
+        sight.Update();
+
+        Assert.False(sight.Sees(card), "форма за одинарным запасом показалась");
+    }
+
+    /// <summary>
+    /// История сообщает о всякой своей перемене, но файл доски пишется, только если формы сдвинулись:
     /// очистка истории при смене решения файл не трогает.
     /// </summary>
     [AvaloniaFact]
@@ -405,9 +481,9 @@ public class UiDesignerBoardTests
         Assert.True(studio.View.Sheet.ShowGrid);
     }
 
-    /// <summary>Меню карточки открывает её, меню пустого холста вписывает и раскладывает доску.</summary>
+    /// <summary>Меню формы открывает её, меню пустого холста вписывает и раскладывает доску.</summary>
     [AvaloniaFact]
-    public async Task The_menu_speaks_of_cards_or_of_the_board()
+    public async Task The_menu_speaks_of_forms_or_of_the_board()
     {
         using var studio = new UiDesignerStudio();
 

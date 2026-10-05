@@ -4,11 +4,17 @@ using ArxisStudio.ProjectSystem;
 
 namespace ArxisStudio.Modules.UiDesigner.Model;
 
-/// <summary>Что доска помнит о решении: места карточек и формы, убранные с доски.</summary>
-/// <param name="Spots">Места по путям форм — и у убранных: вернувшись, карточка встаёт туда же.</param>
-/// <param name="Removed">Формы, убранные с доски: файл на месте, а карточки нет.</param>
+/// <summary>Что доска помнит о решении: места форм и формы, убранные с доски.</summary>
+/// <param name="Spots">Места по путям форм — и у убранных: вернувшись, форма встаёт туда же.</param>
+/// <param name="Removed">Формы, убранные с доски: файл на месте, а на доске формы нет.</param>
 internal sealed record BoardData(Dictionary<CanonicalPath, Spot> Spots, HashSet<CanonicalPath> Removed)
 {
+    /// <summary>
+    /// Файл прежней версии: места в нём отмерены под карточки, а не под формы, и доска их не берёт.
+    /// </summary>
+    /// <remarks>Такой файл переписывает первая правка доски, а не открытие: его коммитят вместе с проектом.</remarks>
+    public bool Outdated { get; init; }
+
     /// <summary>Доска, о которой не помнится ничего.</summary>
     public static BoardData Empty() => new([], []);
 }
@@ -33,11 +39,11 @@ internal sealed record BoardData(Dictionary<CanonicalPath, Spot> Spots, HashSet<
 /// списка не знает и просто показывает такие формы, то есть понимает файл, а не ломается на нём.
 /// </para>
 /// <para>
-/// <b>Вторая версия</b> — места, отмеренные под карточку со снимком формы. Первая отмеряла их под
-/// карточку в 120 точек, рядами через 160 (<see cref="FirstRowPitch"/>), и карточка со снимком выше —
-/// ряды первой версии налезли бы друг на друга. Поэтому места первой версии при чтении растягиваются по
-/// вертикали на нынешний шаг рядов, а файл переписывается не сам, а первой правкой доски: открыть доску
-/// не значит править файл, который коммитят вместе с проектом.
+/// <b>Третья версия</b> — места самих форм: на доске стоят формы своего размера, а не карточки. Первые две
+/// версии отмеряли места под карточку в 240 точек шириной, и формы на них налезли бы друг на друга, —
+/// поэтому их места доска не берёт и расставляет формы рядами заново, а убранные помнит, как помнила. Файл
+/// переписывается не сам, а первой правкой доски: открыть доску не значит править файл, который коммитят
+/// вместе с проектом.
 /// </para>
 /// </remarks>
 internal static class BoardFile
@@ -46,10 +52,7 @@ internal static class BoardFile
     /// Номер формата: растёт, когда старый читатель перестаёт понимать новый файл — или когда меняется
     /// то, в чём отмерены места.
     /// </summary>
-    public const int Version = 2;
-
-    /// <summary>Шаг рядов первой версии: карточка без снимка в 120 точек и зазор в 40.</summary>
-    public const double FirstRowPitch = 160;
+    public const int Version = 3;
 
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 
@@ -80,12 +83,8 @@ internal static class BoardFile
     /// </summary>
     /// <param name="file">Файл доски.</param>
     /// <param name="folder">Папка решения.</param>
-    /// <param name="rowPitch">
-    /// Нынешний шаг рядов: на него растягиваются места первой версии. По умолчанию — шаг первой версии,
-    /// и места читаются как записаны.
-    /// </param>
     /// <returns>Места и убранные формы; файла нет или он испорчен — пусто.</returns>
-    public static BoardData Read(string file, CanonicalPath folder, double rowPitch = FirstRowPitch)
+    public static BoardData Read(string file, CanonicalPath folder)
     {
         ArgumentException.ThrowIfNullOrEmpty(file);
 
@@ -106,9 +105,9 @@ internal static class BoardFile
         }
 
         // Номера нет — файл первой версии: она писала его всегда, но ручная правка могла его снять.
-        var stretch = Number(root?["version"]) is >= 2 ? 1 : rowPitch / FirstRowPitch;
-
-        if (root?["forms"] is JsonObject forms)
+        if (Number(root?["version"]) is not >= Version)
+            board = board with { Outdated = true };
+        else if (root?["forms"] is JsonObject forms)
         {
             foreach (var (key, value) in forms)
             {
@@ -117,7 +116,7 @@ internal static class BoardFile
                     && Number(place["y"]) is { } y
                     && PathOf(folder, key) is { } path)
                 {
-                    board.Spots[path] = new Spot(x, Round(y * stretch));
+                    board.Spots[path] = new Spot(x, y);
                 }
             }
         }

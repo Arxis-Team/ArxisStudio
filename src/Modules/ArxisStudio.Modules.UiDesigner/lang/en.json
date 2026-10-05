@@ -36,8 +36,9 @@
   "board.kind.control": "Control",
   "board.kind.unreadable": "The markup cannot be read",
 
+  "board.notice.form": "“{0}”: {1}",
   "board.state.closed": "No solution is open",
-  "board.state.closed.hint": "Open a solution: its forms will appear here as cards.",
+  "board.state.closed.hint": "Open a solution: its forms will appear here, each at its own size.",
   "board.state.opening": "Opening {0}…",
   "board.state.failed": "The solution did not open",
   "board.state.noService": "The projects service is not running: there is nothing to show.",
@@ -50,7 +51,7 @@
   "form.notForm": "{0}: the markup cannot be read, or it is not a form",
 
   "settings.form.autoSave": "Save forms by themselves: when the studio loses focus, when a tab closes and after a pause",
-  "settings.form.previews": "Snapshot unopened forms for previews when their tile or board card is in view and the studio is idle",
+  "settings.form.previews": "Snapshot unopened forms for previews when their tile or their place on the board is in view and the studio is idle",
   "board.preview.stale": "The snapshot is older than the file: the form changed after it",
   "settings.form.view": "What a new form tab shows: design, xaml or split",
   "form.mode": "View",

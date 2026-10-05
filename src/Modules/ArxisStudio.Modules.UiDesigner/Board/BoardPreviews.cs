@@ -1,18 +1,17 @@
+using ArxisStudio.Modules.UiDesigner.Snapshots;
 using ArxisStudio.Sdk;
-using Avalonia.Controls;
 using Avalonia.Media.Imaging;
 
 namespace ArxisStudio.Modules.UiDesigner.Board;
 
 /// <summary>
-/// Снимки форм на карточках доски — только у карточек на виду, с растром, который уходит вместе с
-/// контейнером.
+/// Снимки форм доски — только у форм на виду, с растром, который уходит вместе с ними с вида.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Холст держит контейнеры только у видимых карточек: снимок карточке ставится, когда её контейнер готов,
-/// и снимается, когда контейнер отдают. Растр не живёт дольше того, что его рисует, а доска из сотни
-/// форм держит в памяти столько снимков, сколько карточек видно.
+/// Снимок форме ставится, когда она показалась на холсте (<see cref="BoardSight"/>), и снимается, когда
+/// она ушла с виду. Растр не живёт дольше того, что его показывает, а доска из сотни форм держит в памяти
+/// столько снимков, сколько форм видно.
 /// </para>
 /// <para>
 /// Картинку отдаёт служба превью студии — та же, что у окна проекта. Снимка нет или он старше файла —
@@ -24,36 +23,34 @@ namespace ArxisStudio.Modules.UiDesigner.Board;
 internal sealed class BoardPreviews : IDisposable
 {
     /// <summary>
-    /// Длинная сторона, которую покажет карточка: место снимка шириной около двухсот точек при масштабе
-    /// экрана до 125 %. Поставщик вправе отдать крупнее — снимок у формы один.
+    /// Длинная сторона снимка, который спрашивает доска: самый крупный, какой хранит дизайнер. Снимок стоит
+    /// на месте формы в её размер, пока она не встала живой: мелко — на дальнем масштабе, где живыми формы не
+    /// встают, и на миг, пока встают, на ближнем.
     /// </summary>
-    private const int Pixels = 256;
+    private const int Pixels = FormSnapshots.Pixels;
 
-    private readonly ItemsControl _sheet;
+    private readonly BoardSight _sight;
     private readonly IStudioFilePreviews _previews;
     private readonly Dictionary<FormCard, int> _shown = [];
     private bool _disposed;
 
     /// <summary>Заводит снимки над холстом доски.</summary>
-    /// <param name="sheet">Холст с карточками.</param>
+    /// <param name="sight">Какие формы на виду.</param>
     /// <param name="previews">Превью файлов студии.</param>
-    public BoardPreviews(ItemsControl sheet, IStudioFilePreviews previews)
+    public BoardPreviews(BoardSight sight, IStudioFilePreviews previews)
     {
-        ArgumentNullException.ThrowIfNull(sheet);
+        ArgumentNullException.ThrowIfNull(sight);
         ArgumentNullException.ThrowIfNull(previews);
 
-        _sheet = sheet;
+        _sight = sight;
         _previews = previews;
 
-        sheet.ContainerPrepared += OnPrepared;
-        sheet.ContainerClearing += OnClearing;
+        sight.Came += OnCame;
+        sight.Went += OnWent;
         previews.Changed += OnChanged;
 
-        foreach (var container in sheet.GetRealizedContainers())
-        {
-            if (CardOf(container) is { } card)
-                Show(card);
-        }
+        foreach (var card in sight.Seen)
+            Show(card);
     }
 
     /// <summary>Последняя загрузка снимка — тестам: дождаться, а не спать.</summary>
@@ -66,8 +63,8 @@ internal sealed class BoardPreviews : IDisposable
             return;
 
         _disposed = true;
-        _sheet.ContainerPrepared -= OnPrepared;
-        _sheet.ContainerClearing -= OnClearing;
+        _sight.Came -= OnCame;
+        _sight.Went -= OnWent;
         _previews.Changed -= OnChanged;
 
         foreach (var card in _shown.Keys)
@@ -76,21 +73,15 @@ internal sealed class BoardPreviews : IDisposable
         _shown.Clear();
     }
 
-    private void OnPrepared(object? sender, ContainerPreparedEventArgs e)
+    private void OnCame(object? sender, FormCard card) => Show(card);
+
+    private void OnWent(object? sender, FormCard card)
     {
-        if (CardOf(e.Container) is { } card)
-            Show(card);
+        if (_shown.Remove(card))
+            Put(card, null, stale: false);
     }
 
-    private void OnClearing(object? sender, ContainerClearingEventArgs e)
-    {
-        if (CardOf(e.Container) is not { } card || !_shown.Remove(card))
-            return;
-
-        Put(card, null, stale: false);
-    }
-
-    /// <summary>Поставщик сменил снимок формы: видимая карточка её спрашивает заново.</summary>
+    /// <summary>Поставщик сменил снимок формы: видимая её спрашивает заново.</summary>
     private void OnChanged(object? sender, FilePreviewChangedEventArgs e)
     {
         foreach (var card in _shown.Keys.Where(card => string.Equals(card.Path.Value, e.FilePath, StringComparison.OrdinalIgnoreCase)).ToList())
@@ -121,7 +112,7 @@ internal sealed class BoardPreviews : IDisposable
 
         var bitmap = preview is null ? null : await Task.Run(() => Decode(preview.Image));
 
-        // Пока читали, карточку убрали из вида или спросили снова: этот растр уже никому не нужен.
+        // Пока читали, форма ушла с виду или её спросили снова: этот растр уже никому не нужен.
         if (_disposed || !_shown.TryGetValue(card, out var current) || current != turn)
         {
             bitmap?.Dispose();
@@ -159,7 +150,4 @@ internal sealed class BoardPreviews : IDisposable
             return null;
         }
     }
-
-    private FormCard? CardOf(Control container) =>
-        container.DataContext as FormCard ?? _sheet.ItemFromContainer(container) as FormCard;
 }

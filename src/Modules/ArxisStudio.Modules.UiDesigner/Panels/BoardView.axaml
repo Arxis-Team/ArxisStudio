@@ -1,24 +1,28 @@
 <!--
-    Доска форм: полоса действий и холст Surface с карточками форм решения.
+    Доска форм: полоса действий и холст дизайнера с формами решения — живыми, как во вкладке.
 
-    Холст — ядро Surface без слоёв выше: панорама средней кнопкой, зум колесом к курсору, рамка выбора,
-    тяга, стрелки и отмена. Карточка — данные, а не контейнер: холст держит контейнеры только у видимых
-    карточек и место читает привязкой ItemLocationBinding. Шаблон карточки — на AxCard: ширина у темы
-    постоянная, высота — наименьшая, и крупный текст растит карточку вниз. Сверху на карточке — снимок
-    формы: его ставит видимой карточке BoardPreviews и снимает вместе с контейнером.
+    Холст — дизайнер Surface.UiDesigner: форма на нём — элемент формы своего размера с именем над ним, и
+    правят её прямо здесь — выбирают, двигают, тянут за ручки, удаляют, — как во вкладке; целиком форму
+    берут за имя. Форма на виду встаёт живой, а пока не встала, вне вида и когда её держит вкладка, на её
+    месте стоит снимок. Сама форма — данные, а не контейнер: место холст читает привязкой
+    ItemLocationBinding.
 
-    Тему ядра доска подключает своими ресурсами: контролы Surface носят свои ControlTheme, и найти их
-    студия может только здесь. Кисти ядра доска заменяет токенами палитры кодом (CanvasLooks), а
-    рамке выбора даёт скругление карточки: рамка ядра лежит поверх контейнера прямоугольником, и
-    вокруг скруглённой карточки углы торчали бы.
+    Тему дизайнера доска подключает своими ресурсами: контролы Surface носят свои ControlTheme, и найти
+    их студия может только здесь. Кисти ядра доска заменяет токенами палитры кодом (CanvasLooks).
+
+    Форма на холсте своей жизнью не живёт: кнопка формы не берёт нажатие, поле — каретку. Ввод ей гасит
+    доска — тем же стилем, что вкладка.
+
+    Над холстом, как у вкладки, — чип состояния типов проекта и баннеры: вопрос о чужой записи и одно
+    сообщение, самое важное, о типах проекта и о форме, с которой работают.
 
     Состояния — решение не открыто, открывается, не открылось, форм нет — лежат поверх холста, а не
     подменяют его, как у окна проекта.
 
     Сцена — холст вместе с состояниями — цель перетаскивания студии: на неё несут файлы форм из окна
     проекта. Целью объявлена сцена, а не холст: над доской, где убрано всё, курсор стоит над надписью
-    состояния, и холст под ней целью бы не нашёлся. Куда встанет несомое, показывают заготовки карточек
-    в слое над холстом; состояния на это время прячутся.
+    состояния, и холст под ней целью бы не нашёлся. Куда встанет несомое, показывают заготовки форм в
+    слое над холстом; состояния на это время прячутся.
 -->
 <AxUserControl xmlns="https://github.com/Arxis-Team/ArxisStudio"
                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -32,107 +36,48 @@
   <AxUserControl.Resources>
     <a:ResourceDictionary>
       <a:ResourceDictionary.MergedDictionaries>
-        <a:ResourceInclude Source="avares://ArxisStudio.Surface/Themes/SurfaceTheme.axaml"/>
+        <a:ResourceInclude Source="avares://ArxisStudio.Surface.UiDesigner/Themes/UiDesignerTheme.axaml"/>
       </a:ResourceDictionary.MergedDictionaries>
-
-      <!--
-          Карточка — одна на холсте и в заготовке: заготовка показывает ту самую карточку, которая
-          встанет, а не её набросок.
-      -->
-      <a:DataTemplate x:Key="FormCardTemplate" x:DataType="b:FormCard">
-        <AxCard Width="{a:DynamicResource AxFormCardWidth}" MinHeight="{a:DynamicResource AxFormCardMinHeight}"
-                a:ToolTip.Tip="{a:Binding Path}">
-          <a:StackPanel Spacing="{a:DynamicResource AxSpaceTight}">
-            <!--
-                Снимок формы — сверху, обложкой: форму узнают по виду раньше, чем прочтут имя. Место под
-                него стоит всегда: снимок приходит позже карточки — из файла или из фоновой съёмки, — и
-                карточка не прыгает, когда он встанет. Пустое место — та же утопленная подложка.
-            -->
-            <a:Border Classes="preview" Height="{a:DynamicResource AxFormCardPreviewHeight}">
-              <a:Panel>
-                <a:Image Source="{a:Binding Preview}" IsVisible="{a:Binding HasPreview}" Stretch="Uniform"
-                         a:RenderOptions.BitmapInterpolationMode="HighQuality"
-                         a:AutomationProperties.AccessibilityView="Raw"/>
-                <a:Border Classes="stale" IsVisible="{a:Binding ShowsStale}"
-                          HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                          a:ToolTip.Tip="{Text board.preview.stale}"
-                          a:AutomationProperties.Name="{Text board.preview.stale}">
-                  <AxIcon Data="{x:Static ax:AxIcons.Refresh}"/>
-                </a:Border>
-              </a:Panel>
-            </a:Border>
-            <a:DockPanel>
-              <!--
-                  Строки переносятся, а не обрезаются: ширина карточки постоянная, и при крупном
-                  тексте имя файла и класс уходили бы в многоточие. Карточка растёт вниз, а шаг
-                  раскладки доска берёт по самой высокой из видимых.
-              -->
-              <AxIcon a:DockPanel.Dock="Left" Data="{a:Binding Glyph}" VerticalAlignment="Top"
-                      Margin="{a:DynamicResource AxGapIconTextThickness}"
-                      a:ToolTip.Tip="{a:Binding KindText}"/>
-              <a:TextBlock Text="{a:Binding Name}" TextWrapping="Wrap"/>
-            </a:DockPanel>
-            <a:TextBlock Text="{a:Binding Detail}" IsVisible="{a:Binding HasDetail}" AxText.Role="Small"
-                         AxText.Tone="{a:Binding DetailTone}" TextWrapping="Wrap"/>
-            <a:TextBlock Text="{a:Binding Footer}" AxText.Role="Small" AxText.Tone="Tertiary"
-                         TextWrapping="Wrap"/>
-          </a:StackPanel>
-        </AxCard>
-      </a:DataTemplate>
     </a:ResourceDictionary>
   </AxUserControl.Resources>
 
   <AxUserControl.Styles>
     <!--
-        Место снимка — утопленная подложка в скруглении поменьше карточки: снимок обрезается по нему, а
-        форма другой пропорции стоит посередине на той же подложке.
+        Ввод форме гасится так же, как во вкладке: попадание и обход Tab — эта запись, программный фокус —
+        сама доска. Выбирать это не мешает — ядро ищет выбранное по прямоугольникам.
     -->
-    <a:Style Selector="a|Border.preview">
-      <a:Setter Property="Background" Value="{a:DynamicResource AxSurfaceSunkenBrush}"/>
-      <a:Setter Property="CornerRadius" Value="{a:DynamicResource AxCornerRadius}"/>
-      <a:Setter Property="ClipToBounds" Value="True"/>
-    </a:Style>
-    <!--
-        Снимок старше файла — та же нейтральная отметка, что на плитках окна проекта: значок обновления в
-        кружке на углу снимка. Старый снимок — сведение, а не тревога, и акцент на доске уже занят выбором.
-    -->
-    <a:Style Selector="a|Border.stale">
-      <a:Setter Property="Background" Value="{a:DynamicResource AxSurfaceRaisedBrush}"/>
-      <a:Setter Property="BorderBrush" Value="{a:DynamicResource AxStrokeControlBrush}"/>
-      <a:Setter Property="BorderThickness" Value="{a:DynamicResource AxHairlineThickness}"/>
-      <a:Setter Property="CornerRadius" Value="{a:DynamicResource AxCornerRadiusPill}"/>
-      <a:Setter Property="Margin" Value="{a:DynamicResource AxSpaceTightThickness}"/>
-    </a:Style>
-    <a:Style Selector="a|Border.stale > AxIcon">
-      <a:Setter Property="Foreground" Value="{a:DynamicResource AxTextSecondaryBrush}"/>
-    </a:Style>
-
-    <a:Style Selector="s|SurfaceItem /template/ a|Border#PART_SelectionBorder">
-      <a:Setter Property="CornerRadius" Value="{a:DynamicResource AxCornerRadiusLarge}"/>
+    <a:Style Selector="s|UiDesignerFormItem /template/ a|Decorator#PART_FormHost">
+      <a:Setter Property="IsHitTestVisible" Value="False"/>
+      <a:Setter Property="a:KeyboardNavigation.TabNavigation" Value="None"/>
     </a:Style>
 
     <!--
-        Заготовка — цель перетаскивания языком дизайн-системы: заливка сообщения и кольцо акцента поверх
-        карточки, как у строки, в которую ляжет несомое. Кольцо — сосед карточки, а не её рамка: рамка на
-        самой заливке сдвинула бы содержимое.
+        Заготовка — цель перетаскивания языком дизайн-системы: заливка сообщения и кольцо акцента, как у
+        строки, в которую ляжет несомое. Снимок формы, если он есть, — поверх заливки.
     -->
-    <a:Style Selector="a|Panel.landing AxCard">
+    <a:Style Selector="a|Border.landing">
       <a:Setter Property="Background" Value="{a:DynamicResource AxInfoFillBrush}"/>
-    </a:Style>
-    <a:Style Selector="a|Border.landing-ring">
       <a:Setter Property="BorderBrush" Value="{a:DynamicResource AxAccentBrush}"/>
-      <a:Setter Property="CornerRadius" Value="{a:DynamicResource AxCornerRadiusLarge}"/>
     </a:Style>
   </AxUserControl.Styles>
 
   <a:DockPanel>
 
     <!--
-        Полоса — у правого края, как полоса вида Scene в Unity. Режим дизайнера стоит первым и отделён
-        чертой: он решает, как открываются формы, а кнопки за чертой работают с этим холстом.
+        Полоса: слева — чип состояния типов проекта, как у вкладки; справа — режим дизайнера и органы
+        холста, как полоса вида Scene в Unity. Режим стоит первым и отделён чертой: он решает, как
+        открываются формы, а кнопки за чертой работают с этим холстом.
     -->
     <a:Border a:DockPanel.Dock="Top" Padding="{a:DynamicResource AxToolBarPadding}">
-        <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceHair}"
+      <a:Grid ColumnDefinitions="*,Auto">
+
+        <a:StackPanel a:Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center"
+                      Spacing="{a:DynamicResource AxGapIconText}">
+          <AxSpinner x:Name="Busy" IsVisible="False" VerticalAlignment="Center"/>
+          <AxChip x:Name="State" IsVisible="False" VerticalAlignment="Center"/>
+        </a:StackPanel>
+
+        <a:StackPanel a:Grid.Column="1" Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceHair}"
                       HorizontalAlignment="Right" VerticalAlignment="Center">
 
           <AxSpinner IsVisible="{a:Binding IsLoading}" VerticalAlignment="Center"
@@ -185,20 +130,44 @@
           </AxToggleButton>
 
         </a:StackPanel>
+
+      </a:Grid>
     </a:Border>
 
     <AxDivider a:DockPanel.Dock="Top"/>
 
+    <a:StackPanel a:DockPanel.Dock="Top">
+
+      <AxBanner x:Name="Conflict" Severity="Warning" IsVisible="False">
+        <AxBanner.Actions>
+          <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceHair}">
+            <AxButton x:Name="TakeTheirs" Appearance="Subtle" Size="Compact" Content="{Text form.conflict.theirs}"/>
+            <AxButton x:Name="KeepMine" Appearance="Subtle" Size="Compact" Content="{Text form.conflict.mine}"/>
+          </a:StackPanel>
+        </AxBanner.Actions>
+        <a:TextBlock x:Name="ConflictText" TextWrapping="Wrap"/>
+      </AxBanner>
+
+      <AxBanner x:Name="Notice" Severity="Warning" IsVisible="False">
+        <AxBanner.Actions>
+          <AxButton x:Name="Rebuild" Appearance="Subtle" Size="Compact" Content="{Text form.rebuild}"
+                    IsVisible="False"/>
+        </AxBanner.Actions>
+        <a:TextBlock x:Name="NoticeText" TextWrapping="Wrap"/>
+      </AxBanner>
+
+    </a:StackPanel>
+
     <a:Panel x:Name="Stage" StudioDragDrop.AllowDrop="True">
 
-      <s:SurfaceView x:Name="Sheet"
-                     ItemsSource="{a:Binding Cards}"
-                     ItemLocationBinding="{a:Binding Location}"
-                     ItemTemplate="{a:StaticResource FormCardTemplate}"
-                     SelectionMode="Multiple"
-                     Focusable="True"
-                     IsVisible="{a:Binding IsReady}"
-                     a:AutomationProperties.Name="{Text panel.board}"/>
+      <b:FormsSheet x:Name="Sheet"
+                    ItemsSource="{a:Binding Cards}"
+                    ItemLocationBinding="{a:Binding Location}"
+                    SelectionMode="Multiple"
+                    SimplifiedZoom="0"
+                    Focusable="True"
+                    IsVisible="{a:Binding IsReady}"
+                    a:AutomationProperties.Name="{Text panel.board}"/>
 
       <a:Panel x:Name="States">
 
@@ -253,8 +222,8 @@
       </a:Panel>
 
       <!--
-          Заготовки карточек, пока над доской несут формы: в масштабе холста и там, куда они встанут.
-          Мышь слой не ловит — иначе под курсором всегда была бы заготовка, а не доска.
+          Заготовки форм, пока над доской несут формы: в масштабе холста и там, куда они встанут. Мышь слой
+          не ловит — иначе под курсором всегда была бы заготовка, а не доска.
       -->
       <a:Canvas x:Name="Preview" IsHitTestVisible="False" ClipToBounds="True"/>
 

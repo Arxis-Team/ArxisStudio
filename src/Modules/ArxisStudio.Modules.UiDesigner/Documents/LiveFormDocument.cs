@@ -102,7 +102,7 @@ internal sealed partial class LiveFormDocument : DocumentView, IFormCanvasHost
             return true;
         }));
 
-        _session = new FormSession(context, documents, path, options, _canvas);
+        _session = new FormSession(context, documents, path, options, _canvas, FormShowRank.Tab);
         _slot = _canvas.Add(_session, _form);
 
         _canvas.RootTaken += OnRootTaken;
@@ -249,7 +249,7 @@ internal sealed partial class LiveFormDocument : DocumentView, IFormCanvasHost
 
     /// <inheritdoc/>
     /// <remarks>Форма вкладки — сама вкладка: убирать её некуда, закрывают вкладку.</remarks>
-    void IFormCanvasHost.Remove(IReadOnlyList<FormSlot> forms)
+    void IFormCanvasHost.Remove(SurfaceDeleteRequestedEventArgs request)
     {
     }
 
@@ -262,6 +262,9 @@ internal sealed partial class LiveFormDocument : DocumentView, IFormCanvasHost
         if (_session.AutoSaves)
             _ = _session.AutoSaveAsync();
     }
+
+    /// <inheritdoc/>
+    IReadOnlyList<Control> IFormCanvasHost.MenuItems(IReadOnlyList<Control> form, SurfaceContextRequest? request) => form;
 
     /// <summary>Берёт документ у службы, потом показ.</summary>
     private async Task OpenAsync()

@@ -1,69 +1,70 @@
 using System.Globalization;
 using ArxisStudio.Modules.UiDesigner.Board;
+using ArxisStudio.Modules.UiDesigner.Documents;
 using ArxisStudio.Modules.UiDesigner.Model;
 using ArxisStudio.ProjectSystem;
 using ArxisStudio.Sdk;
 using ArxisStudio.Surface;
+using ArxisStudio.Surface.UiDesigner;
+using ArxisStudio.Xaml;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Presenters;
-using Avalonia.Controls.Templates;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 
 namespace ArxisStudio.Modules.UiDesigner.Panels;
 
 /// <summary>
-/// Доска форм решения: карточки <c>.axaml</c> на холсте Surface.
+/// Доска форм решения: все формы на одном холсте дизайнера — живые, и правят их здесь так же, как во
+/// вкладке.
 /// </summary>
 /// <remarks>
-/// Холст — ядро Surface как есть: панорама средней кнопкой, зум колесом к курсору, рамка выбора левой
-/// кнопкой по пустому месту, Shift — добавить к выбору, тяга по целым точкам, стрелки — сдвиг на шаг,
-/// Shift со стрелкой — на крупный, Ctrl+Z и Ctrl+Y — отмена и повтор (<see cref="SurfaceHistory"/>).
-/// Изменение размера у ядра доска снимает: размер карточке задаёт тема.
 /// <para>
-/// Delete и Backspace — запрос ядра на удаление выбранного — доска выполняет уборкой с доски: карточки
-/// уходят из коллекции холста, файлы форм остаются на месте. Так же убирает пункт меню карточки, и так же
-/// уборка отменяется — Ctrl+Z, — а вернуть убранное можно и из меню пустого холста.
+/// <b>Правят как во вкладке.</b> Выбор, жесты, правки строения, меню, Esc к родителю — у холста форм
+/// (<see cref="FormCanvas"/>), того же, что у вкладки; доска ставит на него все формы решения, каждую в
+/// её размер и с именем над ней (<see cref="BoardForms"/>), — живыми те, что на виду (<see cref="BoardSight"/>),
+/// и снимком прочие и те, что ещё встают.
 /// </para>
 /// <para>
-/// Своё у доски — то, что знает она одна. Enter и двойной щелчок открывают форму в редакторе документов
-/// студии. F показывает выбранное целиком, а без выбора — всю доску, как F в Unity и Unreal.
-/// «Упорядочить» раскладывает доску сеткой в порядке решения и ложится в ту же историю, что тяга.
+/// <b>Своё у доски</b> — то, что знает она одна: где стоят формы и какие убраны. Форму берут целиком за
+/// имя над ней и тянут по холсту, как фрейм в Figma, — её место уходит в файл доски; Delete убирает её с
+/// доски — файл формы остаётся, — и вернуть её можно отменой и из меню холста. Enter и двойной щелчок по
+/// снимку открывают форму в редакторе документов студии. F показывает выбранное целиком, а без выбора —
+/// всю доску. «Упорядочить» расставляет формы рядами в порядке решения.
+/// </para>
+/// <para>
+/// <b>История одна.</b> Ctrl+Z на доске отменяет последнее, что на ней сделано, — место формы или правку
+/// её текста (<see cref="BoardHistory"/>).
 /// </para>
 /// <para>
 /// Режим дизайнера выбирают здесь же, парой переключателей в полосе: все формы на одной доске или каждая
-/// в своей вкладке. Режим — настройка, а не состояние доски: он решает, кто открывает форму, — в режиме
-/// вкладок её берёт редактор документов модуля, и форма встаёт своей вкладкой с холстом на одну неё. Доска
-/// при этом остаётся обзором, с которого формы открывают, а открытые вкладки смена режима не закрывает.
+/// в своей вкладке. Режим — настройка, а не состояние доски: он решает, кто открывает форму. Форма,
+/// открытая вкладкой, на доске стоит снимком: показ у документа один, и вкладка его забирает.
 /// </para>
 /// <para>
 /// <b>Тяга из окна проекта.</b> Доска — цель перетаскивания студии (<see cref="StudioDragDrop"/>): на неё
-/// несут файлы форм и контролов, как ассеты на сцену в Unity. Пока несут, в точке курсора стоит заготовка
-/// той самой карточки — в масштабе холста, языком цели перетаскивания, — а у курсора сказано, что будет:
-/// вернуть убранную, передвинуть стоящую или почему нельзя. Отпущенная форма встаёт серединой под
-/// курсор, несколько — сеткой от неё; встают выбранными, клавиатура переходит к холсту, и Ctrl+Z
-/// отменяет постановку целиком. Ответ — ссылка, а не копия: карточка показывает файл, а не забирает
-/// его. Дорога без мыши — меню пустого холста «Вернуть на доску» (WCAG 2.5.7).
-/// </para>
-/// <para>
-/// Места пишутся после каждой единицы правки — история сообщает о ней и о каждой отмене, — так что файл
-/// доски всегда совпадает с тем, что на экране.
+/// несут файлы форм, как ассеты на сцену в Unity. Пока несут, в точке курсора стоит заготовка формы её
+/// размера, а у курсора сказано, что будет: вернуть убранную, передвинуть стоящую или почему нельзя.
+/// Отпущенные встают выбранными, клавиатура переходит к холсту, и Ctrl+Z отменяет постановку целиком.
+/// Дорога без мыши — меню пустого холста «Вернуть на доску» (WCAG 2.5.7).
 /// </para>
 /// </remarks>
 [ToolWindow(UiDesignerModule.PanelId)]
-public sealed class BoardPanel : ToolWindow
+public sealed partial class BoardPanel : ToolWindow, IFormCanvasHost
 {
     private BoardView? _view;
     private BoardModel? _model;
     private BoardMenu? _menu;
-    private SurfaceHistory? _history;
+    private BoardHistory? _history;
     private SheetControls? _controls;
     private BoardPreviews? _snapshots;
-    private IReadOnlyList<CanonicalPath> _previewed = [];
+    private FormCanvas? _canvas;
+    private BoardSight? _sight;
+    private BoardForms? _forms;
+    private IStudioXamlDesign? _design;
 
     /// <summary>Модель доски — тестам, чтобы ждать постройку, а не время.</summary>
     internal BoardModel? Model => _model;
@@ -71,17 +72,26 @@ public sealed class BoardPanel : ToolWindow
     /// <summary>Разметка доски — тестам.</summary>
     internal BoardView? View => _view;
 
-    /// <summary>История правок холста — тестам.</summary>
-    internal SurfaceHistory? History => _history;
+    /// <summary>История доски — тестам.</summary>
+    internal BoardHistory? History => _history;
 
     /// <summary>Меню — тестам: попап — отдельное окно, которого у безголового прогона нет.</summary>
     internal BoardMenu? Menu => _menu;
 
-    /// <summary>Снимки на карточках — тестам: дождаться загрузки, а не спать.</summary>
+    /// <summary>Снимки форм — тестам: дождаться загрузки, а не спать.</summary>
     internal BoardPreviews? Snapshots => _snapshots;
 
+    /// <summary>Холст форм — тестам: выбор, правки строения и меню.</summary>
+    internal FormCanvas? Canvas => _canvas;
+
+    /// <summary>Живые формы — тестам: дождаться, пока встанут.</summary>
+    internal BoardForms? Forms => _forms;
+
+    /// <summary>Какие формы на виду — тестам: пересчитать сразу, а не ждать прохода диспетчера.</summary>
+    internal BoardSight? Sight => _sight;
+
     /// <inheritdoc/>
-    /// <remarks>Клавиатура доски — у холста: им работают, и его клавиши — стрелки, F и Enter.</remarks>
+    /// <remarks>Клавиатура доски — у холста: им работают, и его клавиши — стрелки, F, Enter и Delete.</remarks>
     public override Control? FocusTarget => _view?.Sheet;
 
     /// <inheritdoc/>
@@ -89,24 +99,29 @@ public sealed class BoardPanel : ToolWindow
     {
         var view = new BoardView();
         var sheet = view.Sheet;
+        var options = Context.GetService<UiDesignerOptions>() ?? UiDesignerOptions.Default;
 
         _view = view;
-        _model = new BoardModel(Context, Pitch);
+        _design = Context.XamlDesign();
+        _model = new BoardModel(Context, Metrics);
+        _history = new BoardHistory();
         _menu = new BoardMenu(
             Context.Strings,
             new BoardActions(Open, Frame, Arrange, Remove, Return, () => _model?.Removed ?? [], Where));
-        _history = new SurfaceHistory(sheet);
         _controls = new SheetControls(Context, sheet, view.Fit, view.Actual, view.GridToggle, Everything);
+        _canvas = new FormCanvas(Context, sheet, code: null, this, options);
+        _sight = new BoardSight(sheet, PlaceOf);
+        _forms = new BoardForms(Context, sheet, _sight, _canvas, _history, options);
 
         view.DataContext = _model;
-        sheet.EstimatedItemSize = new Size(Length("AxFormCardWidth"), Length("AxFormCardMinHeight"));
 
         if (Context.GetService<IStudioFilePreviews>() is { } previews)
-            _snapshots = new BoardPreviews(sheet, previews);
+            _snapshots = new BoardPreviews(_sight, previews);
 
         Keys(sheet);
         Wire(view, sheet, _model, _history);
         Moded();
+        ShowState();
 
         return view;
     }
@@ -116,9 +131,8 @@ public sealed class BoardPanel : ToolWindow
     {
         if (_view is { } view)
         {
-            view.Sheet.DoubleTapped -= OnDoubleTapped;
-            view.Sheet.ContextMenuRequesting -= OnContextMenuRequesting;
-            view.Sheet.DeleteRequested -= OnDeleteRequested;
+            view.Sheet.RemoveHandler(InputElement.PointerPressedEvent, OnSheetPressed);
+            view.Sheet.EditCompleted -= OnEditCompleted;
             view.ReturnAll.Click -= OnReturnAll;
             view.ArrangeAll.Click -= OnArrange;
             view.BoardMode.Click -= OnBoardMode;
@@ -127,6 +141,7 @@ public sealed class BoardPanel : ToolWindow
             StudioDragDrop.RemoveDragLeaveHandler(view.Stage, OnDragLeave);
             StudioDragDrop.RemoveDropHandler(view.Stage, OnDrop);
             Unland(view);
+            Unwire(view);
         }
 
         if (_model is not null)
@@ -135,36 +150,128 @@ public sealed class BoardPanel : ToolWindow
             _model.PresenceChanged -= OnPresence;
         }
 
+        if (_history is not null)
+            _history.Changed -= OnHistoryChanged;
+
         Context.Settings.Changed -= OnSettingsChanged;
 
-        // Снимки — раньше модели: растры карточек отпускаются, пока карточки ещё живы.
+        // Живые формы — раньше снимков и холста: они отдают корни карточкам, пока карточки и холст живы, и
+        // сохраняют несохранённое, прежде чем отпустить документы.
+        _forms?.Dispose();
+        _forms = null;
         _snapshots?.Dispose();
         _snapshots = null;
+        _sight?.Dispose();
+        _sight = null;
+        _canvas?.Dispose();
+        _canvas = null;
         _controls?.Dispose();
         _controls = null;
-        _history?.Dispose();
-        _history = null;
         _model?.Dispose();
         _model = null;
+        _history = null;
         _menu = null;
         _view = null;
     }
 
-    /// <summary>Выбранные карточки в порядке выбора.</summary>
+    /// <summary>Формы, выбранные на холсте, — и целиком, и те, внутри которых выбрано, — в порядке выбора.</summary>
     internal IReadOnlyList<FormCard> Selected() =>
         _view?.Sheet.SelectedItems?.OfType<FormCard>().ToList() ?? [];
 
     /// <summary>
-    /// Показывает карточки целиком; пусто — всю доску.
+    /// Формы, выбранные целиком: контейнер выбран сам, а не элемент в нём, — или выбранная форма за краем
+    /// окна, без контейнера.
+    /// </summary>
+    internal IReadOnlyList<FormCard> Whole()
+    {
+        if (_view?.Sheet is not { } sheet)
+            return [];
+
+        return
+        [
+            .. Selected().Where(card =>
+                sheet.ContainerFromItem(card) is not { } container
+                || sheet.SelectedTargets.Any(target => ReferenceEquals(target.Target, container))),
+        ];
+    }
+
+    /// <summary>
+    /// Показывает формы целиком — с заголовками окон; пусто — всю доску.
     /// </summary>
     /// <param name="cards">Что показать.</param>
     internal void Frame(IReadOnlyList<FormCard> cards)
     {
         if (cards.Count == 0)
             _controls?.FrameAll();
-        else if (_view?.Sheet is { } sheet)
-            _controls?.Frame(Union(sheet, cards));
+        else
+            _controls?.Frame(Union(cards));
     }
+
+    /// <inheritdoc/>
+    void IFormCanvasHost.Step(bool back)
+    {
+        if (back)
+            _history?.Undo();
+        else
+            _history?.Redo();
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Убирается то, что выбрано целиком; форма, в которой выбран элемент, остаётся — Delete удалил элемент.
+    /// Выбранное без контейнера — за краем окна — берётся данными: в просьбе ядра его контейнера нет.
+    /// </remarks>
+    void IFormCanvasHost.Remove(SurfaceDeleteRequestedEventArgs request)
+    {
+        if (_view?.Sheet is not { } sheet)
+            return;
+
+        var cards = request.Items
+            .OfType<FormCard>()
+            .Where(card => sheet.ContainerFromItem(card) is not { } container
+                           || request.Targets.Any(target => ReferenceEquals(target.Target, container)))
+            .ToList();
+
+        if (cards.Count > 0)
+            Remove(cards);
+    }
+
+    /// <inheritdoc/>
+    void IFormCanvasHost.FrameAll() => Frame([]);
+
+    /// <inheritdoc/>
+    void IFormCanvasHost.LeftWindow() => _forms?.SaveAll();
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Над пустым холстом — меню доски: вписать, упорядочить, вернуть убранное. Над живой формой — правки её
+    /// строения и, за чертой, то, что доска делает с формой целиком. Над снимком и над несколькими формами —
+    /// только это.
+    /// </remarks>
+    IReadOnlyList<Control> IFormCanvasHost.MenuItems(IReadOnlyList<Control> form, SurfaceContextRequest? request)
+    {
+        if (_menu is not { } menu)
+            return form;
+
+        var cards = CardsFor(request);
+
+        if (cards.Count == 0)
+            return menu.Items([]);
+
+        if (form.Count == 0 || cards.Count > 1 || _forms?.IsLive(cards[0]) != true || _canvas?.Active?.Session.Path != cards[0].Path)
+            return menu.Items(cards);
+
+        return [.. form, new ArxisStudio.Controls.AxSeparator(), .. menu.Items(cards)];
+    }
+
+    /// <summary>О каких формах меню: под указателем, выбранные или ни о каких — над пустым холстом.</summary>
+    private IReadOnlyList<FormCard> CardsFor(SurfaceContextRequest? request) => request?.Scope switch
+    {
+        null or SurfaceContextScope.Selection => Selected(),
+        SurfaceContextScope.Container or SurfaceContextScope.NestedTarget
+            when request.Target?.Container.DataContext is FormCard card => [card],
+        _ => [],
+    };
 
     private void Open(IReadOnlyList<FormCard> cards)
     {
@@ -182,7 +289,7 @@ public sealed class BoardPanel : ToolWindow
     }
 
     /// <summary>
-    /// Убирает карточки с доски одной записью истории.
+    /// Убирает формы с доски одной записью истории.
     /// </summary>
     /// <remarks>
     /// Без вопроса «вы уверены?»: файл на месте, а уборка отменяется, — вопрос перед обратимым действием
@@ -230,22 +337,21 @@ public sealed class BoardPanel : ToolWindow
     }
 
     /// <summary>
-    /// Клавиши холста: свои у доски, и минус те, что ей не к месту.
+    /// Клавиши доски поверх клавиш холста форм: Enter открывает формы, выбранные целиком, F показывает
+    /// выбранное.
     /// </summary>
     private void Keys(SurfaceView sheet)
     {
-        sheet.KeyCommands.Remove(SurfaceKeyCommands.Resize);
-
         sheet.KeyCommands.Add(new SurfaceKeyCommand("ui-designer.open", BoardMenu.OpenKey, _ =>
         {
-            var cards = Selected();
+            var cards = Whole();
 
             Open(cards);
 
             return cards.Count > 0;
         }));
 
-        sheet.KeyCommands.Add(new SurfaceKeyCommand("ui-designer.frame", BoardMenu.FrameKey, _ =>
+        sheet.KeyCommands.Add(new SurfaceKeyCommand(LiveFormDocument.FrameCommand, BoardMenu.FrameKey, _ =>
         {
             Frame(Selected());
 
@@ -253,11 +359,10 @@ public sealed class BoardPanel : ToolWindow
         }));
     }
 
-    private void Wire(BoardView view, SurfaceView sheet, BoardModel model, SurfaceHistory history)
+    private void Wire(BoardView view, SurfaceView sheet, BoardModel model, BoardHistory history)
     {
-        sheet.DoubleTapped += OnDoubleTapped;
-        sheet.ContextMenuRequesting += OnContextMenuRequesting;
-        sheet.DeleteRequested += OnDeleteRequested;
+        sheet.AddHandler(InputElement.PointerPressedEvent, OnSheetPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        sheet.EditCompleted += OnEditCompleted;
         view.ReturnAll.Click += OnReturnAll;
         view.ArrangeAll.Click += OnArrange;
         view.BoardMode.Click += OnBoardMode;
@@ -267,35 +372,68 @@ public sealed class BoardPanel : ToolWindow
         StudioDragDrop.AddDropHandler(view.Stage, OnDrop);
         model.Replaced += OnReplaced;
         model.PresenceChanged += OnPresence;
-        history.Changed += (_, _) => _model?.Moved();
+        history.Changed += OnHistoryChanged;
         Context.Settings.Changed += OnSettingsChanged;
+        WireState(view);
     }
 
-    private void OnDoubleTapped(object? sender, TappedEventArgs e)
+    /// <summary>История сменилась — тягой, отменой, раскладкой: места, может быть, тоже — пора записать.</summary>
+    private void OnHistoryChanged(object? sender, EventArgs e) => _model?.Moved();
+
+    /// <summary>
+    /// Двойной щелчок по снимку формы открывает её: живую правят тут же, а снимок стоит, пока форму держит
+    /// вкладка, — ей и уходит открытие.
+    /// </summary>
+    /// <remarks>
+    /// Щелчок ловится на пути вниз и по точке холста, а не событием двойного касания: первое нажатие
+    /// выбирает форму, и второе приходится уже в рамку выбора над ней — касание платформа засчитывает
+    /// только по тому же элементу.
+    /// </remarks>
+    private void OnSheetPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (CardAt(e.Source) is { } card)
+        if (e.ClickCount != 2
+            || _view?.Sheet is not { } sheet
+            || !e.GetCurrentPoint(sheet).Properties.IsLeftButtonPressed
+            || CardAt(sheet, sheet.GetWorldPosition(e.GetPosition(sheet))) is not { } card
+            || _forms?.IsLive(card) == true)
         {
-            Open([card]);
-            e.Handled = true;
+            return;
         }
+
+        Open([card]);
+        e.Handled = true;
     }
 
-    private void OnContextMenuRequesting(object? sender, SurfaceContextRequestingEventArgs e)
+    /// <summary>
+    /// Жест холста сдвинул формы, выбранные целиком: их места — запись истории доски. Правки внутри форм
+    /// пишет в их текст холст форм, а их шаги ложатся в историю через сессии.
+    /// </summary>
+    private void OnEditCompleted(object? sender, SurfaceEditCompletedEventArgs e)
     {
-        if (_view?.Sheet is not { } sheet || _menu is not { } menu)
+        if (_view?.Sheet is not { } sheet || _history is not { } history)
             return;
 
-        var request = e.Request;
-        IReadOnlyList<FormCard> cards = request.Scope switch
-        {
-            SurfaceContextScope.Selection => Selected(),
-            SurfaceContextScope.Container or SurfaceContextScope.NestedTarget
-                when request.Target?.Container.DataContext is FormCard card => [card],
-            _ => [],
-        };
+        var moves = new List<BoardMove>();
 
-        e.Handled = true;
-        menu.Show(sheet, cards, atPointer: request.Source == SurfaceContextSource.Pointer);
+        foreach (var change in e.Changes.OfType<GeometryChange>())
+        {
+            if (change.Target is UiDesignerFormItem item
+                && sheet.IndexFromContainer(item) >= 0
+                && CardOf(sheet, item) is { } card
+                && change.OldBounds.Position != change.NewBounds.Position)
+            {
+                moves.Add(new BoardMove(card, change.OldBounds.Position, change.NewBounds.Position));
+            }
+        }
+
+        foreach (var change in e.ItemChanges)
+        {
+            if (change.Item is FormCard card && change.OldLocation != change.NewLocation)
+                moves.Add(new BoardMove(card, change.OldLocation, change.NewLocation));
+        }
+
+        if (moves.Count > 0)
+            history.Push(new BoardMoves(moves));
     }
 
     private void OnArrange(object? sender, RoutedEventArgs e)
@@ -304,218 +442,10 @@ public sealed class BoardPanel : ToolWindow
         _controls?.Back();
     }
 
-    /// <summary>
-    /// Delete и Backspace: ядро просит удалить выбранное, доска убирает его с доски.
-    /// </summary>
-    /// <remarks>
-    /// Выбранное берётся данными, а не контейнерами: выбор у холста бывает и за краем окна, где
-    /// контейнера нет (ADR 0010 ядра).
-    /// </remarks>
-    private void OnDeleteRequested(object? sender, SurfaceDeleteRequestedEventArgs e)
-    {
-        var cards = e.Items.OfType<FormCard>().ToList();
-
-        if (cards.Count == 0)
-            return;
-
-        Remove(cards);
-        e.Handled = true;
-    }
-
     private void OnReturnAll(object? sender, RoutedEventArgs e)
     {
         if (_model is { } model)
             Return([.. model.Removed.Select(form => form.File.Path)]);
-    }
-
-    /// <summary>
-    /// Над доской несут: формы решения — заготовки в точке курсора и ответ «ссылка», прочее — отказ и
-    /// почему.
-    /// </summary>
-    /// <remarks>
-    /// Отвечает доска на каждое движение заново — так велит договор цели: ответ, не данный сейчас, —
-    /// отказ. Разбор дешёвый — пути сверяются со снимком, который доска уже держит.
-    /// </remarks>
-    private void OnDragOver(object? sender, StudioDragEventArgs e)
-    {
-        e.Handled = true;
-
-        if (_view is not { } view)
-            return;
-
-        // Решение закрылось посреди тяги — ставить некуда, и заготовке на доске не место.
-        if (_model is not { IsReady: true } model)
-        {
-            Unland(view);
-            return;
-        }
-
-        var files = e.Data.Files;
-        var landings = model.Landings(files);
-        var effect = EffectFor(e.AllowedEffects);
-
-        if (landings.Count == 0 || effect == DragDropEffects.None)
-        {
-            e.Hint = landings.Count == 0 ? Refusal(files) : null;
-            Unland(view);
-
-            return;
-        }
-
-        e.Effect = effect;
-        e.Hint = HintFor(landings);
-        Preview(view, landings, SpotsAt(view.Sheet, e.GetPosition(view.Sheet), landings.Count));
-    }
-
-    private void OnDragLeave(object? sender, StudioDragEventArgs e)
-    {
-        if (_view is { } view)
-            Unland(view);
-    }
-
-    /// <summary>
-    /// Отпустили над доской: формы встают в точку отпускания одной записью истории, выбранными, а
-    /// клавиатура переходит к холсту — следующее нажатие Ctrl+Z отменит именно это.
-    /// </summary>
-    private void OnDrop(object? sender, StudioDragEventArgs e)
-    {
-        e.Handled = true;
-
-        if (_view is not { } view || _model is not { IsReady: true } model || _history is not { } history)
-        {
-            e.Effect = DragDropEffects.None;
-            return;
-        }
-
-        var landings = model.Landings(e.Data.Files);
-        var effect = EffectFor(e.AllowedEffects);
-
-        if (landings.Count == 0 || effect == DragDropEffects.None)
-        {
-            e.Effect = DragDropEffects.None;
-            return;
-        }
-
-        var sheet = view.Sheet;
-        var spots = SpotsAt(sheet, e.GetPosition(sheet), landings.Count);
-        var (cards, change) = model.Land([.. landings.Select((landing, index) => (landing.Path, spots[index]))]);
-
-        if (change is not null)
-            history.Push(change);
-
-        sheet.Selection.Clear();
-
-        foreach (var card in cards)
-            sheet.Selection.Select(model.Cards.IndexOf(card));
-
-        _controls?.Back();
-        e.Effect = effect;
-    }
-
-    /// <summary>Ссылка, а не копия: карточка показывает файл, а не забирает его. Переноса доска не просит.</summary>
-    private static DragDropEffects EffectFor(DragDropEffects allowed) =>
-        (allowed & DragDropEffects.Link) != 0 ? DragDropEffects.Link
-        : (allowed & DragDropEffects.Copy) != 0 ? DragDropEffects.Copy
-        : DragDropEffects.None;
-
-    /// <summary>Что сделает отпускание: вернуть убранную, передвинуть стоящую или поставить несколько.</summary>
-    private string HintFor(IReadOnlyList<Landing> landings) => landings switch
-    {
-        [{ OnBoard: true } one] => Say("board.drop.move", one.Card.Name),
-        [var one] => Say("board.drop.return", one.Card.Name),
-        _ => Say("board.drop.many", landings.Count),
-    };
-
-    /// <summary>
-    /// Почему нельзя: среди несомого нет разметки — или есть, но не форма решения. Несут не файлы —
-    /// сказать нечего: это не к доске.
-    /// </summary>
-    private string? Refusal(IReadOnlyList<string> files)
-    {
-        var markup = files.Where(file => file.EndsWith(FormFiles.Extension, StringComparison.OrdinalIgnoreCase)).ToList();
-
-        return (files.Count, markup) switch
-        {
-            (0, _) => null,
-            (_, []) => Context.Strings["board.drop.none"],
-            (_, [var one]) => Say("board.drop.notForm.one", Path.GetFileName(one)),
-            _ => Context.Strings["board.drop.notForm.many"],
-        };
-    }
-
-    /// <summary>
-    /// Места под курсором: первая карточка встаёт серединой под него, следующие — сеткой от неё.
-    /// </summary>
-    /// <remarks>
-    /// Серединой, а не углом: подсказка у курсора лежит справа снизу от него и закрывала бы имя
-    /// карточки, вставшей углом. Места — в целых точках, как у тяги по холсту.
-    /// </remarks>
-    private IReadOnlyList<Spot> SpotsAt(SurfaceView sheet, Point point, int count)
-    {
-        var world = sheet.GetWorldPosition(point);
-        var origin = new Spot(
-            Math.Round(world.X - Length("AxFormCardWidth") / 2),
-            Math.Round(world.Y - Length("AxFormCardMinHeight") / 2));
-
-        return BoardLayout.Grid(count, origin, Pitch());
-    }
-
-    /// <summary>
-    /// Ставит заготовки карточек в места, где они встанут, — в масштабе холста; состояния прячутся.
-    /// </summary>
-    /// <remarks>
-    /// Заготовки строятся, когда сменился состав несомого, а на движение мыши только переезжают; состав
-    /// сверяется путями, а не карточками: у убранной формы, которой доска ещё не показывала, карточка для
-    /// заготовки каждый раз новая. Кольцо масштабом не толстеет и не тает: его толщина у темы делится на
-    /// масштаб холста.
-    /// </remarks>
-    private void Preview(BoardView view, IReadOnlyList<Landing> landings, IReadOnlyList<Spot> spots)
-    {
-        var sheet = view.Sheet;
-        var preview = view.Preview;
-        var zoom = sheet.ViewportZoom;
-        var corner = sheet.ViewportLocation;
-
-        if (!_previewed.SequenceEqual(landings.Select(landing => landing.Path))
-            && view.TryFindResource("FormCardTemplate", out var found) && found is IDataTemplate template)
-        {
-            preview.Children.Clear();
-
-            foreach (var landing in landings)
-            {
-                var host = new Panel { Classes = { "landing" }, RenderTransformOrigin = RelativePoint.TopLeft };
-
-                host.Children.Add(new ContentPresenter { Content = landing.Card, ContentTemplate = template });
-                host.Children.Add(new Border { Classes = { "landing-ring" } });
-                preview.Children.Add(host);
-            }
-
-            _previewed = [.. landings.Select(landing => landing.Path)];
-        }
-
-        var ring = view.TryFindResource("AxDropTargetThickness", view.ActualThemeVariant, out var value) && value is Thickness thickness
-            ? new Thickness(thickness.Left / zoom, thickness.Top / zoom, thickness.Right / zoom, thickness.Bottom / zoom)
-            : default;
-
-        for (var index = 0; index < preview.Children.Count && index < spots.Count; index++)
-        {
-            var host = (Panel)preview.Children[index];
-
-            Canvas.SetLeft(host, (spots[index].X - corner.X) * zoom);
-            Canvas.SetTop(host, (spots[index].Y - corner.Y) * zoom);
-            host.RenderTransform = new ScaleTransform(zoom, zoom);
-            ((Border)host.Children[1]).BorderThickness = ring;
-        }
-
-        view.States.IsVisible = false;
-    }
-
-    /// <summary>Убирает заготовки и возвращает состояния доски.</summary>
-    private void Unland(BoardView view)
-    {
-        view.Preview.Children.Clear();
-        view.States.IsVisible = true;
-        _previewed = [];
     }
 
     private string Say(string key, params object[] values) =>
@@ -569,65 +499,62 @@ public sealed class BoardPanel : ToolWindow
     private bool ShowsTabs() => Context.Settings.Get<bool?>(UiDesignerModule.TabsKey) ?? false;
 
     /// <summary>
-    /// Доска сменила решение: отмена прежнего ничего не значит, а новое надо показать целиком.
+    /// Доска сменила решение: отмена прежнего ничего не значит, прежние формы отпускаются, а новое надо
+    /// показать целиком.
     /// </summary>
     private void OnReplaced(object? sender, EventArgs e)
     {
         _history?.Clear();
+        _forms?.Forget();
 
-        // Кадр — после раскладки: размер холста и карточек известен только ей.
+        // Кадр — после раскладки: размер холста и форм известен только ей.
         Dispatcher.UIThread.Post(() => Frame([]), DispatcherPriority.Loaded);
     }
 
-    /// <summary>
-    /// Шаг раскладки: карточка с зазором. Высота — по самой высокой видимой карточке: крупный текст
-    /// растит их все одинаково, и ряд, отмеренный по наименьшей высоте, налез бы на следующий.
-    /// </summary>
-    private Pitch Pitch()
-    {
-        var gap = Length("AxFormCardGap");
-        var height = Length("AxFormCardMinHeight");
-
-        if (_view?.Sheet is { } sheet)
-        {
-            foreach (var container in sheet.GetRealizedContainers())
-                height = Math.Max(height, container.Bounds.Height);
-        }
-
-        return new Pitch(Length("AxFormCardWidth") + gap, height + gap);
-    }
+    /// <summary>Чем мерить формы для раскладки: размер и заголовок окна — у стоящих на холсте, у прочих — по разметке.</summary>
+    private BoardMetrics Metrics() => new(Length("AxFormBoardGap"), BoxOf);
 
     /// <summary>
-    /// Вся доска; пустая — null.
+    /// Форма для раскладки: размер — у её карточки, если она на холсте и измерена, иначе объявленный, а
+    /// нет его — рамка темы; над окном — его заголовок.
     /// </summary>
-    /// <remarks>
-    /// Протяжённость холст держит сам — по месту каждой карточки и её размеру, измеренному или
-    /// оценочному, — и отвечает за неё одной записью. Своё объединение по контейнерам — запасной путь до
-    /// первой раскладки, когда протяжённости ещё нет.
-    /// </remarks>
-    private Rect? Everything()
+    private Box BoxOf(FormCard card)
     {
-        if (_view?.Sheet is not { } sheet || _model is not { Cards.Count: > 0 } model)
-            return null;
+        var item = _view?.Sheet.ContainerFromItem(card) as UiDesignerFormItem;
+        var size = item is { Bounds.Size: { Width: > 0, Height: > 0 } measured }
+            ? measured
+            : new Size(card.Root.Width ?? Length("AxFormFrameWidth"), card.Root.Height ?? Length("AxFormFrameHeight"));
+        var titled = item is { Root: not null } ? item.IsTopLevel : card.Kind == FormKind.Window;
 
-        return sheet.ItemsExtent is { Width: > 0, Height: > 0 } extent ? extent : Union(sheet, model.Cards);
+        return new Box(size.Width, size.Height, titled ? Length("UiDesigner.Form.TitleBar.Height") : 0);
     }
 
-    private Rect Union(SurfaceView sheet, IReadOnlyCollection<FormCard> cards) =>
-        cards.Select(card => BoundsOf(sheet, card)).Aggregate((all, next) => all.Union(next));
+    /// <summary>Вся доска — с заголовками окон; пустая — null.</summary>
+    private Rect? Everything() =>
+        _model is { Cards.Count: > 0 } model ? Union(model.Cards) : null;
+
+    /// <summary>Объединение мест форм — вместе с заголовками окон над ними.</summary>
+    private Rect Union(IReadOnlyCollection<FormCard> cards) =>
+        cards.Select(PlaceOf).Aggregate((all, next) => all.Union(next));
+
+    /// <summary>Место формы на холсте — вместе с заголовком окна над ней.</summary>
+    private Rect PlaceOf(FormCard card)
+    {
+        var box = BoxOf(card);
+
+        return new Rect(card.Location.X, card.Location.Y - box.Above, box.Width, box.Height + box.Above);
+    }
 
     private double Length(string key) => _view is { } view ? SheetControls.LengthOf(view, key) : 0;
 
-    /// <summary>Место карточки на холсте: размер — у контейнера, если он есть, иначе у темы.</summary>
-    private Rect BoundsOf(SurfaceView sheet, FormCard card)
-    {
-        var size = sheet.ContainerFromItem(card) is { Bounds.Size: { Width: > 0 } measured }
-            ? measured
-            : new Size(Length("AxFormCardWidth"), Length("AxFormCardMinHeight"));
+    private static FormCard? CardOf(SurfaceView sheet, Control container) =>
+        container.DataContext as FormCard ?? sheet.ItemFromContainer(container) as FormCard;
 
-        return new Rect(card.Location, size);
-    }
-
-    private static FormCard? CardAt(object? source) =>
-        (source as Visual)?.FindAncestorOfType<SurfaceItem>(includeSelf: true)?.DataContext as FormCard;
+    /// <summary>Верхняя форма на виду под точкой холста: место — у формы, размер — у её карточки.</summary>
+    private static FormCard? CardAt(SurfaceView sheet, Point world) =>
+        sheet.GetRealizedContainers()
+            .OfType<UiDesignerFormItem>()
+            .Select(item => (Item: item, Card: CardOf(sheet, item)))
+            .LastOrDefault(form => form.Card is { } card && new Rect(card.Location, form.Item.Bounds.Size).Contains(world))
+            .Card;
 }

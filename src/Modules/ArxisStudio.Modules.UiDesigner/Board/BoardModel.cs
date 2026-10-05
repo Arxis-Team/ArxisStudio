@@ -28,8 +28,13 @@ internal enum BoardState
     Ready,
 }
 
+/// <summary>Чем доска меряет формы для раскладки: место формы с её хромом и зазор между формами.</summary>
+/// <param name="Gap">Зазор между формами и рядами.</param>
+/// <param name="BoxOf">Форма для раскладки: её размер и место под заголовок окна.</param>
+internal sealed record BoardMetrics(double Gap, Func<FormCard, Box> BoxOf);
+
 /// <summary>
-/// Доска форм открытого решения: карточки, их места и файл, в котором места живут.
+/// Доска форм открытого решения: формы, их места и файл, в котором места живут.
 /// </summary>
 /// <remarks>
 /// Решение приходит от службы проектов (<see cref="IStudioProjects"/>), события — в поток интерфейса.
@@ -60,7 +65,7 @@ internal sealed class BoardModel : INotifyPropertyChanged, IDisposable
 
     private readonly IStudioContext _context;
     private readonly IStudioProjects? _projects;
-    private readonly Func<Pitch> _pitch;
+    private readonly Func<BoardMetrics> _metrics;
     private readonly Dictionary<CanonicalPath, FormCard> _cards = [];
     private readonly Dictionary<CanonicalPath, FormCard> _parked = [];
     private readonly Lock _gate = new();
@@ -74,20 +79,21 @@ internal sealed class BoardModel : INotifyPropertyChanged, IDisposable
     private Task _writing = Task.CompletedTask;
     private PendingWrite? _pending;
     private bool _draining;
+    private bool _outdated;
     private long _sequence = -1;
     private bool _scanning;
     private bool _disposed;
 
     /// <summary>Заводит доску и подписывает её на службу проектов.</summary>
     /// <param name="context">Контекст модуля.</param>
-    /// <param name="pitch">Шаг раскладки: его знает вид — по теме и по измеренной карточке.</param>
-    public BoardModel(IStudioContext context, Func<Pitch> pitch)
+    /// <param name="metrics">Чем мерить формы: это знает вид — по теме и по стоящим на холсте формам.</param>
+    public BoardModel(IStudioContext context, Func<BoardMetrics> metrics)
     {
         ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(pitch);
+        ArgumentNullException.ThrowIfNull(metrics);
 
         _context = context;
-        _pitch = pitch;
+        _metrics = metrics;
         _projects = context.Projects();
 
         if (_projects is null)
@@ -271,7 +277,7 @@ internal sealed class BoardModel : INotifyPropertyChanged, IDisposable
             .Where(path => _removed.Contains(path) && _found.ContainsKey(path))
             .Select(path => _parked.TryGetValue(path, out var parked)
                 ? parked
-                : new FormCard(_found[path].File, _found[path].Root, KindText(_found[path].Root.Kind)))
+                : new FormCard(_found[path].File, _found[path].Root))
             .ToList();
 
         if (cards.Count == 0)
@@ -311,7 +317,7 @@ internal sealed class BoardModel : INotifyPropertyChanged, IDisposable
             if (_cards.TryGetValue(path, out var card))
                 landings.Add(new Landing(path, card, OnBoard: true));
             else
-                landings.Add(new Landing(path, _parked.GetValueOrDefault(path) ?? new FormCard(form.File, form.Root, KindText(form.Root.Kind)), OnBoard: false));
+                landings.Add(new Landing(path, _parked.GetValueOrDefault(path) ?? new FormCard(form.File, form.Root), OnBoard: false));
         }
 
         return landings;
@@ -399,7 +405,7 @@ internal sealed class BoardModel : INotifyPropertyChanged, IDisposable
 
             _removed.Remove(card.Path);
             _parked.Remove(card.Path);
-            card.Update(form.File, form.Root, KindText(form.Root.Kind));
+            card.Update(form.File, form.Root);
 
             if (_spots.TryGetValue(card.Path, out var spot))
                 card.Location = new Point(spot.X, spot.Y);
@@ -420,7 +426,7 @@ internal sealed class BoardModel : INotifyPropertyChanged, IDisposable
     }
 
     /// <summary>
-    /// Раскладывает доску заново: сеткой в порядке решения от левого верхнего угла занятой части.
+    /// Раскладывает доску заново: рядами в порядке решения от левого верхнего угла занятой части.
     /// </summary>
     /// <returns>Сделанная раскладка — для истории отмены; нечего раскладывать — null.</returns>
     public BoardMoves? Arrange()
@@ -428,12 +434,15 @@ internal sealed class BoardModel : INotifyPropertyChanged, IDisposable
         if (Cards.Count == 0)
             return null;
 
+        var metrics = _metrics();
         var ordered = Cards
             .OrderBy(card => card.Project, StringComparer.Ordinal)
             .ThenBy(card => card.Path)
             .ToList();
-        var origin = new Spot(Cards.Min(card => card.Location.X), Cards.Min(card => card.Location.Y));
-        var spots = BoardLayout.Grid(ordered.Count, origin, _pitch());
+        var origin = new Spot(
+            Cards.Min(card => card.Location.X),
+            Cards.Min(card => card.Location.Y - metrics.BoxOf(card).Above));
+        var spots = BoardLayout.Rows([.. ordered.Select(metrics.BoxOf)], origin, metrics.Gap);
         var moves = ordered
             .Select((card, index) => new BoardMove(card, card.Location, new Point(spots[index].X, spots[index].Y)))
             .Where(move => move.From != move.To)
@@ -560,9 +569,6 @@ internal sealed class BoardModel : INotifyPropertyChanged, IDisposable
         var board = changed ? BoardFile.PathFor(entry) : null;
         var folder = BoardFile.FolderOf(entry);
 
-        // Шаг рядов — здесь, в потоке интерфейса: его меряют по видимым карточкам, а файл читается в фоне.
-        var rowPitch = _pitch().Y;
-
         _building = building;
 
         // Модель, заведённая вне потока интерфейса, сводит доску там, где кончилось чтение: переносить
@@ -578,7 +584,7 @@ internal sealed class BoardModel : INotifyPropertyChanged, IDisposable
                     // Доска читается, только когда решение сменилось: у того же решения она уже на экране,
                     // и файл, перечитанный поверх, вернул бы карточки на места до последней тяги.
                     var saved = !changed ? null
-                        : board is not null && folder is { } at ? BoardFile.Read(board, at, rowPitch)
+                        : board is not null && folder is { } at ? BoardFile.Read(board, at)
                         : BoardData.Empty();
 
                     return (scan, saved);
@@ -635,6 +641,7 @@ internal sealed class BoardModel : INotifyPropertyChanged, IDisposable
             _board = entry;
             _spots = saved!.Spots;
             _removed = saved.Removed;
+            _outdated = saved.Outdated;
             _parked.Clear();
             _cards.Clear();
             Cards.Clear();
@@ -646,7 +653,6 @@ internal sealed class BoardModel : INotifyPropertyChanged, IDisposable
         foreach (var form in forms)
         {
             var path = form.File.Path;
-            var kind = KindText(form.Root.Kind);
 
             if (_removed.Contains(path))
                 continue;
@@ -655,11 +661,11 @@ internal sealed class BoardModel : INotifyPropertyChanged, IDisposable
 
             if (_cards.TryGetValue(path, out var card))
             {
-                card.Update(form.File, form.Root, kind);
+                card.Update(form.File, form.Root);
                 continue;
             }
 
-            card = new FormCard(form.File, form.Root, kind);
+            card = new FormCard(form.File, form.Root);
 
             if (_spots.TryGetValue(path, out var spot))
                 card.Location = new Point(spot.X, spot.Y);
@@ -679,10 +685,14 @@ internal sealed class BoardModel : INotifyPropertyChanged, IDisposable
             Cards.RemoveAt(index);
         }
 
+        // Места новых форм сразу помнятся файлом — кроме файла прежней версии: его, открытый, не переписывают,
+        // а расстановка рядами повторится и при следующем открытии.
         if (fresh.Count > 0)
         {
             Place(fresh);
-            Save();
+
+            if (!_outdated)
+                Save();
         }
 
         if (replaced)
@@ -691,14 +701,15 @@ internal sealed class BoardModel : INotifyPropertyChanged, IDisposable
         Raise(null);
     }
 
-    /// <summary>Новым карточкам — места под занятой частью доски; места сразу помнятся.</summary>
+    /// <summary>Новым формам — места под занятой частью доски; места сразу помнятся.</summary>
     private void Place(List<FormCard> fresh)
     {
         if (fresh.Count == 0)
             return;
 
-        var placed = Cards.Except(fresh).Select(card => card.Spot).ToList();
-        var places = BoardLayout.Below(placed, fresh.Count, _pitch());
+        var metrics = _metrics();
+        var placed = Cards.Except(fresh).Select(card => (card.Spot, metrics.BoxOf(card))).ToList();
+        var places = BoardLayout.Below(placed, [.. fresh.Select(metrics.BoxOf)], metrics.Gap);
 
         for (var index = 0; index < fresh.Count; index++)
         {
@@ -727,6 +738,8 @@ internal sealed class BoardModel : INotifyPropertyChanged, IDisposable
     {
         if (BoardFile.PathFor(_board) is not { } file || BoardFile.FolderOf(_board) is not { } folder)
             return;
+
+        _outdated = false;
 
         var pending = new PendingWrite(
             file,
@@ -793,8 +806,6 @@ internal sealed class BoardModel : INotifyPropertyChanged, IDisposable
 
     /// <summary>Запись, ждущая очереди: куда и что.</summary>
     private sealed record PendingWrite(string File, CanonicalPath Folder, BoardData Board, HashSet<CanonicalPath> Present);
-
-    private string KindText(FormKind kind) => FormCard.KindTextOf(_context.Strings, kind);
 
     private string Format(string key, params object[] values) =>
         string.Format(CultureInfo.CurrentCulture, _context.Strings[key], values);

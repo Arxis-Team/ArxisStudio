@@ -2,6 +2,7 @@ using System.Reflection;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Modules.UiDesigner;
 using ArxisStudio.Modules.UiDesigner.Documents;
+using ArxisStudio.Modules.UiDesigner.Panels;
 using ArxisStudio.Sdk;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -12,21 +13,29 @@ using Xunit;
 namespace ArxisStudio.Tests;
 
 /// <summary>
-/// Живая вкладка формы в окне: службы проектов и XAML, дизайнер рядом — всё поднято хостом, как в студии.
+/// Живая вкладка формы и живая доска в окне: службы проектов и XAML, дизайнер рядом — всё поднято хостом,
+/// как в студии.
 /// </summary>
 /// <remarks>
 /// Вкладку открывает редактор документов модуля, подключённый к его контексту, — той же дорогой, что
-/// студия, — и ставит в окно. Документ дизайнер берёт у службы XAML экспортом, как взял бы плагин.
+/// студия, — и ставит в окно; доску ставит её панель. Документ дизайнер берёт у службы XAML экспортом, как
+/// взял бы плагин.
 /// </remarks>
 internal sealed class LiveFormStudio : IAsyncDisposable
 {
     private readonly List<LiveFormDocument> _opened = [];
+    private readonly List<BoardPanel> _boards = [];
 
     /// <summary>Поднимает службы и окно.</summary>
     /// <param name="autoSave">Пауза автосохранения; по умолчанию по паузе форма не сохраняется.</param>
     /// <param name="snapshots">Папка снимков форм; по умолчанию снимки выключены, как всему процессу тестов.</param>
     /// <param name="snapshotShown">Что ждёт фоновый снимок, взяв показ формы; по умолчанию ничего.</param>
-    public LiveFormStudio(TimeSpan? autoSave = null, string? snapshots = null, Func<CancellationToken, Task>? snapshotShown = null)
+    /// <param name="hideDelay">Пауза, после которой форма доски, ушедшая с виду, отдаёт показ; по умолчанию — никогда.</param>
+    public LiveFormStudio(
+        TimeSpan? autoSave = null,
+        string? snapshots = null,
+        Func<CancellationToken, Task>? snapshotShown = null,
+        TimeSpan? hideDelay = null)
     {
         // Фоновые снимки — без паузы после просьбы: в тесте плитки не листают, и ждать тишины незачем. Приложение
         // у решения теста строится сразу, а у большинства его нет вовсе — долго его ждать незачем.
@@ -37,6 +46,7 @@ internal sealed class LiveFormStudio : IAsyncDisposable
             SnapshotQuiet = TimeSpan.Zero,
             SnapshotApplicationWait = TimeSpan.FromMilliseconds(500),
             SnapshotShown = snapshotShown,
+            BoardHideDelay = hideDelay ?? Timeout.InfiniteTimeSpan,
         };
         Xaml = new XamlStudio(services: new Dictionary<Type, object> { [typeof(UiDesignerOptions)] = Options });
 
@@ -110,6 +120,45 @@ internal sealed class LiveFormStudio : IAsyncDisposable
         return document;
     }
 
+    /// <summary>
+    /// Кладёт формы в проект, открывает решение и доску в окне и ждёт, пока формы на виду встанут живыми.
+    /// </summary>
+    /// <param name="forms">Файлы форм от папки проекта и их разметка.</param>
+    public async Task<BoardPanel> OpenBoardAsync(params (string Name, string Text)[] forms)
+    {
+        foreach (var (name, text) in forms)
+            Xaml.Write(name, text);
+
+        await Xaml.OpenAsync();
+
+        var board = new BoardPanel();
+
+        board.Attach(Context);
+        _boards.Add(board);
+        Window.Content = board.Content;
+        Dispatcher.UIThread.RunJobs();
+
+        await XamlStudio.UntilAsync(() => board.Model is { IsReady: true } model && model.Cards.Count == forms.Length, "доска не встала");
+        await board.Model!.Settled;
+        await UntilLiveAsync(board);
+
+        return board;
+    }
+
+    /// <summary>Ждёт, пока формы на виду встанут на доске живыми.</summary>
+    /// <param name="board">Доска.</param>
+    public static async Task UntilLiveAsync(BoardPanel board)
+    {
+        Frame();
+        board.Sight!.Update();
+
+        await XamlStudio.UntilAsync(
+            () => board.Sight.Seen.Count > 0 && board.Sight.Seen.All(board.Forms!.IsLive),
+            "формы на виду не встали живыми");
+
+        Frame();
+    }
+
     /// <summary>Раскладка и кадр: холст выбирает только то, у чего уже есть рамка.</summary>
     public static void Frame()
     {
@@ -148,11 +197,18 @@ internal sealed class LiveFormStudio : IAsyncDisposable
     }
 
     /// <inheritdoc/>
-    /// <remarks>Вкладки прощаются раньше служб — как в студии, где документы закрываются до модулей.</remarks>
+    /// <remarks>
+    /// Вкладки и доски прощаются раньше служб — как в студии, где документы и панели закрываются до модулей.
+    /// </remarks>
     public async ValueTask DisposeAsync()
     {
         foreach (var document in _opened)
             await document.DisposeAsync();
+
+        foreach (var board in _boards)
+            board.Release();
+
+        Dispatcher.UIThread.RunJobs();
 
         Window.Content = null;
         Window.Close();
