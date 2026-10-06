@@ -20,6 +20,12 @@ public sealed class UiDesignerModule : StudioPlugin
     /// <summary>Идентификатор панели: он же объявлен в манифесте.</summary>
     public const string PanelId = "ui-designer.board";
 
+    /// <summary>
+    /// Идентификатор иерархии: элементы формы, с которой работают, деревом (<see cref="Panels.HierarchyPanel"/>);
+    /// он же объявлен в манифесте.
+    /// </summary>
+    public const string HierarchyId = "ui-designer.hierarchy";
+
     /// <summary>Настройка: сетка на холсте доски и вкладок формы.</summary>
     public const string GridKey = "ui-designer.grid";
 

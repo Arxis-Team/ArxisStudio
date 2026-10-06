@@ -9,6 +9,7 @@ using ArxisStudio.Xaml;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 
@@ -17,6 +18,12 @@ namespace ArxisStudio.Modules.UiDesigner.Documents;
 /// <summary>Что холст форм спрашивает у того, кто его показывает: вкладки или доски.</summary>
 internal interface IFormCanvasHost
 {
+    /// <summary>
+    /// Вид хозяина: полоса, холст и XAML — там, где с холстом работают. Фокус, пришедший внутрь него, и нажатие в
+    /// нём ставят холст впереди (<see cref="FormFront"/>), а пока его не видно, холст впереди не стоит.
+    /// </summary>
+    Control HostView { get; }
+
     /// <summary>Отмена или возврат: у вкладки — история её документа, у доски — её общая история.</summary>
     /// <param name="back">Отменить, а не вернуть.</param>
     void Step(bool back);
@@ -64,6 +71,8 @@ internal interface IFormCanvasHost
 internal sealed partial class FormCanvas : IXamlDesignParticipant, IXamlRootLender, IDisposable
 {
     private readonly IFormCanvasHost _host;
+    private readonly Control _hostView;
+    private readonly FormFront _front;
     private readonly IStudioXamlDesign? _design;
     private readonly FormSnapshots? _snapshots;
     private readonly FormGestures _gestures;
@@ -120,6 +129,15 @@ internal sealed partial class FormCanvas : IXamlDesignParticipant, IXamlRootLend
             _participation = _design.Register(this);
 
         Watch(TopLevel.GetTopLevel(sheet) as Window);
+
+        // Панели модуля идут за холстом впереди: тем, с которым работают, пока его видно.
+        _hostView = host.HostView;
+        _front = FormFront.Of(context);
+        _hostView.AddHandler(InputElement.GotFocusEvent, OnHostFocus, RoutingStrategies.Bubble, handledEventsToo: true);
+        _hostView.AddHandler(InputElement.PointerPressedEvent, OnHostPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        _hostView.AttachedToVisualTree += OnHostTreeChanged;
+        _hostView.DetachedFromVisualTree += OnHostTreeChanged;
+        _front.Add(this);
     }
 
     /// <summary>Идентификатор команды холста «к родителю».</summary>
@@ -142,6 +160,9 @@ internal sealed partial class FormCanvas : IXamlDesignParticipant, IXamlRootLend
 
     /// <summary>Холст убран.</summary>
     public bool IsDisposed => _disposed;
+
+    /// <summary>Видно ли холст: вид его хозяина стоит в дереве окна.</summary>
+    public bool IsOnScreen => !_disposed && _hostView.IsAttachedToVisualTree();
 
     /// <summary>Жизнь холста: записи, которые он начал, кончаются с ним.</summary>
     public CancellationToken Lifetime => _lifetime.Token;
@@ -327,6 +348,12 @@ internal sealed partial class FormCanvas : IXamlDesignParticipant, IXamlRootLend
 
         Watch(null);
 
+        _hostView.RemoveHandler(InputElement.GotFocusEvent, OnHostFocus);
+        _hostView.RemoveHandler(InputElement.PointerPressedEvent, OnHostPressed);
+        _hostView.AttachedToVisualTree -= OnHostTreeChanged;
+        _hostView.DetachedFromVisualTree -= OnHostTreeChanged;
+        _front.Remove(this);
+
         using (Syncing())
         {
             Sheet.SelectedItems?.Clear();
@@ -371,6 +398,12 @@ internal sealed partial class FormCanvas : IXamlDesignParticipant, IXamlRootLend
 
         if ((changes & FormChanges.Text) != 0 && ReferenceEquals(slot, Active))
             _ = RefreshCodeAsync();
+
+        if ((changes & (FormChanges.Opened | FormChanges.Text | FormChanges.Closed | FormChanges.Deleted)) != 0
+            && ReferenceEquals(slot, Active))
+        {
+            ContentChanged?.Invoke(this, EventArgs.Empty);
+        }
 
         if ((changes & (FormChanges.Text | FormChanges.Objects)) != 0)
         {
@@ -445,6 +478,30 @@ internal sealed partial class FormCanvas : IXamlDesignParticipant, IXamlRootLend
     }
 
     private void OnDetached(object? sender, VisualTreeAttachmentEventArgs e) => Watch(null);
+
+    /// <summary>Фокус пришёл внутрь вида хозяина: с холстом работают.</summary>
+    private void OnHostFocus(object? sender, FocusChangedEventArgs e)
+    {
+        if (!_disposed)
+            _front.Worked(this);
+    }
+
+    /// <summary>
+    /// В виде хозяина нажали указатель: с холстом работают, даже если фокус в нём и был — пока он там стоял, рядом
+    /// могли открыть вкладку, и второй раз холст его не получит.
+    /// </summary>
+    private void OnHostPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!_disposed)
+            _front.Worked(this);
+    }
+
+    /// <summary>Вид хозяина встал на экран или ушёл с него.</summary>
+    private void OnHostTreeChanged(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        if (!_disposed)
+            _front.Review();
+    }
 
     /// <summary>Слушает уход из окна, где стоит холст: оторванную вкладку несёт другое окно.</summary>
     private void Watch(Window? window)

@@ -35,6 +35,15 @@ internal sealed partial class FormCanvas
     internal IReadOnlyList<Control> MenuItems(SurfaceContextRequest? request = null) =>
         _host.MenuItems(Commands is { } commands ? Menu.Items(commands, Sheet, Canvas()) : [], request);
 
+    /// <summary>
+    /// Пункты меню для формы, с которой работают, — правки строения и пункты холста, без пунктов хозяина: так
+    /// их показывает иерархия.
+    /// </summary>
+    /// <param name="owner">Где просили меню: у его окна берётся буфер обмена.</param>
+    /// <remarks>«Вписать всё» — без клавиши: её ловит холст, а в иерархии та же буква ищет строку набором.</remarks>
+    internal IReadOnlyList<Control> FormMenuItems(Visual owner) =>
+        Commands is { } commands ? Menu.Items(commands, owner, Canvas() with { FrameByKey = false }) : [];
+
     private FormMenu Menu => _menu ??= new FormMenu(Context.Strings);
 
     /// <summary>

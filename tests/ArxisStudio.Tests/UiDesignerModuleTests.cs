@@ -19,9 +19,9 @@ namespace ArxisStudio.Tests;
 [Collection(StudioStateCollection.Name)]
 public class UiDesignerModuleTests
 {
-    /// <summary>Объявленная панель есть в сборке, команда и настройка в коде — те же, что в манифесте.</summary>
+    /// <summary>Объявленные панели есть в сборке, команда и настройки в коде — те же, что в манифесте.</summary>
     [Fact]
-    public void The_manifest_and_the_code_name_the_same_panel_command_and_setting()
+    public void The_manifest_and_the_code_name_the_same_panels_command_and_settings()
     {
         var manifest = Manifest();
 
@@ -29,10 +29,11 @@ public class UiDesignerModuleTests
             .GetTypes()
             .Select(type => type.GetCustomAttributes(typeof(ToolWindowAttribute), false).FirstOrDefault())
             .OfType<ToolWindowAttribute>()
-            .Select(attribute => attribute.Id);
+            .Select(attribute => attribute.Id)
+            .Order(StringComparer.Ordinal);
 
-        Assert.Equal([UiDesignerModule.PanelId], built);
-        Assert.Equal([UiDesignerModule.PanelId], manifest.Contributions.ToolWindows.Select(panel => panel.Id));
+        Assert.Equal([UiDesignerModule.PanelId, UiDesignerModule.HierarchyId], built);
+        Assert.Equal([UiDesignerModule.PanelId, UiDesignerModule.HierarchyId], manifest.Contributions.ToolWindows.Select(panel => panel.Id));
         Assert.Equal([UiDesignerModule.ShowCommand], manifest.Contributions.Commands.Select(command => command.Id));
 
         var settings = manifest.Contributions.Settings;
@@ -66,15 +67,19 @@ public class UiDesignerModuleTests
     }
 
     /// <summary>
-    /// Доска встаёт в область документов: холст — рабочее место, как Scene в Unity, а не боковая панель.
+    /// Доска встаёт в область документов: холст — рабочее место, как Scene в Unity, а не боковая панель. Иерархия —
+    /// узкой панелью слева, как Hierarchy в Unity и Document Outline в Visual Studio.
     /// </summary>
     [Fact]
-    public void The_board_asks_for_the_document_area()
+    public void The_board_asks_for_the_document_area_and_the_hierarchy_for_the_left_side()
     {
-        var panel = Assert.Single(Manifest().Contributions.ToolWindows);
+        var panels = Manifest().Contributions.ToolWindows;
+        var board = panels.Single(panel => panel.Id == UiDesignerModule.PanelId);
+        var hierarchy = panels.Single(panel => panel.Id == UiDesignerModule.HierarchyId);
 
-        Assert.Equal("center", panel.Wanted.Side);
-        Assert.False(string.IsNullOrWhiteSpace(panel.Title), "у доски нет заголовка");
+        Assert.Equal("center", board.Wanted.Side);
+        Assert.Equal("left", hierarchy.Wanted.Side);
+        Assert.All(panels, panel => Assert.False(string.IsNullOrWhiteSpace(panel.Title), $"у панели {panel.Id} нет заголовка"));
     }
 
     /// <summary>Команда показа выводит доску вперёд и отдаёт ей клавиатуру; модуль — в списке студии.</summary>

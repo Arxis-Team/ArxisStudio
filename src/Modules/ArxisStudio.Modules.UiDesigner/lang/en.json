@@ -48,6 +48,10 @@
   "board.state.allRemoved": "All forms are removed from the board",
   "board.state.allRemoved.hint": "The files stay where they are: bring the forms back here or from the canvas menu.",
 
+  "panel.hierarchy": "Hierarchy",
+  "hierarchy.empty": "Open a form in a tab or on the board: its elements appear here.",
+  "hierarchy.pick": "Select a form on the board: its elements appear here.",
+
   "form.size.none": "no declared size",
   "form.notForm": "{0}: the markup cannot be read, or it is not a form",
 

@@ -175,6 +175,9 @@ internal sealed partial class LiveFormDocument : DocumentView, IFormCanvasHost
     /// <summary>Правки строения выбранного, когда документ открыт, — тестам.</summary>
     internal FormCommands? Commands => _canvas.Commands;
 
+    /// <summary>Холст вкладки — тестам.</summary>
+    internal FormCanvas Canvas => _canvas;
+
     /// <summary>Последняя запись снимка — тестам: дождаться, а не спать.</summary>
     internal Task Snapshotting => _slot.Snapshotting;
 
@@ -250,6 +253,9 @@ internal sealed partial class LiveFormDocument : DocumentView, IFormCanvasHost
 
         await _session.DisposeAsync();
     }
+
+    /// <inheritdoc/>
+    Control IFormCanvasHost.HostView => _view;
 
     /// <inheritdoc/>
     void IFormCanvasHost.Step(bool back)

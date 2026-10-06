@@ -25,6 +25,8 @@ internal sealed class LiveFormStudio : IAsyncDisposable
 {
     private readonly List<LiveFormDocument> _opened = [];
     private readonly List<BoardPanel> _boards = [];
+    private readonly List<HierarchyPanel> _hierarchies = [];
+    private ContentControl? _place;
 
     /// <summary>Поднимает службы и окно.</summary>
     /// <param name="autoSave">Пауза автосохранения; по умолчанию по паузе форма не сохраняется.</param>
@@ -80,6 +82,45 @@ internal sealed class LiveFormStudio : IAsyncDisposable
     /// <summary>Словарь дизайнера.</summary>
     public IStudioStrings Strings => Context.Strings;
 
+    /// <summary>Место справа от вкладок и доски — вторая группа дока; есть, когда в окне стоит иерархия.</summary>
+    public ContentControl? Beside { get; private set; }
+
+    /// <summary>
+    /// Ставит иерархию дизайнера в окно слева, вкладки и доску — справа от неё, а за ними — место второй группы
+    /// (<see cref="Beside"/>).
+    /// </summary>
+    /// <remarks>
+    /// Окно одно, как в студии: контрол, перенесённый из окна в окно за один проход, Avalonia 12 оставляет в очереди
+    /// раскладки прежнего окна, и следующий её проход падает «wrong LayoutManager». Вкладкам и доске остаётся
+    /// прежняя ширина окна — 1200.
+    /// </remarks>
+    public HierarchyPanel Hierarchy()
+    {
+        var panel = new HierarchyPanel();
+        var place = new ContentControl();
+        var beside = new ContentControl();
+        var all = new Grid { ColumnDefinitions = new ColumnDefinitions("300,1200,800") };
+        var shown = Window.Content;
+
+        panel.Attach(Context);
+        _hierarchies.Add(panel);
+
+        Grid.SetColumn(place, 1);
+        Grid.SetColumn(beside, 2);
+        Window.Content = null;
+        place.Content = shown;
+        all.Children.Add(panel.Content);
+        all.Children.Add(place);
+        all.Children.Add(beside);
+        Window.Width = 2300;
+        Window.Content = all;
+        _place = place;
+        Beside = beside;
+        Frame();
+
+        return panel;
+    }
+
     /// <summary>Редактор документов модуля, подключённый к его контексту, — как его подключает студия.</summary>
     public FormEditor Editor()
     {
@@ -112,7 +153,7 @@ internal sealed class LiveFormStudio : IAsyncDisposable
         var document = Assert.IsType<LiveFormDocument>(view);
 
         _opened.Add(document);
-        Window.Content = document.Content;
+        Show(document.Content);
         Dispatcher.UIThread.RunJobs();
 
         await document.Opening;
@@ -138,7 +179,7 @@ internal sealed class LiveFormStudio : IAsyncDisposable
 
         board.Attach(Context);
         _boards.Add(board);
-        Window.Content = board.Content;
+        Show(board.Content);
         Dispatcher.UIThread.RunJobs();
 
         await XamlStudio.UntilAsync(() => board.Model is { IsReady: true } model && model.Cards.Count == forms.Length, "доска не встала");
@@ -160,6 +201,16 @@ internal sealed class LiveFormStudio : IAsyncDisposable
             "формы на виду не встали живыми");
 
         Frame();
+    }
+
+    /// <summary>Тест открывает вкладку или доску: она встаёт на место вкладок, а без иерархии — содержимым окна.</summary>
+    /// <param name="content">Вид вкладки или доски; null — место пустеет, как группа дока без вкладок.</param>
+    public void Show(Control? content)
+    {
+        if (_place is { } place)
+            place.Content = content;
+        else
+            Window.Content = content;
     }
 
     /// <summary>Раскладка и кадр: холст выбирает только то, у чего уже есть рамка.</summary>
@@ -210,6 +261,10 @@ internal sealed class LiveFormStudio : IAsyncDisposable
 
         foreach (var board in _boards)
             board.Release();
+
+        // Иерархия прощается последней: закрытие вкладок и доски она видит, как увидела бы в студии.
+        foreach (var hierarchy in _hierarchies)
+            hierarchy.Release();
 
         Dispatcher.UIThread.RunJobs();
 

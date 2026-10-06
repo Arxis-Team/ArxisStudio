@@ -12,7 +12,11 @@ namespace ArxisStudio.Modules.UiDesigner.Documents;
 /// <param name="CanSelectParent">Есть ли родитель у выбранного.</param>
 /// <param name="SelectParent">Выбрать родителя.</param>
 /// <param name="Frame">Показать форму целиком.</param>
-internal sealed record CanvasActions(bool CanSelectParent, Action SelectParent, Action Frame);
+/// <param name="FrameByKey">
+/// Подписать ли у «Вписать всё» его клавишу. Её ловит холст, а в иерархии та же буква ищет строку набором, и
+/// подпись там обещала бы то, чего клавиша не сделает.
+/// </param>
+internal sealed record CanvasActions(bool CanSelectParent, Action SelectParent, Action Frame, bool FrameByKey = true);
 
 /// <summary>
 /// Контекстное меню холста формы: правки строения выбранного, выбор родителя и «вписать всё».
@@ -60,7 +64,7 @@ internal sealed class FormMenu(IStudioStrings strings)
             Item("form.menu.unwrap", null, commands.CanUnwrap, () => _ = commands.UnwrapAsync()),
             new AxSeparator(),
             Item("form.menu.parent", FormKeys.Parent, canvas.CanSelectParent, canvas.SelectParent),
-            Item("form.menu.frame", BoardMenu.FrameKey, enabled: true, canvas.Frame),
+            Item("form.menu.frame", canvas.FrameByKey ? BoardMenu.FrameKey : null, enabled: true, canvas.Frame),
         ];
     }
 

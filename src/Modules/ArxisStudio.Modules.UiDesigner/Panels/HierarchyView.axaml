@@ -1,0 +1,51 @@
+<!--
+    Иерархия формы, с которой работают: элементы её документа деревом, как Hierarchy у Unity и Document
+    Outline у Visual Studio. Над деревом — имя файла формы: на доске корень Window сам не говорит, какая это
+    форма. Строка — тип, как его написал документ, и имя рядом вторичным тоном.
+
+    Выбор у иерархии, холста и XAML один: щелчок по строке выбирает элемент на холсте и отмечает его в XAML,
+    а выбранное на холсте выбирает строку и раскрывает дорогу к ней. Ctrl и Shift добавляют к выбору. Delete
+    убирает выбранное, Ctrl+стрелка вверх и вниз переставляет среди соседей — клавиатурная дорога вместо
+    тяги, — Esc ведёт к родителю, Enter показывает выбранное на холсте.
+-->
+<AxUserControl xmlns="https://github.com/Arxis-Team/ArxisStudio"
+               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+               xmlns:a="https://github.com/avaloniaui"
+               xmlns:p="using:ArxisStudio.Modules.UiDesigner.Panels"
+               x:Class="ArxisStudio.Modules.UiDesigner.Panels.HierarchyView">
+
+  <a:DockPanel>
+
+    <a:Border x:Name="Header" a:DockPanel.Dock="Top" Padding="{a:DynamicResource AxToolBarPadding}">
+      <a:TextBlock x:Name="FormOf" AxText.Role="Small" AxText.Tone="Secondary" TextTrimming="CharacterEllipsis"/>
+    </a:Border>
+
+    <a:Panel>
+
+      <AxTreeView x:Name="Tree" SelectionMode="Multiple"
+                  a:AutomationProperties.Name="{Text panel.hierarchy}">
+        <AxTreeView.Styles>
+          <a:Style Selector="AxTreeViewItem" x:DataType="p:HierarchyNode">
+            <a:Setter Property="IsExpanded" Value="{a:Binding IsExpanded, Mode=TwoWay}"/>
+            <a:Setter Property="a:AutomationProperties.Name" Value="{a:Binding Label}"/>
+          </a:Style>
+        </AxTreeView.Styles>
+        <AxTreeView.ItemTemplate>
+          <a:TreeDataTemplate x:DataType="p:HierarchyNode" ItemsSource="{a:Binding Children}">
+            <a:StackPanel Orientation="Horizontal" Spacing="{a:DynamicResource AxGapIconText}">
+              <a:TextBlock Text="{a:Binding Type}"/>
+              <a:TextBlock Text="{a:Binding Name}" IsVisible="{a:Binding HasName}" AxText.Tone="Secondary"/>
+            </a:StackPanel>
+          </a:TreeDataTemplate>
+        </AxTreeView.ItemTemplate>
+      </AxTreeView>
+
+      <a:TextBlock x:Name="Empty" AxText.Tone="Secondary" TextWrapping="Wrap" TextAlignment="Center"
+                   HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
+                   Margin="{a:DynamicResource AxSpaceWideThickness}"/>
+
+    </a:Panel>
+
+  </a:DockPanel>
+
+</AxUserControl>

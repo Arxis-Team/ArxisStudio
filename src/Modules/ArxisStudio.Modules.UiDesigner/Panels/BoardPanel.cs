@@ -276,6 +276,10 @@ public sealed partial class BoardPanel : ToolWindow, IFormCanvasHost
     }
 
     /// <inheritdoc/>
+    /// <remarks>Холст заводится после вида и запоминает его сам: после <see cref="Release"/> вида у панели нет.</remarks>
+    Control IFormCanvasHost.HostView => _view ?? throw new InvalidOperationException("Вид доски ещё не построен.");
+
+    /// <inheritdoc/>
     void IFormCanvasHost.Step(bool back)
     {
         if (back)

@@ -18,6 +18,7 @@ internal sealed partial class FormCanvas
     private List<Control> _waiting = [];
     private FormSlot? _lastActive;
     private FormSlot? _announced;
+    private IReadOnlyList<XamlElementPath> _announcedSelection = [];
     private FormSlot? _codeSlot;
     private XamlDocument? _shownCode;
     private int _codeTurn;
@@ -43,6 +44,18 @@ internal sealed partial class FormCanvas
 
     /// <summary>Сменилась форма, с которой работают (<see cref="Active"/>).</summary>
     public event EventHandler? ActiveChanged;
+
+    /// <summary>
+    /// Сменился выбор формы, с которой работают (<see cref="Selection"/>): человек выбрал, правка сдвинула пути
+    /// или форма сменилась.
+    /// </summary>
+    public event EventHandler? SelectionChanged;
+
+    /// <summary>
+    /// У формы, с которой работают, сменился текст: правка, отмена, текст с диска, — или её документ открылся,
+    /// закрылся или удалён.
+    /// </summary>
+    public event EventHandler? ContentChanged;
 
     /// <summary>Выбор формы, с которой работают, — пути элементов, первый главный.</summary>
     public IReadOnlyList<XamlElementPath> Selection => Active is { } active ? SelectionOf(active) : [];
@@ -339,14 +352,25 @@ internal sealed partial class FormCanvas
         Announce();
     }
 
-    /// <summary>Говорит, что форма, с которой работают, сменилась, — если сменилась.</summary>
+    /// <summary>
+    /// Говорит, что форма, с которой работают, или её выбор сменились, — если сменились. Через это место проходит
+    /// каждая дорога выбора.
+    /// </summary>
     private void Announce()
     {
-        if (ReferenceEquals(Active, _announced))
-            return;
+        var active = Active;
+        var selection = Selection;
+        var formChanged = !ReferenceEquals(active, _announced);
+        var selectionChanged = formChanged || !selection.SequenceEqual(_announcedSelection);
 
-        _announced = Active;
-        ActiveChanged?.Invoke(this, EventArgs.Empty);
+        _announced = active;
+        _announcedSelection = selection;
+
+        if (formChanged)
+            ActiveChanged?.Invoke(this, EventArgs.Empty);
+
+        if (selectionChanged)
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Отмечает в XAML главный выбранный элемент — от открывающего тега до закрывающего.</summary>
