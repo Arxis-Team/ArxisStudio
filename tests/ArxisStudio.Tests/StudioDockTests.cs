@@ -95,6 +95,32 @@ public class StudioDockTests : IDisposable
     }
 
     /// <summary>
+    /// Показ панели на месте той, что держала каретку, отдаёт каретку показанной — как щелчок по её вкладке.
+    /// </summary>
+    /// <remarks>
+    /// Каретку чужой группы показ не трогает. А в своей группе прежняя панель уходит за вкладку вместе с
+    /// кареткой, и каретка оставалась ни у кого — потеря, которую щелчок по вкладке давно не допускает.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Showing_a_panel_over_the_one_with_the_caret_hands_it_over()
+    {
+        var (dock, _) = Dock();
+        var one = Focusable();
+        var two = Focusable();
+
+        dock.Add("hello", "hello:one", At("right"), "Один", Strings, one);
+        dock.Add("hello", "hello:two", At("right"), "Два", Strings, two);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(dock.Focus("hello:one"));
+
+        dock.Show("hello:two");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(DockFocus.Holds(two), "каретка панели, ушедшей за вкладку, осталась ни у кого");
+    }
+
+    /// <summary>
     /// Панель, возвращённая из меню, получает клавиатуру.
     /// </summary>
     /// <remarks>

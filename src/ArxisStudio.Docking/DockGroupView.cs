@@ -378,8 +378,10 @@ public class DockGroupView : TemplatedControl
     /// была каретка, можно только до неё. Знает об этом группа, а помнит — вид:
     /// группу к тому мигу уже отпустят.
     /// </remarks>
-    internal Control? FocusedPanel =>
-        DockFocus.Holds(this) && _content?.Content is Control panel ? panel : null;
+    internal Control? FocusedPanel => DockFocus.Holds(this) ? ShownPanel : null;
+
+    /// <summary>Панель, которую группа сейчас показывает; <c>null</c> — никакую.</summary>
+    internal Control? ShownPanel => _content?.Content as Control;
 
     /// <summary>Снимает вкладки и отпускает показанную панель.</summary>
     private void Clear()
