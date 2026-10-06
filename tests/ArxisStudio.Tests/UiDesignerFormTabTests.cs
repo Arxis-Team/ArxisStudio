@@ -250,9 +250,9 @@ public class UiDesignerFormTabTests
     }
 
     /// <summary>
-    /// Студия отдаёт каретку вкладке тем же путём, что группа доков при возврате на вкладку: вставив
-    /// содержимое и ещё до раскладки — первому, кто возьмёт. Каретка оказывается на холсте, а не на
-    /// первой кнопке полосы: F и стрелки работают сразу.
+    /// Каретку вкладки студия отдаёт её цели — холсту, а не первой кнопке полосы: F и стрелки работают
+    /// сразу. Отдаёт тем же путём, что группа доков при возврате на вкладку: вставив содержимое и ещё до
+    /// раскладки.
     /// </summary>
     [AvaloniaFact]
     public async Task The_studio_hands_the_tab_keyboard_to_its_canvas()
@@ -264,6 +264,9 @@ public class UiDesignerFormTabTests
         var (view, _) = await studio.Editor().OpenAsync(studio.PathOf("Views/MainWindow.axaml").Value);
         var document = Assert.IsType<FormDocument>(view);
         var host = new ContentControl();
+
+        // Цель кладут содержимому вкладки, спросив документ при открытии, — как StudioDocuments.
+        DockFocus.SetTarget(document.Content, document.FocusTarget);
 
         studio.Window.Content = host;
         host.Content = document.Content;
@@ -282,7 +285,7 @@ public class UiDesignerFormTabTests
 
     /// <summary>
     /// Сквозь студию: реестр спрашивает дизайнер первым, и тот берёт форму только во вкладках — тогда
-    /// студия открывает её вкладкой дизайнера.
+    /// студия открывает её вкладкой дизайнера, и целью каретки вкладки становится холст.
     /// </summary>
     [AvaloniaFact]
     public async Task The_studio_opens_a_form_in_a_designer_tab_only_in_tabs()
@@ -320,7 +323,10 @@ public class UiDesignerFormTabTests
         var opened = Assert.Single(harness.Documents.Opened);
 
         Assert.Equal("arxis.ui-designer", opened.PluginId);
-        Assert.IsType<FormDocument>(opened.View);
+
+        var document = Assert.IsType<FormDocument>(opened.View);
+
+        Assert.Same(document.View.Sheet, DockFocus.GetTarget(document.Content));
     }
 
     private static Border Frame(FormDocument document) =>

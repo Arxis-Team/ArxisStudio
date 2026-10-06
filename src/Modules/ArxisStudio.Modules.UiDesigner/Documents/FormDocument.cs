@@ -69,6 +69,10 @@ internal sealed class FormDocument : DocumentView
     /// <inheritdoc/>
     public override string Title => _sheet.Name;
 
+    /// <inheritdoc/>
+    /// <remarks>Холст — с него работают: F, стрелки и зум с клавиатуры.</remarks>
+    public override Control? FocusTarget => _view.Sheet;
+
     /// <summary>Рамка — тестам.</summary>
     internal FormSheet Sheet => _sheet;
 
