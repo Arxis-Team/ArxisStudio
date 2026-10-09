@@ -23,7 +23,7 @@ XAML и для файла вне решения — рамка её размер
 | кто держит показ документа | `FormShows` |
 | какой холст впереди — за ним идёт иерархия | `FormFront` |
 | баннеры вкладки по важности | `FormNotices` |
-| доска: что на виду, живые формы, снимки, история, состав, раскладка, файл, бросок | `BoardSight`, `BoardForms`, `BoardPreviews`, `BoardHistory`, `BoardModel` и `BoardPresence`, `BoardLayout`, `BoardFile`, `BoardLanding` |
+| доска: что на виду, живые формы, снимки, история, состав, раскладка, файл, бросок | `BoardSight`, `BoardForms`, `BoardPreviews`, `BoardHistory`, `BoardModel` и `BoardPresence`, `BoardLayout`, `BoardFile`, `BoardLanded` |
 | цвета и органы холста — общие у доски и вкладки | `CanvasLooks`, `SheetControls` |
 | снимки форм для плиток окна проекта | `FormPreviewProvider`, `FormSnapshots`, `FormCaptures`, `FormStage`, `FormPicture` |
 
