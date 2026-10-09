@@ -1,0 +1,183 @@
+using ArxisStudio.Inspector;
+using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Input;
+using Avalonia.Layout;
+
+namespace ArxisStudio.Modules.Inspector.Metadata;
+
+/// <summary>
+/// Метаданные Avalonia: разделы, порядок, скрытое и ограничения её свойств — у неё самой атрибутов
+/// <c>[Category]</c> нет.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Разделы — по порядку, в котором их ищут: окно, общее, макет, кисти, вид, текст, преобразование, взаимодействие,
+/// подсказка, прокрутка, доступность, затем присоединённые, которые читает родитель, дизайн, прочее и скрытые.
+/// </para>
+/// <para>
+/// Скрыто то, что в инспекторе не правят: шаблон, стили, ресурсы, переходы, жесты, родитель, границы и состояния
+/// ввода; имя и классы стоят в шапке. Дополнительное — то, что нужно редко: тема, обрезка, округление раскладки,
+/// направление, эффект, маска, метка. Подсказка и имя для диктора видны всегда: о них забывают, а без них
+/// интерфейс глух.
+/// </para>
+/// </remarks>
+public sealed class AvaloniaMetadata : InspectorMetadata
+{
+    /// <summary>Разделы по порядку.</summary>
+    private static readonly string[] Order =
+    [
+        "window", "common", "layout", "brush", "appearance", "text", "transform", "interaction", "tooltip", "scroll",
+        "accessibility", "parent", "design",
+    ];
+
+    /// <summary>Свойства, у которых в словаре модуля есть пояснение.</summary>
+    private static readonly string[] Described =
+    [
+        "Width", "Height", "Margin", "Padding", "HorizontalAlignment", "VerticalAlignment", "Opacity", "IsEnabled",
+        "IsHitTestVisible", "Focusable", "ToolTip.Tip", "AutomationProperties.Name", "AutomationProperties.HelpText",
+    ];
+
+    /// <inheritdoc/>
+    public override void Describe(InspectorMetadataBuilder metadata)
+    {
+        ArgumentNullException.ThrowIfNull(metadata);
+
+        for (var at = 0; at < Order.Length; at++)
+            metadata.Category(Order[at]).Title(Context.Strings["category." + Order[at]]).Order(at * 10);
+
+        metadata.Category("hidden").Title(Context.Strings["category.hidden"]).Order(10_000).Collapsed();
+
+        DescribeElement(metadata);
+        DescribeLayout(metadata);
+        DescribeBrushesAndText(metadata);
+        DescribeContent(metadata);
+        DescribeWindow(metadata);
+        Explain(metadata);
+    }
+
+    private static void DescribeElement(InspectorMetadataBuilder metadata)
+    {
+        // Имя и классы — в шапке; данные и привязки — отдельным разделом, когда он появится.
+        metadata.For<StyledElement>()
+            .Hide("Name", "Classes", "DataContext", "Styles", "Resources", "TemplatedParent", "Parent")
+            .Property(StyledElement.ThemeProperty, property => property.Category("appearance").Advanced());
+
+        metadata.For<Visual>()
+            .Hide("Bounds", "HasMirrorTransform", "Transitions")
+            .Category("appearance", "IsVisible", "Opacity")
+            .Property(Visual.OpacityProperty, property => property.Range(0, 1).Step(0.01).Decimals(2))
+            .Property(Visual.ClipToBoundsProperty, property => property.Category("layout").Order(100).Advanced())
+            .Property(Visual.ClipProperty, property => property.Category("appearance").Advanced())
+            .Property(Visual.OpacityMaskProperty, property => property.Category("brush").Order(100).Advanced())
+            .Property(Visual.EffectProperty, property => property.Category("appearance").Advanced())
+            .Property(Visual.FlowDirectionProperty, property => property.Category("appearance").Advanced())
+            .Property(Visual.ZIndexProperty, property => property.Category("layout").Order(110).Advanced())
+            .Category("transform", "RenderTransform", "RenderTransformOrigin");
+
+        metadata.For<InputElement>()
+            .Hide("IsPointerOver", "IsFocused", "IsKeyboardFocusWithin", "IsEffectivelyEnabled", "KeyBindings",
+                  "GestureRecognizers", "Gestures", "InputScope", "TextInputOptions")
+            .Category("interaction", "IsEnabled", "IsHitTestVisible", "Focusable", "IsTabStop", "TabIndex", "Cursor");
+
+        metadata.For<Control>()
+            .Hide("FocusAdorner", "DataTemplates")
+            .Category("interaction", "ContextMenu", "ContextFlyout")
+            .Property(Control.TagProperty, property => property.Category("other").Advanced())
+            .Property(ToolTip.TipProperty, property => property.Category("tooltip").Order(0).Always())
+            .Property(ToolTip.PlacementProperty, property => property.Category("tooltip").Order(1).Advanced())
+            .Property(ToolTip.ShowDelayProperty, property => property.Category("tooltip").Order(2).Advanced())
+            .Property(AutomationProperties.NameProperty, property => property.Category("accessibility").Order(0).Always())
+            .Property(AutomationProperties.HelpTextProperty, property => property.Category("accessibility").Order(1).Always())
+            .Property(AutomationProperties.AutomationIdProperty, property => property.Category("accessibility").Order(2).Advanced())
+            .Property(ScrollViewer.HorizontalScrollBarVisibilityProperty, property => property.Category("scroll").Order(0))
+            .Property(ScrollViewer.VerticalScrollBarVisibilityProperty, property => property.Category("scroll").Order(1));
+    }
+
+    private static void DescribeLayout(InspectorMetadataBuilder metadata)
+    {
+        metadata.For<Layoutable>()
+            .Category("layout", "Width", "Height", "MinWidth", "MinHeight", "MaxWidth", "MaxHeight", "Margin",
+                      "HorizontalAlignment", "VerticalAlignment")
+            .Property(Layoutable.WidthProperty, property => property.Auto().Range(0, double.PositiveInfinity))
+            .Property(Layoutable.HeightProperty, property => property.Auto().Range(0, double.PositiveInfinity))
+            .Property(Layoutable.MinWidthProperty, property => property.Range(0, double.PositiveInfinity))
+            .Property(Layoutable.MinHeightProperty, property => property.Range(0, double.PositiveInfinity))
+            .Property(Layoutable.UseLayoutRoundingProperty, property => property.Category("layout").Order(120).Advanced())
+            .Hide("DesiredSize", "IsMeasureValid", "IsArrangeValid");
+    }
+
+    private static void DescribeBrushesAndText(InspectorMetadataBuilder metadata)
+    {
+        metadata.For<TemplatedControl>()
+            .Hide("Template")
+            .Category("brush", "Background", "Foreground", "BorderBrush", "BorderThickness", "CornerRadius")
+            .Property(TemplatedControl.PaddingProperty, property => property.Category("layout").Order(20))
+            .Category("text", "FontFamily", "FontSize", "FontWeight", "FontStyle", "FontStretch")
+            .Property(TemplatedControl.FontSizeProperty, property => property.Range(1, 1000).Step(1))
+            .Property(TemplatedControl.BorderThicknessProperty, property => property.Range(0, double.PositiveInfinity))
+            .Property(TemplatedControl.CornerRadiusProperty, property => property.Range(0, double.PositiveInfinity));
+
+        metadata.For<Border>()
+            .Hide("Child")
+            .Category("brush", "Background", "BorderBrush", "BorderThickness", "CornerRadius")
+            .Property(Border.PaddingProperty, property => property.Category("layout").Order(20))
+            .Property(Border.BoxShadowProperty, property => property.Category("appearance"));
+
+        metadata.For<Avalonia.Controls.Panel>()
+            .Hide("Children")
+            .Property(Avalonia.Controls.Panel.BackgroundProperty, property => property.Category("brush"));
+
+        metadata.For<TextBlock>()
+            .Hide("Inlines", "TextLayout")
+            .Property(TextBlock.TextProperty, property => property.Category("common").Order(0).Multiline())
+            .Category("text", "FontFamily", "FontSize", "FontWeight", "FontStyle", "FontStretch", "TextAlignment",
+                      "TextWrapping", "TextTrimming", "LineHeight", "LetterSpacing", "TextDecorations")
+            .Property(TextBlock.FontSizeProperty, property => property.Range(1, 1000).Step(1))
+            .Category("brush", "Background", "Foreground")
+            .Property(TextBlock.PaddingProperty, property => property.Category("layout").Order(20));
+
+        metadata.For<TextBox>()
+            .Category("common", "Text", "PlaceholderText", "IsReadOnly", "AcceptsReturn", "MaxLength")
+            .Category("text", "TextAlignment", "TextWrapping")
+            .Property(TextBox.CaretBrushProperty, property => property.Category("brush").Advanced())
+            .Property(TextBox.SelectionBrushProperty, property => property.Category("brush").Advanced());
+    }
+
+    private static void DescribeContent(InspectorMetadataBuilder metadata)
+    {
+        metadata.For<ContentControl>()
+            .Property(ContentControl.ContentProperty, property => property.Category("common").Order(0))
+            .Hide("ContentTemplate", "Presenter")
+            .Property(ContentControl.HorizontalContentAlignmentProperty, property => property.Category("layout").Order(30))
+            .Property(ContentControl.VerticalContentAlignmentProperty, property => property.Category("layout").Order(31));
+
+        metadata.For<StackPanel>()
+            .Category("common", "Orientation", "Spacing");
+    }
+
+    private static void DescribeWindow(InspectorMetadataBuilder metadata)
+    {
+        metadata.For<Window>()
+            .Category("window", "Title", "SizeToContent", "WindowStartupLocation", "CanResize", "ShowInTaskbar",
+                      "Topmost", "WindowState", "SystemDecorations", "Icon")
+            .Advanced("ExtendClientAreaToDecorationsHint", "ExtendClientAreaChromeHints", "ExtendClientAreaTitleBarHeightHint");
+
+        metadata.For<TopLevel>()
+            .Property(TopLevel.TransparencyLevelHintProperty, property => property.Category("window").Order(20).Advanced())
+            .Hide("ClientSize", "FrameSize", "RenderScaling", "PlatformSettings", "ActualThemeVariant");
+    }
+
+    /// <summary>Пояснения — по-русски и по-английски из словаря модуля.</summary>
+    private void Explain(InspectorMetadataBuilder metadata)
+    {
+        foreach (var id in Described)
+        {
+            var text = Context.Strings["property." + id];
+
+            metadata.For<Control>().Property(id, property => property.Description(text));
+        }
+    }
+}

@@ -8,8 +8,9 @@
 
 Рабочие модули, а не образцы: [Terminal](ArxisStudio.Modules.Terminal),
 [Console](ArxisStudio.Modules.Console), служба проектов [Projects](ArxisStudio.Modules.Projects), окно
-проекта [Project](ArxisStudio.Modules.Project), служба XAML [Xaml](ArxisStudio.Modules.Xaml) и дизайнер
-[UiDesigner](ArxisStudio.Modules.UiDesigner). У служб, окна проекта и дизайнера свой `CLAUDE.md` в папке.
+проекта [Project](ArxisStudio.Modules.Project), служба XAML [Xaml](ArxisStudio.Modules.Xaml), инспектор
+[Inspector](ArxisStudio.Modules.Inspector) и дизайнер [UiDesigner](ArxisStudio.Modules.UiDesigner). У служб, окна
+проекта, инспектора и дизайнера свой `CLAUDE.md` в папке.
 
 ## Новый модуль
 

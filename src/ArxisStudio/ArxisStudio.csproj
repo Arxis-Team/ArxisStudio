@@ -129,6 +129,8 @@
                           StudioModule="true" Private="false" ExcludeAssets="runtime"/>
         <ProjectReference Include="../Modules/ArxisStudio.Modules.Project/ArxisStudio.Modules.Project.csproj"
                           StudioModule="true" Private="false" ExcludeAssets="runtime"/>
+        <ProjectReference Include="../Modules/ArxisStudio.Modules.Inspector/ArxisStudio.Modules.Inspector.csproj"
+                          StudioModule="true" Private="false" ExcludeAssets="runtime"/>
         <ProjectReference Include="../Modules/ArxisStudio.Modules.UiDesigner/ArxisStudio.Modules.UiDesigner.csproj"
                           StudioModule="true" Private="false" ExcludeAssets="runtime"/>
     </ItemGroup>

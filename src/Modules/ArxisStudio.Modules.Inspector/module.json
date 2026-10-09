@@ -1,0 +1,19 @@
+{
+  "id": "arxis.inspector",
+  "name": "%module.inspector%",
+  "version": "1.0.0",
+  "publisher": "Arxis",
+  "description": "%module.inspector.description%",
+  "tags": [ "tools", "design" ],
+  "provides": { "contracts": [ "bin/ArxisStudio.Inspector.Contracts.dll" ] },
+  "contributions": {
+    "commands": [
+      { "id": "inspector.show", "title": "%command.inspector.show%", "key": "F4", "icon": "arxis:Settings" }
+    ],
+    "toolWindows": [
+      { "id": "inspector.panel", "title": "%panel.inspector%", "icon": "arxis:Settings",
+        "placement": { "side": "right", "size": 0.22 } }
+    ]
+  },
+  "activation": [ "onStartup" ]
+}

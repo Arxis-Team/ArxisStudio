@@ -380,7 +380,7 @@ public sealed class PluginContributionRegistry(PluginGuard? guard = null)
         return built;
     }
 
-    /// <summary>Хозяин сборки: поднятое расширение, загрузившее её, или хозяин контракта.</summary>
+    /// <summary>Хозяин сборки: расширение, загрузившее её, — поднятое или ещё поднимающееся, — или хозяин контракта.</summary>
     /// <remarks>
     /// Сверяется и список сборок расширения, и его контекст загрузки — тем же правилом, каким хост
     /// приписывает исключение по стеку: приватную зависимость, подгруженную по требованию, знает только
@@ -395,6 +395,11 @@ public sealed class PluginContributionRegistry(PluginGuard? guard = null)
             if (raised.Assemblies.Contains(assembly) || (raised.LoadContext is not null && context == raised.LoadContext))
                 return raised.Id;
         }
+
+        // Плагин, который ещё поднимается: объект он отдал в своём Activate, а принят он будет после. Без этого
+        // ручка осталась бы без хозяина и не отпустила бы объект с его выгрузкой.
+        if (context is PluginLoadContext plugin)
+            return plugin.PluginId;
 
         return PluginContracts.OwnerOf(assembly);
     }

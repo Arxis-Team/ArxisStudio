@@ -1,0 +1,331 @@
+ArxisStudio.Inspector.IInspectorPreview : interface : System.IDisposable
+ArxisStudio.Inspector.IInspectorPreview :: ArxisStudio.Inspector.InspectorCheck Show(System.String text)
+ArxisStudio.Inspector.IInspectorPreview :: System.Threading.Tasks.Task<System.Boolean> CommitAsync(System.String text)
+ArxisStudio.Inspector.IStudioInspector : interface
+ArxisStudio.Inspector.IStudioInspector :: ArxisStudio.Inspector.InspectorTarget? Current { get; }
+ArxisStudio.Inspector.IStudioInspector :: System.Boolean IsLocked { get; }
+ArxisStudio.Inspector.IStudioInspector :: System.IDisposable Show(ArxisStudio.Inspector.InspectorTarget target)
+ArxisStudio.Inspector.IStudioInspector :: event System.EventHandler CurrentChanged
+ArxisStudio.Inspector.InspectorCategoryBuilder : sealed class
+ArxisStudio.Inspector.InspectorCategoryBuilder :: ArxisStudio.Inspector.InspectorCategoryBuilder Collapsed(System.Boolean collapsed = true)
+ArxisStudio.Inspector.InspectorCategoryBuilder :: ArxisStudio.Inspector.InspectorCategoryBuilder Order(System.Int32 order)
+ArxisStudio.Inspector.InspectorCategoryBuilder :: ArxisStudio.Inspector.InspectorCategoryBuilder Title(System.String title)
+ArxisStudio.Inspector.InspectorCategoryHints : sealed class
+ArxisStudio.Inspector.InspectorCategoryHints :: .ctor(System.String Id)
+ArxisStudio.Inspector.InspectorCategoryHints :: System.Boolean? Collapsed { get; }
+ArxisStudio.Inspector.InspectorCategoryHints :: System.Int32? Order { get; }
+ArxisStudio.Inspector.InspectorCategoryHints :: System.String Id { get; }
+ArxisStudio.Inspector.InspectorCategoryHints :: System.String? Title { get; }
+ArxisStudio.Inspector.InspectorChangedEventArgs : sealed class : System.EventArgs
+ArxisStudio.Inspector.InspectorChangedEventArgs :: .ctor(ArxisStudio.Inspector.InspectorChanges changes, System.Collections.Generic.IReadOnlyCollection<System.String>? ids = null)
+ArxisStudio.Inspector.InspectorChangedEventArgs :: ArxisStudio.Inspector.InspectorChanges Changes { get; }
+ArxisStudio.Inspector.InspectorChangedEventArgs :: System.Boolean Touches(System.String id)
+ArxisStudio.Inspector.InspectorChangedEventArgs :: System.Collections.Generic.IReadOnlyCollection<System.String>? Ids { get; }
+ArxisStudio.Inspector.InspectorChanges : [Flags] enum
+ArxisStudio.Inspector.InspectorChanges :: Closed = 8
+ArxisStudio.Inspector.InspectorChanges :: Header = 4
+ArxisStudio.Inspector.InspectorChanges :: None = 0
+ArxisStudio.Inspector.InspectorChanges :: Properties = 2
+ArxisStudio.Inspector.InspectorChanges :: Values = 1
+ArxisStudio.Inspector.InspectorCheck : readonly record struct : System.IEquatable<ArxisStudio.Inspector.InspectorCheck>
+ArxisStudio.Inspector.InspectorCheck :: .ctor(System.Boolean IsValid, System.String? Message)
+ArxisStudio.Inspector.InspectorCheck :: System.Boolean Equals(ArxisStudio.Inspector.InspectorCheck other)
+ArxisStudio.Inspector.InspectorCheck :: System.Boolean IsValid { get; init; }
+ArxisStudio.Inspector.InspectorCheck :: System.String? Message { get; init; }
+ArxisStudio.Inspector.InspectorCheck :: System.Void Deconstruct(out System.Boolean IsValid, out System.String? Message)
+ArxisStudio.Inspector.InspectorCheck :: static ArxisStudio.Inspector.InspectorCheck Invalid(System.String message)
+ArxisStudio.Inspector.InspectorCheck :: static ArxisStudio.Inspector.InspectorCheck Valid { get; }
+ArxisStudio.Inspector.InspectorCheck :: static System.Boolean op_Equality(ArxisStudio.Inspector.InspectorCheck left, ArxisStudio.Inspector.InspectorCheck right)
+ArxisStudio.Inspector.InspectorCheck :: static System.Boolean op_Inequality(ArxisStudio.Inspector.InspectorCheck left, ArxisStudio.Inspector.InspectorCheck right)
+ArxisStudio.Inspector.InspectorChoice : sealed record : System.IEquatable<ArxisStudio.Inspector.InspectorChoice>
+ArxisStudio.Inspector.InspectorChoice :: .ctor(System.String Value)
+ArxisStudio.Inspector.InspectorChoice :: Avalonia.Media.Geometry? Icon { get; init; }
+ArxisStudio.Inspector.InspectorChoice :: System.Boolean Equals(ArxisStudio.Inspector.InspectorChoice? other)
+ArxisStudio.Inspector.InspectorChoice :: System.String Value { get; init; }
+ArxisStudio.Inspector.InspectorChoice :: System.String? Description { get; init; }
+ArxisStudio.Inspector.InspectorChoice :: System.String? Title { get; init; }
+ArxisStudio.Inspector.InspectorChoice :: System.Void Deconstruct(out System.String Value)
+ArxisStudio.Inspector.InspectorChoice :: static System.Boolean op_Equality(ArxisStudio.Inspector.InspectorChoice? left, ArxisStudio.Inspector.InspectorChoice? right)
+ArxisStudio.Inspector.InspectorChoice :: static System.Boolean op_Inequality(ArxisStudio.Inspector.InspectorChoice? left, ArxisStudio.Inspector.InspectorChoice? right)
+ArxisStudio.Inspector.InspectorConstraints : sealed record : System.IEquatable<ArxisStudio.Inspector.InspectorConstraints>
+ArxisStudio.Inspector.InspectorConstraints :: .ctor()
+ArxisStudio.Inspector.InspectorConstraints :: System.Boolean AllowsAuto { get; init; }
+ArxisStudio.Inspector.InspectorConstraints :: System.Boolean ChoicesOnly { get; init; }
+ArxisStudio.Inspector.InspectorConstraints :: System.Boolean Equals(ArxisStudio.Inspector.InspectorConstraints? other)
+ArxisStudio.Inspector.InspectorConstraints :: System.Boolean Multiline { get; init; }
+ArxisStudio.Inspector.InspectorConstraints :: System.Collections.Generic.IReadOnlyList<ArxisStudio.Inspector.InspectorChoice> Choices { get; init; }
+ArxisStudio.Inspector.InspectorConstraints :: System.Double? Maximum { get; init; }
+ArxisStudio.Inspector.InspectorConstraints :: System.Double? Minimum { get; init; }
+ArxisStudio.Inspector.InspectorConstraints :: System.Double? Step { get; init; }
+ArxisStudio.Inspector.InspectorConstraints :: System.Int32? Decimals { get; init; }
+ArxisStudio.Inspector.InspectorConstraints :: static ArxisStudio.Inspector.InspectorConstraints None { get; }
+ArxisStudio.Inspector.InspectorConstraints :: static System.Boolean op_Equality(ArxisStudio.Inspector.InspectorConstraints? left, ArxisStudio.Inspector.InspectorConstraints? right)
+ArxisStudio.Inspector.InspectorConstraints :: static System.Boolean op_Inequality(ArxisStudio.Inspector.InspectorConstraints? left, ArxisStudio.Inspector.InspectorConstraints? right)
+ArxisStudio.Inspector.InspectorDecoration : sealed record : System.IEquatable<ArxisStudio.Inspector.InspectorDecoration>
+ArxisStudio.Inspector.InspectorDecoration :: .ctor(ArxisStudio.Inspector.InspectorDecorationKind Kind, System.String? Text = null)
+ArxisStudio.Inspector.InspectorDecoration :: ArxisStudio.Inspector.InspectorDecorationKind Kind { get; init; }
+ArxisStudio.Inspector.InspectorDecoration :: System.Boolean Equals(ArxisStudio.Inspector.InspectorDecoration? other)
+ArxisStudio.Inspector.InspectorDecoration :: System.String? Text { get; init; }
+ArxisStudio.Inspector.InspectorDecoration :: System.Void Deconstruct(out ArxisStudio.Inspector.InspectorDecorationKind Kind, out System.String? Text)
+ArxisStudio.Inspector.InspectorDecoration :: static System.Boolean op_Equality(ArxisStudio.Inspector.InspectorDecoration? left, ArxisStudio.Inspector.InspectorDecoration? right)
+ArxisStudio.Inspector.InspectorDecoration :: static System.Boolean op_Inequality(ArxisStudio.Inspector.InspectorDecoration? left, ArxisStudio.Inspector.InspectorDecoration? right)
+ArxisStudio.Inspector.InspectorDecorationKind : enum
+ArxisStudio.Inspector.InspectorDecorationKind :: Header = 0
+ArxisStudio.Inspector.InspectorDecorationKind :: Help = 2
+ArxisStudio.Inspector.InspectorDecorationKind :: Space = 1
+ArxisStudio.Inspector.InspectorField : abstract class
+ArxisStudio.Inspector.InspectorField :: .ctor()
+ArxisStudio.Inspector.InspectorField :: ArxisStudio.Controls.AxNumberField? ScrubTarget { get; }
+ArxisStudio.Inspector.InspectorField :: Avalonia.Controls.Control View { get; }
+ArxisStudio.Inspector.InspectorField :: Avalonia.Controls.Control? FocusTarget { get; }
+ArxisStudio.Inspector.InspectorField :: System.Boolean HasDraft { get; }
+ArxisStudio.Inspector.InspectorField :: abstract System.Void Show(ArxisStudio.Inspector.InspectorValue value)
+ArxisStudio.Inspector.InspectorField :: virtual System.Void Release()
+ArxisStudio.Inspector.InspectorFieldContext : abstract class
+ArxisStudio.Inspector.InspectorFieldContext :: .ctor()
+ArxisStudio.Inspector.InspectorFieldContext :: ArxisStudio.Inspector.InspectorProperty Property { get; }
+ArxisStudio.Inspector.InspectorFieldContext :: System.Int32 Count { get; }
+ArxisStudio.Inspector.InspectorFieldContext :: abstract ArxisStudio.Inspector.IInspectorPreview? BeginPreview()
+ArxisStudio.Inspector.InspectorFieldContext :: abstract ArxisStudio.Inspector.InspectorCheck Check(System.String text)
+ArxisStudio.Inspector.InspectorFieldContext :: abstract System.Collections.Generic.IReadOnlyList<ArxisStudio.Inspector.InspectorChoice> Suggest(System.String typed)
+ArxisStudio.Inspector.InspectorFieldContext :: abstract System.IDisposable? Hold()
+ArxisStudio.Inspector.InspectorFieldContext :: abstract System.Threading.Tasks.Task<System.Boolean> WriteAsync(System.String? text)
+ArxisStudio.Inspector.InspectorFieldContext :: abstract System.Void Report(ArxisStudio.Inspector.InspectorCheck check)
+ArxisStudio.Inspector.InspectorFieldLayout : enum
+ArxisStudio.Inspector.InspectorFieldLayout :: Below = 1
+ArxisStudio.Inspector.InspectorFieldLayout :: Full = 2
+ArxisStudio.Inspector.InspectorFieldLayout :: Inline = 0
+ArxisStudio.Inspector.InspectorHeader : sealed record : System.IEquatable<ArxisStudio.Inspector.InspectorHeader>
+ArxisStudio.Inspector.InspectorHeader :: .ctor(System.String Title)
+ArxisStudio.Inspector.InspectorHeader :: Avalonia.Media.Geometry? Icon { get; init; }
+ArxisStudio.Inspector.InspectorHeader :: System.Boolean Equals(ArxisStudio.Inspector.InspectorHeader? other)
+ArxisStudio.Inspector.InspectorHeader :: System.String Title { get; init; }
+ArxisStudio.Inspector.InspectorHeader :: System.String? EnabledProperty { get; init; }
+ArxisStudio.Inspector.InspectorHeader :: System.String? NameProperty { get; init; }
+ArxisStudio.Inspector.InspectorHeader :: System.String? Notice { get; init; }
+ArxisStudio.Inspector.InspectorHeader :: System.String? Subtitle { get; init; }
+ArxisStudio.Inspector.InspectorHeader :: System.String? TagsProperty { get; init; }
+ArxisStudio.Inspector.InspectorHeader :: System.Void Deconstruct(out System.String Title)
+ArxisStudio.Inspector.InspectorHeader :: static System.Boolean op_Equality(ArxisStudio.Inspector.InspectorHeader? left, ArxisStudio.Inspector.InspectorHeader? right)
+ArxisStudio.Inspector.InspectorHeader :: static System.Boolean op_Inequality(ArxisStudio.Inspector.InspectorHeader? left, ArxisStudio.Inspector.InspectorHeader? right)
+ArxisStudio.Inspector.InspectorMenu : abstract class : ArxisStudio.Sdk.StudioContribution
+ArxisStudio.Inspector.InspectorMenu :: .ctor()
+ArxisStudio.Inspector.InspectorMenu :: abstract System.Void Fill(ArxisStudio.Inspector.InspectorMenuContext menu)
+ArxisStudio.Inspector.InspectorMenuContext : abstract class
+ArxisStudio.Inspector.InspectorMenuContext :: .ctor()
+ArxisStudio.Inspector.InspectorMenuContext :: ArxisStudio.Inspector.InspectorProperty? Property { get; }
+ArxisStudio.Inspector.InspectorMenuContext :: ArxisStudio.Inspector.InspectorTypeInfo Type { get; }
+ArxisStudio.Inspector.InspectorMenuContext :: ArxisStudio.Inspector.InspectorValue? Value { get; }
+ArxisStudio.Inspector.InspectorMenuContext :: System.Int32 Count { get; }
+ArxisStudio.Inspector.InspectorMenuContext :: abstract System.Threading.Tasks.Task<System.Boolean> WriteAsync(System.Collections.Generic.IReadOnlyList<ArxisStudio.Inspector.InspectorWrite> writes, System.String? label = null)
+ArxisStudio.Inspector.InspectorMenuContext :: abstract System.Void Add(System.String title, System.Action action, Avalonia.Media.Geometry? icon = null, System.Boolean isEnabled = true)
+ArxisStudio.Inspector.InspectorMenuContext :: abstract System.Void AddSeparator()
+ArxisStudio.Inspector.InspectorMetadata : abstract class : ArxisStudio.Sdk.StudioContribution
+ArxisStudio.Inspector.InspectorMetadata :: .ctor()
+ArxisStudio.Inspector.InspectorMetadata :: System.Void Invalidate()
+ArxisStudio.Inspector.InspectorMetadata :: abstract System.Void Describe(ArxisStudio.Inspector.InspectorMetadataBuilder metadata)
+ArxisStudio.Inspector.InspectorMetadata :: event System.EventHandler Invalidated
+ArxisStudio.Inspector.InspectorMetadataBuilder : sealed class
+ArxisStudio.Inspector.InspectorMetadataBuilder :: .ctor()
+ArxisStudio.Inspector.InspectorMetadataBuilder :: ArxisStudio.Inspector.InspectorCategoryBuilder Category(System.String id)
+ArxisStudio.Inspector.InspectorMetadataBuilder :: ArxisStudio.Inspector.InspectorTypeBuilder For(System.String typeName)
+ArxisStudio.Inspector.InspectorMetadataBuilder :: ArxisStudio.Inspector.InspectorTypeBuilder For<T>()
+ArxisStudio.Inspector.InspectorMetadataBuilder :: System.Collections.Generic.IReadOnlyList<ArxisStudio.Inspector.InspectorCategoryHints> Categories { get; }
+ArxisStudio.Inspector.InspectorMetadataBuilder :: System.Collections.Generic.IReadOnlyList<ArxisStudio.Inspector.InspectorTypeHints> Types { get; }
+ArxisStudio.Inspector.InspectorProperty : sealed record : System.IEquatable<ArxisStudio.Inspector.InspectorProperty>
+ArxisStudio.Inspector.InspectorProperty :: .ctor(System.String Id, ArxisStudio.Inspector.InspectorTypeInfo ValueType)
+ArxisStudio.Inspector.InspectorProperty :: ArxisStudio.Inspector.InspectorConstraints Constraints { get; init; }
+ArxisStudio.Inspector.InspectorProperty :: ArxisStudio.Inspector.InspectorPropertyKind Kind { get; init; }
+ArxisStudio.Inspector.InspectorProperty :: ArxisStudio.Inspector.InspectorTypeInfo ValueType { get; init; }
+ArxisStudio.Inspector.InspectorProperty :: System.Boolean AcceptsText { get; init; }
+ArxisStudio.Inspector.InspectorProperty :: System.Boolean Equals(ArxisStudio.Inspector.InspectorProperty? other)
+ArxisStudio.Inspector.InspectorProperty :: System.Boolean IsAdvanced { get; init; }
+ArxisStudio.Inspector.InspectorProperty :: System.Boolean IsHidden { get; init; }
+ArxisStudio.Inspector.InspectorProperty :: System.Boolean IsReadOnly { get; init; }
+ArxisStudio.Inspector.InspectorProperty :: System.Collections.Generic.IReadOnlyList<ArxisStudio.Inspector.InspectorDecoration> Decorations { get; init; }
+ArxisStudio.Inspector.InspectorProperty :: System.Int32 Order { get; init; }
+ArxisStudio.Inspector.InspectorProperty :: System.String Id { get; init; }
+ArxisStudio.Inspector.InspectorProperty :: System.String Label { get; }
+ArxisStudio.Inspector.InspectorProperty :: System.String? Category { get; init; }
+ArxisStudio.Inspector.InspectorProperty :: System.String? DefaultText { get; init; }
+ArxisStudio.Inspector.InspectorProperty :: System.String? Description { get; init; }
+ArxisStudio.Inspector.InspectorProperty :: System.String? DisplayName { get; init; }
+ArxisStudio.Inspector.InspectorProperty :: System.String? Editor { get; init; }
+ArxisStudio.Inspector.InspectorProperty :: System.String? OwnerTypeName { get; init; }
+ArxisStudio.Inspector.InspectorProperty :: System.Void Deconstruct(out System.String Id, out ArxisStudio.Inspector.InspectorTypeInfo ValueType)
+ArxisStudio.Inspector.InspectorProperty :: static System.Boolean op_Equality(ArxisStudio.Inspector.InspectorProperty? left, ArxisStudio.Inspector.InspectorProperty? right)
+ArxisStudio.Inspector.InspectorProperty :: static System.Boolean op_Inequality(ArxisStudio.Inspector.InspectorProperty? left, ArxisStudio.Inspector.InspectorProperty? right)
+ArxisStudio.Inspector.InspectorPropertyBuilder : sealed class
+ArxisStudio.Inspector.InspectorPropertyBuilder :: ArxisStudio.Inspector.InspectorPropertyBuilder Advanced(System.Boolean advanced = true)
+ArxisStudio.Inspector.InspectorPropertyBuilder :: ArxisStudio.Inspector.InspectorPropertyBuilder Always(System.Boolean always = true)
+ArxisStudio.Inspector.InspectorPropertyBuilder :: ArxisStudio.Inspector.InspectorPropertyBuilder Auto(System.Boolean auto = true)
+ArxisStudio.Inspector.InspectorPropertyBuilder :: ArxisStudio.Inspector.InspectorPropertyBuilder Category(System.String category)
+ArxisStudio.Inspector.InspectorPropertyBuilder :: ArxisStudio.Inspector.InspectorPropertyBuilder Choices(ArxisStudio.Inspector.InspectorChoice[] choices)
+ArxisStudio.Inspector.InspectorPropertyBuilder :: ArxisStudio.Inspector.InspectorPropertyBuilder ChoicesOnly(System.Boolean only = true)
+ArxisStudio.Inspector.InspectorPropertyBuilder :: ArxisStudio.Inspector.InspectorPropertyBuilder Decimals(System.Int32 decimals)
+ArxisStudio.Inspector.InspectorPropertyBuilder :: ArxisStudio.Inspector.InspectorPropertyBuilder Description(System.String description)
+ArxisStudio.Inspector.InspectorPropertyBuilder :: ArxisStudio.Inspector.InspectorPropertyBuilder Editor(System.String editor)
+ArxisStudio.Inspector.InspectorPropertyBuilder :: ArxisStudio.Inspector.InspectorPropertyBuilder Header(System.String text)
+ArxisStudio.Inspector.InspectorPropertyBuilder :: ArxisStudio.Inspector.InspectorPropertyBuilder Help(System.String text)
+ArxisStudio.Inspector.InspectorPropertyBuilder :: ArxisStudio.Inspector.InspectorPropertyBuilder Hidden(System.Boolean hidden = true)
+ArxisStudio.Inspector.InspectorPropertyBuilder :: ArxisStudio.Inspector.InspectorPropertyBuilder Multiline(System.Boolean multiline = true)
+ArxisStudio.Inspector.InspectorPropertyBuilder :: ArxisStudio.Inspector.InspectorPropertyBuilder Order(System.Int32 order)
+ArxisStudio.Inspector.InspectorPropertyBuilder :: ArxisStudio.Inspector.InspectorPropertyBuilder Range(System.Double minimum, System.Double maximum)
+ArxisStudio.Inspector.InspectorPropertyBuilder :: ArxisStudio.Inspector.InspectorPropertyBuilder ReadOnly(System.Boolean readOnly = true)
+ArxisStudio.Inspector.InspectorPropertyBuilder :: ArxisStudio.Inspector.InspectorPropertyBuilder Space()
+ArxisStudio.Inspector.InspectorPropertyBuilder :: ArxisStudio.Inspector.InspectorPropertyBuilder Step(System.Double step)
+ArxisStudio.Inspector.InspectorPropertyBuilder :: ArxisStudio.Inspector.InspectorPropertyBuilder Title(System.String title)
+ArxisStudio.Inspector.InspectorPropertyHints : sealed class
+ArxisStudio.Inspector.InspectorPropertyHints :: .ctor()
+ArxisStudio.Inspector.InspectorPropertyHints :: System.Boolean? Advanced { get; }
+ArxisStudio.Inspector.InspectorPropertyHints :: System.Boolean? AllowsAuto { get; }
+ArxisStudio.Inspector.InspectorPropertyHints :: System.Boolean? Always { get; }
+ArxisStudio.Inspector.InspectorPropertyHints :: System.Boolean? ChoicesOnly { get; }
+ArxisStudio.Inspector.InspectorPropertyHints :: System.Boolean? Hidden { get; }
+ArxisStudio.Inspector.InspectorPropertyHints :: System.Boolean? Multiline { get; }
+ArxisStudio.Inspector.InspectorPropertyHints :: System.Boolean? ReadOnly { get; }
+ArxisStudio.Inspector.InspectorPropertyHints :: System.Collections.Generic.IReadOnlyList<ArxisStudio.Inspector.InspectorChoice>? Choices { get; }
+ArxisStudio.Inspector.InspectorPropertyHints :: System.Collections.Generic.IReadOnlyList<ArxisStudio.Inspector.InspectorDecoration>? Decorations { get; }
+ArxisStudio.Inspector.InspectorPropertyHints :: System.Double? Maximum { get; }
+ArxisStudio.Inspector.InspectorPropertyHints :: System.Double? Minimum { get; }
+ArxisStudio.Inspector.InspectorPropertyHints :: System.Double? Step { get; }
+ArxisStudio.Inspector.InspectorPropertyHints :: System.Int32? Decimals { get; }
+ArxisStudio.Inspector.InspectorPropertyHints :: System.Int32? Order { get; }
+ArxisStudio.Inspector.InspectorPropertyHints :: System.String? Category { get; }
+ArxisStudio.Inspector.InspectorPropertyHints :: System.String? Description { get; }
+ArxisStudio.Inspector.InspectorPropertyHints :: System.String? Editor { get; }
+ArxisStudio.Inspector.InspectorPropertyHints :: System.String? Title { get; }
+ArxisStudio.Inspector.InspectorPropertyKind : enum
+ArxisStudio.Inspector.InspectorPropertyKind :: Attached = 2
+ArxisStudio.Inspector.InspectorPropertyKind :: Clr = 3
+ArxisStudio.Inspector.InspectorPropertyKind :: Direct = 1
+ArxisStudio.Inspector.InspectorPropertyKind :: Directive = 4
+ArxisStudio.Inspector.InspectorPropertyKind :: Other = 5
+ArxisStudio.Inspector.InspectorPropertyKind :: Styled = 0
+ArxisStudio.Inspector.InspectorSection : abstract class : ArxisStudio.Sdk.StudioContribution
+ArxisStudio.Inspector.InspectorSection :: .ctor()
+ArxisStudio.Inspector.InspectorSection :: ArxisStudio.Inspector.InspectorSectionPlacement Placement { get; }
+ArxisStudio.Inspector.InspectorSection :: System.Boolean ReplaceAll { get; }
+ArxisStudio.Inspector.InspectorSection :: System.Collections.Generic.IReadOnlyCollection<System.String> Claims { get; }
+ArxisStudio.Inspector.InspectorSection :: System.Int32 Order { get; }
+ArxisStudio.Inspector.InspectorSection :: System.String Title { get; }
+ArxisStudio.Inspector.InspectorSection :: System.String? Category { get; }
+ArxisStudio.Inspector.InspectorSection :: abstract ArxisStudio.Inspector.InspectorSectionView CreateView(ArxisStudio.Inspector.InspectorSectionContext context)
+ArxisStudio.Inspector.InspectorSection :: virtual System.Boolean Accepts(ArxisStudio.Inspector.InspectorTypeInfo type, System.Collections.Generic.IReadOnlyList<ArxisStudio.Inspector.InspectorProperty> properties)
+ArxisStudio.Inspector.InspectorSectionAttribute : sealed class : System.Attribute
+ArxisStudio.Inspector.InspectorSectionAttribute :: .ctor(System.String typeName)
+ArxisStudio.Inspector.InspectorSectionAttribute :: .ctor(System.Type targetType)
+ArxisStudio.Inspector.InspectorSectionAttribute :: System.Boolean ForDerived { get; set; }
+ArxisStudio.Inspector.InspectorSectionAttribute :: System.String TypeName { get; }
+ArxisStudio.Inspector.InspectorSectionContext : abstract class
+ArxisStudio.Inspector.InspectorSectionContext :: .ctor()
+ArxisStudio.Inspector.InspectorSectionContext :: ArxisStudio.Inspector.InspectorTypeInfo Type { get; }
+ArxisStudio.Inspector.InspectorSectionContext :: System.Collections.Generic.IReadOnlyList<ArxisStudio.Inspector.InspectorProperty> Properties { get; }
+ArxisStudio.Inspector.InspectorSectionContext :: System.Int32 Count { get; }
+ArxisStudio.Inspector.InspectorSectionContext :: abstract ArxisStudio.Inspector.InspectorValue ValueOf(System.String id)
+ArxisStudio.Inspector.InspectorSectionContext :: abstract Avalonia.Controls.Control? CreateRow(System.String id)
+ArxisStudio.Inspector.InspectorSectionContext :: abstract System.Threading.Tasks.Task<System.Boolean> WriteAsync(System.Collections.Generic.IReadOnlyList<ArxisStudio.Inspector.InspectorWrite> writes, System.String? label = null)
+ArxisStudio.Inspector.InspectorSectionPlacement : enum
+ArxisStudio.Inspector.InspectorSectionPlacement :: Body = 0
+ArxisStudio.Inspector.InspectorSectionPlacement :: Header = 1
+ArxisStudio.Inspector.InspectorSectionView : abstract class
+ArxisStudio.Inspector.InspectorSectionView :: .ctor()
+ArxisStudio.Inspector.InspectorSectionView :: Avalonia.Controls.Control View { get; }
+ArxisStudio.Inspector.InspectorSectionView :: virtual System.Void Refresh(ArxisStudio.Inspector.InspectorChangedEventArgs change)
+ArxisStudio.Inspector.InspectorSectionView :: virtual System.Void Release()
+ArxisStudio.Inspector.InspectorTarget : abstract class
+ArxisStudio.Inspector.InspectorTarget :: .ctor()
+ArxisStudio.Inspector.InspectorTarget :: ArxisStudio.Inspector.InspectorHeader Header { get; }
+ArxisStudio.Inspector.InspectorTarget :: ArxisStudio.Inspector.InspectorTypeInfo Type { get; }
+ArxisStudio.Inspector.InspectorTarget :: System.Boolean IsClosed { get; }
+ArxisStudio.Inspector.InspectorTarget :: System.Collections.Generic.IReadOnlyCollection<System.String>? WrittenIds { get; }
+ArxisStudio.Inspector.InspectorTarget :: System.Collections.Generic.IReadOnlyList<ArxisStudio.Inspector.InspectorProperty> Properties { get; }
+ArxisStudio.Inspector.InspectorTarget :: System.Int32 Count { get; }
+ArxisStudio.Inspector.InspectorTarget :: System.Void Close()
+ArxisStudio.Inspector.InspectorTarget :: System.Void Raise(ArxisStudio.Inspector.InspectorChanges changes, System.Collections.Generic.IReadOnlyCollection<System.String>? ids = null)
+ArxisStudio.Inspector.InspectorTarget :: abstract ArxisStudio.Inspector.InspectorValue ValueOf(System.String id)
+ArxisStudio.Inspector.InspectorTarget :: abstract System.Threading.Tasks.Task<System.Boolean> WriteAsync(System.Collections.Generic.IReadOnlyList<ArxisStudio.Inspector.InspectorWrite> writes, System.String? label = null)
+ArxisStudio.Inspector.InspectorTarget :: event System.EventHandler<ArxisStudio.Inspector.InspectorChangedEventArgs> Changed
+ArxisStudio.Inspector.InspectorTarget :: virtual ArxisStudio.Inspector.IInspectorPreview? BeginPreview(System.String id)
+ArxisStudio.Inspector.InspectorTarget :: virtual ArxisStudio.Inspector.InspectorCheck Check(System.String id, System.String text)
+ArxisStudio.Inspector.InspectorTarget :: virtual System.Collections.Generic.IReadOnlyList<ArxisStudio.Inspector.InspectorChoice> Suggest(System.String id, System.String typed)
+ArxisStudio.Inspector.InspectorTarget :: virtual System.IDisposable? Hold(System.String id)
+ArxisStudio.Inspector.InspectorTarget :: virtual System.Threading.Tasks.Task<System.Boolean> StepAsync(System.Boolean back)
+ArxisStudio.Inspector.InspectorTarget :: virtual System.Void FillMenu(ArxisStudio.Inspector.InspectorMenuContext menu)
+ArxisStudio.Inspector.InspectorTarget :: virtual System.Void Include(System.Collections.Generic.IReadOnlyCollection<System.String> ids)
+ArxisStudio.Inspector.InspectorTypeBuilder : sealed class
+ArxisStudio.Inspector.InspectorTypeBuilder :: ArxisStudio.Inspector.InspectorTypeBuilder Advanced(System.String[] ids)
+ArxisStudio.Inspector.InspectorTypeBuilder :: ArxisStudio.Inspector.InspectorTypeBuilder Category(System.String category, System.String[] ids)
+ArxisStudio.Inspector.InspectorTypeBuilder :: ArxisStudio.Inspector.InspectorTypeBuilder Hide(System.String[] ids)
+ArxisStudio.Inspector.InspectorTypeBuilder :: ArxisStudio.Inspector.InspectorTypeBuilder Property(Avalonia.AvaloniaProperty property, System.Action<ArxisStudio.Inspector.InspectorPropertyBuilder> describe)
+ArxisStudio.Inspector.InspectorTypeBuilder :: ArxisStudio.Inspector.InspectorTypeBuilder Property(System.String id, System.Action<ArxisStudio.Inspector.InspectorPropertyBuilder> describe)
+ArxisStudio.Inspector.InspectorTypeBuilder :: ArxisStudio.Inspector.InspectorTypeBuilder ReadOnly(System.String[] ids)
+ArxisStudio.Inspector.InspectorTypeBuilder :: static System.String IdOf(Avalonia.AvaloniaProperty property)
+ArxisStudio.Inspector.InspectorTypeHints : sealed class
+ArxisStudio.Inspector.InspectorTypeHints :: .ctor(System.String TypeName)
+ArxisStudio.Inspector.InspectorTypeHints :: System.Collections.Generic.IReadOnlyDictionary<System.String, ArxisStudio.Inspector.InspectorPropertyHints> Properties { get; }
+ArxisStudio.Inspector.InspectorTypeHints :: System.String TypeName { get; }
+ArxisStudio.Inspector.InspectorTypeInfo : sealed record : System.IEquatable<ArxisStudio.Inspector.InspectorTypeInfo>
+ArxisStudio.Inspector.InspectorTypeInfo :: .ctor(System.String FullName)
+ArxisStudio.Inspector.InspectorTypeInfo :: System.Boolean Equals(ArxisStudio.Inspector.InspectorTypeInfo? other)
+ArxisStudio.Inspector.InspectorTypeInfo :: System.Boolean Is(System.String fullName)
+ArxisStudio.Inspector.InspectorTypeInfo :: System.Boolean IsEnum { get; }
+ArxisStudio.Inspector.InspectorTypeInfo :: System.Boolean IsFlags { get; init; }
+ArxisStudio.Inspector.InspectorTypeInfo :: System.Boolean IsNullable { get; init; }
+ArxisStudio.Inspector.InspectorTypeInfo :: System.Collections.Generic.IReadOnlyList<System.String> BaseTypes { get; init; }
+ArxisStudio.Inspector.InspectorTypeInfo :: System.Collections.Generic.IReadOnlyList<System.String> EnumNames { get; init; }
+ArxisStudio.Inspector.InspectorTypeInfo :: System.Collections.Generic.IReadOnlyList<System.String> Interfaces { get; init; }
+ArxisStudio.Inspector.InspectorTypeInfo :: System.String FullName { get; init; }
+ArxisStudio.Inspector.InspectorTypeInfo :: System.String? GenericDefinition { get; init; }
+ArxisStudio.Inspector.InspectorTypeInfo :: System.Void Deconstruct(out System.String FullName)
+ArxisStudio.Inspector.InspectorTypeInfo :: static ArxisStudio.Inspector.InspectorTypeInfo Of(System.Type type)
+ArxisStudio.Inspector.InspectorTypeInfo :: static System.Boolean op_Equality(ArxisStudio.Inspector.InspectorTypeInfo? left, ArxisStudio.Inspector.InspectorTypeInfo? right)
+ArxisStudio.Inspector.InspectorTypeInfo :: static System.Boolean op_Inequality(ArxisStudio.Inspector.InspectorTypeInfo? left, ArxisStudio.Inspector.InspectorTypeInfo? right)
+ArxisStudio.Inspector.InspectorTypeInfo :: static System.String NameOf(System.Type type)
+ArxisStudio.Inspector.InspectorValue : sealed record : System.IEquatable<ArxisStudio.Inspector.InspectorValue>
+ArxisStudio.Inspector.InspectorValue :: .ctor(System.String? Text)
+ArxisStudio.Inspector.InspectorValue :: ArxisStudio.Inspector.InspectorValueSource Source { get; init; }
+ArxisStudio.Inspector.InspectorValue :: System.Boolean Equals(ArxisStudio.Inspector.InspectorValue? other)
+ArxisStudio.Inspector.InspectorValue :: System.Boolean IsMixed { get; init; }
+ArxisStudio.Inspector.InspectorValue :: System.Boolean IsWritten { get; }
+ArxisStudio.Inspector.InspectorValue :: System.Object? Shared { get; init; }
+ArxisStudio.Inspector.InspectorValue :: System.String? Error { get; init; }
+ArxisStudio.Inspector.InspectorValue :: System.String? SourceDetail { get; init; }
+ArxisStudio.Inspector.InspectorValue :: System.String? Text { get; init; }
+ArxisStudio.Inspector.InspectorValue :: System.String? Written { get; init; }
+ArxisStudio.Inspector.InspectorValue :: System.Void Deconstruct(out System.String? Text)
+ArxisStudio.Inspector.InspectorValue :: static ArxisStudio.Inspector.InspectorValue Empty { get; }
+ArxisStudio.Inspector.InspectorValue :: static System.Boolean op_Equality(ArxisStudio.Inspector.InspectorValue? left, ArxisStudio.Inspector.InspectorValue? right)
+ArxisStudio.Inspector.InspectorValue :: static System.Boolean op_Inequality(ArxisStudio.Inspector.InspectorValue? left, ArxisStudio.Inspector.InspectorValue? right)
+ArxisStudio.Inspector.InspectorValueSource : enum
+ArxisStudio.Inspector.InspectorValueSource :: Animation = 7
+ArxisStudio.Inspector.InspectorValueSource :: Code = 8
+ArxisStudio.Inspector.InspectorValueSource :: Default = 0
+ArxisStudio.Inspector.InspectorValueSource :: Design = 2
+ArxisStudio.Inspector.InspectorValueSource :: Expression = 3
+ArxisStudio.Inspector.InspectorValueSource :: Inherited = 6
+ArxisStudio.Inspector.InspectorValueSource :: Local = 1
+ArxisStudio.Inspector.InspectorValueSource :: Style = 4
+ArxisStudio.Inspector.InspectorValueSource :: Template = 5
+ArxisStudio.Inspector.InspectorWrite : sealed record : System.IEquatable<ArxisStudio.Inspector.InspectorWrite>
+ArxisStudio.Inspector.InspectorWrite :: .ctor(System.String PropertyId, System.String? Text)
+ArxisStudio.Inspector.InspectorWrite :: System.Boolean Equals(ArxisStudio.Inspector.InspectorWrite? other)
+ArxisStudio.Inspector.InspectorWrite :: System.String PropertyId { get; init; }
+ArxisStudio.Inspector.InspectorWrite :: System.String? Text { get; init; }
+ArxisStudio.Inspector.InspectorWrite :: System.Void Deconstruct(out System.String PropertyId, out System.String? Text)
+ArxisStudio.Inspector.InspectorWrite :: static System.Boolean op_Equality(ArxisStudio.Inspector.InspectorWrite? left, ArxisStudio.Inspector.InspectorWrite? right)
+ArxisStudio.Inspector.InspectorWrite :: static System.Boolean op_Inequality(ArxisStudio.Inspector.InspectorWrite? left, ArxisStudio.Inspector.InspectorWrite? right)
+ArxisStudio.Inspector.PropertyEditor : abstract class : ArxisStudio.Sdk.StudioContribution
+ArxisStudio.Inspector.PropertyEditor :: .ctor()
+ArxisStudio.Inspector.PropertyEditor :: abstract ArxisStudio.Inspector.InspectorField CreateField(ArxisStudio.Inspector.InspectorFieldContext context)
+ArxisStudio.Inspector.PropertyEditor :: virtual ArxisStudio.Inspector.InspectorFieldLayout LayoutOf(ArxisStudio.Inspector.InspectorProperty property)
+ArxisStudio.Inspector.PropertyEditor :: virtual System.Boolean Accepts(ArxisStudio.Inspector.InspectorProperty property)
+ArxisStudio.Inspector.PropertyEditorAttribute : sealed class : System.Attribute
+ArxisStudio.Inspector.PropertyEditorAttribute :: .ctor(System.String typeName)
+ArxisStudio.Inspector.PropertyEditorAttribute :: .ctor(System.Type valueType)
+ArxisStudio.Inspector.PropertyEditorAttribute :: System.Boolean Fallback { get; set; }
+ArxisStudio.Inspector.PropertyEditorAttribute :: System.Boolean ForDerived { get; set; }
+ArxisStudio.Inspector.PropertyEditorAttribute :: System.String TypeName { get; }
+ArxisStudio.Inspector.PropertyEditorAttribute :: System.String? Hint { get; set; }
+ArxisStudio.Inspector.StudioInspectorAccess : static class
+ArxisStudio.Inspector.StudioInspectorAccess :: static ArxisStudio.Inspector.IStudioInspector? Inspector(ArxisStudio.Sdk.IStudioContext context)

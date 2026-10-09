@@ -313,6 +313,50 @@ public class StudioContributionsTests : IDisposable
     }
 
     /// <summary>
+    /// Объект, отданный плагином ещё в его <c>Activate</c>, приписан ему и отпускается с его выгрузкой: студия
+    /// принимает плагин после подъёма, а ручку модуль берёт сразу — так плагин показывает свою цель в инспекторе.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Guard_taken_while_the_owner_is_rising_still_blames_it_and_lets_go_with_it()
+    {
+        TestAssembly.EmitPlugin(_root, "probe.early", "Probe.Early", source: """
+            using ArxisStudio.Sdk;
+            using ProbeContributions;
+
+            namespace Probe.Early;
+
+            public sealed class Trick : Gift
+            {
+                public override void Open() => throw new System.InvalidOperationException("ранний подарок");
+            }
+
+            public sealed class Entry : StudioPlugin
+            {
+                public override void Activate(IStudioContext context) =>
+                    Gift.Handed.Add(context.GetService<IStudioContributions>()!.Guard<Gift>(new Trick()));
+            }
+            """);
+
+        var plugins = Start();
+        var handed = (List<object>)Contract("Gift").GetField("Handed")!.GetValue(null)!;
+        var early = (IStudioGuarded<object>)Assert.Single(handed);
+
+        try
+        {
+            Assert.Equal("probe.early", early.OwnerId);
+
+            await plugins.ReloadAsync("probe.early");
+
+            Assert.True(early.IsReleased, "ручка, взятая на подъёме хозяина, не отпустила объект с его выгрузкой");
+            Assert.Empty(plugins.AwaitingRestart);
+        }
+        finally
+        {
+            handed.Clear();
+        }
+    }
+
+    /// <summary>
     /// Построенное вкладом, упавшее на раскладке, заменяется строкой о сбое, и сбой засчитывается хозяину.
     /// </summary>
     [AvaloniaFact]
@@ -405,6 +449,9 @@ public class StudioContributionsTests : IDisposable
 
         public abstract class Gift
         {
+            /// <summary>Ручки, взятые плагинами на подъёме: тест читает их отсюда.</summary>
+            public static readonly List<object> Handed = new();
+
             public abstract void Open();
         }
 

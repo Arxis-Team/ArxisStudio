@@ -1,0 +1,118 @@
+<!--
+    Инспектор: свойства показанного — как Inspector у Unity и окно свойств Rider.
+
+    Полоса — первой строкой содержимого, как у окна проекта: поиск слева, справа отбор и замок, последней ⋮.
+    «По алфавиту» снимает разделы, «Только заданные» оставляет то, что задано здесь, «Все свойства» показывает
+    дополнительное и скрытое — как отладочный вид инспектора Unity, но с той же кастомизацией строк.
+
+    Под полосой шапка: значок, имя и тип показанного — она не прокручивается, как шапка компонента у Unity, — и
+    разделы, которые плагины ставят в шапку. Ниже заметка источника: почему показано не всё.
+
+    Список один на все разделы: стрелки идут по строкам подряд, заголовок раздела — строка, которую нельзя выбрать,
+    и стрелки проходят мимо неё. Tab идёт от поля к полю, как в окне свойств Visual Studio, а ячейка строки
+    остановкой не служит. Список виртуализован: у контрола полторы сотни свойств, а на экране десятки.
+
+    Пустые состояния лежат поверх списка: ничего не показано, закреплённое закрыто — с кнопкой снять замок.
+-->
+<AxUserControl xmlns="https://github.com/Arxis-Team/ArxisStudio"
+               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+               xmlns:a="https://github.com/avaloniaui"
+               xmlns:ax="https://github.com/Arxis-Team/ArxisStudio"
+               x:Class="ArxisStudio.Modules.Inspector.Panel.InspectorView">
+
+  <a:DockPanel>
+
+    <a:Border a:DockPanel.Dock="Top" Padding="{a:DynamicResource AxToolBarPadding}">
+      <a:DockPanel>
+
+        <a:StackPanel a:DockPanel.Dock="Right" Orientation="Horizontal" Spacing="{a:DynamicResource AxSpaceHair}"
+                      VerticalAlignment="Center">
+
+          <AxToggleButton x:Name="Alphabetical" Appearance="Toolbar"
+                          a:ToolTip.Tip="{Text inspector.alphabetical}"
+                          a:AutomationProperties.Name="{Text inspector.alphabetical}">
+            <AxIcon Data="{x:Static ax:AxIcons.Sort}"/>
+          </AxToggleButton>
+
+          <AxToggleButton x:Name="Written" Appearance="Toolbar"
+                          a:ToolTip.Tip="{Text inspector.written}"
+                          a:AutomationProperties.Name="{Text inspector.written}">
+            <AxIcon Data="{x:Static ax:AxIcons.Filter}"/>
+          </AxToggleButton>
+
+          <AxToggleButton x:Name="All" Appearance="Toolbar"
+                          a:ToolTip.Tip="{Text inspector.all}"
+                          a:AutomationProperties.Name="{Text inspector.all}">
+            <AxIcon Data="{x:Static ax:AxIcons.Preview}"/>
+          </AxToggleButton>
+
+          <AxToggleButton x:Name="Lock" Appearance="Toolbar"
+                          a:ToolTip.Tip="{Text inspector.lock}"
+                          a:AutomationProperties.Name="{Text inspector.lock}">
+            <AxIcon x:Name="LockIcon" Data="{x:Static ax:AxIcons.Unlock}"/>
+          </AxToggleButton>
+
+          <AxButton x:Name="Options" Appearance="Toolbar"
+                    a:ToolTip.Tip="{Text inspector.options}"
+                    a:AutomationProperties.Name="{Text inspector.options}">
+            <AxIcon Data="{x:Static ax:AxIcons.MoreVertical}"/>
+          </AxButton>
+
+        </a:StackPanel>
+
+        <AxSearchField x:Name="Query" Size="Compact" VerticalAlignment="Center"
+                       PlaceholderText="{Text inspector.search}"
+                       a:AutomationProperties.Name="{Text inspector.search}"/>
+
+      </a:DockPanel>
+    </a:Border>
+
+    <AxDivider a:DockPanel.Dock="Top"/>
+
+    <!-- Шапка: что показано. Не прокручивается: имя показанного видно, как глубоко ни ушёл список. -->
+    <a:StackPanel x:Name="Header" a:DockPanel.Dock="Top" Margin="{a:DynamicResource AxSpaceThickness}"
+                  Spacing="{a:DynamicResource AxSpaceTight}" IsVisible="False">
+      <a:DockPanel>
+        <AxIcon x:Name="HeaderIcon" a:DockPanel.Dock="Left" VerticalAlignment="Center"
+                Margin="{a:DynamicResource AxGapIconTextThickness}"
+                a:AutomationProperties.AccessibilityView="Raw"/>
+        <a:StackPanel VerticalAlignment="Center">
+          <a:TextBlock x:Name="Title" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+          <a:TextBlock x:Name="Subtitle" AxText.Role="Small" AxText.Tone="Secondary" TextTrimming="CharacterEllipsis"/>
+        </a:StackPanel>
+      </a:DockPanel>
+      <a:StackPanel x:Name="HeaderSections" Spacing="{a:DynamicResource AxSpaceTight}"/>
+    </a:StackPanel>
+
+    <AxBanner x:Name="Notice" a:DockPanel.Dock="Top" Severity="Information" IsVisible="False"
+              Margin="{a:DynamicResource AxSpaceSidesThickness}">
+      <a:TextBlock x:Name="NoticeText" TextWrapping="Wrap" a:AutomationProperties.LiveSetting="Polite"/>
+    </AxBanner>
+
+    <AxDivider x:Name="HeaderDivider" a:DockPanel.Dock="Top" IsVisible="False"/>
+
+    <a:Panel>
+
+      <AxListBox x:Name="List" a:KeyboardNavigation.TabNavigation="Continue"
+                 a:AutomationProperties.Name="{Text inspector.list}">
+        <AxListBox.Styles>
+          <!-- Заголовок раздела и раздел плагина — не строки: наведение их не красит. -->
+          <a:Style Selector="AxListBoxItem[Focusable=False] /template/ a|ContentPresenter#PART_ContentPresenter">
+            <a:Setter Property="Background" Value="Transparent"/>
+          </a:Style>
+        </AxListBox.Styles>
+      </AxListBox>
+
+      <a:StackPanel x:Name="Empty" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Margin="{a:DynamicResource AxSpaceWideThickness}" Spacing="{a:DynamicResource AxSpaceTight}">
+        <a:TextBlock x:Name="EmptyTitle" TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center"/>
+        <a:TextBlock x:Name="EmptyHint" AxText.Tone="Secondary" TextWrapping="Wrap" TextAlignment="Center"
+                     HorizontalAlignment="Center"/>
+        <AxButton x:Name="Unlock" HorizontalAlignment="Center" Content="{Text inspector.unlock}" IsVisible="False"/>
+      </a:StackPanel>
+
+    </a:Panel>
+
+  </a:DockPanel>
+
+</AxUserControl>

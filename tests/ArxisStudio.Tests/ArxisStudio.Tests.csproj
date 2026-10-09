@@ -146,6 +146,8 @@
                           Private="false" ExcludeAssets="runtime"/>
         <ProjectReference Include="../../src/Modules/ArxisStudio.Xaml.Contracts/ArxisStudio.Xaml.Contracts.csproj"
                           Private="false" ExcludeAssets="runtime"/>
+        <ProjectReference Include="../../src/Modules/ArxisStudio.Inspector.Contracts/ArxisStudio.Inspector.Contracts.csproj"
+                          Private="false" ExcludeAssets="runtime"/>
 
         <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Sample/ArxisStudio.Modules.Sample.csproj"
                           StudioModule="true" Private="false" ExcludeAssets="runtime"/>
@@ -158,6 +160,8 @@
         <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Xaml/ArxisStudio.Modules.Xaml.csproj"
                           StudioModule="true" Private="false" ExcludeAssets="runtime"/>
         <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Project/ArxisStudio.Modules.Project.csproj"
+                          StudioModule="true" Private="false" ExcludeAssets="runtime"/>
+        <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.Inspector/ArxisStudio.Modules.Inspector.csproj"
                           StudioModule="true" Private="false" ExcludeAssets="runtime"/>
         <ProjectReference Include="../../src/Modules/ArxisStudio.Modules.UiDesigner/ArxisStudio.Modules.UiDesigner.csproj"
                           StudioModule="true" Private="false" ExcludeAssets="runtime"/>

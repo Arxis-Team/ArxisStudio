@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+        Контракт инспектора: то, что видит плагин. Отдельной сборкой по той же причине, что контракты служб
+        проектов и XAML: модуль держит панель, каталог вкладов и редакторы по умолчанию, а типы, которыми с
+        ним обмениваются соседи, — цель, свойство, значение, классы вкладов — обязаны быть одни на всех.
+        Модуль объявляет эту сборку в provides.contracts, и студия грузит её в общий контекст.
+
+        Ссылка одна — SDK: он приносит Avalonia и набор контролов, а поле редактора — контрол набора. Ни
+        службы XAML, ни дизайнера: цель инспектора — не элемент разметки, а то, что о себе рассказывает
+        источник, и показывать в нём можно что угодно. Держит это InspectorContractTests — на собранной
+        сборке.
+    -->
+    <PropertyGroup>
+        <RootNamespace>ArxisStudio.Inspector</RootNamespace>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
+    </ItemGroup>
+
+</Project>

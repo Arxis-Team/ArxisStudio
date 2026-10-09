@@ -19,6 +19,13 @@ internal sealed class PluginLoadContext(string name, string entryPath)
 {
     private readonly AssemblyDependencyResolver _resolver = new(entryPath);
 
+    /// <summary>Чей это контекст — идентификатор плагина.</summary>
+    /// <remarks>
+    /// Объект, отданный плагином ещё в его <c>Activate</c>, приписывается ему по контексту загрузки: студия
+    /// принимает плагин после подъёма, а ручку к его объекту модуль берёт сразу.
+    /// </remarks>
+    internal string PluginId => name;
+
     protected override Assembly? Load(AssemblyName assemblyName)
     {
         // Контракт один на всех: даже если копия с тем же именем лежит в

@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+        Инспектор: одна панель свойств на всю студию, как Inspector в Unity и Properties в Rider. Что
+        показывать, решают источники — дизайнер, плагины, — а модуль держит службу показа, каталог вкладов
+        (редакторы, разделы, метаданные, пункты меню) и панель. Соседи и плагины видят его через контракт
+        ArxisStudio.Inspector.Contracts, а не через этот проект.
+
+        Раскладка по папкам, и она же порядок зависимостей:
+
+          Catalog/   вклады и их выбор: слои метаданных, цепочка редактора, разделы — без окна
+          Metadata/  таблица Avalonia: разделы, порядок, скрытое
+          Editors/   редакторы по умолчанию на полях инспектора набора
+          Panel/     панель: полоса, шапка, строки, пустые состояния
+
+        Каталог от контролов не зависит: его проверяют без окна.
+    -->
+    <PropertyGroup>
+        <RootNamespace>ArxisStudio.Modules.Inspector</RootNamespace>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Avalonia"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../../ArxisStudio.Sdk/ArxisStudio.Sdk.csproj"/>
+        <ProjectReference Include="../ArxisStudio.Inspector.Contracts/ArxisStudio.Inspector.Contracts.csproj"/>
+    </ItemGroup>
+
+    <!--
+        Анализатор — отдельной строкой, как у всякого модуля: через цепочку ProjectReference анализаторы
+        не передаются.
+    -->
+    <ItemGroup>
+        <ProjectReference Include="../../ArxisStudio.Sdk.Analyzers/ArxisStudio.Sdk.Analyzers.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false"/>
+    </ItemGroup>
+
+    <!-- Манифест — входом сборки: по нему ARX0002 сверяет %ключи% со словарём модуля. -->
+    <ItemGroup>
+        <AdditionalFiles Include="module.json"/>
+    </ItemGroup>
+
+    <!-- Тестам открыты служба, каталог и панель: проверяется поведение, а не дерево контролов. -->
+    <ItemGroup>
+        <InternalsVisibleTo Include="ArxisStudio.Tests"/>
+    </ItemGroup>
+
+</Project>

@@ -36,7 +36,9 @@
     <Project Path="external/ArxisStudio.Themes.Arxis/src/ArxisStudio.Themes.Arxis.csproj" />
   </Folder>
   <Folder Name="/src/Modules/">
+    <Project Path="src/Modules/ArxisStudio.Inspector.Contracts/ArxisStudio.Inspector.Contracts.csproj" />
     <Project Path="src/Modules/ArxisStudio.Modules.Console/ArxisStudio.Modules.Console.csproj" />
+    <Project Path="src/Modules/ArxisStudio.Modules.Inspector/ArxisStudio.Modules.Inspector.csproj" />
     <Project Path="src/Modules/ArxisStudio.Modules.Project/ArxisStudio.Modules.Project.csproj" />
     <Project Path="src/Modules/ArxisStudio.Modules.Projects/ArxisStudio.Modules.Projects.csproj" />
     <Project Path="src/Modules/ArxisStudio.Modules.Sample/ArxisStudio.Modules.Sample.csproj" />
