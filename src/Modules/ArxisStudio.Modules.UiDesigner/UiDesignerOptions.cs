@@ -87,6 +87,12 @@ internal sealed class UiDesignerOptions
     public Func<Documents.FormShowRank, CancellationToken, Task>? FormShown { get; init; }
 
     /// <summary>
+    /// Что ждёт перечитывание XAML, посчитав роли текста вне потока интерфейса, — до того, как поставить текст;
+    /// null — ничего. Тестам: застать текст, который ещё в пути.
+    /// </summary>
+    public Func<CancellationToken, Task>? CodeHighlighted { get; init; }
+
+    /// <summary>
     /// Сколько форма, ушедшая с виду доски, держит показ, прежде чем отдать его;
     /// <see cref="Timeout.InfiniteTimeSpan"/> — держит, пока не вернётся.
     /// </summary>

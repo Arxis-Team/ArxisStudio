@@ -19,6 +19,9 @@ internal sealed partial class FormCanvas
     private FormSlot? _lastActive;
     private FormSlot? _announced;
     private IReadOnlyList<XamlElementPath> _announcedSelection = [];
+
+    // За чьим текстом XAML пошёл последним — и чей текст стоит: текст встаёт после подсветки, и между ними он в пути.
+    private FormSlot? _codeFor;
     private FormSlot? _codeSlot;
     private XamlDocument? _shownCode;
     private int _codeTurn;
@@ -189,7 +192,7 @@ internal sealed partial class FormCanvas
         }
 
         _selection = resolved;
-        Announce();
+        Reconsider();
 
         if (!SameAsSheet(targets))
         {
@@ -202,8 +205,6 @@ internal sealed partial class FormCanvas
                     Sheet.SelectTarget(targets[index], additive: index > 0, takeFocus: false);
             }
         }
-
-        ShowSelectionInCode(reveal: false);
     }
 
     /// <summary>Стоит ли форма на холсте живой: карточка есть, корень и документ — тоже.</summary>
@@ -238,7 +239,7 @@ internal sealed partial class FormCanvas
             using (Syncing())
                 Sheet.SelectedItems?.Clear();
 
-            Announce();
+            Reconsider();
 
             return true;
         }
@@ -255,8 +256,7 @@ internal sealed partial class FormCanvas
             using (Syncing())
                 Sheet.SelectedItems?.Clear();
 
-            ShowSelectionInCode(reveal: false);
-            Announce();
+            Reconsider();
 
             return true;
         }
@@ -283,15 +283,34 @@ internal sealed partial class FormCanvas
     private List<FormSlot> Placed() => _slots.FindAll(slot => slot.Item is not null);
 
     /// <summary>
-    /// Форм на холсте стало больше или меньше: форма, с которой работают, могла смениться и без выбора —
-    /// единственная форма холста становится ею сама, а вставшая рядом вторая это снимает, — и XAML идёт за ней.
+    /// Форма, с которой работают, могла смениться: XAML идёт за ней — сменилась, и текст перечитывается, нет — на
+    /// стоящем ставится отметка главного, — а хозяин и иерархия узнают, если сменились она или её выбор.
     /// </summary>
-    private void Reconsider()
+    /// <param name="reveal">Прокрутить XAML к главному выбранному.</param>
+    /// <remarks>
+    /// <para>
+    /// Дорога одна у всего, после чего она могла смениться: у выбора, каретки в XAML, Esc и форм, вставших на холст
+    /// и ушедших с него, — единственная форма холста становится ею сама, а вставшая рядом вторая это снимает.
+    /// Дорога, где XAML не сверили бы, оставила бы под формой чужой текст или пустой просмотр.
+    /// </para>
+    /// <para>
+    /// Сверяют её с формой, за чьим текстом XAML пошёл последним, а не с той, чей текст стоит: текст встаёт после
+    /// подсветки, вне потока интерфейса, и перемена за это время, сверенная со стоящим, прошла бы незамеченной. Пока
+    /// формы доски встают по одной, текст первой, на миг единственной, встал бы под доской, когда рядом уже стоит
+    /// вторая и работать не с чем. Текст ещё в пути, а показать надо выбранное — он перечитывается заново, с
+    /// прокруткой.
+    /// </para>
+    /// </remarks>
+    private void Reconsider(bool reveal = false)
     {
-        if (_code is not null && !ReferenceEquals(Active, _codeSlot))
-            _ = RefreshCodeAsync(reveal: false);
+        var active = Active;
 
-        Announce();
+        if (_code is not null && (!ReferenceEquals(active, _codeFor) || (reveal && !ReferenceEquals(active, _codeSlot))))
+            _ = RefreshCodeAsync(reveal);
+        else
+            ShowSelectionInCode(reveal);
+
+        Announce(active);
     }
 
     /// <summary>Человек выбрал на холсте: пути — из показа, отметка в XAML — на главном.</summary>
@@ -333,7 +352,7 @@ internal sealed partial class FormCanvas
         _lastActive = slot;
         _code.Highlight = new AxCodeRange(element.Span.Start, element.Span.Length);
         SelectOnSheet();
-        Announce();
+        Reconsider();
     }
 
     /// <summary>
@@ -344,21 +363,16 @@ internal sealed partial class FormCanvas
         if (_selection.Count > 0)
             _lastActive = _selection[0].Slot;
 
-        if (_code is not null && !ReferenceEquals(Active, _codeSlot))
-            _ = RefreshCodeAsync(reveal);
-        else
-            ShowSelectionInCode(reveal);
-
-        Announce();
+        Reconsider(reveal);
     }
 
     /// <summary>
-    /// Говорит, что форма, с которой работают, или её выбор сменились, — если сменились. Через это место проходит
-    /// каждая дорога выбора.
+    /// Говорит, что форма, с которой работают, или её выбор сменились, — если сменились. Зовёт его только пересмотр
+    /// (<see cref="Reconsider"/>), которым кончается каждая дорога выбора.
     /// </summary>
-    private void Announce()
+    /// <param name="active">Форма, с которой работают, — какой её счёл пересмотр.</param>
+    private void Announce(FormSlot? active)
     {
-        var active = Active;
         var selection = Selection;
         var formChanged = !ReferenceEquals(active, _announced);
         var selectionChanged = formChanged || !selection.SequenceEqual(_announcedSelection);
@@ -396,15 +410,20 @@ internal sealed partial class FormCanvas
     /// вместе — роли прежнего текста на новом красили бы мимо.
     /// </summary>
     /// <param name="reveal">Прокрутить к главному выбранному, когда текст встанет.</param>
+    /// <remarks>
+    /// За чьим текстом пошли, помнится сразу, а чей текст стоит — когда он встал; встаёт только тот, за которым
+    /// пошли последним. Без формы и у формы, чей документ ещё не открыт, показывать нечего, и стоящий текст уходит
+    /// сразу: под её именем он был бы чужим. Её текст встанет, когда документ откроется.
+    /// </remarks>
     private async Task RefreshCodeAsync(bool reveal = false)
     {
         if (_code is null || _disposed)
             return;
 
-        var slot = Active;
+        var slot = _codeFor = Active;
         var turn = ++_codeTurn;
 
-        if (slot is null)
+        if (slot?.Document is not { } document)
         {
             _codeSlot = null;
             _shownCode = null;
@@ -415,9 +434,6 @@ internal sealed partial class FormCanvas
             return;
         }
 
-        if (slot.Document is not { } document)
-            return;
-
         var syntax = document.Syntax;
         var lifetime = _lifetime.Token;
         IReadOnlyList<AxCodeSpan> spans;
@@ -425,6 +441,9 @@ internal sealed partial class FormCanvas
         try
         {
             spans = await Task.Run(() => XamlHighlighter.Spans(syntax), lifetime);
+
+            if (_options.CodeHighlighted is { } highlighted)
+                await highlighted(lifetime);
         }
         catch (OperationCanceledException)
         {
