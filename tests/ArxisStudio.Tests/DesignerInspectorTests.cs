@@ -877,6 +877,13 @@ public class DesignerInspectorTests
         Assert.Equal("IsVisible", AutomationProperties.GetName(toggle));
         Assert.DoesNotContain(panel.List!.Items.OfType<PropertyCell>(), cell => cell.Row.Property.Id == "IsVisible");
 
+        // Окно-корень на холсте видимостью не правят: ни флажка, ни строки.
+        document.Select([]);
+        await XamlStudio.UntilAsync(() => panel.View.Title.Text == "Window", "без выбора не показан корень");
+
+        Assert.False(toggle.IsVisible, "у окна-корня флажок видимости");
+        Assert.DoesNotContain(panel.List.Items.OfType<PropertyCell>(), cell => cell.Row.Property.Id == "IsVisible");
+
         document.Select([Go, Input]);
         LiveFormStudio.Frame();
 
@@ -1210,6 +1217,54 @@ public class DesignerInspectorTests
 
         Assert.NotNull(Row(panel, "ColumnDefinitions").Note);
         Assert.Equal("2*,*", Element(document, "Table").GetAttribute("ColumnDefinitions")?.GetValueText());
+    }
+
+    /// <summary>
+    /// Значение из стиля формы после правки — то, что стоит у объекта, когда показ успокоился: правка ставит значения
+    /// на месте, стили на это время снимаются и встают заново, и прочитанное посреди этого было бы значением темы
+    /// (найдено живой проверкой записи 365).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_value_from_the_forms_style_reads_right_after_an_edit()
+    {
+        const string Styled = """
+            <Window xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    Width="400" Height="300">
+              <Window.Styles>
+                <Style Selector="Button">
+                  <Setter Property="Padding" Value="4" />
+                </Style>
+                <Style Selector="Button.accent">
+                  <Setter Property="Padding" Value="20,8" />
+                </Style>
+              </Window.Styles>
+              <StackPanel>
+                <Button x:Name="Go" Content="Пуск" Width="120" Classes="accent" />
+              </StackPanel>
+            </Window>
+            """;
+
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", Styled);
+        var panel = studio.Inspector();
+
+        document.Select([Go]);
+        LiveFormStudio.Frame();
+
+        Assert.Equal("20,8,20,8", Row(panel, "Padding").Value?.Text);
+
+        Type(studio, Number(Row(panel, "Width")), "150");
+
+        await XamlStudio.UntilAsync(() => Text(document).Contains("Width=\"150\"", StringComparison.Ordinal), "ширина не записана");
+        LiveFormStudio.Frame();
+
+        Assert.Equal("20,8,20,8", Row(panel, "Padding").Value?.Text);
+        Assert.Equal(InspectorValueSource.Style, Row(panel, "Padding").Value?.Source);
+
+        // Значение дал стиль с классом, а не стиль без него, хоть и тот ставит отступ: кадры стилей идут от слабого
+        // к сильному, и действует последний — так же тема контрола уступает стилю формы.
+        Assert.Equal("Button.accent", Row(panel, "Padding").Value?.SourceDetail);
     }
 
     /// <summary>Кладёт выход проекта: сборку с полкой — поколению собирать нечего.</summary>

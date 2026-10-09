@@ -4,6 +4,7 @@ using ArxisStudio.Markup.Xaml;
 using ArxisStudio.Modules.UiDesigner.Documents;
 using ArxisStudio.Sdk;
 using ArxisStudio.Xaml;
+using Avalonia.Threading;
 
 namespace ArxisStudio.Modules.UiDesigner.Inspection;
 
@@ -35,6 +36,7 @@ internal sealed class XamlInspectorTarget : InspectorTarget
     private readonly string[] _types;
     private XamlInspectorSnapshot? _snapshot;
     private XamlInspectorSnapshot? _lastLive;
+    private bool _rereading;
 
     /// <summary>Заводит цель для выбранного в форме.</summary>
     /// <param name="context">Контекст модуля.</param>
@@ -291,8 +293,33 @@ internal sealed class XamlInspectorTarget : InspectorTarget
         if ((changes & (FormChanges.Text | FormChanges.State | FormChanges.Objects | FormChanges.Root | FormChanges.Opened)) == 0)
             return;
 
-        _snapshot = null;
-        Raise(InspectorChanges.Properties | InspectorChanges.Values | InspectorChanges.Header);
+        Reread();
+    }
+
+    /// <summary>
+    /// Переспрашивает выбранное, когда показ успокоился, — один раз на череду перемен.
+    /// </summary>
+    /// <remarks>
+    /// Перемена приходит посреди показа: правка ставит объекту значения на месте, и стили формы на это время
+    /// снимаются и встают заново. Прочитанное тут же было бы значением темы, а не стиля формы, — и осталось бы в
+    /// строке до следующей перемены. До перечитывания цель отвечает прежним снимком: имена и текст в нём верны.
+    /// </remarks>
+    private void Reread()
+    {
+        if (_rereading)
+            return;
+
+        _rereading = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _rereading = false;
+
+            if (IsClosed)
+                return;
+
+            _snapshot = null;
+            Raise(InspectorChanges.Properties | InspectorChanges.Values | InspectorChanges.Header);
+        }, DispatcherPriority.Background);
     }
 
     /// <summary>На путях цели стоят уже не её элементы: правка сдвинула соседей или убрала выбранное.</summary>

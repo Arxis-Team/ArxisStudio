@@ -18,4 +18,7 @@ public partial class SamplePanelView : AxUserControl
 
     private void OnLogClick(object? sender, RoutedEventArgs e) =>
         (DataContext as SamplePanelModel)?.Log();
+
+    private void OnInspectClick(object? sender, RoutedEventArgs e) =>
+        (DataContext as SamplePanelModel)?.Inspect();
 }

@@ -1,6 +1,10 @@
 using System.ComponentModel;
+using System.Globalization;
+using ArxisStudio.Controls;
+using ArxisStudio.Inspector;
 using ArxisStudio.Projects;
 using ArxisStudio.Sdk;
+using Avalonia.Media;
 
 namespace ArxisStudio.Modules.Sample;
 
@@ -14,7 +18,8 @@ namespace ArxisStudio.Modules.Sample;
 /// <para>
 /// Подписи панели модель не держит: они приходят из словаря прямо в разметку
 /// через <c>{Text}</c> и переводятся вместе со студией. Модель отдаёт только
-/// то, чего словарь не знает, — имя открытого проекта.
+/// то, чего словарь не знает, — имя открытого проекта и приветствие по
+/// настройкам.
 /// </para>
 /// </remarks>
 public sealed class SamplePanelModel : INotifyPropertyChanged, IDisposable
@@ -22,6 +27,7 @@ public sealed class SamplePanelModel : INotifyPropertyChanged, IDisposable
     private readonly IStudioContext _context;
     private readonly IStudioProjects? _projects;
     private ProjectsStatus? _status;
+    private IDisposable? _inspected;
 
     /// <summary>
     /// Собирает модель и подписывается на перемены проекта.
@@ -44,6 +50,7 @@ public sealed class SamplePanelModel : INotifyPropertyChanged, IDisposable
 
         _context = context;
         _projects = context.Projects();
+        Settings.PropertyChanged += OnSettings;
 
         if (_projects is null)
             return;
@@ -61,6 +68,40 @@ public sealed class SamplePanelModel : INotifyPropertyChanged, IDisposable
     /// <summary>Открыт ли проект.</summary>
     public bool HasProject => ProjectName is not null;
 
+    /// <summary>Настройки панели — их показывает инспектор студии.</summary>
+    public SampleSettings Settings { get; } = new();
+
+    /// <summary>Приветствие по настройкам: кого, сколько раз и громко ли.</summary>
+    public string Greeting =>
+        string.Join(' ', Enumerable.Repeat(
+            string.Format(CultureInfo.CurrentCulture, _context.Strings["module.sample.greeting"], Settings.Greeting), Settings.Repeat)) +
+        (Settings.Loud ? "!" : string.Empty);
+
+    /// <summary>Тон приветствия — тоном текста темы.</summary>
+    public AxTextTone Tone => Settings.Tone switch
+    {
+        GreetingTone.Secondary => AxTextTone.Secondary,
+        GreetingTone.Accent => AxTextTone.Accent,
+        _ => AxTextTone.Primary,
+    };
+
+    /// <summary>Начертание приветствия: громкое — полужирным.</summary>
+    public FontWeight Weight => Settings.Loud ? FontWeight.Bold : FontWeight.Normal;
+
+    /// <summary>Есть ли у студии инспектор: без модуля инспектора показать настройки негде.</summary>
+    public bool CanInspect => _context.Inspector() is not null;
+
+    /// <summary>Показывает настройки панели в инспекторе студии — поверх того, что там было.</summary>
+    /// <remarks>
+    /// Ручку показа модель держит и отпускает, прощаясь: ушла панель — её настройки уходят из инспектора, и он
+    /// показывает то, что было до них.
+    /// </remarks>
+    public void Inspect()
+    {
+        _inspected?.Dispose();
+        _inspected = _context.Inspector()?.Inspect(Settings, _context.Strings["sample.settings"]);
+    }
+
     /// <summary>
     /// Просит студию исполнить команду модуля.
     /// </summary>
@@ -77,6 +118,10 @@ public sealed class SamplePanelModel : INotifyPropertyChanged, IDisposable
     /// </remarks>
     public void Dispose()
     {
+        Settings.PropertyChanged -= OnSettings;
+        _inspected?.Dispose();
+        _inspected = null;
+
         if (_projects is not null)
             _projects.Changed -= OnProjects;
     }
@@ -84,6 +129,14 @@ public sealed class SamplePanelModel : INotifyPropertyChanged, IDisposable
     private string? Entry() => _status is { } status
         ? status.EntryPoint.IsEmpty ? null : status.EntryPoint.Value
         : _context.ProjectPath;
+
+    /// <summary>Настройки сменились — в панели или в инспекторе: приветствие идёт за ними.</summary>
+    private void OnSettings(object? sender, PropertyChangedEventArgs e)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Greeting)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Tone)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Weight)));
+    }
 
     private void OnProjects(object? sender, ProjectsChangedEventArgs e)
     {

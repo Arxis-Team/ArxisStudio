@@ -31,6 +31,7 @@
   "inspector.copyProperties": "Копировать заданные свойства",
   "inspector.pasteProperties": "Вставить свойства",
   "inspector.choices": "Варианты (Alt+↓)",
+  "inspector.object.unreadable": "«{0}» не читается значением {1}",
   "inspector.notWritten": "Значение не записано",
   "inspector.fieldFailed": "Редактор этого свойства упал",
   "inspector.sectionFailed": "Раздел упал",

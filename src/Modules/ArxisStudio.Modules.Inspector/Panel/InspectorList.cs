@@ -429,7 +429,7 @@ internal sealed class InspectorList
         }
 
         HeaderSections = sections.Where(static section => section.Placement == InspectorSectionPlacement.Header).ToArray();
-        Reconcile(Plan(rows, sections.Where(static section => section.Placement == InspectorSectionPlacement.Body).ToArray(), written));
+        Reconcile(Plan(rows, sections.Where(section => section.Placement == InspectorSectionPlacement.Body && Matches(section)).ToArray(), written));
         Refocus(focused);
         Rebuilt?.Invoke(this, EventArgs.Empty);
     }
@@ -558,6 +558,17 @@ internal sealed class InspectorList
                property.Label.Contains(_query, StringComparison.CurrentCultureIgnoreCase) ||
                property.Id.Contains(_query, StringComparison.CurrentCultureIgnoreCase);
     }
+
+    /// <summary>
+    /// Отвечает ли раздел поиску — заголовком или свойством, которое он взял. Что ещё в нём искать, инспектор не
+    /// знает: интерфейс раздела чужой. Не ответивший при поиске уходит, как ушла бы его строка.
+    /// </summary>
+    private bool Matches(SectionHost section) =>
+        !IsSearching ||
+        section.Title.Contains(_query, StringComparison.CurrentCultureIgnoreCase) ||
+        section.Claims.Any(id =>
+            id.Contains(_query, StringComparison.CurrentCultureIgnoreCase) ||
+            PropertyOf(id)?.Label.Contains(_query, StringComparison.CurrentCultureIgnoreCase) == true);
 
     private InspectorRow RowFor(InspectorProperty property)
     {

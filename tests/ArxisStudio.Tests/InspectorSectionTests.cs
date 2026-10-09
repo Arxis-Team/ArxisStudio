@@ -49,6 +49,35 @@ public class InspectorSectionTests
         Assert.True(target.Asked.ContainsKey("Width"), "строка раздела не спросила значения");
     }
 
+    /// <summary>
+    /// При поиске раздел остаётся, только если ему отвечает заголовок или взятое им свойство, — как строка, которой
+    /// отвечает подпись (найдено живой проверкой записи 365: раздел доступности стоял в поиске «Row»).
+    /// </summary>
+    [AvaloniaFact]
+    public void A_search_keeps_a_section_only_when_its_title_or_its_claims_match()
+    {
+        using var studio = new InspectorStudio();
+
+        Plugin(studio);
+        studio.Raise();
+
+        var panel = studio.Panel();
+
+        using var shown = studio.Service.Show(Button());
+
+        studio.Frame();
+
+        foreach (var (query, kept) in new[] { ("Opac", false), ("Wid", true), ("Разм", true), ("", true) })
+        {
+            panel.List!.Query = query;
+            studio.Frame();
+
+            Assert.True(
+                panel.List.Items.OfType<SectionCell>().Any() == kept,
+                kept ? $"поиск «{query}» убрал раздел, которому он отвечает" : $"поиск «{query}» оставил раздел, которому не отвечает");
+        }
+    }
+
     /// <summary>Раздел шапки встаёт под именем цели, а не в список.</summary>
     [AvaloniaFact]
     public void A_header_section_stands_under_the_targets_name()

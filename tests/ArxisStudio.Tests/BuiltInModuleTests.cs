@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Reflection;
 using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
@@ -163,8 +164,9 @@ public class BuiltInModuleTests
     /// <remarks>
     /// Разметка модуля проходит тот же путь, что и разметка плагина: она
     /// компилируется в сборку расширения и строится в чужом окне. Проверяется
-    /// здесь он целиком — что панель построилась, что привязка нашла модель и
-    /// что кнопка зовёт команду модуля.
+    /// здесь он целиком — что панель построилась, что привязка нашла модель,
+    /// что кнопка зовёт команду модуля, а кнопка настроек без инспектора
+    /// выключена.
     /// </remarks>
     [AvaloniaFact]
     public void The_panel_of_the_sample_module_is_built_from_its_markup()
@@ -196,8 +198,13 @@ public class BuiltInModuleTests
         ];
 
         Assert.All(keys, key => Assert.False(strings[key].StartsWith('!'), $"строки {key} нет в словаре студии"));
+        Assert.False(strings["module.sample.greeting"].StartsWith('!'), "строки приветствия нет в словаре студии");
+
+        // Последняя строка — приветствие: образец словаря и настроек панели, их значения по умолчанию.
+        var greeting = string.Format(CultureInfo.CurrentCulture, strings["module.sample.greeting"], new SampleSettings().Greeting);
+
         Assert.Equal(
-            keys.Select(key => strings[key]),
+            keys.Select(key => strings[key]).Append(greeting),
             view.GetLogicalDescendants().OfType<TextBlock>().Where(text => text.IsVisible).Select(text => text.Text));
 
         // Проекта нет, и службы проектов у этой студии нет: строка говорит «не
@@ -208,7 +215,13 @@ public class BuiltInModuleTests
         Assert.True(none.IsVisible);
         Assert.Equal(strings["module.sample.project.none"], none.Text);
 
-        var button = Assert.IsType<AxButton>(lines.Children[^1]);
+        // Инспектора у этой студии нет: показать настройки негде, и их кнопка выключена.
+        var inspect = Assert.IsType<AxButton>(lines.Children[^1]);
+
+        Assert.Equal(strings["module.sample.inspect"], inspect.Content);
+        Assert.False(inspect.IsEnabled, "инспектора нет, а кнопка настроек включена");
+
+        var button = lines.Children.OfType<AxButton>().First();
 
         Assert.Equal(strings["module.sample.log"], button.Content);
 

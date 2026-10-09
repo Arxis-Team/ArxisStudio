@@ -43,7 +43,7 @@ public sealed class InspectorModule : StudioPlugin
 
         var contributions = context.GetService<IStudioContributions>();
 
-        Service = new StudioInspector(contributions, new InspectorCatalog(contributions, id => context.Strings["category." + id]));
+        Service = new StudioInspector(contributions, new InspectorCatalog(contributions, id => context.Strings["category." + id]), context.Strings);
 
         context.Commands.Register(ShowCommand, Show);
 

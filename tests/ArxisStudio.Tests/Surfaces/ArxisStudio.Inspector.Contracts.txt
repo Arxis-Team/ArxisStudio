@@ -4,6 +4,7 @@ ArxisStudio.Inspector.IInspectorPreview :: System.Threading.Tasks.Task<System.Bo
 ArxisStudio.Inspector.IStudioInspector : interface
 ArxisStudio.Inspector.IStudioInspector :: ArxisStudio.Inspector.InspectorTarget? Current { get; }
 ArxisStudio.Inspector.IStudioInspector :: System.Boolean IsLocked { get; }
+ArxisStudio.Inspector.IStudioInspector :: System.IDisposable Inspect(System.Object instance, System.String title)
 ArxisStudio.Inspector.IStudioInspector :: System.IDisposable Show(ArxisStudio.Inspector.InspectorTarget target)
 ArxisStudio.Inspector.IStudioInspector :: event System.EventHandler CurrentChanged
 ArxisStudio.Inspector.InspectorCategoryBuilder : sealed class

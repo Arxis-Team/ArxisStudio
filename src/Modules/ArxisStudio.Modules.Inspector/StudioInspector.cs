@@ -22,6 +22,7 @@ namespace ArxisStudio.Modules.Inspector;
 internal sealed class StudioInspector : IStudioInspector
 {
     private readonly IStudioContributions? _contributions;
+    private readonly IStudioStrings? _strings;
     private readonly List<Shown> _shown = [];
     private Shown? _current;
     private bool _locked;
@@ -29,9 +30,11 @@ internal sealed class StudioInspector : IStudioInspector
     /// <summary>Заводит службу.</summary>
     /// <param name="contributions">Ручки к чужим объектам; пусто — цели зовутся напрямую.</param>
     /// <param name="catalog">Каталог вкладов — его берёт панель: панель строит студия, и модуля она не видит.</param>
-    public StudioInspector(IStudioContributions? contributions, InspectorCatalog? catalog = null)
+    /// <param name="strings">Словарь модуля — для целей-объектов; пусто — без пояснений.</param>
+    public StudioInspector(IStudioContributions? contributions, InspectorCatalog? catalog = null, IStudioStrings? strings = null)
     {
         _contributions = contributions;
+        _strings = strings;
         Catalog = catalog;
     }
 
@@ -70,6 +73,23 @@ internal sealed class StudioInspector : IStudioInspector
             Pick();
 
         return shown;
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Объект держится ручкой его хозяина (<see cref="IStudioContributions.Guard{T}"/>): его код зовётся на счёт
+    /// хозяина, а с его выгрузкой цель закрывается сама. Отпущенная ручка показа закрывает цель и отписывается от
+    /// объекта.
+    /// </remarks>
+    public IDisposable Inspect(object instance, string title)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        ArgumentNullException.ThrowIfNull(title);
+
+        var guard = _contributions?.Guard(instance) ?? new DirectGuard<object>(instance);
+        var target = new ObjectTarget(guard, title, _strings);
+
+        return new Inspected(Show(target), target);
     }
 
     /// <summary>Ставит или снимает замок.</summary>
@@ -227,6 +247,16 @@ internal sealed class StudioInspector : IStudioInspector
 
         public void Dispose()
         {
+        }
+    }
+
+    /// <summary>Ручка показанного объекта: снимает цель и закрывает её — подписка на объект уходит вместе с ней.</summary>
+    private sealed class Inspected(IDisposable shown, ObjectTarget target) : IDisposable
+    {
+        public void Dispose()
+        {
+            shown.Dispose();
+            target.Shut();
         }
     }
 }

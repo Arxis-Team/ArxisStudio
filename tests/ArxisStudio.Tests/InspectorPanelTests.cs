@@ -100,6 +100,31 @@ public class InspectorPanelTests
     }
 
     /// <summary>
+    /// Откуда значение — подсказкой у самой подписи строки, с её полным именем: подпись держит свою пустую подсказку
+    /// для сокращённого текста, и подсказка строки над ней не открывалась (найдено живой проверкой записи 365).
+    /// </summary>
+    [AvaloniaFact]
+    public void The_label_of_a_row_tells_where_its_value_comes_from()
+    {
+        using var studio = new InspectorStudio();
+        var panel = studio.Panel();
+        var target = Button();
+
+        target.Put("Margin", new InspectorValue("20,8,20,8") { Source = InspectorValueSource.Style, SourceDetail = "Button.accent" });
+
+        using var shown = studio.Service.Show(target);
+
+        studio.Frame();
+
+        var row = Row(panel, "Margin");
+        var label = row.GetVisualDescendants().OfType<AxScrubLabel>().Single(label => ReferenceEquals(label.TemplatedParent, row));
+        var tip = Assert.IsType<string>(ToolTip.GetTip(label));
+
+        Assert.StartsWith("Margin", tip, StringComparison.Ordinal);
+        Assert.Contains("Button.accent", tip, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Выравнивание — сегментами-значками в порядке «к началу, по центру, к концу, растянуть»; каждый значок называет
     /// себя диктору и подсказке, а пишет значение перечисления (запись 364).
     /// </summary>

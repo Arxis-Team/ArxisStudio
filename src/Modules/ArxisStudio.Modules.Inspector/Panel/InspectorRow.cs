@@ -7,6 +7,7 @@ using ArxisStudio.Sdk;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
@@ -43,6 +44,7 @@ internal sealed class InspectorRow : AxPropertyRow
     private readonly FieldContext _context;
     private IStudioGuarded<InspectorField>? _field;
     private Control? _fieldView;
+    private AxScrubLabel? _label;
     private TextField? _text;
     private AxChip? _token;
     private TextBlock? _tokenText;
@@ -225,6 +227,16 @@ internal sealed class InspectorRow : AxPropertyRow
     protected override Type StyleKeyOverride => typeof(AxPropertyRow);
 
     /// <inheritdoc/>
+    protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+
+        base.OnApplyTemplate(e);
+        _label = e.NameScope.Find<AxScrubLabel>("PART_Label");
+        Describe();
+    }
+
+    /// <inheritdoc/>
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
@@ -367,6 +379,16 @@ internal sealed class InspectorRow : AxPropertyRow
 
         ToolTip.SetTip(this, tip.Length > 0 ? tip : null);
         AutomationProperties.SetHelpText(this, Spoken(source));
+
+        // Подпись держит свою пустую подсказку — правило темы для сокращённой подписи, — и подсказка строки над ней не
+        // открывалась: пояснение и источник, ради которых её наводят, встают на саму подпись, вместе с её полным именем.
+        if (_label is { } label)
+        {
+            if (tip.Length > 0)
+                ToolTip.SetTip(label, Property.Label + Environment.NewLine + tip);
+            else
+                label.ClearValue(ToolTip.TipProperty);
+        }
 
         if (Property.Decorations.Any(static item => item.Kind == InspectorDecorationKind.Space))
             this[!MarginProperty] = new DynamicResourceExtension("AxSpaceAboveThickness");

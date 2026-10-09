@@ -31,6 +31,7 @@
   "inspector.copyProperties": "Copy properties set here",
   "inspector.pasteProperties": "Paste properties",
   "inspector.choices": "Choices (Alt+Down)",
+  "inspector.object.unreadable": "“{0}” does not read as {1}",
   "inspector.notWritten": "The value was not written",
   "inspector.fieldFailed": "The editor of this property failed",
   "inspector.sectionFailed": "The section failed",

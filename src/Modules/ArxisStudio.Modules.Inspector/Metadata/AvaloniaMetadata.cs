@@ -180,7 +180,7 @@ public sealed class AvaloniaMetadata : InspectorMetadata
 
         metadata.For<TopLevel>()
             .Property(TopLevel.TransparencyLevelHintProperty, property => property.Category("window").Order(20).Advanced())
-            .Hide("ClientSize", "FrameSize", "RenderScaling", "PlatformSettings", "ActualThemeVariant");
+            .Hide("ClientSize", "FrameSize", "RenderScaling", "PlatformSettings", "ActualThemeVariant", "IsVisible");
     }
 
     /// <summary>

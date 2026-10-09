@@ -13,6 +13,18 @@
   "module.sample.project.label": "Проект:",
   "module.sample.project.none": "не открыт",
   "module.sample.log": "Записать в журнал",
+  "module.sample.greeting": "Привет, {0}",
+  "module.sample.inspect": "Настройки — в инспектор",
+  "sample.settings": "Настройки образца",
+  "sample.category": "Приветствие",
+  "sample.greeting": "Кого приветствовать",
+  "sample.repeat": "Сколько раз",
+  "sample.tone": "Тон",
+  "sample.loud": "Громко",
+  "sample.loud.help": "Полужирным и с восклицанием",
+  "sample.shadow.description": "Тени рамки: смещение, размытие, разлёт и цвет — образец редактора плагина",
+  "sample.accessibility": "Для диктора",
+  "sample.accessibility.unnamed": "Кнопке нечем назваться диктору: дайте ей текст или AutomationProperties.Name",
   "add.samples": "Образцы",
   "add.note": "Заметка"
 }

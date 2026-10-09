@@ -60,6 +60,9 @@ internal sealed class XamlInspectorSnapshot
     /// <summary>Элемент стиля: у него есть классы.</summary>
     private const string StyledElementType = "Avalonia.StyledElement";
 
+    /// <summary>Окно верхнего уровня: на холсте оно стоит заменителем, и видимость его не правят.</summary>
+    private const string TopLevelType = "Avalonia.Controls.TopLevel";
+
     private static readonly InspectorTypeInfo Text = InspectorTypeInfo.Of(typeof(string));
 
     private static readonly InspectorTypeInfo ClassesType = InspectorTypeInfo.Of(typeof(Avalonia.Controls.Classes));
@@ -524,7 +527,13 @@ internal sealed class XamlInspectorSnapshot
         List<Picked> picked, XamlDocumentState state, bool live, IStudioStrings strings, Dictionary<string, Spec> specs)
     {
         var notice = live ? null : strings[state == XamlDocumentState.Behind ? "inspector.notice.behind" : "inspector.notice.written"];
-        var visible = specs.TryGetValue(VisibleMember, out var spec) && spec.Kind == Kind.Member ? VisibleMember : null;
+
+        // Окно на холсте — не окно на экране: его видимость в дизайнере ничего не значит, и флажка у него нет.
+        var visible = specs.TryGetValue(VisibleMember, out var spec) && spec.Kind == Kind.Member &&
+                      !picked.Any(static item => item.Info is { } info &&
+                                                 (info.TypeFullName == TopLevelType || info.BaseTypes.Contains(TopLevelType, StringComparer.Ordinal)))
+            ? VisibleMember
+            : null;
         var name = specs.ContainsKey(FormEdits.NameDirective) ? FormEdits.NameDirective : null;
         var classes = specs.ContainsKey(ClassesMember) ? ClassesMember : null;
 

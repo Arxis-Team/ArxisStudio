@@ -13,6 +13,18 @@
   "module.sample.project.label": "Project:",
   "module.sample.project.none": "none open",
   "module.sample.log": "Write to the log",
+  "module.sample.greeting": "Hello, {0}",
+  "module.sample.inspect": "Settings in the inspector",
+  "sample.settings": "Sample settings",
+  "sample.category": "Greeting",
+  "sample.greeting": "Whom to greet",
+  "sample.repeat": "How many times",
+  "sample.tone": "Tone",
+  "sample.loud": "Loud",
+  "sample.loud.help": "Bold and with an exclamation mark",
+  "sample.shadow.description": "Shadows of the border: offset, blur, spread and color — a sample plugin editor",
+  "sample.accessibility": "For the screen reader",
+  "sample.accessibility.unnamed": "The button has nothing to be named by: give it text or AutomationProperties.Name",
   "add.samples": "Samples",
   "add.note": "Note"
 }

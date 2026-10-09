@@ -28,6 +28,13 @@
         -->
         <ProjectReference Include="../ArxisStudio.Projects.Contracts/ArxisStudio.Projects.Contracts.csproj"
                           Private="false" ExcludeAssets="runtime"/>
+
+        <!--
+            Контракт инспектора — так же: редактор, раздел и таблица метаданных образца — вклады в него, а
+            службой образец показывает в инспекторе свои настройки.
+        -->
+        <ProjectReference Include="../ArxisStudio.Inspector.Contracts/ArxisStudio.Inspector.Contracts.csproj"
+                          Private="false" ExcludeAssets="runtime"/>
     </ItemGroup>
 
     <!--

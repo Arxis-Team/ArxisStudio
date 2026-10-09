@@ -165,7 +165,9 @@ internal static class XamlValueOrigins
             if (applied.GetValue(owner.GetValueStoreDiagnostic()) is not System.Collections.IEnumerable frames)
                 return null;
 
-            foreach (var frame in frames)
+            // Кадры идут от слабого к сильному, как их и сводит хранилище: значение даёт последний действующий, и тема
+            // контрола, ставящая то же свойство, уступает стилю формы с классом.
+            foreach (var frame in frames.Cast<object?>().Reverse())
             {
                 if (frame is null || active.GetValue(frame) is not true || !Sets(values.GetValue(frame), property))
                     continue;

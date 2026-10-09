@@ -42,6 +42,15 @@
     </a:WrapPanel>
 
     <AxButton Content="{Text module.sample.log}" HorizontalAlignment="Left" Click="OnLogClick"/>
+
+    <!--
+        Настройки панели — в инспекторе студии: модель показывает их там одним вызовом службы, а приветствие
+        ниже идёт за ними, как идёт за ними и инспектор, — оба слышат перемены объекта.
+    -->
+    <a:TextBlock Text="{a:Binding Greeting}" AxText.Tone="{a:Binding Tone}" TextWrapping="Wrap"
+                 FontWeight="{a:Binding Weight}"/>
+    <AxButton Content="{Text module.sample.inspect}" HorizontalAlignment="Left" Click="OnInspectClick"
+              IsEnabled="{a:Binding CanInspect}"/>
   </a:StackPanel>
 
 </AxUserControl>
