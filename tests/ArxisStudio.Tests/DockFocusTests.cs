@@ -77,6 +77,32 @@ public class DockFocusTests
     }
 
     /// <summary>
+    /// Вкладка, которую выбрал хозяин дерева, получает каретку группы так же, как выбранная щелчком, — по
+    /// цели панели.
+    /// </summary>
+    /// <remarks>
+    /// Хозяин выбирает правкой дерева — открыв документ, показав панель, — и вид перестраивается, а полоса
+    /// не переключается. Перестройка возвращала каретку только панели, которая её держала, а та ушла за
+    /// вкладку: каретка оставалась ни у кого, и вкладка формы, открытая с доски дизайнера, стояла без
+    /// клавиатуры.
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_tab_the_owner_chooses_takes_the_caret_of_its_group()
+    {
+        var left = Panel(out var inLeft, out _);
+        var right = Panel(out _, out var aim);
+        var view = Shown(left, right, out _);
+
+        DockFocus.SetTarget(right, aim);
+        Assert.True(inLeft.Focus(), "панель слева обязана брать фокус");
+
+        view.Root = new DockGroup { Id = "group", Items = ["left", "right"], Selected = "right" };
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(aim.IsFocused, "каретка группы не досталась вкладке, которую выбрал хозяин");
+    }
+
+    /// <summary>
     /// Показ панели не крадёт фокус у того, кто его держит в другом месте.
     /// </summary>
     /// <remarks>

@@ -189,11 +189,15 @@ public sealed class StudioDocuments
         // вторым источником того же правила — и разошёлся бы с первым.
         var document = new OpenDocument(id, filePath, view, match.PluginId);
 
-        _open.Add(document);
-        _dock.Open(match.PluginId, id, title, content);
-
+        // Цель каретки кладётся раньше, чем вкладка встанет, — как панели, которой её кладут до
+        // раскладки. Вкладка, открытая на месте панели с кареткой, получает каретку тут же, на
+        // перестройке раскладки, и цель, положенная после, опоздала бы: каретка ушла бы первому
+        // внутри, а не туда, где в документе работают.
         if (focus is not null)
             DockFocus.SetTarget(content, focus);
+
+        _open.Add(document);
+        _dock.Open(match.PluginId, id, title, content);
 
         // Отметку документ ставит сам и сам о ней говорит; читается она свойством SDK, а не кодом
         // плагина, и шов ей не нужен.

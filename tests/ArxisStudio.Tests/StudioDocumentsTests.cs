@@ -460,6 +460,89 @@ public class StudioDocumentsTests
         Assert.Equal("показ упал после ожидания", failure.Message);
     }
 
+    /// <summary>
+    /// Документ, открытый на месте панели с кареткой, получает каретку — туда, где в нём работают.
+    /// </summary>
+    /// <remarks>
+    /// Так открывают форму с доски дизайнера: доска стоит в области документов, и вкладка встаёт поверх
+    /// неё. Каретка была на доске, доска ушла за вкладку, и клавиатура оставалась ни у кого, пока человек
+    /// не щёлкнет мышью. Цель документа при этом обязана быть известна раньше, чем встанет вкладка: иначе
+    /// каретка уходит первому внутри.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_document_opened_in_place_of_the_panel_with_the_caret_takes_it()
+    {
+        var (documents, dock, _) = Studio(_ => new EditorMatch(new AimedEditor(), "arxis.designer"));
+
+        dock.Add("arxis.ui-designer", Board, new PluginPlacement { Side = "center" }, "Дизайнер", PluginStrings.Studio, Focusable());
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(dock.Focus(Board), "на доске некому взять каретку");
+
+        await documents.OpenAsync(Form);
+
+        Assert.True(Aimed(documents.Opened[0]).Aim.IsFocused, "вкладка, вставшая на место доски с кареткой, осталась без неё");
+    }
+
+    /// <summary>
+    /// Открытый документ, выведенный вперёд на место панели с кареткой, получает её там, где её оставили.
+    /// </summary>
+    /// <remarks>
+    /// Вкладка формы уже открыта за доской, и Enter на доске выводит её вперёд: та же просьба «открой», и
+    /// клавиатура терялась так же.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task An_open_document_brought_forward_in_place_of_the_panel_with_the_caret_takes_it_back()
+    {
+        var (documents, dock, _) = Studio(_ => new EditorMatch(new AimedEditor(), "arxis.designer"));
+
+        dock.Add("arxis.ui-designer", Board, new PluginPlacement { Side = "center" }, "Дизайнер", PluginStrings.Studio, Focusable());
+        Dispatcher.UIThread.RunJobs();
+
+        await documents.OpenAsync(Form);
+        Dispatcher.UIThread.RunJobs();
+
+        var form = Aimed(documents.Opened[0]);
+
+        // В документе работали не с цели, а с первого места — туда каретка и вернётся.
+        Assert.True(form.First.Focus(), "в документе некому взять каретку");
+        Assert.True(dock.Focus(Board), "на доске некому взять каретку");
+
+        await documents.OpenAsync(Form);
+
+        Assert.True(form.First.IsFocused, "документ, выведенный вперёд на место доски с кареткой, остался без неё");
+    }
+
+    /// <summary>Документ, открытый вдали от каретки, её не трогает: она остаётся в панели, где работали.</summary>
+    /// <remarks>
+    /// Так открывают файл из окна проекта: окно стоит сбоку, и вкладка встаёт в области документов, ничего в
+    /// нём не закрыв. Каретка, уведённая оттуда, — потерянное нажатие человека, листавшего дерево.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_document_opened_away_from_the_caret_leaves_it_where_it_was()
+    {
+        var (documents, dock, _) = Studio(_ => new EditorMatch(new AimedEditor(), "arxis.designer"));
+        var tree = Focusable();
+
+        dock.Add("arxis.project", "arxis.project:tree", new PluginPlacement { Side = "left" }, "Проект", PluginStrings.Studio, tree);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(dock.Focus("arxis.project:tree"), "в окне проекта некому взять каретку");
+
+        await documents.OpenAsync(Form);
+
+        Assert.True(DockFocus.Holds(tree), "открытый документ увёл каретку из окна проекта");
+    }
+
+    /// <summary>Доска дизайнера — панель в области документов.</summary>
+    private const string Board = "arxis.ui-designer:board";
+
+    /// <summary>Панель, внутри которой есть куда встать каретке.</summary>
+    private static Control Focusable() =>
+        new StackPanel { Children = { new Border { Focusable = true, Height = 20 } } };
+
+    private static AimedView Aimed(OpenDocument document) => Assert.IsType<AimedView>(document.View);
+
     private static ProbeView Probe(OpenDocument document) => Assert.IsType<ProbeView>(document.View);
 
     /// <summary>
@@ -540,6 +623,42 @@ public class StudioDocumentsTests
 
             return reveals;
         }
+    }
+
+    /// <summary>Редактор документов с целью каретки.</summary>
+    private sealed class AimedEditor : DocumentEditor
+    {
+        /// <inheritdoc/>
+        public override bool CanOpen(string filePath) => true;
+
+        /// <inheritdoc/>
+        public override Task<(DocumentView? View, string? Error)> OpenAsync(string filePath) =>
+            Task.FromResult<(DocumentView?, string?)>((new AimedView(filePath), null));
+    }
+
+    /// <summary>Документ, в котором работают не с первого места, а с названного — как с холста формы.</summary>
+    private sealed class AimedView : DocumentView
+    {
+        public AimedView(string filePath)
+        {
+            Title = Path.GetFileName(filePath);
+            Content = new StackPanel { Children = { First, Aim } };
+        }
+
+        /// <summary>Первое место, где может встать каретка.</summary>
+        public Border First { get; } = new() { Focusable = true, Height = 20 };
+
+        /// <summary>Место, с которого в документе работают, — его цель каретки.</summary>
+        public Border Aim { get; } = new() { Focusable = true, Height = 20 };
+
+        /// <inheritdoc/>
+        public override Control Content { get; }
+
+        /// <inheritdoc/>
+        public override string Title { get; }
+
+        /// <inheritdoc/>
+        public override Control? FocusTarget => Aim;
     }
 
     /// <summary>Представление, падающее на закрытии.</summary>
