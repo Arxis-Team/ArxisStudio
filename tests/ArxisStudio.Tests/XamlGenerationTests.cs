@@ -14,9 +14,9 @@ namespace ArxisStudio.Tests;
 /// <remarks>
 /// <para>
 /// Выход проекта — настоящая сборка на диске с контролом <c>Badge : Border</c>, а форма ставит его
-/// элементом: так в поколении есть объект, тип которого держит контекст. Своё имя сборки у каждого
-/// теста — чтобы поколение соседа, ещё не дособранное сборщиком мусора, не стало для этого предшественником,
-/// которого ждут.
+/// элементом: так в поколении есть объект, тип которого держит контекст. Имя сборки у каждого теста своё,
+/// а тип один — <c>App.Badge</c>: поколение соседа, ещё не собранное сборщиком мусора, служба ждёт не по
+/// имени сборки, а по типу, который <c>using:App</c> нашёл бы в нём раньше, чем в своём.
 /// </para>
 /// <para>
 /// Объекты поколения берутся в отдельных методах без встраивания: локальная переменная асинхронного
@@ -41,6 +41,9 @@ public class XamlGenerationTests
         </UserControl>
         """;
 
+    /// <summary>Контрол поколения, который тест держит дольше, чем живёт его студия.</summary>
+    private static object? _held;
+
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
     /// <summary>
@@ -63,12 +66,14 @@ public class XamlGenerationTests
         var before = BadgeType(view);
 
         Assert.True(before.IsAlive, "контрол проекта не построился из поколения");
+        Assert.Equal(studio.AssemblyName, AssemblyOf(view));
 
         var report = await studio.Session.Host.SwapAsync("проверка выгрузки", Token);
 
         Assert.True(report.Reclaimed, report.ToString());
         Assert.False(before.IsAlive, "тип прежнего поколения остался в процессе");
         Assert.True(IsOfACollectibleGeneration(view), "новый показ стоит не на типе нового поколения");
+        Assert.Equal(studio.AssemblyName, AssemblyOf(view));
         Assert.Equal(XamlDesignState.Live, studio.Design.State);
     }
 
@@ -101,6 +106,34 @@ public class XamlGenerationTests
         Assert.Equal(reason, studio.Design.StateReason);
 
         GC.KeepAlive(held);
+    }
+
+    /// <summary>
+    /// Поколение другого проекта с теми же типами, ещё не ушедшее из процесса, новое ждёт, а не встаёт
+    /// рядом: форма стоит на контроле своего проекта, а не на чужом с тем же именем.
+    /// </summary>
+    /// <remarks>
+    /// Так шли друг за другом тесты этого класса: поколение, удержанное мимо замены, уходило не сразу, и
+    /// <c>using:App</c> находил <c>App.Badge</c> в нём раньше, чем в новом. Построенный контрол возвращал
+    /// прежнее поколение в кэши Avalonia, которые замена нового не чистит, и оно оставалось в процессе.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_generation_of_the_same_types_still_in_the_process_is_waited_for()
+    {
+        await LeaveAGenerationBehindAsync();
+
+        await using var studio = new XamlStudio();
+        var path = studio.Write("MainView.axaml", Form);
+
+        Emit(studio);
+
+        await studio.OpenAsync();
+
+        await using var handle = await studio.Documents.OpenAsync(path, Token);
+        using var view = await handle.ShowAsync(null, Token);
+
+        Assert.Equal(studio.AssemblyName, AssemblyOf(view));
+        Assert.Equal(XamlDesignState.Live, studio.Design.State);
     }
 
     /// <summary>
@@ -144,6 +177,37 @@ public class XamlGenerationTests
         await XamlStudio.UntilAsync(() => studio.Design.State == XamlDesignState.Live, "замена не пошла после отсрочки");
     }
 
+    /// <summary>
+    /// Оставляет в процессе поколение, которого уже никто не держит: контрол удержан мимо замены и мимо
+    /// конца студии и отпущен после — собрать поколение можно, но его ещё не собирали.
+    /// </summary>
+    private static async Task LeaveAGenerationBehindAsync()
+    {
+        try
+        {
+            await using var studio = new XamlStudio();
+            var path = studio.Write("MainView.axaml", Form);
+
+            Emit(studio);
+
+            await studio.OpenAsync();
+
+            await using var handle = await studio.Documents.OpenAsync(path, Token);
+            using var view = await handle.ShowAsync(null, Token);
+
+            Hold(view);
+
+            var report = await studio.Session.Host.SwapAsync("проверка удержания", Token);
+
+            Assert.False(report.Reclaimed, "поколение ушло, хотя его держали");
+        }
+        finally
+        {
+            // Упавший тест не оставляет поколение соседям: удержанное статикой, его ждали бы все после.
+            _held = null;
+        }
+    }
+
     /// <summary>Кладёт выход проекта: сборку с контролом, позже разметки — поколению собирать нечего.</summary>
     private static CanonicalPath Emit(XamlStudio studio)
     {
@@ -167,6 +231,14 @@ public class XamlGenerationTests
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static bool IsOfACollectibleGeneration(IXamlDesignView view) =>
         AssemblyLoadContext.GetLoadContext(Badge(view).GetType().Assembly) is { IsCollectible: true };
+
+    /// <summary>Имя сборки, из которой построен показанный контрол проекта.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static string? AssemblyOf(IXamlDesignView view) => Badge(view).GetType().Assembly.GetName().Name;
+
+    /// <summary>Держит показанный контрол проекта, пока тест его не отпустит.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void Hold(IXamlDesignView view) => _held = Badge(view);
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static object Badge(IXamlDesignView view) =>
