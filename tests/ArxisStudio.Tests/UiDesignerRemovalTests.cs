@@ -176,9 +176,14 @@ public class UiDesignerRemovalTests
         studio.Press(studio.View.Sheet, Key.Delete);
         await studio.Built();
 
+        var rows = Returning(studio);
+
+        // «Вернуть все» сверяется на своём месте, последним, а не в общей сортировке: слово у него —
+        // языка студии, и место в сортировке решали бы язык и культура машины.
         Assert.Equal(
-            ["Main.axaml · src/App/Views", "Main.axaml · src/App/Views/Admin", studio.Strings["board.return.all"]],
-            Headers(Returning(studio)).Order());
+            ["Main.axaml · src/App/Views", "Main.axaml · src/App/Views/Admin"],
+            Headers(rows[..^1]).Cast<string>().Order(StringComparer.Ordinal));
+        Assert.Equal(studio.Strings["board.return.all"], rows[^1].Header);
     }
 
     /// <summary>

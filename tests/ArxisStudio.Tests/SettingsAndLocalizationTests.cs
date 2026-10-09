@@ -56,8 +56,19 @@ public class SettingsStoreTests : IDisposable
 
 /// <summary>Словарь строк интерфейса.</summary>
 [Collection(StudioStateCollection.Name)]
-public class LocalizerTests
+public class LocalizerTests : IDisposable
 {
+    /// <summary>Возвращает студии язык, на котором её застали.</summary>
+    /// <remarks>
+    /// Язык один на процесс, а классы после этого рассчитывают застать запасной. Оставленный здесь
+    /// русский доставался тому, кто шёл следом, — в другой папке выписки другому (запись 351).
+    /// </remarks>
+    public void Dispose()
+    {
+        Localizer.Instance.SetLanguage(Localizer.FallbackLanguage);
+        GC.SuppressFinalize(this);
+    }
+
     [Fact]
     public void Russian_locale_has_no_english_labels()
     {
@@ -190,18 +201,11 @@ public class LocalizerTests
     [Fact]
     public void An_unknown_language_is_not_selected()
     {
-        try
-        {
-            Localizer.Instance.SetLanguage("ru");
+        Localizer.Instance.SetLanguage("ru");
 
-            Assert.False(Localizer.Instance.SetLanguage("xx"), "приняли язык без единого словаря");
+        Assert.False(Localizer.Instance.SetLanguage("xx"), "приняли язык без единого словаря");
 
-            Assert.Equal("ru", Localizer.Instance.Language);
-            Assert.Equal("Недавние", Localizer.Instance["projects.recent"]);
-        }
-        finally
-        {
-            Localizer.Instance.SetLanguage(Localizer.FallbackLanguage);
-        }
+        Assert.Equal("ru", Localizer.Instance.Language);
+        Assert.Equal("Недавние", Localizer.Instance["projects.recent"]);
     }
 }
