@@ -45,6 +45,15 @@ internal sealed class FormFront
     /// <summary>Впереди другой холст или никакого.</summary>
     public event EventHandler? CanvasChanged;
 
+    /// <summary>
+    /// С холстом работают — фокус пришёл в вид его хозяина или там нажали указатель, — даже если он и так впереди.
+    /// </summary>
+    /// <remarks>
+    /// Инспектору: плагин мог показать в нём своё поверх выбранного на холсте, а вернувшийся к холсту человек
+    /// ждёт там снова выбранное.
+    /// </remarks>
+    public event EventHandler<FormCanvas>? Working;
+
     /// <summary>Учёт контекста модуля.</summary>
     /// <param name="context">Контекст модуля.</param>
     public static FormFront Of(IStudioContext context)
@@ -81,6 +90,8 @@ internal sealed class FormFront
     /// <remarks>Каждое нажатие на холсте впереди — не перемена: пересчёт заводится, только когда порядок сменился.</remarks>
     internal void Worked(FormCanvas canvas)
     {
+        Working?.Invoke(this, canvas);
+
         if (_recent.Count > 0 && ReferenceEquals(_recent[0], canvas) && ReferenceEquals(Canvas, canvas))
             return;
 

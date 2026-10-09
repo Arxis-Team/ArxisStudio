@@ -175,13 +175,13 @@ internal sealed class InspectorList
     /// <param name="id">Идентификатор.</param>
     public InspectorProperty? PropertyOf(string id) => _byId.GetValueOrDefault(id);
 
-    /// <summary>Раздел, в котором стоит свойство.</summary>
+    /// <summary>Раздел, в котором стоит свойство, — каким его понял каталог: «Layout» автора — тот же раздел макета.</summary>
     /// <param name="property">Свойство.</param>
-    public static string CategoryOf(InspectorProperty property)
+    public string CategoryOf(InspectorProperty property)
     {
         ArgumentNullException.ThrowIfNull(property);
 
-        return property.IsHidden ? InspectorCatalog.HiddenCategory : property.Category ?? InspectorCatalog.OtherCategory;
+        return _catalog.Category(property.IsHidden ? InspectorCatalog.HiddenCategory : property.Category).Id;
     }
 
     /// <summary>Идёт за службой: показана другая цель — строки того же типа остаются, остальные уходят.</summary>
@@ -520,11 +520,11 @@ internal sealed class InspectorList
         }
 
         var inside = sections.Where(static section => section.Category is not null).ToArray();
-        var groups = rows.GroupBy(static row => CategoryOf(row.Property), StringComparer.Ordinal)
+        var groups = rows.GroupBy(row => CategoryOf(row.Property), StringComparer.Ordinal)
             .ToDictionary(static group => group.Key, static group => group.ToList(), StringComparer.Ordinal);
 
         foreach (var section in inside)
-            groups.TryAdd(section.Category!, []);
+            groups.TryAdd(_catalog.Category(section.Category).Id, []);
 
         foreach (var category in groups.Keys.Select(_catalog.Category)
                                             .OrderBy(static category => category.Order)
@@ -541,7 +541,7 @@ internal sealed class InspectorList
             if (!expanded)
                 continue;
 
-            foreach (var section in inside.Where(section => string.Equals(section.Category, category.Id, StringComparison.Ordinal))
+            foreach (var section in inside.Where(section => string.Equals(_catalog.Category(section.Category).Id, category.Id, StringComparison.Ordinal))
                                           .OrderBy(static section => section.Order)
                                           .ThenBy(static section => section.Title, culture))
             {

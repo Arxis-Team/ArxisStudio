@@ -1,3 +1,4 @@
+using System.Globalization;
 using ArxisStudio.Inspector;
 using ArxisStudio.Sdk;
 
@@ -51,6 +52,9 @@ internal sealed class InspectorCatalog : IDisposable
     /// <summary>Раздел скрытых свойств — виден, когда просят все свойства.</summary>
     public const string HiddenCategory = "hidden";
 
+    /// <summary>База всякого перечисления.</summary>
+    private const string EnumType = "System.Enum";
+
     private readonly IStudioContributionSet<PropertyEditor>? _editors;
     private readonly IStudioContributionSet<InspectorSection>? _sections;
     private readonly IStudioContributionSet<InspectorMetadata>? _metadata;
@@ -89,8 +93,19 @@ internal sealed class InspectorCatalog : IDisposable
     /// <summary>Пункты меню плагинов и модулей.</summary>
     public IReadOnlyList<IStudioContribution<InspectorMenu>> Menus => _menus?.Items ?? [];
 
-    /// <summary>Раздел по идентификатору: описанный метаданными или по имени из атрибута автора.</summary>
+    /// <summary>Раздел по идентификатору: описанный метаданными, с аргументом или по имени из атрибута автора.</summary>
     /// <param name="id">Идентификатор или имя раздела; пусто — «Прочее».</param>
+    /// <remarks>
+    /// <para>
+    /// Раздел с аргументом пишется через косую черту — <c>parent/Grid</c>: описанный раздел <c>parent</c> с
+    /// заголовком «В {0}» становится «В Grid» и встаёт на его место. Так источник называет раздел присоединённых
+    /// членов, которые читает родитель, не зная ни заголовков, ни языка.
+    /// </para>
+    /// <para>
+    /// Раздел автора, совпавший с описанным без учёта регистра, — он и есть: <c>[Category("Layout")]</c> контрола
+    /// проекта встаёт в раздел макета, а не своим разделом рядом с ним.
+    /// </para>
+    /// </remarks>
     public InspectorCategory Category(string? id)
     {
         id = string.IsNullOrWhiteSpace(id) ? OtherCategory : id;
@@ -99,6 +114,19 @@ internal sealed class InspectorCatalog : IDisposable
 
         if (layers.Categories.TryGetValue(id, out var category))
             return category;
+
+        var slash = id.IndexOf('/', StringComparison.Ordinal);
+
+        if (slash > 0 && slash < id.Length - 1 &&
+            layers.Categories.TryGetValue(id[..slash], out var based) &&
+            based.Title.Contains("{0}", StringComparison.Ordinal))
+        {
+            return new InspectorCategory(
+                id, string.Format(CultureInfo.CurrentCulture, based.Title, id[(slash + 1)..]), based.Order, based.Collapsed);
+        }
+
+        if (layers.Categories.Values.FirstOrDefault(known => string.Equals(known.Id, id, StringComparison.OrdinalIgnoreCase)) is { } alike)
+            return alike;
 
         // Свои разделы модуля стоят последними, даже когда таблиц нет; раздел, который назвал автор атрибутом
         // [Category], а не таблица, — заголовком из его имени, после описанных.
@@ -224,7 +252,13 @@ internal sealed class InspectorCatalog : IDisposable
         if (type.GenericDefinition is { } definition)
             yield return mark => mark.Hint is null && string.Equals(mark.TypeName, definition, StringComparison.Ordinal);
 
-        foreach (var name in type.BaseTypes.Concat(type.Interfaces))
+        // Перечисление — наследник System.Enum, даже если источник, описывая базы, его не назвал: так описывает их
+        // служба XAML, а редактор перечислений отмечен именно им.
+        var bases = type.IsEnum && !type.BaseTypes.Contains(EnumType, StringComparer.Ordinal)
+            ? type.BaseTypes.Append(EnumType)
+            : type.BaseTypes;
+
+        foreach (var name in bases.Concat(type.Interfaces))
             yield return mark => mark.Hint is null && mark.ForDerived && string.Equals(mark.TypeName, name, StringComparison.Ordinal);
 
         yield return static mark => string.Equals(mark.Hint, TextHint, StringComparison.Ordinal);

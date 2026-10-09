@@ -1,5 +1,6 @@
 using System.Reflection;
 using ArxisStudio.Extensibility;
+using ArxisStudio.Modules.Inspector;
 using ArxisStudio.Modules.UiDesigner;
 using ArxisStudio.Modules.UiDesigner.Documents;
 using ArxisStudio.Modules.UiDesigner.Panels;
@@ -26,6 +27,7 @@ internal sealed class LiveFormStudio : IAsyncDisposable
     private readonly List<LiveFormDocument> _opened = [];
     private readonly List<BoardPanel> _boards = [];
     private readonly List<HierarchyPanel> _hierarchies = [];
+    private readonly List<Modules.Inspector.Panel.InspectorPanel> _inspectors = [];
     private ContentControl? _place;
 
     /// <summary>Поднимает службы и окно.</summary>
@@ -58,8 +60,14 @@ internal sealed class LiveFormStudio : IAsyncDisposable
         };
         Xaml = new XamlStudio(services: new Dictionary<Type, object> { [typeof(UiDesignerOptions)] = Options });
 
+        // Инспектор — раньше дизайнера, как в студии: дизайнер находит его службу при подъёме.
+        InspectorModule = Xaml.Host.LoadBuiltIn(typeof(InspectorModule).Assembly);
+        Assert.True(InspectorModule.IsLoaded, InspectorModule.Error);
+        Xaml.Contributions.Add(InspectorModule);
+
         Designer = Xaml.Host.LoadBuiltIn(typeof(UiDesignerModule).Assembly);
         Assert.True(Designer.IsLoaded, Designer.Error);
+        Xaml.Contributions.Add(Designer);
 
         Context = Designer.Studio!;
         Window = new Window { Width = 1200, Height = 800 };
@@ -72,6 +80,9 @@ internal sealed class LiveFormStudio : IAsyncDisposable
 
     /// <summary>Поднятый дизайнер.</summary>
     public LoadedPlugin Designer { get; }
+
+    /// <summary>Поднятый инспектор.</summary>
+    public LoadedPlugin InspectorModule { get; }
 
     /// <summary>Контекст дизайнера.</summary>
     public IStudioContext Context { get; }
@@ -119,6 +130,33 @@ internal sealed class LiveFormStudio : IAsyncDisposable
         Window.Content = all;
         _place = place;
         Beside = beside;
+        Frame();
+
+        return panel;
+    }
+
+    /// <summary>
+    /// Ставит панель инспектора в окно справа от всего, что в нём стоит, — в то же окно, как стоят группы дока.
+    /// </summary>
+    /// <remarks>Окно расширяется на ширину панели: вкладкам, доске и иерархии остаётся их прежняя ширина.</remarks>
+    public Modules.Inspector.Panel.InspectorPanel Inspector()
+    {
+        var panel = new Modules.Inspector.Panel.InspectorPanel();
+        var place = new ContentControl();
+        var all = new Grid { ColumnDefinitions = new ColumnDefinitions("*,360") };
+        var shown = Window.Content;
+
+        panel.Attach(InspectorModule.Studio!);
+        _inspectors.Add(panel);
+
+        Window.Content = null;
+        place.Content = shown;
+        all.Children.Add(place);
+        Grid.SetColumn(panel.Content, 1);
+        all.Children.Add(panel.Content);
+        Window.Width += 360;
+        Window.Content = all;
+        _place ??= place;
         Frame();
 
         return panel;
@@ -265,9 +303,12 @@ internal sealed class LiveFormStudio : IAsyncDisposable
         foreach (var board in _boards)
             board.Release();
 
-        // Иерархия прощается последней: закрытие вкладок и доски она видит, как увидела бы в студии.
+        // Иерархия и инспектор прощаются последними: закрытие вкладок и доски они видят, как увидели бы в студии.
         foreach (var hierarchy in _hierarchies)
             hierarchy.Release();
+
+        foreach (var inspector in _inspectors)
+            inspector.Release();
 
         Dispatcher.UIThread.RunJobs();
 

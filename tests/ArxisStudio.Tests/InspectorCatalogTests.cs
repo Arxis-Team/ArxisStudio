@@ -61,6 +61,22 @@ public class InspectorCatalogTests
         Assert.True(Describe(catalog, typeof(Button), FakeTarget.Property("Tag", typeof(object))).IsReadOnly);
     }
 
+    /// <summary>
+    /// Раздел с аргументом встаёт на место описанного и берёт его заголовок с аргументом; раздел автора, совпавший с
+    /// описанным без учёта регистра, — он и есть.
+    /// </summary>
+    [Fact]
+    public void A_category_with_an_argument_or_an_authors_spelling_is_the_described_one()
+    {
+        var catalog = Catalog(metadata: [Module(new CategoryTable())]);
+        var parent = catalog.Category("parent/Grid");
+
+        Assert.Equal("В Grid", parent.Title);
+        Assert.Equal(110, parent.Order);
+        Assert.Equal("layout", catalog.Category("Layout").Id);
+        Assert.Equal("Behavior", catalog.Category("Behavior").Title);
+    }
+
     /// <summary>Что таблица просит показывать всегда, каталог называет цели.</summary>
     [Fact]
     public void A_table_names_what_it_wants_shown_always()
@@ -332,6 +348,17 @@ public class InspectorCatalogTests
 
         /// <summary>Просит каталог спросить её заново.</summary>
         public void Poke() => Invalidate();
+    }
+
+    /// <summary>Таблица разделов: макет и раздел родителя с аргументом.</summary>
+    public sealed class CategoryTable : InspectorMetadata
+    {
+        /// <inheritdoc/>
+        public override void Describe(InspectorMetadataBuilder metadata)
+        {
+            metadata.Category("layout").Title("Макет").Order(20);
+            metadata.Category("parent").Title("В {0}").Order(110);
+        }
     }
 
     /// <summary>Таблица плагина-пробы: только диапазон и заголовок раздела.</summary>

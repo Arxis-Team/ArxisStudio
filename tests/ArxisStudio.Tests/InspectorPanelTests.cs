@@ -511,7 +511,7 @@ public class InspectorPanelTests
         studio.Frame();
 
         var width = Cell(panel, "Width");
-        var category = InspectorList.CategoryOf(width.Row.Property);
+        var category = panel.List!.CategoryOf(width.Row.Property);
 
         width.Focus(NavigationMethod.Directional);
         studio.Frame();
@@ -586,7 +586,7 @@ public class InspectorPanelTests
 
         Assert.Equal("один ".Length, box.CaretIndex);
         Assert.True(box.IsFocused, "Ctrl+← увёл каретку из поля");
-        Assert.False(panel.List!.IsFolded(InspectorList.CategoryOf(row.Property)), "Ctrl+← в поле свернул раздел");
+        Assert.False(panel.List!.IsFolded(panel.List.CategoryOf(row.Property)), "Ctrl+← в поле свернул раздел");
     }
 
     private static FakeTarget Button() => new(

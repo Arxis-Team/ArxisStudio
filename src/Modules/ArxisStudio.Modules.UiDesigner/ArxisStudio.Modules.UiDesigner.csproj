@@ -43,6 +43,8 @@
                           Private="false" ExcludeAssets="runtime"/>
         <ProjectReference Include="../ArxisStudio.Xaml.Contracts/ArxisStudio.Xaml.Contracts.csproj"
                           Private="false" ExcludeAssets="runtime"/>
+        <ProjectReference Include="../ArxisStudio.Inspector.Contracts/ArxisStudio.Inspector.Contracts.csproj"
+                          Private="false" ExcludeAssets="runtime"/>
     </ItemGroup>
 
     <!--

@@ -290,7 +290,7 @@ public sealed class InspectorPanel : ToolWindow
             source is PropertyCell or GroupCell or AxGroupHeader)
         {
             var category = RowOf(source) is { } row
-                ? InspectorList.CategoryOf(row.Property)
+                ? list.CategoryOf(row.Property)
                 : source.FindAncestorOfType<GroupCell>(includeSelf: true)?.CategoryId;
 
             if (category is null)

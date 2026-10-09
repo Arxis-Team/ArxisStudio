@@ -1,10 +1,13 @@
+using ArxisStudio.Inspector;
+using ArxisStudio.Modules.UiDesigner.Inspection;
 using ArxisStudio.Modules.UiDesigner.Snapshots;
 using ArxisStudio.Sdk;
 
 namespace ArxisStudio.Modules.UiDesigner;
 
 /// <summary>
-/// Точка входа дизайнера интерфейса: заявляет команду показа доски форм и ставит поставщика превью форм.
+/// Точка входа дизайнера интерфейса: заявляет команду показа доски форм, ставит поставщика превью форм и
+/// показывает выбранное на холсте в инспекторе студии.
 /// </summary>
 /// <remarks>
 /// Всё остальное делает панель: решение ей отдаёт служба проектов, а подписывается на неё панель при
@@ -64,6 +67,7 @@ public sealed class UiDesignerModule : StudioPlugin
     private IStudioContext? _context;
     private IDisposable? _previews;
     private FormCaptures? _captures;
+    private FormInspection? _inspection;
 
     /// <inheritdoc/>
     public override void Activate(IStudioContext context)
@@ -79,11 +83,17 @@ public sealed class UiDesignerModule : StudioPlugin
             _captures = new FormCaptures(context, snapshots, context.GetService<UiDesignerOptions>() ?? UiDesignerOptions.Default);
             _previews = previews.Register(new FormPreviewProvider(snapshots, _captures));
         }
+
+        // Инспектор — необязательный сосед: нет его — выбранное просто не показывается.
+        if (context.Inspector() is { } inspector)
+            _inspection = new FormInspection(context, inspector);
     }
 
     /// <inheritdoc/>
     public override void Deactivate()
     {
+        _inspection?.Dispose();
+        _inspection = null;
         _previews?.Dispose();
         _previews = null;
         _captures?.Dispose();

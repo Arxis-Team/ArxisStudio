@@ -33,6 +33,7 @@ namespace ArxisStudio.Tests;
 internal sealed class XamlStudio : IAsyncDisposable
 {
     private readonly string _settings;
+    private PluginContributionRegistry? _contributions;
 
     /// <summary>Поднимает обе службы.</summary>
     /// <param name="idleRelease">Простой до конца сессии; по умолчанию — до закрытия решения.</param>
@@ -87,7 +88,8 @@ internal sealed class XamlStudio : IAsyncDisposable
             plugins: Roster,
             exports: Exports,
             restart: (id, reason) => Restarts.Enqueue((id, reason)),
-            previews: Previews);
+            previews: Previews,
+            contributions: Contributions);
 
         Host = new PluginHost(Contexts);
 
@@ -96,15 +98,18 @@ internal sealed class XamlStudio : IAsyncDisposable
             Commands.RemoveOwnedBy(id);
             Exports.RemoveOwnedBy(id);
             Previews.RemoveOwnedBy(id);
+            Contributions.Remove(id);
         };
 
         Roster.Attach(Host, () => []);
 
         var projectsModule = Host.LoadBuiltIn(typeof(ProjectsModule).Assembly);
         Assert.True(projectsModule.IsLoaded, projectsModule.Error);
+        Contributions.Add(projectsModule);
 
         XamlModule = Host.LoadBuiltIn(typeof(XamlModule).Assembly);
         Assert.True(XamlModule.IsLoaded, XamlModule.Error);
+        Contributions.Add(XamlModule);
 
         Projects = Exports.Get(typeof(IStudioProjects)) as IStudioProjects
             ?? throw new InvalidOperationException("служба проектов не опубликована");
@@ -148,6 +153,9 @@ internal sealed class XamlStudio : IAsyncDisposable
 
     /// <summary>Экспорты.</summary>
     public StudioExportRegistry Exports { get; } = new();
+
+    /// <summary>Вклады в контракты модулей — на общем шве, как у студии: их собирает инспектор.</summary>
+    public PluginContributionRegistry Contributions => _contributions ??= new PluginContributionRegistry(Guard);
 
     /// <summary>Строка состояния.</summary>
     public StatusProbe Status { get; } = new();
