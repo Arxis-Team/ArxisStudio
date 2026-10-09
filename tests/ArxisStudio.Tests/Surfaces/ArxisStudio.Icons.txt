@@ -1,4 +1,4 @@
-# StudioSdk 7.1
+# StudioSdk 7.20
 ArxisStudio.Icons.AxIcon : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Icons.AxIcon :: .ctor()
 ArxisStudio.Icons.AxIcon :: ArxisStudio.Icons.AxIconSize Size { get; set; }
@@ -60,6 +60,7 @@ ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Image { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Info { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Keyboard { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Layers { get; }
+ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Link { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry List { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Lock { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Media { get; }

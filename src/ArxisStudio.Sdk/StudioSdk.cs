@@ -21,11 +21,17 @@ public static class StudioSdk
 {
     /// <summary>Версия контракта этой студии.</summary>
     /// <remarks>
+    /// 7.20 — поля инспектора в наборе контролов: число с протяжкой за подпись (<c>AxNumberField</c>,
+    /// <c>AxScrubLabel</c>), вектор (<c>AxVectorField</c>), строка свойства с общей колонкой подписей
+    /// (<c>AxPropertyRow</c>) и жетоны (<c>AxTokenField</c>); чип снимается (<c>AxChip.IsRemovable</c>), а
+    /// в наборе значков — звено (<c>AxIcons.Link</c>). Младший номер: добавлено, снятого нет.
+    /// <para>
     /// 7.19 — вклады в контракт модуля: служба <c>IStudioContributions</c> собирает у поднятых расширений
     /// наследников <c>StudioContribution</c> из контрактной сборки модуля, строит их через шов сбоев с
     /// контекстом хозяина и снимает с его выгрузкой (<c>Collect</c> → <c>IStudioContributionSet</c>), а
     /// чужой объект зовёт через шов на счёт хозяина (<c>Guard</c> → <c>IStudioGuarded</c>); спящего будит
     /// событие <c>onContribution:</c>. Младший номер: добавлено, снятого нет.
+    /// </para>
     /// <para>
     /// 7.18 — редактор документов показывает файл у себя: <c>DocumentEditor.RevealAsync</c> — дизайнер в
     /// режиме доски показывает форму на своём холсте, и студия не открывает её вкладкой. Младший номер:
@@ -301,7 +307,7 @@ public static class StudioSdk
     /// 4.1 — добавлены теги манифеста (<c>tags</c>).
     /// </para>
     /// </remarks>
-    public const string Version = "7.19";
+    public const string Version = "7.20";
 
     /// <summary>
     /// Довольна ли эта версия SDK тем, что просит плагин.

@@ -22,6 +22,9 @@ public static class ControlTexts
         ("AxTextDialogClose", "controls.dialog.close"),
         ("AxTextTabOverflow", "controls.tabs.overflow"),
         ("AxTextBreadcrumbOverflow", "controls.breadcrumb.overflow"),
+        ("AxTextChipRemove", "controls.chip.remove"),
+        ("AxTextVectorLink", "controls.vector.link"),
+        ("AxTextMixedValues", "controls.mixed"),
     ];
 
     /// <summary>Кладёт тексты в ресурсы приложения и переводит их вместе со студией.</summary>

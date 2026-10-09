@@ -1,4 +1,4 @@
-# StudioSdk 7.13
+# StudioSdk 7.20
 ArxisStudio.Controls.AxAvatar : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Controls.AxAvatar :: .ctor()
 ArxisStudio.Controls.AxAvatar :: ArxisStudio.Controls.AxAvatarShape Shape { get; set; }
@@ -75,7 +75,11 @@ ArxisStudio.Controls.AxCheckBox :: .ctor()
 ArxisStudio.Controls.AxChip : class : Avalonia.Controls.ContentControl
 ArxisStudio.Controls.AxChip :: .ctor()
 ArxisStudio.Controls.AxChip :: ArxisStudio.Controls.AxChipKind Kind { get; set; }
+ArxisStudio.Controls.AxChip :: System.Boolean IsRemovable { get; set; }
+ArxisStudio.Controls.AxChip :: event System.EventHandler<Avalonia.Interactivity.RoutedEventArgs> RemoveRequested
+ArxisStudio.Controls.AxChip :: static readonly Avalonia.Interactivity.RoutedEvent<Avalonia.Interactivity.RoutedEventArgs> RemoveRequestedEvent
 ArxisStudio.Controls.AxChip :: static readonly Avalonia.StyledProperty<ArxisStudio.Controls.AxChipKind> KindProperty
+ArxisStudio.Controls.AxChip :: static readonly Avalonia.StyledProperty<System.Boolean> IsRemovableProperty
 ArxisStudio.Controls.AxChipKind : enum
 ArxisStudio.Controls.AxChipKind :: Accent = 1
 ArxisStudio.Controls.AxChipKind :: Default = 0
@@ -243,8 +247,101 @@ ArxisStudio.Controls.AxMenuItem :: System.Boolean IsDestructive { get; set; }
 ArxisStudio.Controls.AxMenuItem :: System.Boolean IsDropTarget { get; set; }
 ArxisStudio.Controls.AxMenuItem :: static readonly Avalonia.StyledProperty<System.Boolean> IsDestructiveProperty
 ArxisStudio.Controls.AxMenuItem :: static readonly Avalonia.StyledProperty<System.Boolean> IsDropTargetProperty
+ArxisStudio.Controls.AxNumberEventArgs : sealed class : Avalonia.Interactivity.RoutedEventArgs
+ArxisStudio.Controls.AxNumberEventArgs :: .ctor(Avalonia.Interactivity.RoutedEvent routedEvent, System.Double value)
+ArxisStudio.Controls.AxNumberEventArgs :: System.Double Value { get; }
+ArxisStudio.Controls.AxNumberField : class : ArxisStudio.Controls.AxTextBox
+ArxisStudio.Controls.AxNumberField :: .ctor()
+ArxisStudio.Controls.AxNumberField :: System.Boolean AllowsAuto { get; set; }
+ArxisStudio.Controls.AxNumberField :: System.Boolean BeginScrub()
+ArxisStudio.Controls.AxNumberField :: System.Boolean CanScrub { get; }
+ArxisStudio.Controls.AxNumberField :: System.Boolean Commit()
+ArxisStudio.Controls.AxNumberField :: System.Boolean HasDraft { get; }
+ArxisStudio.Controls.AxNumberField :: System.Boolean IsMixed { get; set; }
+ArxisStudio.Controls.AxNumberField :: System.Boolean IsScrubbing { get; }
+ArxisStudio.Controls.AxNumberField :: System.Double Maximum { get; set; }
+ArxisStudio.Controls.AxNumberField :: System.Double Minimum { get; set; }
+ArxisStudio.Controls.AxNumberField :: System.Double Step { get; set; }
+ArxisStudio.Controls.AxNumberField :: System.Double Value { get; set; }
+ArxisStudio.Controls.AxNumberField :: System.Int32? Decimals { get; set; }
+ArxisStudio.Controls.AxNumberField :: System.String AutoText { get; set; }
+ArxisStudio.Controls.AxNumberField :: System.Void EndScrub(System.Boolean commit)
+ArxisStudio.Controls.AxNumberField :: System.Void Revert()
+ArxisStudio.Controls.AxNumberField :: System.Void ScrubBy(System.Double pixels, Avalonia.Input.KeyModifiers modifiers)
+ArxisStudio.Controls.AxNumberField :: event System.EventHandler<ArxisStudio.Controls.AxNumberEventArgs> ValueChanging
+ArxisStudio.Controls.AxNumberField :: event System.EventHandler<ArxisStudio.Controls.AxNumberEventArgs> ValueCommitted
+ArxisStudio.Controls.AxNumberField :: event System.EventHandler<Avalonia.Interactivity.RoutedEventArgs> Cleared
+ArxisStudio.Controls.AxNumberField :: event System.EventHandler<Avalonia.Interactivity.RoutedEventArgs> ScrubCancelled
+ArxisStudio.Controls.AxNumberField :: static System.Boolean TryEvaluate(System.String? text, out System.Double value)
+ArxisStudio.Controls.AxNumberField :: static System.String Format(System.Double value, System.Int32? decimals = null, System.String auto = "Auto")
+ArxisStudio.Controls.AxNumberField :: static readonly Avalonia.Interactivity.RoutedEvent<ArxisStudio.Controls.AxNumberEventArgs> ValueChangingEvent
+ArxisStudio.Controls.AxNumberField :: static readonly Avalonia.Interactivity.RoutedEvent<ArxisStudio.Controls.AxNumberEventArgs> ValueCommittedEvent
+ArxisStudio.Controls.AxNumberField :: static readonly Avalonia.Interactivity.RoutedEvent<Avalonia.Interactivity.RoutedEventArgs> ClearedEvent
+ArxisStudio.Controls.AxNumberField :: static readonly Avalonia.Interactivity.RoutedEvent<Avalonia.Interactivity.RoutedEventArgs> ScrubCancelledEvent
+ArxisStudio.Controls.AxNumberField :: static readonly Avalonia.StyledProperty<System.Boolean> AllowsAutoProperty
+ArxisStudio.Controls.AxNumberField :: static readonly Avalonia.StyledProperty<System.Boolean> IsMixedProperty
+ArxisStudio.Controls.AxNumberField :: static readonly Avalonia.StyledProperty<System.Double> MaximumProperty
+ArxisStudio.Controls.AxNumberField :: static readonly Avalonia.StyledProperty<System.Double> MinimumProperty
+ArxisStudio.Controls.AxNumberField :: static readonly Avalonia.StyledProperty<System.Double> StepProperty
+ArxisStudio.Controls.AxNumberField :: static readonly Avalonia.StyledProperty<System.Double> ValueProperty
+ArxisStudio.Controls.AxNumberField :: static readonly Avalonia.StyledProperty<System.Int32?> DecimalsProperty
+ArxisStudio.Controls.AxNumberField :: static readonly Avalonia.StyledProperty<System.String> AutoTextProperty
 ArxisStudio.Controls.AxProgressBar : class : Avalonia.Controls.ProgressBar
 ArxisStudio.Controls.AxProgressBar :: .ctor()
+ArxisStudio.Controls.AxPropertyRow : class : Avalonia.Controls.ContentControl
+ArxisStudio.Controls.AxPropertyRow :: .ctor()
+ArxisStudio.Controls.AxPropertyRow :: ArxisStudio.Controls.AxNumberField? ScrubTarget { get; set; }
+ArxisStudio.Controls.AxPropertyRow :: ArxisStudio.Controls.AxPropertyRowLayout Layout { get; set; }
+ArxisStudio.Controls.AxPropertyRow :: System.Boolean IsOverridden { get; set; }
+ArxisStudio.Controls.AxPropertyRow :: System.Boolean IsReadOnly { get; set; }
+ArxisStudio.Controls.AxPropertyRow :: System.Int32 Indent { get; set; }
+ArxisStudio.Controls.AxPropertyRow :: System.Object? Actions { get; set; }
+ArxisStudio.Controls.AxPropertyRow :: System.Object? Label { get; set; }
+ArxisStudio.Controls.AxPropertyRow :: System.Object? Note { get; set; }
+ArxisStudio.Controls.AxPropertyRow :: static System.Double GetLabelWidth(Avalonia.Controls.Control element)
+ArxisStudio.Controls.AxPropertyRow :: static System.Void SetLabelWidth(Avalonia.Controls.Control element, System.Double value)
+ArxisStudio.Controls.AxPropertyRow :: static readonly Avalonia.AttachedProperty<System.Double> LabelWidthProperty
+ArxisStudio.Controls.AxPropertyRow :: static readonly Avalonia.StyledProperty<ArxisStudio.Controls.AxNumberField> ScrubTargetProperty
+ArxisStudio.Controls.AxPropertyRow :: static readonly Avalonia.StyledProperty<ArxisStudio.Controls.AxPropertyRowLayout> LayoutProperty
+ArxisStudio.Controls.AxPropertyRow :: static readonly Avalonia.StyledProperty<System.Boolean> IsOverriddenProperty
+ArxisStudio.Controls.AxPropertyRow :: static readonly Avalonia.StyledProperty<System.Boolean> IsReadOnlyProperty
+ArxisStudio.Controls.AxPropertyRow :: static readonly Avalonia.StyledProperty<System.Int32> IndentProperty
+ArxisStudio.Controls.AxPropertyRow :: static readonly Avalonia.StyledProperty<System.Object> ActionsProperty
+ArxisStudio.Controls.AxPropertyRow :: static readonly Avalonia.StyledProperty<System.Object> LabelProperty
+ArxisStudio.Controls.AxPropertyRow :: static readonly Avalonia.StyledProperty<System.Object> NoteProperty
+ArxisStudio.Controls.AxPropertyRowLayout : enum
+ArxisStudio.Controls.AxPropertyRowLayout :: Below = 1
+ArxisStudio.Controls.AxPropertyRowLayout :: Full = 2
+ArxisStudio.Controls.AxPropertyRowLayout :: Inline = 0
+ArxisStudio.Controls.AxPropertyRowPanel : class : Avalonia.Controls.Panel
+ArxisStudio.Controls.AxPropertyRowPanel :: .ctor()
+ArxisStudio.Controls.AxPropertyRowPanel :: ArxisStudio.Controls.AxPropertyRowLayout Layout { get; set; }
+ArxisStudio.Controls.AxPropertyRowPanel :: System.Boolean IsStacked { get; }
+ArxisStudio.Controls.AxPropertyRowPanel :: System.Double IndentStep { get; set; }
+ArxisStudio.Controls.AxPropertyRowPanel :: System.Double LabelColumn(System.Double width)
+ArxisStudio.Controls.AxPropertyRowPanel :: System.Double LabelInset { get; set; }
+ArxisStudio.Controls.AxPropertyRowPanel :: System.Double LabelMinWidth { get; set; }
+ArxisStudio.Controls.AxPropertyRowPanel :: System.Double Spacing { get; set; }
+ArxisStudio.Controls.AxPropertyRowPanel :: System.Double ValueMinWidth { get; set; }
+ArxisStudio.Controls.AxPropertyRowPanel :: System.Int32 Indent { get; set; }
+ArxisStudio.Controls.AxPropertyRowPanel :: const System.Double LabelShare = 0.45
+ArxisStudio.Controls.AxPropertyRowPanel :: static ArxisStudio.Controls.AxPropertyRowPart GetPart(Avalonia.Controls.Control element)
+ArxisStudio.Controls.AxPropertyRowPanel :: static System.Void SetPart(Avalonia.Controls.Control element, ArxisStudio.Controls.AxPropertyRowPart value)
+ArxisStudio.Controls.AxPropertyRowPanel :: static readonly Avalonia.AttachedProperty<ArxisStudio.Controls.AxPropertyRowPart> PartProperty
+ArxisStudio.Controls.AxPropertyRowPanel :: static readonly Avalonia.StyledProperty<ArxisStudio.Controls.AxPropertyRowLayout> LayoutProperty
+ArxisStudio.Controls.AxPropertyRowPanel :: static readonly Avalonia.StyledProperty<System.Double> IndentStepProperty
+ArxisStudio.Controls.AxPropertyRowPanel :: static readonly Avalonia.StyledProperty<System.Double> LabelInsetProperty
+ArxisStudio.Controls.AxPropertyRowPanel :: static readonly Avalonia.StyledProperty<System.Double> LabelMinWidthProperty
+ArxisStudio.Controls.AxPropertyRowPanel :: static readonly Avalonia.StyledProperty<System.Double> SpacingProperty
+ArxisStudio.Controls.AxPropertyRowPanel :: static readonly Avalonia.StyledProperty<System.Double> ValueMinWidthProperty
+ArxisStudio.Controls.AxPropertyRowPanel :: static readonly Avalonia.StyledProperty<System.Int32> IndentProperty
+ArxisStudio.Controls.AxPropertyRowPart : enum
+ArxisStudio.Controls.AxPropertyRowPart :: Actions = 4
+ArxisStudio.Controls.AxPropertyRowPart :: Label = 2
+ArxisStudio.Controls.AxPropertyRowPart :: Marker = 1
+ArxisStudio.Controls.AxPropertyRowPart :: None = 0
+ArxisStudio.Controls.AxPropertyRowPart :: Note = 5
+ArxisStudio.Controls.AxPropertyRowPart :: Value = 3
 ArxisStudio.Controls.AxQuickSearch : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Controls.AxQuickSearch :: .ctor()
 ArxisStudio.Controls.AxQuickSearch :: Avalonia.Controls.Templates.IDataTemplate? ItemTemplate { get; set; }
@@ -265,6 +362,11 @@ ArxisStudio.Controls.AxQuickSearch :: static readonly Avalonia.StyledProperty<Sy
 ArxisStudio.Controls.AxQuickSearch :: static readonly Avalonia.StyledProperty<System.String> TextProperty
 ArxisStudio.Controls.AxRadioButton : class : Avalonia.Controls.RadioButton
 ArxisStudio.Controls.AxRadioButton :: .ctor()
+ArxisStudio.Controls.AxScrubLabel : class : Avalonia.Controls.ContentControl
+ArxisStudio.Controls.AxScrubLabel :: .ctor()
+ArxisStudio.Controls.AxScrubLabel :: ArxisStudio.Controls.AxNumberField? Target { get; set; }
+ArxisStudio.Controls.AxScrubLabel :: const System.Double DeadZone = 4
+ArxisStudio.Controls.AxScrubLabel :: static readonly Avalonia.StyledProperty<ArxisStudio.Controls.AxNumberField> TargetProperty
 ArxisStudio.Controls.AxSearchField : class : ArxisStudio.Controls.AxTextBox
 ArxisStudio.Controls.AxSearchField :: .ctor()
 ArxisStudio.Controls.AxSegmentItem : class : Avalonia.Controls.ListBoxItem
@@ -357,6 +459,27 @@ ArxisStudio.Controls.AxToggleButton :: static readonly Avalonia.StyledProperty<A
 ArxisStudio.Controls.AxToggleButton :: static readonly Avalonia.StyledProperty<ArxisStudio.Controls.AxControlSize> SizeProperty
 ArxisStudio.Controls.AxToggleSwitch : class : Avalonia.Controls.Primitives.ToggleButton
 ArxisStudio.Controls.AxToggleSwitch :: .ctor()
+ArxisStudio.Controls.AxTokenField : class : Avalonia.Controls.Primitives.TemplatedControl
+ArxisStudio.Controls.AxTokenField :: .ctor()
+ArxisStudio.Controls.AxTokenField :: ArxisStudio.Controls.AxControlSize Size { get; set; }
+ArxisStudio.Controls.AxTokenField :: Avalonia.Controls.TextBox? Input { get; }
+ArxisStudio.Controls.AxTokenField :: System.Boolean Add(System.Collections.Generic.IEnumerable<System.String> tokens)
+ArxisStudio.Controls.AxTokenField :: System.Boolean IsReadOnly { get; set; }
+ArxisStudio.Controls.AxTokenField :: System.Boolean Remove(System.String token)
+ArxisStudio.Controls.AxTokenField :: System.Collections.Generic.IReadOnlyList<System.String> Tokens { get; set; }
+ArxisStudio.Controls.AxTokenField :: System.String? PlaceholderText { get; set; }
+ArxisStudio.Controls.AxTokenField :: event System.EventHandler<ArxisStudio.Controls.AxTokensChangedEventArgs> TokensChanged
+ArxisStudio.Controls.AxTokenField :: static System.Collections.Generic.IReadOnlyList<System.String> Split(System.String? text)
+ArxisStudio.Controls.AxTokenField :: static readonly Avalonia.Interactivity.RoutedEvent<ArxisStudio.Controls.AxTokensChangedEventArgs> TokensChangedEvent
+ArxisStudio.Controls.AxTokenField :: static readonly Avalonia.StyledProperty<ArxisStudio.Controls.AxControlSize> SizeProperty
+ArxisStudio.Controls.AxTokenField :: static readonly Avalonia.StyledProperty<System.Boolean> IsReadOnlyProperty
+ArxisStudio.Controls.AxTokenField :: static readonly Avalonia.StyledProperty<System.Collections.Generic.IReadOnlyList<System.String>> TokensProperty
+ArxisStudio.Controls.AxTokenField :: static readonly Avalonia.StyledProperty<System.String> PlaceholderTextProperty
+ArxisStudio.Controls.AxTokensChangedEventArgs : sealed class : Avalonia.Interactivity.RoutedEventArgs
+ArxisStudio.Controls.AxTokensChangedEventArgs :: .ctor(Avalonia.Interactivity.RoutedEvent routedEvent, System.Collections.Generic.IReadOnlyList<System.String> tokens, System.Collections.Generic.IReadOnlyList<System.String> added, System.Collections.Generic.IReadOnlyList<System.String> removed)
+ArxisStudio.Controls.AxTokensChangedEventArgs :: System.Collections.Generic.IReadOnlyList<System.String> Added { get; }
+ArxisStudio.Controls.AxTokensChangedEventArgs :: System.Collections.Generic.IReadOnlyList<System.String> Removed { get; }
+ArxisStudio.Controls.AxTokensChangedEventArgs :: System.Collections.Generic.IReadOnlyList<System.String> Tokens { get; }
 ArxisStudio.Controls.AxToolBar : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Controls.AxToolBar :: .ctor()
 ArxisStudio.Controls.AxToolBar :: System.Object? CenterContent { get; set; }
@@ -403,6 +526,49 @@ ArxisStudio.Controls.AxValidationState : enum
 ArxisStudio.Controls.AxValidationState :: Error = 2
 ArxisStudio.Controls.AxValidationState :: None = 0
 ArxisStudio.Controls.AxValidationState :: Warning = 1
+ArxisStudio.Controls.AxVectorEventArgs : sealed class : Avalonia.Interactivity.RoutedEventArgs
+ArxisStudio.Controls.AxVectorEventArgs :: .ctor(Avalonia.Interactivity.RoutedEvent routedEvent, System.Collections.Generic.IReadOnlyList<System.Double> values, System.Int32 index)
+ArxisStudio.Controls.AxVectorEventArgs :: System.Collections.Generic.IReadOnlyList<System.Double> Values { get; }
+ArxisStudio.Controls.AxVectorEventArgs :: System.Int32 Index { get; }
+ArxisStudio.Controls.AxVectorField : class : Avalonia.Controls.Primitives.TemplatedControl
+ArxisStudio.Controls.AxVectorField :: .ctor()
+ArxisStudio.Controls.AxVectorField :: ArxisStudio.Controls.AxControlSize Size { get; set; }
+ArxisStudio.Controls.AxVectorField :: System.Boolean CanLink { get; set; }
+ArxisStudio.Controls.AxVectorField :: System.Boolean IsLinked { get; set; }
+ArxisStudio.Controls.AxVectorField :: System.Boolean IsReadOnly { get; set; }
+ArxisStudio.Controls.AxVectorField :: System.Collections.Generic.IReadOnlyList<ArxisStudio.Controls.AxNumberField> Cells { get; }
+ArxisStudio.Controls.AxVectorField :: System.Collections.Generic.IReadOnlyList<System.Double>? Values { get; set; }
+ArxisStudio.Controls.AxVectorField :: System.Collections.Generic.IReadOnlyList<System.String>? Labels { get; set; }
+ArxisStudio.Controls.AxVectorField :: System.Double Maximum { get; set; }
+ArxisStudio.Controls.AxVectorField :: System.Double Minimum { get; set; }
+ArxisStudio.Controls.AxVectorField :: System.Double Step { get; set; }
+ArxisStudio.Controls.AxVectorField :: System.Int32 MixedMask { get; set; }
+ArxisStudio.Controls.AxVectorField :: System.Int32? Decimals { get; set; }
+ArxisStudio.Controls.AxVectorField :: event System.EventHandler<ArxisStudio.Controls.AxVectorEventArgs> ValuesChanging
+ArxisStudio.Controls.AxVectorField :: event System.EventHandler<ArxisStudio.Controls.AxVectorEventArgs> ValuesCommitted
+ArxisStudio.Controls.AxVectorField :: event System.EventHandler<Avalonia.Interactivity.RoutedEventArgs> ScrubCancelled
+ArxisStudio.Controls.AxVectorField :: static readonly Avalonia.Interactivity.RoutedEvent<ArxisStudio.Controls.AxVectorEventArgs> ValuesChangingEvent
+ArxisStudio.Controls.AxVectorField :: static readonly Avalonia.Interactivity.RoutedEvent<ArxisStudio.Controls.AxVectorEventArgs> ValuesCommittedEvent
+ArxisStudio.Controls.AxVectorField :: static readonly Avalonia.Interactivity.RoutedEvent<Avalonia.Interactivity.RoutedEventArgs> ScrubCancelledEvent
+ArxisStudio.Controls.AxVectorField :: static readonly Avalonia.StyledProperty<ArxisStudio.Controls.AxControlSize> SizeProperty
+ArxisStudio.Controls.AxVectorField :: static readonly Avalonia.StyledProperty<System.Boolean> CanLinkProperty
+ArxisStudio.Controls.AxVectorField :: static readonly Avalonia.StyledProperty<System.Boolean> IsLinkedProperty
+ArxisStudio.Controls.AxVectorField :: static readonly Avalonia.StyledProperty<System.Boolean> IsReadOnlyProperty
+ArxisStudio.Controls.AxVectorField :: static readonly Avalonia.StyledProperty<System.Collections.Generic.IReadOnlyList<System.Double>> ValuesProperty
+ArxisStudio.Controls.AxVectorField :: static readonly Avalonia.StyledProperty<System.Collections.Generic.IReadOnlyList<System.String>> LabelsProperty
+ArxisStudio.Controls.AxVectorField :: static readonly Avalonia.StyledProperty<System.Double> MaximumProperty
+ArxisStudio.Controls.AxVectorField :: static readonly Avalonia.StyledProperty<System.Double> MinimumProperty
+ArxisStudio.Controls.AxVectorField :: static readonly Avalonia.StyledProperty<System.Double> StepProperty
+ArxisStudio.Controls.AxVectorField :: static readonly Avalonia.StyledProperty<System.Int32> MixedMaskProperty
+ArxisStudio.Controls.AxVectorField :: static readonly Avalonia.StyledProperty<System.Int32?> DecimalsProperty
+ArxisStudio.Controls.AxVectorPanel : class : Avalonia.Controls.Panel
+ArxisStudio.Controls.AxVectorPanel :: .ctor()
+ArxisStudio.Controls.AxVectorPanel :: System.Double CellMinWidth { get; set; }
+ArxisStudio.Controls.AxVectorPanel :: System.Double Spacing { get; set; }
+ArxisStudio.Controls.AxVectorPanel :: System.Int32 Columns { get; }
+ArxisStudio.Controls.AxVectorPanel :: System.Int32 ColumnsFor(System.Double width, System.Int32 count)
+ArxisStudio.Controls.AxVectorPanel :: static readonly Avalonia.StyledProperty<System.Double> CellMinWidthProperty
+ArxisStudio.Controls.AxVectorPanel :: static readonly Avalonia.StyledProperty<System.Double> SpacingProperty
 ArxisStudio.Controls.AxWindow : class : Avalonia.Controls.Window
 ArxisStudio.Controls.AxWindow :: .ctor()
 ArxisStudio.Controls.AxWindowControls : class : Avalonia.Controls.Primitives.TemplatedControl
