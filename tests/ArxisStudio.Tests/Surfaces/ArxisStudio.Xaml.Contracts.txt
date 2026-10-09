@@ -16,8 +16,13 @@ ArxisStudio.Xaml.IXamlDesignView : interface : System.IDisposable
 ArxisStudio.Xaml.IXamlDesignView :: ArxisStudio.Markup.Xaml.XamlElementPath? PathOf(System.Object live)
 ArxisStudio.Xaml.IXamlDesignView :: ArxisStudio.ProjectSystem.CanonicalPath ApplicationFile { get; }
 ArxisStudio.Xaml.IXamlDesignView :: ArxisStudio.Xaml.IXamlDocumentHandle Document { get; }
+ArxisStudio.Xaml.IXamlDesignView :: ArxisStudio.Xaml.IXamlValuePreview? Preview(ArxisStudio.Markup.Xaml.XamlElementPath element, System.String member)
+ArxisStudio.Xaml.IXamlDesignView :: ArxisStudio.Xaml.XamlElementInfo? DescribeElement(ArxisStudio.Markup.Xaml.XamlElementPath element)
+ArxisStudio.Xaml.IXamlDesignView :: ArxisStudio.Xaml.XamlMemberInfo? GetMember(ArxisStudio.Markup.Xaml.XamlElementPath element, System.String member)
+ArxisStudio.Xaml.IXamlDesignView :: ArxisStudio.Xaml.XamlValueCheck CheckValue(ArxisStudio.Markup.Xaml.XamlElementPath element, System.String member, System.String text)
 ArxisStudio.Xaml.IXamlDesignView :: Avalonia.Application? Application { get; }
 ArxisStudio.Xaml.IXamlDesignView :: Avalonia.Controls.Control? Root { get; }
+ArxisStudio.Xaml.IXamlDesignView :: System.Collections.Generic.IReadOnlyList<ArxisStudio.Xaml.XamlMemberInfo> GetMembers(ArxisStudio.Markup.Xaml.XamlElementPath element)
 ArxisStudio.Xaml.IXamlDesignView :: System.Collections.Generic.IReadOnlyList<System.Object> GetDeclaredObjects()
 ArxisStudio.Xaml.IXamlDesignView :: System.Object? ObjectAt(ArxisStudio.Markup.Xaml.XamlElementPath path)
 ArxisStudio.Xaml.IXamlDesignView :: event System.EventHandler ApplicationChanged
@@ -45,6 +50,8 @@ ArxisStudio.Xaml.IXamlDocumentHandle :: event System.EventHandler<ArxisStudio.Xa
 ArxisStudio.Xaml.IXamlDocumentHandle :: event System.EventHandler<ArxisStudio.Xaml.XamlExternalConflictEventArgs> ExternalConflict
 ArxisStudio.Xaml.IXamlRootLender : interface
 ArxisStudio.Xaml.IXamlRootLender :: System.IDisposable Lend(System.Object root)
+ArxisStudio.Xaml.IXamlValuePreview : interface : System.IDisposable
+ArxisStudio.Xaml.IXamlValuePreview :: ArxisStudio.Xaml.XamlValueCheck Show(System.String text)
 ArxisStudio.Xaml.StudioXamlAccess : static class
 ArxisStudio.Xaml.StudioXamlAccess :: static ArxisStudio.Xaml.IStudioXamlDesign? XamlDesign(ArxisStudio.Sdk.IStudioContext context)
 ArxisStudio.Xaml.StudioXamlAccess :: static ArxisStudio.Xaml.IStudioXamlDocuments? XamlDocuments(ArxisStudio.Sdk.IStudioContext context)
@@ -99,6 +106,25 @@ ArxisStudio.Xaml.XamlEditOutcome :: System.Collections.Immutable.ImmutableArray<
 ArxisStudio.Xaml.XamlEditOutcome :: System.Void Deconstruct(out System.Boolean TextChanged, out ArxisStudio.Xaml.XamlDocumentState State, out System.Collections.Immutable.ImmutableArray<ArxisStudio.Markup.MarkupDiagnostic> Diagnostics)
 ArxisStudio.Xaml.XamlEditOutcome :: static System.Boolean op_Equality(ArxisStudio.Xaml.XamlEditOutcome? left, ArxisStudio.Xaml.XamlEditOutcome? right)
 ArxisStudio.Xaml.XamlEditOutcome :: static System.Boolean op_Inequality(ArxisStudio.Xaml.XamlEditOutcome? left, ArxisStudio.Xaml.XamlEditOutcome? right)
+ArxisStudio.Xaml.XamlEditorBrowsable : enum
+ArxisStudio.Xaml.XamlEditorBrowsable :: Advanced = 1
+ArxisStudio.Xaml.XamlEditorBrowsable :: Always = 0
+ArxisStudio.Xaml.XamlEditorBrowsable :: Never = 2
+ArxisStudio.Xaml.XamlElementInfo : sealed record : System.IEquatable<ArxisStudio.Xaml.XamlElementInfo>
+ArxisStudio.Xaml.XamlElementInfo :: .ctor(System.String TypeFullName, System.String AssemblyName, System.Collections.Immutable.ImmutableArray<System.String> BaseTypes, System.String? ParentTypeFullName, System.Collections.Immutable.ImmutableArray<System.String> ParentBaseTypes, System.Boolean HoldsChildren, System.String? ContentMember)
+ArxisStudio.Xaml.XamlElementInfo :: System.Boolean Equals(ArxisStudio.Xaml.XamlElementInfo? other)
+ArxisStudio.Xaml.XamlElementInfo :: System.Boolean HoldsChildren { get; init; }
+ArxisStudio.Xaml.XamlElementInfo :: System.Boolean Is(System.String typeFullName)
+ArxisStudio.Xaml.XamlElementInfo :: System.Collections.Immutable.ImmutableArray<System.String> BaseTypes { get; init; }
+ArxisStudio.Xaml.XamlElementInfo :: System.Collections.Immutable.ImmutableArray<System.String> ParentBaseTypes { get; init; }
+ArxisStudio.Xaml.XamlElementInfo :: System.String AssemblyName { get; init; }
+ArxisStudio.Xaml.XamlElementInfo :: System.String TypeFullName { get; init; }
+ArxisStudio.Xaml.XamlElementInfo :: System.String TypeName { get; }
+ArxisStudio.Xaml.XamlElementInfo :: System.String? ContentMember { get; init; }
+ArxisStudio.Xaml.XamlElementInfo :: System.String? ParentTypeFullName { get; init; }
+ArxisStudio.Xaml.XamlElementInfo :: System.Void Deconstruct(out System.String TypeFullName, out System.String AssemblyName, out System.Collections.Immutable.ImmutableArray<System.String> BaseTypes, out System.String? ParentTypeFullName, out System.Collections.Immutable.ImmutableArray<System.String> ParentBaseTypes, out System.Boolean HoldsChildren, out System.String? ContentMember)
+ArxisStudio.Xaml.XamlElementInfo :: static System.Boolean op_Equality(ArxisStudio.Xaml.XamlElementInfo? left, ArxisStudio.Xaml.XamlElementInfo? right)
+ArxisStudio.Xaml.XamlElementInfo :: static System.Boolean op_Inequality(ArxisStudio.Xaml.XamlElementInfo? left, ArxisStudio.Xaml.XamlElementInfo? right)
 ArxisStudio.Xaml.XamlExternalConflictEventArgs : sealed class : System.EventArgs
 ArxisStudio.Xaml.XamlExternalConflictEventArgs :: .ctor(ArxisStudio.ProjectSystem.CanonicalPath path, System.String diskText)
 ArxisStudio.Xaml.XamlExternalConflictEventArgs :: ArxisStudio.ProjectSystem.CanonicalPath Path { get; }
@@ -111,3 +137,89 @@ ArxisStudio.Xaml.XamlFileKind :: Styles = 5
 ArxisStudio.Xaml.XamlFileKind :: Unknown = 0
 ArxisStudio.Xaml.XamlFileKind :: UserControl = 2
 ArxisStudio.Xaml.XamlFileKind :: Window = 1
+ArxisStudio.Xaml.XamlMemberAttributes : sealed record : System.IEquatable<ArxisStudio.Xaml.XamlMemberAttributes>
+ArxisStudio.Xaml.XamlMemberAttributes :: .ctor(System.String? DisplayName, System.String? Category, System.String? Description, System.String? DefaultValueText, System.Boolean Browsable, ArxisStudio.Xaml.XamlEditorBrowsable EditorBrowsable, System.Boolean IsReadOnly, System.Double? RangeMinimum, System.Double? RangeMaximum, System.String? ObsoleteMessage, System.Boolean IsPrivateApi, System.Boolean IsUnstable)
+ArxisStudio.Xaml.XamlMemberAttributes :: ArxisStudio.Xaml.XamlEditorBrowsable EditorBrowsable { get; init; }
+ArxisStudio.Xaml.XamlMemberAttributes :: System.Boolean Browsable { get; init; }
+ArxisStudio.Xaml.XamlMemberAttributes :: System.Boolean Equals(ArxisStudio.Xaml.XamlMemberAttributes? other)
+ArxisStudio.Xaml.XamlMemberAttributes :: System.Boolean IsPrivateApi { get; init; }
+ArxisStudio.Xaml.XamlMemberAttributes :: System.Boolean IsReadOnly { get; init; }
+ArxisStudio.Xaml.XamlMemberAttributes :: System.Boolean IsUnstable { get; init; }
+ArxisStudio.Xaml.XamlMemberAttributes :: System.Double? RangeMaximum { get; init; }
+ArxisStudio.Xaml.XamlMemberAttributes :: System.Double? RangeMinimum { get; init; }
+ArxisStudio.Xaml.XamlMemberAttributes :: System.String? Category { get; init; }
+ArxisStudio.Xaml.XamlMemberAttributes :: System.String? DefaultValueText { get; init; }
+ArxisStudio.Xaml.XamlMemberAttributes :: System.String? Description { get; init; }
+ArxisStudio.Xaml.XamlMemberAttributes :: System.String? DisplayName { get; init; }
+ArxisStudio.Xaml.XamlMemberAttributes :: System.String? ObsoleteMessage { get; init; }
+ArxisStudio.Xaml.XamlMemberAttributes :: System.Void Deconstruct(out System.String? DisplayName, out System.String? Category, out System.String? Description, out System.String? DefaultValueText, out System.Boolean Browsable, out ArxisStudio.Xaml.XamlEditorBrowsable EditorBrowsable, out System.Boolean IsReadOnly, out System.Double? RangeMinimum, out System.Double? RangeMaximum, out System.String? ObsoleteMessage, out System.Boolean IsPrivateApi, out System.Boolean IsUnstable)
+ArxisStudio.Xaml.XamlMemberAttributes :: static ArxisStudio.Xaml.XamlMemberAttributes None { get; }
+ArxisStudio.Xaml.XamlMemberAttributes :: static System.Boolean op_Equality(ArxisStudio.Xaml.XamlMemberAttributes? left, ArxisStudio.Xaml.XamlMemberAttributes? right)
+ArxisStudio.Xaml.XamlMemberAttributes :: static System.Boolean op_Inequality(ArxisStudio.Xaml.XamlMemberAttributes? left, ArxisStudio.Xaml.XamlMemberAttributes? right)
+ArxisStudio.Xaml.XamlMemberInfo : sealed record : System.IEquatable<ArxisStudio.Xaml.XamlMemberInfo>
+ArxisStudio.Xaml.XamlMemberInfo :: .ctor(System.String Name, ArxisStudio.Xaml.XamlPropertyKind Kind, System.String OwnerTypeFullName, System.String? OwnerXmlNamespace, System.String? OwnerPrefix, ArxisStudio.Xaml.XamlTypeInfo ValueType, System.Boolean CanWrite, System.Boolean AcceptsText, System.Boolean IsContent, System.Boolean ParentReads, ArxisStudio.Xaml.XamlMemberAttributes Attributes, ArxisStudio.Xaml.XamlMemberValue Value)
+ArxisStudio.Xaml.XamlMemberInfo :: ArxisStudio.Xaml.XamlMemberAttributes Attributes { get; init; }
+ArxisStudio.Xaml.XamlMemberInfo :: ArxisStudio.Xaml.XamlMemberValue Value { get; init; }
+ArxisStudio.Xaml.XamlMemberInfo :: ArxisStudio.Xaml.XamlPropertyKind Kind { get; init; }
+ArxisStudio.Xaml.XamlMemberInfo :: ArxisStudio.Xaml.XamlTypeInfo ValueType { get; init; }
+ArxisStudio.Xaml.XamlMemberInfo :: System.Boolean AcceptsText { get; init; }
+ArxisStudio.Xaml.XamlMemberInfo :: System.Boolean CanWrite { get; init; }
+ArxisStudio.Xaml.XamlMemberInfo :: System.Boolean Equals(ArxisStudio.Xaml.XamlMemberInfo? other)
+ArxisStudio.Xaml.XamlMemberInfo :: System.Boolean IsAttached { get; }
+ArxisStudio.Xaml.XamlMemberInfo :: System.Boolean IsContent { get; init; }
+ArxisStudio.Xaml.XamlMemberInfo :: System.Boolean ParentReads { get; init; }
+ArxisStudio.Xaml.XamlMemberInfo :: System.String Name { get; init; }
+ArxisStudio.Xaml.XamlMemberInfo :: System.String OwnerTypeFullName { get; init; }
+ArxisStudio.Xaml.XamlMemberInfo :: System.String? OwnerPrefix { get; init; }
+ArxisStudio.Xaml.XamlMemberInfo :: System.String? OwnerXmlNamespace { get; init; }
+ArxisStudio.Xaml.XamlMemberInfo :: System.Void Deconstruct(out System.String Name, out ArxisStudio.Xaml.XamlPropertyKind Kind, out System.String OwnerTypeFullName, out System.String? OwnerXmlNamespace, out System.String? OwnerPrefix, out ArxisStudio.Xaml.XamlTypeInfo ValueType, out System.Boolean CanWrite, out System.Boolean AcceptsText, out System.Boolean IsContent, out System.Boolean ParentReads, out ArxisStudio.Xaml.XamlMemberAttributes Attributes, out ArxisStudio.Xaml.XamlMemberValue Value)
+ArxisStudio.Xaml.XamlMemberInfo :: static System.Boolean op_Equality(ArxisStudio.Xaml.XamlMemberInfo? left, ArxisStudio.Xaml.XamlMemberInfo? right)
+ArxisStudio.Xaml.XamlMemberInfo :: static System.Boolean op_Inequality(ArxisStudio.Xaml.XamlMemberInfo? left, ArxisStudio.Xaml.XamlMemberInfo? right)
+ArxisStudio.Xaml.XamlMemberValue : sealed record : System.IEquatable<ArxisStudio.Xaml.XamlMemberValue>
+ArxisStudio.Xaml.XamlMemberValue :: .ctor(System.String? Text, ArxisStudio.Xaml.XamlValueOrigin Origin, System.String? OriginDetail, System.Object? Shared)
+ArxisStudio.Xaml.XamlMemberValue :: ArxisStudio.Xaml.XamlValueOrigin Origin { get; init; }
+ArxisStudio.Xaml.XamlMemberValue :: System.Boolean Equals(ArxisStudio.Xaml.XamlMemberValue? other)
+ArxisStudio.Xaml.XamlMemberValue :: System.Object? Shared { get; init; }
+ArxisStudio.Xaml.XamlMemberValue :: System.String? OriginDetail { get; init; }
+ArxisStudio.Xaml.XamlMemberValue :: System.String? Text { get; init; }
+ArxisStudio.Xaml.XamlMemberValue :: System.Void Deconstruct(out System.String? Text, out ArxisStudio.Xaml.XamlValueOrigin Origin, out System.String? OriginDetail, out System.Object? Shared)
+ArxisStudio.Xaml.XamlMemberValue :: static System.Boolean op_Equality(ArxisStudio.Xaml.XamlMemberValue? left, ArxisStudio.Xaml.XamlMemberValue? right)
+ArxisStudio.Xaml.XamlMemberValue :: static System.Boolean op_Inequality(ArxisStudio.Xaml.XamlMemberValue? left, ArxisStudio.Xaml.XamlMemberValue? right)
+ArxisStudio.Xaml.XamlPropertyKind : enum
+ArxisStudio.Xaml.XamlPropertyKind :: Attached = 2
+ArxisStudio.Xaml.XamlPropertyKind :: Clr = 3
+ArxisStudio.Xaml.XamlPropertyKind :: Direct = 1
+ArxisStudio.Xaml.XamlPropertyKind :: Styled = 0
+ArxisStudio.Xaml.XamlTypeInfo : sealed record : System.IEquatable<ArxisStudio.Xaml.XamlTypeInfo>
+ArxisStudio.Xaml.XamlTypeInfo :: .ctor(System.String FullName, System.Collections.Immutable.ImmutableArray<System.String> BaseTypes, System.Collections.Immutable.ImmutableArray<System.String> Interfaces, System.Collections.Immutable.ImmutableArray<System.String> EnumNames, System.Boolean IsFlags, System.Boolean IsNullable)
+ArxisStudio.Xaml.XamlTypeInfo :: System.Boolean Equals(ArxisStudio.Xaml.XamlTypeInfo? other)
+ArxisStudio.Xaml.XamlTypeInfo :: System.Boolean Is(System.String typeFullName)
+ArxisStudio.Xaml.XamlTypeInfo :: System.Boolean IsEnum { get; }
+ArxisStudio.Xaml.XamlTypeInfo :: System.Boolean IsFlags { get; init; }
+ArxisStudio.Xaml.XamlTypeInfo :: System.Boolean IsNullable { get; init; }
+ArxisStudio.Xaml.XamlTypeInfo :: System.Collections.Immutable.ImmutableArray<System.String> BaseTypes { get; init; }
+ArxisStudio.Xaml.XamlTypeInfo :: System.Collections.Immutable.ImmutableArray<System.String> EnumNames { get; init; }
+ArxisStudio.Xaml.XamlTypeInfo :: System.Collections.Immutable.ImmutableArray<System.String> Interfaces { get; init; }
+ArxisStudio.Xaml.XamlTypeInfo :: System.String FullName { get; init; }
+ArxisStudio.Xaml.XamlTypeInfo :: System.String Name { get; }
+ArxisStudio.Xaml.XamlTypeInfo :: System.Void Deconstruct(out System.String FullName, out System.Collections.Immutable.ImmutableArray<System.String> BaseTypes, out System.Collections.Immutable.ImmutableArray<System.String> Interfaces, out System.Collections.Immutable.ImmutableArray<System.String> EnumNames, out System.Boolean IsFlags, out System.Boolean IsNullable)
+ArxisStudio.Xaml.XamlTypeInfo :: static System.Boolean op_Equality(ArxisStudio.Xaml.XamlTypeInfo? left, ArxisStudio.Xaml.XamlTypeInfo? right)
+ArxisStudio.Xaml.XamlTypeInfo :: static System.Boolean op_Inequality(ArxisStudio.Xaml.XamlTypeInfo? left, ArxisStudio.Xaml.XamlTypeInfo? right)
+ArxisStudio.Xaml.XamlValueCheck : readonly record struct : System.IEquatable<ArxisStudio.Xaml.XamlValueCheck>
+ArxisStudio.Xaml.XamlValueCheck :: .ctor(System.String? Error)
+ArxisStudio.Xaml.XamlValueCheck :: System.Boolean Equals(ArxisStudio.Xaml.XamlValueCheck other)
+ArxisStudio.Xaml.XamlValueCheck :: System.Boolean Succeeded { get; }
+ArxisStudio.Xaml.XamlValueCheck :: System.String? Error { get; init; }
+ArxisStudio.Xaml.XamlValueCheck :: System.Void Deconstruct(out System.String? Error)
+ArxisStudio.Xaml.XamlValueCheck :: static System.Boolean op_Equality(ArxisStudio.Xaml.XamlValueCheck left, ArxisStudio.Xaml.XamlValueCheck right)
+ArxisStudio.Xaml.XamlValueCheck :: static System.Boolean op_Inequality(ArxisStudio.Xaml.XamlValueCheck left, ArxisStudio.Xaml.XamlValueCheck right)
+ArxisStudio.Xaml.XamlValueOrigin : enum
+ArxisStudio.Xaml.XamlValueOrigin :: Animation = 7
+ArxisStudio.Xaml.XamlValueOrigin :: Code = 8
+ArxisStudio.Xaml.XamlValueOrigin :: Default = 0
+ArxisStudio.Xaml.XamlValueOrigin :: Design = 2
+ArxisStudio.Xaml.XamlValueOrigin :: Document = 1
+ArxisStudio.Xaml.XamlValueOrigin :: Expression = 3
+ArxisStudio.Xaml.XamlValueOrigin :: Inherited = 6
+ArxisStudio.Xaml.XamlValueOrigin :: Style = 4
+ArxisStudio.Xaml.XamlValueOrigin :: Template = 5

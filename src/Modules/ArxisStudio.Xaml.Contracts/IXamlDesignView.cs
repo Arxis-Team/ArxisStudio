@@ -82,4 +82,53 @@ public interface IXamlDesignView : IDisposable
     /// предложить её к выбору значило бы предложить править то, чего в тексте нет.
     /// </remarks>
     IReadOnlyList<object> GetDeclaredObjects();
+
+    /// <summary>Что построил элемент: тип объекта, его базы и тип родителя — именами.</summary>
+    /// <param name="element">Путь элемента в показанном тексте.</param>
+    /// <returns>Сведения; null — элемента нет, он ничего не построил или показ отдал объекты.</returns>
+    /// <remarks>Появилось в контракте 1.1.</remarks>
+    XamlElementInfo? DescribeElement(XamlElementPath element);
+
+    /// <summary>
+    /// Члены элемента — свои и присоединённые, которые читает родитель или уже написал документ, — с
+    /// нынешними значениями.
+    /// </summary>
+    /// <param name="element">Путь элемента в показанном тексте.</param>
+    /// <returns>Члены по имени; пусто — элемента нет или показ отдал объекты.</returns>
+    /// <remarks>
+    /// Событий и списков среди них нет: обработчик — не значение, а детей пишут элементами. Члены, которые
+    /// документ написать не может, — только для чтения: <see cref="XamlMemberInfo.CanWrite"/> у них ложь.
+    /// Присоединённый член стороннего владельца — <c>ToolTip.Tip</c> — сюда не попадает, пока документ его
+    /// не написал: его спрашивают по имени (<see cref="GetMember"/>). Появилось в контракте 1.1.
+    /// </remarks>
+    IReadOnlyList<XamlMemberInfo> GetMembers(XamlElementPath element);
+
+    /// <summary>Член элемента по имени, как его пишет документ: <c>Width</c>, <c>ToolTip.Tip</c>.</summary>
+    /// <param name="element">Путь элемента в показанном тексте.</param>
+    /// <param name="member">Имя члена.</param>
+    /// <returns>Член; null — имя ничего не значит на этом объекте, это событие или список.</returns>
+    /// <remarks>Появилось в контракте 1.1.</remarks>
+    XamlMemberInfo? GetMember(XamlElementPath element, string member);
+
+    /// <summary>Прочтётся ли текст значением члена — так, как его прочтёт загрузка.</summary>
+    /// <param name="element">Путь элемента в показанном тексте.</param>
+    /// <param name="member">Имя члена.</param>
+    /// <param name="text">Значение, как его написал бы документ.</param>
+    /// <returns>Отказ с причиной или успех.</returns>
+    /// <remarks>
+    /// Пустой текст проходит — он значит «снять атрибут», — проходит и выражение: <c>{Binding …}</c> —
+    /// не значение, а его разбор. Член, который проверить не у кого, — неразрешённый, без показа, — тоже
+    /// проходит: отказывать в нём нечем. Появилось в контракте 1.1.
+    /// </remarks>
+    XamlValueCheck CheckValue(XamlElementPath element, string member, string text);
+
+    /// <summary>Начинает предпросмотр значения члена — на объекте, не трогая документ.</summary>
+    /// <param name="element">Путь элемента в показанном тексте.</param>
+    /// <param name="member">Имя члена.</param>
+    /// <returns>
+    /// Предпросмотр; null — показать нечем: у прямого свойства и свойства CLR нет приоритета, который снялся бы
+    /// без следа, а у неразрешённого — объекта.
+    /// </returns>
+    /// <remarks>Появилось в контракте 1.1.</remarks>
+    IXamlValuePreview? Preview(XamlElementPath element, string member);
 }

@@ -23,7 +23,7 @@ namespace ArxisStudio.Modules.Xaml.Documents;
 /// закрывается, а не ставится.
 /// </para>
 /// </remarks>
-internal sealed class DesignView : IXamlDesignView
+internal sealed partial class DesignView : IXamlDesignView
 {
     private readonly DocumentEntry _entry;
     private readonly DocumentHandle _handle;
@@ -114,6 +114,7 @@ internal sealed class DesignView : IXamlDesignView
             return;
 
         _disposed = true;
+        EndPreviews();
         _root = null;
         _applicationTurn++;
 
@@ -146,6 +147,7 @@ internal sealed class DesignView : IXamlDesignView
     /// </remarks>
     internal void LetGo()
     {
+        EndPreviews();
         _released = true;
         Follow(null);
 

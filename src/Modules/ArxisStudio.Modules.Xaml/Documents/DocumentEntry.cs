@@ -284,6 +284,11 @@ internal sealed class DocumentEntry
 
     private void OnLiveChanged(object? sender, XamlLiveDocumentChangedEventArgs e)
     {
+        // Записанное значение пришло текстом: предпросмотр его больше не показывает, а держать замену ему
+        // незачем.
+        if (e.Changes.HasFlag(XamlLiveDocumentChanges.Text))
+            View?.EndPreviews();
+
         // Правка, дошедшая далеко, строит корень заново, не меняя сессии.
         View?.Follow(Live.Session);
 
