@@ -160,6 +160,25 @@ public static class PluginContracts
     }
 
     /// <summary>
+    /// Хозяин контрактной сборки — расширение, объявившее её в <c>provides.contracts</c>; null — сборка не
+    /// контракт.
+    /// </summary>
+    /// <param name="assembly">Сборка из общего контекста.</param>
+    /// <remarks>
+    /// Нужен сбору вкладов: тип вклада объявлен в контракте модуля, и спящих будит событие с именем этого
+    /// модуля, а не того, кто собирает.
+    /// </remarks>
+    public static string? OwnerOf(Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+
+        return Loaded.IsEmpty || assembly.GetName().Name is not { Length: > 0 } name ||
+               !Loaded.TryGetValue(name, out var known) || known.Assembly != assembly
+            ? null
+            : known.OwnerId;
+    }
+
+    /// <summary>
     /// Занимает имя контракта за плагином либо объясняет, почему не вышло.
     /// </summary>
     /// <remarks>

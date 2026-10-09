@@ -208,8 +208,6 @@ public partial class MainWindow : AxWindow
                     () => [.. _dock.Floating, this],
                     _log,
                     error => _plugins?.Blame(error, "сбой цели перетаскивания") == true),
-                [typeof(PluginContributionRegistry)] = _contributions,
-                [typeof(PluginGuard)] = _guard,
             },
         };
 

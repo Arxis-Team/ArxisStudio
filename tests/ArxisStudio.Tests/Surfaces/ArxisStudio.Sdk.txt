@@ -1,4 +1,4 @@
-# StudioSdk 7.18
+# StudioSdk 7.19
 ArxisStudio.Sdk.CommandAttribute : sealed class : System.Attribute
 ArxisStudio.Sdk.CommandAttribute :: .ctor(System.String id)
 ArxisStudio.Sdk.CommandAttribute :: System.String Id { get; }
@@ -52,6 +52,15 @@ ArxisStudio.Sdk.IStudioContext :: ArxisStudio.Sdk.IStudioTasks Tasks { get; }
 ArxisStudio.Sdk.IStudioContext :: System.String PluginDirectory { get; }
 ArxisStudio.Sdk.IStudioContext :: System.String? ProjectPath { get; }
 ArxisStudio.Sdk.IStudioContext :: T? GetService<T>()
+ArxisStudio.Sdk.IStudioContribution<T> : interface : ArxisStudio.Sdk.IStudioGuarded<T>
+ArxisStudio.Sdk.IStudioContribution<T> :: System.Boolean IsBuiltIn { get; }
+ArxisStudio.Sdk.IStudioContribution<T> :: System.Collections.Generic.IReadOnlyList<TAttribute> Attributes<TAttribute>()
+ArxisStudio.Sdk.IStudioContributionSet<T> : interface
+ArxisStudio.Sdk.IStudioContributionSet<T> :: System.Collections.Generic.IReadOnlyList<ArxisStudio.Sdk.IStudioContribution<T>> Items { get; }
+ArxisStudio.Sdk.IStudioContributionSet<T> :: event System.EventHandler Changed
+ArxisStudio.Sdk.IStudioContributions : interface
+ArxisStudio.Sdk.IStudioContributions :: ArxisStudio.Sdk.IStudioContributionSet<T> Collect<T>()
+ArxisStudio.Sdk.IStudioContributions :: ArxisStudio.Sdk.IStudioGuarded<T> Guard<T>(T foreign)
 ArxisStudio.Sdk.IStudioDocuments : interface
 ArxisStudio.Sdk.IStudioDocuments :: System.Threading.Tasks.Task OpenAsync(System.String filePath)
 ArxisStudio.Sdk.IStudioDragDrop : interface
@@ -79,6 +88,16 @@ ArxisStudio.Sdk.IStudioFilePreviews :: event System.EventHandler<ArxisStudio.Sdk
 ArxisStudio.Sdk.IStudioFocus : interface
 ArxisStudio.Sdk.IStudioFocus :: System.Boolean Focus(System.String toolWindowId)
 ArxisStudio.Sdk.IStudioFocus :: System.Boolean IsFocused(System.String toolWindowId)
+ArxisStudio.Sdk.IStudioGuarded<T> : interface
+ArxisStudio.Sdk.IStudioGuarded<T> :: ArxisStudio.Sdk.IStudioGuarded<TOther> Guard<TOther>(TOther value)
+ArxisStudio.Sdk.IStudioGuarded<T> :: Avalonia.Controls.Control Host(Avalonia.Controls.Control view)
+ArxisStudio.Sdk.IStudioGuarded<T> :: System.Boolean Farewell(System.String what, System.Action<T> call)
+ArxisStudio.Sdk.IStudioGuarded<T> :: System.Boolean IsReleased { get; }
+ArxisStudio.Sdk.IStudioGuarded<T> :: System.Boolean Run(System.String what, System.Action<T> call)
+ArxisStudio.Sdk.IStudioGuarded<T> :: System.Boolean TryGet<TResult>(System.String what, System.Func<T, TResult> call, out TResult? result)
+ArxisStudio.Sdk.IStudioGuarded<T> :: System.String OwnerId { get; }
+ArxisStudio.Sdk.IStudioGuarded<T> :: System.Threading.Tasks.Task<System.Boolean> RunAsync(System.String what, System.Func<T, System.Threading.Tasks.Task> call)
+ArxisStudio.Sdk.IStudioGuarded<T> :: event System.EventHandler Released
 ArxisStudio.Sdk.IStudioLog : interface
 ArxisStudio.Sdk.IStudioLog :: System.Void Write(ArxisStudio.Sdk.StudioLogLevel level, System.String source, System.String message)
 ArxisStudio.Sdk.IStudioLogFeed : interface
@@ -305,6 +324,12 @@ ArxisStudio.Sdk.Plugins.PluginTranslation :: System.String Id { get; init; }
 ArxisStudio.Sdk.Plugins.PluginTranslation :: System.Void Deconstruct(out System.String Id, out System.String File)
 ArxisStudio.Sdk.Plugins.PluginTranslation :: static System.Boolean op_Equality(ArxisStudio.Sdk.Plugins.PluginTranslation? left, ArxisStudio.Sdk.Plugins.PluginTranslation? right)
 ArxisStudio.Sdk.Plugins.PluginTranslation :: static System.Boolean op_Inequality(ArxisStudio.Sdk.Plugins.PluginTranslation? left, ArxisStudio.Sdk.Plugins.PluginTranslation? right)
+ArxisStudio.Sdk.StudioContribution : abstract class
+ArxisStudio.Sdk.StudioContribution :: .ctor()
+ArxisStudio.Sdk.StudioContribution :: ArxisStudio.Sdk.IStudioContext Context { get; }
+ArxisStudio.Sdk.StudioContribution :: System.Void Attach(ArxisStudio.Sdk.IStudioContext context)
+ArxisStudio.Sdk.StudioContribution :: virtual System.Void OnAttached()
+ArxisStudio.Sdk.StudioContribution :: virtual System.Void Release()
 ArxisStudio.Sdk.StudioDataFormat<T> : sealed class
 ArxisStudio.Sdk.StudioDataFormat<T> :: .ctor(System.String id)
 ArxisStudio.Sdk.StudioDataFormat<T> :: System.String Id { get; }

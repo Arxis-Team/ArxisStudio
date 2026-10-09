@@ -92,6 +92,26 @@ public class ActivationTests
         Assert.False(PluginActivation.WaitsForCommand(manifest, "hello.greeting"));
     }
 
+    /// <summary>
+    /// Вклад в чужой контракт плагин не поднимает сразу: его будит сбор вкладов в контракт названного
+    /// модуля, и только его.
+    /// </summary>
+    /// <remarks>
+    /// Идентификатор модуля сравнивается без регистра — тем же правилом, каким студия сравнивает
+    /// расширения, — а пробелы вокруг значения не в счёт, как у остальных событий.
+    /// </remarks>
+    [Fact]
+    public void A_contribution_waits_for_its_own_module()
+    {
+        var manifest = Manifest(" onContribution: Arxis.Inspector ", "onCommand:hello.greet");
+
+        Assert.False(PluginActivation.IsEager(manifest));
+        Assert.True(PluginActivation.WaitsForContribution(manifest, "arxis.inspector"));
+        Assert.False(PluginActivation.WaitsForContribution(manifest, "arxis.xaml"));
+        Assert.Equal(["Arxis.Inspector"], PluginActivation.ContributionOwners(manifest));
+        Assert.Empty(PluginActivation.ContributionOwners(Manifest("onContribution:")));
+    }
+
     [Fact]
     public void A_file_type_is_matched_regardless_of_case()
     {

@@ -305,6 +305,12 @@ public sealed class StudioPlugins
         _release.Views = Surfaces.Unmount;
 
         _exports.Conflict += (_, message) => _log.Write(StudioLogLevel.Warning, "Plugins", message);
+        _contributions.Note += (_, message) => _log.Write(StudioLogLevel.Warning, "Plugins", message);
+
+        // Сбор вкладов в контракт — тоже событие: плагин, вся работа которого — вклад в чужой модуль,
+        // ждал именно его. Будит та же дорога, что у команды и файла.
+        _contributions.Awaken = owner =>
+            Activate(waiting => PluginActivation.WaitsForContribution(waiting.Manifest, owner));
         Commands.Conflict += (_, message) => _log.Write(StudioLogLevel.Warning, "Plugins", message);
 
         _guard.Failed += (_, failure) => _log.Write(
@@ -342,7 +348,8 @@ public sealed class StudioPlugins
             toolbar: ToolBar,
             dock: Dock,
             restart: Require,
-            previews: FilePreviews);
+            previews: FilePreviews,
+            contributions: _contributions);
 
         var host = new PluginHost(_contexts);
 
@@ -483,6 +490,10 @@ public sealed class StudioPlugins
         // узнать об этом отсюда, а не гадать, почему связка не работает.
         foreach (var note in host.Resolution?.Notes ?? [])
             _log.Write(StudioLogLevel.Warning, "Plugins", note);
+
+        // Модули поднялись раньше и могли уже начать собирать вклады: ждущий сбора в их контракт
+        // отложен только что, и разбудить его, кроме этого места, некому.
+        Activate(waiting => _contributions.Awaited(waiting.Manifest));
 
         foreach (var waiting in host.Deferred)
             _log.Write(StudioLogLevel.Debug, "Plugins", $"{waiting.DisplayName} ждёт своего события");

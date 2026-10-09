@@ -87,6 +87,47 @@ internal static class TestAssembly
     }
 
     /// <summary>
+    /// Собирает встроенный модуль вместе с его контрактной сборкой: обе лежат в <c>bin</c> папки
+    /// модуля, а манифест объявляет контракт.
+    /// </summary>
+    /// <param name="id">Идентификатор модуля.</param>
+    /// <param name="contractSource">Код контракта.</param>
+    /// <param name="moduleSource">Код модуля; ссылается на контракт.</param>
+    /// <returns>Загруженные сборки модуля и контракта.</returns>
+    /// <remarks>
+    /// Контракт загружается раньше, чем компилируется модуль: ссылки компиляции — сборки, загруженные
+    /// в процесс, — и модуль без него не собрался бы. Подъём модуля потом находит контракт уже в общем
+    /// контексте и записывает его за модулем, как сборку, загруженную тем, кто встраивает студию.
+    /// Имена сборок единственные на процесс по той же причине, что у <see cref="EmitModule(string, string, string)"/>.
+    /// </remarks>
+    public static (Assembly Module, Assembly Contract) EmitModuleWithContract(
+        string id, string contractSource, string moduleSource)
+    {
+        var unique = Guid.NewGuid().ToString("N");
+        var contract = $"Probe.Contract.{unique}";
+        var module = $"Probe.Module.{unique}";
+        var folder = Directory.CreateDirectory(Path.Combine(Root.Value, unique)).FullName;
+        var bin = Directory.CreateDirectory(Path.Combine(folder, "bin")).FullName;
+
+        EmitFile(Path.Combine(bin, contract + ".dll"), contract, contractSource);
+
+        var loadedContract = Assembly.LoadFrom(Path.Combine(bin, contract + ".dll"));
+
+        EmitFile(Path.Combine(bin, module + ".dll"), module, moduleSource);
+
+        File.WriteAllText(Path.Combine(folder, ModuleManifestFile), $$"""
+            {
+              "id": "{{id}}",
+              "name": "{{id}}",
+              "version": "1.0.0",
+              "provides": { "contracts": [ "bin/{{contract}}.dll" ] }
+            }
+            """);
+
+        return (Assembly.LoadFrom(Path.Combine(bin, module + ".dll")), loadedContract);
+    }
+
+    /// <summary>
     /// Компилирует сборку в файл, не загружая её в процесс.
     /// </summary>
     /// <param name="path">Куда положить сборку.</param>

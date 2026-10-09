@@ -340,7 +340,7 @@ public sealed class PluginCard : INotifyPropertyChanged, IPluginRow
             var colon = activation.IndexOf(':', StringComparison.Ordinal);
             var kind = colon > 0 ? activation[..colon] : string.Empty;
 
-            if (kind is "onFileType" or "onCommand" or "onToolWindow" or "onNewItem")
+            if (kind is "onFileType" or "onCommand" or "onToolWindow" or "onNewItem" or "onContribution")
             {
                 if (!kinds.TryGetValue(kind, out var names))
                     kinds[kind] = names = [];
@@ -362,6 +362,7 @@ public sealed class PluginCard : INotifyPropertyChanged, IPluginRow
         Add("onCommand", "plugins.activation.commands");
         Add("onToolWindow", "plugins.activation.panels");
         Add("onNewItem", "plugins.activation.newitems");
+        Add("onContribution", "plugins.activation.contributions");
 
         parts.AddRange(other);
 

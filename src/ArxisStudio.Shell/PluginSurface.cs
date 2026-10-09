@@ -1,4 +1,5 @@
-﻿using ArxisStudio.Controls;
+﻿using System.Globalization;
+using ArxisStudio.Controls;
 using ArxisStudio.Shell.Localization;
 using Avalonia;
 using Avalonia.Controls;
@@ -51,6 +52,16 @@ public sealed class PluginSurface : Decorator
 
     /// <summary>Панель упала и заменена заглушкой.</summary>
     public bool IsBroken => _broken;
+
+    /// <summary>
+    /// Место строки, а не панели: упавшее заменяется одной строкой о сбое, без кнопки.
+    /// </summary>
+    /// <remarks>
+    /// Так стоит построенное вкладом — поле инспектора, раздел среди строк. Заглушка панели с заголовком и
+    /// отступами раздвинула бы строку на полэкрана, а перезапускать поле некому: его строят заново вместе
+    /// со строкой. Причина — в подсказке и в журнале.
+    /// </remarks>
+    public bool IsCompact { get; init; }
 
     /// <summary>
     /// Ставит на место построенную заново панель.
@@ -122,6 +133,24 @@ public sealed class PluginSurface : Decorator
     private Control Stub(Exception error, out AxButton? restart)
     {
         restart = null;
+
+        if (IsCompact)
+        {
+            var line = new TextBlock
+            {
+                Text = string.Format(
+                    CultureInfo.CurrentCulture,
+                    Localizer.Instance["panel.crashed.inline"],
+                    Faults.Message(error)),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+
+            AxText.SetTone(line, AxTextTone.Error);
+            ToolTip.SetTip(line, Faults.Message(error));
+
+            return line;
+        }
 
         var box = new StackPanel { VerticalAlignment = VerticalAlignment.Top };
 

@@ -93,6 +93,7 @@ internal sealed class PluginRestart(string pluginId, Action<string, string> requ
 /// <param name="dock">Док студии; null — панели на экран доставать нечем.</param>
 /// <param name="restart">Куда отдать просьбу плагина о перезапуске; null — просить некого.</param>
 /// <param name="previews">Превью файлов; null — превью у студии нет.</param>
+/// <param name="contributions">Реестр вкладов; null — вклады в контракты модулей не собираются.</param>
 public sealed class StudioContextFactory(
     IStudioLog log,
     IStudioCommands commands,
@@ -106,7 +107,8 @@ public sealed class StudioContextFactory(
     StudioToolBar? toolbar = null,
     StudioDock? dock = null,
     Action<string, string>? restart = null,
-    StudioFilePreviews? previews = null)
+    StudioFilePreviews? previews = null,
+    PluginContributionRegistry? contributions = null)
     : IStudioContextFactory
 {
     private readonly StudioTaskRegistry _tasks = tasks ?? new StudioTaskRegistry();
@@ -175,7 +177,7 @@ public sealed class StudioContextFactory(
         var granted = services;
 
         if (plugins is not null || exports is not null || toolbar is not null || dock is not null || restart is not null
-            || previews is not null)
+            || previews is not null || contributions is not null)
         {
             var extended = services is null
                 ? new Dictionary<Type, object>()
@@ -214,6 +216,11 @@ public sealed class StudioContextFactory(
                 // интерфейсах, иначе первое незаметно получает силу второго.
                 extended[typeof(IStudioFocus)] = new PluginFocus(dock, plugin.Id);
             }
+
+            // Вклады — именные: набор записывается на собравшего и уходит вместе с ним, а держал бы его
+            // контекст загрузки.
+            if (contributions is not null)
+                extended[typeof(IStudioContributions)] = new PluginContributionFacade(contributions, plugin.Id);
 
             // Просьба о перезапуске — именная: студия пишет её на того, кто попросил.
             if (restart is not null)

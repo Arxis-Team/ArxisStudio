@@ -48,6 +48,17 @@ public static class PluginActivation
     public const string OnNewItem = "onNewItem:";
 
     /// <summary>
+    /// Плагин поднимается, когда модуль собирает вклады в свой контракт.
+    /// </summary>
+    /// <remarks>
+    /// За двоеточием — идентификатор модуля, объявившего контракт: <c>onContribution:arxis.inspector</c>.
+    /// Плагину, вся работа которого — редактор свойства или раздел инспектора, своей кнопки и своей
+    /// панели нет, и разбудить его, кроме этого события, нечему; без него он поднимался бы на каждом
+    /// старте, нужен инспектор или нет.
+    /// </remarks>
+    public const string OnContribution = "onContribution:";
+
+    /// <summary>
     /// Нужно ли поднимать плагин сразу.
     /// </summary>
     /// <param name="manifest">Манифест плагина.</param>
@@ -80,6 +91,24 @@ public static class PluginActivation
     /// <param name="itemId">Идентификатор пункта.</param>
     public static bool WaitsForNewItem(PluginManifest? manifest, string itemId) =>
         Waits(manifest, OnNewItem, itemId, StringComparer.Ordinal);
+
+    /// <summary>Ждёт ли плагин, когда модуль соберёт вклады в свой контракт.</summary>
+    /// <param name="manifest">Манифест плагина.</param>
+    /// <param name="ownerId">Идентификатор модуля — хозяина контракта.</param>
+    /// <remarks>Идентификатор сравнивается правилом, каким студия сравнивает расширения: без регистра.</remarks>
+    public static bool WaitsForContribution(PluginManifest? manifest, string ownerId) =>
+        Waits(manifest, OnContribution, ownerId, PluginIds.Comparer);
+
+    /// <summary>Хозяева контрактов, сбора вкладов в которые ждёт плагин.</summary>
+    /// <param name="manifest">Манифест плагина.</param>
+    public static IEnumerable<string> ContributionOwners(PluginManifest? manifest) =>
+        manifest is null
+            ? []
+            : manifest.Activation
+                .Select(activation => activation.Trim())
+                .Where(trimmed => trimmed.StartsWith(OnContribution, StringComparison.OrdinalIgnoreCase))
+                .Select(trimmed => trimmed[OnContribution.Length..].Trim())
+                .Where(owner => owner.Length > 0);
 
     /// <remarks>
     /// Событие читается целиком без пробелов по краям, приставка — без регистра, значение за ней —

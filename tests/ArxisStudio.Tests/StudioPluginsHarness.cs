@@ -31,6 +31,7 @@ internal sealed class StudioPluginsHarness : IDisposable
     public StudioPluginsHarness(DockView? view = null)
     {
         View = view ?? new DockView();
+        Contributions = new PluginContributionRegistry(Guard);
         Commands = new StudioCommands(Guard);
         Dock = new StudioDock(View);
         ToolBar = new StudioToolBar(Left, Center, Right) { Invoke = Commands.Invoke };
@@ -46,8 +47,8 @@ internal sealed class StudioPluginsHarness : IDisposable
     /// <summary>Реестр задач расширений.</summary>
     public StudioTaskRegistry Tasks { get; } = new();
 
-    /// <summary>Реестр вкладов: редакторы, инспекторы.</summary>
-    public PluginContributionRegistry Contributions { get; } = new();
+    /// <summary>Реестр вкладов — на общем шве, как у окна: сбой вклада засчитывается там же, где остальные.</summary>
+    public PluginContributionRegistry Contributions { get; }
 
     /// <summary>Превью файлов — общий реестр, как у главного окна.</summary>
     public StudioFilePreviews Previews => _previews ??= new StudioFilePreviews(Log, Guard);
@@ -109,11 +110,7 @@ internal sealed class StudioPluginsHarness : IDisposable
             Documents = Documents,
             Shortcuts = shortcuts,
             FilePreviews = Previews,
-            Services = new Dictionary<Type, object>
-            {
-                [typeof(PluginContributionRegistry)] = Contributions,
-                [typeof(PluginGuard)] = Guard,
-            },
+            Services = new Dictionary<Type, object>(),
             Catalog = catalog ?? (() => []),
             Assemblies = modules ?? [],
             Settings = new PluginSettingsStore(userFile: SettingsFile),
