@@ -1,6 +1,8 @@
 using ArxisStudio.Controls;
+using ArxisStudio.Icons;
 using ArxisStudio.Inspector;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
 
@@ -74,6 +76,11 @@ public sealed class BoolEditor : PropertyEditor
 /// Сегменты не сжимаются: их наименьшая ширина — та, что им нужна, и поле называет её строке. Колонке значения
 /// тесно — сегменты уходят под подпись во всю ширину, а не обрезаются у края.
 /// </para>
+/// <para>
+/// Варианты метаданных (<see cref="InspectorConstraints.Choices"/>) ставят сегментам порядок, подпись и значок:
+/// выравнивание — значками «к краю, по центру, растянуть», как в Figma. Сегмент-значок называет себя диктору и
+/// подсказке подписью варианта.
+/// </para>
 /// </remarks>
 [PropertyEditor(typeof(Enum), ForDerived = true, Fallback = true)]
 public sealed class EnumEditor : PropertyEditor
@@ -99,7 +106,32 @@ public sealed class EnumEditor : PropertyEditor
         if (type.IsFlags)
             return new TextField(context, multiline: false);
 
-        return type.EnumNames.Count <= MaxSegments ? new SegmentsField(context) : new ListField(context);
+        var choices = Ordered(context.Property);
+
+        return choices.Count <= MaxSegments ? new SegmentsField(context, choices) : new ChoiceList(context, choices);
+    }
+
+    /// <summary>
+    /// Значения перечисления и их подписи. Варианты метаданных, названные единственно возможными
+    /// (<see cref="InspectorConstraints.ChoicesOnly"/>), — это и есть список: так у начертания нет синонимов. Иначе —
+    /// значения типа в порядке вариантов, если варианты назвали их все, или в порядке объявления; подпись и значок —
+    /// у варианта, если он есть.
+    /// </summary>
+    /// <param name="property">Свойство.</param>
+    internal static IReadOnlyList<InspectorChoice> Ordered(InspectorProperty property)
+    {
+        ArgumentNullException.ThrowIfNull(property);
+
+        var names = property.ValueType.EnumNames;
+        var choices = property.Constraints.Choices;
+
+        if (choices.Count > 0 && property.Constraints.ChoicesOnly)
+            return choices;
+
+        if (choices.Count == names.Count && names.All(name => choices.Any(choice => choice.Value == name)))
+            return choices;
+
+        return [.. names.Select(name => choices.FirstOrDefault(choice => choice.Value == name) ?? new InspectorChoice(name))];
     }
 
     private sealed class SegmentsField : InspectorField
@@ -108,13 +140,13 @@ public sealed class EnumEditor : PropertyEditor
         private readonly AxSegmentedControl _segments;
         private bool _showing;
 
-        public SegmentsField(InspectorFieldContext context)
+        public SegmentsField(InspectorFieldContext context, IReadOnlyList<InspectorChoice> choices)
         {
             _context = context;
             _segments = new AxSegmentedControl { IsEnabled = !context.Property.IsReadOnly, HorizontalAlignment = HorizontalAlignment.Left };
 
-            foreach (var name in context.Property.ValueType.EnumNames)
-                _segments.Items.Add(new AxSegmentItem { Content = name, Tag = name });
+            foreach (var choice in choices)
+                _segments.Items.Add(Segment(choice));
 
             _segments.SelectionChanged += (_, _) =>
             {
@@ -146,57 +178,35 @@ public sealed class EnumEditor : PropertyEditor
             }
         }
 
+        /// <summary>Сегмент варианта: значок с подписью для диктора и подсказки — или сама подпись.</summary>
+        private static AxSegmentItem Segment(InspectorChoice choice)
+        {
+            var title = choice.Title ?? choice.Value;
+            var item = new AxSegmentItem
+            {
+                Tag = choice.Value,
+                Content = choice.Icon is { } icon ? new AxIcon { Data = icon } : title,
+            };
+
+            if (choice.Icon is not null)
+            {
+                AutomationProperties.SetName(item, title);
+                ToolTip.SetTip(item, title);
+            }
+            else if (choice.Description is { } description)
+            {
+                ToolTip.SetTip(item, description);
+            }
+
+            return item;
+        }
+
         /// <summary>Называет строке наименьшую ширину сегментов — ту, что им нужна: тема и кегль известны только на экране.</summary>
         private void Fit()
         {
             _segments.ClearValue(Layoutable.MinWidthProperty);
             _segments.Measure(Size.Infinity);
             _segments.MinWidth = Math.Ceiling(_segments.DesiredSize.Width);
-        }
-    }
-
-    private sealed class ListField : InspectorField
-    {
-        private readonly InspectorFieldContext _context;
-        private readonly AxComboBox _list;
-        private bool _showing;
-
-        public ListField(InspectorFieldContext context)
-        {
-            _context = context;
-            _list = new AxComboBox
-            {
-                Size = AxControlSize.Compact,
-                IsEnabled = !context.Property.IsReadOnly,
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                ItemsSource = context.Property.ValueType.EnumNames,
-            };
-
-            _list.SelectionChanged += (_, _) =>
-            {
-                if (!_showing && _list.SelectedItem is string name)
-                    _ = _context.WriteAsync(name);
-            };
-        }
-
-        public override Control View => _list;
-
-        public override Control? FocusTarget => _list;
-
-        public override void Show(InspectorValue value)
-        {
-            ArgumentNullException.ThrowIfNull(value);
-
-            _showing = true;
-
-            try
-            {
-                _list.SelectedItem = value.IsMixed ? null : value.Text;
-            }
-            finally
-            {
-                _showing = false;
-            }
         }
     }
 }

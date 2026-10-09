@@ -3,6 +3,7 @@ using ArxisStudio.Icons;
 using ArxisStudio.Inspector;
 using ArxisStudio.Sdk;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -35,6 +36,7 @@ public sealed class InspectorPanel : ToolWindow
     private InspectorMenus? _menus;
     private Catalog.InspectorCatalog? _catalog;
     private bool _syncing;
+    private bool _showingToggle;
 
     /// <summary>Разметка — тестам.</summary>
     internal InspectorView? View => _view;
@@ -68,7 +70,7 @@ public sealed class InspectorPanel : ToolWindow
 
         _catalog = catalog;
         _list = new InspectorList(view.List, _service, catalog, words);
-        _menus = new InspectorMenus(_list, catalog);
+        _menus = new InspectorMenus(_list, catalog, view);
 
         _service.CurrentChanged += OnCurrentChanged;
         catalog.Changed += OnCatalogChanged;
@@ -82,8 +84,10 @@ public sealed class InspectorPanel : ToolWindow
         view.Lock.IsCheckedChanged += OnLockChanged;
         view.Options.Click += OnOptionsClick;
         view.Unlock.Click += OnUnlockClick;
+        view.Enabled.IsCheckedChanged += OnEnabledChanged;
         view.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
         view.List.ContextRequested += OnContextRequested;
+        view.HeaderRows.ContextRequested += OnContextRequested;
 
         _list.Follow();
         ShowState();
@@ -116,8 +120,11 @@ public sealed class InspectorPanel : ToolWindow
             view.Lock.IsCheckedChanged -= OnLockChanged;
             view.Options.Click -= OnOptionsClick;
             view.Unlock.Click -= OnUnlockClick;
+            view.Enabled.IsCheckedChanged -= OnEnabledChanged;
             view.RemoveHandler(InputElement.KeyDownEvent, OnKeyDown);
             view.List.ContextRequested -= OnContextRequested;
+            view.HeaderRows.ContextRequested -= OnContextRequested;
+            view.HeaderRows.Children.Clear();
         }
 
         _service = null;
@@ -164,6 +171,15 @@ public sealed class InspectorPanel : ToolWindow
     }
 
     private void OnUnlockClick(object? sender, RoutedEventArgs e) => _service?.Lock(false);
+
+    /// <summary>Флажок «включён» в шапке: щелчок пишет значение всем показанным — у разных тоже одно.</summary>
+    private void OnEnabledChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_showingToggle || _list is not { } list || list.HeaderToggle is not { } toggle || _view?.Enabled.IsChecked is not { } on)
+            return;
+
+        _ = list.WriteAsync([new InspectorWrite(toggle.Id, on ? "True" : "False")], null);
+    }
 
     private void OnOptionsClick(object? sender, RoutedEventArgs e)
     {
@@ -219,7 +235,10 @@ public sealed class InspectorPanel : ToolWindow
         view.Empty.IsVisible = true;
     }
 
-    /// <summary>Шапка: значок, имя, тип и разделы плагинов, что встают в шапку; ниже — заметка источника.</summary>
+    /// <summary>
+    /// Шапка: флажок «включён», значок, имя, тип, строки имени и жетонов и разделы плагинов, что встают в шапку; ниже —
+    /// заметка источника.
+    /// </summary>
     private void ShowHeader()
     {
         if (_view is not { } view || _list is not { } list)
@@ -237,6 +256,18 @@ public sealed class InspectorPanel : ToolWindow
         view.NoticeText.Text = header?.Notice;
         view.Notice.IsVisible = !string.IsNullOrEmpty(header?.Notice);
 
+        ShowToggle(list);
+
+        var rows = view.HeaderRows.Children;
+
+        if (!rows.SequenceEqual(list.HeaderRows))
+        {
+            rows.Clear();
+            rows.AddRange(list.HeaderRows);
+        }
+
+        view.HeaderRows.IsVisible = rows.Count > 0;
+
         var sections = view.HeaderSections.Children;
 
         if (!sections.SequenceEqual(list.HeaderSections))
@@ -246,6 +277,37 @@ public sealed class InspectorPanel : ToolWindow
         }
 
         view.HeaderSections.IsVisible = sections.Count > 0;
+    }
+
+    /// <summary>Флажок «включён»: значение свойства шапки, а у разных — третье состояние.</summary>
+    private void ShowToggle(InspectorList list)
+    {
+        if (_view is not { } view)
+            return;
+
+        var toggle = list.HeaderToggle;
+
+        view.Enabled.IsVisible = toggle is not null;
+
+        if (toggle is null)
+            return;
+
+        var value = list.ValueOf(toggle.Id);
+
+        _showingToggle = true;
+
+        try
+        {
+            view.Enabled.IsThreeState = value.IsMixed;
+            view.Enabled.IsChecked = value.IsMixed ? null : bool.TryParse(value.Text, out var on) && on;
+            view.Enabled.IsEnabled = !toggle.IsReadOnly;
+            AutomationProperties.SetName(view.Enabled, toggle.Label);
+            ToolTip.SetTip(view.Enabled, toggle.Label);
+        }
+        finally
+        {
+            _showingToggle = false;
+        }
     }
 
     /// <summary>
@@ -265,9 +327,12 @@ public sealed class InspectorPanel : ToolWindow
             return;
         }
 
-        // Остальное — клавиши списка: в поиске свои Ctrl+Z и стрелки.
-        if (e.Source is not Visual source || !view.List.IsVisualAncestorOf(source) && !ReferenceEquals(source, view.List))
+        // Остальное — клавиши списка и строк шапки: в поиске свои Ctrl+Z и стрелки.
+        if (e.Source is not Visual source ||
+            !view.List.IsVisualAncestorOf(source) && !ReferenceEquals(source, view.List) && !view.HeaderRows.IsVisualAncestorOf(source))
+        {
             return;
+        }
 
         if (view.GetPlatformSettings()?.HotkeyConfiguration is { } keys)
         {

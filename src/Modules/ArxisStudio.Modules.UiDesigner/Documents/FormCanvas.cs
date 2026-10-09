@@ -38,6 +38,14 @@ internal interface IFormCanvasHost
     /// <summary>Показать всё, что на холсте.</summary>
     void FrameAll();
 
+    /// <summary>
+    /// Ведёт к месту в XAML формы, с которой работают: отрезок выделен и виден, клавиатура — у текста; в одном холсте
+    /// XAML не видно — хозяин открывает разделение.
+    /// </summary>
+    /// <param name="start">Начало отрезка.</param>
+    /// <param name="length">Длина отрезка.</param>
+    void ShowInCode(int start, int length);
+
     /// <summary>Окно студии, где стоит холст, потеряло фокус: пора сохранить.</summary>
     void LeftWindow();
 

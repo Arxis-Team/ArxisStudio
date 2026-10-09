@@ -51,7 +51,18 @@ internal sealed class XamlInspectorSnapshot
     /// <summary>Раздел присоединённых, которые читает родитель: «В Grid».</summary>
     private const string ParentCategory = "parent/";
 
+    /// <summary>Флажок шапки: видим ли элемент.</summary>
+    private const string VisibleMember = "IsVisible";
+
+    /// <summary>Классы стиля — жетонами в шапке.</summary>
+    private const string ClassesMember = "Classes";
+
+    /// <summary>Элемент стиля: у него есть классы.</summary>
+    private const string StyledElementType = "Avalonia.StyledElement";
+
     private static readonly InspectorTypeInfo Text = InspectorTypeInfo.Of(typeof(string));
+
+    private static readonly InspectorTypeInfo ClassesType = InspectorTypeInfo.Of(typeof(Avalonia.Controls.Classes));
 
     private readonly List<Picked> _picked;
     private readonly Dictionary<string, Spec> _specs;
@@ -144,23 +155,25 @@ internal sealed class XamlInspectorSnapshot
 
         var specs = new Dictionary<string, Spec>(StringComparer.Ordinal);
         var type = TypeOf(picked);
-        var header = HeaderOf(picked, document.State, live, strings);
+        var shown = live;
 
         // Живой — тот, чьи члены пришли от объектов: показ может быть, а объектов в нём уже нет — их отдали на замену.
         live = live && picked.Count > 0 && picked.All(static item => item.Info is not null);
 
         if (picked.Count == 0)
-            return new XamlInspectorSnapshot(picked, specs, type, header, live);
+            return new XamlInspectorSnapshot(picked, specs, type, HeaderOf(picked, document.State, shown, strings, specs), live);
 
         if (live)
             AddMembers(picked, specs);
+
+        AddClasses(picked, specs, live);
 
         if (picked.Count == 1)
             AddWritten(picked[0], specs, live);
         else if (!live)
             AddCommonWritten(picked, specs);
 
-        return new XamlInspectorSnapshot(picked, specs, type, HeaderOf(picked, document.State, live, strings), live);
+        return new XamlInspectorSnapshot(picked, specs, type, HeaderOf(picked, document.State, live, strings, specs), live);
     }
 
     /// <summary>Значение свойства; у нескольких выбранных — первого, с «—», если написано разное.</summary>
@@ -187,6 +200,54 @@ internal sealed class XamlInspectorSnapshot
     /// <summary>Есть ли такое свойство и пишется ли оно.</summary>
     /// <param name="id">Свойство.</param>
     public bool Writes(string id) => _specs.TryGetValue(id, out var spec) && !spec.Property.IsReadOnly;
+
+    /// <summary>Сколько выбранных осталось в тексте.</summary>
+    public int Count => _picked.Count;
+
+    /// <summary>Что написано у выбранного по номеру.</summary>
+    /// <param name="id">Свойство.</param>
+    /// <param name="index">Номер выбранного.</param>
+    /// <returns>Написанное; null — не написано или такого свойства нет.</returns>
+    public string? WrittenAt(string id, int index) =>
+        _specs.TryGetValue(id, out var spec) && index >= 0 && index < _picked.Count ? WrittenAt(_picked[index], spec) : null;
+
+    /// <summary>Как назвать выбранного по номеру: тип и имя — <c>Button «Go»</c>.</summary>
+    /// <param name="index">Номер выбранного.</param>
+    public string NameAt(int index) => Titled(_picked[index].Element);
+
+    /// <summary>
+    /// Где в тексте выбранного написано свойство: размер корня — в размере дизайна, если документ его назвал.
+    /// </summary>
+    /// <param name="id">Свойство.</param>
+    /// <param name="index">Номер выбранного.</param>
+    public FormWrite Locate(string id, int index)
+    {
+        var item = _picked[index];
+
+        return item.Path.Equals(XamlElementPath.Root) && id is "Width" or "Height" &&
+               item.Element.GetDesignTimeAttribute("Design" + id) is not null
+            ? new FormWrite(FormEdits.DesignPrefix + "Design" + id, null)
+            : Spell(id, null);
+    }
+
+    /// <summary>
+    /// Можно ли перенести свойство в члены для дизайна (<c>d:</c>): свой член объекта, который пишется, — не
+    /// присоединённый и не размер корня, он и так размер дизайна.
+    /// </summary>
+    /// <param name="id">Свойство.</param>
+    public bool Designs(string id) =>
+        _specs.TryGetValue(id, out var spec) && spec.Kind == Kind.Member && !spec.Property.IsReadOnly &&
+        spec.Member is { IsAttached: false } &&
+        !(id is "Width" or "Height" && _picked.Any(static item => item.Path.Equals(XamlElementPath.Root)));
+
+    /// <summary>
+    /// Можно ли показать значение свойства на объектах, не трогая документ: член объекта, который пишется, — но не
+    /// размер корня, его дизайнер берёт из размера дизайна, а не с объекта.
+    /// </summary>
+    /// <param name="id">Свойство.</param>
+    public bool Previews(string id) =>
+        IsLive && _specs.TryGetValue(id, out var spec) && spec.Kind == Kind.Member && !spec.Property.IsReadOnly &&
+        !(id is "Width" or "Height" && _picked.Any(static item => item.Path.Equals(XamlElementPath.Root)));
 
     /// <summary>Элементы выбранных — тем, кто проверяет имя.</summary>
     public IEnumerable<XamlElement> Elements => _picked.Select(static item => item.Element);
@@ -234,6 +295,22 @@ internal sealed class XamlInspectorSnapshot
                     : new InspectorConstraints { Minimum = attributes.RangeMinimum, Maximum = attributes.RangeMaximum },
             });
         }
+    }
+
+    /// <summary>
+    /// Классы стиля — жетонами в шапке. Среди членов их нет: это список, а не значение, — но разметка пишет их одним
+    /// атрибутом, <c>Classes="primary large"</c>, и так их и правят. Есть они у всякого элемента стиля, а без показа,
+    /// когда типов не видно, — там, где написаны.
+    /// </summary>
+    private static void AddClasses(List<Picked> picked, Dictionary<string, Spec> specs, bool live)
+    {
+        var styled = live
+            ? picked.All(static item => item.Info is { } info &&
+                                        (info.TypeFullName == StyledElementType || info.BaseTypes.Contains(StyledElementType, StringComparer.Ordinal)))
+            : picked.All(static item => item.Element.GetAttribute(ClassesMember) is not null);
+
+        if (styled)
+            specs[ClassesMember] = new Spec(Kind.Other, null, new InspectorProperty(ClassesMember, ClassesType) { Category = CommonCategory });
     }
 
     /// <summary>Написанное у одного выбранного, чего нет среди членов: имя, члены для дизайна, директивы и прочее.</summary>
@@ -439,27 +516,48 @@ internal sealed class XamlInspectorSnapshot
         IsNullable = type.IsNullable,
     };
 
-    private static InspectorHeader HeaderOf(List<Picked> picked, XamlDocumentState state, bool live, IStudioStrings strings)
+    /// <summary>
+    /// Шапка: тип и имя или число выбранных, пространство и сборка; флажок видимости, имя и классы — свойства, которые
+    /// шапка правит сама, если они есть.
+    /// </summary>
+    private static InspectorHeader HeaderOf(
+        List<Picked> picked, XamlDocumentState state, bool live, IStudioStrings strings, Dictionary<string, Spec> specs)
     {
         var notice = live ? null : strings[state == XamlDocumentState.Behind ? "inspector.notice.behind" : "inspector.notice.written"];
+        var visible = specs.TryGetValue(VisibleMember, out var spec) && spec.Kind == Kind.Member ? VisibleMember : null;
+        var name = specs.ContainsKey(FormEdits.NameDirective) ? FormEdits.NameDirective : null;
+        var classes = specs.ContainsKey(ClassesMember) ? ClassesMember : null;
 
         if (picked.Count != 1)
         {
             return new InspectorHeader(string.Format(CultureInfo.CurrentCulture, strings["inspector.many"], picked.Count))
             {
                 Notice = notice,
+                EnabledProperty = visible,
+                NameProperty = name,
+                TagsProperty = classes,
             };
         }
 
         var item = picked[0];
-        var element = item.Element;
-        var title = element.Identity is { Length: > 0 } name ? $"{element.Name.LocalName} «{name}»" : element.Name.LocalName;
+        var title = Titled(item.Element);
         var subtitle = item.Info is { } info
             ? $"{Namespace(info.TypeFullName)} · {info.AssemblyName}"
             : null;
 
-        return new InspectorHeader(title) { Subtitle = subtitle, Notice = notice };
+        return new InspectorHeader(title)
+        {
+            Subtitle = subtitle,
+            Notice = notice,
+            EnabledProperty = visible,
+            NameProperty = name,
+            TagsProperty = classes,
+        };
     }
+
+    /// <summary>Тип и имя элемента: <c>Button «Go»</c>, без имени — тип.</summary>
+    private static string Titled(XamlElement element) =>
+        element.Identity is { Length: > 0 } identity ? $"{element.Name.LocalName} «{identity}»" : element.Name.LocalName;
 
     private static string Namespace(string fullName)
     {

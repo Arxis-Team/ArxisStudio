@@ -5,8 +5,9 @@
     «По алфавиту» снимает разделы, «Только заданные» оставляет то, что задано здесь, «Все свойства» показывает
     дополнительное и скрытое — как отладочный вид инспектора Unity, но с той же кастомизацией строк.
 
-    Под полосой шапка: значок, имя и тип показанного — она не прокручивается, как шапка компонента у Unity, — и
-    разделы, которые плагины ставят в шапку. Ниже заметка источника: почему показано не всё.
+    Под полосой шапка: флажок «включён», значок, имя и тип показанного — она не прокручивается, как шапка объекта у
+    Unity, — строки имени и жетонов, если цель их назвала, и разделы, которые плагины ставят в шапку. Ниже заметка
+    источника: почему показано не всё.
 
     Список один на все разделы: стрелки идут по строкам подряд, заголовок раздела — строка, которую нельзя выбрать,
     и стрелки проходят мимо неё. Tab идёт от поля к полю, как в окне свойств Visual Studio, а ячейка строки
@@ -73,6 +74,8 @@
     <a:StackPanel x:Name="Header" a:DockPanel.Dock="Top" Margin="{a:DynamicResource AxSpaceThickness}"
                   Spacing="{a:DynamicResource AxSpaceTight}" IsVisible="False">
       <a:DockPanel>
+        <AxCheckBox x:Name="Enabled" a:DockPanel.Dock="Left" VerticalAlignment="Center" IsVisible="False"
+                    Margin="{a:DynamicResource AxGapIconTextThickness}"/>
         <AxIcon x:Name="HeaderIcon" a:DockPanel.Dock="Left" VerticalAlignment="Center"
                 Margin="{a:DynamicResource AxGapIconTextThickness}"
                 a:AutomationProperties.AccessibilityView="Raw"/>
@@ -81,6 +84,7 @@
           <a:TextBlock x:Name="Subtitle" AxText.Role="Small" AxText.Tone="Secondary" TextTrimming="CharacterEllipsis"/>
         </a:StackPanel>
       </a:DockPanel>
+      <a:StackPanel x:Name="HeaderRows" IsVisible="False"/>
       <a:StackPanel x:Name="HeaderSections" Spacing="{a:DynamicResource AxSpaceTight}"/>
     </a:StackPanel>
 

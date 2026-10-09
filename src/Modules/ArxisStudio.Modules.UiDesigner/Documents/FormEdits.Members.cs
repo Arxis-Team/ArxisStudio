@@ -140,7 +140,10 @@ internal sealed partial class FormEdits
     }
 
     /// <summary>Атрибут, которым документ уже пишет член, — как бы он ни назвал его пространство.</summary>
-    private static XamlAttribute? Existing(XamlElement element, FormWrite write)
+    /// <param name="element">Элемент.</param>
+    /// <param name="write">Член — как его называет тот, кто правит; текст не смотрится.</param>
+    /// <returns>Атрибут; null — член не написан.</returns>
+    internal static XamlAttribute? Existing(XamlElement element, FormWrite write)
     {
         if (string.Equals(write.Member, NameDirective, StringComparison.Ordinal))
             return element.GetDirectiveAttribute("Name");

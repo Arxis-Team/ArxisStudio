@@ -1,5 +1,7 @@
 using ArxisStudio.Controls;
+using ArxisStudio.Icons;
 using ArxisStudio.Inspector;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -11,14 +13,22 @@ namespace ArxisStudio.Modules.Inspector.Editors;
 /// цель держится — замена поколения ждёт.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Непрочтённое (<see cref="InspectorFieldContext.Check"/>) не пишется: строка показывает почему заметкой, а черновик
 /// остаётся в поле — человек правит, а не набирает заново. Выражение — привязка, ресурс — показывается тем, что
 /// написано, а не тем, к чему оно пришло: правят выражение.
+/// </para>
+/// <para>
+/// Варианты метаданных (<see cref="InspectorConstraints.Choices"/>) — подсказки, а не ограда: шрифты системы у
+/// <c>FontFamily</c>. Кнопка в поле (и Alt+↓ или F4 с клавиатуры) открывает их меню — те, что содержат набранное,
+/// а ничего не нашлось — все; выбранный вариант пишется сразу. Набрать своё по-прежнему можно.
+/// </para>
 /// </remarks>
 internal sealed class TextField : InspectorField
 {
     private readonly InspectorFieldContext _context;
     private readonly AxTextBox _box;
+    private readonly AxButton? _choices;
     private string _shown = string.Empty;
     private IDisposable? _hold;
     private bool _writing;
@@ -26,7 +36,10 @@ internal sealed class TextField : InspectorField
     /// <summary>Заводит поле.</summary>
     /// <param name="context">Свойство строки и дорога к цели.</param>
     /// <param name="multiline">Многострочное: Enter — новая строка, фиксация — уходом каретки.</param>
-    public TextField(InspectorFieldContext context, bool multiline)
+    /// <param name="choicesName">
+    /// Как назвать кнопку вариантов диктору и подсказке; пусто — кнопки нет, даже если варианты есть.
+    /// </param>
+    public TextField(InspectorFieldContext context, bool multiline, string? choicesName = null)
     {
         _context = context;
         _box = multiline ? new AxTextArea() : new AxTextBox();
@@ -38,6 +51,23 @@ internal sealed class TextField : InspectorField
             if (e.Property == TextBox.TextProperty)
                 Track();
         };
+
+        if (!multiline && choicesName is not null && context.Property.Constraints.Choices.Count > 0 && !context.Property.IsReadOnly)
+        {
+            var menu = new AxMenuFlyout();
+
+            menu.Opening += (_, _) => Fill(menu);
+            _choices = new AxButton
+            {
+                Appearance = AxButtonAppearance.Toolbar,
+                Content = new AxIcon { Data = AxIcons.ChevronDown },
+                Flyout = menu,
+                Focusable = false,
+                [AutomationProperties.NameProperty] = choicesName,
+                [ToolTip.TipProperty] = choicesName,
+            };
+            _box.InnerRightContent = _choices;
+        }
     }
 
     /// <inheritdoc/>
@@ -77,6 +107,14 @@ internal sealed class TextField : InspectorField
 
     private void OnKey(object? sender, KeyEventArgs e)
     {
+        if (_choices?.Flyout is { } menu &&
+            (e is { Key: Key.Down, KeyModifiers: KeyModifiers.Alt } || e is { Key: Key.F4, KeyModifiers: KeyModifiers.None }))
+        {
+            menu.ShowAt(_choices);
+            e.Handled = true;
+            return;
+        }
+
         if (e.KeyModifiers != KeyModifiers.None)
             return;
 
@@ -94,6 +132,33 @@ internal sealed class TextField : InspectorField
     }
 
     private void OnBlur(object? sender, FocusChangedEventArgs e) => _ = CommitAsync();
+
+    /// <summary>Меню вариантов — те, что содержат набранное; ничего не нашлось — все.</summary>
+    private void Fill(AxMenuFlyout menu)
+    {
+        var all = _context.Property.Constraints.Choices;
+        var typed = HasDraft ? (_box.Text ?? string.Empty).Trim() : string.Empty;
+        IReadOnlyList<InspectorChoice> found = typed.Length == 0
+            ? all
+            : [.. all.Where(choice => (choice.Title ?? choice.Value).Contains(typed, StringComparison.CurrentCultureIgnoreCase))];
+
+        menu.Items.Clear();
+
+        foreach (var choice in found.Count > 0 ? found : all)
+        {
+            var item = new AxMenuItem { Header = choice.Title ?? choice.Value };
+
+            item.Click += (_, _) => _ = PickAsync(choice.Value);
+            menu.Items.Add(item);
+        }
+    }
+
+    /// <summary>Выбранный вариант — значение: в поле и одной правкой в цель.</summary>
+    private async Task PickAsync(string value)
+    {
+        Put(value);
+        await CommitAsync().ConfigureAwait(true);
+    }
 
     /// <summary>Набранное — в значение: проверка, затем одна правка.</summary>
     private async Task CommitAsync()

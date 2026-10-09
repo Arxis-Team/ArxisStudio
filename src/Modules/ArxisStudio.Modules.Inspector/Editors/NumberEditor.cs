@@ -9,9 +9,15 @@ namespace ArxisStudio.Modules.Inspector.Editors;
 /// Редактор числа: поле с протяжкой за подпись строки, шагом стрелками и выражениями; «авто» — у размеров.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Целые типы — без знаков после точки и с шагом в единицу. «Авто» пишется сбросом, когда по умолчанию свойство и
 /// так «авто» (<c>Width</c>), — так разметка остаётся без лишнего <c>Width="NaN"</c>; иначе — <c>NaN</c>. Пустое поле
 /// у числа без «авто» — тоже сброс: значение просят снять.
+/// </para>
+/// <para>
+/// Протяжку видно на цели на каждом движении, а пишется она одной правкой при отпускании; Esc посреди неё
+/// возвращает цель к тому, что было (<see cref="FieldPreview"/>).
+/// </para>
 /// </remarks>
 [PropertyEditor(typeof(double), Fallback = true)]
 [PropertyEditor(typeof(float), Fallback = true)]
@@ -44,11 +50,13 @@ public sealed class NumberEditor : PropertyEditor
     {
         private readonly InspectorFieldContext _context;
         private readonly AxNumberField _field;
+        private readonly FieldPreview _preview;
         private readonly bool _autoIsDefault;
 
         public NumberField(InspectorFieldContext context)
         {
             _context = context;
+            _preview = new FieldPreview(context);
 
             var property = context.Property;
             var constraints = property.Constraints;
@@ -66,7 +74,9 @@ public sealed class NumberEditor : PropertyEditor
             };
 
             _autoIsDefault = TryRead(property.DefaultText, out var fallback) && double.IsNaN(fallback);
-            _field.ValueCommitted += (_, e) => _ = WriteAsync(e.Value);
+            _field.ValueChanging += (_, e) => _preview.Show(TextOf(e.Value) ?? string.Empty);
+            _field.ValueCommitted += (_, e) => _ = _preview.CommitAsync(TextOf(e.Value));
+            _field.ScrubCancelled += (_, _) => _preview.Cancel();
             _field.Cleared += (_, _) => _ = _context.WriteAsync(null);
         }
 
@@ -90,6 +100,8 @@ public sealed class NumberEditor : PropertyEditor
             _field.IsMixed = value.IsMixed;
         }
 
+        public override void Release() => _preview.Cancel();
+
         /// <summary>Читает число записи разметки: инвариантно, «авто» — <c>NaN</c>.</summary>
         internal static bool TryRead(string? text, out double value)
         {
@@ -109,12 +121,13 @@ public sealed class NumberEditor : PropertyEditor
             return double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
         }
 
-        private Task<bool> WriteAsync(double value)
+        /// <summary>Как записать число: «авто» — сбросом, если по умолчанию оно и так «авто».</summary>
+        private string? TextOf(double value)
         {
             if (double.IsNaN(value))
-                return _context.WriteAsync(_autoIsDefault ? null : "NaN");
+                return _autoIsDefault ? null : "NaN";
 
-            return _context.WriteAsync(AxNumberField.Format(value, _field.Decimals ?? 15));
+            return AxNumberField.Format(value, _field.Decimals ?? 15);
         }
     }
 }

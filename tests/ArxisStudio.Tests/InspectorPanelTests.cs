@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
+using ArxisStudio.Icons;
 using ArxisStudio.Inspector;
 using ArxisStudio.Modules.Inspector.Panel;
 using ArxisStudio.Shell;
@@ -84,11 +85,11 @@ public class InspectorPanelTests
 
         var panel = studio.Panel();
 
-        using var shown = studio.Service.Show(Button());
+        using var shown = studio.Service.Show(new FakeTarget(typeof(TextBlock), FakeTarget.Property("TextWrapping", typeof(TextWrapping))));
 
         studio.Frame();
 
-        var row = Row(panel, "HorizontalAlignment");
+        var row = Row(panel, "TextWrapping");
         var segments = row.GetVisualDescendants().OfType<AxSegmentedControl>().Single();
         var label = row.GetVisualDescendants().OfType<AxScrubLabel>().Single();
 
@@ -96,6 +97,36 @@ public class InspectorPanelTests
         Assert.True(
             segments.TranslatePoint(default, row)!.Value.Y >= label.TranslatePoint(new Point(0, label.Bounds.Height), row)!.Value.Y - 0.5,
             "тесные сегменты остались рядом с подписью");
+    }
+
+    /// <summary>
+    /// Выравнивание — сегментами-значками в порядке «к началу, по центру, к концу, растянуть»; каждый значок называет
+    /// себя диктору и подсказке, а пишет значение перечисления (запись 364).
+    /// </summary>
+    [AvaloniaFact]
+    public void Alignment_is_icon_segments_that_name_themselves()
+    {
+        using var studio = new InspectorStudio();
+        var panel = studio.Panel();
+        var target = Button();
+
+        using var shown = studio.Service.Show(target);
+
+        studio.Frame();
+
+        var segments = Row(panel, "HorizontalAlignment").GetVisualDescendants().OfType<AxSegmentedControl>().Single();
+        var items = segments.Items.OfType<AxSegmentItem>().ToList();
+
+        Assert.Equal(new[] { "Left", "Center", "Right", "Stretch" }, items.Select(static item => (string)item.Tag!));
+        Assert.All(items, static item => Assert.IsType<AxIcon>(item.Content));
+        Assert.Equal(
+            new[] { studio.Strings["choice.left"], studio.Strings["choice.center"], studio.Strings["choice.right"], studio.Strings["choice.stretch"] },
+            items.Select(static item => AutomationProperties.GetName(item)));
+
+        segments.SelectedItem = items[2];
+        studio.Frame();
+
+        Assert.Equal("Right", Assert.Single(Assert.Single(target.Writes)).Text);
     }
 
     /// <summary>
@@ -199,6 +230,50 @@ public class InspectorPanelTests
         Assert.IsType<AxNumberField>(Assert.IsType<PluginSurface>(Row(panel, "Width").Content).Child);
         Assert.Contains(failures, failure => failure.PluginId == "probe.fields" && failure.What.StartsWith("раскладка", StringComparison.Ordinal));
         Assert.Contains(failures, failure => failure.PluginId == "probe.fields" && failure.Message.Contains("поле не строится", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Пункт меню из вклада плагина зовётся через шов плагина: упавший пункт засчитан ему, а панель живёт (запись 364).
+    /// </summary>
+    [AvaloniaFact]
+    public void A_plugins_menu_item_runs_through_its_guard_and_its_fault_is_counted_to_it()
+    {
+        using var studio = new InspectorStudio();
+        var failures = new List<PluginFailure>();
+
+        studio.Guard.Failed += (_, failure) => failures.Add(failure);
+        TestAssembly.EmitPlugin(studio.Plugins, "probe.menus", "Probe.Menus", source: """
+            using ArxisStudio.Inspector;
+            using ArxisStudio.Sdk;
+
+            namespace Probe.Menus;
+
+            public sealed class Entry : StudioPlugin
+            {
+            }
+
+            public sealed class Falling : InspectorMenu
+            {
+                public override void Fill(InspectorMenuContext menu) =>
+                    menu.Add("Упасть", () => throw new System.InvalidOperationException("пункт упал"));
+            }
+            """);
+        studio.Raise();
+
+        var panel = studio.Panel();
+
+        using var shown = studio.Service.Show(Button());
+
+        studio.Frame();
+
+        var item = Assert.Single(panel.Menus!.ForRow(Row(panel, "Width")).OfType<AxMenuItem>(), item => Equals(item.Header, "Упасть"));
+
+        item.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
+        studio.Frame();
+
+        Assert.Contains(failures, failure => failure.PluginId == "probe.menus" && failure.Message.Contains("пункт упал", StringComparison.Ordinal));
+        Assert.DoesNotContain(failures, failure => failure.PluginId != "probe.menus");
+        Assert.NotNull(panel.List!.Target);
     }
 
     /// <summary>

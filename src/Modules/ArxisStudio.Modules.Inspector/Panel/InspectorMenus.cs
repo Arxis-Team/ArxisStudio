@@ -1,10 +1,14 @@
+using System.Net;
+using System.Text.RegularExpressions;
 using ArxisStudio.Controls;
 using ArxisStudio.Icons;
 using ArxisStudio.Inspector;
 using ArxisStudio.Modules.Inspector.Catalog;
 using ArxisStudio.Sdk;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Media;
 
 namespace ArxisStudio.Modules.Inspector.Panel;
@@ -23,10 +27,16 @@ namespace ArxisStudio.Modules.Inspector.Panel;
 /// шов, и пункт, который он добавил, тоже: упавший пункт засчитывается тому, кто его добавил, а не инспектору.
 /// Пункты собираются отдельно от показа — попап отдельное окно, которого у безголового прогона нет.
 /// </para>
+/// <para>
+/// <b>Буфер обмена — текст разметки.</b> Значение кладётся так, как его пишут, а заданные свойства — атрибутами:
+/// <c>Width="150" Margin="8,4"</c>. Такой текст вставляется в XAML руками и обратно в инспектор — другому элементу,
+/// другой форме: вставка берёт те свойства, что у цели есть и пишутся, одной правкой.
+/// </para>
 /// </remarks>
 /// <param name="list">Список — дорога к цели.</param>
 /// <param name="catalog">Каталог вкладов.</param>
-internal sealed class InspectorMenus(InspectorList list, InspectorCatalog catalog)
+/// <param name="owner">Чьё окно даёт буфер обмена.</param>
+internal sealed partial class InspectorMenus(InspectorList list, InspectorCatalog catalog, Visual owner)
 {
     /// <summary>Пункты меню строки.</summary>
     /// <param name="row">Строка.</param>
@@ -35,9 +45,12 @@ internal sealed class InspectorMenus(InspectorList list, InspectorCatalog catalo
         ArgumentNullException.ThrowIfNull(row);
 
         var words = list.Words;
+        var copied = row.Value is { IsMixed: false } value ? value.Written ?? value.Text : null;
         var items = new List<Control>
         {
             Item(words["inspector.reset"], row.CanReset, row.Reset, new KeyGesture(Key.Delete)),
+            Item(words["inspector.copyValue"], !string.IsNullOrEmpty(copied), () => _ = CopyAsync(copied!)),
+            Item(words["inspector.pasteValue"], !row.Property.IsReadOnly && row.Property.AcceptsText, () => _ = PasteValueAsync(row)),
         };
 
         if (row.IsExpression)
@@ -53,13 +66,22 @@ internal sealed class InspectorMenus(InspectorList list, InspectorCatalog catalo
         return items;
     }
 
-    /// <summary>Пункты меню ⋮: свои — сворачивание разделов, — затем цели и вкладов.</summary>
+    /// <summary>
+    /// Пункты меню ⋮: свои — сбросить, скопировать и вставить заданное, свернуть и развернуть разделы, — затем цели и
+    /// вкладов.
+    /// </summary>
     public IReadOnlyList<Control> ForTarget()
     {
         var words = list.Words;
         var grouped = !list.Alphabetical && !list.IsSearching;
+        var written = list.WrittenProperties();
+        var shown = list.Target is not null;
         var items = new List<Control>
         {
+            Item(words["inspector.resetAll"], written.Count > 0, () => _ = ResetAsync(written)),
+            Item(words["inspector.copyProperties"], written.Count > 0, () => _ = CopyAsync(Attributes(written))),
+            Item(words["inspector.pasteProperties"], shown, () => _ = PastePropertiesAsync()),
+            new AxSeparator(),
             Item(words["inspector.expandAll"], grouped, () => list.FoldAll(folded: false)),
             Item(words["inspector.collapseAll"], grouped, () => list.FoldAll(folded: true)),
         };
@@ -118,6 +140,84 @@ internal sealed class InspectorMenus(InspectorList list, InspectorCatalog catalo
         items.Add(new AxSeparator());
         items.AddRange(menu.Items);
     }
+
+    /// <summary>Сбрасывает заданное — одной правкой.</summary>
+    private Task<bool> ResetAsync(IReadOnlyList<InspectorProperty> written) =>
+        list.WriteAsync([.. written.Select(static property => new InspectorWrite(property.Id, null))], null);
+
+    /// <summary>Заданное — атрибутами разметки, как их пишет документ: <c>Width="150" Margin="8,4"</c>.</summary>
+    private string Attributes(IReadOnlyList<InspectorProperty> written)
+    {
+        var parts = new List<string>();
+
+        foreach (var property in written)
+        {
+            // Разное у выбранных переносить нечем: одно значение стёрло бы остальные.
+            if (list.ValueOf(property.Id) is not { IsMixed: false } value || (value.Written ?? value.Text) is not { } text)
+                continue;
+
+            parts.Add($"{property.Id}=\"{Escape(text)}\"");
+        }
+
+        return string.Join(' ', parts);
+    }
+
+    /// <summary>Вставляет значение из буфера в строку.</summary>
+    private async Task PasteValueAsync(InspectorRow row)
+    {
+        if (await ReadAsync().ConfigureAwait(true) is { Length: > 0 } text)
+            await row.WriteTextAsync(text.TrimEnd('\r', '\n')).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Вставляет свойства из буфера — атрибуты разметки, — те, что у цели есть, пишутся и прочтутся, одной правкой.
+    /// </summary>
+    private async Task PastePropertiesAsync()
+    {
+        if (await ReadAsync().ConfigureAwait(true) is not { Length: > 0 } text)
+            return;
+
+        var name = list.Header()?.NameProperty;
+        var writes = new List<InspectorWrite>();
+
+        foreach (Match match in AttributePattern().Matches(text))
+        {
+            var id = match.Groups["name"].Value;
+            var value = WebUtility.HtmlDecode(match.Groups["value"].Value);
+
+            if (string.Equals(id, name, StringComparison.Ordinal) ||
+                list.PropertyOf(id) is not { IsReadOnly: false } ||
+                !list.Check(id, value).IsValid ||
+                writes.Any(write => string.Equals(write.PropertyId, id, StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            writes.Add(new InspectorWrite(id, value));
+        }
+
+        if (writes.Count > 0)
+            await list.WriteAsync(writes, null).ConfigureAwait(true);
+    }
+
+    private async Task CopyAsync(string text)
+    {
+        if (TopLevel.GetTopLevel(owner)?.Clipboard is { } clipboard)
+            await clipboard.SetTextAsync(text).ConfigureAwait(true);
+    }
+
+    private async Task<string?> ReadAsync() =>
+        TopLevel.GetTopLevel(owner)?.Clipboard is { } clipboard ? await clipboard.TryGetTextAsync().ConfigureAwait(true) : null;
+
+    /// <summary>Значение атрибута так, как его пишет разметка: кавычка, амперсанд и угол — сущностями.</summary>
+    private static string Escape(string text) =>
+        text.Replace("&", "&amp;", StringComparison.Ordinal)
+            .Replace("\"", "&quot;", StringComparison.Ordinal)
+            .Replace("<", "&lt;", StringComparison.Ordinal);
+
+    /// <summary>Атрибут разметки: имя — со строкой владельца или приставкой, — и значение в кавычках.</summary>
+    [GeneratedRegex(@"(?<name>[\p{L}_][\p{L}\p{Nd}_.:-]*)\s*=\s*""(?<value>[^""]*)""", RegexOptions.CultureInvariant)]
+    private static partial Regex AttributePattern();
 
     private static AxMenuItem Item(string header, bool enabled, Action act, KeyGesture? gesture = null)
     {

@@ -128,6 +128,17 @@ internal sealed partial class LiveFormDocument
         }
     }
 
+    /// <inheritdoc/>
+    void IFormCanvasHost.ShowInCode(int start, int length)
+    {
+        if (_modes.Mode == FormViewMode.Design)
+            _modes.Apply(FormViewMode.Split);
+
+        _view.Code.Select(start, length);
+        _view.Code.ScrollIntoView(new AxCodeRange(start, length));
+        _view.Code.Focus();
+    }
+
     /// <summary>Ведёт к месту ошибки в XAML: в одном холсте его не видно — вкладка открывает разделение.</summary>
     private void OnShowProblem(object? sender, RoutedEventArgs e)
     {

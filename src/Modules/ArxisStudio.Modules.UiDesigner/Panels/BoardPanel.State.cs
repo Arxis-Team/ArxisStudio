@@ -1,3 +1,4 @@
+using ArxisStudio.Controls;
 using ArxisStudio.Markup;
 using ArxisStudio.Modules.UiDesigner.Documents;
 using ArxisStudio.Xaml;
@@ -115,6 +116,20 @@ public sealed partial class BoardPanel
         view.Rebuild.IsVisible = notice.Rebuild;
         view.ShowProblem.IsVisible = notice.Span is not null;
         view.Notice.IsVisible = true;
+    }
+
+    /// <inheritdoc/>
+    void IFormCanvasHost.ShowInCode(int start, int length)
+    {
+        if (_view is not { } view || _modes is not { } modes)
+            return;
+
+        if (modes.Mode == FormViewMode.Design)
+            modes.Apply(FormViewMode.Split);
+
+        view.Code.Select(start, length);
+        view.Code.ScrollIntoView(new AxCodeRange(start, length));
+        view.Code.Focus();
     }
 
     /// <summary>

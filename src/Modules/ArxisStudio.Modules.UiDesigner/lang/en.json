@@ -118,6 +118,10 @@
   "inspector.hold": "A value is being typed in the inspector",
   "inspector.name.invalid": "A name is a letter or “_” followed by letters, digits and “_”",
   "inspector.name.taken": "The name “{0}” is taken",
+  "inspector.menu.reveal": "Show in XAML",
+  "inspector.menu.designOnly": "Design time only (d:)",
+  "inspector.menu.take": "Take from {0}: {1}",
+  "inspector.menu.unset": "not set",
 
   "form.menu.cut": "Cut",
   "form.menu.copy": "Copy",

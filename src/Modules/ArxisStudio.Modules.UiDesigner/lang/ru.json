@@ -118,6 +118,10 @@
   "inspector.hold": "В инспекторе набирают значение",
   "inspector.name.invalid": "Имя — буква или «_», а за ней буквы, цифры и «_»",
   "inspector.name.taken": "Имя «{0}» уже занято",
+  "inspector.menu.reveal": "Показать в XAML",
+  "inspector.menu.designOnly": "Только для дизайна (d:)",
+  "inspector.menu.take": "Взять у {0}: {1}",
+  "inspector.menu.unset": "не задано",
 
   "form.menu.cut": "Вырезать",
   "form.menu.copy": "Копировать",

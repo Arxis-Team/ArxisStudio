@@ -449,6 +449,10 @@ public class XamlMembersTests
         var name = "XamlMembers" + Guid.NewGuid().ToString("N")[..8];
         var output = Path.Combine(studio.ProjectFolder, "bin", name + ".dll");
 
+        // [Range] контролов проекта — из DataAnnotations, а проба ссылается на сборки, уже загруженные в процесс:
+        // эту грузит первое касание, и без него тест, пошедший раньше других, не собирал проект.
+        _ = typeof(System.ComponentModel.DataAnnotations.RangeAttribute).Assembly;
+
         Directory.CreateDirectory(Path.GetDirectoryName(output)!);
         TestAssembly.EmitFile(output, name, ProjectSource);
 

@@ -12,7 +12,8 @@ namespace ArxisStudio.Modules.Inspector.Editors;
 /// <remarks>
 /// Пишется кратчайшая запись, которую прочтёт разметка: отступ <c>8</c>, <c>4,8</c> или все четыре стороны,
 /// скругление — одно число или четыре. Отступ и скругление можно связать: правка одной ячейки ставит её число во
-/// все. Читается запись тем же разбором, что у Avalonia.
+/// все. Читается запись тем же разбором, что у Avalonia. Протяжку ячейки видно на цели на каждом движении, а
+/// пишется она одной правкой при отпускании (<see cref="FieldPreview"/>).
 /// </remarks>
 [PropertyEditor(typeof(Thickness), Fallback = true)]
 [PropertyEditor(typeof(CornerRadius), Fallback = true)]
@@ -115,14 +116,14 @@ public sealed class VectorEditor : PropertyEditor
 
     private sealed class VectorField : InspectorField
     {
-        private readonly InspectorFieldContext _context;
         private readonly Shape _shape;
         private readonly AxVectorField _field;
+        private readonly FieldPreview _preview;
 
         public VectorField(InspectorFieldContext context, Shape shape)
         {
-            _context = context;
             _shape = shape;
+            _preview = new FieldPreview(context);
             _field = new AxVectorField
             {
                 Size = AxControlSize.Compact,
@@ -136,7 +137,9 @@ public sealed class VectorEditor : PropertyEditor
             };
 
             Avalonia.Automation.AutomationProperties.SetName(_field, context.Property.Label);
-            _field.ValuesCommitted += (_, e) => _ = _context.WriteAsync(_shape.Write(e.Values));
+            _field.ValuesChanging += (_, e) => _preview.Show(_shape.Write(e.Values));
+            _field.ValuesCommitted += (_, e) => _ = _preview.CommitAsync(_shape.Write(e.Values));
+            _field.ScrubCancelled += (_, _) => _preview.Cancel();
         }
 
         public override Control View => _field;
@@ -158,5 +161,7 @@ public sealed class VectorEditor : PropertyEditor
             _field.Values = values.Length == _shape.Labels.Count ? values : new double[_shape.Labels.Count];
             _field.MixedMask = value.IsMixed ? (1 << _shape.Labels.Count) - 1 : 0;
         }
+
+        public override void Release() => _preview.Cancel();
     }
 }

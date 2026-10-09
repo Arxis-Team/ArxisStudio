@@ -1,4 +1,4 @@
-# StudioSdk 7.20
+# StudioSdk 7.22
 ArxisStudio.Icons.AxIcon : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Icons.AxIcon :: .ctor()
 ArxisStudio.Icons.AxIcon :: ArxisStudio.Icons.AxIconSize Size { get; set; }
@@ -17,7 +17,12 @@ ArxisStudio.Icons.AxIconSize : enum
 ArxisStudio.Icons.AxIconSize :: Normal = 0
 ArxisStudio.Icons.AxIconSize :: Small = 1
 ArxisStudio.Icons.AxIcons : static class
+ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry AlignBottom { get; }
+ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry AlignHorizontalCenter { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry AlignLeft { get; }
+ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry AlignRight { get; }
+ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry AlignTop { get; }
+ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry AlignVerticalCenter { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Analyzer { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Assembly { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Binding { get; }
@@ -88,6 +93,8 @@ ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Sort { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Split { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Star { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Stop { get; }
+ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry StretchHorizontal { get; }
+ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry StretchVertical { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Structure { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Success { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Tabs { get; }

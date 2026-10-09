@@ -21,10 +21,17 @@ public static class StudioSdk
 {
     /// <summary>Версия контракта этой студии.</summary>
     /// <remarks>
+    /// 7.22 — значки выравнивания в наборе: к краю, по центру и растянуть — по горизонтали
+    /// (<c>AxIcons.AlignRight</c>, <c>AlignHorizontalCenter</c>, <c>StretchHorizontal</c>; левый край — прежний
+    /// <c>AlignLeft</c>) и по вертикали (<c>AlignTop</c>, <c>AlignVerticalCenter</c>, <c>AlignBottom</c>,
+    /// <c>StretchVertical</c>). Ими инспектор показывает выравнивание сегментами. Младший номер: добавлено, снятого
+    /// нет.
+    /// <para>
     /// 7.21 — цвет в наборе контролов: поле цвета с образцом и записью <c>#AARRGGBB</c> (<c>AxColorField</c>), выбор
     /// цвета под ним (<c>AxColorPicker</c>) на своих спектре (<c>AxColorSpectrum</c>) и ползунке канала
     /// (<c>AxColorSlider</c>), с моделью HSV, каналами RGB и событиями «на ходу, одна фиксация, отмена». Младший
     /// номер: добавлено, снятого нет.
+    /// </para>
     /// <para>
     /// 7.20 — поля инспектора в наборе контролов: число с протяжкой за подпись (<c>AxNumberField</c>,
     /// <c>AxScrubLabel</c>), вектор (<c>AxVectorField</c>), строка свойства с общей колонкой подписей
@@ -313,7 +320,7 @@ public static class StudioSdk
     /// 4.1 — добавлены теги манифеста (<c>tags</c>).
     /// </para>
     /// </remarks>
-    public const string Version = "7.21";
+    public const string Version = "7.22";
 
     /// <summary>
     /// Довольна ли эта версия SDK тем, что просит плагин.

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using ArxisStudio.Controls;
 using ArxisStudio.Inspector;
@@ -7,11 +8,15 @@ using ArxisStudio.Modules.UiDesigner.Documents;
 using ArxisStudio.Modules.UiDesigner.Panels;
 using ArxisStudio.ProjectSystem;
 using ArxisStudio.Shell;
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
+using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.VisualTree;
 using Xunit;
 
@@ -71,6 +76,9 @@ public class DesignerInspectorTests
     private static XamlElementPath Go => XamlElementPath.Parse("/0/0");
 
     private static XamlElementPath Input => XamlElementPath.Parse("/0/1");
+
+    /// <summary>Подпись формы — без имени.</summary>
+    private static XamlElementPath Caption => XamlElementPath.Parse("/0/2");
 
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
@@ -304,7 +312,10 @@ public class DesignerInspectorTests
         Assert.All(panel.List!.Items.OfType<GroupCell>(), static group => Assert.False(group.Focusable, "заголовок раздела берёт клавиатуру"));
     }
 
-    /// <summary>Имя пишется директивой; занятое имя не пишется, и строка говорит почему.</summary>
+    /// <summary>
+    /// Имя правится в шапке и пишется директивой; занятое имя не пишется, и строка говорит почему, а в списке имени
+    /// нет.
+    /// </summary>
     [AvaloniaFact]
     public async Task Renaming_writes_the_name_and_refuses_one_already_taken()
     {
@@ -315,8 +326,10 @@ public class DesignerInspectorTests
         document.Select([Go]);
         LiveFormStudio.Frame();
 
-        var name = Row(panel, FormEdits.NameDirective);
+        var name = HeaderRow(panel, FormEdits.NameDirective);
         var box = Box(name);
+
+        Assert.DoesNotContain(panel.List!.Items.OfType<PropertyCell>(), cell => cell.Row.Property.Id == FormEdits.NameDirective);
 
         Assert.Equal("Go", box.Text);
 
@@ -698,6 +711,507 @@ public class DesignerInspectorTests
         Assert.Equal("0", slot.Value?.Text);
     }
 
+    /// <summary>
+    /// Протяжку за подпись видно на объекте на каждом движении, а текст не тронут; отпускание пишет одно значение —
+    /// одним шагом истории (запись 364).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_scrub_shows_on_the_object_and_writes_one_step_on_release()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", Form);
+        var panel = studio.Inspector();
+
+        document.Select([Go]);
+        LiveFormStudio.Frame();
+
+        var row = Row(panel, "Width");
+        var field = Number(row);
+        var button = Assert.IsType<Button>(document.Shown!.ObjectAt(Go));
+        var at = Grab(studio, row);
+
+        at = Drag(studio, at, 40);
+
+        Assert.NotEqual(120, field.Value);
+        Assert.Equal(field.Value, button.Width);
+        Assert.Contains("Width=\"120\"", Text(document), StringComparison.Ordinal);
+
+        at = Drag(studio, at, 40);
+
+        Assert.Equal(field.Value, button.Width);
+        Assert.Contains("Width=\"120\"", Text(document), StringComparison.Ordinal);
+
+        var scrubbed = AxNumberField.Format(field.Value, 15);
+
+        studio.Window.MouseUp(at, MouseButton.Left);
+        LiveFormStudio.Frame();
+
+        await XamlStudio.UntilAsync(
+            () => Text(document).Contains($"Width=\"{scrubbed}\"", StringComparison.Ordinal), "протяжка не записана при отпускании");
+
+        await document.Document!.UndoAsync();
+
+        await XamlStudio.UntilAsync(
+            () => Text(document).Contains("Width=\"120\"", StringComparison.Ordinal), "протяжка отменилась не одним шагом");
+    }
+
+    /// <summary>Esc посреди протяжки возвращает объекту прежнее значение, а текст и история не тронуты.</summary>
+    [AvaloniaFact]
+    public async Task Escape_in_a_scrub_returns_the_object_and_leaves_the_text()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", Form);
+        var panel = studio.Inspector();
+
+        document.Select([Go]);
+        LiveFormStudio.Frame();
+
+        var row = Row(panel, "Width");
+        var button = Assert.IsType<Button>(document.Shown!.ObjectAt(Go));
+        var before = Text(document);
+        var at = Drag(studio, Grab(studio, row), 40);
+
+        Assert.NotEqual(120, button.Width);
+
+        Press(studio, Key.Escape);
+        studio.Window.MouseUp(at, MouseButton.Left);
+        LiveFormStudio.Frame();
+
+        Assert.Equal(120, button.Width);
+        Assert.Equal(120, Number(row).Value);
+        Assert.Equal(before, Text(document));
+        Assert.False(document.Document!.CanUndo, "отменённая протяжка оставила шаг истории");
+    }
+
+    /// <summary>Тягу по спектру выбора цвета видно на объекте, а пишется она одной правкой — при отпускании.</summary>
+    [AvaloniaFact]
+    public async Task A_drag_on_the_color_picker_shows_on_the_object_and_writes_once()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync(
+            "MainWindow.axaml", Form.Replace("Width=\"120\"", "Width=\"120\" Background=\"#3C6ECF\"", StringComparison.Ordinal));
+        var panel = studio.Inspector();
+
+        document.Select([Go]);
+        LiveFormStudio.Frame();
+
+        var field = Row(panel, "Background").GetVisualDescendants().OfType<AxColorField>().Single();
+        var button = Assert.IsType<Button>(document.Shown!.ObjectAt(Go));
+
+        field.GetVisualDescendants().OfType<Button>().Single(swatch => swatch.Name == "PART_Swatch").Focus(NavigationMethod.Tab);
+        Press(studio, Key.Enter);
+
+        Assert.True(field.IsPickerOpen, "образец не открыл выбор цвета");
+
+        var spectrum = field.Picker!.GetVisualDescendants().OfType<AxColorSpectrum>().Single();
+        var root = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(spectrum));
+
+        root.MouseDown(At(spectrum, root, 0.2, 0.5), MouseButton.Left);
+        root.MouseMove(At(spectrum, root, 0.5, 0.4));
+        LiveFormStudio.Frame();
+
+        Assert.NotEqual(Color.Parse("#3C6ECF"), Assert.IsAssignableFrom<ISolidColorBrush>(button.Background).Color);
+        Assert.Equal(field.Color, Assert.IsAssignableFrom<ISolidColorBrush>(button.Background).Color);
+        Assert.Equal("#3C6ECF", Element(document, "Go").GetAttribute("Background")?.GetValueText());
+
+        root.MouseMove(At(spectrum, root, 0.8, 0.3));
+        root.MouseUp(At(spectrum, root, 0.8, 0.3), MouseButton.Left);
+        LiveFormStudio.Frame();
+
+        var picked = AxColorField.Format(field.Color);
+
+        await XamlStudio.UntilAsync(
+            () => Element(document, "Go").GetAttribute("Background")?.GetValueText() == picked, "цвет не записан при отпускании");
+
+        await document.Document!.UndoAsync();
+
+        await XamlStudio.UntilAsync(
+            () => Element(document, "Go").GetAttribute("Background")?.GetValueText() == "#3C6ECF", "тяга цвета отменилась не одним шагом");
+    }
+
+    /// <summary>Отступ пишется кратчайшей записью, которую прочтёт разметка: одно число, пара или все четыре.</summary>
+    [AvaloniaFact]
+    public async Task A_thickness_is_written_in_its_shortest_form()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync(
+            "MainWindow.axaml", Form.Replace("Width=\"120\"", "Width=\"120\" Margin=\"8,4\"", StringComparison.Ordinal));
+        var panel = studio.Inspector();
+
+        document.Select([Go]);
+        LiveFormStudio.Frame();
+
+        // Стороны L, T, R, B: низ отличается — нужны все четыре; вернулся — снова пара; все равны — одно число.
+        await Margin(3, "2", "8,4,8,2", "разные стороны записаны не все");
+        await Margin(3, "4", "8,4", "пара сторон записана длинно");
+        await Margin(1, "8", "8,8,8,4", "разные стороны записаны не все");
+        await Margin(3, "8", "8", "равные стороны записаны не одним числом");
+
+        async Task Margin(int side, string typed, string expected, string what)
+        {
+            Type(studio, VectorOf(Row(panel, "Margin")).Cells[side], typed);
+
+            await XamlStudio.UntilAsync(() => Element(document, "Go").GetAttribute("Margin")?.GetValueText() == expected, what);
+        }
+    }
+
+    /// <summary>
+    /// Видимость — флажком в шапке, а не строкой списка: у разных значений он в третьем состоянии, и щелчок пишет
+    /// всем одно — одним шагом истории.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Visibility_is_a_header_check_box_with_a_third_state_for_different_values()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync(
+            "MainWindow.axaml",
+            Form.Replace("Width=\"200\"", "Width=\"200\" IsVisible=\"False\"", StringComparison.Ordinal));
+        var panel = studio.Inspector();
+        var toggle = panel.View!.Enabled;
+
+        document.Select([Go]);
+        LiveFormStudio.Frame();
+
+        Assert.True(toggle.IsVisible, "у элемента нет флажка видимости");
+        Assert.Equal(true, toggle.IsChecked);
+        Assert.Equal("IsVisible", AutomationProperties.GetName(toggle));
+        Assert.DoesNotContain(panel.List!.Items.OfType<PropertyCell>(), cell => cell.Row.Property.Id == "IsVisible");
+
+        document.Select([Go, Input]);
+        LiveFormStudio.Frame();
+
+        Assert.True(toggle.IsThreeState, "разные значения — не третье состояние");
+        Assert.Null(toggle.IsChecked);
+
+        toggle.IsChecked = true;
+
+        await XamlStudio.UntilAsync(
+            () => Element(document, "Go").GetAttribute("IsVisible")?.GetValueText() == "True" &&
+                  Element(document, "Input").GetAttribute("IsVisible")?.GetValueText() == "True",
+            "флажок не записал одно значение обоим");
+        await XamlStudio.UntilAsync(() => toggle is { IsThreeState: false, IsChecked: true }, "флажок не показал записанное");
+
+        await document.Document!.UndoAsync();
+
+        await XamlStudio.UntilAsync(
+            () => Element(document, "Go").GetAttribute("IsVisible") is null &&
+                  Element(document, "Input").GetAttribute("IsVisible")?.GetValueText() == "False",
+            "отмена вернула видимость не одним шагом");
+    }
+
+    /// <summary>Классы стиля — жетонами в шапке: добавленный и снятый жетон — по одному шагу истории.</summary>
+    [AvaloniaFact]
+    public async Task Classes_are_header_tokens_and_each_change_is_one_step()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync(
+            "MainWindow.axaml", Form.Replace("Width=\"120\"", "Width=\"120\" Classes=\"accent\"", StringComparison.Ordinal));
+        var panel = studio.Inspector();
+
+        document.Select([Go]);
+        LiveFormStudio.Frame();
+
+        var tokens = HeaderRow(panel, "Classes").GetVisualDescendants().OfType<AxTokenField>().Single();
+
+        Assert.Equal(new[] { "accent" }, tokens.Tokens);
+        Assert.DoesNotContain(panel.List!.Items.OfType<PropertyCell>(), cell => cell.Row.Property.Id == "Classes");
+
+        tokens.Input!.Focus();
+        studio.Window.KeyTextInput("large");
+        Press(studio, Key.Enter);
+
+        await XamlStudio.UntilAsync(
+            () => Element(document, "Go").GetAttribute("Classes")?.GetValueText() == "accent large", "жетон не дописан в классы");
+
+        Assert.True(tokens.Remove("accent"));
+
+        await XamlStudio.UntilAsync(
+            () => Element(document, "Go").GetAttribute("Classes")?.GetValueText() == "large", "снятый жетон остался в классах");
+
+        await document.Document!.UndoAsync();
+
+        await XamlStudio.UntilAsync(
+            () => Element(document, "Go").GetAttribute("Classes")?.GetValueText() == "accent large", "снятие жетона — не один шаг");
+    }
+
+    /// <summary>
+    /// «Только для дизайна» переносит значение в член для дизайна одной правкой — с <c>mc:Ignorable</c>, без которого
+    /// <c>d:</c> не соберётся, даже если пространство дизайна документ уже объявил, а игнорировать не просил.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Design_only_moves_the_value_to_a_design_member_and_makes_its_prefix_ignorable()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync(
+            "MainWindow.axaml",
+            Form.Replace(
+                "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"",
+                "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:d=\"http://schemas.microsoft.com/expression/blend/2008\"",
+                StringComparison.Ordinal));
+        var panel = studio.Inspector();
+
+        document.Select([Go]);
+        LiveFormStudio.Frame();
+
+        Choose(panel.Menus!.ForRow(Row(panel, "Width")), studio.Strings["inspector.menu.designOnly"]);
+
+        await XamlStudio.UntilAsync(
+            () => Element(document, "Go").GetDesignTimeAttribute("Width") == "120" && Element(document, "Go").GetAttribute("Width") is null,
+            "ширина не стала членом для дизайна");
+
+        Assert.Contains("mc:Ignorable=\"d\"", Text(document), StringComparison.Ordinal);
+
+        await document.Document!.UndoAsync();
+
+        await XamlStudio.UntilAsync(
+            () => Element(document, "Go").GetAttribute("Width")?.GetValueText() == "120" &&
+                  Element(document, "Go").GetDesignTimeAttribute("Width") is null,
+            "перенос в члены для дизайна отменился не одним шагом");
+    }
+
+    /// <summary>У разных значений меню строки предлагает взять значение одного из выбранных — всем, одним шагом.</summary>
+    [AvaloniaFact]
+    public async Task Taking_one_elements_value_gives_it_to_all_selected_in_one_step()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", Form);
+        var panel = studio.Inspector();
+
+        document.Select([Go, Input]);
+        LiveFormStudio.Frame();
+
+        var take = string.Format(CultureInfo.CurrentCulture, studio.Strings["inspector.menu.take"], "TextBox «Input»", "200");
+
+        Choose(panel.Menus!.ForRow(Row(panel, "Width")), take);
+
+        await XamlStudio.UntilAsync(
+            () => Element(document, "Go").GetAttribute("Width")?.GetValueText() == "200" &&
+                  Element(document, "Input").GetAttribute("Width")?.GetValueText() == "200",
+            "значение одного не досталось всем");
+
+        await document.Document!.UndoAsync();
+
+        await XamlStudio.UntilAsync(
+            () => Element(document, "Go").GetAttribute("Width")?.GetValueText() == "120", "«Взять у» отменилось не одним шагом");
+    }
+
+    /// <summary>«Показать в XAML» выделяет атрибут в тексте формы и отдаёт клавиатуру тексту.</summary>
+    [AvaloniaFact]
+    public async Task Show_in_xaml_selects_the_attribute_in_the_form_text()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", Form);
+        var panel = studio.Inspector();
+        var code = document.View.Code;
+
+        document.Select([Go]);
+        await XamlStudio.UntilAsync(() => code.Text == Text(document), "текст формы не встал в просмотр");
+
+        Choose(panel.Menus!.ForRow(Row(panel, "Width")), studio.Strings["inspector.menu.reveal"]);
+
+        Assert.Equal("Width=\"120\"", code.SelectedText);
+        Assert.True(code.IsFocused, "клавиатура не перешла к тексту");
+    }
+
+    /// <summary>
+    /// Заданное здесь копируется атрибутами разметки — без имени — и вставляется другому элементу теми свойствами,
+    /// что у него есть, одним шагом; «Сбросить заданные здесь» снимает всё, кроме имени, тоже одним.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Set_properties_copy_and_paste_onto_another_element_and_reset_together()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", Form);
+        var panel = studio.Inspector();
+        var words = panel.List!.Words;
+        var clipboard = TopLevel.GetTopLevel(panel.View)!.Clipboard!;
+
+        document.Select([Go]);
+        LiveFormStudio.Frame();
+
+        Choose(panel.Menus!.ForTarget(), words["inspector.copyProperties"]);
+
+        var copied = await clipboard.TryGetTextAsync();
+
+        Assert.Contains("Width=\"120\"", copied, StringComparison.Ordinal);
+        Assert.Contains("MinHeight=\"30\"", copied, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Пуск\"", copied, StringComparison.Ordinal);
+        Assert.DoesNotContain("Name", copied, StringComparison.Ordinal);
+
+        document.Select([Input]);
+        LiveFormStudio.Frame();
+
+        Choose(panel.Menus!.ForTarget(), words["inspector.pasteProperties"]);
+
+        await XamlStudio.UntilAsync(
+            () => Element(document, "Input").GetAttribute("Width")?.GetValueText() == "120" &&
+                  Element(document, "Input").GetAttribute("MinHeight")?.GetValueText() == "30",
+            "скопированное не вставилось");
+
+        Assert.Null(Element(document, "Input").GetAttribute("Content"));
+
+        await document.Document!.UndoAsync();
+
+        await XamlStudio.UntilAsync(
+            () => Element(document, "Input").GetAttribute("Width")?.GetValueText() == "200" &&
+                  Element(document, "Input").GetAttribute("MinHeight") is null,
+            "вставка свойств отменилась не одним шагом");
+
+        document.Select([Go]);
+        LiveFormStudio.Frame();
+
+        Choose(panel.Menus!.ForTarget(), words["inspector.resetAll"]);
+
+        await XamlStudio.UntilAsync(
+            () => Element(document, "Go") is { } go && go.GetAttribute("Width") is null && go.GetAttribute("MinHeight") is null &&
+                  go.GetAttribute("Content") is null,
+            "заданное не сброшено");
+    }
+
+    /// <summary>Значение строки копируется и вставляется в строку другого элемента; текст, который не прочтётся, не пишется.</summary>
+    [AvaloniaFact]
+    public async Task A_copied_value_pastes_into_another_row_and_unreadable_text_stays_out()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", Form);
+        var panel = studio.Inspector();
+        var words = panel.List!.Words;
+        var clipboard = TopLevel.GetTopLevel(panel.View)!.Clipboard!;
+
+        document.Select([Go]);
+        LiveFormStudio.Frame();
+
+        Choose(panel.Menus!.ForRow(Row(panel, "Width")), words["inspector.copyValue"]);
+
+        Assert.Equal("120", await clipboard.TryGetTextAsync());
+
+        document.Select([Input]);
+        LiveFormStudio.Frame();
+
+        Choose(panel.Menus!.ForRow(Row(panel, "Width")), words["inspector.pasteValue"]);
+
+        await XamlStudio.UntilAsync(
+            () => Element(document, "Input").GetAttribute("Width")?.GetValueText() == "120", "значение не вставилось");
+
+        await clipboard.SetTextAsync("широко");
+        Choose(panel.Menus!.ForRow(Row(panel, "Width")), words["inspector.pasteValue"]);
+
+        await XamlStudio.UntilAsync(() => Row(panel, "Width").Note is not null, "непрочтённое не показано заметкой");
+
+        Assert.Equal("120", Element(document, "Input").GetAttribute("Width")?.GetValueText());
+    }
+
+    /// <summary>
+    /// Шрифт — текст с подсказками шрифтов системы: меню поля отбирает их по набранному, а выбранный пишется сразу.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_font_family_offers_the_system_fonts_and_a_picked_one_is_written()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", Form);
+        var panel = studio.Inspector();
+
+        document.Select([Caption]);
+        LiveFormStudio.Frame();
+
+        var row = Row(panel, "FontFamily");
+        var choices = Assert.Single(
+            row.GetVisualDescendants().OfType<AxButton>(),
+            button => AutomationProperties.GetName(button) == panel.List!.Words["inspector.choices"]);
+        var menu = Assert.IsType<AxMenuFlyout>(choices.Flyout);
+
+        menu.ShowAt(choices);
+        LiveFormStudio.Frame();
+
+        var fonts = menu.Items.OfType<AxMenuItem>().Select(static item => (string)item.Header!).ToList();
+
+        Assert.NotEmpty(fonts);
+        Assert.Equal(fonts.Order(StringComparer.CurrentCultureIgnoreCase), fonts);
+
+        menu.Hide();
+
+        var font = fonts[^1];
+        var box = Box(row);
+
+        box.Focus();
+        box.SelectAll();
+        studio.Window.KeyTextInput(font[..Math.Min(4, font.Length)]);
+        Press(studio, Key.F4);
+
+        Assert.All(menu.Items.OfType<AxMenuItem>(), item => Assert.Contains(font[..Math.Min(4, font.Length)], (string)item.Header!, StringComparison.CurrentCultureIgnoreCase));
+
+        Choose([.. menu.Items.OfType<Control>()], font);
+        menu.Hide();
+
+        await XamlStudio.UntilAsync(
+            () => ElementAt(document, Caption).GetAttribute("FontFamily")?.GetValueText() == font, "выбранный шрифт не записан");
+    }
+
+    /// <summary>Курсор — список стандартных, а начертание — без синонимов: написанное «Regular» стоит вариантом «Normal».</summary>
+    [AvaloniaFact]
+    public async Task A_cursor_and_a_weight_are_lists_and_a_synonym_reads_as_its_weight()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync(
+            "MainWindow.axaml", Form.Replace("Text=\"Подпись\"", "Text=\"Подпись\" FontWeight=\"Regular\"", StringComparison.Ordinal));
+        var panel = studio.Inspector();
+
+        document.Select([Caption]);
+        LiveFormStudio.Frame();
+
+        var weight = Row(panel, "FontWeight").GetVisualDescendants().OfType<AxComboBox>().Single();
+        var weights = weight.Items.OfType<AxComboBoxItem>().ToList();
+
+        Assert.Equal(11, weights.Count);
+        Assert.Equal("Normal · 400", Assert.IsType<AxComboBoxItem>(weight.SelectedItem).Content);
+
+        weight.SelectedItem = weights.Single(item => Equals(item.Tag, "Bold"));
+
+        await XamlStudio.UntilAsync(
+            () => ElementAt(document, Caption).GetAttribute("FontWeight")?.GetValueText() == "Bold", "начертание не записано");
+
+        var cursor = Row(panel, "Cursor").GetVisualDescendants().OfType<AxComboBox>().Single();
+
+        cursor.SelectedItem = cursor.Items.OfType<AxComboBoxItem>().Single(item => Equals(item.Tag, "Hand"));
+
+        await XamlStudio.UntilAsync(
+            () => ElementAt(document, Caption).GetAttribute("Cursor")?.GetValueText() == "Hand", "курсор не записан");
+    }
+
+    /// <summary>Определения столбцов и строк сетки правятся текстом и проверяются разбором: непрочтённое не пишется.</summary>
+    [AvaloniaFact]
+    public async Task Grid_definitions_are_text_checked_by_the_parser()
+    {
+        const string Grid = """
+            <Window xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    Width="400" Height="300">
+              <Grid x:Name="Table" ColumnDefinitions="*,Auto" />
+            </Window>
+            """;
+
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", Grid);
+        var panel = studio.Inspector();
+
+        document.Select([XamlElementPath.Parse("/0")]);
+        LiveFormStudio.Frame();
+
+        var row = Row(panel, "ColumnDefinitions");
+
+        Assert.Equal("*,Auto", Box(row).Text);
+
+        Type(studio, Box(row), "2*,*");
+
+        await XamlStudio.UntilAsync(
+            () => Element(document, "Table").GetAttribute("ColumnDefinitions")?.GetValueText() == "2*,*", "столбцы не записаны");
+
+        Type(studio, Box(Row(panel, "ColumnDefinitions")), "широко");
+
+        Assert.NotNull(Row(panel, "ColumnDefinitions").Note);
+        Assert.Equal("2*,*", Element(document, "Table").GetAttribute("ColumnDefinitions")?.GetValueText());
+    }
+
     /// <summary>Кладёт выход проекта: сборку с полкой — поколению собирать нечего.</summary>
     private static CanonicalPath Emit(LiveFormStudio studio)
     {
@@ -730,8 +1244,59 @@ public class DesignerInspectorTests
         return cell.Row;
     }
 
+    private static InspectorRow HeaderRow(InspectorPanel panel, string id)
+    {
+        LiveFormStudio.Frame();
+
+        return Assert.Single(panel.View!.HeaderRows.Children.OfType<InspectorRow>(), row => row.Property.Id == id);
+    }
+
     private static AxNumberField Number(InspectorRow row) =>
         Assert.IsType<AxNumberField>(Assert.IsType<PluginSurface>(row.Content).Child);
+
+    private static AxVectorField VectorOf(InspectorRow row) =>
+        Assert.IsType<AxVectorField>(Assert.IsType<PluginSurface>(row.Content).Child);
+
+    /// <summary>Нажимает на подпись строки и уводит указатель за мёртвую зону: протяжка началась.</summary>
+    /// <returns>Где указатель.</returns>
+    private static Point Grab(LiveFormStudio studio, InspectorRow row)
+    {
+        var label = row.GetVisualDescendants().OfType<AxScrubLabel>().Single();
+        var at = label.TranslatePoint(new Point(2, label.Bounds.Height / 2), studio.Window)!.Value;
+
+        studio.Window.MouseDown(at, MouseButton.Left);
+        at += new Vector(AxScrubLabel.DeadZone + 2, 0);
+        studio.Window.MouseMove(at);
+        LiveFormStudio.Frame();
+
+        return at;
+    }
+
+    /// <summary>Выбирает пункт меню с этой подписью — как человек: пункт должен быть включён.</summary>
+    private static void Choose(IReadOnlyList<Control> items, string header)
+    {
+        var item = Assert.Single(items.OfType<AxMenuItem>(), item => Equals(item.Header, header));
+
+        Assert.True(item.IsEnabled, $"пункт «{header}» выключен");
+
+        item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        LiveFormStudio.Frame();
+    }
+
+    /// <summary>Точка внутри контрола долями его размера — в координатах окна, которому шлют указатель.</summary>
+    private static Point At(Visual visual, Visual root, double x, double y) =>
+        visual.TranslatePoint(new Point(visual.Bounds.Width * x, visual.Bounds.Height * y), root)!.Value;
+
+    /// <summary>Тянет нажатый указатель вправо.</summary>
+    /// <returns>Где указатель.</returns>
+    private static Point Drag(LiveFormStudio studio, Point at, double by)
+    {
+        at += new Vector(by, 0);
+        studio.Window.MouseMove(at);
+        LiveFormStudio.Frame();
+
+        return at;
+    }
 
     private static TextBox Box(InspectorRow row) =>
         row.GetVisualDescendants().OfType<TextBox>().First();
@@ -755,6 +1320,9 @@ public class DesignerInspectorTests
     private static string Text(LiveFormDocument document) => document.Document!.Syntax.SourceText.ToString();
 
     private static string Text(FormSlot slot) => slot.Session.Document!.Syntax.SourceText.ToString();
+
+    private static XamlElement ElementAt(LiveFormDocument document, XamlElementPath path) =>
+        path.Resolve(document.Document!.Syntax) ?? throw new InvalidOperationException("элемента нет в тексте");
 
     private static XamlElement Element(LiveFormDocument document, string name) =>
         document.Document!.Syntax.Root!.DescendantElements().Single(element => element.Identity == name);

@@ -1,3 +1,5 @@
+using System.Globalization;
+using ArxisStudio.Icons;
 using ArxisStudio.Inspector;
 using Avalonia;
 using Avalonia.Automation;
@@ -5,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
+using Avalonia.Media;
 
 namespace ArxisStudio.Modules.Inspector.Metadata;
 
@@ -40,6 +43,14 @@ public sealed class AvaloniaMetadata : InspectorMetadata
         "IsHitTestVisible", "Focusable", "ToolTip.Tip", "AutomationProperties.Name", "AutomationProperties.HelpText",
     ];
 
+    /// <summary>Начертания по числу, без синонимов: <c>Regular</c> — то же, что <c>Normal</c>.</summary>
+    private static readonly FontWeight[] Weights =
+    [
+        FontWeight.Thin, FontWeight.ExtraLight, FontWeight.Light, FontWeight.SemiLight, FontWeight.Normal,
+        FontWeight.Medium, FontWeight.SemiBold, FontWeight.Bold, FontWeight.ExtraBold, FontWeight.Black,
+        FontWeight.ExtraBlack,
+    ];
+
     /// <inheritdoc/>
     public override void Describe(InspectorMetadataBuilder metadata)
     {
@@ -55,6 +66,8 @@ public sealed class AvaloniaMetadata : InspectorMetadata
         DescribeBrushesAndText(metadata);
         DescribeContent(metadata);
         DescribeWindow(metadata);
+        DescribeAlignment(metadata);
+        DescribeFontsAndCursor(metadata);
         Explain(metadata);
     }
 
@@ -168,6 +181,84 @@ public sealed class AvaloniaMetadata : InspectorMetadata
         metadata.For<TopLevel>()
             .Property(TopLevel.TransparencyLevelHintProperty, property => property.Category("window").Order(20).Advanced())
             .Hide("ClientSize", "FrameSize", "RenderScaling", "PlatformSettings", "ActualThemeVariant");
+    }
+
+    /// <summary>
+    /// Выравнивание — сегментами-значками в том порядке, в каком его ищут: к началу, по центру, к концу, растянуть.
+    /// Подпись значка говорит диктору и подсказке, что он значит.
+    /// </summary>
+    private void DescribeAlignment(InspectorMetadataBuilder metadata)
+    {
+        InspectorChoice[] horizontal =
+        [
+            Choice("Left", "choice.left", AxIcons.AlignLeft),
+            Choice("Center", "choice.center", AxIcons.AlignHorizontalCenter),
+            Choice("Right", "choice.right", AxIcons.AlignRight),
+            Choice("Stretch", "choice.stretch", AxIcons.StretchHorizontal),
+        ];
+        InspectorChoice[] vertical =
+        [
+            Choice("Top", "choice.top", AxIcons.AlignTop),
+            Choice("Center", "choice.center", AxIcons.AlignVerticalCenter),
+            Choice("Bottom", "choice.bottom", AxIcons.AlignBottom),
+            Choice("Stretch", "choice.stretch", AxIcons.StretchVertical),
+        ];
+
+        metadata.For<Layoutable>()
+            .Property(Layoutable.HorizontalAlignmentProperty, property => property.Choices(horizontal))
+            .Property(Layoutable.VerticalAlignmentProperty, property => property.Choices(vertical));
+
+        metadata.For<ContentControl>()
+            .Property(ContentControl.HorizontalContentAlignmentProperty, property => property.Choices(horizontal))
+            .Property(ContentControl.VerticalContentAlignmentProperty, property => property.Choices(vertical));
+    }
+
+    private InspectorChoice Choice(string value, string title, Avalonia.Media.Geometry icon) =>
+        new(value) { Title = Context.Strings[title], Icon = icon };
+
+    /// <summary>
+    /// Шрифт — подсказками шрифтов системы, набрать можно и свой; начертание — без синонимов, с числом
+    /// (<c>Normal · 400</c>); курсор — одним из стандартных.
+    /// </summary>
+    private static void DescribeFontsAndCursor(InspectorMetadataBuilder metadata)
+    {
+        InspectorChoice[] weights =
+        [
+            .. Weights.Select(static weight => new InspectorChoice(weight.ToString())
+            {
+                Title = string.Create(CultureInfo.InvariantCulture, $"{weight} · {(int)weight}"),
+            }),
+        ];
+        InspectorChoice[] cursors = [.. Enum.GetNames<StandardCursorType>().Select(static name => new InspectorChoice(name))];
+        var fonts = SystemFonts();
+
+        metadata.For<Control>()
+            .Property("FontWeight", property => property.Choices(weights).ChoicesOnly())
+            .Property("FontFamily", property => property.Choices(fonts));
+
+        metadata.For<InputElement>()
+            .Property(InputElement.CursorProperty, property => property.Choices(cursors).ChoicesOnly());
+    }
+
+    /// <summary>Шрифты системы по имени; платформы со шрифтами нет — подсказок нет.</summary>
+    private static InspectorChoice[] SystemFonts()
+    {
+        try
+        {
+            return
+            [
+                .. FontManager.Current.SystemFonts
+                    .Select(static family => family.Name)
+                    .Where(static name => !string.IsNullOrWhiteSpace(name))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Order(StringComparer.CurrentCultureIgnoreCase)
+                    .Select(static name => new InspectorChoice(name)),
+            ];
+        }
+        catch (InvalidOperationException)
+        {
+            return [];
+        }
     }
 
     /// <summary>Пояснения — по-русски и по-английски из словаря модуля.</summary>

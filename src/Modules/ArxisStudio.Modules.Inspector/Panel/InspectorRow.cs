@@ -180,6 +180,27 @@ internal sealed class InspectorRow : AxPropertyRow
         return true;
     }
 
+    /// <summary>
+    /// Пишет текст значением — «Вставить значение»: текст, который не прочтётся, строка не пишет, а показывает
+    /// заметкой, почему.
+    /// </summary>
+    /// <param name="text">Текст.</param>
+    /// <returns>Записалось ли.</returns>
+    public Task<bool> WriteTextAsync(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        var check = _list.Check(Property.Id, text);
+
+        if (!check.IsValid)
+        {
+            Report(check);
+            return Task.FromResult(false);
+        }
+
+        return _context.WriteAsync(text);
+    }
+
     /// <summary>Заменяет выражение значением, которое оно дало: «Заменить значением».</summary>
     public void Replace()
     {
@@ -465,10 +486,29 @@ internal sealed class InspectorRow : AxPropertyRow
 
         public override void Report(InspectorCheck check) => row.Report(check);
 
-        public override IInspectorPreview? BeginPreview() => row._list.BeginPreview(row.Property.Id);
+        public override IInspectorPreview? BeginPreview() =>
+            row._list.BeginPreview(row.Property.Id) is { } preview ? new RowPreview(row, preview) : null;
 
         public override IDisposable? Hold() => row._list.Hold(row.Property.Id);
 
         public override IReadOnlyList<InspectorChoice> Suggest(string typed) => row._list.Suggest(row.Property.Id, typed);
+    }
+
+    /// <summary>Предпросмотр строки: протянутое, которое не записалось при отпускании, строка показывает заметкой.</summary>
+    private sealed class RowPreview(InspectorRow row, IInspectorPreview preview) : IInspectorPreview
+    {
+        public InspectorCheck Show(string text) => preview.Show(text);
+
+        public async Task<bool> CommitAsync(string text)
+        {
+            var written = await preview.CommitAsync(text).ConfigureAwait(true);
+
+            if (!written)
+                row.Report(InspectorCheck.Invalid(row._list.Words["inspector.notWritten"]));
+
+            return written;
+        }
+
+        public void Dispose() => preview.Dispose();
     }
 }

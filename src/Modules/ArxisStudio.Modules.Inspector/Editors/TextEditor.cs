@@ -6,7 +6,10 @@ using Avalonia.Controls;
 namespace ArxisStudio.Modules.Inspector.Editors;
 
 /// <summary>Редактор текста: строки и всё, что пишется текстом и своего редактора не нашло.</summary>
-/// <remarks>Многострочный текст встаёт под подписью во всю ширину.</remarks>
+/// <remarks>
+/// Многострочный текст встаёт под подписью во всю ширину. Варианты метаданных — подсказки в меню поля, а названные
+/// единственно возможными (<see cref="InspectorConstraints.ChoicesOnly"/>) — список: курсор пишут одним из стандартных.
+/// </remarks>
 [PropertyEditor(typeof(string), Fallback = true)]
 [PropertyEditor(typeof(object), Hint = InspectorCatalog.TextHint, Fallback = true)]
 public sealed class TextEditor : PropertyEditor
@@ -24,7 +27,12 @@ public sealed class TextEditor : PropertyEditor
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        return new TextField(context, context.Property.Constraints.Multiline);
+        var constraints = context.Property.Constraints;
+
+        if (constraints.ChoicesOnly && constraints.Choices.Count > 0)
+            return new ChoiceList(context, constraints.Choices);
+
+        return new TextField(context, constraints.Multiline, Context.Strings["inspector.choices"]);
     }
 }
 

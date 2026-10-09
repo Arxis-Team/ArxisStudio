@@ -121,6 +121,38 @@ internal sealed class XamlInspectorTarget : InspectorTarget
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Протяжку видно на объектах показа — у каждого выбранного (<see cref="IXamlDesignView.Preview"/>), — а в
+    /// документ ложится одна правка при отпускании. Предпросмотр службы держит замену поколения сам. Что показать на
+    /// объекте нечем — прямое свойство, свойство CLR, размер корня, имя, член для дизайна, — протяжка пишет при
+    /// отпускании.
+    /// </remarks>
+    public override IInspectorPreview? BeginPreview(string id)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+
+        if (Slot.Session.Shown is not { } view || Snapshot is not { } snapshot || !snapshot.Previews(id))
+            return null;
+
+        var previews = new List<IXamlValuePreview>();
+
+        foreach (var path in snapshot.Paths)
+        {
+            if (view.Preview(path, id) is not { } preview)
+            {
+                foreach (var started in previews)
+                    started.Dispose();
+
+                return null;
+            }
+
+            previews.Add(preview);
+        }
+
+        return previews.Count == 0 ? null : new MemberPreview(this, id, previews);
+    }
+
+    /// <inheritdoc/>
     /// <remarks>Недописанное значение держит замену поколения: значение, набранное для старых типов, ещё пригодится.</remarks>
     public override IDisposable? Hold(string id) => _context.XamlDesign()?.Defer(Strings["inspector.hold"]);
 
@@ -133,6 +165,55 @@ internal sealed class XamlInspectorTarget : InspectorTarget
         _canvas.Host.Step(back);
 
         return Task.FromResult(true);
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// <para>
+    /// У разных значений — «Взять у…»: значение одного из выбранных — всем, одной правкой. Это то, что «—» не
+    /// говорит: какие значения разные и у кого.
+    /// </para>
+    /// <para>
+    /// «Показать в XAML» ведёт к атрибуту в просмотре текста формы. «Только для дизайна» переносит значение в член для
+    /// дизайна (<c>d:Width</c>): его видно в дизайнере, а собранная форма его не знает, — одной правкой с
+    /// <c>mc:Ignorable</c>, без которого <c>d:</c> не соберётся.
+    /// </para>
+    /// </remarks>
+    public override void FillMenu(InspectorMenuContext menu)
+    {
+        ArgumentNullException.ThrowIfNull(menu);
+
+        if (menu.Property is not { } property || Snapshot is not { Count: > 0 } snapshot)
+            return;
+
+        var id = property.Id;
+
+        if (menu.Value is { IsMixed: true })
+        {
+            for (var at = 0; at < snapshot.Count; at++)
+            {
+                var text = snapshot.WrittenAt(id, at);
+                var title = string.Format(
+                    CultureInfo.CurrentCulture, Strings["inspector.menu.take"], snapshot.NameAt(at), text ?? Strings["inspector.menu.unset"]);
+
+                menu.Add(title, () => _ = WriteAsync([new InspectorWrite(id, text)]), isEnabled: !property.IsReadOnly);
+            }
+
+            menu.AddSeparator();
+        }
+
+        menu.Add(Strings["inspector.menu.reveal"], () => Reveal(snapshot, id), isEnabled: snapshot.Count == 1 && snapshot.WrittenAt(id, 0) is not null);
+
+        if (snapshot.Designs(id))
+        {
+            var value = menu.Value;
+            var text = value is { IsMixed: false, Source: not InspectorValueSource.Expression } ? value.Written ?? value.Text : null;
+
+            menu.Add(
+                Strings["inspector.menu.designOnly"],
+                () => _ = WriteAsync([new InspectorWrite(FormEdits.DesignPrefix + id, text), new InspectorWrite(id, null)]),
+                isEnabled: !string.IsNullOrEmpty(text));
+        }
     }
 
     /// <inheritdoc/>
@@ -177,6 +258,13 @@ internal sealed class XamlInspectorTarget : InspectorTarget
         _lastLive = null;
 
         return snapshot;
+    }
+
+    /// <summary>Ведёт к записи свойства в XAML формы.</summary>
+    private void Reveal(XamlInspectorSnapshot snapshot, string id)
+    {
+        if (!_canvas.IsDisposed && snapshot.Paths.FirstOrDefault() is { } path)
+            _canvas.RevealInCode(Slot, path, snapshot.Locate(id, 0));
     }
 
     /// <summary>Цель больше не нужна: выбор сменился, форму сняли, холст ушёл.</summary>
@@ -233,5 +321,57 @@ internal sealed class XamlInspectorTarget : InspectorTarget
         return taken
             ? InspectorCheck.Invalid(string.Format(CultureInfo.CurrentCulture, Strings["inspector.name.taken"], text))
             : InspectorCheck.Valid;
+    }
+
+    /// <summary>Предпросмотр члена у каждого выбранного; при отпускании — одна правка формы.</summary>
+    private sealed class MemberPreview(XamlInspectorTarget target, string id, List<IXamlValuePreview> previews) : IInspectorPreview
+    {
+        private bool _ended;
+
+        public InspectorCheck Show(string text)
+        {
+            ArgumentNullException.ThrowIfNull(text);
+
+            if (_ended)
+                return InspectorCheck.Valid;
+
+            foreach (var preview in previews)
+            {
+                if (preview.Show(text).Error is { } error)
+                    return InspectorCheck.Invalid(error);
+            }
+
+            return InspectorCheck.Valid;
+        }
+
+        public async Task<bool> CommitAsync(string text)
+        {
+            ArgumentNullException.ThrowIfNull(text);
+
+            if (_ended)
+                return false;
+
+            // Записанное приходит объектам правкой текста, и предпросмотр службы на ней кончается сам; не записалось —
+            // объекты возвращаются к тому, что было.
+            try
+            {
+                return await target.WriteAsync([new InspectorWrite(id, text)]).ConfigureAwait(true);
+            }
+            finally
+            {
+                Dispose();
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_ended)
+                return;
+
+            _ended = true;
+
+            foreach (var preview in previews)
+                preview.Dispose();
+        }
     }
 }

@@ -11,7 +11,8 @@ namespace ArxisStudio.Modules.Inspector.Editors;
 /// <remarks>
 /// Кисть в разметке — чаще всего цвет (<c>Background="#2B3A55"</c>), и правят её как цвет. Градиент и ресурс цветом
 /// не прочтёшь: такую кисть поле показывает текстом, как написано, и правят её текстом. Набранное имя («Red»)
-/// пишется именем — как его набрали.
+/// пишется именем — как его набрали. Тягу по спектру и ползункам видно на цели на каждом движении, а пишется
+/// она одной правкой при отпускании (<see cref="FieldPreview"/>).
 /// </remarks>
 [PropertyEditor(typeof(Color), Fallback = true)]
 [PropertyEditor(typeof(IBrush), Fallback = true)]
@@ -29,14 +30,14 @@ public sealed class ColorEditor : PropertyEditor
 
     private sealed class ColorFieldHost : InspectorField
     {
-        private readonly InspectorFieldContext _context;
         private readonly AxColorField _color;
         private readonly TextField _text;
+        private readonly FieldPreview _preview;
         private readonly Border _host = new();
 
         public ColorFieldHost(InspectorFieldContext context)
         {
-            _context = context;
+            _preview = new FieldPreview(context);
             _color = new AxColorField
             {
                 Size = AxControlSize.Compact,
@@ -44,7 +45,9 @@ public sealed class ColorEditor : PropertyEditor
                 AllowsAlpha = true,
             };
             _text = new TextField(context, multiline: false);
-            _color.ColorCommitted += (_, e) => _ = _context.WriteAsync(e.Text ?? AxColorField.Format(e.Color));
+            _color.ColorChanging += (_, e) => _preview.Show(AxColorField.Format(e.Color));
+            _color.ColorCommitted += (_, e) => _ = _preview.CommitAsync(e.Text ?? AxColorField.Format(e.Color));
+            _color.ColorCancelled += (_, _) => _preview.Cancel();
             _host.Child = _color;
         }
 
@@ -76,6 +79,10 @@ public sealed class ColorEditor : PropertyEditor
             }
         }
 
-        public override void Release() => _text.Release();
+        public override void Release()
+        {
+            _preview.Cancel();
+            _text.Release();
+        }
     }
 }

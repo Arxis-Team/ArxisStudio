@@ -50,6 +50,8 @@ internal sealed class InspectorList
     private readonly InspectorCatalog _catalog;
     private readonly ObservableCollection<Control> _items = [];
     private readonly Dictionary<string, InspectorRow> _rows = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, InspectorRow> _headerRows = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _headerIds = new(StringComparer.Ordinal);
     private readonly Dictionary<IStudioContribution<InspectorSection>, SectionHost> _sections = new(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<string, bool> _folded = new(StringComparer.Ordinal);
     private InspectorTarget? _target;
@@ -103,6 +105,18 @@ internal sealed class InspectorList
 
     /// <summary>Разделы в шапке.</summary>
     public IReadOnlyList<SectionHost> HeaderSections { get; private set; } = [];
+
+    /// <summary>Свойство флажка в шапке — <see cref="InspectorHeader.EnabledProperty"/>; пусто — флажка нет.</summary>
+    public InspectorProperty? HeaderToggle { get; private set; }
+
+    /// <summary>
+    /// Строки шапки: имя и жетоны — <see cref="InspectorHeader.NameProperty"/> и <see cref="InspectorHeader.TagsProperty"/>.
+    /// </summary>
+    /// <remarks>
+    /// Это свои строки шапки, а не строки списка: свойство шапки в списке не повторяется, и строка никогда не стоит в
+    /// двух местах разом. Помнятся и обновляются они так же, как строки списка.
+    /// </remarks>
+    public IReadOnlyList<InspectorRow> HeaderRows { get; private set; } = [];
 
     /// <summary>Строки, которые список помнит, — с теми, что сейчас отобраны прочь.</summary>
     public IReadOnlyCollection<InspectorRow> Rows => _rows.Values;
@@ -336,6 +350,28 @@ internal sealed class InspectorList
         return ran && stepped;
     }
 
+    /// <summary>
+    /// Свойства, заданные у цели, которые пишутся, — без имени из шапки: имя одно на элемент, его не сбрасывают и не
+    /// переносят на другие.
+    /// </summary>
+    /// <remarks>Цель, которая не называет заданное сама, отвечает значениями — спрашивают их только здесь, по просьбе.</remarks>
+    public IReadOnlyList<InspectorProperty> WrittenProperties()
+    {
+        if (_guard is not { } guard)
+            return [];
+
+        var written = Written(guard);
+        var name = Header()?.NameProperty;
+
+        return
+        [
+            .. _properties.Where(property =>
+                !property.IsReadOnly &&
+                !string.Equals(property.Id, name, StringComparison.Ordinal) &&
+                (written?.Contains(property.Id) ?? ValueOf(property.Id).IsWritten)),
+        ];
+    }
+
     /// <summary>Шапка цели.</summary>
     public InspectorHeader? Header() =>
         _guard is { } guard && guard.TryGet("gives its header", static it => it.Header, out var header) ? header : null;
@@ -370,6 +406,8 @@ internal sealed class InspectorList
 
         if (renew)
             Describe(guard, type);
+
+        Head();
 
         var sections = Sections(type, renew);
         var claimed = sections.SelectMany(static section => section.Claims).ToHashSet(StringComparer.Ordinal);
@@ -409,17 +447,63 @@ internal sealed class InspectorList
         foreach (var property in _properties)
             _byId.TryAdd(property.Id, property);
 
-        foreach (var (id, row) in _rows.ToArray())
+        foreach (var rows in (Dictionary<string, InspectorRow>[])[_rows, _headerRows])
         {
-            if (_byId.TryGetValue(id, out var property) && Equals(_catalog.EditorFor(property), row.Editor))
+            foreach (var (id, row) in rows.ToArray())
             {
-                row.Renew(property);
+                if (_byId.TryGetValue(id, out var property) && Equals(_catalog.EditorFor(property), row.Editor))
+                {
+                    row.Renew(property);
+                    continue;
+                }
+
+                row.Release();
+                rows.Remove(id);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Шапка цели: флажок «включён» и строки имени и жетонов. Их свойства в списке не повторяются; строка, чьё
+    /// свойство ушло из шапки, отпускается.
+    /// </summary>
+    private void Head()
+    {
+        var header = Header();
+
+        HeaderToggle = header?.EnabledProperty is { } enabled ? PropertyOf(enabled) : null;
+
+        var rows = new List<InspectorRow>();
+
+        foreach (var id in (string?[])[header?.NameProperty, header?.TagsProperty])
+        {
+            if (id is null || PropertyOf(id) is not { } property)
                 continue;
+
+            if (!_headerRows.TryGetValue(id, out var row))
+            {
+                row = new InspectorRow(this, property, _catalog.EditorFor(property));
+                _headerRows[id] = row;
             }
 
-            row.Release();
-            _rows.Remove(id);
+            rows.Add(row);
         }
+
+        foreach (var (id, row) in _headerRows.ToArray())
+        {
+            if (rows.Contains(row))
+                continue;
+
+            row.Release();
+            _headerRows.Remove(id);
+        }
+
+        HeaderRows = rows;
+        _headerIds.Clear();
+        _headerIds.UnionWith(rows.Select(static row => row.Property.Id));
+
+        if (HeaderToggle is { } toggle)
+            _headerIds.Add(toggle.Id);
     }
 
     /// <summary>Разделы для цели: прежние остаются, новых строят, ушедшие прощаются.</summary>
@@ -460,7 +544,7 @@ internal sealed class InspectorList
     /// <summary>Видна ли строка свойства при нынешнем отборе.</summary>
     private bool Shows(InspectorProperty property, HashSet<string> claimed, bool replaceAll)
     {
-        if (replaceAll || claimed.Contains(property.Id))
+        if (replaceAll || claimed.Contains(property.Id) || _headerIds.Contains(property.Id))
             return false;
 
         if (property.IsHidden && !_showAll)
@@ -533,7 +617,7 @@ internal sealed class InspectorList
             var expanded = IsSearching || !IsFolded(category.Id);
             var count = written is null
                 ? (int?)null
-                : _properties.Count(property => written.Contains(property.Id) &&
+                : _properties.Count(property => written.Contains(property.Id) && !_headerIds.Contains(property.Id) &&
                                                 string.Equals(CategoryOf(property), category.Id, StringComparison.Ordinal));
 
             plan.Add(new GroupEntry(GroupPrefix + category.Id, category, expanded, !IsSearching, count));
@@ -734,7 +818,7 @@ internal sealed class InspectorList
         }
         else if (e.Changes.HasFlag(InspectorChanges.Values))
         {
-            foreach (var row in _rows.Values)
+            foreach (var row in _rows.Values.Concat(_headerRows.Values))
             {
                 if (e.Touches(row.Property.Id))
                     row.Invalidate();
@@ -753,10 +837,14 @@ internal sealed class InspectorList
 
     private void ForgetRows()
     {
-        foreach (var row in _rows.Values)
+        foreach (var row in _rows.Values.Concat(_headerRows.Values))
             row.Release();
 
         _rows.Clear();
+        _headerRows.Clear();
+        _headerIds.Clear();
+        HeaderRows = [];
+        HeaderToggle = null;
     }
 
     private void ForgetSections()

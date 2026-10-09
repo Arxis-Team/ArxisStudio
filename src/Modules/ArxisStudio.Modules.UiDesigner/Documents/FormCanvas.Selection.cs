@@ -406,6 +406,30 @@ internal sealed partial class FormCanvas
     }
 
     /// <summary>
+    /// Ведёт к записи члена в XAML: атрибут выделен в просмотре, а хозяин его показывает — в одном холсте его не
+    /// видно, — и клавиатура уходит к тексту.
+    /// </summary>
+    /// <param name="slot">Форма.</param>
+    /// <param name="path">Элемент.</param>
+    /// <param name="member">Член — как его называет тот, кто правит.</param>
+    /// <returns>Нашлось ли место: просмотр показывает эту форму, а член у элемента написан.</returns>
+    public bool RevealInCode(FormSlot slot, XamlElementPath path, FormWrite member)
+    {
+        ArgumentNullException.ThrowIfNull(slot);
+        ArgumentNullException.ThrowIfNull(member);
+
+        if (_code is null || !ReferenceEquals(_codeSlot, slot) || _shownCode is not { } syntax ||
+            path.Resolve(syntax) is not { } element || FormEdits.Existing(element, member) is not { } attribute)
+        {
+            return false;
+        }
+
+        _host.ShowInCode(attribute.Span.Start, attribute.Span.Length);
+
+        return true;
+    }
+
+    /// <summary>
     /// Перечитывает просмотр XAML: роли текста считаются вне потока интерфейса, а текст и роли встают
     /// вместе — роли прежнего текста на новом красили бы мимо.
     /// </summary>
