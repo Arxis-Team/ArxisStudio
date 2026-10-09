@@ -25,6 +25,11 @@ public static class ControlTexts
         ("AxTextChipRemove", "controls.chip.remove"),
         ("AxTextVectorLink", "controls.vector.link"),
         ("AxTextMixedValues", "controls.mixed"),
+        ("AxTextColorChoose", "controls.color.choose"),
+        ("AxTextColorSpectrum", "controls.color.spectrum"),
+        ("AxTextColorHue", "controls.color.hue"),
+        ("AxTextColorAlpha", "controls.color.alpha"),
+        ("AxTextColorCode", "controls.color.code"),
     ];
 
     /// <summary>Кладёт тексты в ресурсы приложения и переводит их вместе со студией.</summary>
