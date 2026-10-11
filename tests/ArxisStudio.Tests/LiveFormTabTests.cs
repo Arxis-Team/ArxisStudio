@@ -76,6 +76,52 @@ public class LiveFormTabTests
     }
 
     /// <summary>
+    /// Форма, чей класс не строится — его конструктор упал, — стоит по разметке, а над ней предупреждение со
+    /// словами конструктора: так стояли все формы проекта, чья сборка дизайна осталась без скомпилированного XAML
+    /// (запись 366).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_form_whose_class_cannot_be_constructed_is_shown_as_written_with_a_warning()
+    {
+        const string Source = """
+            using Avalonia.Controls;
+
+            namespace App.Views;
+
+            public class Broken : UserControl
+            {
+                public Broken() => throw new System.InvalidOperationException("В дизайнере этого сервиса нет");
+            }
+            """;
+
+        await using var studio = new LiveFormStudio();
+        var name = "LiveFormTab" + Guid.NewGuid().ToString("N")[..8];
+        var output = Path.Combine(studio.Xaml.ProjectFolder, "bin", name + ".dll");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(output)!);
+        TestAssembly.EmitFile(output, name, Source);
+        studio.Xaml.AssemblyName = name;
+        studio.Xaml.Output = ArxisStudio.ProjectSystem.CanonicalPath.Create(output);
+
+        var document = await studio.OpenAsync("Views/Broken.axaml", """
+            <UserControl xmlns="https://github.com/avaloniaui"
+                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                         x:Class="App.Views.Broken" Width="300" Height="200">
+              <Button x:Name="Go" Content="Пуск" Width="120" MinHeight="30" />
+            </UserControl>
+            """);
+
+        Assert.Equal(typeof(UserControl), document.Form.Root!.GetType());
+        Assert.Equal(XamlDocumentState.Live, document.Document!.State);
+
+        await XamlStudio.UntilAsync(() => document.View.Notice.IsVisible, "над формой нет предупреждения");
+
+        Assert.Equal(AxBannerSeverity.Warning, document.View.Notice.Severity);
+        Assert.Contains("В дизайнере этого сервиса нет", document.View.NoticeText.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("target of an invocation", document.View.NoticeText.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Встав, форма вписывается в холст целиком — с заголовком окна над карточкой: до корня карточка
     /// стояла объявленным размером без него.
     /// </summary>

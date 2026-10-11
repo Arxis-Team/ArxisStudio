@@ -211,7 +211,11 @@ public sealed record XamlMemberValue(string? Text, XamlValueOrigin Origin, strin
 /// </param>
 /// <param name="OwnerPrefix">Префикс, который сборка владельца предлагает; null — не предлагает.</param>
 /// <param name="ValueType">Тип значения.</param>
-/// <param name="CanWrite">Документ может написать член: он пишется и держит значение.</param>
+/// <param name="CanWrite">
+/// Документ может написать член: он пишется так, как его задаёт компилятор XAML Avalonia — простое имя открытым
+/// сеттером CLR, присоединённое именем владельца. <c>ActualThemeVariant</c>, у которого обёртка только читает, — не
+/// пишется: записанный, он уронил бы загрузку формы и сборку проекта.
+/// </param>
 /// <param name="AcceptsText">Значение пишется атрибутом — текстом; иначе только элементом свойства.</param>
 /// <param name="IsContent">Член — содержимое элемента: его пишут детьми, а не атрибутом.</param>
 /// <param name="ParentReads">

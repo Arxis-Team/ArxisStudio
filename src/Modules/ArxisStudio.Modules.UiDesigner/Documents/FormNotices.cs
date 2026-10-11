@@ -22,6 +22,12 @@ internal sealed record FormNotice(AxBannerSeverity Severity, string Text, bool R
 /// </summary>
 internal static class FormNotices
 {
+    /// <summary>
+    /// Код загрузчика Markup: конструктор класса формы упал (<c>RootInstanceCreationFailure</c>). Предупреждением
+    /// он значит, что форма построена по разметке, без класса (ADR 0028 Markup).
+    /// </summary>
+    private const string ClassNotConstructed = "AXM3022";
+
     /// <summary>Чип состояния типов проекта: ключ строки — или ничего — и идёт ли работа.</summary>
     /// <param name="design">Поколение службы XAML; null — службы нет.</param>
     public static (string? Key, bool Busy) Chip(IStudioXamlDesign? design) => (design?.State ?? XamlDesignState.Idle) switch
@@ -82,9 +88,16 @@ internal static class FormNotices
                 return new FormNotice(AxBannerSeverity.Warning, Format(strings, "form.behind", error?.Message), Span: error?.Span, OfForm: true);
         }
 
-        return design?.LastBuild is { Succeeded: false }
-            ? new FormNotice(AxBannerSeverity.Error, strings["form.buildFailed"], Rebuild: true)
-            : null;
+        if (design?.LastBuild is { Succeeded: false })
+            return new FormNotice(AxBannerSeverity.Error, strings["form.buildFailed"], Rebuild: true);
+
+        // Код формы не выполнился — конструктор её класса упал, — и форма стоит по разметке. Промолчать — значит
+        // показать форму, которая выглядит готовой, а ведёт себя без своего кода. После упавшей сборки причина
+        // обычно она, и сказано о ней выше.
+        if (session?.Document?.Diagnostics.FirstOrDefault(static diagnostic => diagnostic.Code == ClassNotConstructed) is { } failed)
+            return new FormNotice(AxBannerSeverity.Warning, Format(strings, "form.classFailed", failed.Message), Span: failed.Span, OfForm: true);
+
+        return null;
     }
 
     private static string Format(IStudioStrings strings, string key, params object?[] values) =>

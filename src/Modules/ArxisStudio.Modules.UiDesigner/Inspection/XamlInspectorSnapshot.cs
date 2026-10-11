@@ -204,6 +204,13 @@ internal sealed class XamlInspectorSnapshot
     /// <param name="id">Свойство.</param>
     public bool Writes(string id) => _specs.TryGetValue(id, out var spec) && !spec.Property.IsReadOnly;
 
+    /// <summary>
+    /// Свойство известно и только читается: задано элементом, содержимым — или его не задаст компилятор XAML
+    /// (<c>ActualThemeVariant</c>), и записанное в форму уронило бы сборку проекта.
+    /// </summary>
+    /// <param name="id">Свойство.</param>
+    public bool Refuses(string id) => _specs.TryGetValue(id, out var spec) && spec.Property.IsReadOnly;
+
     /// <summary>Сколько выбранных осталось в тексте.</summary>
     public int Count => _picked.Count;
 

@@ -81,6 +81,7 @@
   "form.restart": "Only a restart of the studio shows the project's new types. {0}",
   "form.failed": "The project's types did not load: {0}",
   "form.buildFailed": "The design build failed: the form keeps the types it has",
+  "form.classFailed": "The form's code did not run, and its markup is shown as written: {0}",
   "form.rebuild": "Rebuild",
   "form.deleted": "“{0}” was deleted on disk: saving puts the file back",
   "form.closed": "The document is closed: the solution closed or the XAML service stopped",

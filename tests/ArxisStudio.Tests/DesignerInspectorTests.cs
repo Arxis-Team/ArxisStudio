@@ -1267,6 +1267,57 @@ public class DesignerInspectorTests
         Assert.Equal("Button.accent", Row(panel, "Padding").Value?.SourceDetail);
     }
 
+    /// <summary>
+    /// Член, которого компилятор XAML Avalonia атрибутом не задаст, — только для чтения: у <c>ActualThemeVariant</c>
+    /// обёртка только читает. Присоединённое без обёртки — <c>IsHoldWithMouseEnabled</c> у <c>InputElement</c> —
+    /// пишется с именем владельца, а простым именем не предлагается. Записанные инспектором простыми, они роняли
+    /// сборку проекта, а с ней — каждую его форму в дизайнере (запись 366).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_member_the_xaml_compiler_cannot_set_is_read_only()
+    {
+        const string Canvased = """
+            <Window xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    Width="400" Height="300">
+              <Canvas>
+                <TextBlock Text="Подпись" />
+              </Canvas>
+            </Window>
+            """;
+
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", Canvased);
+
+        studio.Inspector();
+
+        document.Select([XamlElementPath.Parse("/0")]);
+        LiveFormStudio.Frame();
+
+        var canvas = studio.Context.Inspector()!.Current!;
+
+        Assert.True(
+            Assert.Single(canvas.Properties, property => property.Id == "ActualThemeVariant").IsReadOnly,
+            "ActualThemeVariant пишется, а компилятор XAML его не задаст");
+        Assert.False(await canvas.WriteAsync([new InspectorWrite("ActualThemeVariant", "Light")]), "ActualThemeVariant записан");
+        Assert.DoesNotContain("ActualThemeVariant", Text(document), StringComparison.Ordinal);
+
+        document.Select([XamlElementPath.Parse("/0/0")]);
+        LiveFormStudio.Frame();
+
+        var block = studio.Context.Inspector()!.Current!;
+
+        Assert.DoesNotContain(block.Properties, property => property.Id == "IsHoldWithMouseEnabled" && !property.IsReadOnly);
+
+        var hold = Assert.Single(block.Properties, property => property.Id == "InputElement.IsHoldWithMouseEnabled");
+
+        Assert.True(await block.WriteAsync([new InspectorWrite(hold.Id, "False")]));
+
+        await XamlStudio.UntilAsync(
+            () => Text(document).Contains("InputElement.IsHoldWithMouseEnabled=\"False\"", StringComparison.Ordinal),
+            "присоединённое без обёртки не записано с именем владельца");
+    }
+
     /// <summary>Кладёт выход проекта: сборку с полкой — поколению собирать нечего.</summary>
     private static CanonicalPath Emit(LiveFormStudio studio)
     {

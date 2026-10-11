@@ -119,6 +119,10 @@ internal sealed class XamlInspectorTarget : InspectorTarget
         if (Slot.Session.Edits is not { } edits || Snapshot is not { } snapshot || writes.Count == 0)
             return Task.FromResult(false);
 
+        // Только для чтения — не только у панели: пункт меню или раздел плагина пишет той же дорогой.
+        if (writes.Any(write => snapshot.Refuses(write.PropertyId)))
+            return Task.FromResult(false);
+
         return edits.SetAsync([.. snapshot.Paths], [.. writes.Select(write => snapshot.Spell(write.PropertyId, write.Text))], label);
     }
 
