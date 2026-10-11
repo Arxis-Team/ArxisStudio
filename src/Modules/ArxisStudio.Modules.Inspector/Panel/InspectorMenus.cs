@@ -91,6 +91,35 @@ internal sealed partial class InspectorMenus(InspectorList list, InspectorCatalo
         return items;
     }
 
+    /// <summary>
+    /// Пункты меню ⋮ раздела — как меню компонента у Unity: сбросить раздел одной правкой, скопировать его значения и
+    /// вставить их, свернуть и развернуть разделы, — затем цели и вкладов, которые видят раздел.
+    /// </summary>
+    /// <param name="category">Раздел.</param>
+    public IReadOnlyList<Control> ForSection(string category)
+    {
+        ArgumentNullException.ThrowIfNull(category);
+
+        var words = list.Words;
+        var grouped = !list.Alphabetical && !list.IsSearching;
+        var written = list.WrittenProperties()
+            .Where(property => string.Equals(list.CategoryOf(property), category, StringComparison.Ordinal))
+            .ToList();
+        var items = new List<Control>
+        {
+            Item(words["inspector.resetSection"], written.Count > 0, () => _ = ResetAsync(written)),
+            Item(words["inspector.copySection"], written.Count > 0, () => _ = CopyAsync(Attributes(written))),
+            Item(words["inspector.pasteSection"], list.Target is not null, () => _ = PastePropertiesAsync(category)),
+            new AxSeparator(),
+            Item(words["inspector.expandAll"], grouped, () => list.FoldAll(folded: false)),
+            Item(words["inspector.collapseAll"], grouped, () => list.FoldAll(folded: true)),
+        };
+
+        Extend(items, null, null, category);
+
+        return items;
+    }
+
     /// <summary>Показывает меню.</summary>
     /// <param name="anchor">К чему привязать.</param>
     /// <param name="items">Пункты.</param>
@@ -112,12 +141,12 @@ internal sealed partial class InspectorMenus(InspectorList list, InspectorCatalo
     }
 
     /// <summary>Пункты цели и вкладов — после своих, за чертой.</summary>
-    private void Extend(List<Control> items, InspectorProperty? property, InspectorValue? value)
+    private void Extend(List<Control> items, InspectorProperty? property, InspectorValue? value, string? category = null)
     {
         if (list.Type is not { } type)
             return;
 
-        var menu = new Menu(list, property, value, type);
+        var menu = new Menu(list, property, value, type, category);
 
         if (list.Guard is { } target)
         {
@@ -170,9 +199,10 @@ internal sealed partial class InspectorMenus(InspectorList list, InspectorCatalo
     }
 
     /// <summary>
-    /// Вставляет свойства из буфера — атрибуты разметки, — те, что у цели есть, пишутся и прочтутся, одной правкой.
+    /// Вставляет свойства из буфера — атрибуты разметки, — те, что у цели есть, пишутся и прочтутся, одной правкой; из
+    /// меню раздела — только свойства этого раздела.
     /// </summary>
-    private async Task PastePropertiesAsync()
+    private async Task PastePropertiesAsync(string? category = null)
     {
         if (await ReadAsync().ConfigureAwait(true) is not { Length: > 0 } text)
             return;
@@ -186,7 +216,8 @@ internal sealed partial class InspectorMenus(InspectorList list, InspectorCatalo
             var value = WebUtility.HtmlDecode(match.Groups["value"].Value);
 
             if (string.Equals(id, name, StringComparison.Ordinal) ||
-                list.PropertyOf(id) is not { IsReadOnly: false } ||
+                list.PropertyOf(id) is not { IsReadOnly: false } property ||
+                (category is not null && !string.Equals(list.CategoryOf(property), category, StringComparison.Ordinal)) ||
                 !list.Check(id, value).IsValid ||
                 writes.Any(write => string.Equals(write.PropertyId, id, StringComparison.Ordinal)))
             {
@@ -229,7 +260,8 @@ internal sealed partial class InspectorMenus(InspectorList list, InspectorCatalo
     }
 
     /// <summary>Меню, которое дополняют: пункт помнит, кто его добавил, и зовётся через его шов.</summary>
-    private sealed class Menu(InspectorList list, InspectorProperty? property, InspectorValue? value, InspectorTypeInfo type)
+    private sealed class Menu(
+        InspectorList list, InspectorProperty? property, InspectorValue? value, InspectorTypeInfo type, string? category)
         : InspectorMenuContext
     {
         public List<Control> Items { get; } = [];
@@ -239,6 +271,8 @@ internal sealed partial class InspectorMenus(InspectorList list, InspectorCatalo
         public override InspectorProperty? Property => property;
 
         public override InspectorValue? Value => value;
+
+        public override string? Category => category;
 
         public override InspectorTypeInfo Type => type;
 

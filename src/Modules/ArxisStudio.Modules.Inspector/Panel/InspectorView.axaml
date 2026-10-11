@@ -99,16 +99,60 @@
       <a:TextBlock x:Name="NoticeText" TextWrapping="Wrap" a:AutomationProperties.LiveSetting="Polite"/>
     </AxBanner>
 
+    <!-- «Все свойства» — отладочный вид, как Debug у Unity: видно, что он включён, и выйти из него — одной кнопкой. -->
+    <AxBanner x:Name="AllBanner" a:DockPanel.Dock="Top" Severity="Warning" IsVisible="False"
+              Margin="{a:DynamicResource AxSpaceSidesThickness}">
+      <a:DockPanel>
+        <AxButton x:Name="LeaveAll" a:DockPanel.Dock="Right" Size="Compact" VerticalAlignment="Center"
+                  Content="{Text inspector.all.leave}"/>
+        <a:TextBlock TextWrapping="Wrap" VerticalAlignment="Center" Text="{Text inspector.all.banner}"
+                     a:AutomationProperties.LiveSetting="Polite"/>
+      </a:DockPanel>
+    </AxBanner>
+
     <AxDivider x:Name="HeaderDivider" a:DockPanel.Dock="Top" IsVisible="False"/>
 
     <a:Panel>
 
       <AxListBox x:Name="List" a:KeyboardNavigation.TabNavigation="Continue"
                  a:AutomationProperties.Name="{Text inspector.list}">
+        <!--
+            Поле в строке — AxPropertyFieldHeight, а шаг строки — AxPropertyRowHeight в любой плотности, как у Unity:
+            строки плотнее, а попадание не мельче.
+        -->
+        <AxListBox.Resources>
+          <a:StaticResource x:Key="AxControlHeightCompact" ResourceKey="AxPropertyFieldHeight"/>
+        </AxListBox.Resources>
         <AxListBox.Styles>
-          <!-- Заголовок раздела и раздел плагина — не строки: наведение их не красит. -->
-          <a:Style Selector="AxListBoxItem[Focusable=False] /template/ a|ContentPresenter#PART_ContentPresenter">
+          <a:Style Selector="AxListBoxItem">
+            <a:Setter Property="MinHeight" Value="{a:DynamicResource AxPropertyRowHeight}"/>
+          </a:Style>
+          <!--
+              Полоса раздела — без полей строки, во всю её высоту и до полосы прокрутки: полоса лежит поверх списка, и ⋮
+              под ней было бы не нажать.
+          -->
+          <a:Style Selector="AxListBoxItem.group">
+            <a:Setter Property="Padding" Value="{a:DynamicResource AxScrollBarLaneTrailingThickness}"/>
+          </a:Style>
+          <a:Style Selector="AxListBoxItem.group /template/ a|ContentPresenter#PART_ContentPresenter">
+            <a:Setter Property="VerticalContentAlignment" Value="Stretch"/>
+          </a:Style>
+          <!--
+              Строк не выбирают и не красят, как у Unity: работают в поле, и рамка поля говорит, где каретка. Выбор строки
+              остаётся для клавиатуры — её видно кольцом, — а заливка и метка уходят. Заголовок раздела и раздел плагина
+              наведение тоже не красит.
+          -->
+          <a:Style Selector="AxListBoxItem /template/ a|ContentPresenter#PART_ContentPresenter">
             <a:Setter Property="Background" Value="Transparent"/>
+          </a:Style>
+          <a:Style Selector="AxListBoxItem:pointerover /template/ a|ContentPresenter#PART_ContentPresenter">
+            <a:Setter Property="Background" Value="Transparent"/>
+          </a:Style>
+          <a:Style Selector="AxListBoxItem:selected /template/ a|ContentPresenter#PART_ContentPresenter">
+            <a:Setter Property="Background" Value="Transparent"/>
+          </a:Style>
+          <a:Style Selector="AxListBoxItem:selected /template/ a|Border#PART_SelectionMarker">
+            <a:Setter Property="IsVisible" Value="False"/>
           </a:Style>
         </AxListBox.Styles>
       </AxListBox>

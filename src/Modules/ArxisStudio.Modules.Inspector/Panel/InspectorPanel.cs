@@ -81,6 +81,7 @@ public sealed class InspectorPanel : ToolWindow
         view.Alphabetical.IsCheckedChanged += OnFilterChanged;
         view.Written.IsCheckedChanged += OnFilterChanged;
         view.All.IsCheckedChanged += OnFilterChanged;
+        view.LeaveAll.Click += OnLeaveAllClick;
         view.Lock.IsCheckedChanged += OnLockChanged;
         view.Options.Click += OnOptionsClick;
         view.Unlock.Click += OnUnlockClick;
@@ -118,6 +119,7 @@ public sealed class InspectorPanel : ToolWindow
             view.Alphabetical.IsCheckedChanged -= OnFilterChanged;
             view.Written.IsCheckedChanged -= OnFilterChanged;
             view.All.IsCheckedChanged -= OnFilterChanged;
+            view.LeaveAll.Click -= OnLeaveAllClick;
             view.Lock.IsCheckedChanged -= OnLockChanged;
             view.Options.Click -= OnOptionsClick;
             view.Unlock.Click -= OnUnlockClick;
@@ -160,9 +162,32 @@ public sealed class InspectorPanel : ToolWindow
         if (_list is not { } list || _view is not { } view)
             return;
 
+        var showAll = view.All.IsChecked == true;
+        var entered = showAll && !list.ShowAll;
+
         list.Alphabetical = view.Alphabetical.IsChecked == true;
         list.WrittenOnly = view.Written.IsChecked == true;
-        list.ShowAll = view.All.IsChecked == true;
+        list.ShowAll = showAll;
+
+        // «Все свойства» — отладочный вид, как Debug у Unity: баннер встаёт, когда в него входят, говорит, что он
+        // включён, и выводит из него. Закрытый крестиком до следующего входа не возвращается — другие отборы его не
+        // поднимают.
+        if (entered || !showAll)
+            view.AllBanner.IsVisible = showAll;
+    }
+
+    private void OnLeaveAllClick(object? sender, RoutedEventArgs e)
+    {
+        if (_view is not { } view)
+            return;
+
+        // «Выйти» уходит вместе с баннером: каретка, стоявшая в нём, встаёт на переключатель режима, а не теряется.
+        var focused = view.AllBanner.IsKeyboardFocusWithin;
+
+        view.All.IsChecked = false;
+
+        if (focused)
+            view.All.Focus();
     }
 
     private void OnLockChanged(object? sender, RoutedEventArgs e)
@@ -259,8 +284,17 @@ public sealed class InspectorPanel : ToolWindow
         view.Title.IsVisible = name is null;
         view.Subtitle.Text = subtitle;
         view.Subtitle.IsVisible = !string.IsNullOrEmpty(subtitle);
-        view.HeaderIcon.Data = header?.Icon;
-        view.HeaderIcon.IsVisible = header?.Icon is not null;
+
+        // Что не уместилось в подзаголовок — пространство, сборка, — говорит подсказка: подзаголовок — только тип, как у
+        // Unity (запись 377).
+        ToolTip.SetTip(view.Subtitle, header?.Detail);
+        ToolTip.SetTip(view.Title, header?.Detail);
+
+        // Значок — свой у цели, а без него — значок её типа из метаданных: окно, панель, текст, кнопка, элемент.
+        var icon = header is null ? null : header.Icon ?? list.TypeIcon;
+
+        view.HeaderIcon.Data = icon;
+        view.HeaderIcon.IsVisible = icon is not null;
         view.NoticeText.Text = header?.Notice;
         view.Notice.IsVisible = !string.IsNullOrEmpty(header?.Notice);
 
@@ -421,6 +455,11 @@ public sealed class InspectorPanel : ToolWindow
                 cell.IsSelected = true;
 
             InspectorMenus.Show((Control?)cell ?? row, menus.ForRow(row), atPointer);
+        }
+        else if (e.Source is Visual inside && inside.FindAncestorOfType<GroupCell>(includeSelf: true) is { } group)
+        {
+            // Заголовок раздела — его меню ⋮: правой кнопкой, Shift+F10 и самой кнопкой ⋮.
+            InspectorMenus.Show(atPointer ? group : group.More, menus.ForSection(group.CategoryId), atPointer);
         }
         else
         {

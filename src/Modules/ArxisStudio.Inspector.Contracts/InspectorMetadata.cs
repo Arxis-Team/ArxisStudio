@@ -1,6 +1,7 @@
 using System.Reflection;
 using ArxisStudio.Sdk;
 using Avalonia;
+using Avalonia.Media;
 
 namespace ArxisStudio.Inspector;
 
@@ -108,6 +109,9 @@ public sealed class InspectorCategoryHints(string Id)
 
     /// <summary>Раздел свёрнут, пока его не раскроют.</summary>
     public bool? Collapsed { get; internal set; }
+
+    /// <summary>Значок раздела — контур в клетке 16 на полосе раздела, как значок компонента у Unity.</summary>
+    public Geometry? Icon { get; internal set; }
 }
 
 /// <summary>Описание раздела — по цепочке.</summary>
@@ -140,6 +144,16 @@ public sealed class InspectorCategoryBuilder
         _hints.Collapsed = collapsed;
         return this;
     }
+
+    /// <summary>Значок раздела на его полосе — контур в клетке 16: <c>AxIcons.Palette</c> или свой.</summary>
+    /// <param name="icon">Значок.</param>
+    public InspectorCategoryBuilder Icon(Geometry icon)
+    {
+        ArgumentNullException.ThrowIfNull(icon);
+
+        _hints.Icon = icon;
+        return this;
+    }
 }
 
 /// <summary>Описание типа: его свойства.</summary>
@@ -153,6 +167,11 @@ public sealed class InspectorTypeHints(string TypeName)
 
     /// <summary>Описанные свойства по идентификатору.</summary>
     public IReadOnlyDictionary<string, InspectorPropertyHints> Properties => _properties;
+
+    /// <summary>
+    /// Значок типа — в шапке цели, у которой своего значка нет; у наследника без своего — значок ближайшей базы.
+    /// </summary>
+    public Geometry? Icon { get; internal set; }
 
     internal InspectorPropertyHints Property(string id)
     {
@@ -218,6 +237,19 @@ public sealed class InspectorTypeBuilder
     /// <summary>Делает свойства только читаемыми.</summary>
     /// <param name="ids">Идентификаторы.</param>
     public InspectorTypeBuilder ReadOnly(params string[] ids) => Each(ids, property => property.ReadOnly());
+
+    /// <summary>
+    /// Значок типа — в шапке цели, у которой своего нет: <c>AxIcons.Window</c> или свой. Наследник без своего значка
+    /// берёт значок ближайшей описанной базы.
+    /// </summary>
+    /// <param name="icon">Значок.</param>
+    public InspectorTypeBuilder Icon(Geometry icon)
+    {
+        ArgumentNullException.ThrowIfNull(icon);
+
+        _hints.Icon = icon;
+        return this;
+    }
 
     /// <summary>Ставит свойства в раздел — по порядку перечисления.</summary>
     /// <param name="category">Раздел.</param>

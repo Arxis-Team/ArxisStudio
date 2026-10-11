@@ -57,9 +57,9 @@ public sealed class AvaloniaMetadata : InspectorMetadata
         ArgumentNullException.ThrowIfNull(metadata);
 
         for (var at = 0; at < Order.Length; at++)
-            metadata.Category(Order[at]).Title(Context.Strings["category." + Order[at]]).Order(at * 10);
+            metadata.Category(Order[at]).Title(Context.Strings["category." + Order[at]]).Order(at * 10).Icon(IconOf(Order[at]));
 
-        metadata.Category("hidden").Title(Context.Strings["category.hidden"]).Order(10_000).Collapsed();
+        metadata.Category("hidden").Title(Context.Strings["category.hidden"]).Order(10_000).Collapsed().Icon(AxIcons.PreviewOff);
 
         DescribeElement(metadata);
         DescribeLayout(metadata);
@@ -68,7 +68,42 @@ public sealed class AvaloniaMetadata : InspectorMetadata
         DescribeWindow(metadata);
         DescribeAlignment(metadata);
         DescribeFontsAndCursor(metadata);
+        DescribeIcons(metadata);
         Explain(metadata);
+    }
+
+    /// <summary>Значок раздела на его полосе — как значок компонента у Unity.</summary>
+    private static Geometry IconOf(string category) => category switch
+    {
+        "window" => AxIcons.Window,
+        "layout" => AxIcons.Grid,
+        "brush" => AxIcons.Palette,
+        "appearance" => AxIcons.Preview,
+        "text" => AxIcons.Text,
+        "transform" => AxIcons.Transform,
+        "interaction" => AxIcons.Pointer,
+        "tooltip" => AxIcons.Bubble,
+        "scroll" => AxIcons.Move,
+        "accessibility" => AxIcons.Accessibility,
+        "parent" => AxIcons.Structure,
+        "design" => AxIcons.Template,
+        _ => AxIcons.Component,
+    };
+
+    /// <summary>
+    /// Значки типов — шапке цели, у которой своего нет: окно, пользовательский элемент, панель, текст, картинка, кнопка;
+    /// остальным контролам — общий значок элемента.
+    /// </summary>
+    private static void DescribeIcons(InspectorMetadataBuilder metadata)
+    {
+        metadata.For<Control>().Icon(AxIcons.Component);
+        metadata.For<TopLevel>().Icon(AxIcons.Window);
+        metadata.For<UserControl>().Icon(AxIcons.Template);
+        metadata.For<Avalonia.Controls.Panel>().Icon(AxIcons.Grid);
+        metadata.For<TextBlock>().Icon(AxIcons.Text);
+        metadata.For<TextBox>().Icon(AxIcons.Text);
+        metadata.For<Image>().Icon(AxIcons.Image);
+        metadata.For<Button>().Icon(AxIcons.Pointer);
     }
 
     private static void DescribeElement(InspectorMetadataBuilder metadata)

@@ -12,8 +12,11 @@ namespace ArxisStudio.Inspector;
 /// </remarks>
 public sealed record InspectorHeader(string Title)
 {
-    /// <summary>Вторая строка: тип, пространство, сборка.</summary>
+    /// <summary>Вторая строка — тип, как у Unity: <c>Button</c>.</summary>
     public string? Subtitle { get; init; }
+
+    /// <summary>Подсказка второй строки: то, что в ней не уместилось, — пространство, сборка.</summary>
+    public string? Detail { get; init; }
 
     /// <summary>Значок — контур в клетке 16: <c>AxIcons.Window</c> или свой.</summary>
     public Geometry? Icon { get; init; }

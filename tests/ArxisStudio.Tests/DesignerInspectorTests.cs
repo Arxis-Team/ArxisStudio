@@ -97,8 +97,10 @@ public class DesignerInspectorTests
         document.Select([Go]);
         LiveFormStudio.Frame();
 
+        // Подзаголовок — только тип, как у Unity; пространство и сборка — в подсказке (запись 377).
         Assert.Equal("Button «Go»", panel.View!.Title.Text);
-        Assert.Contains("Avalonia.Controls", panel.View.Subtitle.Text, StringComparison.Ordinal);
+        Assert.Equal("Button", panel.View.Subtitle.Text);
+        Assert.Equal("Avalonia.Controls · Avalonia.Controls", ToolTip.GetTip(panel.View.Subtitle));
 
         var width = Row(panel, "Width");
 
@@ -367,7 +369,8 @@ public class DesignerInspectorTests
         Assert.Equal(AxPropertyRowLayout.Full, name.Layout);
         Assert.DoesNotContain(panel.View.HeaderRows.Children.OfType<InspectorRow>(), row => row.IsHeadline);
         Assert.False(panel.View.Title.IsVisible, "имя и заголовок стоят оба");
-        Assert.StartsWith("TextBlock · ", panel.View.Subtitle.Text, StringComparison.Ordinal);
+        Assert.Equal("TextBlock", panel.View.Subtitle.Text);
+        Assert.Contains("Avalonia.Controls", Assert.IsType<string>(ToolTip.GetTip(panel.View.Subtitle)), StringComparison.Ordinal);
         Assert.Equal(string.Empty, box.Text ?? string.Empty);
         Assert.Equal(name.Property.Label, box.PlaceholderText);
         Assert.Equal(name.Property.Label, AutomationProperties.GetName(box));
@@ -1082,7 +1085,7 @@ public class DesignerInspectorTests
 
         Assert.True(toggle.IsVisible, "у элемента нет флажка видимости");
         Assert.Equal(true, toggle.IsChecked);
-        Assert.Equal("IsVisible", AutomationProperties.GetName(toggle));
+        Assert.Equal("Is Visible", AutomationProperties.GetName(toggle));
         Assert.DoesNotContain(panel.List!.Items.OfType<PropertyCell>(), cell => cell.Row.Property.Id == "IsVisible");
 
         // Окно-корень на холсте видимостью не правят: ни флажка, ни строки.

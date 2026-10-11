@@ -31,13 +31,15 @@
   "id": "arxis.export",
   "sdk": { "min": "7.22" },
   "dependencies": [
-    { "id": "arxis.inspector", "min": "1.1", "optional": true }
+    { "id": "arxis.inspector", "min": "1.2", "optional": true }
   ],
   "activation": [ "onContribution:arxis.inspector" ]
 }
 ```
 
-Границы две: **1.0** — цели, вклады и служба показа; **1.1** — показ объекта (`Inspect`). Плагину, который
+Границы три: **1.0** — цели, вклады и служба показа; **1.1** — показ объекта (`Inspect`); **1.2** — значки разделов
+и типов (`Icon` у описаний раздела и типа), раздел меню ⋮ (`InspectorMenuContext.Category`) и подсказка подзаголовка
+шапки (`InspectorHeader.Detail`). Плагину, который
 только дополняет инспектор редакторами и разделами, служба не нужна вовсе: вклады студия найдёт в его сборке
 сама — открытые классы с открытым конструктором, — построит через шов сбоев с контекстом плагина и снимет с
 его выгрузкой. Спящий плагин проснётся событием `onContribution:arxis.inspector`, когда инспектор впервые
@@ -222,6 +224,7 @@ public sealed class LayerTarget(Layer layer, Stack<(double Before, double After)
 свойство, которому цепочка не нашла поля: тип без текстовой формы и без своего редактора.
 
 ```csharp
+using ArxisStudio.Icons;
 using ArxisStudio.Inspector;
 using Avalonia.Controls;
 
@@ -233,10 +236,12 @@ public sealed class CardMetadata : InspectorMetadata
     {
         var strings = Context.Strings;
 
-        metadata.Category("card").Title(strings["category.card"]).Order(15);
+        // Раздел — полосой компонента, как у Unity: значок, имя, счётчик заданного и ⋮.
+        metadata.Category("card").Title(strings["category.card"]).Order(15).Icon(AxIcons.Layers);
 
-        // Тип проекта, которого у плагина нет, — полным именем.
+        // Тип проекта, которого у плагина нет, — полным именем; его значок встанет в шапку инспектора.
         metadata.For("MyApp.Controls.Card")
+            .Icon(AxIcons.Layers)
             .Category("card", "Elevation", "Corner")
             .Property("Elevation", property => property.Range(0, 24).Step(1).Help(strings["card.elevation"]))
             .Property("Corner", property => property.Choices(
@@ -253,6 +258,12 @@ public sealed class CardMetadata : InspectorMetadata
 Присоединённое свойство Avalonia, которое описываемый тип держит своим — реестр числит его за типом и у типа
 есть открытая обёртка (`Visual.FlowDirection`), — описано простым именем, как его пишет разметка; остальное
 присоединённое — с владельцем: `Grid.Row`.
+
+Подпись строки — та, что дали атрибут `[DisplayName]` или `Title` таблицы, а без неё — имя словами, как у Unity:
+`HorizontalAlignment` — «Horizontal Alignment», `ZIndex` — «Z Index»; у присоединённого — без владельца, директивы
+(`x:Name`) — как написаны. Точное имя XAML показывает подсказка подписи, и поиск находит строку и по нему. Значок
+раздела стоит на его полосе, значок типа — в шапке цели, у которой своего нет; наследник без своего берёт значок
+ближайшей описанной базы.
 
 Варианты решают поле: у текста они — подсказки в меню поля (набрать своё можно), названные единственно
 возможными (`ChoicesOnly`) — список, у перечисления — порядок, подписи и значки сегментов. У свойства, значения
@@ -414,8 +425,9 @@ public sealed class PictureSection : InspectorSection
 
 ## Пункты меню
 
-Меню строки и меню ⋮ дополняют цель и вклады `InspectorMenu`. Пункт зовётся через шов того, кто его
-добавил: упавший пункт засчитан вашему плагину.
+Меню строки, меню ⋮ всей цели и меню ⋮ раздела дополняют цель и вклады `InspectorMenu`: у меню строки есть
+`Property`, у меню раздела — `Category`, идентификатор раздела, у меню всей цели — ни того ни другого. Пункт зовётся
+через шов того, кто его добавил: упавший пункт засчитан вашему плагину.
 
 ```csharp
 using ArxisStudio.Inspector;

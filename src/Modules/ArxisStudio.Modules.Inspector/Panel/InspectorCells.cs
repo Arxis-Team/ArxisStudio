@@ -1,4 +1,5 @@
 using ArxisStudio.Controls;
+using ArxisStudio.Icons;
 using ArxisStudio.Modules.Inspector.Catalog;
 using Avalonia;
 using Avalonia.Automation;
@@ -180,11 +181,17 @@ internal sealed class PropertyCell : AxListBoxItem, IInspectorCell
 }
 
 /// <summary>
-/// Заголовок раздела: его не выбирают, стрелки его проходят, а щелчок, пробел и Enter на нём сворачивают раздел.
+/// Заголовок раздела — полосой компонента, как у Unity: стрелка, значок, имя, счётчик заданного и ⋮ справа. Его не
+/// выбирают, стрелки его проходят, а щелчок, пробел и Enter на нём сворачивают раздел.
 /// </summary>
+/// <remarks>
+/// Меню ⋮ — меню раздела; кнопка просит его так же, как правая кнопка и Shift+F10, — запросом контекстного меню, и
+/// панель, узнав в источнике заголовок раздела, показывает пункты раздела.
+/// </remarks>
 internal sealed class GroupCell : AxListBoxItem, IInspectorCell
 {
     private readonly Action<string, bool> _fold;
+    private readonly AxButton _more;
     private bool _updating;
 
     /// <summary>Заводит заголовок.</summary>
@@ -199,11 +206,31 @@ internal sealed class GroupCell : AxListBoxItem, IInspectorCell
         _fold = fold;
         Focusable = false;
         HorizontalContentAlignment = HorizontalAlignment.Stretch;
-        Header = new AxGroupHeader { [!MarginProperty] = new DynamicResourceExtension("AxSpaceTightAboveThickness") };
+
+        // Полоса раздела — во всю ширину и во всю высоту строки, как у Unity: поля строки ей не нужны, а полоса ниже
+        // шага оставляла бы просветы между разделом и его строками (стиль .group вида).
+        Classes.Add("group");
+
+        var menu = words["inspector.sectionMenu"];
+
+        _more = new AxButton
+        {
+            Appearance = AxButtonAppearance.Toolbar,
+            Size = AxControlSize.Compact,
+            Content = new AxIcon { Data = AxIcons.MoreVertical },
+            [AutomationProperties.NameProperty] = menu,
+            [ToolTip.TipProperty] = menu,
+        };
+        _more.Click += OnMoreClick;
+
+        Header = new AxGroupHeader { Appearance = AxGroupHeaderAppearance.Band, Actions = _more };
         Header.PropertyChanged += OnHeaderChanged;
         Content = Header;
         Update(entry);
     }
+
+    /// <summary>Кнопка ⋮ раздела.</summary>
+    public AxButton More => _more;
 
     /// <inheritdoc/>
     public string Slot { get; }
@@ -230,6 +257,7 @@ internal sealed class GroupCell : AxListBoxItem, IInspectorCell
         {
             CategoryId = group.Category.Id;
             Header.Content = group.Category.Title;
+            Header.Icon = group.Category.Icon;
             Header.IsCollapsible = group.Foldable;
             Header.IsExpanded = group.Expanded;
             Header.Counter = group.Written is > 0 ? group.Written : null;
@@ -246,11 +274,16 @@ internal sealed class GroupCell : AxListBoxItem, IInspectorCell
     public void Detach()
     {
         Header.PropertyChanged -= OnHeaderChanged;
+        _more.Click -= OnMoreClick;
         Content = null;
     }
 
     /// <inheritdoc/>
     protected override Type StyleKeyOverride => typeof(AxListBoxItem);
+
+    /// <summary>⋮ просит меню раздела тем же запросом, что правая кнопка: показывает его панель.</summary>
+    private void OnMoreClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) =>
+        _more.RaiseEvent(new ContextRequestedEventArgs());
 
     /// <inheritdoc/>
     /// <remarks>Заголовок не выбирается и мышью: нажатие сворачивает раздел, а не ставит на него выбор.</remarks>

@@ -38,7 +38,8 @@ public class InspectorObjectTests
         var target = Assert.IsAssignableFrom<InspectorTarget>(service.Current);
 
         Assert.Equal("Настройки", target.Header.Title);
-        Assert.Equal(typeof(Settings).FullName, target.Header.Subtitle);
+        Assert.Equal(nameof(Settings), target.Header.Subtitle);
+        Assert.Equal(typeof(Settings).FullName, target.Header.Detail);
 
         var greeting = Property(target, "Greeting");
 

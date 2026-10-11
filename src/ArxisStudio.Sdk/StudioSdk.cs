@@ -21,11 +21,16 @@ public static class StudioSdk
 {
     /// <summary>Версия контракта этой студии.</summary>
     /// <remarks>
+    /// 7.26 — заголовок группы полосой компонента, как у Unity (<c>AxGroupHeader.Appearance</c>,
+    /// <c>AxGroupHeaderAppearance</c>, <c>Icon</c>, <c>Actions</c>), и значки разделов инспектора
+    /// (<c>AxIcons.Palette</c>, <c>Transform</c>, <c>Accessibility</c>). Младший номер: добавлено, снятого нет.
+    /// <para>
     /// 7.25 — палитра и образцы окна «Цвет»: встроенная палитра (<c>AxColorPicker.Defaults</c>), образцы и их
     /// библиотеки (<c>AxColorPreset</c>, <c>AxColorPresetLibrary</c>, <c>AxColorPresetLocation</c>), хранилище хозяина
     /// (<c>IAxColorPresetStore</c>, наследуемое <c>AxColorPicker.PresetStore</c>), вид образцов
     /// (<c>AxColorPresetView</c>) и раскрытость разделов (<c>IsPaletteExpanded</c>, <c>ArePresetsExpanded</c>).
     /// Младший номер: добавлено, снятого нет.
+    /// </para>
     /// <para>
     /// 7.24 — окно «Цвет», как у Unity: кольцо оттенков (<c>AxColorWheel</c>), каналы красный, зелёный и синий у
     /// ползунка (<c>AxColorChannel.Red</c>, <c>Green</c>, <c>Blue</c>), вид каналов выбора и поля
@@ -340,7 +345,7 @@ public static class StudioSdk
     /// 4.1 — добавлены теги манифеста (<c>tags</c>).
     /// </para>
     /// </remarks>
-    public const string Version = "7.25";
+    public const string Version = "7.26";
 
     /// <summary>
     /// Довольна ли эта версия SDK тем, что просит плагин.

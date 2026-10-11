@@ -27,6 +27,12 @@ public abstract class InspectorMenuContext
     /// <summary>Значение свойства строки; пусто — меню всей цели.</summary>
     public abstract InspectorValue? Value { get; }
 
+    /// <summary>
+    /// Раздел, чьё меню ⋮ дополняют, — идентификатор раздела метаданных: <c>layout</c>; пусто — меню строки или всей
+    /// цели.
+    /// </summary>
+    public virtual string? Category => null;
+
     /// <summary>Тип цели.</summary>
     public abstract InspectorTypeInfo Type { get; }
 

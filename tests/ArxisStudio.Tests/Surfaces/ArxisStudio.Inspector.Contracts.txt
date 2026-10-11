@@ -9,10 +9,12 @@ ArxisStudio.Inspector.IStudioInspector :: System.IDisposable Show(ArxisStudio.In
 ArxisStudio.Inspector.IStudioInspector :: event System.EventHandler CurrentChanged
 ArxisStudio.Inspector.InspectorCategoryBuilder : sealed class
 ArxisStudio.Inspector.InspectorCategoryBuilder :: ArxisStudio.Inspector.InspectorCategoryBuilder Collapsed(System.Boolean collapsed = true)
+ArxisStudio.Inspector.InspectorCategoryBuilder :: ArxisStudio.Inspector.InspectorCategoryBuilder Icon(Avalonia.Media.Geometry icon)
 ArxisStudio.Inspector.InspectorCategoryBuilder :: ArxisStudio.Inspector.InspectorCategoryBuilder Order(System.Int32 order)
 ArxisStudio.Inspector.InspectorCategoryBuilder :: ArxisStudio.Inspector.InspectorCategoryBuilder Title(System.String title)
 ArxisStudio.Inspector.InspectorCategoryHints : sealed class
 ArxisStudio.Inspector.InspectorCategoryHints :: .ctor(System.String Id)
+ArxisStudio.Inspector.InspectorCategoryHints :: Avalonia.Media.Geometry? Icon { get; }
 ArxisStudio.Inspector.InspectorCategoryHints :: System.Boolean? Collapsed { get; }
 ArxisStudio.Inspector.InspectorCategoryHints :: System.Int32? Order { get; }
 ArxisStudio.Inspector.InspectorCategoryHints :: System.String Id { get; }
@@ -101,6 +103,7 @@ ArxisStudio.Inspector.InspectorHeader :: .ctor(System.String Title)
 ArxisStudio.Inspector.InspectorHeader :: Avalonia.Media.Geometry? Icon { get; init; }
 ArxisStudio.Inspector.InspectorHeader :: System.Boolean Equals(ArxisStudio.Inspector.InspectorHeader? other)
 ArxisStudio.Inspector.InspectorHeader :: System.String Title { get; init; }
+ArxisStudio.Inspector.InspectorHeader :: System.String? Detail { get; init; }
 ArxisStudio.Inspector.InspectorHeader :: System.String? EnabledProperty { get; init; }
 ArxisStudio.Inspector.InspectorHeader :: System.String? NameProperty { get; init; }
 ArxisStudio.Inspector.InspectorHeader :: System.String? Notice { get; init; }
@@ -118,6 +121,7 @@ ArxisStudio.Inspector.InspectorMenuContext :: ArxisStudio.Inspector.InspectorPro
 ArxisStudio.Inspector.InspectorMenuContext :: ArxisStudio.Inspector.InspectorTypeInfo Type { get; }
 ArxisStudio.Inspector.InspectorMenuContext :: ArxisStudio.Inspector.InspectorValue? Value { get; }
 ArxisStudio.Inspector.InspectorMenuContext :: System.Int32 Count { get; }
+ArxisStudio.Inspector.InspectorMenuContext :: System.String? Category { get; }
 ArxisStudio.Inspector.InspectorMenuContext :: abstract System.Threading.Tasks.Task<System.Boolean> WriteAsync(System.Collections.Generic.IReadOnlyList<ArxisStudio.Inspector.InspectorWrite> writes, System.String? label = null)
 ArxisStudio.Inspector.InspectorMenuContext :: abstract System.Void Add(System.String title, System.Action action, Avalonia.Media.Geometry? icon = null, System.Boolean isEnabled = true)
 ArxisStudio.Inspector.InspectorMenuContext :: abstract System.Void AddSeparator()
@@ -258,12 +262,14 @@ ArxisStudio.Inspector.InspectorTypeBuilder : sealed class
 ArxisStudio.Inspector.InspectorTypeBuilder :: ArxisStudio.Inspector.InspectorTypeBuilder Advanced(System.String[] ids)
 ArxisStudio.Inspector.InspectorTypeBuilder :: ArxisStudio.Inspector.InspectorTypeBuilder Category(System.String category, System.String[] ids)
 ArxisStudio.Inspector.InspectorTypeBuilder :: ArxisStudio.Inspector.InspectorTypeBuilder Hide(System.String[] ids)
+ArxisStudio.Inspector.InspectorTypeBuilder :: ArxisStudio.Inspector.InspectorTypeBuilder Icon(Avalonia.Media.Geometry icon)
 ArxisStudio.Inspector.InspectorTypeBuilder :: ArxisStudio.Inspector.InspectorTypeBuilder Property(Avalonia.AvaloniaProperty property, System.Action<ArxisStudio.Inspector.InspectorPropertyBuilder> describe)
 ArxisStudio.Inspector.InspectorTypeBuilder :: ArxisStudio.Inspector.InspectorTypeBuilder Property(System.String id, System.Action<ArxisStudio.Inspector.InspectorPropertyBuilder> describe)
 ArxisStudio.Inspector.InspectorTypeBuilder :: ArxisStudio.Inspector.InspectorTypeBuilder ReadOnly(System.String[] ids)
 ArxisStudio.Inspector.InspectorTypeBuilder :: static System.String IdOf(Avalonia.AvaloniaProperty property)
 ArxisStudio.Inspector.InspectorTypeHints : sealed class
 ArxisStudio.Inspector.InspectorTypeHints :: .ctor(System.String TypeName)
+ArxisStudio.Inspector.InspectorTypeHints :: Avalonia.Media.Geometry? Icon { get; }
 ArxisStudio.Inspector.InspectorTypeHints :: System.Collections.Generic.IReadOnlyDictionary<System.String, ArxisStudio.Inspector.InspectorPropertyHints> Properties { get; }
 ArxisStudio.Inspector.InspectorTypeHints :: System.String TypeName { get; }
 ArxisStudio.Inspector.InspectorTypeInfo : sealed record : System.IEquatable<ArxisStudio.Inspector.InspectorTypeInfo>

@@ -1,6 +1,8 @@
 using System.Globalization;
+using ArxisStudio.Icons;
 using ArxisStudio.Inspector;
 using ArxisStudio.Sdk;
+using Avalonia.Media;
 
 namespace ArxisStudio.Modules.Inspector.Catalog;
 
@@ -9,7 +11,8 @@ namespace ArxisStudio.Modules.Inspector.Catalog;
 /// <param name="Title">Заголовок.</param>
 /// <param name="Order">Место среди разделов; описанные метаданными — раньше остальных.</param>
 /// <param name="Collapsed">Свёрнут, пока его не раскроют.</param>
-internal sealed record InspectorCategory(string Id, string Title, int Order, bool Collapsed);
+/// <param name="Icon">Значок на полосе раздела; пусто — без значка.</param>
+internal sealed record InspectorCategory(string Id, string Title, int Order, bool Collapsed, Geometry? Icon = null);
 
 /// <summary>Редактор, выбранный для свойства, и как его поле стоит в строке.</summary>
 /// <param name="Editor">Вклад-редактор.</param>
@@ -123,7 +126,7 @@ internal sealed class InspectorCatalog : IDisposable
             based.Title.Contains("{0}", StringComparison.Ordinal))
         {
             return new InspectorCategory(
-                id, string.Format(CultureInfo.CurrentCulture, based.Title, id[(slash + 1)..]), based.Order, based.Collapsed);
+                id, string.Format(CultureInfo.CurrentCulture, based.Title, id[(slash + 1)..]), based.Order, based.Collapsed, based.Icon);
         }
 
         if (layers.Categories.Values.FirstOrDefault(known => string.Equals(known.Id, id, StringComparison.OrdinalIgnoreCase)) is { } alike)
@@ -133,10 +136,34 @@ internal sealed class InspectorCatalog : IDisposable
         // [Category], а не таблица, — заголовком из его имени, после описанных.
         return id switch
         {
-            OtherCategory => new InspectorCategory(id, _ownTitle(id), int.MaxValue - 1, false),
-            HiddenCategory => new InspectorCategory(id, _ownTitle(id), int.MaxValue, true),
+            OtherCategory => new InspectorCategory(id, _ownTitle(id), int.MaxValue - 1, false, AxIcons.MoreHorizontal),
+            HiddenCategory => new InspectorCategory(id, _ownTitle(id), int.MaxValue, true, AxIcons.PreviewOff),
             _ => new InspectorCategory(id, id, int.MaxValue - 2, false),
         };
+    }
+
+    /// <summary>
+    /// Значок типа цели — для шапки, у которой своего нет: описание самого типа, а без него — ближайшей описанной базы;
+    /// у одного типа описание плагина сильнее описания модуля.
+    /// </summary>
+    /// <param name="type">Тип цели.</param>
+    /// <returns>Значок; пусто — никто его не описал.</returns>
+    public Geometry? IconOf(InspectorTypeInfo type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+
+        var layers = Describe();
+
+        foreach (var name in new[] { type.FullName }.Concat(type.BaseTypes))
+        {
+            var icon = layers.Plugins.LastOrDefault(hints => hints.Icon is not null && string.Equals(hints.TypeName, name, StringComparison.Ordinal))?.Icon
+                       ?? layers.Modules.LastOrDefault(hints => hints.Icon is not null && string.Equals(hints.TypeName, name, StringComparison.Ordinal))?.Icon;
+
+            if (icon is not null)
+                return icon;
+        }
+
+        return null;
     }
 
     /// <summary>Свойства цели с метаданными всех слоёв.</summary>
@@ -150,7 +177,12 @@ internal sealed class InspectorCatalog : IDisposable
         var layers = Describe();
         var chain = Chain(type);
 
-        return properties.Select(property => Apply(Apply(property, layers.Modules, chain), layers.Plugins, chain)).ToArray();
+        // Подпись словами — свойству, которому её не дали ни источник, ни метаданные: «Horizontal Alignment», как у
+        // Unity; точное имя остаётся идентификатором (запись 377).
+        return properties
+            .Select(property => Apply(Apply(property, layers.Modules, chain), layers.Plugins, chain))
+            .Select(static property => property.DisplayName is { Length: > 0 } ? property : property with { DisplayName = InspectorLabels.Of(property) })
+            .ToArray();
     }
 
     /// <summary>Свойства, которые метаданные просят показывать всегда — цель добавит их, если умеет.</summary>
@@ -386,7 +418,8 @@ internal sealed class InspectorCatalog : IDisposable
                     hints.Id,
                     hints.Title ?? known?.Title ?? hints.Id,
                     hints.Order ?? known?.Order ?? 1000 + described,
-                    hints.Collapsed ?? known?.Collapsed ?? false);
+                    hints.Collapsed ?? known?.Collapsed ?? false,
+                    hints.Icon ?? known?.Icon);
                 described++;
             }
 

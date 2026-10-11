@@ -433,11 +433,15 @@ internal sealed class InspectorRow : AxPropertyRow
         AutomationProperties.SetHelpText(this, Spoken(source));
 
         // Подпись держит свою пустую подсказку — правило темы для сокращённой подписи, — и подсказка строки над ней не
-        // открывалась: пояснение и источник, ради которых её наводят, встают на саму подпись, вместе с её полным именем.
+        // открывалась: пояснение и источник, ради которых её наводят, встают на саму подпись. Первой строкой — точное
+        // имя XAML: подпись говорит словами, а пишут его так (запись 377).
         if (_label is { } label)
         {
-            if (tip.Length > 0)
-                ToolTip.SetTip(label, Property.Label + Environment.NewLine + tip);
+            var named = string.Equals(Property.Label, Property.Id, StringComparison.Ordinal) ? null : Property.Id;
+            var full = string.Join(Environment.NewLine, new[] { named, tip }.Where(static line => !string.IsNullOrEmpty(line)));
+
+            if (full.Length > 0)
+                ToolTip.SetTip(label, full);
             else
                 label.ClearValue(ToolTip.TipProperty);
         }

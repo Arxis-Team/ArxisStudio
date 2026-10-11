@@ -164,7 +164,8 @@ public class InspectorPanelTests
         var label = row.GetVisualDescendants().OfType<AxScrubLabel>().Single(label => ReferenceEquals(label.TemplatedParent, row));
         var tip = Assert.IsType<string>(ToolTip.GetTip(label));
 
-        Assert.StartsWith("Margin", tip, StringComparison.Ordinal);
+        // Подпись «Margin» и есть имя XAML — второй раз его подсказка не повторяет.
+        Assert.DoesNotContain("Margin", tip, StringComparison.Ordinal);
         Assert.Contains("Button.accent", tip, StringComparison.Ordinal);
     }
 

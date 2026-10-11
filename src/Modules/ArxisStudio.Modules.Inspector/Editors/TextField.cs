@@ -1,6 +1,7 @@
 using ArxisStudio.Controls;
 using ArxisStudio.Icons;
 using ArxisStudio.Inspector;
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -59,15 +60,19 @@ internal sealed class TextField : InspectorField
             var menu = new AxMenuFlyout();
 
             menu.Opening += (_, _) => Fill(menu);
+
+            // Кнопка — внутри рамки поля, как крестик очистки: голый шеврон без плашки, и не выше строки текста —
+            // кнопка полосы распирала поле до 26 точек, и строка инспектора выходила из шага (запись 377).
             _choices = new AxButton
             {
-                Appearance = AxButtonAppearance.Toolbar,
-                Content = new AxIcon { Data = AxIcons.ChevronDown },
+                Content = new AxIcon { Data = AxIcons.ChevronDown, Size = AxIconSize.Small },
                 Flyout = menu,
                 Focusable = false,
+                Height = double.NaN,
                 [AutomationProperties.NameProperty] = choicesName,
                 [ToolTip.TipProperty] = choicesName,
             };
+            _choices.Bind(StyledElement.ThemeProperty, _choices.GetResourceObservable("AxInlineIconButton"));
             _box.InnerRightContent = _choices;
         }
     }

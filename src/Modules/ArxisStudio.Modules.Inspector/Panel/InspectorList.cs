@@ -100,6 +100,9 @@ internal sealed class InspectorList
     /// <summary>Тип показанной цели.</summary>
     public InspectorTypeInfo? Type => _type;
 
+    /// <summary>Значок типа показанного из метаданных — шапке, у цели которой своего нет.</summary>
+    public Avalonia.Media.Geometry? TypeIcon => _type is { } type ? _catalog.IconOf(type) : null;
+
     /// <summary>Свойства цели с метаданными.</summary>
     public IReadOnlyList<InspectorProperty> Properties => _properties;
 
@@ -562,8 +565,11 @@ internal sealed class InspectorList
         if (property.IsAdvanced && !_showAll && !IsSearching)
             return false;
 
+        // Поиск — по подписи словами, по ней же без пробелов и по точному имени XAML: «horizontal al» и
+        // «HorizontalAlignment» находят одну строку.
         return !IsSearching ||
                property.Label.Contains(_query, StringComparison.CurrentCultureIgnoreCase) ||
+               property.Label.Replace(" ", string.Empty, StringComparison.Ordinal).Contains(_query, StringComparison.CurrentCultureIgnoreCase) ||
                property.Id.Contains(_query, StringComparison.CurrentCultureIgnoreCase);
     }
 

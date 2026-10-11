@@ -54,7 +54,7 @@ internal sealed class ObjectTarget : InspectorTarget
             : typeof(object);
 
         _type = InspectorTypeInfo.Of(type);
-        _header = new InspectorHeader(title) { Subtitle = _type.FullName };
+        _header = new InspectorHeader(title) { Subtitle = type.Name, Detail = _type.FullName };
         Describe(type);
 
         if (instance.TryGet("tells whether it announces changes", static it => it as INotifyPropertyChanged, out var notifier) &&

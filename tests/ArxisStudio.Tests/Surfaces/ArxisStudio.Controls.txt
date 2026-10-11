@@ -1,4 +1,4 @@
-# StudioSdk 7.25
+# StudioSdk 7.26
 ArxisStudio.Controls.AxAvatar : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Controls.AxAvatar :: .ctor()
 ArxisStudio.Controls.AxAvatar :: ArxisStudio.Controls.AxAvatarShape Shape { get; set; }
@@ -382,12 +382,21 @@ ArxisStudio.Controls.AxEyedropper :: static System.Boolean IsOpen { get; }
 ArxisStudio.Controls.AxEyedropper :: static System.Threading.Tasks.Task<Avalonia.Media.Color?> PickAsync(Avalonia.Visual anchor, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Controls.AxGroupHeader : class : Avalonia.Controls.ContentControl
 ArxisStudio.Controls.AxGroupHeader :: .ctor()
+ArxisStudio.Controls.AxGroupHeader :: ArxisStudio.Controls.AxGroupHeaderAppearance Appearance { get; set; }
+ArxisStudio.Controls.AxGroupHeader :: Avalonia.Media.Geometry? Icon { get; set; }
 ArxisStudio.Controls.AxGroupHeader :: System.Boolean IsCollapsible { get; set; }
 ArxisStudio.Controls.AxGroupHeader :: System.Boolean IsExpanded { get; set; }
+ArxisStudio.Controls.AxGroupHeader :: System.Object? Actions { get; set; }
 ArxisStudio.Controls.AxGroupHeader :: System.Object? Counter { get; set; }
+ArxisStudio.Controls.AxGroupHeader :: static readonly Avalonia.StyledProperty<ArxisStudio.Controls.AxGroupHeaderAppearance> AppearanceProperty
+ArxisStudio.Controls.AxGroupHeader :: static readonly Avalonia.StyledProperty<Avalonia.Media.Geometry> IconProperty
 ArxisStudio.Controls.AxGroupHeader :: static readonly Avalonia.StyledProperty<System.Boolean> IsCollapsibleProperty
 ArxisStudio.Controls.AxGroupHeader :: static readonly Avalonia.StyledProperty<System.Boolean> IsExpandedProperty
+ArxisStudio.Controls.AxGroupHeader :: static readonly Avalonia.StyledProperty<System.Object> ActionsProperty
 ArxisStudio.Controls.AxGroupHeader :: static readonly Avalonia.StyledProperty<System.Object> CounterProperty
+ArxisStudio.Controls.AxGroupHeaderAppearance : enum
+ArxisStudio.Controls.AxGroupHeaderAppearance :: Band = 1
+ArxisStudio.Controls.AxGroupHeaderAppearance :: Rule = 0
 ArxisStudio.Controls.AxLink : class : Avalonia.Controls.Button
 ArxisStudio.Controls.AxLink :: .ctor()
 ArxisStudio.Controls.AxLink :: System.Boolean IsVisited { get; set; }

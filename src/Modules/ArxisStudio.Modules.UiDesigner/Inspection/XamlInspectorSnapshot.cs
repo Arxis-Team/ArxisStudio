@@ -557,13 +557,15 @@ internal sealed class XamlInspectorSnapshot
 
         var item = picked[0];
         var title = Titled(item.Element);
-        var subtitle = item.Info is { } info
+
+        // Подзаголовок — тип, и его ставит панель; пространство и сборка — подсказкой, как у Unity (запись 377).
+        var detail = item.Info is { } info
             ? $"{Namespace(info.TypeFullName)} · {info.AssemblyName}"
             : null;
 
         return new InspectorHeader(title)
         {
-            Subtitle = subtitle,
+            Detail = detail,
             Notice = notice,
             EnabledProperty = visible,
             NameProperty = name,
