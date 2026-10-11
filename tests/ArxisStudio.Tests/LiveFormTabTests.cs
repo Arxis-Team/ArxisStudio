@@ -122,6 +122,47 @@ public class LiveFormTabTests
     }
 
     /// <summary>
+    /// Корень окна с классом — само окно, а не шаблон рамки, которой холст одевает окно: у экземпляра класса нет
+    /// записанной позиции, а шаблон рамки, собранный с позициями в своём файле, занимал корень формы, и инспектор
+    /// описывал форму шаблоном (запись 367). Ловит в отладочной сборке: позиции тема холста записывает только в ней,
+    /// как и в студии, которую запускают из Debug.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task The_root_of_a_window_with_a_class_is_the_window_and_not_the_canvas_chrome()
+    {
+        const string Source = """
+            using Avalonia.Controls;
+
+            namespace App.Views;
+
+            public class Shell : Window
+            {
+            }
+            """;
+
+        await using var studio = new LiveFormStudio();
+        var name = "LiveFormTab" + Guid.NewGuid().ToString("N")[..8];
+        var output = Path.Combine(studio.Xaml.ProjectFolder, "bin", name + ".dll");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(output)!);
+        TestAssembly.EmitFile(output, name, Source);
+        studio.Xaml.AssemblyName = name;
+        studio.Xaml.Output = ArxisStudio.ProjectSystem.CanonicalPath.Create(output);
+
+        var document = await studio.OpenAsync("Views/Shell.axaml", """
+            <Window xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    x:Class="App.Views.Shell" Width="400" Height="300" Title="Оболочка">
+            </Window>
+            """);
+
+        var root = document.Shown!.ObjectAt(XamlElementPath.Root);
+
+        Assert.Equal("App.Views.Shell", root?.GetType().FullName);
+        Assert.Equal(XamlElementPath.Root, document.Shown.PathOf(document.Form.Root!));
+    }
+
+    /// <summary>
     /// Встав, форма вписывается в холст целиком — с заголовком окна над карточкой: до корня карточка
     /// стояла объявленным размером без него.
     /// </summary>
