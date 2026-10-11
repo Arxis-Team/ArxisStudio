@@ -81,13 +81,15 @@ internal static class XamlValueOrigins
 
     /// <summary>
     /// Само значение, если его можно держать: тип из общих сборок и не меняется — число, структура,
-    /// перечисление Avalonia, строка. У сплошной кисти — её цвет: кисть — объект, и её поменяют.
+    /// перечисление Avalonia, строка. У сплошной кисти — её цвет: кисть — объект, и её поменяют. У градиента —
+    /// его неизменяемый снимок: текстом его не напишешь, а показать надо (запись 374).
     /// </summary>
     public static object? Shared(object? value) => value switch
     {
         null => null,
         string => value,
         ISolidColorBrush brush => brush.Color,
+        IGradientBrush gradient => gradient.ToImmutable(),
         FontFamily => value,
         _ when value.GetType() is { IsValueType: true } type && Common(type) => value,
         _ => null,

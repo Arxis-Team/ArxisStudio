@@ -30,6 +30,9 @@ public static class ControlTexts
         ("AxTextColorHue", "controls.color.hue"),
         ("AxTextColorAlpha", "controls.color.alpha"),
         ("AxTextColorCode", "controls.color.code"),
+        ("AxTextColorNone", "controls.color.none"),
+        ("AxTextColorEyedropper", "controls.color.eyedropper"),
+        ("AxTextEyedropperHint", "controls.eyedropper.hint"),
     ];
 
     /// <summary>Кладёт тексты в ресурсы приложения и переводит их вместе со студией.</summary>

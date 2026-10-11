@@ -1,4 +1,4 @@
-# StudioSdk 7.21
+# StudioSdk 7.23
 ArxisStudio.Controls.AxAvatar : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Controls.AxAvatar :: .ctor()
 ArxisStudio.Controls.AxAvatar :: ArxisStudio.Controls.AxAvatarShape Shape { get; set; }
@@ -187,6 +187,9 @@ ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<Syste
 ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<System.Double> LineHeightRatioProperty
 ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<System.Int32> CaretOffsetProperty
 ArxisStudio.Controls.AxCodeView :: static readonly Avalonia.StyledProperty<System.String> TextProperty
+ArxisStudio.Controls.AxColorAlphaDisplay : enum
+ArxisStudio.Controls.AxColorAlphaDisplay :: Bar = 0
+ArxisStudio.Controls.AxColorAlphaDisplay :: Checker = 1
 ArxisStudio.Controls.AxColorChannel : enum
 ArxisStudio.Controls.AxColorChannel :: Alpha = 3
 ArxisStudio.Controls.AxColorChannel :: Hue = 0
@@ -200,25 +203,32 @@ ArxisStudio.Controls.AxColorField : class : Avalonia.Controls.Primitives.Templat
 ArxisStudio.Controls.AxColorField :: .ctor()
 ArxisStudio.Controls.AxColorField :: ArxisStudio.Controls.AxColorPicker? Picker { get; }
 ArxisStudio.Controls.AxColorField :: ArxisStudio.Controls.AxControlSize Size { get; set; }
+ArxisStudio.Controls.AxColorField :: Avalonia.Controls.Button? Swatch { get; }
 ArxisStudio.Controls.AxColorField :: Avalonia.Controls.TextBox? Input { get; }
 ArxisStudio.Controls.AxColorField :: Avalonia.Media.Color Color { get; set; }
 ArxisStudio.Controls.AxColorField :: Avalonia.Media.IBrush? SwatchBrush { get; }
 ArxisStudio.Controls.AxColorField :: System.Boolean AllowsAlpha { get; set; }
 ArxisStudio.Controls.AxColorField :: System.Boolean IsMixed { get; set; }
+ArxisStudio.Controls.AxColorField :: System.Boolean IsNone { get; set; }
 ArxisStudio.Controls.AxColorField :: System.Boolean IsPickerOpen { get; set; }
 ArxisStudio.Controls.AxColorField :: System.Boolean IsReadOnly { get; set; }
+ArxisStudio.Controls.AxColorField :: System.Boolean ShowsEyedropper { get; set; }
+ArxisStudio.Controls.AxColorField :: System.String? ColorText { get; }
 ArxisStudio.Controls.AxColorField :: event System.EventHandler<ArxisStudio.Controls.AxColorEventArgs> ColorChanging
 ArxisStudio.Controls.AxColorField :: event System.EventHandler<ArxisStudio.Controls.AxColorEventArgs> ColorCommitted
 ArxisStudio.Controls.AxColorField :: event System.EventHandler<Avalonia.Interactivity.RoutedEventArgs> ColorCancelled
 ArxisStudio.Controls.AxColorField :: static System.Boolean TryParse(System.String? text, out Avalonia.Media.Color color)
 ArxisStudio.Controls.AxColorField :: static System.String Format(Avalonia.Media.Color color, System.Boolean alpha = true)
 ArxisStudio.Controls.AxColorField :: static readonly Avalonia.DirectProperty<ArxisStudio.Controls.AxColorField, Avalonia.Media.IBrush> SwatchBrushProperty
+ArxisStudio.Controls.AxColorField :: static readonly Avalonia.DirectProperty<ArxisStudio.Controls.AxColorField, System.String> ColorTextProperty
 ArxisStudio.Controls.AxColorField :: static readonly Avalonia.StyledProperty<ArxisStudio.Controls.AxControlSize> SizeProperty
 ArxisStudio.Controls.AxColorField :: static readonly Avalonia.StyledProperty<Avalonia.Media.Color> ColorProperty
 ArxisStudio.Controls.AxColorField :: static readonly Avalonia.StyledProperty<System.Boolean> AllowsAlphaProperty
 ArxisStudio.Controls.AxColorField :: static readonly Avalonia.StyledProperty<System.Boolean> IsMixedProperty
+ArxisStudio.Controls.AxColorField :: static readonly Avalonia.StyledProperty<System.Boolean> IsNoneProperty
 ArxisStudio.Controls.AxColorField :: static readonly Avalonia.StyledProperty<System.Boolean> IsPickerOpenProperty
 ArxisStudio.Controls.AxColorField :: static readonly Avalonia.StyledProperty<System.Boolean> IsReadOnlyProperty
+ArxisStudio.Controls.AxColorField :: static readonly Avalonia.StyledProperty<System.Boolean> ShowsEyedropperProperty
 ArxisStudio.Controls.AxColorPicker : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Controls.AxColorPicker :: .ctor()
 ArxisStudio.Controls.AxColorPicker :: Avalonia.Media.Color Color { get; set; }
@@ -250,6 +260,30 @@ ArxisStudio.Controls.AxColorSpectrum :: System.Boolean IsDragging { get; }
 ArxisStudio.Controls.AxColorSpectrum :: const System.Double LargeStep = 0.1
 ArxisStudio.Controls.AxColorSpectrum :: const System.Double Step = 0.01
 ArxisStudio.Controls.AxColorSpectrum :: static readonly Avalonia.StyledProperty<Avalonia.Media.HsvColor> HsvProperty
+ArxisStudio.Controls.AxColorSwatch : class : Avalonia.Controls.Control
+ArxisStudio.Controls.AxColorSwatch :: .ctor()
+ArxisStudio.Controls.AxColorSwatch :: ArxisStudio.Controls.AxColorAlphaDisplay AlphaDisplay { get; set; }
+ArxisStudio.Controls.AxColorSwatch :: Avalonia.CornerRadius CornerRadius { get; set; }
+ArxisStudio.Controls.AxColorSwatch :: Avalonia.Media.Color Color { get; set; }
+ArxisStudio.Controls.AxColorSwatch :: Avalonia.Media.IBrush? AlphaEmptyBrush { get; set; }
+ArxisStudio.Controls.AxColorSwatch :: Avalonia.Media.IBrush? AlphaFillBrush { get; set; }
+ArxisStudio.Controls.AxColorSwatch :: Avalonia.Media.IBrush? Brush { get; set; }
+ArxisStudio.Controls.AxColorSwatch :: Avalonia.Media.IBrush? CheckerBrush { get; set; }
+ArxisStudio.Controls.AxColorSwatch :: Avalonia.Media.IBrush? NoneBrush { get; set; }
+ArxisStudio.Controls.AxColorSwatch :: System.Boolean IsNone { get; set; }
+ArxisStudio.Controls.AxColorSwatch :: System.Double AlphaBarHeight { get; set; }
+ArxisStudio.Controls.AxColorSwatch :: System.Double NoneThickness { get; set; }
+ArxisStudio.Controls.AxColorSwatch :: static readonly Avalonia.StyledProperty<ArxisStudio.Controls.AxColorAlphaDisplay> AlphaDisplayProperty
+ArxisStudio.Controls.AxColorSwatch :: static readonly Avalonia.StyledProperty<Avalonia.CornerRadius> CornerRadiusProperty
+ArxisStudio.Controls.AxColorSwatch :: static readonly Avalonia.StyledProperty<Avalonia.Media.Color> ColorProperty
+ArxisStudio.Controls.AxColorSwatch :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> AlphaEmptyBrushProperty
+ArxisStudio.Controls.AxColorSwatch :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> AlphaFillBrushProperty
+ArxisStudio.Controls.AxColorSwatch :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> BrushProperty
+ArxisStudio.Controls.AxColorSwatch :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> CheckerBrushProperty
+ArxisStudio.Controls.AxColorSwatch :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> NoneBrushProperty
+ArxisStudio.Controls.AxColorSwatch :: static readonly Avalonia.StyledProperty<System.Boolean> IsNoneProperty
+ArxisStudio.Controls.AxColorSwatch :: static readonly Avalonia.StyledProperty<System.Double> AlphaBarHeightProperty
+ArxisStudio.Controls.AxColorSwatch :: static readonly Avalonia.StyledProperty<System.Double> NoneThicknessProperty
 ArxisStudio.Controls.AxComboBox : class : Avalonia.Controls.ComboBox
 ArxisStudio.Controls.AxComboBox :: .ctor()
 ArxisStudio.Controls.AxComboBox :: ArxisStudio.Controls.AxControlSize Size { get; set; }
@@ -282,6 +316,9 @@ ArxisStudio.Controls.AxDivider :: static readonly Avalonia.StyledProperty<Avalon
 ArxisStudio.Controls.AxDivider :: static readonly Avalonia.StyledProperty<Avalonia.Media.IBrush> FillProperty
 ArxisStudio.Controls.AxDropDownButton : class : Avalonia.Controls.DropDownButton
 ArxisStudio.Controls.AxDropDownButton :: .ctor()
+ArxisStudio.Controls.AxEyedropper : static class
+ArxisStudio.Controls.AxEyedropper :: static System.Boolean IsOpen { get; }
+ArxisStudio.Controls.AxEyedropper :: static System.Threading.Tasks.Task<Avalonia.Media.Color?> PickAsync(Avalonia.Visual anchor, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Controls.AxGroupHeader : class : Avalonia.Controls.ContentControl
 ArxisStudio.Controls.AxGroupHeader :: .ctor()
 ArxisStudio.Controls.AxGroupHeader :: System.Boolean IsCollapsible { get; set; }

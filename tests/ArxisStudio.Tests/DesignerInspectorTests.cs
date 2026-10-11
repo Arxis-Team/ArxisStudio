@@ -1362,6 +1362,120 @@ public class DesignerInspectorTests
             "присоединённое без обёртки не записано с именем владельца");
     }
 
+    /// <summary>
+    /// Незаданная кисть — поле цвета «нет цвета», а не пустая строка ввода; цвет, выбранный в нём, пишется одной правкой
+    /// (запись 374).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task An_unset_brush_is_no_color_and_a_chosen_color_is_written_once()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", Form);
+        var panel = studio.Inspector();
+
+        document.Select([XamlElementPath.Parse("/0")]);
+        LiveFormStudio.Frame();
+
+        var field = ColorField(Row(panel, "Background"));
+
+        Assert.True(field.IsNone, "незаданная кисть — не «нет цвета»");
+        Assert.Empty(Row(panel, "Background").GetVisualDescendants().OfType<TextBox>());
+
+        field.RaiseEvent(new AxColorEventArgs(AxColorPicker.ColorCommittedEvent, Colors.OrangeRed));
+
+        await XamlStudio.UntilAsync(() => Text(document).Contains("Background=\"#FF4500\"", StringComparison.Ordinal),
+            "выбранный цвет не записан");
+
+        await document.Document!.UndoAsync();
+
+        await XamlStudio.UntilAsync(() => !Text(document).Contains("Background=", StringComparison.Ordinal),
+            "цвет записан не одной правкой");
+    }
+
+    /// <summary>
+    /// Цвет, написанный поверх кисти, которую стиль ставит ресурсом, — полем цвета, а не жетоном выражения: живая
+    /// проверка нашла такой «#666363» жетоном с карандашом (записи 372, 374).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_literal_over_a_themed_brush_is_a_color_not_an_expression()
+    {
+        const string Themed = """
+            <Window xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    Width="400" Height="300">
+              <Window.Resources>
+                <SolidColorBrush x:Key="Fill" Color="Red" />
+              </Window.Resources>
+              <Window.Styles>
+                <Style Selector="Button">
+                  <Setter Property="Background" Value="{DynamicResource Fill}" />
+                </Style>
+              </Window.Styles>
+              <StackPanel>
+                <Button x:Name="Go" Content="Пуск" Background="#666363" />
+              </StackPanel>
+            </Window>
+            """;
+
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", Themed);
+        var panel = studio.Inspector();
+
+        document.Select([Go]);
+        LiveFormStudio.Frame();
+
+        var row = Row(panel, "Background");
+
+        Assert.Empty(row.GetVisualDescendants().OfType<AxChip>());
+        Assert.Equal(Color.Parse("#666363"), ColorField(row).Color);
+        Assert.True(row.IsOverridden, "написанный цвет не помечен заданным здесь");
+    }
+
+    /// <summary>
+    /// Градиент, который ставит стиль, виден образцом самой кисти, а поля цвета у него нет: цветом его не поправишь, а
+    /// пишется он только элементом (запись 374).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_gradient_shows_its_brush_and_no_color_field()
+    {
+        const string Graded = """
+            <Window xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    Width="400" Height="300">
+              <Window.Styles>
+                <Style Selector="Button">
+                  <Setter Property="Background">
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                      <GradientStop Color="Red" Offset="0" />
+                      <GradientStop Color="Blue" Offset="1" />
+                    </LinearGradientBrush>
+                  </Setter>
+                </Style>
+              </Window.Styles>
+              <StackPanel>
+                <Button x:Name="Go" Content="Пуск" />
+              </StackPanel>
+            </Window>
+            """;
+
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", Graded);
+        var panel = studio.Inspector();
+
+        document.Select([Go]);
+        LiveFormStudio.Frame();
+
+        var row = Row(panel, "Background");
+        var swatch = Assert.Single(row.GetVisualDescendants().OfType<AxColorSwatch>(), swatch => swatch.Brush is not null);
+        var gradient = Assert.IsAssignableFrom<IGradientBrush>(swatch.Brush);
+
+        Assert.Equal([Colors.Red, Colors.Blue], gradient.GradientStops.Select(static stop => stop.Color));
+        Assert.DoesNotContain(row.GetVisualDescendants().OfType<AxColorField>(), field => field.IsEffectivelyVisible);
+    }
+
+    private static AxColorField ColorField(InspectorRow row) =>
+        Assert.Single(row.GetVisualDescendants().OfType<AxColorField>());
+
     /// <summary>Кладёт выход проекта: сборку с полкой — поколению собирать нечего.</summary>
     private static CanonicalPath Emit(LiveFormStudio studio)
     {
