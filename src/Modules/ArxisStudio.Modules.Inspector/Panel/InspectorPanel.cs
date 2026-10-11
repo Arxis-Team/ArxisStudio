@@ -88,6 +88,7 @@ public sealed class InspectorPanel : ToolWindow
         view.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
         view.List.ContextRequested += OnContextRequested;
         view.HeaderRows.ContextRequested += OnContextRequested;
+        view.HeaderName.ContextRequested += OnContextRequested;
 
         _list.Follow();
         ShowState();
@@ -124,7 +125,9 @@ public sealed class InspectorPanel : ToolWindow
             view.RemoveHandler(InputElement.KeyDownEvent, OnKeyDown);
             view.List.ContextRequested -= OnContextRequested;
             view.HeaderRows.ContextRequested -= OnContextRequested;
+            view.HeaderName.ContextRequested -= OnContextRequested;
             view.HeaderRows.Children.Clear();
+            view.HeaderName.Child = null;
         }
 
         _service = null;
@@ -246,11 +249,16 @@ public sealed class InspectorPanel : ToolWindow
 
         var header = list.Target is null ? null : list.Header();
 
+        // Поле имени — на месте заголовка, как имя объекта у Unity; тогда что это за объект, говорит подзаголовок.
+        var name = list.HeaderRows.FirstOrDefault(static row => row.IsHeadline);
+        var subtitle = name is null ? header?.Subtitle : Joined(TypeName(list.Type), header?.Subtitle);
+
         view.Header.IsVisible = header is not null;
         view.HeaderDivider.IsVisible = header is not null;
         view.Title.Text = header?.Title;
-        view.Subtitle.Text = header?.Subtitle;
-        view.Subtitle.IsVisible = !string.IsNullOrEmpty(header?.Subtitle);
+        view.Title.IsVisible = name is null;
+        view.Subtitle.Text = subtitle;
+        view.Subtitle.IsVisible = !string.IsNullOrEmpty(subtitle);
         view.HeaderIcon.Data = header?.Icon;
         view.HeaderIcon.IsVisible = header?.Icon is not null;
         view.NoticeText.Text = header?.Notice;
@@ -258,14 +266,21 @@ public sealed class InspectorPanel : ToolWindow
 
         ShowToggle(list);
 
-        var rows = view.HeaderRows.Children;
+        // Строка не стоит в двух местах разом: прежняя уходит из своего места раньше, чем новые встают.
+        if (!ReferenceEquals(view.HeaderName.Child, name))
+            view.HeaderName.Child = null;
 
-        if (!rows.SequenceEqual(list.HeaderRows))
+        var rows = view.HeaderRows.Children;
+        var below = list.HeaderRows.Where(static row => !row.IsHeadline).ToArray();
+
+        if (!rows.SequenceEqual(below))
         {
             rows.Clear();
-            rows.AddRange(list.HeaderRows);
+            rows.AddRange(below);
         }
 
+        view.HeaderName.Child = name;
+        view.HeaderName.IsVisible = name is not null;
         view.HeaderRows.IsVisible = rows.Count > 0;
 
         var sections = view.HeaderSections.Children;
@@ -278,6 +293,22 @@ public sealed class InspectorPanel : ToolWindow
 
         view.HeaderSections.IsVisible = sections.Count > 0;
     }
+
+    /// <summary>Короткое имя типа цели: <c>Button</c> у <c>Avalonia.Controls.Button</c>.</summary>
+    private static string? TypeName(InspectorTypeInfo? type)
+    {
+        if (type?.FullName is not { Length: > 0 } full)
+            return null;
+
+        var name = full[(full.LastIndexOf('.') + 1)..];
+        var generic = name.IndexOf('`', StringComparison.Ordinal);
+
+        return generic < 0 ? name : name[..generic];
+    }
+
+    /// <summary>Части подзаголовка через точку; пустые — мимо.</summary>
+    private static string Joined(params string?[] parts) =>
+        string.Join(" · ", parts.Where(static part => !string.IsNullOrEmpty(part)));
 
     /// <summary>Флажок «включён»: значение свойства шапки, а у разных — третье состояние.</summary>
     private void ShowToggle(InspectorList list)
@@ -329,7 +360,8 @@ public sealed class InspectorPanel : ToolWindow
 
         // Остальное — клавиши списка и строк шапки: в поиске свои Ctrl+Z и стрелки.
         if (e.Source is not Visual source ||
-            !view.List.IsVisualAncestorOf(source) && !ReferenceEquals(source, view.List) && !view.HeaderRows.IsVisualAncestorOf(source))
+            !view.List.IsVisualAncestorOf(source) && !ReferenceEquals(source, view.List) && !view.HeaderRows.IsVisualAncestorOf(source) &&
+            !view.HeaderName.IsVisualAncestorOf(source))
         {
             return;
         }

@@ -345,6 +345,42 @@ public class DesignerInspectorTests
     }
 
     /// <summary>
+    /// <c>x:Name</c> правится в строке заголовка, как имя объекта у Unity: поле рядом со значком и флажком, без подписи
+    /// и без полосы «задано здесь»; пустое называет себя подписью свойства — и диктору тоже, — а что это за элемент,
+    /// говорит подзаголовок (запись 368).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task The_name_is_edited_in_the_header_line_like_a_unity_object_name()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", Form);
+        var panel = studio.Inspector();
+
+        document.Select([Caption]);
+        LiveFormStudio.Frame();
+
+        var name = HeaderRow(panel, FormEdits.NameDirective);
+        var box = Box(name);
+
+        Assert.Same(name, panel.View!.HeaderName.Child);
+        Assert.Equal(AxPropertyRowLayout.Full, name.Layout);
+        Assert.DoesNotContain(panel.View.HeaderRows.Children.OfType<InspectorRow>(), row => row.IsHeadline);
+        Assert.False(panel.View.Title.IsVisible, "имя и заголовок стоят оба");
+        Assert.StartsWith("TextBlock · ", panel.View.Subtitle.Text, StringComparison.Ordinal);
+        Assert.Equal(string.Empty, box.Text ?? string.Empty);
+        Assert.Equal(name.Property.Label, box.PlaceholderText);
+        Assert.Equal(name.Property.Label, AutomationProperties.GetName(box));
+
+        Type(studio, box, "Caption");
+
+        await XamlStudio.UntilAsync(() => Text(document).Contains("x:Name=\"Caption\"", StringComparison.Ordinal), "имя не записано");
+        LiveFormStudio.Frame();
+
+        Assert.Equal("Caption", Box(HeaderRow(panel, FormEdits.NameDirective)).Text);
+        Assert.False(HeaderRow(panel, FormEdits.NameDirective).IsOverridden, "у имени в шапке полоса «задано здесь»");
+    }
+
+    /// <summary>
     /// Инспектор идёт за холстом впереди: без выбора — корень формы, с выбором — выбранное, а другая вкладка впереди
     /// — её форма.
     /// </summary>
@@ -1354,7 +1390,9 @@ public class DesignerInspectorTests
     {
         LiveFormStudio.Frame();
 
-        return Assert.Single(panel.View!.HeaderRows.Children.OfType<InspectorRow>(), row => row.Property.Id == id);
+        var rows = panel.View!.HeaderRows.Children.OfType<InspectorRow>().Concat(new[] { panel.View.HeaderName.Child }.OfType<InspectorRow>());
+
+        return Assert.Single(rows, row => row.Property.Id == id);
     }
 
     private static AxNumberField Number(InspectorRow row) =>

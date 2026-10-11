@@ -486,6 +486,8 @@ internal sealed class InspectorList
                 _headerRows[id] = row;
             }
 
+            // Имя встаёт в строку заголовка, как имя объекта у Unity; жетоны — строкой под ним.
+            row.IsHeadline = string.Equals(id, header?.NameProperty, StringComparison.Ordinal);
             rows.Add(row);
         }
 

@@ -53,6 +53,7 @@ internal sealed class InspectorRow : AxPropertyRow
     private bool _stale = true;
     private bool _shown = true;
     private bool _asText;
+    private bool _headline;
     private InspectorCheck _check = InspectorCheck.Valid;
 
     /// <summary>Заводит строку; поле она построит, когда встанет на экран.</summary>
@@ -104,6 +105,24 @@ internal sealed class InspectorRow : AxPropertyRow
     public bool HasDraft => _asText
         ? _text?.HasDraft == true
         : _field is { } guarded && guarded.TryGet("tells about its draft", it => it.HasDraft, out var draft) && draft;
+
+    /// <summary>
+    /// Строка стоит заголовком шапки — поле имени рядом со значком и флажком, как имя объекта у Unity: без подписи
+    /// и без полосы «задано здесь», а пустое поле называет себя подписью свойства.
+    /// </summary>
+    public bool IsHeadline
+    {
+        get => _headline;
+        set
+        {
+            if (_headline == value)
+                return;
+
+            _headline = value;
+            ShowHeadline();
+            Describe();
+        }
+    }
 
     /// <summary>Значение можно сбросить: оно задано здесь, и свойство пишется.</summary>
     public bool CanReset => !Property.IsReadOnly && Value?.IsWritten == true;
@@ -276,7 +295,39 @@ internal sealed class InspectorRow : AxPropertyRow
             _fieldView = Failed();
         }
 
+        ShowHeadline();
         ShowContent();
+    }
+
+    /// <summary>Заголовок шапки — во всю ширину, без полосы и с подписью заглушкой; иначе — как решил редактор.</summary>
+    private void ShowHeadline()
+    {
+        if (!_built)
+            return;
+
+        if (_headline)
+        {
+            Layout = AxPropertyRowLayout.Full;
+        }
+        else if (Editor is { } editor)
+        {
+            Layout = editor.Layout switch
+            {
+                InspectorFieldLayout.Below => AxPropertyRowLayout.Below,
+                InspectorFieldLayout.Full => AxPropertyRowLayout.Full,
+                _ => AxPropertyRowLayout.Inline,
+            };
+        }
+
+        IsOverridden = !_headline && Value?.IsWritten == true;
+
+        var placeholder = _headline ? Property.Label : null;
+
+        _field?.Run("shows a placeholder", it =>
+        {
+            if (it is TextField text)
+                text.Placeholder = placeholder;
+        });
     }
 
     /// <summary>Хозяина редактора выгружают: поле уходит с экрана раньше, чем его сборка.</summary>
@@ -296,7 +347,7 @@ internal sealed class InspectorRow : AxPropertyRow
     {
         _stale = false;
         Value = _list.ValueOf(Property.Id);
-        IsOverridden = Value.IsWritten;
+        IsOverridden = Value.IsWritten && !_headline;
 
         // Выражение заменили значением — текстом его больше не правят.
         if (!IsExpression)
@@ -377,7 +428,8 @@ internal sealed class InspectorRow : AxPropertyRow
         var source = Value is { } value ? _list.Words.Source(value) : null;
         var tip = string.Join(Environment.NewLine, new[] { Property.Description, source }.Where(static line => !string.IsNullOrEmpty(line)));
 
-        ToolTip.SetTip(this, tip.Length > 0 ? tip : null);
+        // У заголовка шапки подписи нет — её имя говорит подсказка.
+        ToolTip.SetTip(this, tip.Length > 0 ? tip : _headline ? Property.Label : null);
         AutomationProperties.SetHelpText(this, Spoken(source));
 
         // Подпись держит свою пустую подсказку — правило темы для сокращённой подписи, — и подсказка строки над ней не

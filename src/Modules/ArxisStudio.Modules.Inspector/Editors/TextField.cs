@@ -30,8 +30,10 @@ internal sealed class TextField : InspectorField
     private readonly AxTextBox _box;
     private readonly AxButton? _choices;
     private string _shown = string.Empty;
+    private string? _placeholder;
     private IDisposable? _hold;
     private bool _writing;
+    private bool _mixed;
 
     /// <summary>Заводит поле.</summary>
     /// <param name="context">Свойство строки и дорога к цели.</param>
@@ -79,6 +81,25 @@ internal sealed class TextField : InspectorField
     /// <inheritdoc/>
     public override bool HasDraft => !_writing && !string.Equals(_box.Text ?? string.Empty, _shown, StringComparison.Ordinal);
 
+    /// <summary>
+    /// Что видно в пустом поле, у которого нет подписи: поле имени в шапке называет себя подписью свойства, как
+    /// безымянный объект у Unity, — и тем же словом называется диктору. У разных значений — по-прежнему «—».
+    /// </summary>
+    internal string? Placeholder
+    {
+        get => _placeholder;
+        set
+        {
+            _placeholder = value;
+            _box.PlaceholderText = _mixed ? "—" : value;
+
+            if (value is null)
+                _box.ClearValue(AutomationProperties.NameProperty);
+            else
+                AutomationProperties.SetName(_box, value);
+        }
+    }
+
     /// <inheritdoc/>
     public override void Show(InspectorValue value)
     {
@@ -86,8 +107,9 @@ internal sealed class TextField : InspectorField
 
         var keep = HasDraft && _box.IsKeyboardFocusWithin;
 
+        _mixed = value.IsMixed;
         _shown = value.IsMixed ? string.Empty : Written(value) ?? string.Empty;
-        _box.PlaceholderText = value.IsMixed ? "—" : null;
+        _box.PlaceholderText = value.IsMixed ? "—" : _placeholder;
         _box.IsReadOnly = _context.Property.IsReadOnly;
 
         if (!keep)
