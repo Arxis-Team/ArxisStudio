@@ -39,6 +39,18 @@ public static class ControlTexts
         ("AxTextColorModeRgb255", "controls.color.mode.rgb255"),
         ("AxTextColorModeRgb1", "controls.color.mode.rgb1"),
         ("AxTextColorModeHsv", "controls.color.mode.hsv"),
+        ("AxTextColorPalette", "controls.color.palette"),
+        ("AxTextColorPresets", "controls.color.presets"),
+        ("AxTextColorPresetsMenu", "controls.color.presets.menu"),
+        ("AxTextColorPresetAdd", "controls.color.presets.add"),
+        ("AxTextColorPresetName", "controls.color.presets.name"),
+        ("AxTextColorPresetReplace", "controls.color.presets.replace"),
+        ("AxTextColorPresetDelete", "controls.color.presets.delete"),
+        ("AxTextColorPresetsGrid", "controls.color.presets.grid"),
+        ("AxTextColorPresetsList", "controls.color.presets.list"),
+        ("AxTextColorLibraryInProfile", "controls.color.library.profile"),
+        ("AxTextColorLibraryInProject", "controls.color.library.project"),
+        ("AxTextColorLibraryName", "controls.color.library.name"),
     ];
 
     /// <summary>Кладёт тексты в ресурсы приложения и переводит их вместе со студией.</summary>

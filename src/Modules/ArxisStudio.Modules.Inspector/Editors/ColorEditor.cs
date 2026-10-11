@@ -31,6 +31,10 @@ namespace ArxisStudio.Modules.Inspector.Editors;
 /// Вид каналов окна (RGB 0…255, RGB 0…1, HSV) помнится, пока студия открыта: выбранный в одном поле, он встречает в
 /// следующем. В настройки он не идёт — там то, что правит человек, а не память панели.
 /// </para>
+/// <para>
+/// Образцы окна — библиотеки модуля (<see cref="ColorLibraries"/>): в профиле человека и рядом с решением; хранилище
+/// одно на студию, и поле ставит его окну.
+/// </para>
 /// </remarks>
 [PropertyEditor(typeof(Color), Fallback = true)]
 [PropertyEditor(typeof(IBrush), Fallback = true)]
@@ -41,12 +45,17 @@ public sealed class ColorEditor : PropertyEditor
     /// <summary>Вид каналов окна «Цвет», выбранный последним, — на всю студию, пока она открыта.</summary>
     private static AxColorPickerMode _mode;
 
+    /// <summary>Библиотеки образцов — одни на студию.</summary>
+    private static ColorLibraries? _libraries;
+
     /// <inheritdoc/>
     public override InspectorField CreateField(InspectorFieldContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        return new ColorFieldHost(context, Context.Strings["inspector.gradient"]);
+        _libraries ??= ColorLibraries.For(Context);
+
+        return new ColorFieldHost(context, Context.Strings["inspector.gradient"], _libraries);
     }
 
     private sealed class ColorFieldHost : InspectorField
@@ -58,7 +67,7 @@ public sealed class ColorEditor : PropertyEditor
         private readonly Border _host = new();
         private InspectorValue? _pending;
 
-        public ColorFieldHost(InspectorFieldContext context, string gradientTip)
+        public ColorFieldHost(InspectorFieldContext context, string gradientTip, IAxColorPresetStore libraries)
         {
             _preview = new FieldPreview(context);
             _color = new AxColorField
@@ -72,6 +81,7 @@ public sealed class ColorEditor : PropertyEditor
             _color.ColorCommitted += (_, e) => _ = _preview.CommitAsync(e.Text ?? AxColorField.Format(e.Color));
             _color.ColorCancelled += (_, _) => _preview.Cancel();
             _color.PropertyChanged += OnColorProperty;
+            AxColorPicker.SetPresetStore(_color, libraries);
 
             // Градиент — образцом в рамке поля: видно, что это кисть, но нажать её нечем.
             _gradient = new Border { Child = _gradientSwatch };

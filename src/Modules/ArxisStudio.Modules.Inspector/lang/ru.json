@@ -33,6 +33,7 @@
   "inspector.choices": "Варианты (Alt+↓)",
   "inspector.default": "По умолчанию",
   "inspector.gradient": "Градиент задан элементом — правится в XAML",
+  "inspector.colors.default": "Мои цвета",
   "inspector.object.unreadable": "«{0}» не читается значением {1}",
   "inspector.notWritten": "Значение не записано",
   "inspector.fieldFailed": "Редактор этого свойства упал",

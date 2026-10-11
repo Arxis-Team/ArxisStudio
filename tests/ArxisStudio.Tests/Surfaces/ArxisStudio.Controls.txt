@@ -1,4 +1,4 @@
-# StudioSdk 7.24
+# StudioSdk 7.25
 ArxisStudio.Controls.AxAvatar : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Controls.AxAvatar :: .ctor()
 ArxisStudio.Controls.AxAvatar :: ArxisStudio.Controls.AxAvatarShape Shape { get; set; }
@@ -237,15 +237,22 @@ ArxisStudio.Controls.AxColorField :: static readonly Avalonia.StyledProperty<Sys
 ArxisStudio.Controls.AxColorPicker : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Controls.AxColorPicker :: .ctor()
 ArxisStudio.Controls.AxColorPicker :: ArxisStudio.Controls.AxColorPickerMode Mode { get; set; }
+ArxisStudio.Controls.AxColorPicker :: ArxisStudio.Controls.IAxColorPresetStore? PresetStore { get; set; }
 ArxisStudio.Controls.AxColorPicker :: Avalonia.Media.Color Color { get; set; }
 ArxisStudio.Controls.AxColorPicker :: Avalonia.Media.Color? OriginalColor { get; set; }
 ArxisStudio.Controls.AxColorPicker :: Avalonia.Media.HsvColor Hsv { get; set; }
 ArxisStudio.Controls.AxColorPicker :: System.Boolean AllowsAlpha { get; set; }
+ArxisStudio.Controls.AxColorPicker :: System.Boolean ArePresetsExpanded { get; set; }
 ArxisStudio.Controls.AxColorPicker :: System.Boolean FocusSpectrum(Avalonia.Input.NavigationMethod method = Unspecified)
+ArxisStudio.Controls.AxColorPicker :: System.Boolean IsPaletteExpanded { get; set; }
 ArxisStudio.Controls.AxColorPicker :: event System.EventHandler<ArxisStudio.Controls.AxColorEventArgs> ColorChanging
 ArxisStudio.Controls.AxColorPicker :: event System.EventHandler<ArxisStudio.Controls.AxColorEventArgs> ColorCommitted
 ArxisStudio.Controls.AxColorPicker :: event System.EventHandler<Avalonia.Interactivity.RoutedEventArgs> ColorCancelled
+ArxisStudio.Controls.AxColorPicker :: static ArxisStudio.Controls.IAxColorPresetStore? GetPresetStore(Avalonia.Controls.Control control)
+ArxisStudio.Controls.AxColorPicker :: static System.Collections.Generic.IReadOnlyList<Avalonia.Media.Color> Defaults { get; }
 ArxisStudio.Controls.AxColorPicker :: static System.String Hex(Avalonia.Media.Color color)
+ArxisStudio.Controls.AxColorPicker :: static System.Void SetPresetStore(Avalonia.Controls.Control control, ArxisStudio.Controls.IAxColorPresetStore? store)
+ArxisStudio.Controls.AxColorPicker :: static readonly Avalonia.AttachedProperty<ArxisStudio.Controls.IAxColorPresetStore> PresetStoreProperty
 ArxisStudio.Controls.AxColorPicker :: static readonly Avalonia.Interactivity.RoutedEvent<ArxisStudio.Controls.AxColorEventArgs> ColorChangingEvent
 ArxisStudio.Controls.AxColorPicker :: static readonly Avalonia.Interactivity.RoutedEvent<ArxisStudio.Controls.AxColorEventArgs> ColorCommittedEvent
 ArxisStudio.Controls.AxColorPicker :: static readonly Avalonia.Interactivity.RoutedEvent<Avalonia.Interactivity.RoutedEventArgs> ColorCancelledEvent
@@ -254,10 +261,31 @@ ArxisStudio.Controls.AxColorPicker :: static readonly Avalonia.StyledProperty<Av
 ArxisStudio.Controls.AxColorPicker :: static readonly Avalonia.StyledProperty<Avalonia.Media.Color?> OriginalColorProperty
 ArxisStudio.Controls.AxColorPicker :: static readonly Avalonia.StyledProperty<Avalonia.Media.HsvColor> HsvProperty
 ArxisStudio.Controls.AxColorPicker :: static readonly Avalonia.StyledProperty<System.Boolean> AllowsAlphaProperty
+ArxisStudio.Controls.AxColorPicker :: static readonly Avalonia.StyledProperty<System.Boolean> ArePresetsExpandedProperty
+ArxisStudio.Controls.AxColorPicker :: static readonly Avalonia.StyledProperty<System.Boolean> IsPaletteExpandedProperty
 ArxisStudio.Controls.AxColorPickerMode : enum
 ArxisStudio.Controls.AxColorPickerMode :: Hsv = 2
 ArxisStudio.Controls.AxColorPickerMode :: Rgb1 = 1
 ArxisStudio.Controls.AxColorPickerMode :: Rgb255 = 0
+ArxisStudio.Controls.AxColorPreset : sealed record : System.IEquatable<ArxisStudio.Controls.AxColorPreset>
+ArxisStudio.Controls.AxColorPreset :: .ctor(System.String Name, Avalonia.Media.Color Color)
+ArxisStudio.Controls.AxColorPreset :: Avalonia.Media.Color Color { get; init; }
+ArxisStudio.Controls.AxColorPreset :: System.Boolean Equals(ArxisStudio.Controls.AxColorPreset? other)
+ArxisStudio.Controls.AxColorPreset :: System.String Name { get; init; }
+ArxisStudio.Controls.AxColorPreset :: System.Void Deconstruct(out System.String Name, out Avalonia.Media.Color Color)
+ArxisStudio.Controls.AxColorPreset :: static System.Boolean op_Equality(ArxisStudio.Controls.AxColorPreset? left, ArxisStudio.Controls.AxColorPreset? right)
+ArxisStudio.Controls.AxColorPreset :: static System.Boolean op_Inequality(ArxisStudio.Controls.AxColorPreset? left, ArxisStudio.Controls.AxColorPreset? right)
+ArxisStudio.Controls.AxColorPresetLibrary : sealed class
+ArxisStudio.Controls.AxColorPresetLibrary :: .ctor(System.String name, ArxisStudio.Controls.AxColorPresetLocation location, System.Collections.Generic.IEnumerable<ArxisStudio.Controls.AxColorPreset>? presets = null)
+ArxisStudio.Controls.AxColorPresetLibrary :: ArxisStudio.Controls.AxColorPresetLocation Location { get; }
+ArxisStudio.Controls.AxColorPresetLibrary :: System.Collections.ObjectModel.ObservableCollection<ArxisStudio.Controls.AxColorPreset> Presets { get; }
+ArxisStudio.Controls.AxColorPresetLibrary :: System.String Name { get; }
+ArxisStudio.Controls.AxColorPresetLocation : enum
+ArxisStudio.Controls.AxColorPresetLocation :: Project = 1
+ArxisStudio.Controls.AxColorPresetLocation :: User = 0
+ArxisStudio.Controls.AxColorPresetView : enum
+ArxisStudio.Controls.AxColorPresetView :: Grid = 0
+ArxisStudio.Controls.AxColorPresetView :: List = 1
 ArxisStudio.Controls.AxColorSlider : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Controls.AxColorSlider :: .ctor()
 ArxisStudio.Controls.AxColorSlider :: ArxisStudio.Controls.AxColorChannel Channel { get; set; }
@@ -709,3 +737,12 @@ ArxisStudio.Controls.AxWindowControls :: .ctor()
 ArxisStudio.Controls.AxWindowControls :: System.Boolean IsMaximized { get; }
 ArxisStudio.Controls.AxWindowControls :: static System.Boolean IsSupported { get; }
 ArxisStudio.Controls.AxWindowControls :: static readonly Avalonia.StyledProperty<System.Boolean> IsMaximizedProperty
+ArxisStudio.Controls.IAxColorPresetStore : interface
+ArxisStudio.Controls.IAxColorPresetStore :: ArxisStudio.Controls.AxColorPresetLibrary Create(System.String name, ArxisStudio.Controls.AxColorPresetLocation location)
+ArxisStudio.Controls.IAxColorPresetStore :: ArxisStudio.Controls.AxColorPresetLibrary Current { get; }
+ArxisStudio.Controls.IAxColorPresetStore :: ArxisStudio.Controls.AxColorPresetView View { get; set; }
+ArxisStudio.Controls.IAxColorPresetStore :: System.Boolean CanCreate(ArxisStudio.Controls.AxColorPresetLocation location)
+ArxisStudio.Controls.IAxColorPresetStore :: System.Collections.Generic.IReadOnlyList<ArxisStudio.Controls.AxColorPresetLibrary> Libraries { get; }
+ArxisStudio.Controls.IAxColorPresetStore :: System.Void Save(ArxisStudio.Controls.AxColorPresetLibrary library)
+ArxisStudio.Controls.IAxColorPresetStore :: System.Void Select(ArxisStudio.Controls.AxColorPresetLibrary library)
+ArxisStudio.Controls.IAxColorPresetStore :: event System.EventHandler Changed

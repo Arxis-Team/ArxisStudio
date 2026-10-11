@@ -21,11 +21,18 @@ public static class StudioSdk
 {
     /// <summary>Версия контракта этой студии.</summary>
     /// <remarks>
+    /// 7.25 — палитра и образцы окна «Цвет»: встроенная палитра (<c>AxColorPicker.Defaults</c>), образцы и их
+    /// библиотеки (<c>AxColorPreset</c>, <c>AxColorPresetLibrary</c>, <c>AxColorPresetLocation</c>), хранилище хозяина
+    /// (<c>IAxColorPresetStore</c>, наследуемое <c>AxColorPicker.PresetStore</c>), вид образцов
+    /// (<c>AxColorPresetView</c>) и раскрытость разделов (<c>IsPaletteExpanded</c>, <c>ArePresetsExpanded</c>).
+    /// Младший номер: добавлено, снятого нет.
+    /// <para>
     /// 7.24 — окно «Цвет», как у Unity: кольцо оттенков (<c>AxColorWheel</c>), каналы красный, зелёный и синий у
     /// ползунка (<c>AxColorChannel.Red</c>, <c>Green</c>, <c>Blue</c>), вид каналов выбора и поля
     /// (<c>AxColorPickerMode</c>, <c>AxColorPicker.Mode</c>, <c>AxColorField.PickerMode</c>), образец «было»
     /// (<c>AxColorPicker.OriginalColor</c>) и код из шести цифр (<c>AxColorPicker.Hex</c>). Младший номер: добавлено,
     /// снятого нет.
+    /// </para>
     /// <para>
     /// 7.23 — поле цвета, как у Unity: полоса цвета с полоской прозрачности и пипетка (<c>AxColorField.IsNone</c>,
     /// <c>ShowsEyedropper</c>, <c>ColorText</c>, <c>Swatch</c>); образец цвета, который рисует себя сам
@@ -333,7 +340,7 @@ public static class StudioSdk
     /// 4.1 — добавлены теги манифеста (<c>tags</c>).
     /// </para>
     /// </remarks>
-    public const string Version = "7.24";
+    public const string Version = "7.25";
 
     /// <summary>
     /// Довольна ли эта версия SDK тем, что просит плагин.

@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using ArxisStudio.Controls;
 using ArxisStudio.Inspector;
 using ArxisStudio.Markup.Xaml;
+using ArxisStudio.Modules.Inspector.Editors;
 using ArxisStudio.Modules.Inspector.Panel;
 using ArxisStudio.Modules.UiDesigner.Documents;
 using ArxisStudio.Modules.UiDesigner.Panels;
@@ -952,6 +953,44 @@ public class DesignerInspectorTests
 
         Assert.False(field.IsPickerOpen, "Esc не закрыл окно цвета");
         Assert.Equal(Color.Parse("#3C6ECF"), field.Color);
+    }
+
+    /// <summary>
+    /// Окно «Цвет» поля инспектора показывает образцы — библиотеки модуля, одни на студию; текущий цвет сохраняется в
+    /// них, а в процессе тестов — в память, не в профиль (записи 376).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task The_color_window_offers_the_swatch_libraries()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync(
+            "MainWindow.axaml", Form.Replace("Width=\"120\"", "Width=\"120\" Background=\"#3C6ECF\"", StringComparison.Ordinal));
+        var panel = studio.Inspector();
+
+        document.Select([Go]);
+        LiveFormStudio.Frame();
+
+        var background = ColorField(Row(panel, "Background"));
+        var foreground = ColorField(Row(panel, "Foreground"));
+        var store = Assert.IsType<ColorLibraries>(AxColorPicker.GetPresetStore(background));
+
+        Assert.Same(store, AxColorPicker.GetPresetStore(foreground));
+        Assert.Null(ColorLibraries.UserFolder());
+
+        var root = OpenColorWindow(studio, background);
+
+        try
+        {
+            Assert.Same(store, background.Picker!.PresetStore);
+            Assert.True(
+                background.Picker.GetVisualDescendants().OfType<Control>().Single(part => part.Name == "PART_PresetsSection").IsVisible,
+                "в окне цвета нет образцов");
+        }
+        finally
+        {
+            root.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, string.Empty);
+            LiveFormStudio.Frame();
+        }
     }
 
     /// <summary>
