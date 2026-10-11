@@ -21,10 +21,17 @@ public static class StudioSdk
 {
     /// <summary>Версия контракта этой студии.</summary>
     /// <remarks>
+    /// 7.24 — окно «Цвет», как у Unity: кольцо оттенков (<c>AxColorWheel</c>), каналы красный, зелёный и синий у
+    /// ползунка (<c>AxColorChannel.Red</c>, <c>Green</c>, <c>Blue</c>), вид каналов выбора и поля
+    /// (<c>AxColorPickerMode</c>, <c>AxColorPicker.Mode</c>, <c>AxColorField.PickerMode</c>), образец «было»
+    /// (<c>AxColorPicker.OriginalColor</c>) и код из шести цифр (<c>AxColorPicker.Hex</c>). Младший номер: добавлено,
+    /// снятого нет.
+    /// <para>
     /// 7.23 — поле цвета, как у Unity: полоса цвета с полоской прозрачности и пипетка (<c>AxColorField.IsNone</c>,
     /// <c>ShowsEyedropper</c>, <c>ColorText</c>, <c>Swatch</c>); образец цвета, который рисует себя сам
     /// (<c>AxColorSwatch</c>, <c>AxColorAlphaDisplay</c>); пипетка по всему экрану (<c>AxEyedropper</c>) и её значок
     /// (<c>AxIcons.Eyedropper</c>). Младший номер: добавлено, снятого нет.
+    /// </para>
     /// <para>
     /// 7.22 — значки выравнивания в наборе: к краю, по центру и растянуть — по горизонтали
     /// (<c>AxIcons.AlignRight</c>, <c>AlignHorizontalCenter</c>, <c>StretchHorizontal</c>; левый край — прежний
@@ -326,7 +333,7 @@ public static class StudioSdk
     /// 4.1 — добавлены теги манифеста (<c>tags</c>).
     /// </para>
     /// </remarks>
-    public const string Version = "7.23";
+    public const string Version = "7.24";
 
     /// <summary>
     /// Довольна ли эта версия SDK тем, что просит плагин.

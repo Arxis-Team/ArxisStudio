@@ -826,9 +826,12 @@ public class DesignerInspectorTests
         Assert.False(document.Document!.CanUndo, "отменённая протяжка оставила шаг истории");
     }
 
-    /// <summary>Тягу по спектру выбора цвета видно на объекте, а пишется она одной правкой — при отпускании.</summary>
+    /// <summary>
+    /// Окно «Цвет» — сеанс правки: тягу по квадрату видно на объекте на каждом движении, отпускание документа не трогает,
+    /// а закрытие окна пишет одну правку, которую отменяет один шаг (записи 364, 375).
+    /// </summary>
     [AvaloniaFact]
-    public async Task A_drag_on_the_color_picker_shows_on_the_object_and_writes_once()
+    public async Task The_color_window_shows_on_the_object_and_writes_once_when_closed()
     {
         await using var studio = new LiveFormStudio();
         var document = await studio.OpenAsync(
@@ -838,16 +841,10 @@ public class DesignerInspectorTests
         document.Select([Go]);
         LiveFormStudio.Frame();
 
-        var field = Row(panel, "Background").GetVisualDescendants().OfType<AxColorField>().Single();
+        var field = ColorField(Row(panel, "Background"));
         var button = Assert.IsType<Button>(document.Shown!.ObjectAt(Go));
-
-        field.GetVisualDescendants().OfType<Button>().Single(swatch => swatch.Name == "PART_Swatch").Focus(NavigationMethod.Tab);
-        Press(studio, Key.Enter);
-
-        Assert.True(field.IsPickerOpen, "образец не открыл выбор цвета");
-
+        var root = OpenColorWindow(studio, field);
         var spectrum = field.Picker!.GetVisualDescendants().OfType<AxColorSpectrum>().Single();
-        var root = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(spectrum));
 
         root.MouseDown(At(spectrum, root, 0.2, 0.5), MouseButton.Left);
         root.MouseMove(At(spectrum, root, 0.5, 0.4));
@@ -855,21 +852,150 @@ public class DesignerInspectorTests
 
         Assert.NotEqual(Color.Parse("#3C6ECF"), Assert.IsAssignableFrom<ISolidColorBrush>(button.Background).Color);
         Assert.Equal(field.Color, Assert.IsAssignableFrom<ISolidColorBrush>(button.Background).Color);
-        Assert.Equal("#3C6ECF", Element(document, "Go").GetAttribute("Background")?.GetValueText());
 
         root.MouseMove(At(spectrum, root, 0.8, 0.3));
         root.MouseUp(At(spectrum, root, 0.8, 0.3), MouseButton.Left);
         LiveFormStudio.Frame();
 
+        // Отпускание — шаг сеанса, а не запись: документ ждёт, пока окно закроют.
+        Assert.Equal(field.Color, Assert.IsAssignableFrom<ISolidColorBrush>(button.Background).Color);
+        Assert.Equal("#3C6ECF", Element(document, "Go").GetAttribute("Background")?.GetValueText());
+        Assert.False(document.Document!.CanUndo, "шаг в окне цвета записался до закрытия окна");
+
         var picked = AxColorField.Format(field.Color);
 
+        root.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, string.Empty);
+        LiveFormStudio.Frame();
+
+        Assert.False(field.IsPickerOpen, "Enter не закрыл окно цвета");
+
         await XamlStudio.UntilAsync(
-            () => Element(document, "Go").GetAttribute("Background")?.GetValueText() == picked, "цвет не записан при отпускании");
+            () => Element(document, "Go").GetAttribute("Background")?.GetValueText() == picked, "цвет не записан при закрытии окна");
 
         await document.Document!.UndoAsync();
 
         await XamlStudio.UntilAsync(
-            () => Element(document, "Go").GetAttribute("Background")?.GetValueText() == "#3C6ECF", "тяга цвета отменилась не одним шагом");
+            () => Element(document, "Go").GetAttribute("Background")?.GetValueText() == "#3C6ECF", "сеанс окна цвета отменился не одним шагом");
+    }
+
+    /// <summary>Esc в окне «Цвет» возвращает объекту цвет начала и не трогает документ (запись 375).</summary>
+    [AvaloniaFact]
+    public async Task Escape_in_the_color_window_gives_the_object_back_and_leaves_the_text()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync(
+            "MainWindow.axaml", Form.Replace("Width=\"120\"", "Width=\"120\" Background=\"#3C6ECF\"", StringComparison.Ordinal));
+        var panel = studio.Inspector();
+
+        document.Select([Go]);
+        LiveFormStudio.Frame();
+
+        var before = Text(document);
+        var field = ColorField(Row(panel, "Background"));
+        var button = Assert.IsType<Button>(document.Shown!.ObjectAt(Go));
+        var root = OpenColorWindow(studio, field);
+
+        root.KeyPress(Key.Down, RawInputModifiers.Shift, PhysicalKey.None, string.Empty);
+        LiveFormStudio.Frame();
+
+        Assert.NotEqual(Color.Parse("#3C6ECF"), Assert.IsAssignableFrom<ISolidColorBrush>(button.Background).Color);
+
+        root.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, string.Empty);
+        LiveFormStudio.Frame();
+
+        Assert.False(field.IsPickerOpen, "Esc не закрыл окно цвета");
+        Assert.Equal(Color.Parse("#3C6ECF"), Assert.IsAssignableFrom<ISolidColorBrush>(button.Background).Color);
+        Assert.Equal(Color.Parse("#3C6ECF"), field.Color);
+        Assert.Equal(before, Text(document));
+        Assert.False(document.Document!.CanUndo, "отменённый сеанс окна цвета оставил шаг истории");
+    }
+
+    /// <summary>
+    /// Значение, пришедшее во время сеанса окна «Цвет», — здесь отмена в истории документа — сеанс не перебивает: поле
+    /// показывает цвет сеанса, а когда окно закроют, — то, что в документе (запись 375).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_value_that_arrives_during_the_color_window_shows_when_it_ends()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync(
+            "MainWindow.axaml", Form.Replace("Width=\"120\"", "Width=\"120\" Background=\"#3C6ECF\"", StringComparison.Ordinal));
+        var panel = studio.Inspector();
+
+        document.Select([Go]);
+        LiveFormStudio.Frame();
+
+        var field = ColorField(Row(panel, "Background"));
+
+        field.RaiseEvent(new AxColorEventArgs(AxColorPicker.ColorCommittedEvent, Colors.OrangeRed));
+
+        await XamlStudio.UntilAsync(
+            () => Element(document, "Go").GetAttribute("Background")?.GetValueText() == "#FF4500", "цвет не записан");
+
+        var root = OpenColorWindow(studio, field);
+
+        root.KeyPress(Key.Down, RawInputModifiers.Shift, PhysicalKey.None, string.Empty);
+        LiveFormStudio.Frame();
+
+        var shown = field.Color;
+
+        await document.Document!.UndoAsync();
+
+        await XamlStudio.UntilAsync(
+            () => Element(document, "Go").GetAttribute("Background")?.GetValueText() == "#3C6ECF", "отмена не дошла до документа");
+        LiveFormStudio.Frame();
+
+        Assert.Equal(shown, field.Color);
+
+        root.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, string.Empty);
+        LiveFormStudio.Frame();
+
+        Assert.False(field.IsPickerOpen, "Esc не закрыл окно цвета");
+        Assert.Equal(Color.Parse("#3C6ECF"), field.Color);
+    }
+
+    /// <summary>
+    /// Вид каналов, выбранный в окне «Цвет», встречает в следующем поле цвета: инспектор помнит его, пока студия открыта
+    /// (запись 375).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task The_color_mode_chosen_once_meets_the_next_field()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", Form);
+        var panel = studio.Inspector();
+
+        document.Select([Go]);
+        LiveFormStudio.Frame();
+
+        var background = ColorField(Row(panel, "Background"));
+
+        try
+        {
+            var root = OpenColorWindow(studio, background);
+
+            background.Picker!.Mode = AxColorPickerMode.Hsv;
+            root.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, string.Empty);
+            LiveFormStudio.Frame();
+
+            // Поле соседней строки построено раньше, чем вид выбрали, — окно у него всё равно встречает выбранным.
+            var foreground = ColorField(Row(panel, "Foreground"));
+
+            root = OpenColorWindow(studio, foreground);
+
+            Assert.Equal(AxColorPickerMode.Hsv, foreground.Picker!.Mode);
+            Assert.Equal(AxColorPickerMode.Hsv, foreground.PickerMode);
+
+            root.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, string.Empty);
+            LiveFormStudio.Frame();
+
+            Assert.False(document.Document!.CanUndo, "окно цвета без перемен записало правку");
+        }
+        finally
+        {
+            // Вид помнится на весь процесс: следующим тестам — тот, с которого студия начинает.
+            background.PickerMode = AxColorPickerMode.Rgb255;
+        }
     }
 
     /// <summary>Отступ пишется кратчайшей записью, которую прочтёт разметка: одно число, пара или все четыре.</summary>
@@ -1471,6 +1597,23 @@ public class DesignerInspectorTests
 
         Assert.Equal([Colors.Red, Colors.Blue], gradient.GradientStops.Select(static stop => stop.Color));
         Assert.DoesNotContain(row.GetVisualDescendants().OfType<AxColorField>(), field => field.IsEffectivelyVisible);
+    }
+
+    /// <summary>Открывает окно «Цвет» полосой поля с клавиатуры и отдаёт его — каретка уже в квадрате.</summary>
+    private static TopLevel OpenColorWindow(LiveFormStudio studio, AxColorField field)
+    {
+        field.GetVisualDescendants().OfType<Button>().Single(swatch => swatch.Name == "PART_Swatch").Focus(NavigationMethod.Tab);
+        Press(studio, Key.Enter);
+        LiveFormStudio.Frame();
+
+        Assert.True(field.IsPickerOpen, "полоса не открыла окно цвета");
+
+        var root = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(field.Picker!));
+
+        Assert.NotSame(studio.Window, root);
+        Assert.True(field.Picker!.GetVisualDescendants().OfType<AxColorSpectrum>().Single().IsKeyboardFocusWithin, "каретка не в квадрате");
+
+        return root;
     }
 
     private static AxColorField ColorField(InspectorRow row) =>

@@ -8,7 +8,8 @@ using Avalonia.Media;
 namespace ArxisStudio.Modules.Inspector.Editors;
 
 /// <summary>
-/// Редактор цвета и кисти — полем цвета, как у Unity: полоса цвета с полоской прозрачности, пипетка, выбор по щелчку.
+/// Редактор цвета и кисти — полем цвета, как у Unity: полоса цвета с полоской прозрачности, пипетка и окно «Цвет» по
+/// щелчку.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -21,8 +22,14 @@ namespace ArxisStudio.Modules.Inspector.Editors;
 /// XAML. Выражение — привязку, ресурс — показывает строка жетоном, и до поля оно не доходит.
 /// </para>
 /// <para>
-/// Тягу по выбору цвета видно на цели на каждом движении, а пишется она одной правкой при отпускании
-/// (<see cref="FieldPreview"/>); пипетка пишет сразу, одной правкой.
+/// Окно «Цвет» — сеанс правки: всё, что в нём меняется, видно на цели на ходу (<see cref="FieldPreview"/>), а пишется
+/// одной правкой, когда окно закрывают крестиком или Enter или оно переходит к другому полю; Esc возвращает цель к
+/// тому, что было. Значение, пришедшее во время сеанса, поле покажет, когда сеанс кончится. Пипетка пишет сразу,
+/// одной правкой.
+/// </para>
+/// <para>
+/// Вид каналов окна (RGB 0…255, RGB 0…1, HSV) помнится, пока студия открыта: выбранный в одном поле, он встречает в
+/// следующем. В настройки он не идёт — там то, что правит человек, а не память панели.
 /// </para>
 /// </remarks>
 [PropertyEditor(typeof(Color), Fallback = true)]
@@ -31,6 +38,9 @@ namespace ArxisStudio.Modules.Inspector.Editors;
 [PropertyEditor(typeof(SolidColorBrush), Fallback = true)]
 public sealed class ColorEditor : PropertyEditor
 {
+    /// <summary>Вид каналов окна «Цвет», выбранный последним, — на всю студию, пока она открыта.</summary>
+    private static AxColorPickerMode _mode;
+
     /// <inheritdoc/>
     public override InspectorField CreateField(InspectorFieldContext context)
     {
@@ -46,6 +56,7 @@ public sealed class ColorEditor : PropertyEditor
         private readonly Border _gradient;
         private readonly FieldPreview _preview;
         private readonly Border _host = new();
+        private InspectorValue? _pending;
 
         public ColorFieldHost(InspectorFieldContext context, string gradientTip)
         {
@@ -55,10 +66,12 @@ public sealed class ColorEditor : PropertyEditor
                 Size = AxControlSize.Compact,
                 IsReadOnly = context.Property.IsReadOnly,
                 AllowsAlpha = true,
+                PickerMode = _mode,
             };
             _color.ColorChanging += (_, e) => _preview.Show(AxColorField.Format(e.Color));
             _color.ColorCommitted += (_, e) => _ = _preview.CommitAsync(e.Text ?? AxColorField.Format(e.Color));
             _color.ColorCancelled += (_, _) => _preview.Cancel();
+            _color.PropertyChanged += OnColorProperty;
 
             // Градиент — образцом в рамке поля: видно, что это кисть, но нажать её нечем.
             _gradient = new Border { Child = _gradientSwatch };
@@ -80,6 +93,15 @@ public sealed class ColorEditor : PropertyEditor
         public override void Show(InspectorValue value)
         {
             ArgumentNullException.ThrowIfNull(value);
+
+            // Сеанс окна «Цвет» держит показ сам: пришедшее во время него встанет, когда он кончится.
+            if (_color.IsPickerOpen)
+            {
+                _pending = value;
+                return;
+            }
+
+            _pending = null;
 
             if (value.IsMixed)
             {
@@ -119,5 +141,21 @@ public sealed class ColorEditor : PropertyEditor
         }
 
         public override void Release() => _preview.Cancel();
+
+        private void OnColorProperty(object? sender, AvaloniaPropertyChangedEventArgs e)
+        {
+            if (e.Property == AxColorField.PickerModeProperty)
+            {
+                _mode = _color.PickerMode;
+            }
+            else if (e.Property == AxColorField.IsPickerOpenProperty)
+            {
+                // Окно встречает видом, выбранным последним, в каком бы поле его ни выбрали.
+                if (_color.IsPickerOpen)
+                    _color.PickerMode = _mode;
+                else if (_pending is { } pending)
+                    Show(pending);
+            }
+        }
     }
 }
