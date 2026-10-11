@@ -346,7 +346,7 @@ public class DesignerInspectorTests
 
     /// <summary>
     /// <c>x:Name</c> правится в строке заголовка, как имя объекта у Unity: поле рядом со значком и флажком, без подписи
-    /// и без полосы «задано здесь»; пустое называет себя подписью свойства — и диктору тоже, — а что это за элемент,
+    /// и без отметки «задано здесь»; пустое называет себя подписью свойства — и диктору тоже, — а что это за элемент,
     /// говорит подзаголовок (запись 368).
     /// </summary>
     [AvaloniaFact]
@@ -377,7 +377,7 @@ public class DesignerInspectorTests
         LiveFormStudio.Frame();
 
         Assert.Equal("Caption", Box(HeaderRow(panel, FormEdits.NameDirective)).Text);
-        Assert.False(HeaderRow(panel, FormEdits.NameDirective).IsOverridden, "у имени в шапке полоса «задано здесь»");
+        Assert.False(HeaderRow(panel, FormEdits.NameDirective).IsOverridden, "у имени в шапке отметка «задано здесь»");
     }
 
     /// <summary>
