@@ -603,6 +603,42 @@ public class InspectorPanelTests
     }
 
     /// <summary>
+    /// Свойства только для чтения в списке нет — ни сразу, ни поиском: инспектор — то, что правят. «Все свойства»
+    /// ставит такое свойство на его место в разделе, а не к скрытым (запись 371).
+    /// </summary>
+    [AvaloniaFact]
+    public void Read_only_properties_wait_for_all_and_stand_in_their_own_section()
+    {
+        using var studio = new InspectorStudio();
+        var panel = studio.Panel();
+        var target = new FakeTarget(
+            typeof(Button),
+            FakeTarget.Property("Width", typeof(double)),
+            FakeTarget.Property("Height", typeof(double)) with { IsReadOnly = true });
+
+        using var shown = studio.Service.Show(target);
+
+        studio.Frame();
+
+        Assert.Equal(["Width"], Ids(panel));
+
+        panel.View!.Query.Text = "Height";
+        studio.Frame();
+
+        Assert.Empty(Ids(panel));
+
+        panel.View.Query.Text = string.Empty;
+        panel.View.All.IsChecked = true;
+        studio.Frame();
+
+        var height = Row(panel, "Height");
+
+        Assert.True(height.Property.IsReadOnly);
+        Assert.Equal(panel.List!.CategoryOf(Row(panel, "Width").Property), panel.List.CategoryOf(height.Property));
+        Assert.NotEqual("hidden", panel.List.CategoryOf(height.Property));
+    }
+
+    /// <summary>
     /// Пустая панель говорит, что ничего не выбрано, а закрытая закреплённая цель — что закреплённое закрыто, и
     /// предлагает снять замок.
     /// </summary>

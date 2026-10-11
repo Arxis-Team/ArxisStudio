@@ -634,7 +634,10 @@ public class DesignerInspectorTests
             "одна отмена не вернула ширину и выравнивание");
     }
 
-    /// <summary>Член, заданный элементом-свойством, правится только там: в инспекторе он — чтение.</summary>
+    /// <summary>
+    /// Член, заданный элементом-свойством, правится только там: в инспекторе он — чтение, и в списке его нет, пока не
+    /// включены «Все свойства» (запись 371).
+    /// </summary>
     [AvaloniaFact]
     public async Task A_member_set_as_an_element_is_read_only()
     {
@@ -658,6 +661,10 @@ public class DesignerInspectorTests
 
         document.Select([Go]);
         LiveFormStudio.Frame();
+
+        Assert.DoesNotContain(panel.List!.Items.OfType<PropertyCell>(), cell => cell.Row.Property.Id == "Content");
+
+        panel.View!.All.IsChecked = true;
 
         var content = Row(panel, "Content");
 

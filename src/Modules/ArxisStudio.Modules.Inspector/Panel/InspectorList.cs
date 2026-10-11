@@ -168,7 +168,7 @@ internal sealed class InspectorList
         }
     }
 
-    /// <summary>Все свойства: дополнительные и скрытые — последним разделом.</summary>
+    /// <summary>Все свойства: дополнительные, только для чтения и скрытые — последним разделом.</summary>
     public bool ShowAll
     {
         get => _showAll;
@@ -550,6 +550,11 @@ internal sealed class InspectorList
             return false;
 
         if (property.IsHidden && !_showAll)
+            return false;
+
+        // Только чтение — не правка, а инспектор — то, что правят: такой строки в списке нет, и поиск её не находит.
+        // Прочесть её можно в «Все свойства» — на её месте в разделе, как отладочный вид Unity.
+        if (property.IsReadOnly && !_showAll)
             return false;
 
         // Дополнительное находит поиск: его не показывают сразу, но и прятать от того, кто его ищет, незачем.
