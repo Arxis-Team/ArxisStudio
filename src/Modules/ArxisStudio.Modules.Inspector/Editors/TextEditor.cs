@@ -30,7 +30,7 @@ public sealed class TextEditor : PropertyEditor
         var constraints = context.Property.Constraints;
 
         if (constraints.ChoicesOnly && constraints.Choices.Count > 0)
-            return new ChoiceList(context, constraints.Choices);
+            return new ChoiceList(context, constraints.Choices, Context.Strings["inspector.default"]);
 
         return new TextField(context, constraints.Multiline, Context.Strings["inspector.choices"]);
     }

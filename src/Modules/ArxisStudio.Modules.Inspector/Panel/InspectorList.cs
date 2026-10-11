@@ -553,8 +553,9 @@ internal sealed class InspectorList
             return false;
 
         // Только чтение — не правка, а инспектор — то, что правят: такой строки в списке нет, и поиск её не находит.
-        // Прочесть её можно в «Все свойства» — на её месте в разделе, как отладочный вид Unity.
-        if (property.IsReadOnly && !_showAll)
+        // Прочесть её можно в «Все свойства» — на её месте в разделе, как отладочный вид Unity. Так же — свойство, которому
+        // нет поля: подпись без значения ничего не говорит и ничего не даёт сделать (запись 373).
+        if (!_showAll && !_catalog.Edits(property))
             return false;
 
         // Дополнительное находит поиск: его не показывают сразу, но и прятать от того, кто его ищет, незачем.
@@ -633,10 +634,11 @@ internal sealed class InspectorList
                                             .ThenBy(static category => category.Title, culture))
         {
             var expanded = IsSearching || !IsFolded(category.Id);
+            // Сколько задано среди показанных строк: заданное, которого не видно, — скрытое, только для чтения, — счётчик не
+            // обещает (запись 373).
             var count = written is null
                 ? (int?)null
-                : _properties.Count(property => written.Contains(property.Id) && !_headerIds.Contains(property.Id) &&
-                                                string.Equals(CategoryOf(property), category.Id, StringComparison.Ordinal));
+                : groups[category.Id].Count(row => written.Contains(row.Property.Id));
 
             plan.Add(new GroupEntry(GroupPrefix + category.Id, category, expanded, !IsSearching, count));
 

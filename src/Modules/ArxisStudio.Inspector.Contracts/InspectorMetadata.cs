@@ -1,3 +1,4 @@
+using System.Reflection;
 using ArxisStudio.Sdk;
 using Avalonia;
 
@@ -72,6 +73,15 @@ public sealed class InspectorMetadataBuilder
     {
         ArgumentException.ThrowIfNullOrEmpty(typeName);
 
+        return new InspectorTypeBuilder(HintsOf(typeName), type: null);
+    }
+
+    /// <summary>Тип.</summary>
+    /// <typeparam name="T">Тип.</typeparam>
+    public InspectorTypeBuilder For<T>() => new(HintsOf(InspectorTypeInfo.NameOf(typeof(T))), typeof(T));
+
+    private InspectorTypeHints HintsOf(string typeName)
+    {
         if (!_types.TryGetValue(typeName, out var hints))
         {
             hints = new InspectorTypeHints(typeName);
@@ -79,12 +89,8 @@ public sealed class InspectorMetadataBuilder
             _order.Add(typeName);
         }
 
-        return new InspectorTypeBuilder(hints);
+        return hints;
     }
-
-    /// <summary>Тип.</summary>
-    /// <typeparam name="T">Тип.</typeparam>
-    public InspectorTypeBuilder For<T>() => For(InspectorTypeInfo.NameOf(typeof(T)));
 }
 
 /// <summary>Описание раздела.</summary>
@@ -164,8 +170,13 @@ public sealed class InspectorTypeHints(string TypeName)
 public sealed class InspectorTypeBuilder
 {
     private readonly InspectorTypeHints _hints;
+    private readonly Type? _type;
 
-    internal InspectorTypeBuilder(InspectorTypeHints hints) => _hints = hints;
+    internal InspectorTypeBuilder(InspectorTypeHints hints, Type? type)
+    {
+        _hints = hints;
+        _type = type;
+    }
 
     /// <summary>Описывает свойство по идентификатору: <c>Width</c>, <c>Grid.Row</c>, <c>ToolTip.Tip</c>.</summary>
     /// <param name="id">Идентификатор свойства.</param>
@@ -182,11 +193,18 @@ public sealed class InspectorTypeBuilder
     /// <summary>Описывает свойство Avalonia; присоединённое — с владельцем: <c>Grid.Row</c>.</summary>
     /// <param name="property">Свойство.</param>
     /// <param name="describe">Описание.</param>
+    /// <remarks>
+    /// Присоединённое, у которого описываемый тип держит открытую обёртку, — <c>Visual.FlowDirection</c>,
+    /// <c>FontSize</c> у <c>TemplatedControl</c> (оно присоединённое у <c>TextElement</c>), — называется простым именем:
+    /// так его и пишет разметка, и так его называет источник. С владельцем такое описание не находило свойства
+    /// (запись 373). Тип, описанный по имени (<see cref="InspectorMetadataBuilder.For(string)"/>), обёрток не
+    /// показывает, и присоединённое у него — всегда с владельцем.
+    /// </remarks>
     public InspectorTypeBuilder Property(AvaloniaProperty property, Action<InspectorPropertyBuilder> describe)
     {
         ArgumentNullException.ThrowIfNull(property);
 
-        return Property(IdOf(property), describe);
+        return Property(Wrapped(property) ? property.Name : IdOf(property), describe);
     }
 
     /// <summary>Прячет свойства: видны только среди всех свойств.</summary>
@@ -226,6 +244,21 @@ public sealed class InspectorTypeBuilder
 
         return property.IsAttached ? property.OwnerType.Name + "." + property.Name : property.Name;
     }
+
+    /// <summary>
+    /// Держит ли описываемый тип присоединённое своим: реестр Avalonia числит его за типом, и у типа есть открытая
+    /// обёртка с записью. Тем же правилом простое имя даёт член загрузчик разметки.
+    /// </summary>
+    /// <remarks>
+    /// Одного имени обёртки мало: <c>Name</c> у <c>Control</c> — своё свойство, а не обёртка
+    /// <c>AutomationProperties.Name</c>. Обёртка ищется перебором, а не по имени: свойство, скрытое наследником через
+    /// <c>new</c>, дало бы неоднозначность.
+    /// </remarks>
+    private bool Wrapped(AvaloniaProperty property) =>
+        property.IsAttached && _type is { } type &&
+        AvaloniaPropertyRegistry.Instance.GetRegistered(type).Contains(property) &&
+        type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Any(wrapper => wrapper.Name == property.Name && wrapper.SetMethod is { IsPublic: true });
 
     private InspectorTypeBuilder Each(string[] ids, Action<InspectorPropertyBuilder> describe)
     {

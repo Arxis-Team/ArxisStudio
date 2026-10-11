@@ -15,6 +15,11 @@ namespace ArxisStudio.Modules.Inspector.Editors;
 /// у числа без «авто» — тоже сброс: значение просят снять.
 /// </para>
 /// <para>
+/// У целого «авто» — наибольшее значение типа: <c>TabIndex</c> Avalonia по умолчанию <c>int.MaxValue</c>, «порядка
+/// нет», и показывать его числом 2147483647 — показывать устройство, а не смысл. Пишется такое «авто» сбросом: у целого
+/// нет <c>NaN</c> (запись 373).
+/// </para>
+/// <para>
 /// Протяжку видно на цели на каждом движении, а пишется она одной правкой при отпускании; Esc посреди неё
 /// возвращает цель к тому, что было (<see cref="FieldPreview"/>).
 /// </para>
@@ -96,7 +101,7 @@ public sealed class NumberEditor : PropertyEditor
             if (HasDraft && _field.IsKeyboardFocusWithin)
                 return;
 
-            _field.Value = TryRead(value.Text, out var number) ? number : 0;
+            _field.Value = IsAuto(value.Text) ? double.NaN : TryRead(value.Text, out var number) ? number : 0;
             _field.IsMixed = value.IsMixed;
         }
 
@@ -121,11 +126,30 @@ public sealed class NumberEditor : PropertyEditor
             return double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
         }
 
-        /// <summary>Как записать число: «авто» — сбросом, если по умолчанию оно и так «авто».</summary>
+        /// <summary>«Авто» целого — наибольшее значение его типа, если свойство «авто» знает.</summary>
+        private bool IsAuto(string? text) =>
+            _context.Property.Constraints.AllowsAuto && IsWhole(_context.Property.ValueType) &&
+            text is not null && string.Equals(text.Trim(), MaximumOf(_context.Property.ValueType), StringComparison.Ordinal);
+
+        /// <summary>Наибольшее значение целого типа текстом разметки.</summary>
+        private static string? MaximumOf(InspectorTypeInfo type) => type.FullName switch
+        {
+            "System.Int32" => int.MaxValue.ToString(CultureInfo.InvariantCulture),
+            "System.Int64" => long.MaxValue.ToString(CultureInfo.InvariantCulture),
+            "System.Int16" => short.MaxValue.ToString(CultureInfo.InvariantCulture),
+            "System.Byte" => byte.MaxValue.ToString(CultureInfo.InvariantCulture),
+            "System.UInt32" => uint.MaxValue.ToString(CultureInfo.InvariantCulture),
+            "System.UInt64" => ulong.MaxValue.ToString(CultureInfo.InvariantCulture),
+            "System.UInt16" => ushort.MaxValue.ToString(CultureInfo.InvariantCulture),
+            "System.SByte" => sbyte.MaxValue.ToString(CultureInfo.InvariantCulture),
+            _ => null,
+        };
+
+        /// <summary>Как записать число: «авто» — сбросом, если по умолчанию оно и так «авто», а у целого — всегда.</summary>
         private string? TextOf(double value)
         {
             if (double.IsNaN(value))
-                return _autoIsDefault ? null : "NaN";
+                return _autoIsDefault || IsWhole(_context.Property.ValueType) ? null : "NaN";
 
             return AxNumberField.Format(value, _field.Decimals ?? 15);
         }

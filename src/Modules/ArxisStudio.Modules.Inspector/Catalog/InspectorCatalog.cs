@@ -14,7 +14,8 @@ internal sealed record InspectorCategory(string Id, string Title, int Order, boo
 /// <summary>Редактор, выбранный для свойства, и как его поле стоит в строке.</summary>
 /// <param name="Editor">Вклад-редактор.</param>
 /// <param name="Layout">Как стоит поле.</param>
-internal sealed record ChosenEditor(IStudioContribution<PropertyEditor> Editor, InspectorFieldLayout Layout);
+/// <param name="ReadsOnly">Достался ступенью «только чтение»: поля для этого свойства у инспектора нет.</param>
+internal sealed record ChosenEditor(IStudioContribution<PropertyEditor> Editor, InspectorFieldLayout Layout, bool ReadsOnly = false);
 
 /// <summary>
 /// Каталог вкладов инспектора: метаданные слоями, выбор редактора по цепочке, разделы для цели, пункты меню.
@@ -168,6 +169,18 @@ internal sealed class InspectorCatalog : IDisposable
             .ToArray();
     }
 
+    /// <summary>
+    /// Правится ли свойство здесь: оно не только для чтения, и цепочка дала ему поле, а не одно чтение. Строка, которой
+    /// поля нет, — подпись без значения: <c>ContextMenu</c>, заданный элементом, текстом не напишешь (запись 373).
+    /// </summary>
+    /// <param name="property">Свойство с метаданными.</param>
+    public bool Edits(InspectorProperty property)
+    {
+        ArgumentNullException.ThrowIfNull(property);
+
+        return !property.IsReadOnly && EditorFor(property) is { ReadsOnly: false };
+    }
+
     /// <summary>Редактор для свойства — по цепочке.</summary>
     /// <param name="property">Свойство с метаданными.</param>
     /// <returns>Редактор; пусто — не нашлось даже текстового: строку покажут только чтением.</returns>
@@ -193,7 +206,8 @@ internal sealed class InspectorCatalog : IDisposable
                     ? asked
                     : InspectorFieldLayout.Inline;
 
-                return new ChosenEditor(chosen.Editor, layout);
+                return new ChosenEditor(chosen.Editor, layout,
+                    string.Equals(chosen.Mark!.Hint, ReadOnlyHint, StringComparison.Ordinal));
             }
         }
 

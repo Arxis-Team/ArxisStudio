@@ -108,7 +108,9 @@ public sealed class EnumEditor : PropertyEditor
 
         var choices = Ordered(context.Property);
 
-        return choices.Count <= MaxSegments ? new SegmentsField(context, choices) : new ChoiceList(context, choices);
+        return choices.Count <= MaxSegments
+            ? new SegmentsField(context, choices)
+            : new ChoiceList(context, choices, Context.Strings["inspector.default"]);
     }
 
     /// <summary>

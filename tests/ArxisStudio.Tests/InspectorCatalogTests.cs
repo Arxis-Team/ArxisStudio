@@ -62,6 +62,24 @@ public class InspectorCatalogTests
     }
 
     /// <summary>
+    /// Присоединённое, которое описываемый тип держит обёрткой, — <c>Visual.FlowDirection</c>, — описано простым
+    /// именем, как его называет источник; без обёртки — с владельцем: <c>ScrollViewer.HorizontalScrollBarVisibility</c>
+    /// у рамки. С владельцем описание обёрнутого не находило свойства, и оно стояло в «Прочем» (запись 373).
+    /// </summary>
+    [Fact]
+    public void A_wrapped_attached_property_is_described_by_its_plain_name()
+    {
+        var catalog = Catalog(metadata: [Module(new WrappedTable())]);
+
+        var flow = Describe(catalog, typeof(Canvas), FakeTarget.Property("FlowDirection", typeof(FlowDirection)));
+
+        Assert.Equal("look", flow.Category);
+        Assert.True(flow.IsAdvanced, "обёрнутое присоединённое не описано таблицей");
+        Assert.Equal("scroll", Describe(catalog, typeof(Border),
+            FakeTarget.Property("ScrollViewer.HorizontalScrollBarVisibility", typeof(Avalonia.Controls.Primitives.ScrollBarVisibility))).Category);
+    }
+
+    /// <summary>
     /// Раздел с аргументом встаёт на место описанного и берёт его заголовок с аргументом; раздел автора, совпавший с
     /// описанным без учёта регистра, — он и есть.
     /// </summary>
@@ -326,6 +344,19 @@ public class InspectorCatalogTests
     private static Given<InspectorMetadata> Plugin(InspectorMetadata table) => new(table, builtIn: false);
 
     /// <summary>Таблица модуля-пробы: разделы, производный тип, закрытие для записи, «всегда».</summary>
+    /// <summary>Таблица с присоединёнными: обёрнутым у <c>Visual</c> и необёрнутым у <c>Control</c>.</summary>
+    public sealed class WrappedTable : InspectorMetadata
+    {
+        /// <inheritdoc/>
+        public override void Describe(InspectorMetadataBuilder metadata)
+        {
+            metadata.For<Avalonia.Visual>()
+                .Property(Avalonia.Visual.FlowDirectionProperty, static property => property.Category("look").Advanced());
+            metadata.For<Control>()
+                .Property(ScrollViewer.HorizontalScrollBarVisibilityProperty, static property => property.Category("scroll"));
+        }
+    }
+
     public sealed class ModuleTable : InspectorMetadata
     {
         /// <summary>Сколько раз её спросили.</summary>

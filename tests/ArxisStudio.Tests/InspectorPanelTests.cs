@@ -639,6 +639,151 @@ public class InspectorPanelTests
     }
 
     /// <summary>
+    /// Строке без поля — тип, который текстом не напишешь, — в списке не место, как и только чтению: подпись без значения
+    /// ничего не даёт сделать. Её показывают «Все свойства» (запись 373).
+    /// </summary>
+    [AvaloniaFact]
+    public void A_property_with_no_field_waits_for_all_properties()
+    {
+        using var studio = new InspectorStudio();
+        var panel = studio.Panel();
+        var target = new FakeTarget(
+            typeof(Button),
+            FakeTarget.Property("Width", typeof(double)),
+            FakeTarget.Property("ContextMenu", typeof(ContextMenu)) with { AcceptsText = false });
+
+        using var shown = studio.Service.Show(target);
+
+        studio.Frame();
+
+        Assert.Equal(["Width"], Ids(panel));
+
+        panel.View!.All.IsChecked = true;
+        studio.Frame();
+
+        Assert.Contains("ContextMenu", Ids(panel));
+    }
+
+    /// <summary>
+    /// У <c>TabIndex</c> наибольшее int — «порядка нет»: поле показывает «авто», а не 2147483647, и «авто», набранное в
+    /// поле, снимает атрибут (запись 373).
+    /// </summary>
+    [AvaloniaFact]
+    public void Tab_index_at_its_maximum_reads_auto_and_auto_takes_the_attribute_out()
+    {
+        using var studio = new InspectorStudio();
+        var panel = studio.Panel();
+        var target = new FakeTarget(typeof(Button), FakeTarget.Property("TabIndex", typeof(int)));
+
+        target.Put("TabIndex", new InspectorValue("2147483647"));
+
+        using var shown = studio.Service.Show(target);
+
+        studio.Frame();
+
+        var field = Assert.IsType<AxNumberField>(Box(Row(panel, "TabIndex")));
+
+        Assert.True(double.IsNaN(field.Value), $"TabIndex показан числом {field.Value}");
+
+        target.Set("TabIndex", new InspectorValue("3") { Source = InspectorValueSource.Local });
+        studio.Frame();
+
+        Assert.Equal(3, field.Value);
+
+        field.Focus();
+        field.SelectAll();
+        studio.Window.KeyTextInput("auto");
+        Press(studio, Key.Enter);
+
+        Assert.Equal([new InspectorWrite("TabIndex", null)], Assert.Single(target.Writes));
+    }
+
+    /// <summary>
+    /// У списка свойства, которого может и не быть, первый пункт — «По умолчанию»: незаданный <c>Cursor</c> стоит им, а
+    /// не пустым списком, и выбрать его — снять атрибут (запись 373).
+    /// </summary>
+    [AvaloniaFact]
+    public void An_unset_cursor_reads_default_and_choosing_default_takes_the_attribute_out()
+    {
+        using var studio = new InspectorStudio();
+        var panel = studio.Panel();
+        var target = new FakeTarget(typeof(Button), FakeTarget.Property("Cursor", typeof(Cursor)));
+
+        using var shown = studio.Service.Show(target);
+
+        studio.Frame();
+
+        var list = Row(panel, "Cursor").GetVisualDescendants().OfType<AxComboBox>().Single();
+
+        Assert.Equal(studio.Strings["inspector.default"], Assert.IsType<AxComboBoxItem>(list.SelectedItem).Content);
+
+        target.Set("Cursor", new InspectorValue("Hand") { Source = InspectorValueSource.Local });
+        studio.Frame();
+
+        Assert.Equal("Hand", Assert.IsType<AxComboBoxItem>(list.SelectedItem).Tag);
+
+        list.SelectedIndex = 0;
+        studio.Frame();
+
+        Assert.Equal([new InspectorWrite("Cursor", null)], Assert.Single(target.Writes));
+    }
+
+    /// <summary>
+    /// Раздел идёт порядком таблицы, а не вперемешку: у свойств разных владельцев — <c>InputElement</c> и <c>Control</c> —
+    /// порядок свой, и равный перемешивал «Взаимодействие» (запись 373).
+    /// </summary>
+    [AvaloniaFact]
+    public void Interaction_rows_keep_the_tables_order_across_owners()
+    {
+        using var studio = new InspectorStudio();
+        var panel = studio.Panel();
+        var target = new FakeTarget(
+            typeof(Button),
+            FakeTarget.Property("ContextFlyout", typeof(Avalonia.Controls.Primitives.FlyoutBase)),
+            FakeTarget.Property("Cursor", typeof(Cursor)),
+            FakeTarget.Property("ContextMenu", typeof(ContextMenu)),
+            FakeTarget.Property("TabIndex", typeof(int)),
+            FakeTarget.Property("IsTabStop", typeof(bool)),
+            FakeTarget.Property("Focusable", typeof(bool)),
+            FakeTarget.Property("IsHitTestVisible", typeof(bool)),
+            FakeTarget.Property("IsEnabled", typeof(bool)));
+
+        using var shown = studio.Service.Show(target);
+
+        panel.View!.All.IsChecked = true;
+        studio.Frame();
+
+        Assert.Equal(
+            ["IsEnabled", "IsHitTestVisible", "Focusable", "IsTabStop", "TabIndex", "Cursor", "ContextMenu", "ContextFlyout"],
+            Ids(panel));
+    }
+
+    /// <summary>
+    /// Счётчик раздела — заданное среди показанных строк: заданное дополнительное, которого не видно, он не обещает
+    /// (запись 373).
+    /// </summary>
+    [AvaloniaFact]
+    public void A_sections_counter_counts_only_the_rows_it_shows()
+    {
+        using var studio = new InspectorStudio();
+        var panel = studio.Panel();
+        var target = new FakeTarget(
+            typeof(Button),
+            FakeTarget.Property("Width", typeof(double)),
+            FakeTarget.Property("ClipToBounds", typeof(bool)));
+
+        target.Put("Width", new InspectorValue("120") { Source = InspectorValueSource.Local });
+        target.Put("ClipToBounds", new InspectorValue("False") { Source = InspectorValueSource.Local });
+
+        using var shown = studio.Service.Show(target);
+
+        studio.Frame();
+
+        Assert.Equal(["Width"], Ids(panel));
+        Assert.Equal(1, panel.List!.Items.OfType<GroupCell>().Single(cell => cell.CategoryId == "layout").Header.Counter);
+    }
+
+    /// <summary>
     /// Пустая панель говорит, что ничего не выбрано, а закрытая закреплённая цель — что закреплённое закрыто, и
     /// предлагает снять замок.
     /// </summary>

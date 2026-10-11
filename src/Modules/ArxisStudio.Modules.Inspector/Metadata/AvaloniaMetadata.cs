@@ -88,16 +88,22 @@ public sealed class AvaloniaMetadata : InspectorMetadata
             .Property(Visual.EffectProperty, property => property.Category("appearance").Advanced())
             .Property(Visual.FlowDirectionProperty, property => property.Category("appearance").Advanced())
             .Property(Visual.ZIndexProperty, property => property.Category("layout").Order(110).Advanced())
+            .Property(Visual.CacheModeProperty, property => property.Category("appearance").Advanced())
             .Category("transform", "RenderTransform", "RenderTransformOrigin");
 
         metadata.For<InputElement>()
             .Hide("IsPointerOver", "IsFocused", "IsKeyboardFocusWithin", "IsEffectivelyEnabled", "KeyBindings",
                   "GestureRecognizers", "Gestures", "InputScope", "TextInputOptions")
-            .Category("interaction", "IsEnabled", "IsHitTestVisible", "Focusable", "IsTabStop", "TabIndex", "Cursor");
+            .Category("interaction", "IsEnabled", "IsHitTestVisible", "Focusable", "IsTabStop", "TabIndex", "Cursor")
+
+            // Наибольшее int у TabIndex — «порядка нет»: поле показывает «Авто», а не 2147483647 (запись 373).
+            .Property(InputElement.TabIndexProperty, property => property.Auto());
 
         metadata.For<Control>()
             .Hide("FocusAdorner", "DataTemplates")
-            .Category("interaction", "ContextMenu", "ContextFlyout")
+            // После своего у InputElement: равный порядок у разных владельцев перемешивал строки раздела (запись 373).
+            .Property(Control.ContextMenuProperty, property => property.Category("interaction").Order(10))
+            .Property(Control.ContextFlyoutProperty, property => property.Category("interaction").Order(11))
             .Property(Control.TagProperty, property => property.Category("other").Advanced())
 
             // Часть шаблона, которой фокус отдаёт контрол-хозяин, — дело автора шаблона, а не формы: у ребёнка
@@ -158,7 +164,8 @@ public sealed class AvaloniaMetadata : InspectorMetadata
 
         metadata.For<TextBox>()
             .Category("common", "Text", "PlaceholderText", "IsReadOnly", "AcceptsReturn", "MaxLength")
-            .Category("text", "TextAlignment", "TextWrapping")
+            .Property(TextBox.TextAlignmentProperty, property => property.Category("text").Order(5))
+            .Property(TextBox.TextWrappingProperty, property => property.Category("text").Order(6))
             .Property(TextBox.CaretBrushProperty, property => property.Category("brush").Advanced())
             .Property(TextBox.SelectionBrushProperty, property => property.Category("brush").Advanced());
     }
