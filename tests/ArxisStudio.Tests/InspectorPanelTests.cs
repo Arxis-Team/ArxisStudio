@@ -100,6 +100,50 @@ public class InspectorPanelTests
     }
 
     /// <summary>
+    /// Значение, показанное в строке у нижнего края, список не двигает: сегменты, срезанные краем, выбрав новый
+    /// сегмент, не тянут его в вид, и верх списка остаётся наверху. Живая проверка записи 369 нашла это на
+    /// <c>TextBlock</c>: внизу стоял его <c>TextWrapping</c>, и заголовок первого раздела уезжал под шапку.
+    /// </summary>
+    [AvaloniaFact]
+    public void A_value_shown_in_a_row_cut_by_the_bottom_edge_does_not_scroll_the_list()
+    {
+        using var studio = new InspectorStudio();
+
+        studio.Window.Height = 2000;
+
+        var panel = studio.Panel();
+        var properties = Enumerable.Range(0, 12)
+            .Select(static at => FakeTarget.Property("Filler" + at, typeof(string)))
+            .Append(FakeTarget.Property("TextWrapping", typeof(TextWrapping)))
+            .ToArray();
+        var target = new FakeTarget(typeof(TextBlock), properties);
+
+        target.Put("TextWrapping", new InspectorValue("NoWrap"));
+
+        using var shown = studio.Service.Show(target);
+
+        studio.Frame();
+
+        var viewer = panel.View!.List.GetVisualDescendants().OfType<ScrollViewer>().First();
+        var cell = Cell(panel, "TextWrapping");
+        var top = cell.TranslatePoint(default, viewer)!.Value.Y;
+
+        // Нижний край режет строку сегментов посередине.
+        studio.Window.Height -= viewer.Viewport.Height - (top + cell.Bounds.Height / 2);
+        studio.Frame();
+
+        Assert.True(cell.TranslatePoint(new Point(0, cell.Bounds.Height), viewer)!.Value.Y > viewer.Viewport.Height + 1,
+            "условие теста: строка сегментов не срезана нижним краем");
+        Assert.Equal(0, viewer.Offset.Y);
+
+        target.Set("TextWrapping", new InspectorValue("Wrap"));
+        studio.Frame();
+
+        Assert.Equal("Wrap", Assert.IsType<AxSegmentItem>(cell.Row.GetVisualDescendants().OfType<AxSegmentedControl>().Single().SelectedItem).Tag);
+        Assert.True(viewer.Offset.Y == 0, $"показанное значение прокрутило список на {viewer.Offset.Y}");
+    }
+
+    /// <summary>
     /// Откуда значение — подсказкой у самой подписи строки, с её полным именем: подпись держит свою пустую подсказку
     /// для сокращённого текста, и подсказка строки над ней не открывалась (найдено живой проверкой записи 365).
     /// </summary>
