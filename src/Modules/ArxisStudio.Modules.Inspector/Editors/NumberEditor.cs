@@ -51,6 +51,32 @@ public sealed class NumberEditor : PropertyEditor
         "System.Int32" or "System.Int64" or "System.Int16" or "System.Byte" or
         "System.UInt32" or "System.UInt64" or "System.UInt16" or "System.SByte";
 
+    /// <summary>Число ли значение: целое или дробное.</summary>
+    /// <param name="type">Тип.</param>
+    internal static bool IsNumber(InspectorTypeInfo type) =>
+        IsWhole(type) || type.FullName is "System.Double" or "System.Single" or "System.Decimal";
+
+    /// <summary>Читает число записи разметки: инвариантно, «авто» — <c>NaN</c>.</summary>
+    /// <param name="text">Текст значения.</param>
+    /// <param name="value">Число; не прочлось — <c>NaN</c>.</param>
+    internal static bool TryRead(string? text, out double value)
+    {
+        value = double.NaN;
+
+        if (string.IsNullOrWhiteSpace(text))
+            return false;
+
+        var trimmed = text.Trim();
+
+        if (string.Equals(trimmed, "Auto", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(trimmed, "NaN", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+    }
+
     private sealed class NumberField : InspectorField
     {
         private readonly InspectorFieldContext _context;
@@ -106,25 +132,6 @@ public sealed class NumberEditor : PropertyEditor
         }
 
         public override void Release() => _preview.Cancel();
-
-        /// <summary>Читает число записи разметки: инвариантно, «авто» — <c>NaN</c>.</summary>
-        internal static bool TryRead(string? text, out double value)
-        {
-            value = double.NaN;
-
-            if (string.IsNullOrWhiteSpace(text))
-                return false;
-
-            var trimmed = text.Trim();
-
-            if (string.Equals(trimmed, "Auto", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(trimmed, "NaN", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            return double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
-        }
 
         /// <summary>«Авто» целого — наибольшее значение его типа, если свойство «авто» знает.</summary>
         private bool IsAuto(string? text) =>

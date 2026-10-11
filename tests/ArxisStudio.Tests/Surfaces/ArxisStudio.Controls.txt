@@ -1,4 +1,4 @@
-# StudioSdk 7.26
+# StudioSdk 7.27
 ArxisStudio.Controls.AxAvatar : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Controls.AxAvatar :: .ctor()
 ArxisStudio.Controls.AxAvatar :: ArxisStudio.Controls.AxAvatarShape Shape { get; set; }
@@ -532,6 +532,32 @@ ArxisStudio.Controls.AxQuickSearch :: static readonly Avalonia.StyledProperty<Sy
 ArxisStudio.Controls.AxQuickSearch :: static readonly Avalonia.StyledProperty<System.String> TextProperty
 ArxisStudio.Controls.AxRadioButton : class : Avalonia.Controls.RadioButton
 ArxisStudio.Controls.AxRadioButton :: .ctor()
+ArxisStudio.Controls.AxRangeField : class : Avalonia.Controls.Primitives.TemplatedControl
+ArxisStudio.Controls.AxRangeField :: .ctor()
+ArxisStudio.Controls.AxRangeField :: ArxisStudio.Controls.AxControlSize Size { get; set; }
+ArxisStudio.Controls.AxRangeField :: ArxisStudio.Controls.AxNumberField NumberField { get; }
+ArxisStudio.Controls.AxRangeField :: ArxisStudio.Controls.AxSlider Slider { get; }
+ArxisStudio.Controls.AxRangeField :: System.Boolean HasDraft { get; }
+ArxisStudio.Controls.AxRangeField :: System.Boolean IsMixed { get; set; }
+ArxisStudio.Controls.AxRangeField :: System.Boolean IsReadOnly { get; set; }
+ArxisStudio.Controls.AxRangeField :: System.Boolean IsScrubbing { get; }
+ArxisStudio.Controls.AxRangeField :: System.Double Maximum { get; set; }
+ArxisStudio.Controls.AxRangeField :: System.Double Minimum { get; set; }
+ArxisStudio.Controls.AxRangeField :: System.Double Step { get; set; }
+ArxisStudio.Controls.AxRangeField :: System.Double Value { get; set; }
+ArxisStudio.Controls.AxRangeField :: System.Int32? Decimals { get; set; }
+ArxisStudio.Controls.AxRangeField :: event System.EventHandler<ArxisStudio.Controls.AxNumberEventArgs> ValueChanging
+ArxisStudio.Controls.AxRangeField :: event System.EventHandler<ArxisStudio.Controls.AxNumberEventArgs> ValueCommitted
+ArxisStudio.Controls.AxRangeField :: event System.EventHandler<Avalonia.Interactivity.RoutedEventArgs> Cleared
+ArxisStudio.Controls.AxRangeField :: event System.EventHandler<Avalonia.Interactivity.RoutedEventArgs> ScrubCancelled
+ArxisStudio.Controls.AxRangeField :: static readonly Avalonia.StyledProperty<ArxisStudio.Controls.AxControlSize> SizeProperty
+ArxisStudio.Controls.AxRangeField :: static readonly Avalonia.StyledProperty<System.Boolean> IsMixedProperty
+ArxisStudio.Controls.AxRangeField :: static readonly Avalonia.StyledProperty<System.Boolean> IsReadOnlyProperty
+ArxisStudio.Controls.AxRangeField :: static readonly Avalonia.StyledProperty<System.Double> MaximumProperty
+ArxisStudio.Controls.AxRangeField :: static readonly Avalonia.StyledProperty<System.Double> MinimumProperty
+ArxisStudio.Controls.AxRangeField :: static readonly Avalonia.StyledProperty<System.Double> StepProperty
+ArxisStudio.Controls.AxRangeField :: static readonly Avalonia.StyledProperty<System.Double> ValueProperty
+ArxisStudio.Controls.AxRangeField :: static readonly Avalonia.StyledProperty<System.Int32?> DecimalsProperty
 ArxisStudio.Controls.AxScrubLabel : class : Avalonia.Controls.ContentControl
 ArxisStudio.Controls.AxScrubLabel :: .ctor()
 ArxisStudio.Controls.AxScrubLabel :: ArxisStudio.Controls.AxNumberField? Target { get; set; }
@@ -547,6 +573,10 @@ ArxisStudio.Controls.AxSeparator : class : Avalonia.Controls.Separator
 ArxisStudio.Controls.AxSeparator :: .ctor()
 ArxisStudio.Controls.AxSlider : class : Avalonia.Controls.Slider
 ArxisStudio.Controls.AxSlider :: .ctor()
+ArxisStudio.Controls.AxSlider :: System.Boolean IsScrubbing { get; }
+ArxisStudio.Controls.AxSlider :: event System.EventHandler<ArxisStudio.Controls.AxNumberEventArgs> ValueChanging
+ArxisStudio.Controls.AxSlider :: event System.EventHandler<ArxisStudio.Controls.AxNumberEventArgs> ValueCommitted
+ArxisStudio.Controls.AxSlider :: event System.EventHandler<Avalonia.Interactivity.RoutedEventArgs> ScrubCancelled
 ArxisStudio.Controls.AxSpinner : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Controls.AxSpinner :: .ctor()
 ArxisStudio.Controls.AxSpinner :: ArxisStudio.Controls.AxSpinnerSize Size { get; set; }

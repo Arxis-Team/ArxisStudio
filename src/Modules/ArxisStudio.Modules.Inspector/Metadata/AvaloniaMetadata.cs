@@ -1,6 +1,7 @@
 using System.Globalization;
 using ArxisStudio.Icons;
 using ArxisStudio.Inspector;
+using ArxisStudio.Modules.Inspector.Editors;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -116,7 +117,7 @@ public sealed class AvaloniaMetadata : InspectorMetadata
         metadata.For<Visual>()
             .Hide("Bounds", "HasMirrorTransform", "Transitions")
             .Category("appearance", "IsVisible", "Opacity")
-            .Property(Visual.OpacityProperty, property => property.Range(0, 1).Step(0.01).Decimals(2))
+            .Property(Visual.OpacityProperty, property => property.Range(0, 1).Step(0.01).Decimals(2).Editor(SliderEditor.Hint))
             .Property(Visual.ClipToBoundsProperty, property => property.Category("layout").Order(100).Advanced())
             .Property(Visual.ClipProperty, property => property.Category("appearance").Advanced())
             .Property(Visual.OpacityMaskProperty, property => property.Category("brush").Order(100).Advanced())

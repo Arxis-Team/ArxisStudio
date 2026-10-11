@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Reflection;
 using ArxisStudio.Inspector;
+using ArxisStudio.Modules.Inspector.Editors;
 using ArxisStudio.Sdk;
 using Avalonia.Threading;
 
@@ -205,6 +206,9 @@ internal sealed class ObjectTarget : InspectorTarget
                 IsAdvanced = shown == EditorBrowsableState.Advanced,
                 AcceptsText = writable,
                 DefaultText = fallback is null ? null : TextOf(fallback.Value),
+
+                // [Range] — ползунок с полем, как у Unity: обе границы дал автор, и тянуть есть между чем.
+                Editor = range is null ? null : SliderEditor.Hint,
                 Constraints = range is null
                     ? InspectorConstraints.None
                     : new InspectorConstraints

@@ -512,14 +512,14 @@ public class InspectorPanelTests
 
         studio.Frame();
 
-        var field = Assert.IsType<AxNumberField>(Assert.IsType<PluginSurface>(Row(panel, "Opacity").Content).Child);
+        var field = Assert.IsType<AxNumberField>(Assert.IsType<PluginSurface>(Row(panel, "Width").Content).Child);
 
         field.Focus();
         field.SelectAll();
-        studio.Window.KeyTextInput("0.5");
+        studio.Window.KeyTextInput("12,5");
         Press(studio, Key.Enter);
 
-        Assert.Equal([new InspectorWrite("Opacity", "0.5")], Assert.Single(target.Writes));
+        Assert.Equal([new InspectorWrite("Width", "12.5")], Assert.Single(target.Writes));
     }
 
     /// <summary>

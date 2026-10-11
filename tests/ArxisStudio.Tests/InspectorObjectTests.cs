@@ -143,9 +143,12 @@ public class InspectorObjectTests
         Assert.Equal("Приветствие", greeting.Row.Property.Label);
 
         var repeat = Assert.Single(panel.List.Items.OfType<PropertyCell>(), cell => cell.Row.Property.Id == "Repeat");
-        var field = Assert.IsType<AxNumberField>(Assert.IsType<PluginSurface>(repeat.Row.Content).Child);
 
-        Assert.Equal(10, field.Maximum);
+        // [Range] — ползунок с полем, как у Unity (запись 378).
+        var range = Assert.IsType<AxRangeField>(Assert.IsType<PluginSurface>(repeat.Row.Content).Child);
+        var field = range.NumberField;
+
+        Assert.Equal(10, range.Maximum);
 
         field.Focus();
         field.SelectAll();

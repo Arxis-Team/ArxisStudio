@@ -51,6 +51,9 @@ internal sealed class XamlInspectorSnapshot
     /// <summary>Раздел присоединённых, которые читает родитель: «В Grid».</summary>
     private const string ParentCategory = "parent/";
 
+    /// <summary>Подсказка редактора инспектора: число в границах — ползунком с полем, как <c>[Range]</c> у Unity.</summary>
+    private const string SliderEditor = "slider";
+
     /// <summary>Флажок шапки: видим ли элемент.</summary>
     private const string VisibleMember = "IsVisible";
 
@@ -300,6 +303,10 @@ internal sealed class XamlInspectorSnapshot
                 IsAdvanced = attributes.EditorBrowsable == XamlEditorBrowsable.Advanced || attributes.IsUnstable,
                 AcceptsText = member.AcceptsText,
                 DefaultText = attributes.DefaultValueText,
+
+                // Обе границы из [Range] — ползунок, как у Unity; границы таблиц метаданных — FontSize 1…1000 — его не
+                // дают: тянуть шрифт по тысяче делений незачем.
+                Editor = attributes.RangeMinimum is not null && attributes.RangeMaximum is not null ? SliderEditor : null,
                 Constraints = attributes.RangeMinimum is null && attributes.RangeMaximum is null
                     ? InspectorConstraints.None
                     : new InspectorConstraints { Minimum = attributes.RangeMinimum, Maximum = attributes.RangeMaximum },

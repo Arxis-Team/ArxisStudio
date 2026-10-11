@@ -150,7 +150,8 @@ public class SampleInspectorTests
         Assert.Equal(5, repeat.Property.Constraints.Maximum);
         Assert.Equal(3, Row(panel, nameof(SampleSettings.Tone)).GetVisualDescendants().OfType<AxSegmentedControl>().Single().Items.Count);
 
-        var field = Assert.IsType<AxNumberField>(Assert.IsType<PluginSurface>(repeat.Content).Child);
+        // [Range] — ползунок с полем, как у Unity (запись 378): набирают в его поле числа.
+        var field = Assert.IsType<AxRangeField>(Assert.IsType<PluginSurface>(repeat.Content).Child).NumberField;
 
         field.Focus();
         field.SelectAll();

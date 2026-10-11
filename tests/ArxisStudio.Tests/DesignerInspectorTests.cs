@@ -46,8 +46,12 @@ public class DesignerInspectorTests
         </Window>
         """;
 
-    /// <summary>Полка проекта: панель со своим присоединённым членом, который читает у детей.</summary>
+    /// <summary>
+    /// Полка проекта: панель со своим присоединённым членом, который читает у детей, и зазором в границах
+    /// <c>[Range]</c>.
+    /// </summary>
     private const string ProjectSource = """
+        using System.ComponentModel.DataAnnotations;
         using Avalonia;
         using Avalonia.Controls;
 
@@ -57,6 +61,16 @@ public class DesignerInspectorTests
         {
             public static readonly AttachedProperty<int> SlotProperty =
                 AvaloniaProperty.RegisterAttached<Shelf, Control, int>("Slot");
+
+            public static readonly StyledProperty<double> GapProperty =
+                AvaloniaProperty.Register<Shelf, double>(nameof(Gap));
+
+            [Range(0, 10)]
+            public double Gap
+            {
+                get => GetValue(GapProperty);
+                set => SetValue(GapProperty, value);
+            }
 
             public static int GetSlot(Control control) => control.GetValue(SlotProperty);
 
@@ -574,6 +588,38 @@ public class DesignerInspectorTests
         Type(studio, Number(slot), "2");
 
         await XamlStudio.UntilAsync(() => Text(document).Contains("c:Shelf.Slot=\"2\"", StringComparison.Ordinal), "присоединённое не записано с приставкой владельца");
+    }
+
+    /// <summary>
+    /// Свойство проекта с обеими границами из <c>[Range]</c> — ползунок с полем, как у Unity, и набранное в поле пишется
+    /// в документ; границы таблицы метаданных — у <c>FontSize</c> — ползунка не дают (запись 378).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_project_range_is_a_slider_and_a_metadata_range_is_not()
+    {
+        await using var studio = new LiveFormStudio();
+
+        Emit(studio);
+
+        var document = await studio.OpenAsync("MainWindow.axaml", ShelfForm);
+        var panel = studio.Inspector();
+
+        document.Select([Go]);
+        LiveFormStudio.Frame();
+
+        Assert.IsType<AxNumberField>(Assert.IsType<PluginSurface>(Row(panel, "FontSize").Content).Child);
+
+        document.Select([XamlElementPath.Parse("/0")]);
+        LiveFormStudio.Frame();
+
+        var range = Assert.IsType<AxRangeField>(Assert.IsType<PluginSurface>(Row(panel, "Gap").Content).Child);
+
+        Assert.Equal(0, range.Minimum);
+        Assert.Equal(10, range.Maximum);
+
+        Type(studio, range.NumberField, "4");
+
+        await XamlStudio.UntilAsync(() => Text(document).Contains("Gap=\"4\"", StringComparison.Ordinal), "число из поля ползунка не записано");
     }
 
     /// <summary>Размер корня пишется туда, откуда его берёт дизайнер, — в размер дизайна.</summary>
@@ -1668,6 +1714,9 @@ public class DesignerInspectorTests
         var output = Path.Combine(studio.Xaml.ProjectFolder, "bin", name + ".dll");
 
         Directory.CreateDirectory(Path.GetDirectoryName(output)!);
+
+        // Сборка проекта видит только загруженные сборки: [Range] — из DataAnnotations, которую надо коснуться заранее.
+        _ = typeof(System.ComponentModel.DataAnnotations.RangeAttribute).Assembly;
         TestAssembly.EmitFile(output, name, ProjectSource);
 
         studio.Xaml.AssemblyName = name;
