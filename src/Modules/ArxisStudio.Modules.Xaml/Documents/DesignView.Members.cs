@@ -152,9 +152,19 @@ internal sealed partial class DesignView
     private static bool Listed(XamlMemberDescriptor member) =>
         member.IsResolved && member.Kind is not (XamlMemberKind.Event or XamlMemberKind.Collection);
 
-    /// <summary>Присоединённый член, который читает родитель: владелец — тип родителя или его база.</summary>
+    /// <summary>
+    /// Присоединённый член, который читает родитель: владелец — тип родителя или его база, но не база всякого
+    /// контрола.
+    /// </summary>
+    /// <remarks>
+    /// Владелец, от которого происходит сам <see cref="Control"/>, — <c>InputElement</c>, <c>Visual</c> и ниже, —
+    /// база любого родителя, и его присоединённое о родителе ничего не говорит: это жест элемента
+    /// (<c>InputElement.IsHoldingEnabled</c>) или чужая проводка, зарегистрированная на всех контролах процесса. Такие
+    /// стояли у холста в панели разделами «В Control» и «В InputElement» (запись 372).
+    /// </remarks>
     private static bool Reads(XamlMemberDescriptor member, string name, Type? parent) =>
-        Dotted(name) && parent is not null && member.DeclaringType.IsAssignableFrom(parent);
+        Dotted(name) && parent is not null && member.DeclaringType.IsAssignableFrom(parent) &&
+        !member.DeclaringType.IsAssignableFrom(typeof(Control));
 
     private static XamlMemberInfo Info(LiveElement shown, XamlMemberDescriptor member, string name, bool reads)
     {

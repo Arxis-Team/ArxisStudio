@@ -1314,7 +1314,8 @@ public class DesignerInspectorTests
     /// Член, которого компилятор XAML Avalonia атрибутом не задаст, — только для чтения: у <c>ActualThemeVariant</c>
     /// обёртка только читает. Присоединённое без обёртки — <c>IsHoldWithMouseEnabled</c> у <c>InputElement</c> —
     /// пишется с именем владельца, а простым именем не предлагается. Записанные инспектором простыми, они роняли
-    /// сборку проекта, а с ней — каждую его форму в дизайнере (запись 366).
+    /// сборку проекта, а с ней — каждую его форму в дизайнере (запись 366). В списке оно стоит, когда записано:
+    /// владелец — база всякого контрола, и родителю такой член не принадлежит (запись 372).
     /// </summary>
     [AvaloniaFact]
     public async Task A_member_the_xaml_compiler_cannot_set_is_read_only()
@@ -1324,7 +1325,7 @@ public class DesignerInspectorTests
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     Width="400" Height="300">
               <Canvas>
-                <TextBlock Text="Подпись" />
+                <TextBlock Text="Подпись" InputElement.IsHoldWithMouseEnabled="True" />
               </Canvas>
             </Window>
             """;

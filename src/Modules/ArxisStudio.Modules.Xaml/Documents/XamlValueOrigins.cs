@@ -113,6 +113,11 @@ internal static class XamlValueOrigins
     }
 
     /// <summary>Откуда значение: выражение стиля или шаблона — их, а не привязка документа.</summary>
+    /// <remarks>
+    /// Загрузчик зовёт привязкой и локальное значение, если на свойстве есть хоть одно выражение — например,
+    /// <c>{DynamicResource}</c> стиля темы. Победил атрибут элемента — что он такое, решает он сам: литерал поверх
+    /// выражения стиля — записанное значение, а не выражение (запись 372).
+    /// </remarks>
     private static XamlValueOrigin OriginOf(XamlValueSource source, BindingPriority priority, XamlElement element, string name) =>
         source switch
         {
@@ -123,7 +128,7 @@ internal static class XamlValueOrigins
                 BindingPriority.Template => XamlValueOrigin.Template,
                 BindingPriority.Inherited => XamlValueOrigin.Inherited,
                 BindingPriority.Animation => XamlValueOrigin.Animation,
-                _ => element.GetAttribute(name) is not null ? XamlValueOrigin.Expression : XamlValueOrigin.Code,
+                _ => Written(element, name, local: true),
             },
             XamlValueSource.Style or XamlValueSource.StyleTrigger => XamlValueOrigin.Style,
             XamlValueSource.Template => XamlValueOrigin.Template,

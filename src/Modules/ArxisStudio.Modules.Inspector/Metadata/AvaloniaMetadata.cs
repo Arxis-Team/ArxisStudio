@@ -99,6 +99,10 @@ public sealed class AvaloniaMetadata : InspectorMetadata
             .Hide("FocusAdorner", "DataTemplates")
             .Category("interaction", "ContextMenu", "ContextFlyout")
             .Property(Control.TagProperty, property => property.Category("other").Advanced())
+
+            // Часть шаблона, которой фокус отдаёт контрол-хозяин, — дело автора шаблона, а не формы: у ребёнка
+            // UserControl оно стояло разделом «В TemplatedControl» (запись 372).
+            .Property(TemplatedControl.IsTemplateFocusTargetProperty, property => property.Hidden())
             .Property(ToolTip.TipProperty, property => property.Category("tooltip").Order(0).Always())
             .Property(ToolTip.PlacementProperty, property => property.Category("tooltip").Order(1).Advanced())
             .Property(ToolTip.ShowDelayProperty, property => property.Category("tooltip").Order(2).Advanced())

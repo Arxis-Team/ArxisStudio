@@ -6,6 +6,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Headless.XUnit;
+using Avalonia.Media;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -251,6 +252,55 @@ public class XamlMembersTests
     }
 
     /// <summary>
+    /// Литерал поверх свойства, которое стиль ставит ресурсом, — записанное значение, а не выражение: выражение стоит
+    /// в стиле, а элемент написал цвет. Живая проверка нашла такой <c>Background</c> жетоном с карандашом (запись 372).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_literal_over_a_style_resource_is_the_written_value_not_an_expression()
+    {
+        await using var studio = new XamlStudio();
+        using var view = await ShowAsync(studio, Themed);
+
+        var fill = Assert.IsType<XamlMemberInfo>(view.GetMember(Go, "Background"));
+
+        Assert.Equal(XamlValueOrigin.Document, fill.Value.Origin);
+        Assert.Equal(Color.Parse("#666363"), Assert.IsType<Color>(fill.Value.Shared));
+
+        var faint = Assert.IsType<XamlMemberInfo>(view.GetMember(Go, "Opacity"));
+
+        Assert.Equal(XamlValueOrigin.Expression, faint.Value.Origin);
+    }
+
+    /// <summary>
+    /// «Читает родитель» — только присоединённое, которое читает родитель: владелец — сам родитель или его база, но не
+    /// база всякого контрола. Иначе у холста в панели стояли разделы «В Control» и «В InputElement» с проводкой
+    /// докинга студии и жестами (запись 372), а <c>Canvas.Left</c> у ребёнка холста остаётся.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Only_what_the_parent_reads_counts_as_its_and_the_studios_wiring_stays_out()
+    {
+        // Проводка докинга регистрируется при первом касании — пусть она будет в реестре, как в студии.
+        RuntimeHelpers.RunClassConstructor(typeof(ArxisStudio.Docking.DockFocus).TypeHandle);
+
+        await using var studio = new XamlStudio();
+        using var view = await ShowAsync(studio, Form);
+
+        var board = view.GetMembers(XamlElementPath.Parse("/0/1"));
+        string[] everyControl =
+        [
+            "Avalonia.AvaloniaObject", "Avalonia.StyledElement", "Avalonia.Visual", "Avalonia.Layout.Layoutable",
+            "Avalonia.Interactivity.Interactive", "Avalonia.Input.InputElement", "Avalonia.Controls.Control",
+        ];
+
+        Assert.DoesNotContain(board, member => member.ParentReads && everyControl.Contains(member.OwnerTypeFullName));
+        Assert.DoesNotContain(board, member => member.Name.EndsWith(".Keeper", StringComparison.Ordinal));
+        Assert.True(view.GetMember(XamlElementPath.Parse("/0/1"), "Control.Keeper") is null,
+            "проводку докинга студии форма называет как член Control");
+        Assert.True(view.GetMembers(Note).Single(member => member.Name == "Canvas.Left").ParentReads,
+            "ребёнок холста не читает Canvas.Left");
+    }
+
+    /// <summary>
     /// У контрола проекта: ребёнок наследника сетки читает <c>Grid.Row</c>, присоединённое владельца из проекта
     /// называет своё пространство, значение из конструктора — от кода, из <c>d:</c> — для дизайна, а атрибуты
     /// .NET доходят до члена.
@@ -430,6 +480,26 @@ public class XamlMembersTests
           </Window.Styles>
           <StackPanel>
             <Button x:Name="Go" Content="Пуск" Width="120" Opacity="{DynamicResource Faint}" />
+          </StackPanel>
+        </Window>
+        """;
+
+    /// <summary>Стиль ставит кисть ресурсом, а кнопка пишет свою: литерал поверх выражения стиля.</summary>
+    private const string Themed = """
+        <Window xmlns="https://github.com/avaloniaui"
+                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                Width="400" Height="300">
+          <Window.Resources>
+            <SolidColorBrush x:Key="Fill" Color="Red" />
+            <x:Double x:Key="Faint">0.5</x:Double>
+          </Window.Resources>
+          <Window.Styles>
+            <Style Selector="Button">
+              <Setter Property="Background" Value="{DynamicResource Fill}" />
+            </Style>
+          </Window.Styles>
+          <StackPanel>
+            <Button x:Name="Go" Content="Пуск" Background="#666363" Opacity="{DynamicResource Faint}" />
           </StackPanel>
         </Window>
         """;

@@ -26,8 +26,13 @@ namespace ArxisStudio.Docking;
 public static class DockFocus
 {
     /// <summary>Кто держал фокус внутри этой панели в последний раз.</summary>
+    /// <remarks>
+    /// Владелец — <see cref="DockFocus"/>, а не <see cref="Control"/>: реестр свойств Avalonia общий на процесс, и
+    /// член, записанный на <c>Control</c>, видели бы члены всякой формы — инспектор показывал его у каждого
+    /// элемента разделом «В Control» (запись 372).
+    /// </remarks>
     public static readonly AttachedProperty<Control?> KeeperProperty =
-        AvaloniaProperty.RegisterAttached<Control, Control, Control?>("Keeper");
+        AvaloniaProperty.RegisterAttached<Control, Control?>("Keeper", typeof(DockFocus));
 
     /// <summary>Называет хранителя фокуса панели.</summary>
     /// <param name="panel">Панель.</param>
@@ -50,7 +55,7 @@ public static class DockFocus
 
     /// <summary>Место, с которого в панели начинают работу: к нему каретка идёт, когда помнить некого.</summary>
     public static readonly AttachedProperty<Control?> TargetProperty =
-        AvaloniaProperty.RegisterAttached<Control, Control, Control?>("Target");
+        AvaloniaProperty.RegisterAttached<Control, Control?>("Target", typeof(DockFocus));
 
     /// <summary>Называет цель каретки панели.</summary>
     /// <param name="panel">Панель.</param>
