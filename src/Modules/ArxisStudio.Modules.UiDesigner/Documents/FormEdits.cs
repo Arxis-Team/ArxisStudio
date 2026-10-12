@@ -105,7 +105,11 @@ internal sealed partial class FormEdits
 
     /// <summary>Убирает элементы из документа одной правкой; корень остаётся.</summary>
     /// <param name="paths">Пути элементов.</param>
-    /// <remarks>Удалённое выбрать нельзя: выбор переходит к тому, в чём стоял первый, — его путь удаление не двигает.</remarks>
+    /// <remarks>
+    /// Удалённое выбрать нельзя: выбор переходит к ближайшему уцелевшему предку первого — туда, где он окажется после
+    /// удаления. Путь родителя удаление двигает: удалённый раньше сосед сдвигает его на шаг, а родитель, удалённый
+    /// вместе с ребёнком, уступает свой путь соседу (запись 403).
+    /// </remarks>
     public Task DeleteAsync(IReadOnlyList<XamlElementPath> paths) => RemoveAsync(paths, "form.edit.delete", "form.edit.deleteMany");
 
     /// <summary>Убирает элементы одной правкой, назвав шаг истории так, как его назвал жест.</summary>
@@ -125,7 +129,7 @@ internal sealed partial class FormEdits
             ? Format(one, NameOf(doomed[0]))
             : string.Format(CultureInfo.CurrentCulture, _strings[many], doomed.Count);
 
-        var after = doomed.Select(path => path.Parent ?? XamlElementPath.Root).Take(1).ToList();
+        var after = new List<XamlElementPath> { Survivor(doomed) };
 
         return EditAsync(label, editor =>
         {
@@ -230,6 +234,28 @@ internal sealed partial class FormEdits
 
     private string Format(string key, string value) =>
         string.Format(CultureInfo.CurrentCulture, _strings[key], value);
+
+    /// <summary>Ближайший уцелевший предок первого удаляемого — его путь после удаления.</summary>
+    /// <param name="doomed">Пути удаляемых, первый — тот, за кем идёт выбор.</param>
+    private static XamlElementPath Survivor(IReadOnlyList<XamlElementPath> doomed)
+    {
+        var survivor = doomed[0].Parent ?? XamlElementPath.Root;
+
+        while (doomed.Any(path => Within(survivor, path)) && survivor.Parent is { } up)
+            survivor = up;
+
+        // Сдвиг — только от удалённых верхнего уровня: вложенное в удалённое уходит вместе с ним.
+        var shifts = doomed
+            .Where(path => !doomed.Any(other => !other.Equals(path) && Within(path, other)) && path.Steps.Length > 0)
+            .Select(path => new Shift(path.Parent ?? XamlElementPath.Root, path.Steps[^1].MemberName, path.Steps[^1].Index, -1))
+            .ToList();
+
+        return Shifted(survivor, shifts);
+    }
+
+    /// <summary>Лежит ли путь внутри другого или совпадает с ним.</summary>
+    private static bool Within(XamlElementPath path, XamlElementPath ancestor) =>
+        ancestor.Steps.Length <= path.Steps.Length && path.Steps.AsSpan(0, ancestor.Steps.Length).SequenceEqual(ancestor.Steps.AsSpan());
 
     /// <summary>Лежит ли элемент внутри другого.</summary>
     private static bool IsInside(XamlElement element, XamlElement other)

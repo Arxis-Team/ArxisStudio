@@ -611,6 +611,52 @@ public class DesignerHierarchyTests
     private static Control Focused(Control where) =>
         Assert.IsAssignableFrom<Control>(TopLevel.GetTopLevel(where)?.FocusManager?.GetFocusedElement());
 
+    /// <summary>
+    /// После удаления выбор встаёт на ближайшего уцелевшего предка первого удалённого — там, где он оказался после
+    /// удаления, а не на месте, которое удаление сдвинуло.
+    /// </summary>
+    /// <remarks>
+    /// Выбор брал путь родителя первого удалённого и верил, что удаление его не двигает. Двигает: удалённый раньше
+    /// сосед родителя сдвигал его на шаг, а удалённый вместе с ребёнком родитель уступал свой путь соседу — и выбор
+    /// вставал на чужой элемент (запись 403).
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task Deleting_selects_the_nearest_surviving_ancestor_where_it_ends_up()
+    {
+        const string Nested = """
+            <Window xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    Width="400" Height="300">
+              <StackPanel x:Name="Outer">
+                <Border x:Name="Lead" Width="10" Height="10" />
+                <StackPanel x:Name="Box">
+                  <TextBlock x:Name="Inner" Text="в коробке" />
+                  <TextBlock x:Name="Second" Text="тоже в коробке" />
+                </StackPanel>
+                <TextBlock x:Name="Last" Text="последний" />
+              </StackPanel>
+            </Window>
+            """;
+
+        await using var studio = new LiveFormStudio();
+        var tab = await studio.OpenAsync("MainWindow.axaml", Nested);
+        var edits = tab.Canvas.Active!.Session.Edits!;
+
+        await edits.DeleteAsync([XamlElementPath.Parse("/0/1/0"), XamlElementPath.Parse("/0/0")]);
+
+        await XamlStudio.UntilAsync(() => !Text(tab).Contains("x:Name=\"Lead\"", StringComparison.Ordinal), "сосед не удалён");
+        await XamlStudio.UntilAsync(() => tab.Selection.Count == 1, "выбор не встал");
+
+        Assert.Equal("Box", Assert.Single(tab.Selection).Resolve(tab.Document!.Syntax)?.Identity);
+
+        await edits.DeleteAsync([XamlElementPath.Parse("/0/0/0"), XamlElementPath.Parse("/0/0")]);
+
+        await XamlStudio.UntilAsync(() => !Text(tab).Contains("x:Name=\"Box\"", StringComparison.Ordinal), "коробка не удалена");
+        await XamlStudio.UntilAsync(() => tab.Selection.SequenceEqual([XamlElementPath.Parse("/0")]), "выбор не встал на уцелевшего предка");
+
+        Assert.Equal("Outer", Assert.Single(tab.Selection).Resolve(tab.Document!.Syntax)?.Identity);
+    }
+
     private static string Text(LiveFormDocument tab) => tab.Document!.Syntax.SourceText.ToString();
 
     private static string Text(FormSlot slot) => slot.Document!.Syntax.SourceText.ToString();
