@@ -166,6 +166,18 @@ public class UiDesignerModelTests
             Assert.Equal([folder.Combine("c.axaml")], BoardFile.Read(file, folder).Removed);
 
             Assert.Empty(BoardFile.Read(Path.Combine(root, "missing.json"), folder).Spots);
+
+            // Корень не объект — тоже испорченный файл, а не исключение: оно роняло постройку доски, и та
+            // оставалась пустой у этого решения навсегда — файл, который мог бы её починить, не писался (запись 392).
+            foreach (var spoiled in new[] { "[]", "7", "\"доска\"", "[ { \"version\": 3 } ]" })
+            {
+                File.WriteAllText(file, spoiled);
+
+                var read = Record.Exception(() => BoardFile.Read(file, folder));
+
+                Assert.Null(read);
+                Assert.Empty(BoardFile.Read(file, folder).Spots);
+            }
         }
         finally
         {

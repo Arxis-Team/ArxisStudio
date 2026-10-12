@@ -104,6 +104,12 @@ internal static class BoardFile
             return board;
         }
 
+        // Корень не объект — тоже испорченный файл: спрошенный по имени поля, он бросал, и доска не строилась
+        // вовсе, а файл, который мог бы её починить, так и не писался (запись 392). Пустой — первая версия, как
+        // и файл без номера.
+        if (root is not (JsonObject or null))
+            return board;
+
         // Номера нет — файл первой версии: она писала его всегда, но ручная правка могла его снять.
         if (Number(root?["version"]) is not >= Version)
             board = board with { Outdated = true };
