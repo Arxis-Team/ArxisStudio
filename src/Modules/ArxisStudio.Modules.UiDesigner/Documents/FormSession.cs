@@ -200,8 +200,18 @@ internal sealed class FormSession : IAsyncDisposable
         return _hold is not null;
     }
 
-    /// <summary>Берёт документ у службы; повторный вызов ждёт того же.</summary>
-    public Task OpenAsync() => _opening ??= OpenCoreAsync();
+    /// <summary>Берёт документ у службы; повторный вызов ждёт того же, а после сорвавшегося — пробует снова.</summary>
+    /// <remarks>
+    /// Сорвавшееся открытие не помнится: показ обещает повторному вызову попробовать снова, а ждал бы того же
+    /// упавшего — и вкладка, у которой открытие сорвалось однажды, стояла пустой до закрытия (запись 393).
+    /// </remarks>
+    public Task OpenAsync()
+    {
+        if (_opening is { IsCompleted: true } && _document is null && !_disposed)
+            _opening = null;
+
+        return _opening ??= OpenCoreAsync();
+    }
 
     /// <summary>Показывает документ, взяв его, если ещё не взят; повторный вызов ждёт того же показа.</summary>
     /// <remarks>
@@ -397,6 +407,7 @@ internal sealed class FormSession : IAsyncDisposable
             document.ExternalConflict += OnExternalConflict;
 
             _edits = new FormEdits(document, _context.Strings, OnSelect, Refused, OnEdited);
+            Recover();
             Raise(FormChanges.Opened);
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
@@ -467,6 +478,7 @@ internal sealed class FormSession : IAsyncDisposable
             if (shown.Application is not null)
                 FormShows.Of(_context).Dress(Path.Value, true);
 
+            Recover();
             Raise(FormChanges.Root | FormChanges.Application);
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
@@ -560,6 +572,20 @@ internal sealed class FormSession : IAsyncDisposable
     private void Fail(Exception e)
     {
         Problem = Format("form.openFailed", e.Message);
+        Raise(FormChanges.Problem);
+    }
+
+    /// <summary>Снимает причину прежнего сбоя: форма открылась или встала.</summary>
+    /// <remarks>
+    /// Причина ставилась и не снималась, а заметки вкладки смотрят её раньше всего: один сбой показа оставлял
+    /// «форма не открылась» над работающей формой и прятал под собой остальные заметки (запись 393).
+    /// </remarks>
+    private void Recover()
+    {
+        if (Problem is null)
+            return;
+
+        Problem = null;
         Raise(FormChanges.Problem);
     }
 
