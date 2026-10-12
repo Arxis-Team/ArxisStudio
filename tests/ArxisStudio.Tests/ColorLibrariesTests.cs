@@ -131,4 +131,34 @@ public sealed class ColorLibrariesTests : IDisposable
         Assert.Equal([new AxColorPreset("Red", Colors.Red)], store.Current.Presets);
         Assert.Contains("broken.json", Assert.Single(warnings), StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Запись, которой не дал диск, говорит в журнал и не бросает: окно «Цвет» зовёт её из обработчиков.
+    /// </summary>
+    /// <remarks>
+    /// Исключение уходило в обработчик щелчка окна и приписывалось модулю инспектора: третье подряд отключало его
+    /// (запись 389). Прежний файл остаётся как был, черновика рядом нет.
+    /// </remarks>
+    [Fact]
+    public void A_save_the_disk_refuses_warns_and_does_not_throw()
+    {
+        var profile = Path.Combine(_folder, "profile");
+        var warnings = new List<string>();
+        var store = new ColorLibraries(profile, () => null, "My colors", warnings.Add);
+
+        store.Current.Presets.Add(new AxColorPreset("Ocean", Colors.Teal));
+        store.Save(store.Current);
+
+        var file = Assert.Single(Directory.GetFiles(profile));
+        var before = File.ReadAllText(file);
+
+        store.Current.Presets.Add(new AxColorPreset("Sand", Colors.SandyBrown));
+
+        using (File.Open(file, FileMode.Open, FileAccess.Read, FileShare.None))
+            Assert.Null(Record.Exception(() => store.Save(store.Current)));
+
+        Assert.Equal(before, File.ReadAllText(file));
+        Assert.Contains(warnings, warning => warning.Contains(Path.GetFileName(file), StringComparison.Ordinal));
+        Assert.DoesNotContain(Directory.GetFiles(profile), path => path.EndsWith(".tmp", StringComparison.Ordinal));
+    }
 }

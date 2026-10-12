@@ -197,6 +197,12 @@ internal sealed class ColorLibraries : IAxColorPresetStore
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Не бросает: окно «Цвет» зовёт запись из обработчиков, и исключение уходило в обработчик щелчка, приписывалось
+    /// модулю инспектора, а третье подряд отключало его (запись 389). Запись, которой не дал диск, — решение только
+    /// для чтения, занятый файл, — говорит в журнал: в памяти библиотека новая, на диске прежняя, и следующая правка
+    /// пробует снова.
+    /// </remarks>
     public void Save(AxColorPresetLibrary library)
     {
         ArgumentNullException.ThrowIfNull(library);
@@ -218,13 +224,29 @@ internal sealed class ColorLibraries : IAxColorPresetStore
             presets.Add(new JsonObject { ["name"] = preset.Name, ["color"] = AxColorField.Format(preset.Color) });
 
         var json = new JsonObject { ["version"] = Version, ["name"] = library.Name, ["presets"] = presets };
+        var temporary = $"{file}.{Guid.NewGuid():N}.tmp";
 
-        Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-
-        var temporary = file + ".tmp";
-
-        File.WriteAllText(temporary, json.ToJsonString(Writing));
-        File.Move(temporary, file, overwrite: true);
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            File.WriteAllText(temporary, json.ToJsonString(Writing));
+            File.Move(temporary, file, overwrite: true);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            _warn?.Invoke($"Библиотека образцов «{library.Name}» не записалась в {file}: {e.Message}");
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(temporary);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // Черновик со своим именем следующей записи не мешает.
+            }
+        }
     }
 
     /// <summary>Читает профиль один раз, а решение — когда оно сменилось.</summary>
