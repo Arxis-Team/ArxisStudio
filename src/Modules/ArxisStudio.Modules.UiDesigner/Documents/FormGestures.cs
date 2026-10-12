@@ -3,6 +3,7 @@ using ArxisStudio.Markup.Xaml;
 using ArxisStudio.Sdk;
 using ArxisStudio.Surface;
 using ArxisStudio.Surface.UiDesigner;
+using ArxisStudio.Xaml;
 using Avalonia.Controls;
 
 namespace ArxisStudio.Modules.UiDesigner.Documents;
@@ -191,7 +192,30 @@ internal sealed class FormGestures : IDisposable
         // Ядро не начнёт перестановку в потоке, если на неё никто не отвечает: ответ здесь и есть жест.
         e.Handled = true;
 
-        _ = edits.MoveAsync(path, e.Anchor is { } before ? view.PathOf(before) : null);
+        _ = edits.MoveAsync(path, e.Anchor is { } before ? Declared(view, before) : null);
+    }
+
+    /// <summary>Сосед, перед которым элемент встанет в тексте: сам якорь или первый объявленный документом за ним.</summary>
+    /// <param name="view">Показ формы.</param>
+    /// <param name="anchor">Сосед, перед которым элемент поставили на холсте.</param>
+    /// <returns>Путь соседа; null — объявленных за якорем нет, и элемент встаёт в конец содержимого.</returns>
+    /// <remarks>
+    /// Ребёнка, которого добавил код, в тексте нет, и места перед ним документ не знает. Без пути якорь значил
+    /// конец содержимого, и элемент, поставленный перед таким соседом, уезжал в конец панели (запись 408). Ближе
+    /// всего к показанному месту — перед следующим объявленным соседом.
+    /// </remarks>
+    private static XamlElementPath? Declared(IXamlDesignView view, Control anchor)
+    {
+        if (view.PathOf(anchor) is { } path)
+            return path;
+
+        if (anchor.Parent is not Panel panel)
+            return null;
+
+        return panel.Children
+            .Skip(panel.Children.IndexOf(anchor) + 1)
+            .Select(view.PathOf)
+            .FirstOrDefault(found => found is not null);
     }
 
     private void OnUndoRequested(object? sender, SurfaceHistoryRequestedEventArgs e)

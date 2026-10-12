@@ -311,6 +311,48 @@ public class LiveFormTabTests
     }
 
     /// <summary>
+    /// Перестановка перед ребёнком, которого добавил код, ставит элемент перед следующим объявленным соседом, а не в
+    /// конец панели.
+    /// </summary>
+    /// <remarks>
+    /// Ребёнка кода в тексте нет: якорь без пути значил конец содержимого, и поле, унесённое на самый верх, уезжало
+    /// вниз (запись 408).
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_reorder_before_a_child_added_by_code_lands_before_the_next_declared_one()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", Form);
+        var sheet = document.View.Sheet;
+        var panel = Assert.IsType<StackPanel>(document.Shown!.ObjectAt(PathTo(document, "Panel")));
+
+        // Ребёнок кода — над всеми объявленными, и в тексте его нет.
+        panel.Children.Insert(0, new Border { Width = 120, Height = 40 });
+        LiveFormStudio.Frame();
+
+        var input = Assert.IsType<TextBox>(document.Shown.ObjectAt(PathTo(document, "Input")));
+
+        Assert.True(sheet.SelectTarget(input));
+        LiveFormStudio.Frame();
+
+        var from = input.TranslatePoint(new Point(input.Bounds.Width / 2, input.Bounds.Height / 2), studio.Window)!.Value;
+        var top = panel.TranslatePoint(new Point(input.Bounds.Width / 2, 4), studio.Window)!.Value;
+
+        studio.Window.MouseMove(from);
+        studio.Window.MouseDown(from, MouseButton.Left);
+        studio.Window.MouseMove(from + new Point(4, -6));
+        studio.Window.MouseMove(top);
+        LiveFormStudio.Frame();
+        studio.Window.MouseUp(top, MouseButton.Left);
+        LiveFormStudio.Frame();
+
+        // Поле унесли на самый верх — перед ребёнком кода: в тексте оно встало перед кнопкой, первой объявленной.
+        await XamlStudio.UntilAsync(
+            () => Text(document).IndexOf("x:Name=\"Input\"", StringComparison.Ordinal) < Text(document).IndexOf("x:Name=\"Go\"", StringComparison.Ordinal),
+            "поле не встало перед первым объявленным соседом");
+    }
+
+    /// <summary>
     /// Выбранное на холсте отмечено в XAML от открывающего тега до закрывающего, а каретка, поставленная в
     /// XAML, выбирает на холсте элемент под собой.
     /// </summary>
