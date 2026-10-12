@@ -741,12 +741,17 @@ public class ProjectWindowPanelTests
     private static IExpandCollapseProvider Expander(AutomationPeer peer) =>
         Assert.IsAssignableFrom<IExpandCollapseProvider>(peer.GetProvider<IExpandCollapseProvider>());
 
-    /// <summary>Перезагрузка не удалась, а прежний снимок остался.</summary>
+    /// <summary>Неудачная перезагрузка — так, как её публикует служба: снимок прежний, провал — в итоге загрузки.</summary>
+    /// <remarks>
+    /// <see cref="ProjectsState.Failed"/> служба ставит, только когда снимка нет вовсе; при прежнем снимке состояние —
+    /// <see cref="ProjectsState.Ready"/>. Проба ставила Failed рядом со снимком — состояние, которого служба не
+    /// публикует, — и прятала, что предупреждение не показывалось никогда (запись 400).
+    /// </remarks>
     private static ProjectsStatus Failed(long sequence, SolutionSnapshot snapshot) => new()
     {
         Sequence = sequence,
         Session = 1,
-        State = ProjectsState.Failed,
+        State = ProjectsState.Ready,
         EntryPoint = snapshot.EntryPoint.Path,
         Snapshot = snapshot,
         LastLoad = new ProjectsLoad

@@ -415,7 +415,9 @@ internal sealed class ProjectModel : INotifyPropertyChanged, IDisposable
         var failed = status.LastLoad?.Result is { HasErrors: true, HasSnapshot: false } result ? result : null;
 
         IsLoading = status.IsLoading && snapshot is not null;
-        IsStale = status.State == ProjectsState.Failed && snapshot is not null && !ReferenceEquals(_load, _dismissed);
+        // Устарело — снимок прежний, а последняя загрузка его не дала. Failed служба ставит, только когда снимка нет
+        // вовсе, и проверка состояния рядом со снимком не сбывалась никогда: предупреждение не показывалось (запись 400).
+        IsStale = snapshot is not null && status.LastLoad?.Result is { HasSnapshot: false } && !ReferenceEquals(_load, _dismissed);
         Opening = status.EntryPoint.IsEmpty ? null : _context.Strings.Format("project.state.opening", status.EntryPoint.FileName);
         Failure = failed?.Diagnostics.FirstOrDefault(diagnostic => diagnostic.IsError)?.Message
                   ?? status.LastLoad?.Result.Diagnostics.FirstOrDefault()?.Message;
