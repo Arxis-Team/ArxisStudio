@@ -1400,10 +1400,11 @@ public class DesignerInspectorTests
     }
 
     /// <summary>
-    /// Шрифт — текст с подсказками шрифтов системы: меню поля отбирает их по набранному, а выбранный пишется сразу.
+    /// Шрифт — список семейств системы по алфавиту, с вводом своего имени: в поле — имя семейства темы, а не его
+    /// составная запись, и выбранное в списке пишется именем (запись 380).
     /// </summary>
     [AvaloniaFact]
-    public async Task A_font_family_offers_the_system_fonts_and_a_picked_one_is_written()
+    public async Task A_font_family_lists_the_system_fonts_and_a_picked_one_is_written()
     {
         await using var studio = new LiveFormStudio();
         var document = await studio.OpenAsync("MainWindow.axaml", Form);
@@ -1412,37 +1413,27 @@ public class DesignerInspectorTests
         document.Select([Caption]);
         LiveFormStudio.Frame();
 
-        var row = Row(panel, "FontFamily");
-        var choices = Assert.Single(
-            row.GetVisualDescendants().OfType<AxButton>(),
-            button => AutomationProperties.GetName(button) == panel.List!.Words["inspector.choices"]);
-        var menu = Assert.IsType<AxMenuFlyout>(choices.Flyout);
+        var box = Assert.IsType<AxComboBox>(Assert.IsType<PluginSurface>(Row(panel, "FontFamily").Content).Child);
 
-        menu.ShowAt(choices);
-        LiveFormStudio.Frame();
+        Assert.False(string.IsNullOrEmpty(box.Text), "в поле нет семейства темы");
+        Assert.DoesNotContain(":", box.Text!, StringComparison.Ordinal);
 
-        var fonts = menu.Items.OfType<AxMenuItem>().Select(static item => (string)item.Header!).ToList();
+        var fonts = FontEditor.SystemFamilies();
 
         Assert.NotEmpty(fonts);
         Assert.Equal(fonts.Order(StringComparer.CurrentCultureIgnoreCase), fonts);
+        Assert.All(fonts, font => Assert.Contains(font, box.Items.OfType<string>()));
 
-        menu.Hide();
+        var picked = fonts[^1];
 
-        var font = fonts[^1];
-        var box = Box(row);
-
-        box.Focus();
-        box.SelectAll();
-        studio.Window.KeyTextInput(font[..Math.Min(4, font.Length)]);
-        Press(studio, Key.F4);
-
-        Assert.All(menu.Items.OfType<AxMenuItem>(), item => Assert.Contains(font[..Math.Min(4, font.Length)], (string)item.Header!, StringComparison.CurrentCultureIgnoreCase));
-
-        Choose([.. menu.Items.OfType<Control>()], font);
-        menu.Hide();
+        box.IsDropDownOpen = true;
+        LiveFormStudio.Frame();
+        box.SelectedItem = picked;
+        box.IsDropDownOpen = false;
+        LiveFormStudio.Frame();
 
         await XamlStudio.UntilAsync(
-            () => ElementAt(document, Caption).GetAttribute("FontFamily")?.GetValueText() == font, "выбранный шрифт не записан");
+            () => ElementAt(document, Caption).GetAttribute("FontFamily")?.GetValueText() == picked, "выбранный шрифт не записан");
     }
 
     /// <summary>Курсор — список стандартных, а начертание — без синонимов: написанное «Regular» стоит вариантом «Normal».</summary>

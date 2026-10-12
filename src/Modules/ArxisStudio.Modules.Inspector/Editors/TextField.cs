@@ -20,9 +20,10 @@ namespace ArxisStudio.Modules.Inspector.Editors;
 /// написано, а не тем, к чему оно пришло: правят выражение.
 /// </para>
 /// <para>
-/// Варианты метаданных (<see cref="InspectorConstraints.Choices"/>) — подсказки, а не ограда: шрифты системы у
-/// <c>FontFamily</c>. Кнопка в поле (и Alt+↓ или F4 с клавиатуры) открывает их меню — те, что содержат набранное,
-/// а ничего не нашлось — все; выбранный вариант пишется сразу. Набрать своё по-прежнему можно.
+/// Варианты метаданных (<see cref="InspectorConstraints.Choices"/>) — подсказки, а не ограда: таблица может подсказать
+/// строке значения, не запрещая своё. Кнопка в поле (и Alt+↓ или F4 с клавиатуры) открывает их меню — те, что содержат
+/// набранное, а ничего не нашлось — все; выбранный вариант пишется сразу. Набрать своё по-прежнему можно. У шрифта
+/// подсказки — список с образцами (<see cref="FontEditor"/>, запись 380).
 /// </para>
 /// </remarks>
 internal sealed class TextField : InspectorField
@@ -60,6 +61,8 @@ internal sealed class TextField : InspectorField
             var menu = new AxMenuFlyout();
 
             menu.Opening += (_, _) => Fill(menu);
+            // Меню берёт каретку себе, а закрывшись, отдаёт её полю: набранное — ещё черновик, а не значение.
+            menu.Closed += (_, _) => _box.Focus();
 
             // Кнопка — внутри рамки поля, как крестик очистки: голый шеврон без плашки, и не выше строки текста —
             // кнопка полосы распирала поле до 26 точек, и строка инспектора выходила из шага (запись 377).
@@ -158,7 +161,14 @@ internal sealed class TextField : InspectorField
         }
     }
 
-    private void OnBlur(object? sender, FocusChangedEventArgs e) => _ = CommitAsync();
+    private void OnBlur(object? sender, FocusChangedEventArgs e)
+    {
+        // Каретку взяло меню подсказок: недонабранное не пишется, пишет выбор из меню или уход из поля.
+        if (_choices?.Flyout is { IsOpen: true })
+            return;
+
+        _ = CommitAsync();
+    }
 
     /// <summary>Меню вариантов — те, что содержат набранное; ничего не нашлось — все.</summary>
     private void Fill(AxMenuFlyout menu)

@@ -11,6 +11,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -913,6 +914,50 @@ public class InspectorPanelTests
         Assert.Equal("один ".Length, box.CaretIndex);
         Assert.True(box.IsFocused, "Ctrl+← увёл каретку из поля");
         Assert.False(panel.List!.IsFolded(panel.List.CategoryOf(row.Property)), "Ctrl+← в поле свернул раздел");
+    }
+
+    /// <summary>
+    /// Варианты метаданных у текста — подсказки, а не ограда: F4 открывает те, что содержат набранное, и недонабранное,
+    /// пока меню открыто, не пишется; выбранный вариант пишется сразу, одной правкой, а каретка возвращается в поле.
+    /// </summary>
+    [AvaloniaFact]
+    public void Suggestions_follow_the_typed_text_and_a_picked_one_is_written_at_once()
+    {
+        using var studio = new InspectorStudio();
+        var panel = studio.Panel();
+        var target = new FakeTarget(
+            typeof(Button),
+            FakeTarget.Property("Typeface", typeof(string)) with
+            {
+                Constraints = new InspectorConstraints
+                {
+                    Choices = [new InspectorChoice("Consolas"), new InspectorChoice("Inter"), new InspectorChoice("Segoe UI")],
+                },
+            });
+
+        using var shown = studio.Service.Show(target);
+
+        studio.Frame();
+
+        var box = Assert.IsType<AxTextBox>(Box(Row(panel, "Typeface")));
+        var menu = Assert.IsType<AxMenuFlyout>(Assert.IsType<AxButton>(box.InnerRightContent).Flyout);
+
+        box.Focus();
+        box.SelectAll();
+        studio.Window.KeyTextInput("on");
+        Press(studio, Key.F4);
+
+        var item = Assert.Single(menu.Items.OfType<AxMenuItem>());
+
+        Assert.Equal("Consolas", item.Header);
+        Assert.Empty(target.Writes);
+
+        item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        menu.Hide();
+        studio.Frame();
+
+        Assert.Equal([new InspectorWrite("Typeface", "Consolas")], Assert.Single(target.Writes));
+        Assert.True(box.IsFocused, "каретка не вернулась в поле");
     }
 
     private static FakeTarget Button() => new(

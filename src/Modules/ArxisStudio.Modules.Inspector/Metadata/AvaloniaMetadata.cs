@@ -264,8 +264,8 @@ public sealed class AvaloniaMetadata : InspectorMetadata
         new(value) { Title = Context.Strings[title], Icon = icon };
 
     /// <summary>
-    /// Шрифт — подсказками шрифтов системы, набрать можно и свой; начертание — без синонимов, с числом
-    /// (<c>Normal · 400</c>); курсор — одним из стандартных.
+    /// Шрифт — списком шрифтов системы (поле — <see cref="FontEditor"/>), набрать можно и свой; начертание — без
+    /// синонимов, с числом (<c>Normal · 400</c>); курсор — одним из стандартных.
     /// </summary>
     private static void DescribeFontsAndCursor(InspectorMetadataBuilder metadata)
     {
@@ -277,7 +277,7 @@ public sealed class AvaloniaMetadata : InspectorMetadata
             }),
         ];
         InspectorChoice[] cursors = [.. Enum.GetNames<StandardCursorType>().Select(static name => new InspectorChoice(name))];
-        var fonts = SystemFonts();
+        InspectorChoice[] fonts = [.. FontEditor.SystemFamilies().Select(static name => new InspectorChoice(name))];
 
         metadata.For<Control>()
             .Property("FontWeight", property => property.Choices(weights).ChoicesOnly())
@@ -285,27 +285,6 @@ public sealed class AvaloniaMetadata : InspectorMetadata
 
         metadata.For<InputElement>()
             .Property(InputElement.CursorProperty, property => property.Choices(cursors).ChoicesOnly());
-    }
-
-    /// <summary>Шрифты системы по имени; платформы со шрифтами нет — подсказок нет.</summary>
-    private static InspectorChoice[] SystemFonts()
-    {
-        try
-        {
-            return
-            [
-                .. FontManager.Current.SystemFonts
-                    .Select(static family => family.Name)
-                    .Where(static name => !string.IsNullOrWhiteSpace(name))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .Order(StringComparer.CurrentCultureIgnoreCase)
-                    .Select(static name => new InspectorChoice(name)),
-            ];
-        }
-        catch (InvalidOperationException)
-        {
-            return [];
-        }
     }
 
     /// <summary>Пояснения — по-русски и по-английски из словаря модуля.</summary>
