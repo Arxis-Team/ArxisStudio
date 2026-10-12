@@ -30,13 +30,14 @@
   "id": "arxis.forms",
   "sdk": { "min": "7.15" },
   "dependencies": [
-    { "id": "arxis.xaml", "min": "1.1" }
+    { "id": "arxis.xaml", "min": "1.2" }
   ]
 }
 ```
 
-Границы две: **1.0** — документы, показ, поколение; **1.1** — члены элемента, их значения и откуда они,
-проверка и предпросмотр значения. Плагину, которому члены не нужны, хватит 1.0. SDK нужен 7.15 — с него
+Границы три: **1.0** — документы, показ, поколение; **1.1** — члены элемента, их значения и откуда они,
+проверка и предпросмотр значения; **1.2** — данные элемента: откуда они, их тип и компиляция привязок, модели
+проекта и классы файла кода. Плагину, которому члены и данные не нужны, хватит 1.0. SDK нужен 7.15 — с него
 синтаксис разметки общий; обёртка нескольких соседей одной правкой (`WrapElements`) — с 7.16.
 Ссылка при сборке — на контракт:
 
@@ -375,6 +376,88 @@ public sealed class Members(IXamlDesignView view)
 текста документа, на замене поколения и с показом, — поэтому протяжка пишет одну правку при отпускании и
 отпускает предпросмотр в `using`. У прямого свойства и свойства CLR предпросмотра нет: поставленное
 значение не снять, не потеряв прежнего.
+
+## Данные
+
+Что читают привязки элемента, показ отвечает асинхронно (`DescribeDataAsync`): тип данных (`x:DataType`)
+разрешает среда поколения. Ответ — имена, держать его можно сколько угодно, а замена поколения посреди вопроса
+кончает его ответом `null`. Модели проекта — `GetDataTypesAsync`, классы файла кода, который бросили из окна
+проекта, — `IStudioXamlDesign.ClassesInAsync`:
+
+```csharp
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using ArxisStudio.Markup.Xaml;
+using ArxisStudio.ProjectSystem;
+using ArxisStudio.Xaml;
+
+namespace Guide.Xaml.Data;
+
+/// <summary>Говорит, что читают привязки элемента, и предлагает классы проекта — именами.</summary>
+public sealed class Data(IXamlDesignView view, IStudioXamlDesign design)
+{
+    /// <summary>Откуда данные элемента и по какому типу читать пути его привязок.</summary>
+    public async Task<string> DescribeAsync(XamlElementPath element, CancellationToken cancellationToken)
+    {
+        if (await view.DescribeDataAsync(element, cancellationToken) is not { } scope)
+            return "элемента нет, или показ отдал объекты";
+
+        var type = scope.PathType?.Name ?? "не известен";
+
+        return scope.NeedsDataType
+            ? $"{scope.Source}, тип {type}: привязки компилируются, а x:DataType нет — проект не соберётся"
+            : $"{scope.Source}, тип {type}";
+    }
+
+    /// <summary>Модели, которые форма может создать: собранные классы данных, а не контролы и конвертеры.</summary>
+    public async Task<string[]> ModelsAsync(CancellationToken cancellationToken) =>
+    [
+        .. (await view.GetDataTypesAsync(cancellationToken))
+            .Where(type => type is { IsModel: true, IsBuilt: true, CanCreate: true })
+            .Select(type => type.FullName),
+    ];
+
+    /// <summary>Классы файла, который бросили из окна проекта.</summary>
+    public async Task<string[]> DroppedAsync(CanonicalPath file, CancellationToken cancellationToken) =>
+    [
+        .. (await design.ClassesInAsync(file, cancellationToken))
+            .Select(type => type.IsBuilt ? type.FullName : $"{type.FullName} — ещё не собран"),
+    ];
+}
+```
+
+**Откуда данные** — `Source`, а `SourceElement` называет элемент, который их написал:
+
+| `XamlDataSource` | Откуда |
+|---|---|
+| `None` | данных нет: их не написал никто и код не поставил |
+| `Inherited` | от предка, который их написал |
+| `Instance` | элемент создаёт их сам — классом в длинной записи: `<Window.DataContext><vm:Main /></Window.DataContext>` |
+| `Expression` | элемент берёт их выражением: `DataContext="{Binding Customer}"` |
+| `Self` | элемент сам себе данные: `DataContext="{Binding $self}"` |
+| `Code` | их поставил код — конструктор формы или элемента, — а документ не пишет |
+| `Design` | данные для дизайна корня — `Design.DataContext` или `d:DataContext`; в приложении данные поставит код |
+
+Что корень наследует от рамки дизайнера, — данные студии, а не формы, и такой корень отвечает `None`.
+
+**Тип путей** — `PathType`: написанный и разрешённый `x:DataType`, а без него — тип данных сейчас; в дизайнере
+это данные для дизайна, если корень их пишет. Типы — `XamlTypeInfo`, имена, а не `Type`: тип — объект поколения.
+
+**Компилируются ли привязки** — `CompilesBindings`: ближайший `x:CompileBindings` элемента и его предков, а без
+него — свойство проекта `AvaloniaUseCompiledBindingsByDefault` (`CompilesByProjectDefault`). Живой показ грузит
+привязки отражением и прощает неизвестный путь, а сборка проекта — нет: `{Binding}`, который компилируется, без
+`x:DataType` проект не соберёт, и `NeedsDataType` говорит об этом заранее.
+
+**Классы** — `XamlDataTypeInfo`: собранные (`IsBuilt`) — со сведениями каталога поколения, а объявленные файлами
+кода и ещё не собранные — с тем, что сказал текст. `IsModel` — данные, а не конвертер (`IsConverter`) и не шаблон
+данных вроде `ViewLocator` (`IsTemplate`); контрол — `IsControl`, класс формы с разметкой — `IsFormClass`.
+Модель без `INotifyPropertyChanged` (`Notifies`) привязка прочтёт один раз. Файл кода читается текстом, не
+компилятором: классы верхнего уровня, открытые; вложенный класс разметка не назовёт.
+
+Конструктор модели, которую форма создаёт сама, дизайнер зовёт при каждом построении формы — в студии. Модель,
+которая в конструкторе ходит в сеть или в базу, для этого не годится: дизайну дают модель попроще через
+`Design.DataContext`, а настоящую ставит код.
 
 ## Замена поколения
 

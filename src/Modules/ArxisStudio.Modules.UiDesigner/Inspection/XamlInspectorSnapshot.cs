@@ -40,8 +40,12 @@ namespace ArxisStudio.Modules.UiDesigner.Inspection;
 /// Объектов поколения снимок не держит: сведения о членах и типах — имена, значения — текст и неизменные значения
 /// общих сборок.
 /// </para>
+/// <para>
+/// <b>Данные</b> — свой раздел (<see cref="AddData"/>): что читают привязки, служба отвечает асинхронно, и снимок
+/// получает ответ после чтения (<see cref="Describe"/>).
+/// </para>
 /// </remarks>
-internal sealed class XamlInspectorSnapshot
+internal sealed partial class XamlInspectorSnapshot
 {
     /// <summary>Раздел общего: имя элемента.</summary>
     private const string CommonCategory = "common";
@@ -76,18 +80,34 @@ internal sealed class XamlInspectorSnapshot
 
     private readonly List<Picked> _picked;
     private readonly Dictionary<string, Spec> _specs;
+    private readonly IStudioStrings _strings;
+
+    // Что читают привязки выбранных — ответы службы по номеру выбранного; общие у снимка и его копии на время замены.
+    private readonly XamlDataScope?[] _data;
 
     private XamlInspectorSnapshot(
-        List<Picked> picked, Dictionary<string, Spec> specs, InspectorTypeInfo type, InspectorHeader header, bool live)
+        List<Picked> picked,
+        Dictionary<string, Spec> specs,
+        InspectorTypeInfo type,
+        InspectorHeader header,
+        bool live,
+        IStudioStrings strings,
+        XamlDataScope?[]? data = null)
     {
         _picked = picked;
         _specs = specs;
+        _strings = strings;
+        _data = data ?? new XamlDataScope?[picked.Count];
         Type = type;
         Header = header;
         IsLive = live;
         Properties = specs.Values.Select(static spec => spec.Property).ToArray();
         Written = specs.Values
             .Where(spec => picked.Any(item => WrittenAt(item, spec) is not null))
+            .Select(static spec => spec.Property.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        DataIds = specs.Values
+            .Where(static spec => spec.Kind == Kind.Data)
             .Select(static spec => spec.Property.Id)
             .ToHashSet(StringComparer.Ordinal);
     }
@@ -116,7 +136,7 @@ internal sealed class XamlInspectorSnapshot
     /// </summary>
     /// <param name="notice">Что сказать в шапке.</param>
     public XamlInspectorSnapshot Swapping(string notice) =>
-        new(_picked, _specs, Type, Header with { Notice = notice }, live: false);
+        new(_picked, _specs, Type, Header with { Notice = notice }, live: false, _strings, _data);
 
     /// <summary>Читает выбранное.</summary>
     /// <param name="view">Показ формы; null — форма не показана.</param>
@@ -171,10 +191,13 @@ internal sealed class XamlInspectorSnapshot
         live = live && picked.Count > 0 && picked.All(static item => item.Info is not null);
 
         if (picked.Count == 0)
-            return new XamlInspectorSnapshot(picked, specs, type, HeaderOf(picked, document.State, shown, strings, specs), live);
+            return new XamlInspectorSnapshot(picked, specs, type, HeaderOf(picked, document.State, shown, strings, specs), live, strings);
 
         if (live)
+        {
             AddMembers(picked, specs);
+            AddData(picked, specs, strings);
+        }
 
         AddClasses(picked, specs, live);
 
@@ -183,7 +206,7 @@ internal sealed class XamlInspectorSnapshot
         else if (!live)
             AddCommonWritten(picked, specs);
 
-        return new XamlInspectorSnapshot(picked, specs, type, HeaderOf(picked, document.State, live, strings, specs), live);
+        return new XamlInspectorSnapshot(picked, specs, type, HeaderOf(picked, document.State, live, strings, specs), live, strings);
     }
 
     /// <summary>Значение свойства; у нескольких выбранных — первого, с «—», если написано разное.</summary>
@@ -193,7 +216,7 @@ internal sealed class XamlInspectorSnapshot
         if (!_specs.TryGetValue(id, out var spec) || _picked.Count == 0)
             return InspectorValue.Empty;
 
-        var first = ValueAt(_picked[0], spec);
+        var first = spec.Kind == Kind.Data ? DataValueAt(0, spec) : ValueAt(_picked[0], spec);
         var mixed = _picked.Skip(1).Any(item => !string.Equals(WrittenAt(item, spec), first.Written, StringComparison.Ordinal));
 
         return mixed ? first with { IsMixed = true } : first;
@@ -202,10 +225,20 @@ internal sealed class XamlInspectorSnapshot
     /// <summary>Как написать свойство в документ.</summary>
     /// <param name="id">Свойство.</param>
     /// <param name="text">Значение; null — снять.</param>
-    public FormWrite Spell(string id, string? text) =>
-        _specs.TryGetValue(id, out var spec) && spec.Member is { IsAttached: true } member
+    public FormWrite Spell(string id, string? text)
+    {
+        if (!_specs.TryGetValue(id, out var spec))
+            return new FormWrite(id, text);
+
+        // Данные пишутся и длинной записью, а её владелец — тип любого из выбранных; пустой текст сегмента
+        // «По умолчанию» — снять.
+        if (spec.Kind == Kind.Data)
+            return new FormWrite(id, string.IsNullOrEmpty(text) ? null : text, Owners: [.. _picked.SelectMany(OwnersOf).Distinct(StringComparer.Ordinal)]);
+
+        return spec.Member is { IsAttached: true } member
             ? new FormWrite(id, text, member.OwnerXmlNamespace, member.OwnerPrefix)
             : new FormWrite(id, text);
+    }
 
     /// <summary>Есть ли такое свойство и пишется ли оно.</summary>
     /// <param name="id">Свойство.</param>
@@ -358,9 +391,13 @@ internal sealed class XamlInspectorSnapshot
             {
                 var local = attribute.Name.LocalName;
 
-                // Размер дизайна корня — его ширина и высота: дизайнер берёт их оттуда, и строки у них свои.
-                if (root && local is "DesignWidth" or "DesignHeight")
+                // Размер дизайна корня — его ширина и высота: дизайнер берёт их оттуда, и строки у них свои; данные для
+                // дизайна — строка «Для дизайна» раздела данных.
+                if (root && local is "DesignWidth" or "DesignHeight" ||
+                    local == FormEdits.DataContextMember && specs.ContainsKey(FormEdits.DesignDataMember))
+                {
                     continue;
+                }
 
                 var id = FormEdits.DesignPrefix + local;
 
@@ -472,6 +509,8 @@ internal sealed class XamlInspectorSnapshot
 
         switch (spec.Kind)
         {
+            case Kind.Data:
+                return DataWrittenAt(item, spec);
             case Kind.Name:
                 return FormEdits.NameAttribute(element)?.GetValueText();
             case Kind.Design:
@@ -516,7 +555,9 @@ internal sealed class XamlInspectorSnapshot
     /// которому запись его снимет (<see cref="FormEdits.PropertyElement"/>).
     /// </summary>
     private static XamlElement? LongForm(Picked item, Spec spec) =>
-        spec.Kind == Kind.Member ? FormEdits.PropertyElement(item.Element, new FormWrite(spec.Property.Id, null, Owners: OwnersOf(item))) : null;
+        spec.Kind is Kind.Member or Kind.Data
+            ? FormEdits.PropertyElement(item.Element, new FormWrite(spec.Property.Id, null, Owners: OwnersOf(item)))
+            : null;
 
     /// <summary>Что написано в элементе свойства — одной строкой: <c>&lt;vm:Main /&gt;</c>.</summary>
     private static string? LongText(Picked item, Spec spec)
@@ -647,6 +688,9 @@ internal sealed class XamlInspectorSnapshot
 
         /// <summary>Прочее написанное: директива, неразрешённый атрибут, написанное без показа.</summary>
         Other,
+
+        /// <summary>Данные: источник, тип, данные для дизайна, компиляция привязок.</summary>
+        Data,
     }
 
     /// <summary>Свойство и то, чем оно написано.</summary>

@@ -131,4 +131,26 @@ public interface IXamlDesignView : IDisposable
     /// </returns>
     /// <remarks>Появилось в контракте 1.1.</remarks>
     IXamlValuePreview? Preview(XamlElementPath element, string member);
+
+    /// <summary>Что читают привязки элемента: откуда его данные, какого они типа и проверяются ли пути.</summary>
+    /// <param name="element">Путь элемента в показанном тексте.</param>
+    /// <param name="cancellationToken">Отмена.</param>
+    /// <returns>Сведения; null — элемента нет или показ отдал объекты.</returns>
+    /// <remarks>
+    /// Асинхронно: <c>x:DataType</c> разрешается через среду поколения. Ответ — имена, и держать его можно сколько
+    /// угодно; замена поколения посреди вопроса кончает его отменой. Появилось в контракте 1.2.
+    /// </remarks>
+    ValueTask<XamlDataScope?> DescribeDataAsync(XamlElementPath element, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Классы, которыми документ может задать данные: построенные классы проекта документа и тех, на которые он
+    /// ссылается, и классы, которые его файлы кода объявляют, а сборка ещё не построила.
+    /// </summary>
+    /// <param name="cancellationToken">Отмена.</param>
+    /// <returns>Классы по имени; пусто — поколения нет.</returns>
+    /// <remarks>
+    /// Не только модели: контролы, конвертеры и шаблоны помечены, и что предлагать, решает тот, кто спрашивает.
+    /// Появилось в контракте 1.2.
+    /// </remarks>
+    ValueTask<IReadOnlyList<XamlDataTypeInfo>> GetDataTypesAsync(CancellationToken cancellationToken = default);
 }

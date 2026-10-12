@@ -5,6 +5,7 @@ ArxisStudio.Xaml.IStudioXamlDesign :: System.IDisposable Defer(System.String rea
 ArxisStudio.Xaml.IStudioXamlDesign :: System.IDisposable Register(ArxisStudio.Xaml.IXamlDesignParticipant participant)
 ArxisStudio.Xaml.IStudioXamlDesign :: System.String? StateReason { get; }
 ArxisStudio.Xaml.IStudioXamlDesign :: System.Threading.Tasks.Task<ArxisStudio.Xaml.XamlBuildOutcome> RebuildAsync(System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Xaml.IStudioXamlDesign :: System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<ArxisStudio.Xaml.XamlDataTypeInfo>> ClassesInAsync(ArxisStudio.ProjectSystem.CanonicalPath file, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Xaml.IStudioXamlDesign :: event System.EventHandler StateChanged
 ArxisStudio.Xaml.IStudioXamlDocuments : interface
 ArxisStudio.Xaml.IStudioXamlDocuments :: ArxisStudio.Xaml.XamlFileKind Classify(ArxisStudio.ProjectSystem.CanonicalPath path)
@@ -25,6 +26,8 @@ ArxisStudio.Xaml.IXamlDesignView :: Avalonia.Controls.Control? Root { get; }
 ArxisStudio.Xaml.IXamlDesignView :: System.Collections.Generic.IReadOnlyList<ArxisStudio.Xaml.XamlMemberInfo> GetMembers(ArxisStudio.Markup.Xaml.XamlElementPath element)
 ArxisStudio.Xaml.IXamlDesignView :: System.Collections.Generic.IReadOnlyList<System.Object> GetDeclaredObjects()
 ArxisStudio.Xaml.IXamlDesignView :: System.Object? ObjectAt(ArxisStudio.Markup.Xaml.XamlElementPath path)
+ArxisStudio.Xaml.IXamlDesignView :: System.Threading.Tasks.ValueTask<ArxisStudio.Xaml.XamlDataScope> DescribeDataAsync(ArxisStudio.Markup.Xaml.XamlElementPath element, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Xaml.IXamlDesignView :: System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<ArxisStudio.Xaml.XamlDataTypeInfo>> GetDataTypesAsync(System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Xaml.IXamlDesignView :: event System.EventHandler ApplicationChanged
 ArxisStudio.Xaml.IXamlDesignView :: event System.EventHandler RootChanged
 ArxisStudio.Xaml.IXamlDocumentHandle : interface : System.IAsyncDisposable
@@ -69,6 +72,52 @@ ArxisStudio.Xaml.XamlBuildOutcome :: static System.Boolean op_Inequality(ArxisSt
 ArxisStudio.Xaml.XamlConflictChoice : enum
 ArxisStudio.Xaml.XamlConflictChoice :: KeepMine = 1
 ArxisStudio.Xaml.XamlConflictChoice :: TakeTheirs = 0
+ArxisStudio.Xaml.XamlDataScope : sealed record : System.IEquatable<ArxisStudio.Xaml.XamlDataScope>
+ArxisStudio.Xaml.XamlDataScope :: .ctor(ArxisStudio.Xaml.XamlDataSource Source, ArxisStudio.Markup.Xaml.XamlElementPath? SourceElement, System.String? SourceText, ArxisStudio.Xaml.XamlTypeInfo? SourceType, System.String? WrittenDataType, ArxisStudio.Markup.Xaml.XamlElementPath? DataTypeElement, ArxisStudio.Xaml.XamlTypeInfo? DataType, System.Boolean CompilesBindings, System.Boolean CompilesByProjectDefault)
+ArxisStudio.Xaml.XamlDataScope :: ArxisStudio.Markup.Xaml.XamlElementPath? DataTypeElement { get; init; }
+ArxisStudio.Xaml.XamlDataScope :: ArxisStudio.Markup.Xaml.XamlElementPath? SourceElement { get; init; }
+ArxisStudio.Xaml.XamlDataScope :: ArxisStudio.Xaml.XamlDataSource Source { get; init; }
+ArxisStudio.Xaml.XamlDataScope :: ArxisStudio.Xaml.XamlTypeInfo? DataType { get; init; }
+ArxisStudio.Xaml.XamlDataScope :: ArxisStudio.Xaml.XamlTypeInfo? PathType { get; }
+ArxisStudio.Xaml.XamlDataScope :: ArxisStudio.Xaml.XamlTypeInfo? SourceType { get; init; }
+ArxisStudio.Xaml.XamlDataScope :: System.Boolean CompilesBindings { get; init; }
+ArxisStudio.Xaml.XamlDataScope :: System.Boolean CompilesByProjectDefault { get; init; }
+ArxisStudio.Xaml.XamlDataScope :: System.Boolean Equals(ArxisStudio.Xaml.XamlDataScope? other)
+ArxisStudio.Xaml.XamlDataScope :: System.Boolean NeedsDataType { get; }
+ArxisStudio.Xaml.XamlDataScope :: System.String? SourceText { get; init; }
+ArxisStudio.Xaml.XamlDataScope :: System.String? WrittenDataType { get; init; }
+ArxisStudio.Xaml.XamlDataScope :: System.Void Deconstruct(out ArxisStudio.Xaml.XamlDataSource Source, out ArxisStudio.Markup.Xaml.XamlElementPath? SourceElement, out System.String? SourceText, out ArxisStudio.Xaml.XamlTypeInfo? SourceType, out System.String? WrittenDataType, out ArxisStudio.Markup.Xaml.XamlElementPath? DataTypeElement, out ArxisStudio.Xaml.XamlTypeInfo? DataType, out System.Boolean CompilesBindings, out System.Boolean CompilesByProjectDefault)
+ArxisStudio.Xaml.XamlDataScope :: static System.Boolean op_Equality(ArxisStudio.Xaml.XamlDataScope? left, ArxisStudio.Xaml.XamlDataScope? right)
+ArxisStudio.Xaml.XamlDataScope :: static System.Boolean op_Inequality(ArxisStudio.Xaml.XamlDataScope? left, ArxisStudio.Xaml.XamlDataScope? right)
+ArxisStudio.Xaml.XamlDataSource : enum
+ArxisStudio.Xaml.XamlDataSource :: Code = 5
+ArxisStudio.Xaml.XamlDataSource :: Design = 6
+ArxisStudio.Xaml.XamlDataSource :: Expression = 3
+ArxisStudio.Xaml.XamlDataSource :: Inherited = 1
+ArxisStudio.Xaml.XamlDataSource :: Instance = 2
+ArxisStudio.Xaml.XamlDataSource :: None = 0
+ArxisStudio.Xaml.XamlDataSource :: Self = 4
+ArxisStudio.Xaml.XamlDataTypeInfo : sealed record : System.IEquatable<ArxisStudio.Xaml.XamlDataTypeInfo>
+ArxisStudio.Xaml.XamlDataTypeInfo :: .ctor(System.String FullName, System.String Name, System.String ClrNamespace, System.String XmlNamespace, System.String? SuggestedPrefix, System.Boolean IsBuilt, System.Boolean CanCreate, System.Boolean IsData, System.Boolean IsControl, System.Boolean IsFormClass, System.Boolean Notifies, System.Boolean IsConverter, System.Boolean IsTemplate, System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath> Files)
+ArxisStudio.Xaml.XamlDataTypeInfo :: System.Boolean CanCreate { get; init; }
+ArxisStudio.Xaml.XamlDataTypeInfo :: System.Boolean Equals(ArxisStudio.Xaml.XamlDataTypeInfo? other)
+ArxisStudio.Xaml.XamlDataTypeInfo :: System.Boolean IsBuilt { get; init; }
+ArxisStudio.Xaml.XamlDataTypeInfo :: System.Boolean IsControl { get; init; }
+ArxisStudio.Xaml.XamlDataTypeInfo :: System.Boolean IsConverter { get; init; }
+ArxisStudio.Xaml.XamlDataTypeInfo :: System.Boolean IsData { get; init; }
+ArxisStudio.Xaml.XamlDataTypeInfo :: System.Boolean IsFormClass { get; init; }
+ArxisStudio.Xaml.XamlDataTypeInfo :: System.Boolean IsModel { get; }
+ArxisStudio.Xaml.XamlDataTypeInfo :: System.Boolean IsTemplate { get; init; }
+ArxisStudio.Xaml.XamlDataTypeInfo :: System.Boolean Notifies { get; init; }
+ArxisStudio.Xaml.XamlDataTypeInfo :: System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath> Files { get; init; }
+ArxisStudio.Xaml.XamlDataTypeInfo :: System.String ClrNamespace { get; init; }
+ArxisStudio.Xaml.XamlDataTypeInfo :: System.String FullName { get; init; }
+ArxisStudio.Xaml.XamlDataTypeInfo :: System.String Name { get; init; }
+ArxisStudio.Xaml.XamlDataTypeInfo :: System.String XmlNamespace { get; init; }
+ArxisStudio.Xaml.XamlDataTypeInfo :: System.String? SuggestedPrefix { get; init; }
+ArxisStudio.Xaml.XamlDataTypeInfo :: System.Void Deconstruct(out System.String FullName, out System.String Name, out System.String ClrNamespace, out System.String XmlNamespace, out System.String? SuggestedPrefix, out System.Boolean IsBuilt, out System.Boolean CanCreate, out System.Boolean IsData, out System.Boolean IsControl, out System.Boolean IsFormClass, out System.Boolean Notifies, out System.Boolean IsConverter, out System.Boolean IsTemplate, out System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.CanonicalPath> Files)
+ArxisStudio.Xaml.XamlDataTypeInfo :: static System.Boolean op_Equality(ArxisStudio.Xaml.XamlDataTypeInfo? left, ArxisStudio.Xaml.XamlDataTypeInfo? right)
+ArxisStudio.Xaml.XamlDataTypeInfo :: static System.Boolean op_Inequality(ArxisStudio.Xaml.XamlDataTypeInfo? left, ArxisStudio.Xaml.XamlDataTypeInfo? right)
 ArxisStudio.Xaml.XamlDesignState : enum
 ArxisStudio.Xaml.XamlDesignState :: Building = 3
 ArxisStudio.Xaml.XamlDesignState :: Failed = 8

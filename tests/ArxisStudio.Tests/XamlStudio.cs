@@ -139,6 +139,9 @@ internal sealed class XamlStudio : IAsyncDisposable
     /// <summary>Версия Avalonia, которую восстановление нашло проекту; null — не сказано.</summary>
     public string? AvaloniaVersion { get; set; }
 
+    /// <summary>Компилирует ли проект привязки по умолчанию (<c>AvaloniaUseCompiledBindingsByDefault</c>); null — не сказано.</summary>
+    public bool? CompiledBindings { get; set; }
+
     /// <summary>Провайдер модели.</summary>
     public ScriptedProvider Provider { get; } = new();
 
@@ -307,6 +310,9 @@ internal sealed class XamlStudio : IAsyncDisposable
 
         if (AvaloniaVersion is { } version)
             project.ResolvedPackages.Add(new ResolvedPackage { PackageId = "Avalonia", Version = version });
+
+        if (CompiledBindings is { } compiled)
+            project.Properties["AvaloniaUseCompiledBindingsByDefault"] = compiled ? "true" : "false";
 
         foreach (var file in Directory.EnumerateFiles(ProjectFolder, "*", SearchOption.AllDirectories))
         {

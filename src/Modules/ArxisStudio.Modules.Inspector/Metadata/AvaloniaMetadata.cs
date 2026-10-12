@@ -18,7 +18,7 @@ namespace ArxisStudio.Modules.Inspector.Metadata;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Разделы — по порядку, в котором их ищут: окно, общее, макет, кисти, вид, текст, преобразование, взаимодействие,
+/// Разделы — по порядку, в котором их ищут: данные, окно, общее, макет, кисти, вид, текст, преобразование, взаимодействие,
 /// подсказка, прокрутка, доступность, затем присоединённые, которые читает родитель, дизайн, прочее и скрытые.
 /// </para>
 /// <para>
@@ -33,7 +33,7 @@ public sealed class AvaloniaMetadata : InspectorMetadata
     /// <summary>Разделы по порядку.</summary>
     private static readonly string[] Order =
     [
-        "window", "common", "layout", "brush", "appearance", "text", "transform", "interaction", "tooltip", "scroll",
+        "data", "window", "common", "layout", "brush", "appearance", "text", "transform", "interaction", "tooltip", "scroll",
         "accessibility", "parent", "design",
     ];
 
@@ -77,6 +77,7 @@ public sealed class AvaloniaMetadata : InspectorMetadata
     private static Geometry IconOf(string category) => category switch
     {
         "window" => AxIcons.Window,
+        "data" => AxIcons.Binding,
         "layout" => AxIcons.Grid,
         "brush" => AxIcons.Palette,
         "appearance" => AxIcons.Preview,
@@ -109,9 +110,10 @@ public sealed class AvaloniaMetadata : InspectorMetadata
 
     private static void DescribeElement(InspectorMetadataBuilder metadata)
     {
-        // Имя и классы — в шапке; данные и привязки — отдельным разделом, когда он появится.
+        // Имя и классы — в шапке; источник данных — первой строкой раздела данных (запись 423).
         metadata.For<StyledElement>()
-            .Hide("Name", "Classes", "DataContext", "Styles", "Resources", "TemplatedParent", "Parent")
+            .Hide("Name", "Classes", "Styles", "Resources", "TemplatedParent", "Parent")
+            .Property(StyledElement.DataContextProperty, property => property.Category("data").Order(0))
             .Property(StyledElement.ThemeProperty, property => property.Category("appearance").Advanced());
 
         metadata.For<Visual>()

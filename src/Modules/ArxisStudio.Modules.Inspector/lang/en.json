@@ -61,6 +61,7 @@
   "inspector.source.inheritedUnnamed": "Inherited",
   "inspector.source.animation": "Animation",
   "inspector.source.code": "Set in code",
+  "category.data": "Data",
   "category.window": "Window",
   "category.common": "Common",
   "category.layout": "Layout",

@@ -2,19 +2,13 @@ using System.Globalization;
 using ArxisStudio.Controls;
 using ArxisStudio.Inspector;
 using ArxisStudio.Sdk;
-using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Controls.Templates;
 using Avalonia.Input;
-using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using Avalonia.Threading;
-using Avalonia.VisualTree;
 
 namespace ArxisStudio.Modules.UiDesigner.Inspection;
 
@@ -80,13 +74,9 @@ public sealed class ProjectImageEditor : PropertyEditor
         private readonly InspectorFieldContext _context;
         private readonly IStudioStrings _strings;
         private readonly AxObjectField _field;
-        private readonly AxSearchField _search;
-        private readonly AxListBox _list;
-        private readonly TextBlock _empty;
-        private readonly Popup _popup;
+        private readonly ChoicePicker _picker;
         private readonly Panel _view;
         private readonly Dictionary<string, Bitmap?> _thumbnails = new(StringComparer.OrdinalIgnoreCase);
-        private IReadOnlyList<InspectorChoice> _choices = [];
         private InspectorChoice? _dropped;
         private string? _shown;
         private string? _thumbnailOf;
@@ -116,52 +106,8 @@ public sealed class ProjectImageEditor : PropertyEditor
             StudioDragDrop.AddDragLeaveHandler(_field, OnDragLeave);
             StudioDragDrop.AddDropHandler(_field, OnDrop);
 
-            _search = new AxSearchField { Size = AxControlSize.Compact, PlaceholderText = strings["inspector.image.search"] };
-            _search.TextChanged += (_, _) => Fill();
-            _search.AddHandler(InputElement.KeyDownEvent, OnSearchKey, RoutingStrategies.Tunnel);
-
-            _list = new AxListBox
-            {
-                // Ячейку, которую список перерабатывает, шаблон строит и без варианта — пустой.
-                ItemTemplate = new FuncDataTemplate<InspectorChoice?>((choice, _) => choice is null ? null : Row(choice)),
-                [!Layoutable.MarginProperty] = new DynamicResourceExtension("AxSpaceTightAboveThickness"),
-            };
-            _list.AddHandler(InputElement.KeyDownEvent, OnListKey, RoutingStrategies.Tunnel);
-            _list.AddHandler(InputElement.TappedEvent, OnListTapped);
-
-            _empty = new TextBlock { TextWrapping = TextWrapping.Wrap, IsVisible = false };
-            AxText.SetTone(_empty, AxTextTone.Secondary);
-
-            var picker = new DockPanel { LastChildFill = true };
-
-            DockPanel.SetDock(_search, Dock.Top);
-            DockPanel.SetDock(_empty, Dock.Top);
-            picker.Children.Add(_search);
-            picker.Children.Add(_empty);
-            picker.Children.Add(_list);
-
-            _popup = new Popup
-            {
-                PlacementTarget = _field,
-                Placement = PlacementMode.BottomEdgeAlignedLeft,
-                IsLightDismissEnabled = true,
-                Child = new Border
-                {
-                    Child = picker,
-                    [!Layoutable.WidthProperty] = new DynamicResourceExtension("AxObjectPickerWidth"),
-                    [!Layoutable.MaxHeightProperty] = new DynamicResourceExtension("AxObjectPickerMaxHeight"),
-                    [!Decorator.PaddingProperty] = new DynamicResourceExtension("AxSpaceTightThickness"),
-                    [!Layoutable.MarginProperty] = new DynamicResourceExtension("AxSpaceTightAboveThickness"),
-                    [!Border.BackgroundProperty] = new DynamicResourceExtension("AxSurfaceOverlayBrush"),
-                    [!Border.BorderBrushProperty] = new DynamicResourceExtension("AxStrokeControlBrush"),
-                    [!Border.BorderThicknessProperty] = new DynamicResourceExtension("AxHairlineThickness"),
-                    [!Border.CornerRadiusProperty] = new DynamicResourceExtension("AxCornerRadiusLarge"),
-                    [!Border.BoxShadowProperty] = new DynamicResourceExtension("AxShadowPopup"),
-                },
-            };
-            _popup.Closed += (_, _) => _field.Focus();
-
-            _view = new Panel { Children = { _field, _popup } };
+            _picker = new ChoicePicker(_field, strings["inspector.image.search"], Row, Choose);
+            _view = new Panel { Children = { _field, _picker.Popup } };
         }
 
         public override Control View => _view;
@@ -169,7 +115,7 @@ public sealed class ProjectImageEditor : PropertyEditor
         public override Control? FocusTarget => _field;
 
         /// <summary>Выбор картинок открыт — тестам и проверке.</summary>
-        internal bool IsPicking => _popup.IsOpen;
+        internal bool IsPicking => _picker.IsOpen;
 
         public override void Show(InspectorValue value)
         {
@@ -244,7 +190,7 @@ public sealed class ProjectImageEditor : PropertyEditor
                 return;
 
             _released = true;
-            _popup.IsOpen = false;
+            _picker.Close();
 
             StudioDragDrop.RemoveDragEnterHandler(_field, OnDragEnter);
             StudioDragDrop.RemoveDragOverHandler(_field, OnDragOver);
@@ -263,31 +209,11 @@ public sealed class ProjectImageEditor : PropertyEditor
             if (_context.Property.IsReadOnly || _released)
                 return;
 
-            _choices = _context.Suggest(string.Empty);
-            _search.Text = string.Empty;
-            Fill();
-            _popup.IsOpen = true;
-
-            Dispatcher.UIThread.Post(() => _search.Focus(), DispatcherPriority.Loaded);
-        }
-
-        /// <summary>Список — варианты, у которых имя или запись содержит набранное; нынешний выбран.</summary>
-        private void Fill()
-        {
-            var typed = (_search.Text ?? string.Empty).Trim();
-            var shown = typed.Length == 0
-                ? _choices
-                : [.. _choices.Where(choice =>
-                    (choice.Title ?? string.Empty).Contains(typed, StringComparison.CurrentCultureIgnoreCase) ||
-                    choice.Value.Contains(typed, StringComparison.CurrentCultureIgnoreCase))];
-
-            _list.ItemsSource = shown;
-            _list.SelectedItem = shown.FirstOrDefault(choice => string.Equals(choice.Value, _shown, StringComparison.Ordinal));
-
-            _empty.IsVisible = shown.Count == 0;
-            _empty.Text = _choices.Count == 0
-                ? _strings["inspector.image.empty"]
-                : string.Format(CultureInfo.CurrentCulture, _strings["inspector.image.nothing"], typed);
+            _picker.Open(
+                _context.Suggest(string.Empty),
+                _shown,
+                _strings["inspector.image.empty"],
+                typed => string.Format(CultureInfo.CurrentCulture, _strings["inspector.image.nothing"], typed));
         }
 
         /// <summary>Строка выбора: миниатюра, имя файла и запись вторичным тоном; полный путь — подсказкой.</summary>
@@ -398,68 +324,12 @@ public sealed class ProjectImageEditor : PropertyEditor
             }
         }
 
-        /// <summary>Выбранное пишется, выбор закрывается, и каретка возвращается в поле.</summary>
+        /// <summary>Выбранное пишется; выбор к этому времени закрыт, и каретка вернулась в поле.</summary>
         /// <remarks>Нынешнее значение второй раз не пишется: запись того же текста — шаг истории без перемены (запись 396).</remarks>
-        private void Choose(InspectorChoice? choice)
+        private void Choose(InspectorChoice choice)
         {
-            if (choice is null || _released)
-                return;
-
-            _popup.IsOpen = false;
-
-            if (!string.Equals(choice.Value, _shown, StringComparison.Ordinal))
+            if (!_released && !string.Equals(choice.Value, _shown, StringComparison.Ordinal))
                 _ = _context.WriteAsync(choice.Value);
-        }
-
-        /// <summary>Щелчок по строке выбирает её; по пустому месту списка и по полосе прокрутки — ничего.</summary>
-        /// <remarks>
-        /// Щелчок ловился на всём списке и выбирал выделенное, а выделено нынешнее значение: щелчок мимо строк закрывал
-        /// выбор и переписывал то же значение (запись 396).
-        /// </remarks>
-        private void OnListTapped(object? sender, TappedEventArgs e)
-        {
-            if (e.Source is Visual source && source.FindAncestorOfType<ListBoxItem>(includeSelf: true) is { DataContext: InspectorChoice choice })
-                Choose(choice);
-        }
-
-        private void OnSearchKey(object? sender, KeyEventArgs e)
-        {
-            if (e.KeyModifiers != KeyModifiers.None)
-                return;
-
-            if (e.Key == Key.Down && _list.ItemCount > 0)
-            {
-                _list.SelectedIndex = Math.Max(0, _list.SelectedIndex);
-                (_list.ContainerFromIndex(_list.SelectedIndex) as Control ?? _list).Focus(NavigationMethod.Directional);
-                e.Handled = true;
-            }
-            else if (e.Key == Key.Enter)
-            {
-                Choose(_list.SelectedItem as InspectorChoice ?? _list.Items.OfType<InspectorChoice>().FirstOrDefault());
-                e.Handled = true;
-            }
-            else if (e.Key == Key.Escape)
-            {
-                _popup.IsOpen = false;
-                e.Handled = true;
-            }
-        }
-
-        private void OnListKey(object? sender, KeyEventArgs e)
-        {
-            if (e.KeyModifiers != KeyModifiers.None)
-                return;
-
-            if (e.Key == Key.Enter)
-            {
-                Choose(_list.SelectedItem as InspectorChoice);
-                e.Handled = true;
-            }
-            else if (e.Key == Key.Escape)
-            {
-                _popup.IsOpen = false;
-                e.Handled = true;
-            }
         }
 
         /// <summary>Что несут — разбирается раз за тягу: брошенный файл — тот ли вариант, что есть у цели.</summary>

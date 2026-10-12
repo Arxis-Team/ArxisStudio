@@ -34,6 +34,10 @@ internal sealed partial class DesignView : IXamlDesignView
     private bool _released;
     private bool _disposed;
 
+    // Вопросы, что ждут среду поколения (DescribeDataAsync), — отменяются, как только показ отдаёт объекты: их
+    // ожидание держало бы поколение через замену.
+    private CancellationTokenSource _generation = new();
+
     public DesignView(DocumentEntry entry, DocumentHandle handle)
     {
         _entry = entry;
@@ -115,6 +119,7 @@ internal sealed partial class DesignView : IXamlDesignView
 
         _disposed = true;
         EndPreviews();
+        _generation.Cancel();
         _root = null;
         _applicationTurn++;
 
@@ -148,6 +153,7 @@ internal sealed partial class DesignView : IXamlDesignView
     internal void LetGo()
     {
         EndPreviews();
+        _generation.Cancel();
         _released = true;
         Follow(null);
 
@@ -164,6 +170,8 @@ internal sealed partial class DesignView : IXamlDesignView
     internal void TakeUp()
     {
         _released = false;
+        _generation.Dispose();
+        _generation = new CancellationTokenSource();
         Follow(_entry.Live.Session);
 
         Dispatcher.UIThread.Post(() => _ = OpenApplicationAsync());

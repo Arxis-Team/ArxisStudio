@@ -61,6 +61,7 @@
   "inspector.source.inheritedUnnamed": "Наследуется",
   "inspector.source.animation": "Анимация",
   "inspector.source.code": "Задано кодом",
+  "category.data": "Данные",
   "category.window": "Окно",
   "category.common": "Общее",
   "category.layout": "Макет",

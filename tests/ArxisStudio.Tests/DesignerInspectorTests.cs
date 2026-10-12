@@ -897,10 +897,6 @@ public class DesignerInspectorTests
 
         LiveFormStudio.Frame();
 
-        // Данных у элемента своего раздела ещё нет: DataContext — среди скрытых, а скрытые свёрнуты.
-        panel.View!.All.IsChecked = true;
-        panel.List!.Fold("hidden", folded: false);
-
         Assert.False(Row(panel, "DataContext").Property.IsReadOnly, "данные для дизайна заперли собственный DataContext окна");
     }
 

@@ -172,7 +172,7 @@ internal static class XamlValueOrigins
     /// Свой член пишут владельцем — типом объекта или его базой, — а присоединённый — его владельцем: у окна
     /// <c>&lt;Design.DataContext&gt;</c> — не его <c>DataContext</c>, а данные для дизайна.
     /// </remarks>
-    private static XamlElement? PropertyElement(XamlElement element, string name, Type type) =>
+    internal static XamlElement? PropertyElement(XamlElement element, string name, Type type) =>
         element.MemberElements.FirstOrDefault(child => name.Contains('.', StringComparison.Ordinal)
             ? string.Equals(child.Name.LocalName, name, StringComparison.Ordinal)
             : string.Equals(child.Name.MemberName, name, StringComparison.Ordinal) && Owns(type, child.Name.OwnerName));
@@ -190,9 +190,13 @@ internal static class XamlValueOrigins
     }
 
     /// <summary>Что написано в элементе свойства — одной строкой, как подсказка: <c>&lt;vm:Main /&gt;</c>.</summary>
-    private static string? Long(XamlElement element, string name, Type type)
+    private static string? Long(XamlElement element, string name, Type type) =>
+        PropertyElement(element, name, type) is { } written ? ContentText(written) : null;
+
+    /// <summary>Что написано внутри элемента свойства — одной строкой, как подсказка; null — внутри нет элементов.</summary>
+    internal static string? ContentText(XamlElement written)
     {
-        if (PropertyElement(element, name, type) is not { } written || written.Elements.ToList() is not [var first, ..] children)
+        if (written.Elements.ToList() is not [var first, ..] children)
             return null;
 
         var text = written.Document.SourceText.GetText(TextSpan.FromBounds(first.Span.Start, children[^1].Span.End));

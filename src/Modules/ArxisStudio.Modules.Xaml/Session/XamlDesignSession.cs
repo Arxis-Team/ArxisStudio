@@ -103,6 +103,17 @@ internal sealed class XamlDesignSession : IAsyncDisposable
     /// <summary>Хост поколения.</summary>
     public ProjectDesignHost Host { get; }
 
+    /// <summary>Решение глазами профиля дизайна; null — профиль ещё не прочёл его.</summary>
+    public SolutionSnapshot? Snapshot => _source.Snapshot;
+
+    /// <summary>Компилирует ли проект файла привязки по умолчанию (<see cref="CompiledBindingsProperty"/>).</summary>
+    /// <param name="file">Файл проекта.</param>
+    public bool CompilesBindingsByDefault(CanonicalPath file) =>
+        Snapshot is { } snapshot
+        && snapshot.TryGetProjectForFile(file, out var project)
+        && bool.TryParse(project.Properties.GetValueOrDefault(CompiledBindingsProperty), out var compiles)
+        && compiles;
+
     /// <summary>Служба.</summary>
     public XamlService Owner => _owner;
 

@@ -70,6 +70,19 @@ public interface IStudioXamlDesign
     /// <returns>Что сделала сборка.</returns>
     /// <exception cref="InvalidOperationException">Поколения нет: ни один документ решения не открыт.</exception>
     Task<XamlBuildOutcome> RebuildAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Классы, которые объявляет файл кода, — тем, кто принимает его бросок из окна проекта.</summary>
+    /// <param name="file">Файл <c>.cs</c>.</param>
+    /// <param name="cancellationToken">Отмена.</param>
+    /// <returns>
+    /// Классы верхнего уровня в порядке файла; построенные — со сведениями живого поколения, ещё не построенные — с
+    /// тем, что сказал текст. Пусто — файл не код или классов в нём нет.
+    /// </returns>
+    /// <remarks>
+    /// Файл читается текстом, а не компилятором: вложенные классы не в счёт, у обобщённого класса имени для разметки
+    /// нет. Появилось в контракте 1.2.
+    /// </remarks>
+    ValueTask<IReadOnlyList<XamlDataTypeInfo>> ClassesInAsync(CanonicalPath file, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Где поколение типов проекта.</summary>

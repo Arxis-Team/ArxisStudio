@@ -1,5 +1,6 @@
 using System.Runtime.ExceptionServices;
 using System.Runtime.Loader;
+using ArxisStudio.Markup.Xaml.Loader;
 using ArxisStudio.Modules.Xaml.Documents;
 using ArxisStudio.Modules.Xaml.Session;
 using ArxisStudio.Projects;
@@ -92,6 +93,9 @@ internal sealed class XamlService : IStudioXamlDocuments, IStudioXamlDesign
     /// <summary>Участники замены сейчас, по порядку постановки.</summary>
     internal IReadOnlyList<IXamlDesignParticipant> Participants => [.. _participants];
 
+    /// <summary>Классы проекта для данных документов: каталог поколения и файлы кода.</summary>
+    internal DataTypes DataTypes { get; } = new();
+
     /// <inheritdoc/>
     public async Task<IXamlDocumentHandle> OpenAsync(CanonicalPath path, CancellationToken cancellationToken = default)
     {
@@ -172,6 +176,52 @@ internal sealed class XamlService : IStudioXamlDocuments, IStudioXamlDesign
         var result = await session.Host.BuildAsync(Words.Rebuild, default, cancellationToken);
 
         return XamlDesignSession.Outcome(result);
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Файл читается не в потоке интерфейса; построен ли класс, говорит каталог живого поколения проекта файла, а без
+    /// поколения — никто, и класс числится несобранным.
+    /// </remarks>
+    public async ValueTask<IReadOnlyList<XamlDataTypeInfo>> ClassesInAsync(CanonicalPath file, CancellationToken cancellationToken = default)
+    {
+        if (file.IsEmpty)
+            return [];
+
+        var classes = await Task.Run(() => DataTypes.In(file), cancellationToken);
+
+        if (classes.Count == 0)
+            return [];
+
+        var catalog = await CatalogOfAsync(file, cancellationToken);
+
+        return
+        [
+            .. classes.Select(found => catalog?.Find(found.FullName) is { } entry
+                ? DataTypes.Built(entry, [file])
+                : DataTypes.NotBuilt(found, [file])),
+        ];
+    }
+
+    /// <summary>Каталог живого поколения проекта файла; null — поколения нет или файл не из решения.</summary>
+    internal async ValueTask<XamlTypeCatalog?> CatalogOfAsync(CanonicalPath file, CancellationToken cancellationToken)
+    {
+        if (_session is not { IsStarted: true, IsRetiring: false } session
+            || session.Snapshot is not { } snapshot
+            || !snapshot.TryGetProjectForFile(file, out var project))
+        {
+            return null;
+        }
+
+        try
+        {
+            return await session.Host.GetTypeCatalogAsync(project.Identity, cancellationToken);
+        }
+        catch (Exception e) when (e is InvalidOperationException or ObjectDisposedException)
+        {
+            // Хост кончился или ещё не поднялся: построенного не знает никто.
+            return null;
+        }
     }
 
     /// <summary>

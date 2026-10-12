@@ -1,4 +1,5 @@
 using System.Globalization;
+using ArxisStudio.Icons;
 using ArxisStudio.Inspector;
 using ArxisStudio.Markup.Xaml;
 using ArxisStudio.Modules.UiDesigner.Documents;
@@ -28,6 +29,12 @@ namespace ArxisStudio.Modules.UiDesigner.Inspection;
 /// холсте холст выбирает заново, а цель, которую держит замок инспектора, проверяет, что на её путях стоят
 /// элементы того же типа, — и закрывается, если нет: править чужой элемент хуже, чем показать, что своего нет.
 /// </para>
+/// <para>
+/// <b>Данные — ответом службы.</b> Что читают привязки, служба XAML отвечает асинхронно: снимок читается сразу, а
+/// ответ кладётся в него после (<see cref="DescribeDataAsync"/>), и строки данных переспрашиваются. Модели проекта —
+/// варианты источника и типа — цель берёт у показа на каждое поколение заранее (<see cref="FetchDataTypesAsync"/>):
+/// выбор открывается сразу, без ожидания.
+/// </para>
 /// </remarks>
 internal sealed class XamlInspectorTarget : InspectorTarget
 {
@@ -38,6 +45,10 @@ internal sealed class XamlInspectorTarget : InspectorTarget
     private XamlInspectorSnapshot? _snapshot;
     private XamlInspectorSnapshot? _lastLive;
     private bool _rereading;
+
+    // Модели проекта формы — именами; берутся заново, когда сменилось поколение.
+    private IReadOnlyList<XamlDataTypeInfo> _dataTypes = [];
+    private bool _dataTypesStale = true;
 
     /// <summary>Заводит цель для выбранного в форме.</summary>
     /// <param name="context">Контекст модуля.</param>
@@ -99,6 +110,9 @@ internal sealed class XamlInspectorTarget : InspectorTarget
 
         if (string.Equals(id, FormEdits.NameDirective, StringComparison.Ordinal))
             return CheckName(snapshot, text);
+
+        if (snapshot.DataIds.Contains(id))
+            return CheckData(snapshot, id, text);
 
         if (Slot.Session.Shown is not { } view)
             return InspectorCheck.Valid;
@@ -173,6 +187,9 @@ internal sealed class XamlInspectorTarget : InspectorTarget
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(typed);
 
+        if (Snapshot is { } snapshot && snapshot.DataIds.Contains(id))
+            return DataChoices(snapshot, id, typed);
+
         return Properties.FirstOrDefault(property => string.Equals(property.Id, id, StringComparison.Ordinal)) is { } property
                && ProjectImages.Types.Contains(property.ValueType.FullName)
                && _context.Projects()?.Current is { } solution
@@ -228,6 +245,9 @@ internal sealed class XamlInspectorTarget : InspectorTarget
 
         menu.Add(Strings["inspector.menu.reveal"], () => Reveal(snapshot, id), isEnabled: snapshot.Count == 1 && snapshot.WrittenAt(id, 0) is not null);
 
+        if (string.Equals(id, FormEdits.DataTypeDirective, StringComparison.Ordinal) && SuggestedType(snapshot) is { } suggested)
+            menu.Add(string.Format(CultureInfo.CurrentCulture, Strings["inspector.data.setType"], suggested.Title), () => _ = WriteAsync([new InspectorWrite(id, suggested.Value)]));
+
         if (snapshot.Designs(id))
         {
             var value = menu.Value;
@@ -270,7 +290,23 @@ internal sealed class XamlInspectorTarget : InspectorTarget
 
         if (snapshot.IsLive)
         {
+            // До нового ответа службы строки данных показывают прежний: иначе каждая правка мигала бы в них «Нет».
+            if (_lastLive is { } previous)
+                snapshot.Describe(previous.Data);
+
             _lastLive = snapshot;
+
+            if (Slot.Session.Shown is { } view && snapshot.DataIds.Count > 0)
+            {
+                _ = DescribeDataAsync(view, snapshot);
+
+                if (_dataTypesStale)
+                {
+                    _dataTypesStale = false;
+                    _ = FetchDataTypesAsync(view);
+                }
+            }
+
             return snapshot;
         }
 
@@ -315,6 +351,10 @@ internal sealed class XamlInspectorTarget : InspectorTarget
         if ((changes & (FormChanges.Text | FormChanges.State | FormChanges.Objects | FormChanges.Root | FormChanges.Opened)) == 0)
             return;
 
+        // Новый корень — новое поколение или новый показ: модели проекта берутся заново.
+        if ((changes & (FormChanges.Root | FormChanges.Opened)) != 0)
+            _dataTypesStale = true;
+
         Reread();
     }
 
@@ -353,6 +393,142 @@ internal sealed class XamlInspectorTarget : InspectorTarget
         var syntax = document.Syntax;
 
         return Paths.Where((path, at) => path.Resolve(syntax) is not { } element || element.Name.ToString() != _types[at]).Any();
+    }
+
+    /// <summary>
+    /// Спрашивает у службы, что читают привязки выбранных, и кладёт ответ в снимок — его и его копию на время замены:
+    /// ответ — имена, и замену он переживает.
+    /// </summary>
+    private async Task DescribeDataAsync(IXamlDesignView view, XamlInspectorSnapshot snapshot)
+    {
+        var paths = snapshot.Paths.ToList();
+        var scopes = new XamlDataScope?[paths.Count];
+
+        try
+        {
+            for (var at = 0; at < paths.Count; at++)
+                scopes[at] = await view.DescribeDataAsync(paths[at]).ConfigureAwait(true);
+        }
+        catch (Exception e) when (e is OperationCanceledException or ObjectDisposedException)
+        {
+            // Показ отдал объекты или закрыт, пока служба отвечала: снимок перечитают с новым.
+            return;
+        }
+
+        snapshot.Describe(scopes);
+
+        if (!IsClosed && snapshot.Shares(_snapshot))
+            Raise(InspectorChanges.Values, snapshot.DataIds);
+    }
+
+    /// <summary>Берёт модели проекта формы — варианты источника и типа данных.</summary>
+    private async Task FetchDataTypesAsync(IXamlDesignView view)
+    {
+        try
+        {
+            _dataTypes = await view.GetDataTypesAsync().ConfigureAwait(true);
+        }
+        catch (Exception e) when (e is OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        {
+            // Показа уже нет: возьмём у следующего.
+            _dataTypesStale = true;
+        }
+    }
+
+    /// <summary>
+    /// Варианты строки данных: у корня с <c>x:Class</c> первой — сама форма, затем собранные модели по пространствам.
+    /// Источнику — те, что форма создаст; типу — любые модели. Набранное выражение — не выбор класса: подсказок нет.
+    /// </summary>
+    private List<InspectorChoice> DataChoices(XamlInspectorSnapshot snapshot, string id, string typed)
+    {
+        if (string.Equals(id, FormEdits.CompileBindingsDirective, StringComparison.Ordinal) || typed.TrimStart().StartsWith('{'))
+            return [];
+
+        var typeOnly = string.Equals(id, FormEdits.DataTypeDirective, StringComparison.Ordinal);
+        var choices = new List<InspectorChoice>();
+
+        if (!string.Equals(id, FormEdits.DesignDataMember, StringComparison.Ordinal) && snapshot.FormClass is { } formClass &&
+            FormEdits.ClassOf(formClass) is { } self)
+        {
+            choices.Add(new InspectorChoice(typeOnly ? self.Text : "{Binding $self}")
+            {
+                Title = string.Format(CultureInfo.CurrentCulture, Strings["inspector.data.self"], self.Name),
+                Description = Strings["inspector.data.self.description"],
+                Icon = AxIcons.Window,
+            });
+        }
+
+        choices.AddRange(_dataTypes
+            .Where(type => DataEditor.Refusal(type, typeOnly, Strings) is null)
+            .Where(type => typed.Length == 0 || type.Name.Contains(typed, StringComparison.CurrentCultureIgnoreCase) ||
+                           type.FullName.Contains(typed, StringComparison.CurrentCultureIgnoreCase))
+            .OrderBy(static type => type.ClrNamespace, StringComparer.Ordinal)
+            .ThenBy(static type => type.Name, StringComparer.Ordinal)
+            .Select(type => DataEditor.ChoiceOf(type, Strings)));
+
+        return choices;
+    }
+
+    /// <summary>
+    /// Прочтётся ли запись данных: класс — собранная модель, которую форма создаст; выражение — да; иное — нет.
+    /// Тип данных пишется классом или именем под префиксом, который форма знает; компиляция привязок — да или нет.
+    /// </summary>
+    private InspectorCheck CheckData(XamlInspectorSnapshot snapshot, string id, string text)
+    {
+        var trimmed = text.Trim();
+
+        if (string.Equals(id, FormEdits.CompileBindingsDirective, StringComparison.Ordinal))
+            return bool.TryParse(trimmed, out _) ? InspectorCheck.Valid : InspectorCheck.Invalid(Strings["inspector.data.compile.invalid"]);
+
+        var typeOnly = string.Equals(id, FormEdits.DataTypeDirective, StringComparison.Ordinal);
+
+        if (DataClass.Parse(trimmed) is { } written)
+        {
+            // Пока моделей не знаем — не знаем и отказа: запись проверит загрузка.
+            if (_dataTypes.Count == 0)
+                return InspectorCheck.Valid;
+
+            var known = _dataTypes.FirstOrDefault(type => string.Equals(type.Name, written.Name, StringComparison.Ordinal) &&
+                                                          (string.Equals(type.XmlNamespace, written.XmlNamespace, StringComparison.Ordinal) ||
+                                                           string.Equals(type.FullName, written.ClrName, StringComparison.Ordinal)));
+
+            // Класс формы — тип данных самой формы, когда она свои же данные.
+            return known is null
+                ? InspectorCheck.Invalid(string.Format(CultureInfo.CurrentCulture, Strings["inspector.data.unknown"], written.Name))
+                : typeOnly && known.IsFormClass || DataEditor.Refusal(known, typeOnly, Strings) is not { } refusal
+                    ? InspectorCheck.Valid
+                    : InspectorCheck.Invalid(refusal);
+        }
+
+        if (!typeOnly)
+            return trimmed.StartsWith('{') ? InspectorCheck.Valid : InspectorCheck.Invalid(Strings["inspector.data.invalid"]);
+
+        // Тип данных именем: префикс должен быть объявлен там, где его прочтут, — у корня или у самого элемента.
+        var colon = trimmed.IndexOf(':', StringComparison.Ordinal);
+
+        if (trimmed.StartsWith('{') || colon < 0)
+            return InspectorCheck.Valid;
+
+        var prefix = trimmed[..colon];
+
+        return snapshot.Elements.All(element => element.NamespaceContext.LookupNamespace(prefix) is not null)
+            ? InspectorCheck.Valid
+            : InspectorCheck.Invalid(string.Format(CultureInfo.CurrentCulture, Strings["inspector.data.prefix"], prefix));
+    }
+
+    /// <summary>
+    /// Тип данных, который стоит предложить одному выбранному: тип его данных сейчас, если это собранная модель, а
+    /// тип данных не написан ни у него, ни выше.
+    /// </summary>
+    private InspectorChoice? SuggestedType(XamlInspectorSnapshot snapshot)
+    {
+        if (snapshot.Count != 1 || snapshot.DataAt(0) is not { WrittenDataType: null, SourceType: { } current })
+            return null;
+
+        return _dataTypes.FirstOrDefault(type => string.Equals(type.FullName, current.FullName, StringComparison.Ordinal)) is { } known &&
+               DataEditor.Refusal(known, typeOnly: true, Strings) is null
+            ? DataEditor.ChoiceOf(known, Strings)
+            : null;
     }
 
     private InspectorCheck CheckName(XamlInspectorSnapshot snapshot, string text)

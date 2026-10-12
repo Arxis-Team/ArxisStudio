@@ -409,8 +409,8 @@ internal sealed partial class FormCanvas
     }
 
     /// <summary>
-    /// Ведёт к записи члена в XAML: атрибут выделен в просмотре, а хозяин его показывает — в одном холсте его не
-    /// видно, — и клавиатура уходит к тексту.
+    /// Ведёт к записи члена в XAML: атрибут или элемент свойства выделен в просмотре, а хозяин его показывает — в одном
+    /// холсте его не видно, — и клавиатура уходит к тексту.
     /// </summary>
     /// <param name="slot">Форма.</param>
     /// <param name="path">Элемент.</param>
@@ -422,12 +422,12 @@ internal sealed partial class FormCanvas
         ArgumentNullException.ThrowIfNull(member);
 
         if (_code is null || !ReferenceEquals(_codeSlot, slot) || _shownCode is not { } syntax ||
-            path.Resolve(syntax) is not { } element || FormEdits.Existing(element, member) is not { } attribute)
+            path.Resolve(syntax) is not { } element || FormEdits.Where(element, member) is not { } span)
         {
             return false;
         }
 
-        _host.ShowInCode(attribute.Span.Start, attribute.Span.Length);
+        _host.ShowInCode(span.Start, span.Length);
 
         return true;
     }
