@@ -178,6 +178,43 @@ public sealed class ProjectsWriteTests() : ProjectsOnDisk("projects-write")
         await foreign.Task.WaitAsync(TimeSpan.FromSeconds(30), Token);
     }
 
+    /// <summary>
+    /// Отказ записи не стирает отпечаток прошлой удачной записи того же файла: её эхо приходит студийным.
+    /// </summary>
+    /// <remarks>
+    /// Отказ снимал отпечатки всей пачки, и эхо удачной записи, ещё не дошедшее до слежения, приходило редактору
+    /// внешним — своё сохранение выглядело чужой правкой (запись 411).
+    /// </remarks>
+    [Fact]
+    public async Task A_refused_write_keeps_the_fingerprint_of_the_write_before_it()
+    {
+        using var studio = await OpenAsync();
+        var form = Canon("Views/MainWindow.axaml");
+        var origins = new List<FileChangeOrigin>();
+        var heard = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        studio.Files.ContentChanged += (_, e) =>
+        {
+            foreach (var change in e.Changes.Where(change => change.Change.Path == form))
+            {
+                origins.Add(change.Origin);
+                heard.TrySetResult();
+            }
+        };
+
+        // Обе записи — в очередь сразу: отказ второй ложится раньше, чем слежение услышит первую.
+        var first = studio.Files.WriteAsync([new FileWrite(form, Bytes("<Window Title=\"Мой\" />"))], "Сохранение", Token);
+        var second = studio.Files.WriteAsync(
+            [new FileWrite(form, Bytes("<Window Title=\"Второй\" />")) { Expected = Bytes("не то, что на диске") }], "Сохранение", Token);
+
+        Assert.False((await first).HasErrors, "первая запись не прошла");
+        Assert.True((await second).HasErrors, "запись мимо ожидаемого прошла");
+
+        await heard.Task.WaitAsync(TimeSpan.FromSeconds(30), Token);
+
+        Assert.All(origins, origin => Assert.Equal(FileChangeOrigin.Studio, origin));
+    }
+
     /// <summary>За содержимым следят, только пока кто-то слушает.</summary>
     [Fact]
     public async Task Content_is_watched_only_while_someone_listens()

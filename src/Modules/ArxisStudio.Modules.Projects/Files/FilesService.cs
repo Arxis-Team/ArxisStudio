@@ -215,7 +215,11 @@ internal sealed class FilesService : IStudioFiles
 
         return EditAsync((snapshot, store) =>
         {
-            // Отпечатки — раньше первого байта: слежение может увидеть запись раньше, чем она вернётся.
+            // Отпечатки — раньше первого байта: слежение может увидеть запись раньше, чем она вернётся. Отказ
+            // возвращает прежние, а не стирает: эхо прошлой записи того же файла бывает ещё в пути, и без отпечатка
+            // своё сохранение пришло бы редактору чужим (запись 411).
+            var before = batch.ToDictionary(write => write.Path, write => _written.TryGetValue(write.Path, out var print) ? print : null);
+
             foreach (var write in batch)
                 _written[write.Path] = Convert.ToHexString(SHA256.HashData(write.Content.Span));
 
@@ -223,8 +227,13 @@ internal sealed class FilesService : IStudioFiles
 
             if (done.Result.HasErrors)
             {
-                foreach (var write in batch)
-                    _written.TryRemove(write.Path, out _);
+                foreach (var (path, print) in before)
+                {
+                    if (print is null)
+                        _written.TryRemove(path, out _);
+                    else
+                        _written[path] = print;
+                }
             }
 
             return done;
