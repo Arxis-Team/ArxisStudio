@@ -304,6 +304,45 @@ public class ProjectsSessionTests
     }
 
     /// <summary>
+    /// Конфигурация, чью загрузку бросили до конца, не считается прочитанной: повторная просьба её читает.
+    /// </summary>
+    /// <remarks>
+    /// Конфигурация сессии меняется до загрузки, а ярлык «та же — читать нечего» верил последней законченной загрузке:
+    /// брошенная загрузка «Release» оставляла службу с «Release» в состоянии и снимком прежней конфигурации, и
+    /// повторная просьба отвечала его итогом (запись 401).
+    /// </remarks>
+    [Fact]
+    public async Task A_configuration_whose_load_was_abandoned_is_read_when_asked_again()
+    {
+        using var studio = new ProjectsStudio();
+
+        await studio.Projects.OpenAsync(ProjectsStudio.Solution(), Token);
+
+        var gate = studio.Provider.Gate = new LoadGate();
+
+        using (var cancel = CancellationTokenSource.CreateLinkedTokenSource(Token))
+        {
+            var changing = studio.Projects.SetConfigurationAsync("Release", cancel.Token);
+
+            await gate.Entered;
+            cancel.Cancel();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => changing);
+        }
+
+        await studio.Thread.IdleAsync();
+        studio.Provider.Gate = null;
+
+        Assert.Equal("Release", studio.Projects.Status.Configuration);
+
+        var loads = studio.Provider.Loads;
+        var again = await studio.Projects.SetConfigurationAsync("Release", Token);
+
+        Assert.Equal(loads + 1, studio.Provider.Loads);
+        Assert.All(again.Snapshot!.Projects, project => Assert.Equal("Release", project.ActiveConfiguration));
+    }
+
+    /// <summary>
     /// Провалившаяся перезагрузка оставляет прежний снимок, а в журнале — свой провал.
     /// </summary>
     [Fact]

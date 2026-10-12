@@ -64,6 +64,13 @@ internal sealed class ProjectsSession
     /// <summary>Последняя законченная загрузка.</summary>
     public ProjectsLoad? LastLoad { get; set; }
 
+    /// <summary>Под какую конфигурацию прочитана <see cref="LastLoad"/>.</summary>
+    /// <remarks>
+    /// <see cref="Configuration"/> меняется до загрузки, и брошенная загрузка новой конфигурации оставляла её
+    /// «прочитанной»: повторная просьба отвечала итогом прежней конфигурации и не читала новую (запись 401).
+    /// </remarks>
+    public string? LoadedConfiguration { get; set; }
+
     /// <summary>
     /// Восстановление при открытии этой сессии уже решалось.
     /// </summary>

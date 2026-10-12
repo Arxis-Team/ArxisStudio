@@ -272,13 +272,16 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
             var same = string.Equals(session.Configuration, configuration, StringComparison.Ordinal);
 
             // Та же конфигурация ничего не перечитывает: идущая загрузка уже читает под неё, а
-            // законченная уже под неё прочитала.
-            if (same && (session.Pending ?? session.Running) is { } going)
+            // законченная уже под неё прочитала — если под неё. Брошенная загрузка новой конфигурации
+            // оставляла её названной, а снимок — прежним; брошенная и ещё идущая отвечала отменой тому,
+            // кто ничего не отменял, — к ней не присоединяются (запись 401).
+            if (same && (session.Pending ?? session.Running) is { Result.IsCompleted: false } going)
             {
                 going.Join();
                 item = going;
             }
-            else if (same && session.LastLoad is { } last)
+            else if (same && session.LastLoad is { } last
+                     && string.Equals(session.LoadedConfiguration, configuration, StringComparison.Ordinal))
             {
                 return Task.FromResult(last.Result);
             }
@@ -759,6 +762,7 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
                         session.Snapshot = published;
 
                     session.LastLoad = new ProjectsLoad { Reason = reason, Result = result, Causes = causes };
+                    session.LoadedConfiguration = request.Configuration;
                 }
 
                 retired = Settle(session);
