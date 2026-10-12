@@ -131,21 +131,26 @@ public sealed class StudioContextFactory(
 
     private readonly Dictionary<string, PluginSettings> _issued = new(StringComparer.Ordinal);
 
+    private readonly Dictionary<string, PluginLogFeed> _feeds = new(StringComparer.Ordinal);
+
     /// <summary>
-    /// Забывает настройки, выданные ушедшему плагину.
+    /// Забывает выданное ушедшему плагину: настройки и подписки на журнал.
     /// </summary>
     /// <param name="pluginId">Кто ушёл.</param>
     /// <remarks>
     /// Выданный объект держит подписчиков своего <c>Changed</c>, а это методы плагина. Оставшись в
     /// словаре, он держал бы контекст загрузки плагина, забывшего отписаться, — и студия сама же
     /// сообщала бы, что прежняя копия осталась в памяти, — а правка из окна настроек звала бы
-    /// обработчики уже выгруженной копии.
+    /// обработчики уже выгруженной копии. Подписки на журнал держит сам журнал, и снимает их обёртка.
     /// </remarks>
     public void Forget(string pluginId)
     {
         ArgumentException.ThrowIfNullOrEmpty(pluginId);
 
         _issued.Remove(pluginId);
+
+        if (_feeds.Remove(pluginId, out var feed))
+            feed.Release();
     }
 
     /// <inheritdoc/>
@@ -175,13 +180,24 @@ public sealed class StudioContextFactory(
         // IsActive зависит от того, кто спрашивает, а публикация обязана
         // знать хозяина.
         var granted = services;
+        var feed = services?.GetValueOrDefault(typeof(IStudioLogFeed)) as IStudioLogFeed;
 
         if (plugins is not null || exports is not null || toolbar is not null || dock is not null || restart is not null
-            || previews is not null || contributions is not null)
+            || previews is not null || contributions is not null || feed is not null)
         {
             var extended = services is null
                 ? new Dictionary<Type, object>()
                 : new Dictionary<Type, object>(services.ToDictionary(pair => pair.Key, pair => pair.Value));
+
+            // Журнал — именной, как превью: обработчик зовётся через шов на счёт хозяина, а подписка,
+            // которую хозяин забыл снять, уходит с ним, а не держит его контекст загрузки.
+            if (feed is not null)
+            {
+                var journal = new PluginLogFeed(feed, _guard, plugin.Id);
+
+                _feeds[plugin.Id] = journal;
+                extended[typeof(IStudioLogFeed)] = journal;
+            }
 
             var neighbours = plugins is null ? null : new PluginNeighbours(plugins, plugin);
 

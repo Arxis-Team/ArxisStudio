@@ -1,4 +1,5 @@
-﻿using ArxisStudio.Sdk;
+﻿using ArxisStudio.Extensibility;
+using ArxisStudio.Sdk;
 
 namespace ArxisStudio.Services;
 
@@ -125,5 +126,84 @@ public sealed class StudioLog(TextWriter? echo = null) : IStudioLog, IStudioLogF
         }
 
         Changed?.Invoke(this, EventArgs.Empty);
+    }
+}
+
+/// <summary>
+/// Журнал глазами одного расширения.
+/// </summary>
+/// <remarks>
+/// Журнал один на студию, и обработчики его события зовёт тот, кто пишет, — из любого потока и посреди
+/// своей работы. Обработчик расширения, позванный напрямую, бросал бы в пишущего: в фоновую задачу
+/// соседа, в доклад шва о чужом сбое, — и соседи после него события не слышали. Забытая подписка держала
+/// бы контекст загрузки ушедшего расширения, а запись звала бы его код. Обёртка зовёт обработчик через
+/// шов на счёт хозяина и помнит свои подписки, чтобы снять их с его уходом.
+/// </remarks>
+/// <param name="feed">Общий журнал.</param>
+/// <param name="guard">Шов вызовов расширений.</param>
+/// <param name="pluginId">Чьи подписки ставит эта обёртка.</param>
+internal sealed class PluginLogFeed(IStudioLogFeed feed, PluginGuard guard, string pluginId) : IStudioLogFeed
+{
+    private readonly Lock _gate = new();
+    private readonly List<(EventHandler Handler, EventHandler Guarded)> _subscriptions = [];
+
+    /// <inheritdoc/>
+    public IReadOnlyList<StudioLogRecord> Records => feed.Records;
+
+    /// <inheritdoc/>
+    public event EventHandler? Changed
+    {
+        add
+        {
+            if (value is null)
+                return;
+
+            EventHandler guarded = (sender, args) =>
+                guard.Run(pluginId, "обработчик перемены журнала", () => value(sender, args));
+
+            lock (_gate)
+                _subscriptions.Add((value, guarded));
+
+            feed.Changed += guarded;
+        }
+        remove
+        {
+            if (value is null)
+                return;
+
+            EventHandler guarded;
+
+            // Последнюю из равных, как у событий .NET.
+            lock (_gate)
+            {
+                var index = _subscriptions.FindLastIndex(subscription => subscription.Handler == value);
+
+                if (index < 0)
+                    return;
+
+                guarded = _subscriptions[index].Guarded;
+                _subscriptions.RemoveAt(index);
+            }
+
+            feed.Changed -= guarded;
+        }
+    }
+
+    /// <inheritdoc/>
+    public void Clear() => feed.Clear();
+
+    /// <summary>Снимает подписки, которые расширение оставило за собой.</summary>
+    public void Release()
+    {
+        EventHandler[] guarded;
+
+        lock (_gate)
+        {
+            guarded = [.. _subscriptions.Select(subscription => subscription.Guarded)];
+            _subscriptions.Clear();
+        }
+
+        foreach (var handler in guarded)
+            feed.Changed -= handler;
     }
 }
