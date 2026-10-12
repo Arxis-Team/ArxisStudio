@@ -59,7 +59,4 @@ public sealed record ShellProfile(
 
     /// <summary>Имя профиля SSH: у него нет своего пункта в списке оболочек, он собирается диалогом.</summary>
     public const string SshId = "ssh";
-
-    /// <summary>Это сеанс SSH, а не локальная оболочка.</summary>
-    public bool IsSsh => string.Equals(Id, SshId, StringComparison.Ordinal);
 }

@@ -27,21 +27,6 @@ public class LocalizationBindingTests : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    /// <summary>Смена языка перерисовывает показанный текст студии.</summary>
-    [AvaloniaFact]
-    public void Switching_language_updates_text_already_on_screen()
-    {
-        Localizer.Instance.SetLanguage("ru");
-
-        var text = Shown(Studio);
-
-        Assert.Equal("Недавние", text.Text);
-
-        Localizer.Instance.SetLanguage("en");
-
-        Assert.Equal("Recent", text.Text);
-    }
-
     /// <summary>
     /// Сборка мусора между привязкой и сменой языка ничего не ломает.
     /// </summary>

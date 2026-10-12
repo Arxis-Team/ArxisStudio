@@ -215,9 +215,10 @@ public class PluginsPageTests : IDisposable
         var fine = page.Cards.Single(card => card.Plugin.Id == "arxis.one");
 
         Assert.True(broken.Plugin.IsValid, "манифест сломанного цел — отказ не в нём");
-        Assert.True(broken.HasRiseError, "не поднявшийся плагин выглядит исправным");
+        Assert.True(broken.IsProblem, "не поднявшийся плагин выглядит исправным");
         Assert.False(string.IsNullOrWhiteSpace(broken.RiseError), "отметка есть, а причины нет");
-        Assert.False(fine.HasRiseError);
+        Assert.Contains(broken.RiseError, broken.Problem);
+        Assert.False(fine.IsProblem);
     }
 
     /// <summary>

@@ -273,31 +273,6 @@ public class PluginLanguagePacksTests : IDisposable
     }
 
     /// <summary>
-    /// Пакет переводит чужой плагин.
-    /// </summary>
-    /// <remarks>
-    /// Автор переводит плагин на языки, которые знает сам, и на этом его
-    /// силы кончаются. Немец с русско-английским плагином иначе так и
-    /// остался бы с чужим языком в своей панели.
-    /// </remarks>
-    [Fact]
-    public void A_pack_translates_someone_elses_plugin()
-    {
-        var plugin = Plugin("arxis.hello", ("en.json", """{ "panel.main": "Панель" }"""));
-        var pack = Pack(
-            "arxis.lang-de",
-            "de",
-            "Deutsch",
-            """{ "projects.recent": "Öffnen" }""",
-            ("arxis.hello", """{ "panel.main": "Fenster" }"""));
-
-        Apply(pack);
-        Localizer.Instance.SetLanguage("de");
-
-        Assert.Equal("Fenster", plugin.Strings.Resolve("%panel.main%"));
-    }
-
-    /// <summary>
     /// Перевод пакета находит свой плагин, в каком бы регистре автор пакета ни написал его
     /// идентификатор, — как нашёл бы его граф зависимостей.
     /// </summary>

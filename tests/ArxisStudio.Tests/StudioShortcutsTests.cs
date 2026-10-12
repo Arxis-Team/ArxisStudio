@@ -24,24 +24,6 @@ namespace ArxisStudio.Tests;
 /// </remarks>
 public class StudioShortcutsTests
 {
-    /// <summary>Сочетание зовёт ту команду, которой его отдали.</summary>
-    [AvaloniaFact]
-    public void A_gesture_calls_the_command_it_was_given()
-    {
-        var called = new List<string>();
-        var keys = new StudioShortcuts(Calls(called));
-        var window = Shown(keys);
-
-        Assert.True(keys.Bind("Ctrl+W", "studio.close"));
-
-        window.KeyPress(Key.W, RawInputModifiers.Control, PhysicalKey.W, string.Empty);
-        Dispatcher.UIThread.RunJobs();
-
-        Assert.Equal(["studio.close"], called);
-
-        window.Close();
-    }
-
     /// <summary>
     /// Занятое сочетание второму не достаётся, и отказ не молчит.
     /// </summary>

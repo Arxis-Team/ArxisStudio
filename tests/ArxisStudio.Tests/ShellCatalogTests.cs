@@ -27,7 +27,6 @@ public class ShellCatalogTests
         Assert.All(shells, shell => Assert.EndsWith(".exe", shell.App, StringComparison.Ordinal));
         Assert.Contains("-NoLogo", shells[0].Arguments);
         Assert.Empty(shells[1].Arguments);
-        Assert.All(shells, shell => Assert.False(shell.IsSsh));
     }
 
     /// <summary>
@@ -110,7 +109,6 @@ public class ShellCatalogTests
         Assert.Equal("ssh.exe", plain.App);
         Assert.Equal(["maxim@host.example"], plain.Arguments);
         Assert.Equal("ssh maxim@host.example", plain.Title);
-        Assert.True(plain.IsSsh);
 
         Assert.Equal("ssh", custom.App);
         Assert.Equal(["-p", "2222", "host.example"], custom.Arguments);

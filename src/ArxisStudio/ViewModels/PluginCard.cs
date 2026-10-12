@@ -75,9 +75,6 @@ public sealed class PluginCard : INotifyPropertyChanged, IPluginRow
     /// </remarks>
     public string? RiseError { get; }
 
-    /// <summary>Отметка «не поднялся» показывается только тому, кто не поднялся.</summary>
-    public bool HasRiseError => RiseError is not null;
-
     /// <inheritdoc/>
     public event PropertyChangedEventHandler? PropertyChanged;
 
