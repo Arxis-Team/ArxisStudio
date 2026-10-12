@@ -38,6 +38,10 @@ namespace ArxisStudio.Services;
 public sealed class StudioDocuments
 {
     private readonly List<OpenDocument> _open = [];
+
+    // Открытия в пути — по имени документа: второе ждёт первое (OpenAsync).
+    private readonly Dictionary<string, Task> _opening = new(StringComparer.Ordinal);
+
     private readonly StudioDock _dock;
     private readonly Func<string, EditorMatch?> _editorFor;
     private readonly IStudioStatus _status;
@@ -115,12 +119,41 @@ public sealed class StudioDocuments
     /// Открывает файл во вкладке, спросив редактор у реестра вкладов.
     /// </summary>
     /// <param name="filePath">Путь к файлу.</param>
+    /// <remarks>
+    /// Второе открытие того же файла, пока первое в пути, ждёт первое, а не открывает второй документ:
+    /// проверка «уже открыт» стоит до ожиданий, и двойной щелчок по медленно открывающемуся файлу давал два
+    /// документа под одним именем — закрытие вкладки спрашивало о сохранении скрытый, а видимый уходил без
+    /// вопроса (запись 385).
+    /// </remarks>
     public async Task OpenAsync(string filePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
 
         var id = Name(filePath);
 
+        if (_opening.TryGetValue(id, out var pending))
+        {
+            await pending;
+            return;
+        }
+
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        _opening[id] = done.Task;
+
+        try
+        {
+            await OpenCoreAsync(filePath, id);
+        }
+        finally
+        {
+            _opening.Remove(id);
+            done.SetResult();
+        }
+    }
+
+    private async Task OpenCoreAsync(string filePath, string id)
+    {
         if (_open.Any(document => string.Equals(document.Id, id, StringComparison.Ordinal)))
         {
             _dock.Show(id);

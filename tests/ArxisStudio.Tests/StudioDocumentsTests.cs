@@ -62,6 +62,31 @@ public class StudioDocumentsTests
         Assert.Equal(@"doc:C:\проект\Окно.axaml", dock.Showing);
     }
 
+    /// <summary>
+    /// Второе открытие того же файла, пока первое в пути, ждёт первое, а не открывает второй документ.
+    /// </summary>
+    /// <remarks>
+    /// Проверка «уже открыт» стояла до ожиданий, и двойной щелчок по медленно открывающемуся файлу давал два
+    /// документа под одним именем: закрытие вкладки спрашивало о сохранении скрытый, а видимый уходил без
+    /// вопроса (запись 385).
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_second_open_while_the_first_is_on_its_way_waits_for_it()
+    {
+        var editor = new SlowEditor();
+        var (documents, dock, _) = Studio(editorFor: _ => new EditorMatch(editor, "arxis.designer"));
+
+        var first = documents.OpenAsync(@"C:\проект\Окно.axaml");
+        var second = documents.OpenAsync(@"C:\проект\Окно.axaml");
+
+        editor.Done.SetResult();
+        await Task.WhenAll(first, second);
+
+        Assert.Equal(1, editor.Opened);
+        Assert.Equal(@"doc:C:\проект\Окно.axaml", Assert.Single(documents.Opened).Id);
+        Assert.Equal(@"doc:C:\проект\Окно.axaml", dock.Showing);
+    }
+
     /// <summary>Открывать нечем — студия говорит об этом и вкладки не заводит.</summary>
     [AvaloniaFact]
     public async Task A_file_nobody_opens_leaves_no_tab()
@@ -586,6 +611,29 @@ public class StudioDocumentsTests
             await Task.Yield();
 
             throw new InvalidOperationException("редактор упал после ожидания");
+        }
+    }
+
+    /// <summary>Редактор, который открывает файл, пока тест его не отпустит.</summary>
+    private sealed class SlowEditor : DocumentEditor
+    {
+        /// <summary>Отпускает открытие.</summary>
+        public TaskCompletionSource Done { get; } = new();
+
+        /// <summary>Сколько раз его просили открыть.</summary>
+        public int Opened { get; private set; }
+
+        /// <inheritdoc/>
+        public override bool CanOpen(string filePath) => true;
+
+        /// <inheritdoc/>
+        public override async Task<(DocumentView? View, string? Error)> OpenAsync(string filePath)
+        {
+            Opened++;
+
+            await Done.Task;
+
+            return (new ProbeView(filePath), null);
         }
     }
 
