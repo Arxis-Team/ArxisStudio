@@ -172,9 +172,15 @@ internal static class Solutions
 
         foreach (var item in items)
         {
-            // Импорт рядом с проектом MSBuild читает при оценке, а маска SDK берёт его и элементом.
+            // Импорт рядом с проектом MSBuild читает при оценке, а маска SDK берёт его и элементом; импорт в obj пишет
+            // восстановление.
             if (item.EndsWith(".props", StringComparison.OrdinalIgnoreCase) || item.EndsWith(".targets", StringComparison.OrdinalIgnoreCase))
+            {
                 project.EvaluationInputs.Add(file.Directory.Combine(item));
+
+                if (item.StartsWith("obj/", StringComparison.OrdinalIgnoreCase))
+                    project.RestoreOutputs.Add(file.Directory.Combine(item));
+            }
 
             project.Items.Add(new ProjectItem
             {

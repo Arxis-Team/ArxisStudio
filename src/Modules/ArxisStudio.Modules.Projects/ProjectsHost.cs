@@ -937,11 +937,21 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
         // очередь, задача человека и перечитывание модели после удачи.
         if (item.Edit is { } edit)
         {
+            // Правка переписывает файл проекта или файл общих версий и выходы восстановления, а модель перечитывает
+            // сама: слежение придержано, как у восстановления, иначе эхо её же записей просило бы вторую загрузку.
+            using var editing = session.Hold();
+
             var edited = await PackageInstaller.ApplyAndRestoreAsync(
                 edit, session.Workspace, item.Layout, progress, both.Token);
 
             if (!edited.HasErrors)
-                await Reread(session, ProjectsLoadReason.Packages);
+            {
+                CanonicalPath[] written = item.Layout is { IsCentral: true } central
+                    ? [edit.ProjectFilePath, central.VersionsFilePath]
+                    : [edit.ProjectFilePath];
+
+                await RereadRestoredAsync(session, editing, ProjectsLoadReason.Packages, written);
+            }
 
             return edited;
         }
@@ -957,15 +967,44 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
                 return restored;
         }
 
+        var restore = operation.Kind == ProjectOperationKind.Restore;
+        using var hold = restore ? session.Hold() : NoWatchHold.Instance;
+
         var result = await session.Workspace.ExecuteAsync(
             Request(session, operation, operation.Kind), progress, both.Token);
 
         // Восстановление переписывает то, из чего собирается модель. Перечитывается она здесь же,
         // на полосе: поставить перезагрузку в очередь значило бы ждать самого себя.
-        if (operation.Kind == ProjectOperationKind.Restore && !result.HasErrors)
-            await Reread(session, ProjectsLoadReason.Restore);
+        if (restore && !result.HasErrors)
+            await RereadRestoredAsync(session, hold, ProjectsLoadReason.Restore, []);
 
         return result;
+    }
+
+    /// <summary>
+    /// Перечитывает модель после работы, переписавшей выходы восстановления, и подтверждает придержке слежения, что
+    /// прочитанное — её записи.
+    /// </summary>
+    /// <param name="session">Сессия службы.</param>
+    /// <param name="hold">Придержка слежения, взятая до работы.</param>
+    /// <param name="reason">Почему перечитывается модель.</param>
+    /// <param name="written">Что работа переписала, кроме выходов восстановления.</param>
+    /// <remarks>
+    /// Выходы восстановления запоминаются такими, какими работа их оставила, — до перечитывания: иначе их эхо,
+    /// пришедшее посреди него, судилось бы по прежнему снимку и просило вторую загрузку ради того, что перечитывание
+    /// уже прочло. Так было у восстановления службы и у правки пакетов, а у восстановления профиля — нет (запись 416).
+    /// </remarks>
+    private async Task RereadRestoredAsync(
+        ProjectsSession session,
+        IWatchHold hold,
+        ProjectsLoadReason reason,
+        IEnumerable<CanonicalPath> written)
+    {
+        if (session.Snapshot is { } snapshot)
+            hold.Expect(written.Concat(snapshot.Projects.SelectMany(project => project.RestoreOutputs)));
+
+        if (await Reread(session, reason))
+            hold.Confirm();
     }
 
     /// <summary>
@@ -994,13 +1033,7 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
         var result = await run.Session.Workspace.ExecuteAsync(run.Request, progress, cancellationToken);
 
         if (restore && !result.HasErrors)
-        {
-            if (session.Snapshot is { } snapshot)
-                hold.Expect(snapshot.Projects.SelectMany(project => project.RestoreOutputs));
-
-            if (await Reread(session, ProjectsLoadReason.Restore))
-                hold.Confirm();
-        }
+            await RereadRestoredAsync(session, hold, ProjectsLoadReason.Restore, []);
 
         return result;
     }

@@ -104,6 +104,40 @@ public sealed class ProjectsFilesWatchTests() : ProjectsOnDisk("projects-files-w
     }
 
     /// <summary>
+    /// Восстановление службы перечитывает модель один раз — эхо его выходов второго не просит.
+    /// </summary>
+    /// <remarks>
+    /// Восстановление переписывает выходы, которые читает оценка, и перечитывает модель само, а слежение придерживала
+    /// только операция профиля: эхо выходов, пришедшее посреди перечитывания службы, просило вторую загрузку
+    /// (запись 416).
+    /// </remarks>
+    [Fact]
+    public async Task A_restore_rereads_the_model_once()
+    {
+        Lay();
+        Directory.CreateDirectory(At("obj"));
+        File.WriteAllText(At("obj/Lib.csproj.nuget.g.props"), "<Project />");
+
+        using var studio = await OpenAsync(history: false, write: false, watch: Watch);
+
+        studio.Provider.Executed = request =>
+        {
+            if (request.Kind == ProjectOperationKind.Restore)
+                File.WriteAllText(At("obj/Lib.csproj.nuget.g.props"), "<Project><PropertyGroup /></Project>");
+
+            return ProjectOperationResult.Succeeded();
+        };
+
+        var status = await EditWhileRereadingAsync(
+            studio,
+            () => studio.Build.RunAsync(ProjectOperationKind.Restore, cancellationToken: Token),
+            "obj/Lib.csproj.nuget.g.props");
+
+        Assert.Equal(ProjectsLoadReason.Restore, status.LastLoad?.Reason);
+        Assert.Equal(2, studio.Provider.Loads);
+    }
+
+    /// <summary>
     /// Файл, появившийся снаружи после того, как перечитывание прочло папку, перечитывает модель ещё
     /// раз — и называет причиной его, а не правку службы.
     /// </summary>
