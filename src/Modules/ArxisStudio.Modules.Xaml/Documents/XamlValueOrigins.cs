@@ -107,7 +107,7 @@ internal static class XamlValueOrigins
         {
             XamlValueOrigin.Style or XamlValueOrigin.Template => Selector(owner, property),
             XamlValueOrigin.Inherited => Ancestor(owner, property),
-            XamlValueOrigin.Expression => element.GetAttribute(member.Name)?.GetValueText(),
+            XamlValueOrigin.Expression => Attribute(element, member.Name)?.GetValueText(),
             _ => null,
         };
 
@@ -146,7 +146,7 @@ internal static class XamlValueOrigins
     /// </summary>
     private static XamlValueOrigin Written(XamlElement element, string name, bool local)
     {
-        if (element.GetAttribute(name) is { } attribute)
+        if (Attribute(element, name) is { } attribute)
             return attribute.GetValue() is XamlMarkupExtensionValue ? XamlValueOrigin.Expression : XamlValueOrigin.Document;
 
         if (element.GetDesignTimeAttribute(name) is not null)
@@ -154,6 +154,20 @@ internal static class XamlValueOrigins
 
         return local ? XamlValueOrigin.Code : XamlValueOrigin.Default;
     }
+
+    /// <summary>Атрибут члена у элемента; присоединённый — с какой бы приставкой документ ни назвал владельца.</summary>
+    /// <remarks>
+    /// Поиск без приставки не видел <c>c:Shelf.Slot="{Binding Number}"</c>: значение числилось поставленным кодом,
+    /// снимок делал его написанным текстом, и протяжка поля числа затёрла бы привязку (запись 391). Двух
+    /// присоединённых с одним именем владельца у элемента не бывает: владельцы-тёзки из разных пространств — уже не
+    /// форма, а загадка.
+    /// </remarks>
+    private static XamlAttribute? Attribute(XamlElement element, string name) =>
+        name.Contains('.', StringComparison.Ordinal)
+            ? element.Attributes.FirstOrDefault(attribute =>
+                attribute is not XamlNamespaceDeclaration && !attribute.IsDirective && !attribute.IsDesignTime &&
+                string.Equals(attribute.Name.LocalName, name, StringComparison.Ordinal))
+            : element.GetAttribute(name);
 
     /// <summary>Селектор стиля, поставившего значение, или тема контрола; null — сказать нечего.</summary>
     /// <remarks>

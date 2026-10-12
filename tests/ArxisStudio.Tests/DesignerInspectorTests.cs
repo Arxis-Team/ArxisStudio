@@ -644,6 +644,34 @@ public class DesignerInspectorTests
     }
 
     /// <summary>
+    /// Присоединённое с приставкой владельца, заданное выражением, — выражение, а не написанное значение.
+    /// </summary>
+    /// <remarks>
+    /// Источник значения искал атрибут без приставки и у <c>c:Shelf.Slot="{Binding Number}"</c> его не находил: значение
+    /// числилось поставленным кодом, снимок делал его написанным текстом «{Binding Number}», и вместо жетона выражения
+    /// стояло поле числа с нулём, протяжка которого затёрла бы привязку (запись 391).
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_prefixed_attached_member_set_by_an_expression_is_an_expression()
+    {
+        await using var studio = new LiveFormStudio();
+
+        Emit(studio);
+
+        var document = await studio.OpenAsync("MainWindow.axaml", ShelfForm.Replace(
+            "<Button x:Name=\"Go\" Content=\"Пуск\" />", "<Button x:Name=\"Go\" c:Shelf.Slot=\"{Binding Number}\" Content=\"Пуск\" />", StringComparison.Ordinal));
+        var panel = studio.Inspector();
+
+        document.Select([Go]);
+        LiveFormStudio.Frame();
+
+        var slot = Row(panel, "Shelf.Slot");
+
+        Assert.Equal(InspectorValueSource.Expression, slot.Value?.Source);
+        Assert.True(slot.IsExpression, "присоединённое выражение показано значением");
+    }
+
+    /// <summary>
     /// Свойство проекта с обеими границами из <c>[Range]</c> — ползунок с полем, как у Unity, и набранное в поле пишется
     /// в документ; границы таблицы метаданных — у <c>FontSize</c> — ползунка не дают (запись 378).
     /// </summary>
