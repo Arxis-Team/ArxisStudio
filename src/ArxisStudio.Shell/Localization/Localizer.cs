@@ -294,7 +294,11 @@ public sealed class Localizer : INotifyPropertyChanged, IStringSource
         foreach (var pair in StringFile.Read(Path.Combine(_user, $"{language}.json")))
             merged[pair.Key] = pair.Value;
 
-        return merged.ToFrozenDictionary(StringComparer.Ordinal);
+        // Шаблон с опечаткой в подстановке уступает английскому: собранный string.Format, он бросал бы там,
+        // где его собирают, — часто в обработчике (запись 397).
+        return string.Equals(language, FallbackLanguage, StringComparison.OrdinalIgnoreCase)
+            ? merged.ToFrozenDictionary(StringComparer.Ordinal)
+            : StringPatterns.Sound(merged, _fallback);
     }
 
     /// <summary>

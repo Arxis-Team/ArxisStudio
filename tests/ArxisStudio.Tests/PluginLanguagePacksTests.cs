@@ -64,6 +64,30 @@ public class PluginLanguagePacksTests : IDisposable
     }
 
     /// <summary>
+    /// Перевод шаблона, в котором не подставить то, что подставляет английская строка, студия не берёт.
+    /// </summary>
+    /// <remarks>
+    /// Шаблоны студия собирает <c>string.Format</c> — часто в обработчике, — и перевод с опечаткой в подстановке
+    /// (<c>{0</c>, <c>{1}</c> там, где аргумент один) ронял его <c>FormatException</c>, а сбой приписывался тому, чей
+    /// обработчик. Такой перевод уступает английскому; строка без подстановок — не шаблон, и скобки в ней законны
+    /// (запись 397).
+    /// </remarks>
+    [Fact]
+    public void A_translated_pattern_that_cannot_take_its_arguments_falls_into_english()
+    {
+        var pack = Pack("arxis.lang-de", "de", "Deutsch", """
+            { "documents.save.failed": "Nicht gespeichert: {0", "plugins.disabled.many": "Aus: {1}", "projects.recent": "{Öffnen}" }
+            """);
+
+        Localizer.Instance.UsePacks(new PluginLanguages([pack]));
+        Localizer.Instance.SetLanguage("de");
+
+        Assert.Equal("Not saved: {0}", Localizer.Instance["documents.save.failed"]);
+        Assert.Equal("Disabled: {0}", Localizer.Instance["plugins.disabled.many"]);
+        Assert.Equal("{Öffnen}", Localizer.Instance["projects.recent"]);
+    }
+
+    /// <summary>
     /// Название языка берётся из манифеста, если словарь себя не назвал.
     /// </summary>
     /// <remarks>

@@ -265,11 +265,13 @@ public sealed class PluginStrings : IStudioStrings, IStringSource
             // На запасном языке свой файл и есть словарь по умолчанию: читать его второй раз
             // незачем, а старшинство он сохраняет — слово автора о своём продукте старше слова
             // языкового пакета, на каком бы языке оно ни было сказано.
+            // Перевод шаблона с опечаткой в подстановке уступает словарю по умолчанию — у своего перевода и у
+            // перевода из пакета одинаково: string.Format бросал бы на нём в коде расширения (запись 397).
             _translated = string.Equals(language, Localizer.FallbackLanguage, StringComparison.OrdinalIgnoreCase)
                 ? _written
-                : Read(FileOf(language));
+                : StringPatterns.Sound(Read(FileOf(language)), _written);
             _packed = _pluginId is { Length: > 0 } id && _translations is not null
-                ? _translations.Read(id, language).ToFrozenDictionary(StringComparer.Ordinal)
+                ? StringPatterns.Sound(_translations.Read(id, language), _written)
                 : FrozenDictionary<string, string>.Empty;
 
             _loaded = language;

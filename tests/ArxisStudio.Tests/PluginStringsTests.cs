@@ -68,6 +68,26 @@ public class PluginStringsTests : IDisposable
     }
 
     /// <summary>
+    /// Перевод шаблона расширения, в котором не подставить то, что подставляет английская строка, уступает ей.
+    /// </summary>
+    /// <remarks>
+    /// Шаблон расширение собирает <c>string.Format</c> в своём коде, и перевод с опечаткой в подстановке ронял бы его
+    /// там (запись 397).
+    /// </remarks>
+    [Fact]
+    public void A_translated_pattern_that_cannot_take_its_arguments_falls_into_english()
+    {
+        var plugin = Plugin(
+            ("en.json", """{ "status.saved": "Saved {0}", "panel.main": "Panel" }"""),
+            ("ru.json", """{ "status.saved": "Сохранено {0", "panel.main": "Панель {основная}" }"""));
+
+        Localizer.Instance.SetLanguage("ru");
+
+        Assert.Equal("Saved {0}", plugin.Strings["status.saved"]);
+        Assert.Equal("Панель {основная}", plugin.Strings["panel.main"]);
+    }
+
+    /// <summary>
     /// Ключа нет нигде — он виден как <c>!ключ!</c>.
     /// </summary>
     /// <remarks>
