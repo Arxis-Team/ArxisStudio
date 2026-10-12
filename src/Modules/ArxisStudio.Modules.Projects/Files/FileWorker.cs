@@ -210,6 +210,7 @@ internal static class FileWorker
         return new FileWorkResult(ProjectOperationResult.Succeeded(), null)
         {
             Rereads = writes.Any(write => HistoryUndo.IsBuildInput(write.Path.Value)),
+            Written = [.. writes.Select(write => write.Path)],
         };
     }
 

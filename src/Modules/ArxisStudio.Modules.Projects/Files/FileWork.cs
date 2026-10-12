@@ -59,6 +59,12 @@ internal sealed record FileWorkResult(ProjectOperationResult Result, FilesChange
     /// который читает MSBuild. У переноса, копии и удаления — всегда, когда диск поменялся.
     /// </summary>
     public bool Rereads { get; init; } = Change is not null;
+
+    /// <summary>
+    /// Файлы, которые правка переписала или вернула на месте: перечитывание их прочтёт, и слежение ждёт их эхо, как
+    /// эхо переездов. Переносы, копии и удаления называет <see cref="Change"/>.
+    /// </summary>
+    public ImmutableArray<CanonicalPath> Written { get; init; } = [];
 }
 
 /// <summary>

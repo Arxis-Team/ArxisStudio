@@ -294,7 +294,7 @@ internal sealed class FilesService : IStudioFiles
                 // Сейчас, до перечитывания: оно начнётся позже и прочтёт входы такими или новее. Правке,
                 // которая модель не перечитывает, запоминать нечего — подтверждать будет некому.
                 if (done.Rereads)
-                    hold.Expect(Inputs(snapshot, done.Change));
+                    hold.Expect(Inputs(snapshot, done.Change, done.Written));
 
                 outcome.TrySetResult(done);
             }
@@ -332,21 +332,28 @@ internal sealed class FilesService : IStudioFiles
     /// </summary>
     /// <param name="snapshot">Снимок, над которым шла правка.</param>
     /// <param name="change">Что правка сделала; null — ничего.</param>
+    /// <param name="written">Что правка переписала или вернула на месте.</param>
     /// <remarks>
     /// Не все входы: их у проекта сотни, от SDK до пакетов, а правка трогает свои файлы. Лишний
     /// запомненный вход безвреден — модель после правки его прочла, — пропущенный стоит одной
     /// загрузки.
     /// </remarks>
-    private static IEnumerable<CanonicalPath> Inputs(SolutionSnapshot snapshot, FilesChangedEventArgs? change)
+    private static IEnumerable<CanonicalPath> Inputs(
+        SolutionSnapshot snapshot,
+        FilesChangedEventArgs? change,
+        ImmutableArray<CanonicalPath> written)
     {
+        // Переписанное на месте — тоже: записанный .props перечитывание прочтёт, а без ожидания его эхо просило бы
+        // загрузку и после него (запись 415).
         ImmutableArray<CanonicalPath> touched = change is null
-            ? []
+            ? written
             :
             [
                 .. change.Moved.SelectMany(move => new[] { move.From, move.To }),
                 .. change.Copied.Select(copy => copy.To),
                 .. change.Deleted,
                 .. change.Created,
+                .. written,
             ];
 
         return snapshot.Projects

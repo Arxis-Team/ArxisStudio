@@ -106,6 +106,7 @@ internal static class HistoryUndo
         return new FileWorkResult(ProjectOperationResult.Succeeded(warnings), Change(done))
         {
             Rereads = done.Any(step => step.Rereads && step.Changes.Count > 0),
+            Written = [.. done.Select(step => step.Written).OfType<string>().Select(CanonicalPath.Create)],
         };
     }
 
@@ -176,7 +177,7 @@ internal static class HistoryUndo
         store.Record(label, HistoryOrigin.Studio, step.Changes);
         store.Flush();
 
-        return new FileWorkResult(ProjectOperationResult.Succeeded(), null) { Rereads = step.Rereads };
+        return new FileWorkResult(ProjectOperationResult.Succeeded(), null) { Rereads = step.Rereads, Written = [path] };
     }
 
     /// <summary>
@@ -511,6 +512,9 @@ internal static class HistoryUndo
         /// <summary>Может ли сделанное поменять модель.</summary>
         public virtual bool Rereads => true;
 
+        /// <summary>Файл, который шаг переписал или вернул на месте; null — такого нет.</summary>
+        public virtual string? Written => null;
+
         /// <summary>Делает шаг.</summary>
         public abstract void Do(LocalHistoryStore store);
 
@@ -628,6 +632,8 @@ internal static class HistoryUndo
         private readonly List<string> _made = [];
         private bool _written;
 
+        public override string? Written => _written ? path : null;
+
         public override void Do(LocalHistoryStore store)
         {
             var bytes = store.Read(content) ?? throw new IOException(corrupted);
@@ -659,6 +665,8 @@ internal static class HistoryUndo
         private bool _written;
 
         public override bool Rereads => IsBuildInput(path);
+
+        public override string? Written => _written ? path : null;
 
         public override void Do(LocalHistoryStore store)
         {

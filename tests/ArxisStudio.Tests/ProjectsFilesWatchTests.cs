@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text;
 using ArxisStudio.Modules.Projects.Watching;
 using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
@@ -71,6 +72,33 @@ public sealed class ProjectsFilesWatchTests() : ProjectsOnDisk("projects-files-w
             "Views/Notes.txt");
 
         Assert.Contains("Views\\Notes.txt", File.ReadAllText(At("Lib.csproj")), StringComparison.Ordinal);
+        Assert.Equal(ProjectsLoadReason.Files, status.LastLoad?.Reason);
+        Assert.Equal(2, studio.Provider.Loads);
+    }
+
+    /// <summary>
+    /// Запись файла, который читает MSBuild, перечитывает модель один раз — и её эхо второго не просит.
+    /// </summary>
+    /// <remarks>
+    /// Запись перечитывала модель, а ожидание слежения знало только файлы проектов: эхо переписанного <c>.props</c>
+    /// приходило переменой снаружи и просило вторую загрузку (запись 415).
+    /// </remarks>
+    [Fact]
+    public async Task A_written_build_input_rereads_the_model_once()
+    {
+        Lay();
+        File.WriteAllText(At("Directory.Build.props"), "<Project />");
+
+        using var studio = await OpenAsync(history: false, write: false, watch: Watch);
+
+        var status = await EditWhileRereadingAsync(
+            studio,
+            () => studio.Files.WriteAsync(
+                [new FileWrite(Canon("Directory.Build.props"), Encoding.UTF8.GetBytes("<Project><PropertyGroup /></Project>"))],
+                "Сохранение Directory.Build.props",
+                Token),
+            "Directory.Build.props");
+
         Assert.Equal(ProjectsLoadReason.Files, status.LastLoad?.Reason);
         Assert.Equal(2, studio.Provider.Loads);
     }
