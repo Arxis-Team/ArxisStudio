@@ -12,7 +12,17 @@ namespace ArxisStudio.Modules.UiDesigner.Documents;
 /// <param name="Text">Значение текстом; null — снять: член вернётся к тому, что дадут стиль, наследование и умолчание.</param>
 /// <param name="OwnerNamespace">Пространство разметки владельца присоединённого члена; null — свой член.</param>
 /// <param name="OwnerPrefix">Префикс, который предлагает сборка владельца, — если пространство придётся объявить.</param>
-internal sealed record FormWrite(string Member, string? Text, string? OwnerNamespace = null, string? OwnerPrefix = null);
+/// <param name="Owners">
+/// Имена, которыми документ может написать свой член длинной записью, — тип элемента и его базы, коротко:
+/// <c>&lt;Window.DataContext&gt;</c>, <c>&lt;Control.DataContext&gt;</c>; null — никакие, кроме имени самого элемента
+/// (<see cref="FormEdits.PropertyElement"/>).
+/// </param>
+internal sealed record FormWrite(
+    string Member,
+    string? Text,
+    string? OwnerNamespace = null,
+    string? OwnerPrefix = null,
+    IReadOnlyCollection<string>? Owners = null);
 
 /// <summary>Запись членов элементов — правка инспектора.</summary>
 internal sealed partial class FormEdits
@@ -156,6 +166,29 @@ internal sealed partial class FormEdits
         }
 
         return write.Member.Contains('.', StringComparison.Ordinal) ? Attached(element, write) : element.GetAttribute(write.Member);
+    }
+
+    /// <summary>Элемент свойства, которым документ пишет член: <c>&lt;Window.DataContext&gt;</c>.</summary>
+    /// <remarks>
+    /// Свой член пишут владельцем — именем элемента, типом или его базой, — а присоединённый — его владельцем: у окна
+    /// <c>&lt;Design.DataContext&gt;</c> — не его <c>DataContext</c>, а данные для дизайна (запись 422).
+    /// </remarks>
+    /// <param name="element">Элемент.</param>
+    /// <param name="write">Член — как его называет тот, кто правит; текст не смотрится.</param>
+    /// <returns>Элемент свойства; null — член так не написан.</returns>
+    internal static XamlElement? PropertyElement(XamlElement element, FormWrite write)
+    {
+        if (string.Equals(write.Member, NameDirective, StringComparison.Ordinal) ||
+            write.Member.StartsWith(DesignPrefix, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        return element.MemberElements.FirstOrDefault(child => write.Member.Contains('.', StringComparison.Ordinal)
+            ? string.Equals(child.Name.LocalName, write.Member, StringComparison.Ordinal)
+            : string.Equals(child.Name.MemberName, write.Member, StringComparison.Ordinal) &&
+              child.Name.OwnerName is { } owner &&
+              (string.Equals(owner, element.Name.LocalName, StringComparison.Ordinal) || write.Owners?.Contains(owner) == true));
     }
 
     /// <summary>

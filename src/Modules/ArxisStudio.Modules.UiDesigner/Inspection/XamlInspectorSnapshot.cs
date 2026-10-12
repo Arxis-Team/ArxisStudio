@@ -1,5 +1,6 @@
 using System.Globalization;
 using ArxisStudio.Inspector;
+using ArxisStudio.Markup;
 using ArxisStudio.Markup.Xaml;
 using ArxisStudio.Modules.UiDesigner.Documents;
 using ArxisStudio.Sdk;
@@ -14,9 +15,12 @@ namespace ArxisStudio.Modules.UiDesigner.Inspection;
 /// <para>
 /// <b>Свойства — члены, которые есть у всех выбранных</b>: свои и присоединённые, которые читает родитель или уже
 /// написал документ (<see cref="IXamlDesignView.GetMembers"/>), и те, что таблицы метаданных просят показывать
-/// всегда (<c>ToolTip.Tip</c>, — <see cref="IXamlDesignView.GetMember"/>). Член, заданный элементом-свойством или
+/// всегда (<c>ToolTip.Tip</c>, — <see cref="IXamlDesignView.GetMember"/>). Член, заданный элементом свойства или
 /// содержимым, — только для чтения: атрибут рядом дал бы загрузке один член дважды, и она отказала бы файлу.
-/// Скрытым он становится по слову автора — <c>[Browsable(false)]</c>, <c>[EditorBrowsable(Never)]</c>,
+/// Написанное в элементе свойства — написанное здесь, и строка показывает его (запись 422). Элемент свойства своего
+/// члена назван владельцем — типом элемента или его базой, — и <c>&lt;Design.DataContext&gt;</c> у окна не его
+/// <c>DataContext</c>, а присоединённый <c>&lt;ToolTip.Tip&gt;</c> — член <c>ToolTip.Tip</c>.
+/// Скрытым член становится по слову автора — <c>[Browsable(false)]</c>, <c>[EditorBrowsable(Never)]</c>,
 /// <c>[PrivateApi]</c>, устаревший, — дополнительным — по <c>[EditorBrowsable(Advanced)]</c> и <c>[Unstable]</c>.
 /// </para>
 /// <para>
@@ -279,7 +283,7 @@ internal sealed class XamlInspectorSnapshot
             if (name == "Name" || !picked.Skip(1).All(item => item.Members.ContainsKey(name)))
                 continue;
 
-            var setAsElement = picked.Any(item => SetAsElement(item.Element, name, item.Info?.ContentMember));
+            var setAsElement = picked.Any(item => SetAsElement(item, name));
             var attributes = member.Attributes;
 
             specs[name] = new Spec(Kind.Member, member, new InspectorProperty(name, TypeOf(member.ValueType))
@@ -448,7 +452,10 @@ internal sealed class XamlInspectorSnapshot
         if (written is not null && origin is not (InspectorValueSource.Expression or InspectorValueSource.Design))
             origin = InspectorValueSource.Local;
 
-        return new InspectorValue(origin is InspectorValueSource.Local or InspectorValueSource.Design ? written ?? value.Text : value.Text)
+        // Длинная запись — написанное, но не текст значения: «<vm:Main />» поле числа или цвета не прочтёт.
+        var asText = origin is InspectorValueSource.Local or InspectorValueSource.Design && LongForm(item, spec) is null;
+
+        return new InspectorValue(asText ? written ?? value.Text : value.Text)
         {
             Written = written,
             Source = origin,
@@ -490,19 +497,41 @@ internal sealed class XamlInspectorSnapshot
                 attribute.Name.LocalName == id &&
                 (member.OwnerXmlNamespace is null ||
                  string.Equals(element.NamespaceContext.LookupNamespace(attribute.Name.Prefix), member.OwnerXmlNamespace, StringComparison.Ordinal)))
-                ?.GetValueText();
+                ?.GetValueText() ?? LongText(item, spec);
         }
 
-        return element.GetAttribute(id)?.GetValueText();
+        return element.GetAttribute(id)?.GetValueText() ?? LongText(item, spec);
     }
 
     /// <summary>
-    /// Задан ли член длинной записью — элементом-свойством или содержимым: атрибут рядом дал бы загрузке один член
+    /// Задан ли член длинной записью — элементом свойства или содержимым: атрибут рядом дал бы загрузке один член
     /// дважды.
     /// </summary>
-    private static bool SetAsElement(XamlElement element, string member, string? contentMember) =>
-        element.MemberElements.Any(child => child.Name.MemberName == member) ||
-        (member == contentMember && element.ContentElements.Any());
+    private static bool SetAsElement(Picked item, string member) =>
+        FormEdits.PropertyElement(item.Element, new FormWrite(member, null, Owners: OwnersOf(item))) is not null ||
+        (member == item.Info?.ContentMember && item.Element.ContentElements.Any());
+
+    /// <summary>
+    /// Элемент свойства, которым выбранный пишет член: <c>&lt;Window.DataContext&gt;</c>, — по тому же правилу, по
+    /// которому запись его снимет (<see cref="FormEdits.PropertyElement"/>).
+    /// </summary>
+    private static XamlElement? LongForm(Picked item, Spec spec) =>
+        spec.Kind == Kind.Member ? FormEdits.PropertyElement(item.Element, new FormWrite(spec.Property.Id, null, Owners: OwnersOf(item))) : null;
+
+    /// <summary>Что написано в элементе свойства — одной строкой: <c>&lt;vm:Main /&gt;</c>.</summary>
+    private static string? LongText(Picked item, Spec spec)
+    {
+        if (LongForm(item, spec) is not { } written || written.Elements.ToList() is not [var first, ..] children)
+            return null;
+
+        var text = written.Document.SourceText.GetText(TextSpan.FromBounds(first.Span.Start, children[^1].Span.End));
+
+        return string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    /// <summary>Имена, которыми выбранный пишет свои члены длинной записью: его тип и базы — коротко.</summary>
+    private static IReadOnlyCollection<string> OwnersOf(Picked item) =>
+        item.Info is { } info ? [XamlTypeName(info.TypeFullName), .. info.BaseTypes.Select(XamlTypeName)] : [];
 
     /// <summary>Тип выбранного: общий у всех — сам тип, а у разных — ближайшая общая база.</summary>
     private static InspectorTypeInfo TypeOf(List<Picked> picked)

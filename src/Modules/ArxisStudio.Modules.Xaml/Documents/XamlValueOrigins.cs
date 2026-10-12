@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.Loader;
+using ArxisStudio.Markup;
 using ArxisStudio.Markup.Xaml;
 using ArxisStudio.Markup.Xaml.Loader;
 using ArxisStudio.Xaml;
@@ -46,8 +47,10 @@ internal static class XamlValueOrigins
             var value = member.ClrProperty is { CanRead: true } clr && clr.GetIndexParameters().Length == 0
                 ? clr.GetValue(target)
                 : null;
+            var origin = Written(element, member.Name, local: false, target.GetType());
 
-            return new XamlMemberValue(TextOf(value), Written(element, member.Name, local: false), null, Shared(value));
+            return new XamlMemberValue(
+                TextOf(value), origin, origin == XamlValueOrigin.Document ? Long(element, member.Name, target.GetType()) : null, Shared(value));
         }
         catch (Exception e) when (e is InvalidOperationException or TargetInvocationException or NotSupportedException
                                       or ArgumentException)
@@ -100,7 +103,7 @@ internal static class XamlValueOrigins
     {
         var info = session.GetValueInfo(owner, property);
         var priority = owner.GetDiagnostic(property).Priority;
-        var origin = OriginOf(info.Source, priority, element, member.Name);
+        var origin = OriginOf(info.Source, priority, element, member.Name, owner.GetType());
         var value = info.EffectiveValue;
 
         var detail = origin switch
@@ -108,6 +111,7 @@ internal static class XamlValueOrigins
             XamlValueOrigin.Style or XamlValueOrigin.Template => Selector(owner, property),
             XamlValueOrigin.Inherited => Ancestor(owner, property),
             XamlValueOrigin.Expression => Attribute(element, member.Name)?.GetValueText(),
+            XamlValueOrigin.Document => Long(element, member.Name, owner.GetType()),
             _ => null,
         };
 
@@ -120,17 +124,18 @@ internal static class XamlValueOrigins
     /// <c>{DynamicResource}</c> стиля темы. Победил атрибут элемента — что он такое, решает он сам: литерал поверх
     /// выражения стиля — записанное значение, а не выражение (запись 372).
     /// </remarks>
-    private static XamlValueOrigin OriginOf(XamlValueSource source, BindingPriority priority, XamlElement element, string name) =>
+    private static XamlValueOrigin OriginOf(
+        XamlValueSource source, BindingPriority priority, XamlElement element, string name, Type type) =>
         source switch
         {
-            XamlValueSource.Local => Written(element, name, local: true),
+            XamlValueSource.Local => Written(element, name, local: true, type),
             XamlValueSource.Binding => priority switch
             {
                 BindingPriority.Style or BindingPriority.StyleTrigger => XamlValueOrigin.Style,
                 BindingPriority.Template => XamlValueOrigin.Template,
                 BindingPriority.Inherited => XamlValueOrigin.Inherited,
                 BindingPriority.Animation => XamlValueOrigin.Animation,
-                _ => Written(element, name, local: true),
+                _ => Written(element, name, local: true, type),
             },
             XamlValueSource.Style or XamlValueSource.StyleTrigger => XamlValueOrigin.Style,
             XamlValueSource.Template => XamlValueOrigin.Template,
@@ -140,11 +145,15 @@ internal static class XamlValueOrigins
         };
 
     /// <summary>
-    /// Кто написал значение: атрибут элемента — значением или выражением, <c>d:</c> — для дизайна; никто —
-    /// код, если значение локальное (<paramref name="local"/>), иначе умолчание: у свойства CLR, чьё значение
-    /// отвечает геттер, не узнать, ставил ли его код.
+    /// Кто написал значение: атрибут элемента — значением или выражением, <c>d:</c> — для дизайна, элемент свойства —
+    /// значением; никто — код, если значение локальное (<paramref name="local"/>), иначе умолчание: у свойства CLR,
+    /// чьё значение отвечает геттер, не узнать, ставил ли его код.
     /// </summary>
-    private static XamlValueOrigin Written(XamlElement element, string name, bool local)
+    /// <remarks>
+    /// Длинную запись — <c>&lt;Window.DataContext&gt;&lt;vm:Main/&gt;&lt;/Window.DataContext&gt;</c> — писал документ, а
+    /// не код: «задано кодом» о ней было неправдой (запись 422).
+    /// </remarks>
+    private static XamlValueOrigin Written(XamlElement element, string name, bool local, Type type)
     {
         if (Attribute(element, name) is { } attribute)
             return attribute.GetValue() is XamlMarkupExtensionValue ? XamlValueOrigin.Expression : XamlValueOrigin.Document;
@@ -152,7 +161,44 @@ internal static class XamlValueOrigins
         if (element.GetDesignTimeAttribute(name) is not null)
             return XamlValueOrigin.Design;
 
+        if (PropertyElement(element, name, type) is not null)
+            return XamlValueOrigin.Document;
+
         return local ? XamlValueOrigin.Code : XamlValueOrigin.Default;
+    }
+
+    /// <summary>Элемент свойства, которым элемент пишет член: <c>&lt;Window.DataContext&gt;</c>.</summary>
+    /// <remarks>
+    /// Свой член пишут владельцем — типом объекта или его базой, — а присоединённый — его владельцем: у окна
+    /// <c>&lt;Design.DataContext&gt;</c> — не его <c>DataContext</c>, а данные для дизайна.
+    /// </remarks>
+    private static XamlElement? PropertyElement(XamlElement element, string name, Type type) =>
+        element.MemberElements.FirstOrDefault(child => name.Contains('.', StringComparison.Ordinal)
+            ? string.Equals(child.Name.LocalName, name, StringComparison.Ordinal)
+            : string.Equals(child.Name.MemberName, name, StringComparison.Ordinal) && Owns(type, child.Name.OwnerName));
+
+    /// <summary>Называет ли имя владельца тип объекта или одну из его баз.</summary>
+    private static bool Owns(Type type, string? owner)
+    {
+        for (var at = type; at is not null && owner is not null; at = at.BaseType)
+        {
+            if (string.Equals(at.Name, owner, StringComparison.Ordinal))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>Что написано в элементе свойства — одной строкой, как подсказка: <c>&lt;vm:Main /&gt;</c>.</summary>
+    private static string? Long(XamlElement element, string name, Type type)
+    {
+        if (PropertyElement(element, name, type) is not { } written || written.Elements.ToList() is not [var first, ..] children)
+            return null;
+
+        var text = written.Document.SourceText.GetText(TextSpan.FromBounds(first.Span.Start, children[^1].Span.End));
+        var line = string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        return line.Length <= TextLimit ? line : line[..TextLimit] + "…";
     }
 
     /// <summary>Атрибут члена у элемента; присоединённый — с какой бы приставкой документ ни назвал владельца.</summary>

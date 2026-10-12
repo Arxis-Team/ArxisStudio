@@ -832,6 +832,79 @@ public class DesignerInspectorTests
     }
 
     /// <summary>
+    /// Присоединённый член, написанный элементом свойства, — тоже только чтение, а строка показывает написанное как
+    /// написанное здесь: прежде <c>&lt;ToolTip.Tip&gt;</c> не узнавался, и запись атрибутом рядом дала бы загрузке член
+    /// дважды (запись 422).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task An_attached_member_written_as_an_element_is_read_only_and_shows_what_is_written()
+    {
+        const string Tipped = """
+            <Window xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    Width="400" Height="300">
+              <StackPanel>
+                <Button x:Name="Go" Content="Пуск">
+                  <ToolTip.Tip>
+                    <TextBlock Text="Подсказка" />
+                  </ToolTip.Tip>
+                </Button>
+              </StackPanel>
+            </Window>
+            """;
+
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", Tipped);
+        var panel = studio.Inspector();
+
+        document.Select([Go]);
+        LiveFormStudio.Frame();
+
+        panel.View!.All.IsChecked = true;
+
+        var tip = Row(panel, "ToolTip.Tip");
+
+        Assert.True(tip.Property.IsReadOnly, "член, написанный элементом свойства, пишется атрибутом рядом");
+        Assert.Equal(InspectorValueSource.Local, tip.Value!.Source);
+        Assert.Equal("<TextBlock Text=\"Подсказка\" />", tip.Value.Written);
+    }
+
+    /// <summary>
+    /// Длинная запись своего члена названа владельцем — типом элемента, — и данные для дизайна у окна
+    /// (<c>&lt;Design.DataContext&gt;</c>) не запирают его собственный <c>DataContext</c> (запись 422).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Design_data_does_not_lock_the_elements_own_data_context()
+    {
+        const string Designed = """
+            <Window xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    Width="400" Height="300">
+              <Design.DataContext>
+                <SolidColorBrush Color="Red" />
+              </Design.DataContext>
+              <StackPanel>
+                <Button x:Name="Go" Content="Пуск" />
+              </StackPanel>
+            </Window>
+            """;
+
+        await using var studio = new LiveFormStudio();
+
+        await studio.OpenAsync("MainWindow.axaml", Designed);
+
+        var panel = studio.Inspector();
+
+        LiveFormStudio.Frame();
+
+        // Данных у элемента своего раздела ещё нет: DataContext — среди скрытых, а скрытые свёрнуты.
+        panel.View!.All.IsChecked = true;
+        panel.List!.Fold("hidden", folded: false);
+
+        Assert.False(Row(panel, "DataContext").Property.IsReadOnly, "данные для дизайна заперли собственный DataContext окна");
+    }
+
+    /// <summary>
     /// Выбор на холсте каретки в инспектор не уводит, а правка в инспекторе её там оставляет.
     /// </summary>
     [AvaloniaFact]

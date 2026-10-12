@@ -301,6 +301,35 @@ public class XamlMembersTests
     }
 
     /// <summary>
+    /// Значение, написанное элементом свойства, — от документа, а не от кода, и подробность называет написанное
+    /// (запись 422).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_value_written_as_a_property_element_comes_from_the_document()
+    {
+        await using var studio = new XamlStudio();
+
+        using var view = await ShowAsync(studio, """
+            <Window xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    Width="400" Height="300">
+              <StackPanel>
+                <Button x:Name="Go" Content="Пуск">
+                  <Button.Background>
+                    <SolidColorBrush Color="Red" />
+                  </Button.Background>
+                </Button>
+              </StackPanel>
+            </Window>
+            """);
+
+        var background = view.GetMember(Go, "Background")!.Value;
+
+        Assert.Equal(XamlValueOrigin.Document, background.Origin);
+        Assert.Equal("<SolidColorBrush Color=\"Red\" />", background.OriginDetail);
+    }
+
+    /// <summary>
     /// У контрола проекта: ребёнок наследника сетки читает <c>Grid.Row</c>, присоединённое владельца из проекта
     /// называет своё пространство, значение из конструктора — от кода, из <c>d:</c> — для дизайна, а атрибуты
     /// .NET доходят до члена.
