@@ -444,12 +444,16 @@ public class PluginCatalogTests : IDisposable
     }
 
     /// <summary>
-    /// Занятую папку удалить нельзя — и об этом надо сказать словами.
+    /// Занятую папку удалить нельзя — об этом сказано словами, а сама папка остаётся целой.
     /// </summary>
     /// <remarks>
     /// Сборки плагина держит запущенная студия, пока он поднят. Исключение из
     /// каталога означало бы, что кнопка «Удалить» роняет окно; молчание — что
     /// она ничего не делает. Оба ответа человеку одинаково бесполезны.
+    /// <para>
+    /// Целой — потому что удаление шло файл за файлом до первого занятого: манифест и соседние сборки
+    /// уходили, и на месте плагина оставался обрубок, которого каталог уже не видел (запись 387).
+    /// </para>
     /// </remarks>
     [Fact]
     public void A_busy_plugin_folder_is_refused_with_a_word()
@@ -460,18 +464,52 @@ public class PluginCatalogTests : IDisposable
         {
             var catalog = new PluginCatalog(_root);
             var (plugin, _) = catalog.InstallFromDirectory(source);
+            var folder = Path.Combine(_root, "arxis.figma-import");
+            var files = Directory.GetFiles(folder, "*", SearchOption.AllDirectories).Order().ToList();
 
-            using var hold = File.Open(
-                Path.Combine(_root, "arxis.figma-import", "bin", "Arxis.FigmaImport.dll"),
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.None);
+            string? error;
 
-            var error = catalog.Uninstall(plugin!);
+            using (File.Open(Path.Combine(folder, "bin", "Arxis.FigmaImport.dll"), FileMode.Open, FileAccess.Read, FileShare.None))
+                error = catalog.Uninstall(plugin!);
 
             Assert.NotNull(error);
             Assert.Contains("Каталог плагина занят", error);
-            Assert.True(Directory.Exists(Path.Combine(_root, "arxis.figma-import")));
+            Assert.Equal(files, Directory.GetFiles(folder, "*", SearchOption.AllDirectories).Order());
+            Assert.Equal("arxis.figma-import", Assert.Single(catalog.Scan()).Id);
+        }
+        finally
+        {
+            Directory.Delete(source, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Замена, которая не докопировалась, возвращает прежнюю версию, а не оставляет пусто.
+    /// </summary>
+    /// <remarks>
+    /// Прежняя папка стиралась до копирования новой, а сбой копирования убирал и недокопированное: на месте
+    /// плагина не оставалось ни старой версии, ни новой (запись 387).
+    /// </remarks>
+    [Fact]
+    public void A_replacement_that_fails_to_copy_brings_the_previous_version_back()
+    {
+        var source = Source();
+
+        try
+        {
+            var catalog = new PluginCatalog(_root);
+
+            catalog.InstallFromDirectory(source);
+            File.WriteAllText(Path.Combine(_root, "arxis.figma-import", "bin", "Old.dll"), "прошлая версия");
+
+            string? error;
+
+            using (File.Open(Path.Combine(source, "bin", "Arxis.FigmaImport.dll"), FileMode.Open, FileAccess.Read, FileShare.None))
+                (_, error) = catalog.InstallFromDirectory(source, replace: true);
+
+            Assert.NotNull(error);
+            Assert.True(File.Exists(Path.Combine(_root, "arxis.figma-import", "bin", "Old.dll")), "прежняя версия не вернулась");
+            Assert.Equal("arxis.figma-import", Assert.Single(catalog.Scan()).Id);
         }
         finally
         {

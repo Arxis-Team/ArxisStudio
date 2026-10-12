@@ -130,12 +130,14 @@ public sealed class PluginCatalog
                 "допустимы латинские буквы, цифры, точка, дефис и подчёркивание");
         }
 
+        string? previous = null;
+
         if (Directory.Exists(target))
         {
             if (!replace)
                 return (null, $"Плагин {manifest.Id} уже установлен");
 
-            if (Remove(target) is { } busy)
+            if (Retire(target, out previous) is { } busy)
                 return (null, busy);
         }
 
@@ -146,11 +148,15 @@ public sealed class PluginCatalog
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             // Недокопированная папка — это плагин, которого не собирал никто: манифест в ней
-            // может уже лежать, а сборки ещё нет. Убираем, что успели, и отвечаем словами.
-            Remove(target);
+            // может уже лежать, а сборки ещё нет. Убираем, что успели, возвращаем прежнюю версию и
+            // отвечаем словами: стёртая до копирования, она пропадала вместе с новой (запись 387).
+            if (Remove(target) is null && previous is not null)
+                Quietly(() => Directory.Move(previous, target));
 
             return (null, $"Плагин {manifest.Id} не скопировался: {e.Message}");
         }
+
+        Erase(previous);
 
         return (Read(target, Path.Combine(target, ManifestFormat.Plugin)), null);
     }
@@ -262,8 +268,10 @@ public sealed class PluginCatalog
     {
         ArgumentNullException.ThrowIfNull(plugin);
 
-        if (Remove(plugin.Directory) is { } error)
+        if (Retire(plugin.Directory, out var retired) is { } error)
             return error;
+
+        Erase(retired);
 
         // Пометка снимается молча: плагина уже нет, и отказ записать её — не отказ удалить.
         // Осиротевшая строка в файле ничего не выключит, пока плагин с этим именем не поставят
@@ -274,6 +282,49 @@ public sealed class PluginCatalog
         return null;
     }
 
+    /// <summary>
+    /// Снимает папку плагина одним шагом: переносит её в сторону, откуда её можно вернуть или стереть.
+    /// </summary>
+    /// <param name="directory">Папка плагина.</param>
+    /// <param name="aside">Куда перенесена; null — папки не было или перенести не вышло.</param>
+    /// <returns>null, если снята; иначе — почему не вышло, и тогда всё на месте.</returns>
+    /// <remarks>
+    /// Удаление шло файл за файлом до первого занятого: манифест и соседние сборки уходили, и на месте
+    /// плагина оставался обрубок, которого каталог уже не видел (запись 387). Перенос папки, в которой
+    /// что-то открыто, отказывает целиком, ничего не тронув. Снятые ждут уборки в <see cref="Retired"/>:
+    /// его имя идентификатором плагина не бывает, а манифест снятого лежит на уровень глубже, чем ищет
+    /// <see cref="Scan"/>. Оставшиеся от прошлых снятий — стёрлись не сразу — убираются здесь же.
+    /// </remarks>
+    private string? Retire(string directory, out string? aside)
+    {
+        aside = null;
+
+        if (!Directory.Exists(directory))
+            return null;
+
+        Erase(Retired);
+
+        var place = Path.Combine(Retired, Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            Directory.CreateDirectory(Retired);
+            Directory.Move(directory, place);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return $"Каталог плагина занят: {e.Message}. Закройте студию, если она открыта, и повторите.";
+        }
+
+        aside = place;
+
+        return null;
+    }
+
+    /// <summary>Где снятые папки ждут уборки; тильда в идентификаторе плагина не бывает.</summary>
+    private string Retired => Path.Combine(_root, "~retired");
+
+    /// <summary>Стирает недокопированное; null — стёрто или стирать нечего, иначе — почему нет.</summary>
     private static string? Remove(string directory)
     {
         if (!Directory.Exists(directory))
@@ -287,7 +338,26 @@ public sealed class PluginCatalog
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            return $"Каталог плагина занят: {e.Message}. Закройте студию, если она открыта, и повторите.";
+            return e.Message;
+        }
+    }
+
+    /// <summary>Стирает снятое, если выйдет: не вышло — оно дождётся следующего снятия.</summary>
+    private static void Erase(string? directory)
+    {
+        if (directory is not null)
+            Remove(directory);
+    }
+
+    private static void Quietly(Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // Вернуть прежнее не вышло — ответ всё равно говорит, что установка не состоялась.
         }
     }
 
