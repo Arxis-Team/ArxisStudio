@@ -179,6 +179,8 @@
   "controls.color.library.profile": "New library in profile…",
   "controls.color.library.project": "New library in solution…",
   "controls.color.library.name": "Library name",
+  "controls.object.pick": "Choose (Enter)",
+  "controls.object.clear": "Clear (Delete)",
   "common.error": "Error",
   "common.all": "All files",
   "editor.loading": "Loading document…",

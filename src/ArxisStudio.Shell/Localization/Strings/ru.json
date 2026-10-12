@@ -179,6 +179,8 @@
   "controls.color.library.profile": "Новая библиотека в профиле…",
   "controls.color.library.project": "Новая библиотека в решении…",
   "controls.color.library.name": "Имя библиотеки",
+  "controls.object.pick": "Выбрать (Enter)",
+  "controls.object.clear": "Снять (Delete)",
   "common.error": "Ошибка",
   "common.all": "Все файлы",
   "editor.loading": "Загружаю документ…",

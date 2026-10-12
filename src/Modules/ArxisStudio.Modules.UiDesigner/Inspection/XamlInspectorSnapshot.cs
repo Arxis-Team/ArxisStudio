@@ -305,8 +305,10 @@ internal sealed class XamlInspectorSnapshot
                 DefaultText = attributes.DefaultValueText,
 
                 // Обе границы из [Range] — ползунок, как у Unity; границы таблиц метаданных — FontSize 1…1000 — его не
-                // дают: тянуть шрифт по тысяче делений незачем.
-                Editor = attributes.RangeMinimum is not null && attributes.RangeMaximum is not null ? SliderEditor : null,
+                // дают: тянуть шрифт по тысяче делений незачем. Картинка — полем объекта с картинками проекта.
+                Editor = ProjectImages.Types.Contains(member.ValueType.FullName)
+                    ? ProjectImageEditor.Hint
+                    : attributes.RangeMinimum is not null && attributes.RangeMaximum is not null ? SliderEditor : null,
                 Constraints = attributes.RangeMinimum is null && attributes.RangeMaximum is null
                     ? InspectorConstraints.None
                     : new InspectorConstraints { Minimum = attributes.RangeMinimum, Maximum = attributes.RangeMaximum },

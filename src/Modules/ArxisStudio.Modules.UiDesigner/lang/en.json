@@ -123,6 +123,13 @@
   "inspector.menu.designOnly": "Design time only (d:)",
   "inspector.menu.take": "Take from {0}: {1}",
   "inspector.menu.unset": "not set",
+  "inspector.image.none": "None ({0})",
+  "inspector.image.search": "Search images",
+  "inspector.image.empty": "The solution has no images: mark a file AvaloniaResource in its project",
+  "inspector.image.nothing": "No image matches “{0}”",
+  "inspector.image.drop": "Set “{0}”",
+  "inspector.image.notResource": "“{0}” is not an Avalonia resource: mark it AvaloniaResource in its project",
+  "inspector.image.notImage": "Only images can go here",
 
   "form.menu.cut": "Cut",
   "form.menu.copy": "Copy",

@@ -218,6 +218,20 @@ internal sealed class XamlStudio : IAsyncDisposable
         return path;
     }
 
+    /// <summary>Кладёт двоичный файл — картинку — в папку проекта.</summary>
+    /// <param name="name">Имя от папки проекта; в <c>Assets</c> файл становится ресурсом Avalonia.</param>
+    /// <param name="bytes">Содержимое.</param>
+    /// <returns>Путь.</returns>
+    public CanonicalPath Write(string name, byte[] bytes)
+    {
+        var path = PathOf(name);
+
+        Directory.CreateDirectory(Path.GetDirectoryName(path.Value)!);
+        File.WriteAllBytes(path.Value, bytes);
+
+        return path;
+    }
+
     /// <summary>Открывает решение и ждёт снимка.</summary>
     public async Task OpenAsync()
     {
@@ -272,7 +286,11 @@ internal sealed class XamlStudio : IAsyncDisposable
         TempFolder.Erase(Root);
     }
 
-    /// <summary>Снимок того, что лежит в папке проекта: разметка — AvaloniaXaml, код — Compile.</summary>
+    /// <summary>
+    /// Снимок того, что лежит в папке проекта: разметка — AvaloniaXaml, код — Compile, а всё в <c>Assets</c> — ресурс
+    /// Avalonia, как в шаблоне приложения Avalonia (<c>&lt;AvaloniaResource Include="Assets\**" /&gt;</c>); картинка вне
+    /// него — None, как её видит проект SDK.
+    /// </summary>
     private WorkspaceLoadResult Answer(WorkspaceLoadRequest request)
     {
         var project = new ProjectSnapshotBuilder
@@ -301,6 +319,8 @@ internal sealed class XamlStudio : IAsyncDisposable
             {
                 ".axaml" => "AvaloniaXaml",
                 ".cs" => "Compile",
+                _ when relative.StartsWith("Assets" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) => "AvaloniaResource",
+                ".png" or ".ico" or ".jpg" => "None",
                 _ => null,
             };
 

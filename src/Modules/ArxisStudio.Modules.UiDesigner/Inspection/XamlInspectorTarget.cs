@@ -2,6 +2,7 @@ using System.Globalization;
 using ArxisStudio.Inspector;
 using ArxisStudio.Markup.Xaml;
 using ArxisStudio.Modules.UiDesigner.Documents;
+using ArxisStudio.Projects;
 using ArxisStudio.Sdk;
 using ArxisStudio.Xaml;
 using Avalonia.Threading;
@@ -161,6 +162,23 @@ internal sealed class XamlInspectorTarget : InspectorTarget
     /// <inheritdoc/>
     /// <remarks>Недописанное значение держит замену поколения: значение, набранное для старых типов, ещё пригодится.</remarks>
     public override IDisposable? Hold(string id) => _context.XamlDesign()?.Defer(Strings["inspector.hold"]);
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Картинке — картинки решения, ставшие ресурсами (<see cref="ProjectImages"/>): своего проекта путём от корня
+    /// сборки, чужого — полным адресом. Снимок решения берётся, когда спросили: файл, добавленный в проект, уже в списке.
+    /// </remarks>
+    public override IReadOnlyList<InspectorChoice> Suggest(string id, string typed)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        ArgumentNullException.ThrowIfNull(typed);
+
+        return Properties.FirstOrDefault(property => string.Equals(property.Id, id, StringComparison.Ordinal)) is { } property
+               && ProjectImages.Types.Contains(property.ValueType.FullName)
+               && _context.Projects()?.Current is { } solution
+            ? ProjectImages.Choices(solution, Slot.Session.Path, typed)
+            : [];
+    }
 
     /// <inheritdoc/>
     public override Task<bool> StepAsync(bool back)

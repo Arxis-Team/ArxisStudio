@@ -1,4 +1,4 @@
-# StudioSdk 7.27
+# StudioSdk 7.28
 ArxisStudio.Controls.AxAvatar : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Controls.AxAvatar :: .ctor()
 ArxisStudio.Controls.AxAvatar :: ArxisStudio.Controls.AxAvatarShape Shape { get; set; }
@@ -456,6 +456,27 @@ ArxisStudio.Controls.AxNumberField :: static readonly Avalonia.StyledProperty<Sy
 ArxisStudio.Controls.AxNumberField :: static readonly Avalonia.StyledProperty<System.Double> ValueProperty
 ArxisStudio.Controls.AxNumberField :: static readonly Avalonia.StyledProperty<System.Int32?> DecimalsProperty
 ArxisStudio.Controls.AxNumberField :: static readonly Avalonia.StyledProperty<System.String> AutoTextProperty
+ArxisStudio.Controls.AxObjectField : class : Avalonia.Controls.Primitives.TemplatedControl
+ArxisStudio.Controls.AxObjectField :: .ctor()
+ArxisStudio.Controls.AxObjectField :: ArxisStudio.Controls.AxControlSize Size { get; set; }
+ArxisStudio.Controls.AxObjectField :: Avalonia.Media.IImage? Thumbnail { get; set; }
+ArxisStudio.Controls.AxObjectField :: System.Boolean IsDropTarget { get; set; }
+ArxisStudio.Controls.AxObjectField :: System.Boolean IsEmpty { get; }
+ArxisStudio.Controls.AxObjectField :: System.Boolean IsMixed { get; set; }
+ArxisStudio.Controls.AxObjectField :: System.Boolean IsReadOnly { get; set; }
+ArxisStudio.Controls.AxObjectField :: System.String? PlaceholderText { get; set; }
+ArxisStudio.Controls.AxObjectField :: System.String? Text { get; set; }
+ArxisStudio.Controls.AxObjectField :: event System.EventHandler<Avalonia.Interactivity.RoutedEventArgs> Cleared
+ArxisStudio.Controls.AxObjectField :: event System.EventHandler<Avalonia.Interactivity.RoutedEventArgs> PickRequested
+ArxisStudio.Controls.AxObjectField :: static readonly Avalonia.Interactivity.RoutedEvent<Avalonia.Interactivity.RoutedEventArgs> ClearedEvent
+ArxisStudio.Controls.AxObjectField :: static readonly Avalonia.Interactivity.RoutedEvent<Avalonia.Interactivity.RoutedEventArgs> PickRequestedEvent
+ArxisStudio.Controls.AxObjectField :: static readonly Avalonia.StyledProperty<ArxisStudio.Controls.AxControlSize> SizeProperty
+ArxisStudio.Controls.AxObjectField :: static readonly Avalonia.StyledProperty<Avalonia.Media.IImage> ThumbnailProperty
+ArxisStudio.Controls.AxObjectField :: static readonly Avalonia.StyledProperty<System.Boolean> IsDropTargetProperty
+ArxisStudio.Controls.AxObjectField :: static readonly Avalonia.StyledProperty<System.Boolean> IsMixedProperty
+ArxisStudio.Controls.AxObjectField :: static readonly Avalonia.StyledProperty<System.Boolean> IsReadOnlyProperty
+ArxisStudio.Controls.AxObjectField :: static readonly Avalonia.StyledProperty<System.String> PlaceholderTextProperty
+ArxisStudio.Controls.AxObjectField :: static readonly Avalonia.StyledProperty<System.String> TextProperty
 ArxisStudio.Controls.AxProgressBar : class : Avalonia.Controls.ProgressBar
 ArxisStudio.Controls.AxProgressBar :: .ctor()
 ArxisStudio.Controls.AxPropertyRow : class : Avalonia.Controls.ContentControl

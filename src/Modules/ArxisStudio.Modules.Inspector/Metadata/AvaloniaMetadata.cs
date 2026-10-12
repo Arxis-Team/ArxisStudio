@@ -216,6 +216,10 @@ public sealed class AvaloniaMetadata : InspectorMetadata
 
         metadata.For<StackPanel>()
             .Category("common", "Orientation", "Spacing");
+
+        // Картинка — то, что показывает Image, как спрайт у Image в Unity: первой строкой «Общего», а не в «Прочем».
+        metadata.For<Image>()
+            .Category("common", "Source", "Stretch", "StretchDirection");
     }
 
     private static void DescribeWindow(InspectorMetadataBuilder metadata)

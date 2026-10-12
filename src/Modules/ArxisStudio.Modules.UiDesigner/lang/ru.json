@@ -123,6 +123,13 @@
   "inspector.menu.designOnly": "Только для дизайна (d:)",
   "inspector.menu.take": "Взять у {0}: {1}",
   "inspector.menu.unset": "не задано",
+  "inspector.image.none": "Нет ({0})",
+  "inspector.image.search": "Поиск картинки",
+  "inspector.image.empty": "В решении нет картинок: отметьте файл в проекте как AvaloniaResource",
+  "inspector.image.nothing": "Нет картинок, подходящих под «{0}»",
+  "inspector.image.drop": "Поставить «{0}»",
+  "inspector.image.notResource": "«{0}» — не ресурс Avalonia: отметьте его в проекте как AvaloniaResource",
+  "inspector.image.notImage": "Сюда — только картинки",
 
   "form.menu.cut": "Вырезать",
   "form.menu.copy": "Копировать",

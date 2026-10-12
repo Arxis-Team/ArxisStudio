@@ -90,6 +90,13 @@ internal sealed partial class DesignView
                 return default;
             }
 
+            // Картинка — имя ресурса: его читает загрузка, а не предпросмотр, и объект ждёт записи.
+            if (descriptor.ReadsResource)
+            {
+                Withdraw();
+                return default;
+            }
+
             var converted = descriptor.ConvertFromText(text);
 
             if (!converted.Succeeded)

@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 
 namespace ArxisStudio.Sdk;
 
@@ -21,9 +21,13 @@ public static class StudioSdk
 {
     /// <summary>Версия контракта этой студии.</summary>
     /// <remarks>
+    /// 7.28 — поле объекта, как ObjectField у Unity (<c>AxObjectField</c>: миниатюра, имя, заглушка, выбор ⊙ и снятие,
+    /// цель броска), и его значок (<c>AxIcons.Target</c>). Младший номер: добавлено, снятого нет.
+    /// <para>
     /// 7.27 — число в границах, как <c>Range</c> у Unity (<c>AxRangeField</c>), и протяжка ползунка сеансом
     /// (<c>AxSlider.ValueChanging</c>, <c>ValueCommitted</c>, <c>ScrubCancelled</c>, <c>IsScrubbing</c>). Младший
     /// номер: добавлено, снятого нет.
+    /// </para>
     /// <para>
     /// 7.26 — заголовок группы полосой компонента, как у Unity (<c>AxGroupHeader.Appearance</c>,
     /// <c>AxGroupHeaderAppearance</c>, <c>Icon</c>, <c>Actions</c>), и значки разделов инспектора
@@ -350,7 +354,7 @@ public static class StudioSdk
     /// 4.1 — добавлены теги манифеста (<c>tags</c>).
     /// </para>
     /// </remarks>
-    public const string Version = "7.27";
+    public const string Version = "7.28";
 
     /// <summary>
     /// Довольна ли эта версия SDK тем, что просит плагин.

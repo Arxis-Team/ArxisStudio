@@ -1,4 +1,4 @@
-# StudioSdk 7.26
+# StudioSdk 7.28
 ArxisStudio.Icons.AxIcon : class : Avalonia.Controls.Primitives.TemplatedControl
 ArxisStudio.Icons.AxIcon :: .ctor()
 ArxisStudio.Icons.AxIcon :: ArxisStudio.Icons.AxIconSize Size { get; set; }
@@ -101,6 +101,7 @@ ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry StretchVertical { ge
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Structure { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Success { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Tabs { get; }
+ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Target { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Template { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Terminal { get; }
 ArxisStudio.Icons.AxIcons :: static Avalonia.Media.Geometry Text { get; }

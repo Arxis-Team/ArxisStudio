@@ -51,6 +51,8 @@ public static class ControlTexts
         ("AxTextColorLibraryInProfile", "controls.color.library.profile"),
         ("AxTextColorLibraryInProject", "controls.color.library.project"),
         ("AxTextColorLibraryName", "controls.color.library.name"),
+        ("AxTextObjectPick", "controls.object.pick"),
+        ("AxTextObjectClear", "controls.object.clear"),
     ];
 
     /// <summary>Кладёт тексты в ресурсы приложения и переводит их вместе со студией.</summary>

@@ -23,6 +23,7 @@ XAML и для файла вне решения — рамка её размер
 | кто держит показ документа | `FormShows` |
 | какой холст впереди — за ним идёт иерархия | `FormFront` |
 | выбранное на холсте — в инспекторе студии, запись членов | `FormInspection`, `XamlInspectorTarget`, `XamlInspectorSnapshot`, `FormEdits` (+ `.Members`) |
+| картинка формы в инспекторе: поле объекта, картинки решения вариантами, бросок из окна проекта | `ProjectImageEditor`, `ProjectImages` |
 | баннеры вкладки по важности | `FormNotices` |
 | доска: что на виду, живые формы, снимки, история, состав, раскладка, файл, бросок | `BoardSight`, `BoardForms`, `BoardPreviews`, `BoardHistory`, `BoardModel` и `BoardPresence`, `BoardLayout`, `BoardFile`, `BoardLanded` |
 | цвета и органы холста — общие у доски и вкладки | `CanvasLooks`, `SheetControls` |

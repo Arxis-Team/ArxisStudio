@@ -106,9 +106,12 @@ internal sealed partial class DesignView
         return Resolve(shown, member) is { IsResolved: true } descriptor ? Check(descriptor, text) : default;
     }
 
-    /// <summary>Прочтётся ли текст значением члена — тем же разбором, каким его прочтёт загрузка.</summary>
+    /// <summary>
+    /// Прочтётся ли текст значением члена — тем же разбором, каким его прочтёт загрузка. Картинка — имя ресурса, и что
+    /// оно называет, читает загрузка через среду (ADR 0031 Markup): не нашлось — правка не встанет, и скажет почему.
+    /// </summary>
     private XamlValueCheck Check(XamlMemberDescriptor descriptor, string text) =>
-        descriptor.ConvertFromText(text).Succeeded
+        descriptor.ReadsResource || descriptor.ConvertFromText(text).Succeeded
             ? default
             : new XamlValueCheck(_entry.Owner.Words.ValueRejected(text, XamlMemberMetadata.TypeOf(descriptor.ValueType).Name));
 
@@ -180,7 +183,7 @@ internal sealed partial class DesignView
             ownerPrefix,
             XamlMemberMetadata.TypeOf(member.ValueType),
             member is { CanWrite: true, IsReadOnly: false },
-            XamlMemberMetadata.AcceptsText(member.ValueType),
+            member.ReadsResource || XamlMemberMetadata.AcceptsText(member.ValueType),
             member.Kind == XamlMemberKind.Content,
             reads,
             XamlMemberMetadata.AttributesOf(member),
