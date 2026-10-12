@@ -499,6 +499,38 @@ public class LiveFormTabTests
     }
 
     /// <summary>
+    /// Esc на холсте, замершем на кадре замены поколения, ведёт выбор к родителю и объявляет его: иерархия и
+    /// инспектор идут за выбором, а не стоят на ребёнке до конца замены.
+    /// </summary>
+    /// <remarks>Новый выбор объявлял только холст, поставивший его на себе, а замерший не ставит ничего (запись 407).</remarks>
+    [AvaloniaFact]
+    public async Task Esc_on_a_frozen_canvas_announces_the_parent()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", Form);
+        var canvas = document.Canvas;
+        var announced = new List<XamlElementPath>();
+
+        Assert.True(document.View.Sheet.SelectTarget(GoButton(document)));
+
+        var go = PathTo(document, "Go");
+
+        canvas.SelectionChanged += (_, _) => announced.AddRange(canvas.Selection);
+
+        await canvas.ReleaseAsync(Token);
+
+        try
+        {
+            Assert.True(canvas.SelectParent(), "Esc не нашёл выбранного");
+            Assert.Equal([go.Parent!], announced);
+        }
+        finally
+        {
+            await canvas.RestoreAsync(Token);
+        }
+    }
+
+    /// <summary>
     /// Форма носит тему, которую просит её приложение, а не студийную, и идёт за правкой <c>App.axaml</c>;
     /// приложение, сказавшее «по умолчанию», показывается в теме платформы.
     /// </summary>

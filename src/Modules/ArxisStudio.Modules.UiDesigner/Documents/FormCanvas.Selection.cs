@@ -263,7 +263,10 @@ internal sealed partial class FormCanvas
 
         _selection = [new Picked(primary.Slot, primary.Path.Parent ?? XamlElementPath.Root)];
         SelectOnSheet();
-        ShowSelectionInCode(reveal: true);
+
+        // Пересмотр — и тогда, когда холст выбор не поставил: замерший на кадре или без вставшей формы, он нового
+        // выбора не объявлял, и иерархия с инспектором оставались на ребёнке (запись 407).
+        Reconsider(reveal: true);
 
         return true;
     }
