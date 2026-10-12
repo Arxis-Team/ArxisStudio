@@ -60,6 +60,11 @@ internal sealed partial class InspectorMenus(InspectorList list, InspectorCatalo
             items.Add(Item(words["inspector.expression.edit"], writable, () => row.EditAsText(), new KeyGesture(Key.F2)));
             items.Add(Item(words["inspector.expression.literal"], writable && row.Value?.Text is not null, row.Replace));
         }
+        else if (row.CanEditFieldAsText)
+        {
+            // Поля преобразования передают не всякую запись: целиком её правят текстом, как выражение.
+            items.Add(Item(words["inspector.expression.edit"], true, () => row.EditFieldAsText()));
+        }
 
         Extend(items, row.Property, row.Value);
 

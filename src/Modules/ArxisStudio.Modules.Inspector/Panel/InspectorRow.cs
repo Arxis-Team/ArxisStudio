@@ -186,6 +186,19 @@ internal sealed class InspectorRow : AxPropertyRow
         return FocusTarget?.Focus(NavigationMethod.Tab) == true;
     }
 
+    /// <summary>
+    /// Поле строки открывается текстом записи — у преобразования, где поля передают не всякую запись; выражение
+    /// открывается текстом своей дорогой (<see cref="EditAsText"/>).
+    /// </summary>
+    public bool CanEditFieldAsText =>
+        !Property.IsReadOnly && !IsExpression && _field is { } guarded &&
+        guarded.TryGet("tells if it opens as text", static it => it is ITextualField, out var textual) && textual;
+
+    /// <summary>Открывает поле текстом записи: «Изменить как текст».</summary>
+    /// <returns>Открылось ли.</returns>
+    public bool EditFieldAsText() =>
+        CanEditFieldAsText && _field!.TryGet("opens as text", static it => ((ITextualField)it).EditAsText(), out var opened) && opened;
+
     /// <summary>Открывает выражение текстом: «Изменить как текст».</summary>
     /// <returns>Открылось ли.</returns>
     public bool EditAsText()

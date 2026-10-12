@@ -164,13 +164,19 @@ public class DesignerInspectorTests
         LiveFormStudio.Frame();
 
         var before = Text(document);
-        var origin = Row(panel, "RenderTransformOrigin");
-        var box = Box(origin);
+
+        // Преобразование, открытое текстом (запись 379), — поле текста, который служба XAML проверяет загрузкой.
+        var transform = Row(panel, "RenderTransform");
+
+        Assert.True(transform.EditFieldAsText(), "преобразование не открылось текстом");
+        LiveFormStudio.Frame();
+
+        var box = transform.GetVisualDescendants().OfType<AxTextBox>().Single(box => box.GetType() == typeof(AxTextBox));
 
         Type(studio, box, "широко");
 
         Assert.Equal("широко", box.Text);
-        Assert.Contains("широко", origin.Note?.ToString(), StringComparison.Ordinal);
+        Assert.Contains("широко", transform.Note?.ToString(), StringComparison.Ordinal);
         Assert.Equal(before, Text(document));
         Assert.False(document.Document!.CanUndo);
     }
@@ -620,6 +626,34 @@ public class DesignerInspectorTests
         Type(studio, range.NumberField, "4");
 
         await XamlStudio.UntilAsync(() => Text(document).Contains("Gap=\"4\"", StringComparison.Ordinal), "число из поля ползунка не записано");
+    }
+
+    /// <summary>
+    /// Преобразование выбранного правят полями: поворот пишется в XAML записью Avalonia, а точка опоры — процентами
+    /// (запись 379).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task The_render_transform_is_edited_by_fields_and_written_as_operations()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", Form);
+        var panel = studio.Inspector();
+
+        document.Select([Go]);
+        LiveFormStudio.Frame();
+
+        var rotate = Row(panel, "RenderTransform").GetVisualDescendants().OfType<AxPropertyRow>()
+            .Select(static row => row.Content).OfType<AxNumberField>().Single();
+
+        Type(studio, rotate, "45");
+
+        await XamlStudio.UntilAsync(() => Text(document).Contains("RenderTransform=\"rotate(45deg)\"", StringComparison.Ordinal), "поворот не записан");
+
+        var point = Row(panel, "RenderTransformOrigin").GetVisualDescendants().OfType<AxVectorField>().Single();
+
+        Type(studio, point.Cells[0], "0");
+
+        await XamlStudio.UntilAsync(() => Text(document).Contains("RenderTransformOrigin=\"0%,50%\"", StringComparison.Ordinal), "точка опоры не записана");
     }
 
     /// <summary>Размер корня пишется туда, откуда его берёт дизайнер, — в размер дизайна.</summary>
