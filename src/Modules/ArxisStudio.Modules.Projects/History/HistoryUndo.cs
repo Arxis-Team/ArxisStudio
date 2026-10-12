@@ -452,23 +452,6 @@ internal static class HistoryUndo
         return moved.Count + deleted.Count == 0 ? null : new FilesChangedEventArgs([.. moved], [], [.. deleted]);
     }
 
-    /// <summary>Пишет файл через временный рядом: оборванная запись не оставит полфайла.</summary>
-    private static void Write(string path, byte[] bytes, bool overwrite)
-    {
-        var temporary = FileWorker.Temporary(path);
-
-        try
-        {
-            File.WriteAllBytes(temporary, bytes);
-            File.Move(temporary, path, overwrite);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            FileWorker.Quietly(() => File.Delete(temporary));
-            throw;
-        }
-    }
-
     /// <summary>Заводит недостающие папки над путём — верхние раньше — и записывает их появившимися.</summary>
     private static void Parents(string path, List<string> made, List<HistoryChange> changes)
     {
@@ -542,7 +525,7 @@ internal static class HistoryUndo
         public override void Back(LocalHistoryStore store)
         {
             if (_erased && !File.Exists(path) && store.Read(expected) is { } bytes)
-                Write(path, bytes, overwrite: false);
+                FileWorker.Replace(path, bytes, overwrite: false);
         }
 
         public override void Settle(LocalHistoryStore store) => store.Forget(path);
@@ -639,7 +622,7 @@ internal static class HistoryUndo
             var bytes = store.Read(content) ?? throw new IOException(corrupted);
 
             Parents(path, _made, Changes);
-            Write(path, bytes, overwrite: false);
+            FileWorker.Replace(path, bytes, overwrite: false);
             _written = true;
             Changes.Add(new HistoryChange { Kind = HistoryChangeKind.Created, Path = path, After = content });
         }
@@ -672,7 +655,7 @@ internal static class HistoryUndo
         {
             var bytes = store.Read(content) ?? throw new IOException(corrupted);
 
-            Write(path, bytes, overwrite: true);
+            FileWorker.Replace(path, bytes, overwrite: true);
             _written = true;
             Changes.Add(new HistoryChange { Kind = HistoryChangeKind.Modified, Path = path, Before = expected, After = content });
         }
@@ -680,7 +663,7 @@ internal static class HistoryUndo
         public override void Back(LocalHistoryStore store)
         {
             if (_written && store.Read(expected) is { } bytes)
-                Write(path, bytes, overwrite: true);
+                FileWorker.Replace(path, bytes, overwrite: true);
         }
 
         public override void Settle(LocalHistoryStore store)

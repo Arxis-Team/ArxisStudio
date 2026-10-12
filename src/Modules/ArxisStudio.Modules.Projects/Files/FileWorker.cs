@@ -215,8 +215,14 @@ internal static class FileWorker
     }
 
     /// <summary>Пишет файл во временный рядом и ставит его на место подменой.</summary>
-    /// <remarks>Не записалось — прежний файл остался как был, а временный убран.</remarks>
-    internal static void Replace(string path, ReadOnlySpan<byte> content)
+    /// <param name="path">Файл.</param>
+    /// <param name="content">Его новое содержимое.</param>
+    /// <param name="overwrite">Заменить лежащий; нет — место обязано быть свободным, иначе отказ.</param>
+    /// <remarks>
+    /// Не записалось — прежний файл остался как был, а временный убран. Так пишут и правка файлов, и файл проекта, и
+    /// возврат из истории: оборванная запись не оставит полфайла.
+    /// </remarks>
+    internal static void Replace(string path, ReadOnlySpan<byte> content, bool overwrite = true)
     {
         var temporary = Temporary(path);
 
@@ -225,7 +231,7 @@ internal static class FileWorker
             using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 stream.Write(content);
 
-            File.Move(temporary, path, overwrite: true);
+            File.Move(temporary, path, overwrite);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
