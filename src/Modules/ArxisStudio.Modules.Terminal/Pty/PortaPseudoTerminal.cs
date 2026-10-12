@@ -27,10 +27,18 @@ public sealed class PortaPseudoTerminal : IPseudoTerminal
 
     private readonly IPtyConnection _connection;
     private readonly Lock _gate = new();
+
+    // Записи между собой идут по очереди, но не под замком состояния: запись в трубу блокирующая, и оболочка,
+    // которая не читает ввод, держала бы на ней смену размера и закрытие — а их зовёт поток интерфейса
+    // (запись 386). Порядок замков один: запись, затем состояние, — и никогда наоборот.
+    private readonly Lock _writing = new();
+
     private int? _exitCode;
     private bool _disposed;
 
-    private PortaPseudoTerminal(IPtyConnection connection)
+    /// <summary>Терминал над готовым соединением; тестам — с подставным.</summary>
+    /// <param name="connection">Соединение с оболочкой.</param>
+    internal PortaPseudoTerminal(IPtyConnection connection)
     {
         _connection = connection;
         _connection.ProcessExited += OnExited;
@@ -125,10 +133,13 @@ public sealed class PortaPseudoTerminal : IPseudoTerminal
     /// <inheritdoc/>
     public void Write(ReadOnlySpan<byte> bytes)
     {
-        lock (_gate)
+        lock (_writing)
         {
-            if (_disposed || _exitCode is not null)
-                return;
+            lock (_gate)
+            {
+                if (_disposed || _exitCode is not null)
+                    return;
+            }
 
             try
             {
@@ -137,7 +148,8 @@ public sealed class PortaPseudoTerminal : IPseudoTerminal
             }
             catch (Exception e) when (e is IOException or ObjectDisposedException)
             {
-                // Оболочка ушла между проверкой и записью — писать больше некому.
+                // Оболочка ушла или терминал закрыли между проверкой и записью — писать больше некому.
+                // Закрытие и рвёт застрявшую запись: соединение уходит вместе с трубой.
             }
         }
     }

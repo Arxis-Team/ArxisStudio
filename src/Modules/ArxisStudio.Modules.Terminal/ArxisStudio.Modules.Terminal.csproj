@@ -63,4 +63,12 @@
         <AdditionalFiles Include="module.json"/>
     </ItemGroup>
 
+    <!--
+        Тестам открыт конструктор терминала над готовым соединением: запись, застрявшая в трубе, в Windows
+        не воспроизводится — трубу вычерпывает conhost, — и ставит её подставное соединение.
+    -->
+    <ItemGroup>
+        <InternalsVisibleTo Include="ArxisStudio.Tests"/>
+    </ItemGroup>
+
 </Project>

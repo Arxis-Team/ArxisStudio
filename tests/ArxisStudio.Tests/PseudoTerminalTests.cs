@@ -126,4 +126,130 @@ public class PseudoTerminalTests
         Assert.Contains($"terminal-probe-truecolor-[%{Late}%]-[before]", text, StringComparison.Ordinal);
         Assert.DoesNotContain($"%{Marker}%", text, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Запись, застрявшая в трубе, не держит ни смену размера, ни закрытие.
+    /// </summary>
+    /// <remarks>
+    /// Запись шла под тем же замком, что смена размера и закрытие, а пишет она блокирующе: оболочка, которая не
+    /// читает ввод, — долгая сборка, <c>ping -t</c>, — останавливает её на заполненной трубе. Вставка большого
+    /// текста, затем тяга границы панели или закрытие вкладки — и поток интерфейса стоял на замке, пока оболочка
+    /// не прочтёт (запись 386). На Linux очередь ввода терминала — четыре килобайта; в Windows трубу вычерпывает
+    /// conhost, поэтому застрявшую запись ставит подставное соединение — процесса тест не запускает.
+    /// </remarks>
+    [Fact]
+    public async Task A_write_stuck_in_the_pipe_holds_neither_resize_nor_close()
+    {
+        var cancel = TestContext.Current.CancellationToken;
+        var connection = new StuckConnection();
+        var pty = new PortaPseudoTerminal(connection);
+        var writing = Task.Run(() => pty.Write("вставка"u8), cancel);
+
+        try
+        {
+            Assert.True(connection.Entered.Wait(TimeSpan.FromSeconds(10), cancel), "запись не дошла до трубы");
+            Assert.True(await Finishes(Task.Run(() => pty.Resize(100, 30), cancel), 2), "смена размера ждёт застрявшую запись");
+            Assert.Equal(1, connection.Resized);
+            Assert.True(await Finishes(Task.Run(pty.Dispose, cancel), 2), "закрытие ждёт застрявшую запись");
+            Assert.True(await Finishes(writing, 10), "застрявшая запись не вышла с закрытием соединения");
+        }
+        finally
+        {
+            connection.Release.Set();
+        }
+    }
+
+    /// <summary>Кончилось ли дело за столько секунд.</summary>
+    private static async Task<bool> Finishes(Task task, int seconds)
+    {
+        try
+        {
+            await task.WaitAsync(TimeSpan.FromSeconds(seconds), TestContext.Current.CancellationToken);
+
+            return true;
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Соединение, чья труба ввода не читается: запись в неё стоит, пока соединение не закроют.</summary>
+    private sealed class StuckConnection : Porta.Pty.IPtyConnection
+    {
+        public StuckConnection() => WriterStream = new StuckStream(this);
+
+        /// <summary>Запись дошла до трубы и встала.</summary>
+        public ManualResetEventSlim Entered { get; } = new();
+
+        /// <summary>Отпускает стоящую запись — как закрытая труба.</summary>
+        public ManualResetEventSlim Release { get; } = new();
+
+        /// <summary>Сколько раз меняли размер.</summary>
+        public int Resized { get; private set; }
+
+        public Stream ReaderStream { get; } = new MemoryStream();
+
+        public Stream WriterStream { get; }
+
+        public bool SupportsCancellableRead => false;
+
+        public int Pid => 0;
+
+        public int ExitCode => 0;
+
+        public event EventHandler<Porta.Pty.PtyExitedEventArgs>? ProcessExited
+        {
+            add { }
+            remove { }
+        }
+
+        public bool WaitForExit(int milliseconds) => false;
+
+        public void Kill()
+        {
+        }
+
+        public void Resize(int cols, int rows) => Resized++;
+
+        public void Dispose() => Release.Set();
+    }
+
+    /// <summary>Труба ввода, которую никто не читает: запись встаёт и падает, когда трубу закрыли.</summary>
+    private sealed class StuckStream(StuckConnection owner) : Stream
+    {
+        public override bool CanRead => false;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => true;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            owner.Entered.Set();
+            owner.Release.Wait();
+
+            throw new IOException("труба закрыта");
+        }
+
+        public override void Write(byte[] buffer, int offset, int count) => Write(buffer.AsSpan(offset, count));
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+    }
 }
