@@ -175,8 +175,8 @@ internal sealed partial class XamlInspectorSnapshot
 
         return spec.Property.Id switch
         {
-            FormEdits.DataContextMember => SourceValue(item, scope, written),
-            FormEdits.DesignDataMember => DesignValue(written),
+            FormEdits.DataContextMember => SourceValue(index, scope, written),
+            FormEdits.DesignDataMember => DesignValue(index, written),
             FormEdits.DataTypeDirective => TypeValue(item, scope, written),
             _ => CompileValue(item, scope, written),
         };
@@ -186,8 +186,10 @@ internal sealed partial class XamlInspectorSnapshot
     /// Источник данных: написанное — классом, самой формой или выражением; ненаписанное — откуда данные пришли, по
     /// ответу службы: от предка, из кода, из данных для дизайна.
     /// </summary>
-    private InspectorValue SourceValue(Picked item, XamlDataScope? scope, string? written)
+    private InspectorValue SourceValue(int index, XamlDataScope? scope, string? written)
     {
+        var item = _picked[index];
+
         if (written is not null)
         {
             if (item.Path.Equals(XamlElementPath.Root) && FormEdits.IsSelf(written))
@@ -197,8 +199,16 @@ internal sealed partial class XamlInspectorSnapshot
                 return new InspectorValue(Format("inspector.data.self", name)) { Written = written, Source = InspectorValueSource.Local };
             }
 
-            if (IsExpression(written))
-                return new InspectorValue(scope?.SourceType?.Name) { Written = written, Source = InspectorValueSource.Expression };
+            if (ExpressionOf(index, FormEdits.DataContextMember, written) is var (expression, error))
+            {
+                return new InspectorValue(scope?.SourceType?.Name)
+                {
+                    Written = written,
+                    Source = InspectorValueSource.Expression,
+                    Expression = expression,
+                    Error = error,
+                };
+            }
 
             return new InspectorValue(ClassName(written)) { Written = written, Source = InspectorValueSource.Local };
         }
@@ -229,12 +239,15 @@ internal sealed partial class XamlInspectorSnapshot
     }
 
     /// <summary>Данные для дизайна у корня: класс, выражение или текст.</summary>
-    private static InspectorValue DesignValue(string? written) =>
-        written is null
-            ? new InspectorValue((string?)null)
-            : IsExpression(written)
-                ? new InspectorValue((string?)null) { Written = written, Source = InspectorValueSource.Expression }
-                : new InspectorValue(ClassName(written)) { Written = written, Source = InspectorValueSource.Design };
+    private InspectorValue DesignValue(int index, string? written)
+    {
+        if (written is null)
+            return new InspectorValue((string?)null);
+
+        return ExpressionOf(index, FormEdits.DesignDataMember, written) is var (expression, error)
+            ? new InspectorValue((string?)null) { Written = written, Source = InspectorValueSource.Expression, Expression = expression, Error = error }
+            : new InspectorValue(ClassName(written)) { Written = written, Source = InspectorValueSource.Design };
+    }
 
     /// <summary>
     /// Тип данных: написанный здесь или у предка — коротким именем; не разрешился — заметка. Не написан нигде, а привязки к
@@ -377,14 +390,6 @@ internal sealed partial class XamlInspectorSnapshot
         var colon = name.IndexOf(':', StringComparison.Ordinal);
 
         return colon < 0 ? name : name[(colon + 1)..];
-    }
-
-    /// <summary>Текст значения — выражение разметки, а не значение: <c>{Binding …}</c>, но не экранированное <c>{}…</c>.</summary>
-    private static bool IsExpression(string text)
-    {
-        var trimmed = text.TrimStart();
-
-        return trimmed.StartsWith('{') && !trimmed.StartsWith("{}", StringComparison.Ordinal);
     }
 
     /// <summary>Элемент-владелец: родитель в документе, минуя элемент свойства.</summary>

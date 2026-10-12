@@ -28,6 +28,7 @@ ArxisStudio.Xaml.IXamlDesignView :: System.Collections.Generic.IReadOnlyList<Sys
 ArxisStudio.Xaml.IXamlDesignView :: System.Object? ObjectAt(ArxisStudio.Markup.Xaml.XamlElementPath path)
 ArxisStudio.Xaml.IXamlDesignView :: System.Threading.Tasks.ValueTask<ArxisStudio.Xaml.XamlDataScope> DescribeDataAsync(ArxisStudio.Markup.Xaml.XamlElementPath element, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Xaml.IXamlDesignView :: System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<ArxisStudio.Xaml.XamlDataTypeInfo>> GetDataTypesAsync(System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Xaml.IXamlDesignView :: System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<ArxisStudio.Xaml.XamlExpressionCheck>> CheckExpressionsAsync(ArxisStudio.Markup.Xaml.XamlElementPath element, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Xaml.IXamlDesignView :: event System.EventHandler ApplicationChanged
 ArxisStudio.Xaml.IXamlDesignView :: event System.EventHandler RootChanged
 ArxisStudio.Xaml.IXamlDocumentHandle : interface : System.IAsyncDisposable
@@ -174,6 +175,34 @@ ArxisStudio.Xaml.XamlElementInfo :: System.String? ParentTypeFullName { get; ini
 ArxisStudio.Xaml.XamlElementInfo :: System.Void Deconstruct(out System.String TypeFullName, out System.String AssemblyName, out System.Collections.Immutable.ImmutableArray<System.String> BaseTypes, out System.String? ParentTypeFullName, out System.Collections.Immutable.ImmutableArray<System.String> ParentBaseTypes, out System.Boolean HoldsChildren, out System.String? ContentMember)
 ArxisStudio.Xaml.XamlElementInfo :: static System.Boolean op_Equality(ArxisStudio.Xaml.XamlElementInfo? left, ArxisStudio.Xaml.XamlElementInfo? right)
 ArxisStudio.Xaml.XamlElementInfo :: static System.Boolean op_Inequality(ArxisStudio.Xaml.XamlElementInfo? left, ArxisStudio.Xaml.XamlElementInfo? right)
+ArxisStudio.Xaml.XamlExpressionCheck : sealed record : System.IEquatable<ArxisStudio.Xaml.XamlExpressionCheck>
+ArxisStudio.Xaml.XamlExpressionCheck :: .ctor(System.String Member, ArxisStudio.Xaml.XamlExpressionKind Kind, ArxisStudio.Xaml.XamlExpressionState State, System.String? Message, System.Boolean BreaksBuild, ArxisStudio.Xaml.XamlTypeInfo? SourceType, ArxisStudio.Xaml.XamlTypeInfo? ResultType)
+ArxisStudio.Xaml.XamlExpressionCheck :: ArxisStudio.Xaml.XamlExpressionKind Kind { get; init; }
+ArxisStudio.Xaml.XamlExpressionCheck :: ArxisStudio.Xaml.XamlExpressionState State { get; init; }
+ArxisStudio.Xaml.XamlExpressionCheck :: ArxisStudio.Xaml.XamlTypeInfo? ResultType { get; init; }
+ArxisStudio.Xaml.XamlExpressionCheck :: ArxisStudio.Xaml.XamlTypeInfo? SourceType { get; init; }
+ArxisStudio.Xaml.XamlExpressionCheck :: System.Boolean BreaksBuild { get; init; }
+ArxisStudio.Xaml.XamlExpressionCheck :: System.Boolean Equals(ArxisStudio.Xaml.XamlExpressionCheck? other)
+ArxisStudio.Xaml.XamlExpressionCheck :: System.String Member { get; init; }
+ArxisStudio.Xaml.XamlExpressionCheck :: System.String? Message { get; init; }
+ArxisStudio.Xaml.XamlExpressionCheck :: System.Void Deconstruct(out System.String Member, out ArxisStudio.Xaml.XamlExpressionKind Kind, out ArxisStudio.Xaml.XamlExpressionState State, out System.String? Message, out System.Boolean BreaksBuild, out ArxisStudio.Xaml.XamlTypeInfo? SourceType, out ArxisStudio.Xaml.XamlTypeInfo? ResultType)
+ArxisStudio.Xaml.XamlExpressionCheck :: static System.Boolean op_Equality(ArxisStudio.Xaml.XamlExpressionCheck? left, ArxisStudio.Xaml.XamlExpressionCheck? right)
+ArxisStudio.Xaml.XamlExpressionCheck :: static System.Boolean op_Inequality(ArxisStudio.Xaml.XamlExpressionCheck? left, ArxisStudio.Xaml.XamlExpressionCheck? right)
+ArxisStudio.Xaml.XamlExpressionKind : enum
+ArxisStudio.Xaml.XamlExpressionKind :: Binding = 0
+ArxisStudio.Xaml.XamlExpressionKind :: Other = 4
+ArxisStudio.Xaml.XamlExpressionKind :: Resource = 1
+ArxisStudio.Xaml.XamlExpressionKind :: Static = 2
+ArxisStudio.Xaml.XamlExpressionKind :: Template = 3
+ArxisStudio.Xaml.XamlExpressionState : enum
+ArxisStudio.Xaml.XamlExpressionState :: Broken = 2
+ArxisStudio.Xaml.XamlExpressionState :: Resolved = 1
+ArxisStudio.Xaml.XamlExpressionState :: Unchecked = 0
+ArxisStudio.Xaml.XamlExpressions : static class
+ArxisStudio.Xaml.XamlExpressions :: static ArxisStudio.Xaml.XamlExpressionKind Classify(ArxisStudio.Markup.Xaml.XamlMarkupExtensionValue extension)
+ArxisStudio.Xaml.XamlExpressions :: static ArxisStudio.Xaml.XamlExpressionKind? Classify(System.String? written)
+ArxisStudio.Xaml.XamlExpressions :: static System.String Summarize(ArxisStudio.Markup.Xaml.XamlMarkupExtensionValue extension)
+ArxisStudio.Xaml.XamlExpressions :: static System.String? Summarize(System.String? written)
 ArxisStudio.Xaml.XamlExternalConflictEventArgs : sealed class : System.EventArgs
 ArxisStudio.Xaml.XamlExternalConflictEventArgs :: .ctor(ArxisStudio.ProjectSystem.CanonicalPath path, System.String diskText)
 ArxisStudio.Xaml.XamlExternalConflictEventArgs :: ArxisStudio.ProjectSystem.CanonicalPath Path { get; }

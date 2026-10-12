@@ -1,0 +1,188 @@
+using System.Globalization;
+using ArxisStudio.Markup.Xaml;
+using ArxisStudio.Sdk;
+using ArxisStudio.Xaml;
+using Avalonia.Controls;
+using Avalonia.Headless.XUnit;
+using Xunit;
+
+namespace ArxisStudio.Tests;
+
+/// <summary>
+/// Выражения элемента у службы XAML (контракт 1.3, запись 424): какие они — по одному тексту, — и работают ли — по
+/// тому, что документ объявляет.
+/// </summary>
+/// <remarks>Типы проекта — <see cref="DataProject"/>.</remarks>
+[Collection(StudioStateCollection.Name)]
+public class XamlExpressionChecksTests
+{
+    private static CancellationToken Token => TestContext.Current.CancellationToken;
+
+    /// <summary>Вид и короткая запись — по тексту, без показа: путь с источником, ключ, член, свойство шаблона.</summary>
+    [Theory]
+    [InlineData("{Binding Customer.Name}", XamlExpressionKind.Binding, "Customer.Name")]
+    [InlineData("{CompiledBinding Path=Title}", XamlExpressionKind.Binding, "Title")]
+    [InlineData("{Binding #slider.Value}", XamlExpressionKind.Binding, "#slider.Value")]
+    [InlineData("{Binding Value, ElementName=slider}", XamlExpressionKind.Binding, "#slider.Value")]
+    [InlineData("{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}", XamlExpressionKind.Binding, "$parent[Window].Title")]
+    [InlineData("{Binding Width, RelativeSource={RelativeSource Self}}", XamlExpressionKind.Binding, "$self.Width")]
+    [InlineData("{Binding}", XamlExpressionKind.Binding, "{Binding}")]
+    [InlineData("{DynamicResource Accent}", XamlExpressionKind.Resource, "Accent")]
+    [InlineData("{StaticResource ResourceKey=Fill}", XamlExpressionKind.Resource, "Fill")]
+    [InlineData("{x:Static local:Limits.Max}", XamlExpressionKind.Static, "local:Limits.Max")]
+    [InlineData("{TemplateBinding Background}", XamlExpressionKind.Template, "Background")]
+    [InlineData("{x:Null}", XamlExpressionKind.Other, "{x:Null}")]
+    public void An_expression_is_told_and_summed_up_by_its_text(string written, XamlExpressionKind kind, string summary)
+    {
+        Assert.Equal(kind, XamlExpressions.Classify(written));
+        Assert.Equal(summary, XamlExpressions.Summarize(written));
+    }
+
+    /// <summary>Текст, экранированный <c>{}</c>, и простое значение — не выражения.</summary>
+    [Theory]
+    [InlineData("{}{Binding Name}")]
+    [InlineData("Привет")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void Text_that_is_not_an_expression_has_no_kind(string? written)
+    {
+        Assert.Null(XamlExpressions.Classify(written));
+        Assert.Null(XamlExpressions.Summarize(written));
+    }
+
+    /// <summary>
+    /// Привязка к данным читается по их типу, к элементу — по имени в документе, а под элементом, отдавшим содержимому
+    /// другие данные, — по ним: найденное называет, откуда и куда пришёл путь, сломанное — почему, а ресурс служба не
+    /// проверяет.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Each_expression_of_an_element_is_checked_against_what_the_document_declares()
+    {
+        await using var studio = new XamlStudio();
+
+        DataProject.Emit(studio);
+
+        using var view = await ShowAsync(studio, "MainView.axaml", """
+            <UserControl xmlns="https://github.com/avaloniaui"
+                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                         xmlns:vm="using:App.ViewModels"
+                         x:DataType="vm:MainViewModel">
+              <UserControl.DataContext>
+                <vm:MainViewModel />
+              </UserControl.DataContext>
+              <StackPanel>
+                <TextBlock x:Name="first" Text="{Binding Title}" Tag="{Binding Nmae}" Foreground="{DynamicResource Accent}" />
+                <TextBlock Text="{Binding #first.Text}" Tag="{Binding #nobody.Text}" />
+                <StackPanel DataContext="{Binding Customer}">
+                  <TextBlock Text="{Binding Name}" />
+                </StackPanel>
+              </StackPanel>
+            </UserControl>
+            """);
+
+        // Привязку данных к данным родителя Avalonia вычисляет в логическом дереве — там, где форма стоит в студии.
+        var window = new Window { Content = view.Root };
+
+        window.Show();
+
+        await XamlStudio.UntilAsync(() => view.ObjectAt(XamlElementPath.Parse("/0/2")) is StackPanel { DataContext: not null }, "панель не получила данные");
+
+        var first = await Checks(view, "/0/0");
+
+        Assert.Equal(["Text", "Tag", "Foreground"], first.Select(static check => check.Member));
+
+        var title = first[0];
+
+        Assert.Equal((XamlExpressionKind.Binding, XamlExpressionState.Resolved), (title.Kind, title.State));
+        Assert.Equal("App.ViewModels.MainViewModel", title.SourceType?.FullName);
+        Assert.Equal("System.String", title.ResultType?.FullName);
+        Assert.Null(title.Message);
+
+        var typo = first[1];
+
+        Assert.Equal(XamlExpressionState.Broken, typo.State);
+        Assert.Equal(Format(studio, "module.xaml.binding.noMember", "MainViewModel", "Nmae"), typo.Message);
+        Assert.False(typo.BreaksBuild, "проект привязки не компилирует, а сломанная названа ломающей сборку");
+
+        Assert.Equal((XamlExpressionKind.Resource, XamlExpressionState.Unchecked), (first[2].Kind, first[2].State));
+
+        var named = await Checks(view, "/0/1");
+
+        Assert.Equal(XamlExpressionState.Resolved, named[0].State);
+        Assert.Equal("Avalonia.Controls.TextBlock", named[0].SourceType?.FullName);
+        Assert.Equal(XamlExpressionState.Broken, named[1].State);
+        Assert.Equal(Format(studio, "module.xaml.binding.noElement", "nobody"), named[1].Message);
+
+        // Данные, отданные содержимому, — то, что прочтёт некомпилируемая привязка, а не тип данных корня.
+        var handed = Assert.Single(await Checks(view, "/0/2"));
+
+        Assert.Equal(XamlExpressionState.Resolved, handed.State);
+        Assert.Equal("App.ViewModels.Customer", handed.ResultType?.FullName);
+
+        var inner = Assert.Single(await Checks(view, "/0/2/0"));
+
+        Assert.Equal(XamlExpressionState.Resolved, inner.State);
+        Assert.Equal("App.ViewModels.Customer", inner.SourceType?.FullName);
+        Assert.Equal("App.ViewModels.Customer", (await view.DescribeDataAsync(XamlElementPath.Parse("/0/2/0"), Token))?.PathType?.FullName);
+
+        Assert.Empty(await Checks(view, "/0"));
+        Assert.Empty(await Checks(view, "/7"));
+
+        window.Content = null;
+        window.Close();
+    }
+
+    /// <summary>
+    /// Проект компилирует привязки, а типа данных нет: привязка к данным сломана и остановит сборку, привязке к элементу
+    /// тип данных не нужен, а то, что известно только работающей форме, не проверено.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_compiled_binding_without_a_data_type_is_broken_and_stops_the_build()
+    {
+        await using var studio = new XamlStudio { CompiledBindings = true };
+
+        using var view = await ShowAsync(studio, "MainView.axaml", """
+            <UserControl xmlns="https://github.com/avaloniaui"
+                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+              <StackPanel>
+                <TextBlock x:Name="first" Text="{Binding Title}" />
+                <TextBlock Text="{Binding #first.Text}" Tag="{ReflectionBinding Title}" />
+              </StackPanel>
+            </UserControl>
+            """);
+
+        var data = Assert.Single(await Checks(view, "/0/0"));
+
+        Assert.Equal(XamlExpressionState.Broken, data.State);
+        Assert.True(data.BreaksBuild, "сборка, компилирующая привязку без типа данных, на ней не остановится");
+        Assert.Equal(Format(studio, "module.xaml.binding.breaksBuild", Strings(studio)["module.xaml.binding.noDataType"]), data.Message);
+
+        var other = await Checks(view, "/0/1");
+
+        Assert.Equal(XamlExpressionState.Resolved, other[0].State);
+        Assert.False(other[0].BreaksBuild, "привязке к элементу понадобился тип данных");
+        Assert.Equal(XamlExpressionState.Unchecked, other[1].State);
+        Assert.Equal(Strings(studio)["module.xaml.binding.unchecked"], other[1].Message);
+    }
+
+    private static async Task<IReadOnlyList<XamlExpressionCheck>> Checks(IXamlDesignView view, string path) =>
+        await view.CheckExpressionsAsync(XamlElementPath.Parse(path), Token);
+
+    private static IStudioStrings Strings(XamlStudio studio) =>
+        studio.XamlModule.Studio?.Strings ?? throw new InvalidOperationException("у модуля нет словаря");
+
+    private static string Format(XamlStudio studio, string key, params object[] arguments) =>
+        string.Format(CultureInfo.CurrentCulture, Strings(studio)[key], arguments);
+
+    /// <summary>Кладёт форму, открывает решение и показывает её.</summary>
+    private static async Task<IXamlDesignView> ShowAsync(XamlStudio studio, string name, string form)
+    {
+        var path = studio.Write(name, form);
+
+        await studio.OpenAsync();
+
+        var handle = await studio.Documents.OpenAsync(path, Token);
+
+        return await handle.ShowAsync(null, Token);
+    }
+}

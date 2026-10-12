@@ -24,6 +24,7 @@
   "inspector.unavailable": "The inspector is unavailable: another extension took its service",
   "inspector.expression.edit": "Edit as text",
   "inspector.expression.literal": "Replace with its value",
+  "inspector.expression.now": "Now: {0}",
   "inspector.reset": "Reset",
   "inspector.copyValue": "Copy value",
   "inspector.pasteValue": "Paste value",

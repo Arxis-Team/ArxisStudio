@@ -1,3 +1,4 @@
+using System.Globalization;
 using ArxisStudio.Controls;
 using ArxisStudio.Icons;
 using ArxisStudio.Inspector;
@@ -48,6 +49,7 @@ internal sealed class InspectorRow : AxPropertyRow
     private TextField? _text;
     private AxChip? _token;
     private TextBlock? _tokenText;
+    private AxIcon? _tokenIcon;
     private AxButton? _edit;
     private bool _built;
     private bool _stale = true;
@@ -411,9 +413,7 @@ internal sealed class InspectorRow : AxPropertyRow
         }
         else if (IsExpression)
         {
-            Token();
-            _tokenText!.Text = value.Written ?? value.Text;
-            ToolTip.SetTip(_token!, value.Written ?? value.Text);
+            ShowToken(value);
         }
         else
         {
@@ -498,17 +498,64 @@ internal sealed class InspectorRow : AxPropertyRow
         return _text;
     }
 
+    /// <summary>
+    /// Жетон выражения: значок вида и короткая запись, тон — по тому, работает ли оно. Найденное — акцентом, сломанное —
+    /// тоном ошибки, а непроверенное — нейтральным: о нём не сказано ни того, ни другого. Источник, который о выражении не
+    /// говорит, получает прежний жетон — акцентный, с написанным как есть.
+    /// </summary>
+    private void ShowToken(InspectorValue value)
+    {
+        Token();
+
+        var expression = value.Expression;
+        var written = value.Written ?? value.Text;
+
+        _tokenText!.Text = expression?.Summary ?? written;
+        _tokenIcon!.IsVisible = expression is not null;
+
+        if (expression is not null)
+            _tokenIcon.Data = expression.Icon ?? IconOf(expression.Kind);
+
+        _token!.Kind = expression is null or { State: InspectorExpressionState.Resolved } ? AxChipKind.Accent : AxChipKind.Default;
+        AxValidation.SetState(_token, expression?.State == InspectorExpressionState.Broken ? AxValidationState.Error : AxValidationState.None);
+
+        // Подсказка — полная запись, что о ней известно и значение сейчас: короткая запись жетона прячет остальное.
+        var now = expression is not null && !string.IsNullOrEmpty(value.Text) && !string.Equals(value.Text, written, StringComparison.Ordinal)
+            ? string.Format(CultureInfo.CurrentCulture, _list.Words["inspector.expression.now"], value.Text)
+            : null;
+
+        ToolTip.SetTip(_token, string.Join(Environment.NewLine, new[] { written, expression?.Detail, now }.Where(static line => !string.IsNullOrEmpty(line))));
+    }
+
+    /// <summary>Значок вида выражения.</summary>
+    private static Geometry IconOf(InspectorExpressionKind kind) => kind switch
+    {
+        InspectorExpressionKind.Binding => AxIcons.Binding,
+        InspectorExpressionKind.Resource => AxIcons.Palette,
+        InspectorExpressionKind.Static => AxIcons.Pin,
+        InspectorExpressionKind.Template => AxIcons.Template,
+        _ => AxIcons.Component,
+    };
+
     /// <summary>Жетон выражения; двойной щелчок открывает его текстом.</summary>
     private AxChip Token()
     {
         if (_token is not null)
             return _token;
 
-        _tokenText = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis };
+        _tokenText = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+        _tokenIcon = new AxIcon
+        {
+            Size = AxIconSize.Small,
+            VerticalAlignment = VerticalAlignment.Center,
+            IsVisible = false,
+            [!Layoutable.MarginProperty] = new DynamicResourceExtension("AxGapIconTextThickness"),
+        };
+        DockPanel.SetDock(_tokenIcon, Dock.Left);
         _token = new AxChip
         {
             Kind = AxChipKind.Accent,
-            Content = _tokenText,
+            Content = new DockPanel { Children = { _tokenIcon, _tokenText } },
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,
         };

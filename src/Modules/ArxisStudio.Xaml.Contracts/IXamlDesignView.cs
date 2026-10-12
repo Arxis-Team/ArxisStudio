@@ -153,4 +153,22 @@ public interface IXamlDesignView : IDisposable
     /// Появилось в контракте 1.2.
     /// </remarks>
     ValueTask<IReadOnlyList<XamlDataTypeInfo>> GetDataTypesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Проверяет выражения, которыми элемент пишет свои члены: привязке — источник и путь по тому, что документ
+    /// объявляет, и примет ли её сборка проекта.
+    /// </summary>
+    /// <param name="element">Путь элемента в показанном тексте.</param>
+    /// <param name="cancellationToken">Отмена.</param>
+    /// <returns>
+    /// Проверку каждого атрибута-выражения в порядке документа; пусто — выражений нет, элемента нет или показ отдал
+    /// объекты.
+    /// </returns>
+    /// <remarks>
+    /// Источник привязки ищется в документе, а не в дереве, где стоят объекты: форма в дизайнере стоит внутри
+    /// контролов студии, и предок или данные, найденные там, были бы студийными. Компилируется ли привязка, решает
+    /// ближайший <c>x:CompileBindings</c>, а без него — свойство проекта. Ресурсы и статические члены пока не
+    /// проверяются. Появилось в контракте 1.3.
+    /// </remarks>
+    ValueTask<IReadOnlyList<XamlExpressionCheck>> CheckExpressionsAsync(XamlElementPath element, CancellationToken cancellationToken = default);
 }

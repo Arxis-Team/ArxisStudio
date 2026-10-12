@@ -1,4 +1,5 @@
 using System.Globalization;
+using ArxisStudio.Markup.Xaml.Loader;
 using ArxisStudio.ProjectSystem.Markup.Xaml;
 using ArxisStudio.Sdk;
 
@@ -61,6 +62,28 @@ internal sealed class XamlWords(IStudioStrings strings)
 
     /// <summary>Что держит замену, пока идёт предпросмотр значения.</summary>
     public string Preview => strings["module.xaml.preview"];
+
+    /// <summary>
+    /// Почему привязка не работает: у источника нет свойства пути, элемента с таким именем нет, тип предка не найден — или
+    /// привязка компилируется, а типа данных в области нет.
+    /// </summary>
+    /// <param name="source">Что привязка читает.</param>
+    /// <param name="step">На чём чтение остановилось; null — источника нет.</param>
+    /// <param name="sourceType">Короткое имя типа источника; null — не известен.</param>
+    public string BindingBroken(XamlBindingSource source, string? step, string? sourceType) => (source, step, sourceType) switch
+    {
+        (_, { } missing, { } type) => string.Format(CultureInfo.CurrentCulture, strings["module.xaml.binding.noMember"], type, missing),
+        (XamlBindingSource.Element, { } name, null) => Format("module.xaml.binding.noElement", name),
+        (XamlBindingSource.Ancestor, { } type, null) => Format("module.xaml.binding.noType", type),
+        _ => strings["module.xaml.binding.noDataType"],
+    };
+
+    /// <summary>Привязка не проверена: она читает то, за чем проверка не следует.</summary>
+    public string BindingUnchecked => strings["module.xaml.binding.unchecked"];
+
+    /// <summary>Сломанное, на котором остановится сборка проекта.</summary>
+    /// <param name="message">Что сломано.</param>
+    public string BreaksBuild(string message) => Format("module.xaml.binding.breaksBuild", message);
 
     private string Format(string key, string value) =>
         string.Format(CultureInfo.CurrentCulture, strings[key], value);

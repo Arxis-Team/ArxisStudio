@@ -66,8 +66,16 @@ public sealed record XamlDataScope(
     bool CompilesBindings,
     bool CompilesByProjectDefault)
 {
-    /// <summary>Тип, по которому читаются пути привязок: написанный, а без него — тип данных сейчас.</summary>
-    public XamlTypeInfo? PathType => DataType ?? SourceType;
+    /// <summary>
+    /// Тип, по которому читаются пути привязок, — как их прочтёт проект: компилируемые — по <c>x:DataType</c>, а
+    /// некомпилируемые — по данным, которые у элемента будут при работе формы, и по <c>x:DataType</c> только без них.
+    /// </summary>
+    /// <remarks>
+    /// <c>x:DataType</c> — то, по чему путь проверяет компилятор. Привязка, которую он не компилирует, читает данные
+    /// элемента, и у потомка элемента, отдавшего содержимому другие данные, тип данных области назвал бы рабочий путь
+    /// сломанным (запись 424).
+    /// </remarks>
+    public XamlTypeInfo? PathType => CompilesBindings ? DataType : SourceType ?? DataType;
 
     /// <summary>
     /// Привязке к данным не хватит типа: привязки компилируются, а <c>x:DataType</c> в области не написан или не

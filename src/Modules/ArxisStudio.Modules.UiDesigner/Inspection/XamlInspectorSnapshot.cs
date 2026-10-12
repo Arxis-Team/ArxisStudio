@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Globalization;
 using ArxisStudio.Inspector;
 using ArxisStudio.Markup;
@@ -82,8 +83,13 @@ internal sealed partial class XamlInspectorSnapshot
     private readonly Dictionary<string, Spec> _specs;
     private readonly IStudioStrings _strings;
 
-    // Что читают привязки выбранных — ответы службы по номеру выбранного; общие у снимка и его копии на время замены.
+    // Что читают привязки выбранных и работают ли их выражения — ответы службы по номеру выбранного; общие у снимка и
+    // его копии на время замены.
     private readonly XamlDataScope?[] _data;
+    private readonly IReadOnlyList<XamlExpressionCheck>?[] _checks;
+
+    // Ошибки загрузки текста с местом: без показа выражение, на котором загрузка упала, — сломанное.
+    private readonly ImmutableArray<MarkupDiagnostic> _errors;
 
     private XamlInspectorSnapshot(
         List<Picked> picked,
@@ -92,12 +98,16 @@ internal sealed partial class XamlInspectorSnapshot
         InspectorHeader header,
         bool live,
         IStudioStrings strings,
-        XamlDataScope?[]? data = null)
+        ImmutableArray<MarkupDiagnostic> errors,
+        XamlDataScope?[]? data = null,
+        IReadOnlyList<XamlExpressionCheck>?[]? checks = null)
     {
         _picked = picked;
         _specs = specs;
         _strings = strings;
+        _errors = errors;
         _data = data ?? new XamlDataScope?[picked.Count];
+        _checks = checks ?? new IReadOnlyList<XamlExpressionCheck>?[picked.Count];
         Type = type;
         Header = header;
         IsLive = live;
@@ -136,7 +146,7 @@ internal sealed partial class XamlInspectorSnapshot
     /// </summary>
     /// <param name="notice">Что сказать в шапке.</param>
     public XamlInspectorSnapshot Swapping(string notice) =>
-        new(_picked, _specs, Type, Header with { Notice = notice }, live: false, _strings, _data);
+        new(_picked, _specs, Type, Header with { Notice = notice }, live: false, _strings, _errors, _data, _checks);
 
     /// <summary>Читает выбранное.</summary>
     /// <param name="view">Показ формы; null — форма не показана.</param>
@@ -190,8 +200,10 @@ internal sealed partial class XamlInspectorSnapshot
         // Живой — тот, чьи члены пришли от объектов: показ может быть, а объектов в нём уже нет — их отдали на замену.
         live = live && picked.Count > 0 && picked.All(static item => item.Info is not null);
 
+        var errors = document.Diagnostics.Where(static diagnostic => diagnostic is { IsError: true, Span: not null }).ToImmutableArray();
+
         if (picked.Count == 0)
-            return new XamlInspectorSnapshot(picked, specs, type, HeaderOf(picked, document.State, shown, strings, specs), live, strings);
+            return new XamlInspectorSnapshot(picked, specs, type, HeaderOf(picked, document.State, shown, strings, specs), live, strings, errors);
 
         if (live)
         {
@@ -206,7 +218,7 @@ internal sealed partial class XamlInspectorSnapshot
         else if (!live)
             AddCommonWritten(picked, specs);
 
-        return new XamlInspectorSnapshot(picked, specs, type, HeaderOf(picked, document.State, live, strings, specs), live, strings);
+        return new XamlInspectorSnapshot(picked, specs, type, HeaderOf(picked, document.State, live, strings, specs), live, strings, errors);
     }
 
     /// <summary>Значение свойства; у нескольких выбранных — первого, с «—», если написано разное.</summary>
@@ -216,7 +228,7 @@ internal sealed partial class XamlInspectorSnapshot
         if (!_specs.TryGetValue(id, out var spec) || _picked.Count == 0)
             return InspectorValue.Empty;
 
-        var first = spec.Kind == Kind.Data ? DataValueAt(0, spec) : ValueAt(_picked[0], spec);
+        var first = spec.Kind == Kind.Data ? DataValueAt(0, spec) : ValueAt(0, spec);
         var mixed = _picked.Skip(1).Any(item => !string.Equals(WrittenAt(item, spec), first.Written, StringComparison.Ordinal));
 
         return mixed ? first with { IsMixed = true } : first;
@@ -458,12 +470,25 @@ internal sealed partial class XamlInspectorSnapshot
     }
 
     /// <summary>Значение у одного выбранного.</summary>
-    private static InspectorValue ValueAt(Picked item, Spec spec)
+    private InspectorValue ValueAt(int index, Spec spec)
     {
+        var item = _picked[index];
         var written = WrittenAt(item, spec);
 
         if (spec.Kind != Kind.Member || !item.Members.TryGetValue(spec.Property.Id, out var member))
         {
+            // Без показа выражение — жетоном: какое оно, и не на нём ли упала загрузка.
+            if (spec.Kind == Kind.Other && ExpressionOf(index, spec.Property.Id, written) is var (shownExpression, failure))
+            {
+                return new InspectorValue(written)
+                {
+                    Written = written,
+                    Source = InspectorValueSource.Expression,
+                    Expression = shownExpression,
+                    Error = failure,
+                };
+            }
+
             var source = written is null ? InspectorValueSource.Default
                 : spec.Kind == Kind.Design ? InspectorValueSource.Design
                 : InspectorValueSource.Local;
@@ -491,6 +516,9 @@ internal sealed partial class XamlInspectorSnapshot
 
         // Длинная запись — написанное, но не текст значения: «<vm:Main />» поле числа или цвета не прочтёт.
         var asText = origin is InspectorValueSource.Local or InspectorValueSource.Design && LongForm(item, spec) is null;
+        var (expression, error) = origin == InspectorValueSource.Expression && ExpressionOf(index, spec.Property.Id, written) is { } found
+            ? found
+            : (null, null);
 
         return new InspectorValue(asText ? written ?? value.Text : value.Text)
         {
@@ -498,6 +526,8 @@ internal sealed partial class XamlInspectorSnapshot
             Source = origin,
             SourceDetail = value.OriginDetail,
             Shared = value.Shared,
+            Expression = expression,
+            Error = error,
         };
     }
 

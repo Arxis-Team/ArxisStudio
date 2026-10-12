@@ -30,8 +30,9 @@ namespace ArxisStudio.Modules.UiDesigner.Inspection;
 /// элементы того же типа, — и закрывается, если нет: править чужой элемент хуже, чем показать, что своего нет.
 /// </para>
 /// <para>
-/// <b>Данные — ответом службы.</b> Что читают привязки, служба XAML отвечает асинхронно: снимок читается сразу, а
-/// ответ кладётся в него после (<see cref="DescribeDataAsync"/>), и строки данных переспрашиваются. Модели проекта —
+/// <b>Данные и выражения — ответом службы.</b> Что читают привязки и работают ли выражения, служба XAML отвечает
+/// асинхронно: снимок читается сразу — вид и запись выражения по одному синтаксису, — а ответ кладётся в него после
+/// (<see cref="EnrichAsync"/>), и переспрашиваются только строки данных и выражений. Модели проекта —
 /// варианты источника и типа — цель берёт у показа на каждое поколение заранее (<see cref="FetchDataTypesAsync"/>):
 /// выбор открывается сразу, без ожидания.
 /// </para>
@@ -290,17 +291,17 @@ internal sealed class XamlInspectorTarget : InspectorTarget
 
         if (snapshot.IsLive)
         {
-            // До нового ответа службы строки данных показывают прежний: иначе каждая правка мигала бы в них «Нет».
+            // До нового ответа службы строки показывают прежний: иначе каждая правка мигала бы в них.
             if (_lastLive is { } previous)
-                snapshot.Describe(previous.Data);
+                snapshot.Seed(previous);
 
             _lastLive = snapshot;
 
-            if (Slot.Session.Shown is { } view && snapshot.DataIds.Count > 0)
+            if (Slot.Session.Shown is { } view)
             {
-                _ = DescribeDataAsync(view, snapshot);
+                _ = EnrichAsync(view, snapshot);
 
-                if (_dataTypesStale)
+                if (snapshot.DataIds.Count > 0 && _dataTypesStale)
                 {
                     _dataTypesStale = false;
                     _ = FetchDataTypesAsync(view);
@@ -396,18 +397,24 @@ internal sealed class XamlInspectorTarget : InspectorTarget
     }
 
     /// <summary>
-    /// Спрашивает у службы, что читают привязки выбранных, и кладёт ответ в снимок — его и его копию на время замены:
-    /// ответ — имена, и замену он переживает.
+    /// Спрашивает у службы, что читают привязки выбранных и работают ли их выражения, и кладёт ответ в снимок — его и
+    /// его копию на время замены: ответ — имена, и замену он переживает.
     /// </summary>
-    private async Task DescribeDataAsync(IXamlDesignView view, XamlInspectorSnapshot snapshot)
+    private async Task EnrichAsync(IXamlDesignView view, XamlInspectorSnapshot snapshot)
     {
         var paths = snapshot.Paths.ToList();
         var scopes = new XamlDataScope?[paths.Count];
+        var checks = new IReadOnlyList<XamlExpressionCheck>?[paths.Count];
 
         try
         {
             for (var at = 0; at < paths.Count; at++)
-                scopes[at] = await view.DescribeDataAsync(paths[at]).ConfigureAwait(true);
+            {
+                if (snapshot.DataIds.Count > 0)
+                    scopes[at] = await view.DescribeDataAsync(paths[at]).ConfigureAwait(true);
+
+                checks[at] = await view.CheckExpressionsAsync(paths[at]).ConfigureAwait(true);
+            }
         }
         catch (Exception e) when (e is OperationCanceledException or ObjectDisposedException)
         {
@@ -416,9 +423,10 @@ internal sealed class XamlInspectorTarget : InspectorTarget
         }
 
         snapshot.Describe(scopes);
+        snapshot.Check(checks);
 
         if (!IsClosed && snapshot.Shares(_snapshot))
-            Raise(InspectorChanges.Values, snapshot.DataIds);
+            Raise(InspectorChanges.Values, [.. snapshot.DataIds.Union(snapshot.CheckedIds, StringComparer.Ordinal)]);
     }
 
     /// <summary>Берёт модели проекта формы — варианты источника и типа данных.</summary>

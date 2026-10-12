@@ -18,5 +18,11 @@
   "module.xaml.saveRefused": "{0} не сохранён: {1}",
   "module.xaml.swapHeld": "держит: {0}",
   "module.xaml.valueRejected": "«{0}» не читается как {1}",
-  "module.xaml.preview": "предпросмотр значения"
+  "module.xaml.preview": "предпросмотр значения",
+  "module.xaml.binding.noMember": "У {0} нет свойства «{1}»",
+  "module.xaml.binding.noElement": "Нет элемента с именем «{0}»",
+  "module.xaml.binding.noType": "Тип «{0}» не найден",
+  "module.xaml.binding.noDataType": "Привязка компилируется, а x:DataType в области нет",
+  "module.xaml.binding.unchecked": "Не проверено: привязка читает то, что известно только при работе формы",
+  "module.xaml.binding.breaksBuild": "{0} — проект не соберётся"
 }

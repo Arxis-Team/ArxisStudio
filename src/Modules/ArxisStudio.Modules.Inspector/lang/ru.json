@@ -24,6 +24,7 @@
   "inspector.unavailable": "Инспектор недоступен: его службу заняло другое расширение",
   "inspector.expression.edit": "Изменить как текст",
   "inspector.expression.literal": "Заменить значением",
+  "inspector.expression.now": "Сейчас: {0}",
   "inspector.reset": "Сбросить",
   "inspector.copyValue": "Копировать значение",
   "inspector.pasteValue": "Вставить значение",

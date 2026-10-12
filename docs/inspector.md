@@ -31,15 +31,15 @@
   "id": "arxis.export",
   "sdk": { "min": "7.22" },
   "dependencies": [
-    { "id": "arxis.inspector", "min": "1.2", "optional": true }
+    { "id": "arxis.inspector", "min": "1.3", "optional": true }
   ],
   "activation": [ "onContribution:arxis.inspector" ]
 }
 ```
 
-Границы три: **1.0** — цели, вклады и служба показа; **1.1** — показ объекта (`Inspect`); **1.2** — значки разделов
-и типов (`Icon` у описаний раздела и типа), раздел меню ⋮ (`InspectorMenuContext.Category`) и подсказка подзаголовка
-шапки (`InspectorHeader.Detail`). Плагину, который
+Границы четыре: **1.0** — цели, вклады и служба показа; **1.1** — показ объекта (`Inspect`); **1.2** — значки
+разделов и типов (`Icon` у описаний раздела и типа), раздел меню ⋮ (`InspectorMenuContext.Category`) и подсказка
+подзаголовка шапки (`InspectorHeader.Detail`); **1.3** — жетон выражения (`InspectorValue.Expression`). Плагину, который
 только дополняет инспектор редакторами и разделами, служба не нужна вовсе: вклады студия найдёт в его сборке
 сама — открытые классы с открытым конструктором, — построит через шов сбоев с контекстом плагина и снимет с
 его выгрузкой. Спящий плагин проснётся событием `onContribution:arxis.inspector`, когда инспектор впервые
@@ -520,6 +520,46 @@ public class Gauge : Control
 | `Inherited` | унаследовано от предка |
 | `Animation` | анимация |
 | `Code` | поставлено кодом |
+
+## Выражения
+
+Значение, которое вычисляет выражение — привязка, ресурс, статический член, — строка показывает жетоном, а не полем:
+выражение правят текстом, и запись уходит цели как написана. Что это за выражение, говорит
+`InspectorValue.Expression` (контракт 1.3): вид — значком, короткая запись — текстом жетона, состояние — тоном. Без
+него жетон показывает написанное (`Written`), как до 1.3.
+
+| Состояние | Жетон |
+|---|---|
+| `Unchecked` | нейтральный: проверка за таким выражением не следует или ещё не ответила |
+| `Resolved` | акцентный; `Detail` — в подсказке |
+| `Broken` | тоном ошибки, а `Error` значения — заметкой под строкой |
+
+```csharp
+using ArxisStudio.Inspector;
+
+namespace Guide.Inspector.Expressions;
+
+public static class BoundValues
+{
+    // Привязка, чей путь нашёлся или нет: жетон «Layer.Opacity» со значком привязки.
+    public static InspectorValue Opacity(string written, bool found) => new("0.5")
+    {
+        Written = written,
+        Source = InspectorValueSource.Expression,
+        Expression = new InspectorExpression(InspectorExpressionKind.Binding, "Layer.Opacity")
+        {
+            State = found ? InspectorExpressionState.Resolved : InspectorExpressionState.Broken,
+            Detail = found ? "Layer → Double" : null,
+        },
+
+        // Сломанное говорит тем же, чем ошибка значения: заметкой под строкой.
+        Error = found ? null : "У Layer нет свойства «Opacity»",
+    };
+}
+```
+
+Подсказка жетона — полная запись, `Detail` и значение сейчас (`Text`), если оно не повторяет записанное. Значок
+у каждого вида свой, а `Icon` его подменяет — у выражения, которое придумал ваш плагин.
 
 ## Выгрузка
 

@@ -76,6 +76,27 @@ ArxisStudio.Inspector.InspectorDecorationKind : enum
 ArxisStudio.Inspector.InspectorDecorationKind :: Header = 0
 ArxisStudio.Inspector.InspectorDecorationKind :: Help = 2
 ArxisStudio.Inspector.InspectorDecorationKind :: Space = 1
+ArxisStudio.Inspector.InspectorExpression : sealed record : System.IEquatable<ArxisStudio.Inspector.InspectorExpression>
+ArxisStudio.Inspector.InspectorExpression :: .ctor(ArxisStudio.Inspector.InspectorExpressionKind Kind, System.String Summary)
+ArxisStudio.Inspector.InspectorExpression :: ArxisStudio.Inspector.InspectorExpressionKind Kind { get; init; }
+ArxisStudio.Inspector.InspectorExpression :: ArxisStudio.Inspector.InspectorExpressionState State { get; init; }
+ArxisStudio.Inspector.InspectorExpression :: Avalonia.Media.Geometry? Icon { get; init; }
+ArxisStudio.Inspector.InspectorExpression :: System.Boolean Equals(ArxisStudio.Inspector.InspectorExpression? other)
+ArxisStudio.Inspector.InspectorExpression :: System.String Summary { get; init; }
+ArxisStudio.Inspector.InspectorExpression :: System.String? Detail { get; init; }
+ArxisStudio.Inspector.InspectorExpression :: System.Void Deconstruct(out ArxisStudio.Inspector.InspectorExpressionKind Kind, out System.String Summary)
+ArxisStudio.Inspector.InspectorExpression :: static System.Boolean op_Equality(ArxisStudio.Inspector.InspectorExpression? left, ArxisStudio.Inspector.InspectorExpression? right)
+ArxisStudio.Inspector.InspectorExpression :: static System.Boolean op_Inequality(ArxisStudio.Inspector.InspectorExpression? left, ArxisStudio.Inspector.InspectorExpression? right)
+ArxisStudio.Inspector.InspectorExpressionKind : enum
+ArxisStudio.Inspector.InspectorExpressionKind :: Binding = 0
+ArxisStudio.Inspector.InspectorExpressionKind :: Other = 4
+ArxisStudio.Inspector.InspectorExpressionKind :: Resource = 1
+ArxisStudio.Inspector.InspectorExpressionKind :: Static = 2
+ArxisStudio.Inspector.InspectorExpressionKind :: Template = 3
+ArxisStudio.Inspector.InspectorExpressionState : enum
+ArxisStudio.Inspector.InspectorExpressionState :: Broken = 2
+ArxisStudio.Inspector.InspectorExpressionState :: Resolved = 1
+ArxisStudio.Inspector.InspectorExpressionState :: Unchecked = 0
 ArxisStudio.Inspector.InspectorField : abstract class
 ArxisStudio.Inspector.InspectorField :: .ctor()
 ArxisStudio.Inspector.InspectorField :: ArxisStudio.Controls.AxNumberField? ScrubTarget { get; }
@@ -291,6 +312,7 @@ ArxisStudio.Inspector.InspectorTypeInfo :: static System.Boolean op_Inequality(A
 ArxisStudio.Inspector.InspectorTypeInfo :: static System.String NameOf(System.Type type)
 ArxisStudio.Inspector.InspectorValue : sealed record : System.IEquatable<ArxisStudio.Inspector.InspectorValue>
 ArxisStudio.Inspector.InspectorValue :: .ctor(System.String? Text)
+ArxisStudio.Inspector.InspectorValue :: ArxisStudio.Inspector.InspectorExpression? Expression { get; init; }
 ArxisStudio.Inspector.InspectorValue :: ArxisStudio.Inspector.InspectorValueSource Source { get; init; }
 ArxisStudio.Inspector.InspectorValue :: System.Boolean Equals(ArxisStudio.Inspector.InspectorValue? other)
 ArxisStudio.Inspector.InspectorValue :: System.Boolean IsMixed { get; init; }

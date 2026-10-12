@@ -308,9 +308,66 @@ public sealed record InspectorValue(string? Text)
     /// <summary>Что с написанным не так: строка показывает это заметкой под полем.</summary>
     public string? Error { get; init; }
 
+    /// <summary>
+    /// Выражение, которым задано значение, — вид, короткая запись и работает ли оно; пусто — источник о нём не
+    /// говорит, и жетон показывает написанное как есть.
+    /// </summary>
+    /// <remarks>Появилось в контракте 1.3.</remarks>
+    public InspectorExpression? Expression { get; init; }
+
     /// <summary>Значение задано у самой цели: здесь, для дизайна или выражением.</summary>
     public bool IsWritten =>
         Source is InspectorValueSource.Local or InspectorValueSource.Design or InspectorValueSource.Expression;
+}
+
+/// <summary>Что выражение делает со значением.</summary>
+/// <remarks>Появилось в контракте 1.3.</remarks>
+public enum InspectorExpressionKind
+{
+    /// <summary>Привязка: значение читается из данных или у другого элемента.</summary>
+    Binding,
+
+    /// <summary>Ресурс: значение берётся по ключу словаря.</summary>
+    Resource,
+
+    /// <summary>Статический член: значение — поле или свойство типа.</summary>
+    Static,
+
+    /// <summary>Привязка шаблона к контролу, который он одевает.</summary>
+    Template,
+
+    /// <summary>Иное выражение.</summary>
+    Other,
+}
+
+/// <summary>Что известно о том, работает ли выражение.</summary>
+/// <remarks>Появилось в контракте 1.3.</remarks>
+public enum InspectorExpressionState
+{
+    /// <summary>Не проверено: источник не знает или ещё не ответил.</summary>
+    Unchecked,
+
+    /// <summary>Найдено: путь или ключ ведут к значению.</summary>
+    Resolved,
+
+    /// <summary>Сломано: путь или ключ не ведут никуда; почему — в <see cref="InspectorValue.Error"/>.</summary>
+    Broken,
+}
+
+/// <summary>Выражение, которым задано значение: жетон строки показывает его значком вида, записью и тоном состояния.</summary>
+/// <param name="Kind">Что выражение делает.</param>
+/// <param name="Summary">Короткая запись для жетона: путь привязки, ключ ресурса — а полную строка берёт из написанного.</param>
+/// <remarks>Появилось в контракте 1.3.</remarks>
+public sealed record InspectorExpression(InspectorExpressionKind Kind, string Summary)
+{
+    /// <summary>Работает ли оно.</summary>
+    public InspectorExpressionState State { get; init; }
+
+    /// <summary>Что о нём сказать подсказкой, кроме записи: <c>MainViewModel → String</c>.</summary>
+    public string? Detail { get; init; }
+
+    /// <summary>Значок вместо значка вида — контур в клетке 16; пусто — значок вида.</summary>
+    public Geometry? Icon { get; init; }
 }
 
 /// <summary>Запись значения.</summary>
