@@ -214,7 +214,8 @@ internal static class FileWorker
     }
 
     /// <summary>Пишет файл во временный рядом и ставит его на место подменой.</summary>
-    private static void Replace(string path, ReadOnlySpan<byte> content)
+    /// <remarks>Не записалось — прежний файл остался как был, а временный убран.</remarks>
+    internal static void Replace(string path, ReadOnlySpan<byte> content)
     {
         var temporary = Temporary(path);
 
@@ -524,7 +525,8 @@ internal static class FileWorker
     }
 
     /// <summary>
-    /// Переписывает ссылки в файлах проектов; не записавшийся файл возвращает все записанные.
+    /// Переписывает ссылки в файлах проектов: не прочитавшийся файл — отказ до первой записи, не
+    /// записавшийся возвращает все записанные.
     /// </summary>
     /// <param name="snapshot">Снимок.</param>
     /// <param name="changes">Что куда переехало и что удалено.</param>
@@ -547,25 +549,36 @@ internal static class FileWorker
 
         var edits = new List<(ProjectFileEdit Edit, HistoryFileState? Before)>();
 
-        foreach (var project in snapshot.Projects.DistinctBy(project => project.ProjectFilePath))
+        try
         {
-            var directory = project.ProjectDirectory.Value;
-
-            // Уехавшее из проекта в чужой — для этого проекта удалено: оставь ссылку переписанной, и
-            // проект взял бы чужой файл к себе.
-            var own = changes
-                .Select(change => change.To is { } to && PathChange.Inside(change.From, directory) && !PathChange.Inside(to, directory)
-                    ? change with { To = null }
-                    : change)
-                .ToList();
-
-            if (ProjectFileEdit.Open(project.ProjectFilePath.Value) is not { } edit
-                || !ItemReferences.Rewrite(edit.Document, directory, own))
+            foreach (var project in snapshot.Projects.DistinctBy(project => project.ProjectFilePath))
             {
-                continue;
-            }
+                var directory = project.ProjectDirectory.Value;
 
-            edits.Add((edit, store is null ? null : State(store, edit.Path)));
+                // Уехавшее из проекта в чужой — для этого проекта удалено: оставь ссылку переписанной, и
+                // проект взял бы чужой файл к себе.
+                var own = changes
+                    .Select(change => change.To is { } to && PathChange.Inside(change.From, directory) && !PathChange.Inside(to, directory)
+                        ? change with { To = null }
+                        : change)
+                    .ToList();
+
+                if (ProjectFileEdit.Open(project.ProjectFilePath.Value) is not { } edit
+                    || !ItemReferences.Rewrite(edit.Document, directory, own))
+                {
+                    continue;
+                }
+
+                edits.Add((edit, store is null ? null : State(store, edit.Path)));
+            }
+        }
+
+        // Файл проекта, который не прочесть, — отказ до первого записанного байта: правка без него
+        // оставила бы в нём ссылки на прежние пути (запись 384).
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            failure = e;
+            return false;
         }
 
         var saved = new List<ProjectFileEdit>();

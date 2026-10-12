@@ -24,6 +24,12 @@ namespace ArxisStudio.Modules.Projects.Files;
 /// Откат пишет исходные байты, а не текст: вернуть надо ровно то, что лежало, и ничего не
 /// спрашивая у диска.
 /// </para>
+/// <para>
+/// <b>Пишется файл целиком или никак</b> — во временный рядом и подменой, как всякая запись службы
+/// (<see cref="FileWorker.Replace"/>). Поверх себя запись сперва обнуляла файл, и отказ посередине —
+/// кончилось место, участок файла держит чужая программа — оставлял пустой <c>.csproj</c>, а откат на
+/// той же блокировке падал так же (запись 384).
+/// </para>
 /// </remarks>
 internal sealed class ProjectFileEdit
 {
@@ -46,6 +52,13 @@ internal sealed class ProjectFileEdit
 
     /// <summary>Открывает файл; null — его нет или это не XML.</summary>
     /// <param name="path">Полный путь.</param>
+    /// <exception cref="IOException">Файл есть, но не читается.</exception>
+    /// <exception cref="UnauthorizedAccessException">Файл есть, но прав на него нет.</exception>
+    /// <remarks>
+    /// Переписывать нечего, только когда файла нет или он не XML. Занятый файл молча пропускался, и правка
+    /// проходила, оставив в нём ссылку на прежний путь (запись 384): отказ зовущий видит и откатывает
+    /// правку целиком.
+    /// </remarks>
     public static ProjectFileEdit? Open(string path)
     {
         try
@@ -61,7 +74,7 @@ internal sealed class ProjectFileEdit
 
             return new ProjectFileEdit(path, bytes, reader.CurrentEncoding, Parse(text));
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or XmlException)
+        catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException or XmlException)
         {
             return null;
         }
@@ -99,9 +112,9 @@ internal sealed class ProjectFileEdit
 
         var text = Document.Declaration is { } declaration ? declaration + body.ToString() : body.ToString();
 
-        File.WriteAllText(Path, text, _encoding);
+        FileWorker.Replace(Path, [.. _encoding.GetPreamble(), .. _encoding.GetBytes(text)]);
     }
 
     /// <summary>Возвращает файлу исходные байты.</summary>
-    public void Restore() => File.WriteAllBytes(Path, _original);
+    public void Restore() => FileWorker.Replace(Path, _original);
 }

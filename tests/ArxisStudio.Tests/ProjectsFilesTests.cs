@@ -99,6 +99,75 @@ public sealed class ProjectsFilesTests() : ProjectsOnDisk("projects-files")
     }
 
     /// <summary>
+    /// Файл проекта, который не записать, — либо прежний байт в байт, либо записанный целиком, но не обрезок.
+    /// </summary>
+    /// <remarks>
+    /// Файл проекта писался поверх себя: запись сперва обнуляла его, и отказ посередине — кончилось место,
+    /// участок файла держит чужая программа — оставлял пустой <c>.csproj</c>, а возврат записанных его не
+    /// касался: в записанные он попадал только после записи (запись 384). Тест ставит чужую блокировку
+    /// сразу за концом файла: прочесть его она не мешает, а запись поверх себя обнуляет файл и падает на
+    /// выросшем хвосте. Подмена из временного рядом либо отказывает, не тронув файла, — так на Windows,
+    /// где читатель не разрешил удаление, — и тогда откатывается и перенос, либо проходит целиком.
+    /// Блокировка участка — средство Windows и Linux, и метод помечен платформой, на которой набор гоняют.
+    /// </remarks>
+    [Fact]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    public async Task A_project_file_that_cannot_be_written_is_never_left_cut()
+    {
+        using var studio = await OpenAsync();
+        var original = File.ReadAllBytes(At("Lib.csproj"));
+        ProjectOperationResult result;
+
+        using (var reader = new FileStream(At("Lib.csproj"), FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+        {
+            reader.Lock(original.Length, 4096);
+            result = await studio.Files.MoveAsync([Pair("Views", "Screens")], "Перенос Views", Token);
+            reader.Unlock(original.Length, 4096);
+        }
+
+        var now = File.ReadAllBytes(At("Lib.csproj"));
+
+        if (result.HasErrors)
+        {
+            Assert.Equal(original, now);
+            Assert.True(Directory.Exists(At("Views")) && !Directory.Exists(At("Screens")), "перенос не откатился");
+        }
+        else
+        {
+            Assert.Contains("Update=\"Screens\\Readme.txt\"", Encoding.UTF8.GetString(now), StringComparison.Ordinal);
+            Assert.True(now.AsSpan().StartsWith(Encoding.UTF8.Preamble), "у файла проекта пропала отметка порядка байт");
+        }
+    }
+
+    /// <summary>
+    /// Файл проекта, который не прочесть, останавливает перенос, а не пропускается.
+    /// </summary>
+    /// <remarks>
+    /// Файл проекта, не открывшийся на правку, пропускался молча: перенос проходил, а в файле оставалась
+    /// ссылка на прежний путь (запись 384). Пропуск законен, когда файла нет или это не XML, — переписывать
+    /// там нечего; занятый файл — другое дело, и правка без него была бы правкой наполовину.
+    /// </remarks>
+    [Fact]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    public async Task A_project_file_that_cannot_be_read_stops_the_move()
+    {
+        using var studio = await OpenAsync();
+        var original = File.ReadAllBytes(At("Lib.csproj"));
+        ProjectOperationResult result;
+
+        using (var reader = new FileStream(At("Lib.csproj"), FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+        {
+            reader.Lock(0, original.Length);
+            result = await studio.Files.MoveAsync([Pair("Views", "Screens")], "Перенос Views", Token);
+            reader.Unlock(0, original.Length);
+        }
+
+        Assert.True(result.HasErrors, "перенос прошёл, оставив в файле проекта прежний путь");
+        Assert.Equal(original, File.ReadAllBytes(At("Lib.csproj")));
+        Assert.True(Directory.Exists(At("Views")) && !Directory.Exists(At("Screens")), "перенос не откатился");
+    }
+
+    /// <summary>
     /// Файл проекта, в котором правка ничего не задела, записывается байт в байт — с отметкой порядка
     /// байт, объявлением и переводами строк вперемешку.
     /// </summary>
