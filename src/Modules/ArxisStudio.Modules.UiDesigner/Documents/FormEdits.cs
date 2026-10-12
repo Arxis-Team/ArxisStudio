@@ -19,6 +19,12 @@ namespace ArxisStudio.Modules.UiDesigner.Documents;
 /// перед ней: правки идут очередью документа, а элемент прежнего разбора редактор отвергнет.
 /// </para>
 /// <para>
+/// <b>Пока строение в пути, по путям не правят.</b> Правка строения и шаг истории сдвигают пути, а выбор
+/// узнаёт новые, только когда правка показана. Команда, пришедшая раньше, — вторая Ctrl со стрелкой, второй
+/// Delete — разрешила бы снятый до сдвига путь в новом тексте и тронула бы соседа: элемент вставал назад, а
+/// удалялся следующий. Такая команда не исполняется (запись 409).
+/// </para>
+/// <para>
 /// Правки строения — буфер обмена, дубликат, обёртка — в <c>FormEdits.Structure.cs</c>.
 /// </para>
 /// </remarks>
@@ -29,6 +35,7 @@ internal sealed partial class FormEdits
     private readonly Action<IReadOnlyList<XamlElementPath>> _select;
     private readonly Action<string> _refused;
     private readonly Action? _edited;
+    private int _restructuring;
 
     /// <summary>Правки документа формы.</summary>
     /// <param name="document">Документ формы.</param>
@@ -55,12 +62,41 @@ internal sealed partial class FormEdits
     /// <summary>Документ формы.</summary>
     public IXamlDocumentHandle Document => _document;
 
-    /// <summary>Правит документ; правка показана — выбирает, что сказано.</summary>
+    /// <summary>Идёт правка строения или шаг истории: пути, снятые раньше её конца, могут указывать на соседей.</summary>
+    public bool IsRestructuring => Volatile.Read(ref _restructuring) > 0;
+
+    /// <summary>Правит документ по путям, не сдвигая их; правка показана — выбирает, что сказано.</summary>
     /// <param name="label">Имя шага истории.</param>
     /// <param name="edit">Правка.</param>
     /// <param name="select">Что выбрать после неё; null — выбор остаётся.</param>
-    /// <returns>Изменился ли текст.</returns>
-    public async Task<bool> EditAsync(string label, Action<XamlDocumentEditor> edit, IReadOnlyList<XamlElementPath>? select)
+    /// <returns>Изменился ли текст; пока строение в пути, правка не исполняется.</returns>
+    public Task<bool> EditAsync(string label, Action<XamlDocumentEditor> edit, IReadOnlyList<XamlElementPath>? select) =>
+        IsRestructuring ? Task.FromResult(false) : ApplyAsync(label, edit, select);
+
+    /// <summary>Правит строение: пока правка идёт, правки по путям, снятым раньше её конца, не исполняются.</summary>
+    /// <param name="label">Имя шага истории.</param>
+    /// <param name="edit">Правка.</param>
+    /// <param name="select">Что выбрать после неё; null — выбор остаётся.</param>
+    /// <returns>Изменился ли текст; пока строение в пути, правка не исполняется.</returns>
+    private async Task<bool> RestructureAsync(string label, Action<XamlDocumentEditor> edit, IReadOnlyList<XamlElementPath>? select)
+    {
+        if (IsRestructuring)
+            return false;
+
+        Interlocked.Increment(ref _restructuring);
+
+        try
+        {
+            return await ApplyAsync(label, edit, select);
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _restructuring);
+        }
+    }
+
+    /// <summary>Правит документ его очередью; правка показана — выбирает, что сказано.</summary>
+    private async Task<bool> ApplyAsync(string label, Action<XamlDocumentEditor> edit, IReadOnlyList<XamlElementPath>? select)
     {
         try
         {
@@ -91,8 +127,11 @@ internal sealed partial class FormEdits
 
     /// <summary>Отменяет или возвращает шаг истории документа.</summary>
     /// <param name="back">Отменить, а не вернуть.</param>
+    /// <remarks>Шаг сдвигает пути, как правка строения, но сам путей не берёт: шаги идут очередью документа.</remarks>
     public async Task StepAsync(bool back)
     {
+        Interlocked.Increment(ref _restructuring);
+
         try
         {
             _ = back ? await _document.UndoAsync() : await _document.RedoAsync();
@@ -100,6 +139,10 @@ internal sealed partial class FormEdits
         catch (ObjectDisposedException)
         {
             // Документ закрыт: отменять нечего.
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _restructuring);
         }
     }
 
@@ -131,7 +174,7 @@ internal sealed partial class FormEdits
 
         var after = new List<XamlElementPath> { Survivor(doomed) };
 
-        return EditAsync(label, editor =>
+        return RestructureAsync(label, editor =>
         {
             // Все элементы — из одного текста и до удаления: пути разрешены против него. Вложенное в
             // удаляемое уходит вместе с ним и отдельной правкой не пишется — правки перекрылись бы.
@@ -158,7 +201,7 @@ internal sealed partial class FormEdits
 
         var moved = new List<XamlElementPath>(1);
 
-        return EditAsync(Format("form.edit.move", NameOf(path)), editor =>
+        return RestructureAsync(Format("form.edit.move", NameOf(path)), editor =>
         {
             if (path.Resolve(editor.Document) is not { Parent: XamlElement parent } element)
                 return;

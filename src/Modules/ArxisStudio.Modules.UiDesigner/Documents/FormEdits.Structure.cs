@@ -147,7 +147,7 @@ internal sealed partial class FormEdits
         var pasted = new List<XamlElementPath>(fragments.Count);
         string? refusal = null;
 
-        var changed = await EditAsync(label, editor =>
+        var changed = await RestructureAsync(label, editor =>
         {
             if (parent.Resolve(editor.Document) is not { } container)
                 return;
@@ -206,7 +206,7 @@ internal sealed partial class FormEdits
 
         var copies = new List<XamlElementPath>(taken.Count);
 
-        return EditAsync(label, editor =>
+        return RestructureAsync(label, editor =>
         {
             var originals = Taken(editor.Document, paths);
             var shifts = new List<Shift>(originals.Count);
@@ -265,7 +265,7 @@ internal sealed partial class FormEdits
 
         var wrapper = new List<XamlElementPath>(1);
 
-        return EditAsync(label, editor =>
+        return RestructureAsync(label, editor =>
         {
             if (Wrappable(editor.Document, paths) is not { } elements)
                 return;
@@ -309,7 +309,7 @@ internal sealed partial class FormEdits
 
         var lifted = new List<XamlElementPath>();
 
-        return EditAsync(label, editor =>
+        return RestructureAsync(label, editor =>
         {
             var elements = Unwrappable(editor.Document, paths);
             var shifts = new List<Shift>(elements.Count);

@@ -1,6 +1,10 @@
+using System.Collections.Immutable;
 using ArxisStudio.Controls;
+using ArxisStudio.Markup;
 using ArxisStudio.Markup.Xaml;
 using ArxisStudio.Modules.UiDesigner.Documents;
+using ArxisStudio.ProjectSystem;
+using ArxisStudio.Xaml;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
@@ -460,6 +464,36 @@ public class DesignerStructureTests
         return text!;
     }
 
+    /// <summary>
+    /// Пока правка строения ждёт очереди документа, следующая — по пути, снятому до неё, — не исполняется:
+    /// перестановка дважды не возвращает элемент на место.
+    /// </summary>
+    /// <remarks>
+    /// Правка ждёт очереди за перестройкой формы, а выбор узнаёт новые пути, только когда она показана: вторая Ctrl со
+    /// стрелкой брала прежний путь, и в новом тексте он называл соседа (запись 409).
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_structure_edit_issued_while_another_waits_does_not_act_on_a_stale_path()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", Form);
+        var held = new HeldDocument(document.Document!);
+        var edits = new FormEdits(held, studio.Context.Strings, _ => { }, _ => { });
+
+        // Обе — по пути кнопки, снятому до первой: в тексте после первой он называет поле.
+        var first = edits.MoveAsync(Go, null);
+        var second = edits.MoveAsync(Go, null);
+
+        Assert.True(edits.IsRestructuring, "правка строения не в пути");
+
+        held.Release();
+        await Task.WhenAll(first, second);
+
+        Assert.True(
+            Text(document).IndexOf("x:Name=\"Input\"", StringComparison.Ordinal) < Text(document).IndexOf("x:Name=\"Go\"", StringComparison.Ordinal),
+            "вторая перестановка вернула кнопку назад");
+    }
+
     private static string Text(LiveFormDocument document) => document.Document!.Syntax.SourceText.ToString();
 
     private static int Count(LiveFormDocument document, string what)
@@ -471,5 +505,72 @@ public class DesignerStructureTests
             count++;
 
         return count;
+    }
+
+    /// <summary>Документ, чья правка ждёт, пока её не отпустят, — как за перестройкой формы; остальное — как у настоящего.</summary>
+    private sealed class HeldDocument(IXamlDocumentHandle inner) : IXamlDocumentHandle
+    {
+        private readonly TaskCompletionSource _turn = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public event EventHandler<XamlDocumentChangesEventArgs>? Changed
+        {
+            add => inner.Changed += value;
+            remove => inner.Changed -= value;
+        }
+
+        public event EventHandler<XamlExternalConflictEventArgs>? ExternalConflict
+        {
+            add => inner.ExternalConflict += value;
+            remove => inner.ExternalConflict -= value;
+        }
+
+        public CanonicalPath Path => inner.Path;
+
+        public XamlDocument Syntax => inner.Syntax;
+
+        public XamlDocumentState State => inner.State;
+
+        public ImmutableArray<MarkupDiagnostic> Diagnostics => inner.Diagnostics;
+
+        public bool IsModified => inner.IsModified;
+
+        public bool HasConflict => inner.HasConflict;
+
+        public bool IsDeleted => inner.IsDeleted;
+
+        public bool IsClosed => inner.IsClosed;
+
+        public bool CanUndo => inner.CanUndo;
+
+        public bool CanRedo => inner.CanRedo;
+
+        public string? UndoLabel => inner.UndoLabel;
+
+        public string? RedoLabel => inner.RedoLabel;
+
+        /// <summary>Отпускает правки, ждущие очереди.</summary>
+        public void Release() => _turn.TrySetResult();
+
+        public async Task<XamlEditOutcome> EditAsync(string label, Action<XamlDocumentEditor> edit, CancellationToken cancellationToken = default)
+        {
+            await _turn.Task;
+
+            return await inner.EditAsync(label, edit, cancellationToken);
+        }
+
+        public Task<XamlEditOutcome> UndoAsync(CancellationToken cancellationToken = default) => inner.UndoAsync(cancellationToken);
+
+        public Task<XamlEditOutcome> RedoAsync(CancellationToken cancellationToken = default) => inner.RedoAsync(cancellationToken);
+
+        public Task SaveAsync(CancellationToken cancellationToken = default) => inner.SaveAsync(cancellationToken);
+
+        public Task ResolveConflictAsync(XamlConflictChoice choice, CancellationToken cancellationToken = default) =>
+            inner.ResolveConflictAsync(choice, cancellationToken);
+
+        public Task<IXamlDesignView> ShowAsync(IXamlRootLender? lender, CancellationToken cancellationToken = default) =>
+            inner.ShowAsync(lender, cancellationToken);
+
+        /// <summary>Аренду держит вкладка, а не обёртка: отпускать нечего.</summary>
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }
