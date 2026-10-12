@@ -553,6 +553,11 @@ internal sealed class Editing(
         ConflictAnswer? all = null;
         var asked = 0;
 
+        // Места, которые займёт эта же вставка: два одноимённых файла из разных папок целились в одно место, которого
+        // на диске ещё нет, и служба отказывала всей пачке (запись 402). Второй получает номер, как копия туда же.
+        var planned = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        bool Occupied(string path) => Exists(path) || planned.Contains(path);
+
         foreach (var item in clip.Items)
         {
             var name = item.Root.FileName;
@@ -564,7 +569,11 @@ internal sealed class Editing(
                 if (clip.Mode == ClipMode.Cut)
                     continue;
 
-                name = Pasting.Free(item, folder, Exists);
+                name = Pasting.Free(item, folder, Occupied);
+            }
+            else if (Pasting.Pairs(item, folder, name).Any(pair => planned.Contains(pair.To.Value)))
+            {
+                name = Pasting.Free(item, folder, Occupied);
             }
             else if (taken.Contains(item))
             {
@@ -587,13 +596,14 @@ internal sealed class Editing(
                 replace = answer.Choice == ConflictChoice.Replace && CanReplace(item, folder);
 
                 if (!replace)
-                    name = Pasting.Free(item, folder, Exists);
+                    name = Pasting.Free(item, folder, Occupied);
             }
 
             var steps = Pasting.Pairs(item, folder, name);
 
             pairs.AddRange(replace ? steps.Select(pair => pair with { Replace = Exists(pair.To.Value) }) : steps);
             roots.Add(steps[0].To);
+            planned.UnionWith(steps.Select(pair => pair.To.Value));
         }
 
         return new PastePlan(pairs, roots);

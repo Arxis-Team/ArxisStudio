@@ -187,6 +187,37 @@ public class ProjectWindowClipboardTests
     }
 
     /// <summary>
+    /// Два одноимённых файла из разных папок встают в одну папку оба — второй с номером, а не отказом всей вставки.
+    /// </summary>
+    /// <remarks>
+    /// План сверял имена только с диском: оба файла целились в одно место, которого на диске ещё нет, и служба
+    /// отказывала всей пачке «место занято» — так приходят выделение из поиска в две колонки и файлы из проводника
+    /// (запись 402).
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task Two_files_of_one_name_pasted_into_one_folder_both_land()
+    {
+        var files = new FilesProbe();
+
+        using var studio = await Opened(files);
+
+        var outside = Path.Combine(Path.GetTempPath(), $"arxis-explorer-{Guid.NewGuid():N}");
+        var first = CanonicalPath.Create(Path.Combine(outside, "a", "logo.png"));
+        var second = CanonicalPath.Create(Path.Combine(outside, "b", "logo.png"));
+        var views = studio.Row("Views").Node.Path;
+
+        studio.Clipboard.Foreign = new FileClip(
+            ClipMode.Copy, [new ClipItem(first, IsFolder: false, []), new ClipItem(second, IsFolder: false, [])]);
+        studio.Press(studio.Item(studio.Select("Views")), Key.V, KeyModifiers.Control);
+
+        await Settled(studio, () => files.Copied.Count == 1);
+
+        Assert.Equal(
+            [new FileMove(first, views.Combine("logo.png")), new FileMove(second, views.Combine("logo (2).png"))],
+            files.Copied[0]);
+    }
+
+    /// <summary>
     /// Занятое имя спрашивает: «Оставить оба» даёт номер, «Заменить» просит службу заменить,
     /// «Пропустить» и отмена не вставляют ничего.
     /// </summary>
