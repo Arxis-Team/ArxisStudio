@@ -382,7 +382,8 @@ internal sealed class XamlInspectorSnapshot
 
             var name = attribute.Name.Prefix is null ? attribute.Name.LocalName : attribute.Name.ToString();
 
-            if (specs.ContainsKey(name) || specs.ContainsKey(attribute.Name.LocalName))
+            // Name — то же имя, что x:Name, и строка у него та же — в шапке (запись 390).
+            if (specs.ContainsKey(name) || specs.ContainsKey(attribute.Name.LocalName) || name == "Name")
                 continue;
 
             // Без показа написанное правят текстом — загрузка проверит его, когда форма встанет; при показе то, что
@@ -402,7 +403,7 @@ internal sealed class XamlInspectorSnapshot
             .Select(static item => item.Element.Attributes
                 .Where(static attribute => attribute is not XamlNamespaceDeclaration &&
                                            !attribute.IsMarkupCompatibility && !attribute.IsDesignTime && !attribute.IsDirective &&
-                                           attribute.Name.Prefix is null)
+                                           attribute.Name.Prefix is null && attribute.Name.LocalName != "Name")
                 .Select(static attribute => attribute.Name.LocalName)
                 .ToHashSet(StringComparer.Ordinal))
             .Aggregate(static (all, next) =>
@@ -465,7 +466,7 @@ internal sealed class XamlInspectorSnapshot
         switch (spec.Kind)
         {
             case Kind.Name:
-                return element.GetDirective("Name");
+                return FormEdits.NameAttribute(element)?.GetValueText();
             case Kind.Design:
                 return element.GetDesignTimeAttribute(id[FormEdits.DesignPrefix.Length..]);
             case Kind.Other:

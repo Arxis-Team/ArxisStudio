@@ -364,8 +364,9 @@ internal sealed class XamlInspectorTarget : InspectorTarget
             return InspectorCheck.Valid;
 
         var self = snapshot.Elements.ToHashSet();
+        // Занятым считается и имя, написанное свойством Name: Avalonia читает его так же (запись 390).
         var taken = root.DescendantElements().Prepend(root)
-            .Any(other => !self.Contains(other) && string.Equals(other.GetDirective("Name"), text, StringComparison.Ordinal));
+            .Any(other => !self.Contains(other) && string.Equals(other.Identity, text, StringComparison.Ordinal));
 
         return taken
             ? InspectorCheck.Invalid(string.Format(CultureInfo.CurrentCulture, Strings["inspector.name.taken"], text))

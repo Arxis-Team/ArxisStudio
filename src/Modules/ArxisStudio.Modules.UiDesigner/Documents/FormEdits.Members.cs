@@ -146,7 +146,7 @@ internal sealed partial class FormEdits
     internal static XamlAttribute? Existing(XamlElement element, FormWrite write)
     {
         if (string.Equals(write.Member, NameDirective, StringComparison.Ordinal))
-            return element.GetDirectiveAttribute("Name");
+            return NameAttribute(element);
 
         if (write.Member.StartsWith(DesignPrefix, StringComparison.Ordinal))
         {
@@ -157,6 +157,18 @@ internal sealed partial class FormEdits
 
         return write.Member.Contains('.', StringComparison.Ordinal) ? Attached(element, write) : element.GetAttribute(write.Member);
     }
+
+    /// <summary>
+    /// Атрибут, которым документ называет элемент: <c>x:Name</c>, а без него — <c>Name</c>.
+    /// </summary>
+    /// <remarks>
+    /// Avalonia читает <c>Name</c> так же, как <c>x:Name</c>, и Markup называет элемент тем же порядком
+    /// (<c>XamlElement.Identity</c>). Строка имени видела только директиву, и запись имени у элемента с <c>Name</c>
+    /// добавляла <c>x:Name</c> рядом — два присваивания одного члена, на которых загрузка падает (запись 390).
+    /// </remarks>
+    /// <param name="element">Элемент.</param>
+    internal static XamlAttribute? NameAttribute(XamlElement element) =>
+        element.GetDirectiveAttribute("Name") ?? element.GetAttribute("Name");
 
     /// <summary>Атрибут присоединённого члена — как бы документ ни назвал пространство его владельца.</summary>
     private static XamlAttribute? Attached(XamlElement element, FormWrite write) =>

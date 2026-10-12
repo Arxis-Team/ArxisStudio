@@ -368,6 +368,53 @@ public class DesignerInspectorTests
     }
 
     /// <summary>
+    /// Имя, написанное свойством <c>Name</c>, — то же имя: шапка его показывает, правка пишет туда же, а занятым оно
+    /// считается и у соседей.
+    /// </summary>
+    /// <remarks>
+    /// Avalonia читает <c>Name</c> так же, как <c>x:Name</c>, и так пишут многие формы. Строка имени видела только
+    /// директиву: шапка стояла пустой, <c>Name</c> лежал строкой только для чтения в «Прочем», а запись добавляла
+    /// <c>x:Name</c> рядом — два присваивания одного члена, на которых загрузка падает. Проверка занятости соседей с
+    /// <c>Name</c> не видела (запись 390).
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_name_written_as_the_Name_property_is_the_same_name()
+    {
+        await using var studio = new LiveFormStudio();
+        var document = await studio.OpenAsync("MainWindow.axaml", """
+            <Window xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    Width="400" Height="300">
+              <StackPanel>
+                <Button Name="Go" Content="Пуск" />
+                <TextBox Name="Input" Text="поле" />
+              </StackPanel>
+            </Window>
+            """);
+        var panel = studio.Inspector();
+
+        document.Select([Go]);
+        LiveFormStudio.Frame();
+
+        var name = HeaderRow(panel, FormEdits.NameDirective);
+        var box = Box(name);
+
+        Assert.Equal("Go", box.Text);
+
+        // Ни строкой списка, ни строкой только для чтения под «Все свойства»: имя одно, и стоит оно в шапке.
+        Assert.Null(panel.List!.PropertyOf("Name"));
+
+        Type(studio, box, "Input");
+
+        Assert.Contains("Input", name.Note?.ToString(), StringComparison.Ordinal);
+
+        Type(studio, box, "Start");
+
+        await XamlStudio.UntilAsync(() => Text(document).Contains("Name=\"Start\"", StringComparison.Ordinal), "имя не записано");
+        Assert.DoesNotContain("x:Name", Text(document), StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// <c>x:Name</c> правится в строке заголовка, как имя объекта у Unity: поле рядом со значком и флажком, без подписи
     /// и без отметки «задано здесь»; пустое называет себя подписью свойства — и диктору тоже, — а что это за элемент,
     /// говорит подзаголовок (запись 368).
