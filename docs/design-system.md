@@ -245,8 +245,9 @@ R2 (§2.3).
 кольцом фокуса не задевают полосы оттенков, — справа выбор вида каналов, ползунки каналов с дорожкой
 `AxColorTrackHeight` 10 под ручкой `AxSliderThumbSize` и числами шириной `AxColorChannelNumberWidth` 56, ниже код
 шириной `AxColorHexWidth` 80; ниже раскрывающиеся «Палитра» и «Образцы» — ячейки `AxColorPresetCellSize` 16 с зазором
-`AxSpaceHair`, двенадцать в ряд, или строки высотой `AxControlHeightCompact` в виде списком, а имя образца или
-библиотеки спрашивает поле шириной `AxColorPresetNameWidth` 160 (запись 376). Окно встаёт слева от поля, в `AxSpace`
+`AxColorPaletteGap` 2, двенадцать в ряд в любой плотности — зазор часть устройства сетки, а не воздух ступени (запись
+399), — или строки высотой `AxControlHeightCompact` в виде списком, а имя образца или библиотеки спрашивает поле
+шириной `AxColorPresetNameWidth` 160 (запись 376). Окно встаёт слева от поля, в `AxSpace`
 от него, а без места слева — справа. Отдельный спектр — высотой `AxColorSpectrumHeight` 160. Под
 прозрачным — шахматка `AxCheckerPattern` с клеткой 4 из `AxCheckerLight` и `AxCheckerDark`; ручка спектра и
 ползунка — белое кольцо `AxColorThumb` в тёмной кайме `AxColorThumbOutline`, видное на любом цвете, и у кольца
