@@ -1,6 +1,7 @@
 using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Icons;
+using ArxisStudio.Sdk;
 using ArxisStudio.Services;
 using ArxisStudio.Shell;
 using ArxisStudio.Shell.Localization;
@@ -82,6 +83,40 @@ public partial class SettingsWindow : AxWindow
         // Каретка — в поиске, как в настройках Rider: окно открывают, чтобы найти настройку,
         // а без этого фокуса не было ни у кого, и первое нажатие уходило в пустоту.
         Opened += (_, _) => SearchBox.Focus();
+    }
+
+    /// <summary>
+    /// Открывает окно с одной из дверей студии, а когда оно закрылось, предлагает перезапуск; не открылось — говорит
+    /// почему.
+    /// </summary>
+    /// <param name="owner">Окно двери: над ним настройки, и оно спросит о перезапуске.</param>
+    /// <param name="show">Показ — <see cref="ShowAsync"/> с тем, что знает дверь.</param>
+    /// <param name="restart">Перезапуск, который предложить; null — предлагать нечего.</param>
+    /// <param name="log">Журнал студии.</param>
+    /// <param name="say">Строка состояния двери.</param>
+    /// <remarks>
+    /// Окно настроек — код студии, и падать ему незачем; но если оно всё-таки не открылось, человек нажал кнопку и
+    /// обязан узнать почему, а не смотреть, как ничего не произошло. Дверей две — студия и Welcome, — а перехват был
+    /// только у студии: у Welcome падение уносило студию из обработчика щелчка (запись 413). О перезапуске спрашивают,
+    /// когда окно закрылось: вопросу нужен живой хозяин.
+    /// </remarks>
+    internal static async Task OpenAsync(Window owner, Func<Task> show, StudioRestart? restart, IStudioLog log, Action<string> say)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        ArgumentNullException.ThrowIfNull(show);
+
+        try
+        {
+            await show();
+
+            if (restart is not null)
+                await restart.OfferAsync(owner);
+        }
+        catch (Exception e) when (Faults.Survivable(e))
+        {
+            log.Write(StudioLogLevel.Error, "Settings", e.ToString());
+            say($"{Localizer.Instance["common.error"]}: {e.Message}");
+        }
     }
 
     /// <summary>

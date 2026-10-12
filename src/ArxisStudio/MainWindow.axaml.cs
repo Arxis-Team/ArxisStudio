@@ -353,24 +353,14 @@ public partial class MainWindow : AxWindow
     /// закрывшееся окно, — вопросу нужен живой хозяин.
     /// </para>
     /// </remarks>
-    internal async Task OpenSettingsAsync(SettingsSession? restore = null)
-    {
-        try
-        {
-            await ArxisStudio.Settings.SettingsWindow.ShowAsync(
-                this, Settings, _plugins, _plugins.Declaring(), Catalog, keys: KeysSettings(), restart: _restart, restore: restore);
-
-            await _restart.OfferAsync(this);
-        }
-        catch (Exception e) when (Faults.Survivable(e))
-        {
-            // Окно настроек — код студии, и падать ему незачем; но если оно
-            // всё-таки не открылось, человек нажал пункт меню и обязан узнать
-            // почему, а не смотреть, как ничего не произошло.
-            _log.Write(StudioLogLevel.Error, "Settings", e.ToString());
-            _model.Say($"{Localizer.Instance["common.error"]}: {e.Message}");
-        }
-    }
+    internal Task OpenSettingsAsync(SettingsSession? restore = null) =>
+        ArxisStudio.Settings.SettingsWindow.OpenAsync(
+            this,
+            () => ArxisStudio.Settings.SettingsWindow.ShowAsync(
+                this, Settings, _plugins, _plugins.Declaring(), Catalog, keys: KeysSettings(), restart: _restart, restore: restore),
+            _restart,
+            _log,
+            _model.Say);
 
     /// <summary>
     /// Страница «Клавиши» для окна настроек — открытого из студии или из Welcome.

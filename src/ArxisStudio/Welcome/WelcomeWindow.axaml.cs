@@ -123,31 +123,34 @@ public partial class WelcomeWindow : AxWindow
     /// «Сохранить» применяет плагины, и вопросу нужен живой хозяин.
     /// </para>
     /// </remarks>
-    internal async Task OpenSettingsAsync(bool plugins, SettingsSession? restore = null)
-    {
-        Door(plugins, open: true);
+    internal Task OpenSettingsAsync(bool plugins, SettingsSession? restore = null) =>
+        SettingsWindow.OpenAsync(
+            this,
+            async () =>
+            {
+                Door(plugins, open: true);
 
-        try
-        {
-            await SettingsWindow.ShowAsync(
-                this,
-                _settings,
-                _extensions,
-                _extensions.Declaring(),
-                _model.Plugins,
-                plugins ? PluginsPage.PageId : null,
-                Keys?.Invoke(),
-                Restart,
-                restore);
-        }
-        finally
-        {
-            Door(plugins, open: false);
-        }
-
-        if (Restart is { } restart)
-            await restart.OfferAsync(this);
-    }
+                try
+                {
+                    await SettingsWindow.ShowAsync(
+                        this,
+                        _settings,
+                        _extensions,
+                        _extensions.Declaring(),
+                        _model.Plugins,
+                        plugins ? PluginsPage.PageId : null,
+                        Keys?.Invoke(),
+                        Restart,
+                        restore);
+                }
+                finally
+                {
+                    Door(plugins, open: false);
+                }
+            },
+            Restart,
+            _extensions.Log,
+            Say);
 
     /// <summary>Отмечает дверь, через которую открыты настройки, — или снимает отметку.</summary>
     private void Door(bool plugins, bool open)
