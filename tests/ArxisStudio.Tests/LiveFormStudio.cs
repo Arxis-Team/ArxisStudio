@@ -1,4 +1,5 @@
 using System.Reflection;
+using ArxisStudio.Controls;
 using ArxisStudio.Extensibility;
 using ArxisStudio.Modules.Inspector;
 using ArxisStudio.Modules.UiDesigner;
@@ -9,6 +10,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Xunit;
 
 namespace ArxisStudio.Tests;
@@ -273,6 +275,16 @@ internal sealed class LiveFormStudio : IAsyncDisposable
             Source = where,
         });
         Frame();
+    }
+
+    /// <summary>Закрывает баннер крестиком — кнопкой его шаблона, взявшей каретку нажатием.</summary>
+    public static void CloseBanner(AxBanner banner)
+    {
+        var close = banner.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "PART_Close");
+
+        close.Focus();
+        close.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
     }
 
     /// <summary>Окно теряет фокус: человек ушёл в другое приложение.</summary>

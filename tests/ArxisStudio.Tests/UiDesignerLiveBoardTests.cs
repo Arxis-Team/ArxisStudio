@@ -537,6 +537,41 @@ public class UiDesignerLiveBoardTests
     }
 
     /// <summary>
+    /// Баннер доски, закрытый в виде одного XAML, отдаёт каретку тексту: холст в этом виде спрятан и её не берёт.
+    /// </summary>
+    /// <remarks>
+    /// Баннер возвращал каретку холсту, а в виде XAML холст спрятан вместе со сценой — каретка терялась, и клавиши
+    /// после ответа на вопрос не доходили ни до кого (запись 406).
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_banner_closed_in_the_xaml_view_gives_the_caret_to_the_text()
+    {
+        await using var studio = new LiveFormStudio();
+        var board = await studio.OpenBoardAsync(("MainWindow.axaml", Main), ("Badge.axaml", Badge));
+        var view = board.View!;
+        var main = Card(board, "MainWindow.axaml");
+        var session = board.Forms!.SessionOf(main)!;
+
+        Assert.True(view.Sheet.SelectTarget(Go(board)));
+
+        view.Sheet.Focus();
+        LiveFormStudio.Press(view.Sheet, Key.Delete);
+
+        await XamlStudio.UntilAsync(() => !Text(session).Contains("x:Name=\"Go\"", StringComparison.Ordinal), "кнопка осталась в тексте");
+
+        File.WriteAllText(main.Path.Value, Main.Replace("поле", "Rider", StringComparison.Ordinal));
+
+        await XamlStudio.UntilAsync(() => view.Conflict.IsVisible, "баннер чужой записи не показан");
+
+        view.Mode.SelectedIndex = (int)FormViewMode.Xaml;
+        LiveFormStudio.Frame();
+        LiveFormStudio.CloseBanner(view.Conflict);
+
+        Assert.False(view.Conflict.IsVisible);
+        Assert.True(view.Code.IsKeyboardFocusWithin, "каретка ушла вместе с крестиком");
+    }
+
+    /// <summary>
     /// Вкладка забирает форму у доски — показ у документа один, — и на доске она стоит снимком; закрытая
     /// вкладка отдаёт её назад, и форма на виду встаёт живой снова.
     /// </summary>

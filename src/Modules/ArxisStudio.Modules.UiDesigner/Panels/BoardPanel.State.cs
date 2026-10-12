@@ -107,7 +107,7 @@ public sealed partial class BoardPanel
 
         if (notice is null || text == _dismissed)
         {
-            Hide(view, view.Notice);
+            Hide(view.Notice);
             return;
         }
 
@@ -167,7 +167,7 @@ public sealed partial class BoardPanel
 
         if (_conflicted is not { } conflicted)
         {
-            Hide(view, view.Conflict);
+            Hide(view.Conflict);
             return;
         }
 
@@ -176,7 +176,11 @@ public sealed partial class BoardPanel
     }
 
     /// <summary>Прячет баннер, не теряя каретку: нажатая в нём кнопка уходит вместе с ним.</summary>
-    private static void Hide(BoardView view, Control banner)
+    /// <remarks>
+    /// Каретка возвращается цели доски, а не холсту: в виде одного XAML холст спрятан и её не возьмёт — она
+    /// терялась (запись 406).
+    /// </remarks>
+    private void Hide(Control banner)
     {
         if (!banner.IsVisible)
             return;
@@ -186,14 +190,14 @@ public sealed partial class BoardPanel
         banner.IsVisible = false;
 
         if (caret)
-            view.Sheet.Focus();
+            FocusTarget?.Focus();
     }
 
-    /// <summary>Баннер закрыли крестиком: он спрятался сам, вместе с кареткой, — она возвращается холсту.</summary>
+    /// <summary>Баннер закрыли крестиком: он спрятался сам, вместе с кареткой, — она возвращается доске.</summary>
     private void KeepCaret()
     {
         if (_view is { } view && TopLevel.GetTopLevel(view)?.FocusManager?.GetFocusedElement() is null)
-            view.Sheet.Focus();
+            FocusTarget?.Focus();
     }
 
     private void OnTakeTheirs(object? sender, RoutedEventArgs e) => _ = ResolveAsync(XamlConflictChoice.TakeTheirs);

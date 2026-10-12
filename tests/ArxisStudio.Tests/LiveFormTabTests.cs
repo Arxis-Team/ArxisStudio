@@ -451,7 +451,7 @@ public class LiveFormTabTests
 
         // Крестик откладывает ответ, а не снимает вопрос: сохранение без ответа отказывает и возвращает
         // его. Каретка, ушедшая с крестиком, возвращается вкладке.
-        Close(document.View.Conflict);
+        LiveFormStudio.CloseBanner(document.View.Conflict);
 
         Assert.False(document.View.Conflict.IsVisible);
         Assert.True(document.View.Sheet.IsFocused, "каретка ушла вместе с крестиком");
@@ -623,16 +623,6 @@ public class LiveFormTabTests
         await XamlStudio.UntilAsync(
             () => Text(document).Contains($"Width=\"{expected}\"", StringComparison.Ordinal),
             $"ширина {expected} не записана");
-    }
-
-    /// <summary>Закрывает баннер крестиком — кнопкой его шаблона, взявшей каретку нажатием.</summary>
-    private static void Close(AxBanner banner)
-    {
-        var close = banner.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "PART_Close");
-
-        close.Focus();
-        close.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
-        Dispatcher.UIThread.RunJobs();
     }
 
     /// <summary>Приложение решения без стилей — только тема, которую оно просит.</summary>
