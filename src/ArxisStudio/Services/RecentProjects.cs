@@ -94,8 +94,7 @@ public sealed class RecentProjects
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            File.WriteAllText(_path, JsonSerializer.Serialize(_items, Options));
+            AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(_items, Options));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
@@ -107,9 +106,13 @@ public sealed class RecentProjects
     {
         try
         {
+            // Пустая запись — null в списке или запись без пути — законный JSON, и без отбора она
+            // доезжала до открытия следующего проекта и до плитки Welcome (запись 383).
             if (File.Exists(path))
-                return JsonSerializer.Deserialize<List<RecentProject>>(File.ReadAllText(path), Options)
-                       ?? [];
+                return JsonSerializer.Deserialize<List<RecentProject?>>(File.ReadAllText(path), Options)
+                    ?.OfType<RecentProject>()
+                    .Where(project => !string.IsNullOrEmpty(project.Path))
+                    .ToList() ?? [];
         }
         catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException)
         {

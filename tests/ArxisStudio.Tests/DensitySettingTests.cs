@@ -91,6 +91,37 @@ public class DensitySettingTests : IDisposable
         Assert.Contains("\"interfaceDensity\": \"normal\"", written);
     }
 
+    /// <summary>
+    /// Значение, которого студия не пишет, читается умолчанием своего поля, а не остальных.
+    /// </summary>
+    /// <remarks>
+    /// Разбор ступени принимает и число: <c>"interfaceDensity": 7</c> доезжало до адреса словаря, которого в
+    /// теме нет, — а страница оформления такой номер давно не принимает (тест ниже). <c>null</c> вместо языка
+    /// ронял этап языка на старте. Файл правят руками, и одно незнакомое значение не должно стоить ни
+    /// подъёма, ни соседних настроек (запись 383).
+    /// </remarks>
+    [Fact]
+    public void A_value_the_studio_never_writes_reads_as_the_default_of_its_field()
+    {
+        var path = Path.Combine(_home, "settings.json");
+
+        File.WriteAllText(path, """{ "theme": 9, "interfaceDensity": 7, "language": null }""");
+
+        var current = new JsonSettingsStore(path).Current;
+
+        Assert.Equal(StudioTheme.Dark, current.Theme);
+        Assert.Equal(StudioDensity.Normal, current.Density);
+        Assert.Equal("en", current.Language);
+
+        File.WriteAllText(path, """{ "theme": "light", "interfaceDensity": "12", "language": "ru" }""");
+
+        current = new JsonSettingsStore(path).Current;
+
+        Assert.Equal(StudioTheme.Light, current.Theme);
+        Assert.Equal(StudioDensity.Normal, current.Density);
+        Assert.Equal("ru", current.Language);
+    }
+
     /// <summary>Ступень переживает запись и лежит в файле словом.</summary>
     [Fact]
     public void The_density_survives_the_file_as_a_word()

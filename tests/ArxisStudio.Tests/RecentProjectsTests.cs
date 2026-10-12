@@ -1,3 +1,4 @@
+using System.Text.Json;
 using ArxisStudio.Services;
 using Xunit;
 
@@ -85,6 +86,33 @@ public class RecentProjectsTests : IDisposable
         File.WriteAllText(StateFile, "{ this is not json");
 
         Assert.Empty(new RecentProjects(StateFile).Items);
+    }
+
+    /// <summary>
+    /// Пустая запись в файле пропадает при чтении, а целые остаются.
+    /// </summary>
+    /// <remarks>
+    /// <c>null</c> в списке и запись без пути — законный JSON, и разбор отдавал их как есть: открытие
+    /// следующего проекта падало на пустой записи, а плитка Welcome — на имени без пути (запись 383).
+    /// </remarks>
+    [Fact]
+    public void Holes_in_the_file_are_dropped_and_the_rest_kept()
+    {
+        var kept = Project("WaveChat.sln");
+
+        File.WriteAllText(StateFile, $$"""
+            [ null, { "path": null, "openedAt": "2026-10-12T10:00:00+03:00" },
+              { "path": {{JsonSerializer.Serialize(kept)}}, "openedAt": "2026-10-12T09:00:00+03:00" } ]
+            """);
+
+        var recent = new RecentProjects(StateFile);
+
+        Assert.Equal(kept, Assert.Single(recent.Items).Path);
+        Assert.Equal("WA", recent.Items[0].Initials);
+
+        recent.Touch(Project("Other.sln"));
+
+        Assert.Equal(2, recent.Items.Count);
     }
 
     /// <summary>Убирают по тем же правилам пути, по каким добавляют.</summary>

@@ -46,6 +46,10 @@ public sealed class PluginSettingsStore
     private JsonObject _user;
     private JsonObject _project;
 
+    // Почему файл области не прочитался; null — прочитался или его нет. Такую область не пишут.
+    private string? _userBroken;
+    private string? _projectBroken;
+
     /// <summary>Создаёт хранилище.</summary>
     /// <param name="projectPath">Путь к открытому решению или проекту; null — проекта нет.</param>
     /// <param name="userFile">Файл пользовательской области; по умолчанию — рядом с настройками студии.</param>
@@ -54,8 +58,8 @@ public sealed class PluginSettingsStore
         _userFile = userFile ?? Path.Combine(StudioPaths.UserData, "plugin-settings.json");
         _projectFile = ProjectFileFor(projectPath);
 
-        _user = Read(_userFile);
-        _project = Read(_projectFile);
+        (_user, _userBroken) = Read(_userFile);
+        (_project, _projectBroken) = Read(_projectFile);
     }
 
     /// <summary>Настройку изменили; аргументы — плагин и ключ.</summary>
@@ -94,6 +98,12 @@ public sealed class PluginSettingsStore
     /// Проектную настройку без открытого проекта записать некуда, и делать вид,
     /// что записали, нельзя: плагин прочтёт обратно не своё значение и решит,
     /// что человек его не менял.
+    /// <para>
+    /// В файл, который не прочитался, запись не идёт: он читается пустым, и запись поверх стёрла бы
+    /// всё, чего студия не прочла, — прочие настройки всех плагинов, а у проектного файла и чужие
+    /// (запись 383). Так же поступает VS Code. Человек мог поправить файл, пока студия работала,
+    /// поэтому перед отказом файл перечитывается.
+    /// </para>
     /// </remarks>
     public string? Write(string pluginId, PluginSetting declared, object? value)
     {
@@ -104,6 +114,16 @@ public sealed class PluginSettingsStore
 
         if (project && _projectFile is null)
             return $"Настройка {declared.Key} проектная, а проект не открыт";
+
+        var file = project ? _projectFile! : _userFile;
+
+        if (project && _projectBroken is not null)
+            (_project, _projectBroken) = Read(file);
+        else if (!project && _userBroken is not null)
+            (_user, _userBroken) = Read(file);
+
+        if ((project ? _projectBroken : _userBroken) is { } broken)
+            return $"Настройки не записались: {file} не прочитался ({broken}), и запись поверх стёрла бы его. Поправьте файл — и запись пройдёт";
 
         var storage = project ? _project : _user;
         var branch = storage[pluginId] as JsonObject;
@@ -118,8 +138,6 @@ public sealed class PluginSettingsStore
             branch.Remove(declared.Key);
         else
             branch[declared.Key] = Node(value);
-
-        var file = project ? _projectFile! : _userFile;
 
         if (Save(file, storage) is { } error)
             return error;
@@ -150,7 +168,7 @@ public sealed class PluginSettingsStore
         var was = _project;
 
         _projectFile = file;
-        _project = Read(file);
+        (_project, _projectBroken) = Read(file);
 
         return Different(was, _project);
     }
@@ -158,8 +176,8 @@ public sealed class PluginSettingsStore
     /// <summary>Перечитывает оба файла: их правят и мимо студии.</summary>
     public void Refresh()
     {
-        _user = Read(_userFile);
-        _project = Read(_projectFile);
+        (_user, _userBroken) = Read(_userFile);
+        (_project, _projectBroken) = Read(_projectFile);
     }
 
     /// <summary>
@@ -233,25 +251,37 @@ public sealed class PluginSettingsStore
         return folder is null ? null : Path.Combine(folder, ".arxis", "settings.json");
     }
 
-    private static JsonObject Read(string? file)
+    /// <summary>Читает файл области.</summary>
+    /// <param name="file">Файл; null — области нет.</param>
+    /// <returns>Значения и почему файл не прочитался; причина null — прочитался или его нет.</returns>
+    /// <remarks>
+    /// Испорченный файл — не повод не запуститься: настройки вернутся к объявленным по умолчанию, а
+    /// починить файл человек сможет руками — запись поверх него не пойдёт (<see cref="Write"/>).
+    /// </remarks>
+    private static (JsonObject Values, string? Broken) Read(string? file)
     {
         if (file is null || !File.Exists(file))
-            return [];
+            return ([], null);
 
         try
         {
-            return JsonNode.Parse(File.ReadAllText(file), documentOptions: new JsonDocumentOptions
+            var text = File.ReadAllText(file);
+
+            // Пустой файл терять нечего, и пишется он как отсутствующий.
+            if (string.IsNullOrWhiteSpace(text))
+                return ([], null);
+
+            return JsonNode.Parse(text, documentOptions: new JsonDocumentOptions
             {
                 CommentHandling = JsonCommentHandling.Skip,
                 AllowTrailingCommas = true,
-            }) as JsonObject ?? [];
+            }) is JsonObject values
+                ? (values, null)
+                : ([], "в нём не объект JSON");
         }
-
-        // Испорченный файл — не повод не запуститься: настройки вернутся к
-        // объявленным по умолчанию, а починить файл человек сможет руками.
         catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException)
         {
-            return [];
+            return ([], e.Message);
         }
     }
 
@@ -259,8 +289,7 @@ public sealed class PluginSettingsStore
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-            File.WriteAllText(file, storage.ToJsonString(Options));
+            AtomicFile.WriteAllText(file, storage.ToJsonString(Options));
 
             return null;
         }

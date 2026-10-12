@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using ArxisStudio.Docking;
+using ArxisStudio.Shell;
 using ArxisStudio.ViewModels;
 using Avalonia;
 using Avalonia.Controls;
@@ -78,18 +79,15 @@ public sealed record StudioSession
     /// <param name="session">Что записать.</param>
     /// <param name="path">Куда.</param>
     /// <remarks>
-    /// Через соседний файл и перенос: новая копия читает файл, как только поднимется, и
-    /// недописанный кусок прочла бы как испорченный.
+    /// Целиком или никак (<see cref="AtomicFile"/>): новая копия читает файл, как только поднимется,
+    /// и недописанный кусок прочла бы как испорченный.
     /// </remarks>
     public static void Write(StudioSession session, string path)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentException.ThrowIfNullOrEmpty(path);
 
-        var draft = path + ".tmp";
-
-        File.WriteAllText(draft, JsonSerializer.Serialize(session, Json));
-        File.Move(draft, path, overwrite: true);
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(session, Json));
     }
 
     /// <summary>

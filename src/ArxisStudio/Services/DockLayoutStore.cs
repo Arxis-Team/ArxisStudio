@@ -85,8 +85,7 @@ public sealed class DockLayoutStore
 
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            File.WriteAllText(_path, DockLayoutSerializer.Write(layout));
+            AtomicFile.WriteAllText(_path, DockLayoutSerializer.Write(layout));
 
             return null;
         }

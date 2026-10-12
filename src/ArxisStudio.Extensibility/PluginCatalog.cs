@@ -307,20 +307,23 @@ public sealed class PluginCatalog
         }
     }
 
+    /// <remarks>
+    /// Имена сравниваются правилом всей студии (<see cref="PluginIds"/>), а не побуквенно: прочитанный из
+    /// файла список иначе не узнавал бы плагин, названный в нём в другом регистре (запись 383).
+    /// </remarks>
     private static HashSet<string> LoadDisabled(string path)
     {
         try
         {
-            if (File.Exists(path))
-                return JsonSerializer.Deserialize<HashSet<string>>(File.ReadAllText(path))
-                       ?? new HashSet<string>(StringComparer.Ordinal);
+            if (File.Exists(path) && JsonSerializer.Deserialize<string?[]>(File.ReadAllText(path)) is { } names)
+                return new HashSet<string>(names.OfType<string>(), PluginIds.Comparer);
         }
         catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException)
         {
             // Потерянное состояние означает лишь, что плагины снова включены.
         }
 
-        return new HashSet<string>(StringComparer.Ordinal);
+        return new HashSet<string>(PluginIds.Comparer);
     }
 
     /// <summary>Записывает список выключенных.</summary>
@@ -329,8 +332,7 @@ public sealed class PluginCatalog
     {
         try
         {
-            Directory.CreateDirectory(_root);
-            File.WriteAllText(_stateFile, JsonSerializer.Serialize(_disabled));
+            AtomicFile.WriteAllText(_stateFile, JsonSerializer.Serialize(_disabled));
 
             return null;
         }

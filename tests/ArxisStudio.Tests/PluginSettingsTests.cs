@@ -171,6 +171,75 @@ public class PluginSettingsTests : IDisposable
     }
 
     /// <summary>
+    /// Испорченный файл запись не стирает: она отказывает и называет файл.
+    /// </summary>
+    /// <remarks>
+    /// Непрочитанный файл читался пустым, и первая же запись переписывала его одной веткой: пропадали
+    /// все прочие настройки всех плагинов, а обещанное «починить файл человек сможет руками» чинить было
+    /// уже нечего (запись 383). Так же поступает VS Code: в файл настроек с ошибкой он не пишет, а просит
+    /// сперва его поправить.
+    /// </remarks>
+    [Theory]
+    [InlineData("{ это не json ")]
+    [InlineData("[ 1, 2 ]")]
+    public void A_broken_file_is_not_overwritten_by_a_write(string broken)
+    {
+        var file = Path.Combine(_home, "plugin-settings.json");
+
+        File.WriteAllText(file, broken);
+
+        var error = new PluginSettingsStore(Project(), file).Write("arxis.figma", Token, "секрет");
+
+        Assert.NotNull(error);
+        Assert.Contains(file, error);
+        Assert.Equal(broken, File.ReadAllText(file));
+    }
+
+    /// <summary>Испорченный проектный файл — тем более: он общий и едет в репозитории.</summary>
+    /// <remarks>Маркеры конфликта слияния в нём — обычное дело, а стереть его значило бы стереть чужое.</remarks>
+    [Fact]
+    public void A_broken_project_file_is_not_overwritten_either()
+    {
+        var file = Path.Combine(Directory.CreateDirectory(Path.Combine(Project(), ".arxis")).FullName, "settings.json");
+        var conflicted = string.Join('\n',
+            "{",
+            "<<<<<<< HEAD",
+            """  "arxis.figma": { "figma.format": "png" }""",
+            "=======",
+            """  "arxis.figma": { "figma.format": "jpg" }""",
+            ">>>>>>> feature",
+            "}");
+
+        File.WriteAllText(file, conflicted);
+
+        Assert.NotNull(Store().Write("arxis.figma", Format, "svg"));
+        Assert.Equal(conflicted, File.ReadAllText(file));
+    }
+
+    /// <summary>Поправленный руками файл снова принимает запись — без перезапуска студии.</summary>
+    /// <remarks>Отказ перечитывает файл: человек мог поправить его, пока студия работала.</remarks>
+    [Fact]
+    public void A_file_fixed_by_hand_takes_writes_again()
+    {
+        var file = Path.Combine(_home, "plugin-settings.json");
+
+        File.WriteAllText(file, "{ это не json ");
+
+        var store = new PluginSettingsStore(Project(), file);
+
+        Assert.NotNull(store.Write("arxis.figma", Token, "секрет"));
+
+        File.WriteAllText(file, """{ "arxis.other": { "other.key": 1 } }""");
+
+        Assert.Null(store.Write("arxis.figma", Token, "секрет"));
+
+        var text = File.ReadAllText(file);
+
+        Assert.Contains("other.key", text);
+        Assert.Contains("секрет", text);
+    }
+
+    /// <summary>
     /// Строковая настройка не ломает привязку тумблера рядом с собой.
     /// </summary>
     /// <remarks>

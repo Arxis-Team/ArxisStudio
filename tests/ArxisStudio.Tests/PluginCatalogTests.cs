@@ -268,6 +268,22 @@ public class PluginCatalogTests : IDisposable
         Assert.NotNull(plugin.Error);
     }
 
+    /// <summary>
+    /// Список выключенных сравнивает имена так же, как вся студия, — без учёта регистра.
+    /// </summary>
+    /// <remarks>
+    /// Имена плагинов студия сравнивает правилом <c>PluginIds</c>, а прочитанный из файла список сравнивал
+    /// их побуквенно: «Arxis.Holes» в <c>.disabled.json</c> не выключал «arxis.holes» (запись 383).
+    /// </remarks>
+    [Fact]
+    public void The_disabled_list_matches_names_the_way_the_studio_does()
+    {
+        Install("arxis.holes", """{ "id": "arxis.holes", "name": "Holes", "entry": "bin/Arxis.Holes.dll" }""");
+        File.WriteAllText(Path.Combine(_root, ".disabled.json"), """[ "Arxis.Holes" ]""");
+
+        Assert.False(Assert.Single(new PluginCatalog(_root).Scan()).IsEnabled, "выключенный в файле плагин включён");
+    }
+
     [Fact]
     public void A_folder_without_a_manifest_is_not_a_plugin()
     {

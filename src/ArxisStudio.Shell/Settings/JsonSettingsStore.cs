@@ -43,19 +43,18 @@ public sealed class JsonSettingsStore : ISettingsStore
     public StudioSettings Current { get; }
 
     /// <inheritdoc/>
-    public void Save()
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-        File.WriteAllText(_path, JsonSerializer.Serialize(Current, Options));
-    }
+    /// <remarks>
+    /// Целиком или никак (<see cref="AtomicFile"/>): обрезок прочитался бы испорченным, и следующий
+    /// запуск переписал бы умолчаниями все настройки человека.
+    /// </remarks>
+    public void Save() => AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(Current, Options));
 
     private static StudioSettings Load(string path)
     {
         try
         {
-            if (File.Exists(path))
-                return JsonSerializer.Deserialize<StudioSettings>(File.ReadAllText(path), Options)
-                       ?? new StudioSettings();
+            if (File.Exists(path) && JsonSerializer.Deserialize<StudioSettings>(File.ReadAllText(path), Options) is { } read)
+                return Sound(read);
         }
         catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException)
         {
@@ -63,5 +62,27 @@ public sealed class JsonSettingsStore : ISettingsStore
         }
 
         return new StudioSettings();
+    }
+
+    /// <summary>Ставит умолчание полю, чьего значения студия не пишет.</summary>
+    /// <remarks>
+    /// Разбор перечисления принимает и число, а поле строки — <c>null</c>: <c>"interfaceDensity": 7</c>
+    /// доезжало до адреса словаря, которого в теме нет, а язык <c>null</c> ронял этап языка на старте.
+    /// Файл правят руками, и одно незнакомое значение стоит умолчания своему полю, а не всем (запись 383).
+    /// </remarks>
+    private static StudioSettings Sound(StudioSettings read)
+    {
+        var defaults = new StudioSettings();
+
+        if (!Enum.IsDefined(read.Theme))
+            read.Theme = defaults.Theme;
+
+        if (!Enum.IsDefined(read.Density))
+            read.Density = defaults.Density;
+
+        if (string.IsNullOrWhiteSpace(read.Language))
+            read.Language = defaults.Language;
+
+        return read;
     }
 }
