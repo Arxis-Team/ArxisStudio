@@ -14,6 +14,7 @@ using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace ArxisStudio.Modules.UiDesigner.Inspection;
 
@@ -126,7 +127,7 @@ public sealed class ProjectImageEditor : PropertyEditor
                 [!Layoutable.MarginProperty] = new DynamicResourceExtension("AxSpaceTightAboveThickness"),
             };
             _list.AddHandler(InputElement.KeyDownEvent, OnListKey, RoutingStrategies.Tunnel);
-            _list.AddHandler(InputElement.TappedEvent, (_, _) => Choose(_list.SelectedItem as InspectorChoice));
+            _list.AddHandler(InputElement.TappedEvent, OnListTapped);
 
             _empty = new TextBlock { TextWrapping = TextWrapping.Wrap, IsVisible = false };
             AxText.SetTone(_empty, AxTextTone.Secondary);
@@ -398,13 +399,27 @@ public sealed class ProjectImageEditor : PropertyEditor
         }
 
         /// <summary>Выбранное пишется, выбор закрывается, и каретка возвращается в поле.</summary>
+        /// <remarks>Нынешнее значение второй раз не пишется: запись того же текста — шаг истории без перемены (запись 396).</remarks>
         private void Choose(InspectorChoice? choice)
         {
             if (choice is null || _released)
                 return;
 
             _popup.IsOpen = false;
-            _ = _context.WriteAsync(choice.Value);
+
+            if (!string.Equals(choice.Value, _shown, StringComparison.Ordinal))
+                _ = _context.WriteAsync(choice.Value);
+        }
+
+        /// <summary>Щелчок по строке выбирает её; по пустому месту списка и по полосе прокрутки — ничего.</summary>
+        /// <remarks>
+        /// Щелчок ловился на всём списке и выбирал выделенное, а выделено нынешнее значение: щелчок мимо строк закрывал
+        /// выбор и переписывал то же значение (запись 396).
+        /// </remarks>
+        private void OnListTapped(object? sender, TappedEventArgs e)
+        {
+            if (e.Source is Visual source && source.FindAncestorOfType<ListBoxItem>(includeSelf: true) is { DataContext: InspectorChoice choice })
+                Choose(choice);
         }
 
         private void OnSearchKey(object? sender, KeyEventArgs e)

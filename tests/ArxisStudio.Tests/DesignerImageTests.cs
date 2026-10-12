@@ -190,6 +190,54 @@ public class DesignerImageTests
         await XamlStudio.UntilAsync(() => Shown(studio).Source is null, "форма показывает снятую картинку");
     }
 
+    /// <summary>
+    /// Щелчок мимо строк выбора ничего не выбирает, а выбранная нынешняя картинка второй раз не пишется.
+    /// </summary>
+    /// <remarks>
+    /// Щелчок ловился на всём списке и выбирал выделенное, а выделено нынешнее значение: щелчок по пустому месту или по
+    /// полосе прокрутки закрывал выбор и переписывал то же значение лишним шагом истории (запись 396).
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_tap_beside_the_rows_chooses_nothing_and_the_current_image_is_not_written_again()
+    {
+        await using var studio = new LiveFormStudio();
+
+        studio.Xaml.Write("Assets/logo.png", Png(6));
+
+        var document = await studio.OpenAsync(
+            "MainWindow.axaml", Form.Replace("<Image x:Name=\"Logo\"", "<Image x:Name=\"Logo\" Source=\"/Assets/logo.png\"", StringComparison.Ordinal));
+        var panel = studio.Inspector();
+
+        document.Select([Logo]);
+        LiveFormStudio.Frame();
+
+        var field = Field(panel);
+
+        field.Focus();
+        LiveFormStudio.Press(field, Key.Enter);
+        LiveFormStudio.Frame();
+
+        var list = Picker(studio);
+
+        Assert.Equal("logo.png", Assert.IsType<InspectorChoice>(list.SelectedItem).Title);
+
+        // Щелчок по самому списку — мимо строк: так приходит щелчок по пустому месту и по полосе прокрутки.
+        var pointer = new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, isPrimary: true);
+        var released = new PointerEventArgs(
+            InputElement.PointerReleasedEvent, list, pointer, studio.Window, default, 0,
+            new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonReleased), KeyModifiers.None);
+
+        list.RaiseEvent(new TappedEventArgs(InputElement.TappedEvent, released));
+        LiveFormStudio.Frame();
+
+        Assert.Same(list, Picker(studio));
+
+        LiveFormStudio.Press(list, Key.Enter);
+        LiveFormStudio.Frame();
+
+        Assert.False(document.Document!.CanUndo, "нынешняя картинка записана второй раз — шаг истории без перемены");
+    }
+
     /// <summary>Картинка в 6 или 8 точек — PNG, который читает декодер студии.</summary>
     private static byte[] Png(int size)
     {
