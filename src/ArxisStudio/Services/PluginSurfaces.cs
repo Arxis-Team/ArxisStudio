@@ -379,13 +379,31 @@ internal sealed class PluginSurfaces(IStudioLog log, PluginGuard guard, StudioDo
     /// Панели и элементы полосы ищутся одинаково, и разница между ними ровно в
     /// двух типах. Два одинаковых перебора сборок рядом расходились бы при
     /// первой же правке одного из них.
+    /// <para>
+    /// Второй класс под тем же именем — ошибка автора, и стоить она должна ему одному: словарь,
+    /// собранный разом, бросал из приёма мимо шва, и загрузка обрывалась на соседях (запись 382).
+    /// Встаёт первый по объявлению — как у кода пункта создания, — а о втором сказано в журнал.
+    /// </para>
     /// </remarks>
-    private static Dictionary<string, Type> Declared<TBase, TAttribute>(
+    private Dictionary<string, Type> Declared<TBase, TAttribute>(
         LoadedPlugin loaded,
-        Func<TAttribute, string> name)
-        where TAttribute : Attribute =>
-        PluginTypes.Concrete<TBase>(loaded.Assemblies)
-            .Select(type => (Type: type, Attribute: type.GetCustomAttribute<TAttribute>()))
-            .Where(found => found.Attribute is not null)
-            .ToDictionary(found => name(found.Attribute!), found => found.Type, StringComparer.Ordinal);
+        Func<TAttribute, string?> name)
+        where TAttribute : Attribute
+    {
+        var declared = new Dictionary<string, Type>(StringComparer.Ordinal);
+
+        foreach (var type in PluginTypes.Concrete<TBase>(loaded.Assemblies))
+        {
+            if (type.GetCustomAttribute<TAttribute>() is not { } attribute || name(attribute) is not { } id)
+                continue;
+
+            if (!declared.TryAdd(id, type))
+            {
+                _log.Write(StudioLogLevel.Warning, "Plugins",
+                    $"{loaded.Installed.DisplayName}: {id} объявлен двумя классами, {declared[id].Name} и {type.Name}; стоит первый");
+            }
+        }
+
+        return declared;
+    }
 }

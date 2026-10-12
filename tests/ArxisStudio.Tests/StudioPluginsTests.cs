@@ -118,6 +118,29 @@ public class StudioPluginsTests : IDisposable
     }
 
     /// <summary>
+    /// Чужой манифест с дырой не стоит студии её модулей.
+    /// </summary>
+    /// <remarks>
+    /// <c>"toolBar": null</c> — законный JSON, и пока разбор принимал его годным, сбор полосы падал на нём в
+    /// подготовке — раньше, чем поднимался хоть один модуль: студия вставала без окна проекта, терминала и
+    /// дизайнера. Сломанный манифест — запись каталога с ошибкой, и полоса его не читает (запись 382).
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_plugin_manifest_with_a_hole_costs_the_studio_only_that_plugin()
+    {
+        var folder = Directory.CreateDirectory(Path.Combine(_root, "arxis.holes")).FullName;
+
+        File.WriteAllText(Path.Combine(folder, "plugin.json"), """
+            { "id": "arxis.holes", "name": "Holes", "entry": "bin/Arxis.Holes.dll", "contributions": { "toolBar": null } }
+            """);
+
+        var plugins = Start(modules: typeof(SampleModule).Assembly);
+
+        Assert.Equal("arxis.sample", Assert.Single(plugins.Modules).Id);
+        Assert.False(Assert.Single(plugins.Installed).IsValid, "манифест с дырой принят годным");
+    }
+
+    /// <summary>
     /// Выключая расширение, студия прощается с его панелями.
     /// </summary>
     /// <remarks>
@@ -1090,6 +1113,87 @@ public class StudioPluginsTests : IDisposable
         Assert.DoesNotContain(_studio.Log.Records, record =>
             record.Level == StudioLogLevel.Error && record.Message.Contains("arxis.sample"));
     }
+
+    /// <summary>
+    /// Два класса под одним именем панели или элемента полосы стоят расширению предупреждения, а не
+    /// соседям — студии.
+    /// </summary>
+    /// <remarks>
+    /// Классы вкладов студия собирала словарём по имени из атрибута, и второй класс с тем же именем
+    /// бросал из приёма расширения мимо шва: <c>LoadModules</c> обрывался, и модули, шедшие за ошибшимся
+    /// автором, не поднимались вовсе (запись 382). Встаёт первый по объявлению, о втором сказано в журнал.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Two_classes_under_one_name_cost_the_others_nothing()
+    {
+        var plugins = Build(modules: [Twins(), typeof(SampleModule).Assembly]);
+
+        Assert.Empty(plugins.LoadModules());
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(["arxis.sample", "arxis.twins"], plugins.Modules.Select(module => module.Id).Order());
+        Assert.NotNull(_studio.Dock.Items.Find("arxis.twins:twins.panel"));
+        Assert.Contains(StudioToolBar.Key("arxis.twins", "twins.strip"), _studio.ToolBar.Shown("right"));
+
+        foreach (var id in new[] { "twins.panel", "twins.strip" })
+        {
+            Assert.Contains(_studio.Log.Records, record =>
+                record.Level == StudioLogLevel.Warning && record.Message.Contains(id) && record.Message.Contains("TwinB"));
+        }
+    }
+
+    /// <summary>Модуль, у которого панель и элемент полосы объявлены каждый двумя классами.</summary>
+    private static Assembly Twins() => TestAssembly.EmitModule(
+        "Probe.Twins",
+        """
+            using ArxisStudio.Sdk;
+            using Avalonia.Controls;
+
+            namespace Probe;
+
+            public sealed class TwinsModule : StudioPlugin
+            {
+                public override void Activate(IStudioContext context)
+                {
+                }
+            }
+
+            [ToolWindow("twins.panel")]
+            public sealed class TwinAPanel : ToolWindow
+            {
+                protected override Control Build() => new Border();
+            }
+
+            [ToolWindow("twins.panel")]
+            public sealed class TwinBPanel : ToolWindow
+            {
+                protected override Control Build() => new Border();
+            }
+
+            [ToolBarItem("twins.strip")]
+            public sealed class TwinAStrip : ToolBarItem
+            {
+                protected override Control Build() => new Border();
+            }
+
+            [ToolBarItem("twins.strip")]
+            public sealed class TwinBStrip : ToolBarItem
+            {
+                protected override Control Build() => new Border();
+            }
+            """,
+        """
+            {
+              "id": "arxis.twins",
+              "name": "Близнецы",
+              "version": "1.0.0",
+              "contributions": {
+                "toolWindows": [ { "id": "twins.panel", "title": "Близнецы", "placement": { "side": "bottom" } } ],
+                "toolBar": [ { "id": "twins.strip", "kind": "custom", "slot": "right" } ]
+              },
+              "activation": [ "onStartup" ]
+            }
+            """);
 
     /// <summary>
     /// Загрузка называет тех, кто не поднялся, — отчёту запуска.

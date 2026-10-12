@@ -255,6 +255,13 @@ public class DockLayoutSerializerTests
     [InlineData("""
         {"version":1,"active":"default","layouts":{"default":null}}
         """)]
+    [InlineData("""
+        {"version":1,"active":"default","layouts":{"default":{"root":{"id":"a","items":["console"]}}}}
+        """)]
+    [InlineData("""
+        {"version":1,"active":"default","layouts":{"default":{"root":{"kind":"split","orientation":"horizontal",
+        "children":[{"kind":"group","id":"a"},{"id":"b"}],"weights":[1,1]}}}}
+        """)]
     public void A_layout_with_holes_is_refused_and_not_thrown(string json)
     {
         var read = Record.Exception(() => DockLayoutSerializer.Read(json, out _));
@@ -262,5 +269,68 @@ public class DockLayoutSerializerTests
         Assert.Null(read);
         Assert.Null(DockLayoutSerializer.Read(json, out var problem));
         Assert.Equal(DockLayoutProblem.Unreadable, problem);
+    }
+
+    /// <summary>
+    /// Дерево, где одна группа или одна панель названа дважды, отвергается, а не роняет студию.
+    /// </summary>
+    /// <remarks>
+    /// Свой писатель так не пишет: в дереве окна панель стоит в одном месте, а имя группы — её адрес.
+    /// Пришедшее руками или чужой версией вид ставил одним контролом в два места — вид группы он ищет по
+    /// имени, у панели контрол один, — и студия не поднималась: у контрола Avalonia родитель один
+    /// (запись 382). Оторванное окно — такое же дерево, и правило у него то же.
+    /// </remarks>
+    [Theory]
+    [InlineData("""
+        {"version":1,"active":"default","layouts":{"default":{"root":{"kind":"split","orientation":"horizontal",
+        "children":[{"kind":"group","id":"a","items":["console"]},{"kind":"group","id":"a","items":["solution"]}],
+        "weights":[1,1]}}}}
+        """)]
+    [InlineData("""
+        {"version":1,"active":"default","layouts":{"default":{"root":{"kind":"split","orientation":"horizontal",
+        "children":[{"kind":"group","id":"a","items":["console"]},{"kind":"group","id":"b","items":["console"]}],
+        "weights":[1,1]}}}}
+        """)]
+    [InlineData("""
+        {"version":1,"active":"default","layouts":{"default":{"root":{"kind":"group","id":"a","items":["solution"]},
+        "floating":[{"root":{"kind":"split","orientation":"vertical",
+        "children":[{"kind":"group","id":"f","items":["console"]},{"kind":"group","id":"g","items":["console"]}],
+        "weights":[1,1]}}]}}}
+        """)]
+    [InlineData("""
+        {"version":1,"active":"default","layouts":{"default":{"root":{"kind":"group","id":"a","items":["console","console"]}}}}
+        """)]
+    public void A_tree_naming_one_group_or_panel_twice_is_refused(string json)
+    {
+        var read = Record.Exception(() => DockLayoutSerializer.Read(json, out _));
+
+        Assert.Null(read);
+        Assert.Null(DockLayoutSerializer.Read(json, out var problem));
+        Assert.Equal(DockLayoutProblem.Unreadable, problem);
+    }
+
+    /// <summary>Одна панель в двух деревьях или в двух наборах — не повод отвергать раскладку.</summary>
+    /// <remarks>
+    /// Наборы друг от друга независимы. Панель разом в главном окне и в оторванном — испорченный файл, но
+    /// такой писала прежняя студия, и его чинит читатель раскладки, отдавая имя одному дереву
+    /// (<c>StudioDockTests.A_name_found_in_two_trees_goes_to_one_of_them</c>): отверженный, он стоил бы
+    /// человеку всей раскладки.
+    /// </remarks>
+    [Theory]
+    [InlineData("""
+        {"version":1,"active":"a","layouts":{
+        "a":{"root":{"kind":"group","id":"root","items":["console"]}},
+        "b":{"root":{"kind":"group","id":"root","items":["console"]}}}}
+        """)]
+    [InlineData("""
+        {"version":1,"active":"default","layouts":{"default":{"root":{"kind":"group","id":"a","items":["console"]},
+        "floating":[{"root":{"kind":"group","id":"f","items":["console"]}}]}}}
+        """)]
+    public void One_panel_in_two_trees_or_two_sets_still_opens(string json)
+    {
+        var layout = DockLayoutSerializer.Read(json, out var problem);
+
+        Assert.Equal(DockLayoutProblem.None, problem);
+        Assert.NotNull(layout);
     }
 }

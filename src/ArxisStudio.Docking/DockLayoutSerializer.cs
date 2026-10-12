@@ -90,9 +90,11 @@ public static class DockLayoutSerializer
 
             return layout;
         }
-        catch (JsonException)
+        catch (Exception e) when (e is JsonException or NotSupportedException)
         {
-            // Испорченный файл раскладки — не повод не запускать студию.
+            // Испорченный файл раскладки — не повод не запускать студию. Узел без вида — без поля
+            // kind или с ним не первым — разбор называет не JsonException, а NotSupportedException, и
+            // правленный руками файл ронял студию на старте (запись 382).
             return null;
         }
     }
@@ -126,7 +128,25 @@ public static class DockLayoutSerializer
             && workspace.Floating is not null
             && workspace.Floating.All(window => window is not null && Sound(window.Root))
             && workspace.Hidden is not null
-            && !workspace.Hidden.Contains(null!));
+            && !workspace.Hidden.Contains(null!)
+            && workspace.Floating.All(window => Once(window.Root))
+            && Once(workspace.Root));
+
+    /// <summary>Названа ли в дереве окна каждая группа и каждая панель один раз.</summary>
+    /// <remarks>
+    /// Свой писатель повторов в дереве не пишет: панель стоит в одном месте, а имя группы — её адрес. Вид
+    /// же на этом стоит — группу он ищет по имени, у панели контрол один, — и повтор ставил один контрол в
+    /// два места: студия не поднималась с «already has a visual parent» (запись 382). Повтор между
+    /// деревьями — панель разом в главном окне и в оторванном — другое дело: такие файлы писала прежняя
+    /// студия, и чинит их читатель раскладки, отдавая имя одному дереву.
+    /// </remarks>
+    private static bool Once(DockNode root)
+    {
+        var groups = new HashSet<string>(StringComparer.Ordinal);
+        var panels = new HashSet<string>(StringComparer.Ordinal);
+
+        return root.Groups().All(group => groups.Add(group.Id) && group.Items.All(panels.Add));
+    }
 
     /// <summary>Есть ли в поддереве дыры, о которые споткнётся обход.</summary>
     /// <remarks>

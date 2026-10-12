@@ -238,6 +238,36 @@ public class PluginCatalogTests : IDisposable
         Assert.Equal("broken.plugin", plugin.Id);
     }
 
+    /// <summary>
+    /// Пустое место там, где манифест обещает запись, — сломанный манифест, а не плагин с дырой.
+    /// </summary>
+    /// <remarks>
+    /// Явный <c>null</c> вместо списка или записи и пустая запись в списке — законный JSON, и разбор без
+    /// проверки отдавал такой манифест годным: дыра доезжала до студии, и сбор полосы падал на чужом
+    /// <c>"toolBar": null</c> раньше, чем поднимался хоть один модуль (запись 382).
+    /// </remarks>
+    [Theory]
+    [InlineData("""{ "contributions": null }""")]
+    [InlineData("""{ "contributions": { "toolBar": null } }""")]
+    [InlineData("""{ "contributions": { "toolBar": [ null ] } }""")]
+    [InlineData("""{ "contributions": { "commands": [ {} ] } }""")]
+    [InlineData("""{ "contributions": { "menus": [ { "path": null, "command": "x.run" } ] } }""")]
+    [InlineData("""{ "contributions": { "toolWindows": [ { "id": "x.panel", "title": "X", "placement": { "side": null } } ] } }""")]
+    [InlineData("""{ "contributions": { "newItems": [ { "id": "x.item", "title": "X", "files": [ null ] } ] } }""")]
+    [InlineData("""{ "activation": [ null ] }""")]
+    [InlineData("""{ "dependencies": [ { "id": null } ] }""")]
+    public void A_manifest_with_a_hole_is_listed_as_broken(string fields)
+    {
+        var manifest = $$"""{ "id": "arxis.holes", "name": "Holes", "entry": "bin/Arxis.Holes.dll", {{fields.Trim()[1..^1]}} }""";
+
+        Install("arxis.holes", manifest);
+
+        var plugin = Assert.Single(new PluginCatalog(_root).Scan());
+
+        Assert.False(plugin.IsValid, "манифест с дырой принят годным");
+        Assert.NotNull(plugin.Error);
+    }
+
     [Fact]
     public void A_folder_without_a_manifest_is_not_a_plugin()
     {

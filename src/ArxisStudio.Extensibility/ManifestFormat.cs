@@ -33,8 +33,16 @@ internal static class ManifestFormat
     /// <remarks>
     /// Исключения чтения и разбора — <see cref="JsonException"/>, <see cref="IOException"/>,
     /// <see cref="UnauthorizedAccessException"/> — уходят зовущему: каталог и модули говорят о них
-    /// своими словами.
+    /// своими словами. Манифест с пустым местом там, где модель обещает значение, — тоже
+    /// <see cref="JsonException"/>: годным его отдавать нельзя (<see cref="ManifestHoles"/>).
     /// </remarks>
-    public static PluginManifest? Read(string path) =>
-        JsonSerializer.Deserialize<PluginManifest>(File.ReadAllText(path), Options);
+    public static PluginManifest? Read(string path)
+    {
+        var manifest = JsonSerializer.Deserialize<PluginManifest>(File.ReadAllText(path), Options);
+
+        if (manifest is not null)
+            ManifestHoles.Check(manifest);
+
+        return manifest;
+    }
 }
