@@ -80,16 +80,22 @@ public class ProjectsConsumerPluginTests : IDisposable
     }
 
     /// <summary>
-    /// Плагин, забывший отписаться, всё равно выгружается.
+    /// Плагин, забывший отписаться, всё равно выгружается — от модели, файлов, содержимого и истории.
     /// </summary>
     /// <remarks>
     /// Делегат подписки держит сборку плагина. Не сними служба его при выгрузке контекста, прежняя
-    /// копия осталась бы в памяти навсегда, а доставка звала бы код мертвеца.
+    /// копия осталась бы в памяти навсегда, а доставка звала бы код мертвеца. Службы файлов и истории
+    /// звали подписчиков простым событием и не снимали их (запись 405), а забытая подписка на содержимое
+    /// ещё и держала слежение за ним.
     /// </remarks>
     [Fact]
-    public void A_plugin_that_forgot_to_unsubscribe_still_unloads()
+    public async Task A_plugin_that_forgot_to_unsubscribe_still_unloads()
     {
         using var studio = new ProjectsStudio();
+
+        // Решение открыто: слежение за содержимым заводит сессия, и видно, гаснет ли оно с уходом слушателя.
+        await studio.Projects.OpenAsync(ProjectsStudio.Solution(), TestContext.Current.CancellationToken);
+        await studio.Thread.IdleAsync();
 
         var context = SubscribedAndDropped(studio);
 
@@ -124,10 +130,12 @@ public class ProjectsConsumerPluginTests : IDisposable
         var loaded = Assert.Single(studio.Host.LoadStartup(new PluginCatalog(_root).Scan()));
 
         Assert.True(loaded.IsLoaded, loaded.Error);
+        Assert.True(studio.Service.Session!.IsWatchingContent, "подписка плагина на содержимое не завела слежения");
 
         var context = new WeakReference(loaded.Context);
 
         Assert.True(studio.Host.Drop("probe.forgetful"));
+        Assert.False(studio.Service.Session!.IsWatchingContent, "выгрузка сняла слушателя содержимого, а слежение осталось");
 
         return context;
     }
@@ -199,6 +207,19 @@ public class ProjectsConsumerPluginTests : IDisposable
 
                 if (projects != null)
                     projects.Changed += (sender, change) => _seen++;
+
+                var files = context.Files();
+
+                if (files != null)
+                {
+                    files.Changed += (sender, change) => _seen++;
+                    files.ContentChanged += (sender, change) => _seen++;
+                }
+
+                var history = context.History();
+
+                if (history != null)
+                    history.Changed += (sender, change) => _seen++;
             }
         }
         """;

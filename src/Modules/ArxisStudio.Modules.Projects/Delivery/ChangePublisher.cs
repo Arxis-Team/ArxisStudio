@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Runtime.ExceptionServices;
 using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
 
@@ -44,7 +43,7 @@ internal readonly record struct SnapshotStep(ImmutableArray<ProjectIdentity> Tou
 /// бросил, а не этому модулю, в чьём цикле оно случилось.
 /// </para>
 /// <para>
-/// <b>Подписчиков держит <see cref="Subscribers{TArgs}"/></b> — там же и страховка от забытой
+/// <b>Подписчиков держит <see cref="Subscribers{THandler}"/></b> — там же и страховка от забытой
 /// подписки.
 /// </para>
 /// </remarks>
@@ -54,7 +53,7 @@ internal sealed class ChangePublisher
     private readonly IProjectsThread _thread;
     private readonly Action<Exception> _failed;
 
-    private readonly Subscribers<ProjectsChangedEventArgs> _subscribers = new();
+    private readonly Subscribers<EventHandler<ProjectsChangedEventArgs>> _subscribers = new();
     private readonly Lock _gate = new();
     private ProjectsStatus _pending = ProjectsStatus.Closed;
     private ProjectsStatus _delivered = ProjectsStatus.Closed;
@@ -75,7 +74,7 @@ internal sealed class ChangePublisher
     {
         _sender = sender;
         _thread = thread;
-        _failed = failed ?? Rethrow;
+        _failed = failed ?? Subscribers.Rethrown(thread);
     }
 
     /// <summary>Добавляет подписчика.</summary>
@@ -186,7 +185,7 @@ internal sealed class ChangePublisher
 
         try
         {
-            _subscribers.Invoke(_sender, change, _failed);
+            _subscribers.Invoke(handler => handler(_sender, change), _failed);
         }
         finally
         {
@@ -205,19 +204,5 @@ internal sealed class ChangePublisher
             if (again)
                 _thread.Post(Deliver);
         }
-    }
-
-    /// <summary>
-    /// Бросает исключение подписчика заново — в потоке интерфейса и с его собственным стеком.
-    /// </summary>
-    /// <remarks>
-    /// Стек сохраняется захватом, поэтому студия находит в нём кадр того, кто бросил, и приписывает
-    /// сбой ему. Отложено, а не брошено на месте: остальные подписчики своё событие уже получили.
-    /// </remarks>
-    private void Rethrow(Exception error)
-    {
-        var captured = ExceptionDispatchInfo.Capture(error);
-
-        _thread.Post(captured.Throw);
     }
 }

@@ -24,7 +24,8 @@ namespace ArxisStudio.Modules.Projects.History;
 /// </para>
 /// <para>
 /// Отдельный класс, а не лицо службы проектов, — по той же причине, что у службы файлов: своё
-/// событие <see cref="Changed"/> спорило бы за имя с событием модели.
+/// событие <see cref="Changed"/> спорило бы за имя с событием модели. Подписчиков его держит
+/// <see cref="Subscribers{THandler}"/>, как у службы файлов.
 /// </para>
 /// </remarks>
 internal sealed class HistoryService : IStudioHistory
@@ -32,24 +33,32 @@ internal sealed class HistoryService : IStudioHistory
     private readonly ProjectsHost _host;
     private readonly IStudioContext _context;
     private readonly IProjectsThread _thread;
+    private readonly Action<Exception> _failed;
     private readonly HistoryWords _words;
+    private readonly Subscribers<EventHandler> _changed = new();
     private int _posted;
 
     /// <summary>Заводит службу.</summary>
     /// <param name="host">Служба проектов: сессия, снимок, история, очереди.</param>
     /// <param name="context">Контекст модуля: словари и настройки.</param>
     /// <param name="thread">Поток интерфейса.</param>
-    public HistoryService(ProjectsHost host, IStudioContext context, IProjectsThread thread)
+    /// <param name="failed">Куда девать исключение подписчика; null — бросить заново в потоке, как у перемен модели.</param>
+    public HistoryService(ProjectsHost host, IStudioContext context, IProjectsThread thread, Action<Exception>? failed)
     {
         _host = host;
         _context = context;
         _thread = thread;
+        _failed = failed ?? Subscribers.Rethrown(thread);
         _words = new HistoryWords(context.Strings);
         host.History.Recorded += OnRecorded;
     }
 
     /// <inheritdoc/>
-    public event EventHandler? Changed;
+    public event EventHandler? Changed
+    {
+        add => _changed.Add(value);
+        remove => _changed.Remove(value);
+    }
 
     /// <inheritdoc/>
     public bool IsOn => _host.History.Store is not null;
@@ -238,7 +247,7 @@ internal sealed class HistoryService : IStudioHistory
         _thread.Post(() =>
         {
             Volatile.Write(ref _posted, 0);
-            Changed?.Invoke(this, EventArgs.Empty);
+            _changed.Invoke(handler => handler(this, EventArgs.Empty), _failed);
         });
     }
 }

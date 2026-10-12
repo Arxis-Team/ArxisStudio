@@ -29,7 +29,11 @@ namespace ArxisStudio.Modules.Projects.Files;
 /// <b>Запись и слежение за содержимым.</b> Запись (<see cref="WriteAsync"/>) запоминает отпечаток
 /// записанного, и слежение (<see cref="ContentWatch"/>), увидев на конце пачки ровно эти байты, метит
 /// перемену студийной. Слежение живёт, пока есть подписчик на <see cref="ContentChanged"/>: первый
-/// заводит его у сессии, последний гасит.
+/// заводит его у сессии, последний гасит — и тогда, когда его снимает выгрузка забывшего отписаться.
+/// </para>
+/// <para>
+/// <b>Подписчики</b> обоих событий — в <see cref="Subscribers{THandler}"/>, как у перемен модели: упавший
+/// обработчик соседям не мешает, а забытая подписка уходит с выгрузкой плагина.
 /// </para>
 /// <para>
 /// <b>Одно перечитывание на правку.</b> Слежение видит правку раньше, чем её перечитали, и пачка,
@@ -45,77 +49,50 @@ internal sealed class FilesService : IStudioFiles
     private readonly ProjectsHost _host;
     private readonly FileWords _words;
     private readonly IProjectsThread _thread;
+    private readonly Action<Exception> _failed;
     private readonly ConcurrentDictionary<CanonicalPath, string> _written = new();
-    private readonly Lock _contentGate = new();
-    private EventHandler<FileContentChangedEventArgs>? _contentChanged;
-    private int _contentSubscribers;
+    private readonly Subscribers<EventHandler<FilesChangedEventArgs>> _changed = new();
+    private readonly Subscribers<EventHandler<FileContentChangedEventArgs>> _content = new();
+    private int _watched;
 
     /// <summary>Заводит службу.</summary>
     /// <param name="host">Служба проектов: сессия, снимок, очереди.</param>
     /// <param name="context">Контекст модуля: словари.</param>
     /// <param name="thread">Поток интерфейса.</param>
-    public FilesService(ProjectsHost host, IStudioContext context, IProjectsThread thread)
+    /// <param name="failed">Куда девать исключение подписчика; null — бросить заново в потоке, как у перемен модели.</param>
+    public FilesService(ProjectsHost host, IStudioContext context, IProjectsThread thread, Action<Exception>? failed)
     {
         _host = host;
         _words = new FileWords(context.Strings);
         _thread = thread;
+        _failed = failed ?? Subscribers.Rethrown(thread);
+        _content.Changed += OnContentSubscribers;
     }
 
     /// <inheritdoc/>
-    public event EventHandler<FilesChangedEventArgs>? Changed;
+    public event EventHandler<FilesChangedEventArgs>? Changed
+    {
+        add => _changed.Add(value);
+        remove => _changed.Remove(value);
+    }
 
     /// <inheritdoc/>
     public event EventHandler<FileContentChangedEventArgs>? ContentChanged
     {
-        add
-        {
-            if (value is null)
-                return;
-
-            bool first;
-
-            lock (_contentGate)
-            {
-                _contentChanged += value;
-                first = ++_contentSubscribers == 1;
-            }
-
-            if (first)
-                _host.WatchContent();
-        }
-
-        remove
-        {
-            if (value is null)
-                return;
-
-            bool last;
-
-            lock (_contentGate)
-            {
-                var before = _contentChanged;
-
-                _contentChanged -= value;
-
-                if (ReferenceEquals(before, _contentChanged))
-                    return;
-
-                last = --_contentSubscribers == 0;
-            }
-
-            if (last)
-                _host.WatchContent();
-        }
+        add => _content.Add(value);
+        remove => _content.Remove(value);
     }
 
     /// <summary>Есть кому слушать перемены содержимого — слежению за ним жить.</summary>
-    internal bool IsContentWatched
+    internal bool IsContentWatched => !_content.Current.IsEmpty;
+
+    /// <summary>Слушатели содержимого сменились: первый заводит слежение, последний гасит.</summary>
+    private void OnContentSubscribers()
     {
-        get
-        {
-            lock (_contentGate)
-                return _contentSubscribers > 0;
-        }
+        var watched = IsContentWatched ? 1 : 0;
+
+        if (Interlocked.Exchange(ref _watched, watched) != watched)
+            _host.WatchContent();
     }
 
     /// <summary>
@@ -158,15 +135,7 @@ internal sealed class FilesService : IStudioFiles
 
         var args = new FileContentChangedEventArgs(changes.MoveToImmutable());
 
-        _thread.Post(() =>
-        {
-            EventHandler<FileContentChangedEventArgs>? handlers;
-
-            lock (_contentGate)
-                handlers = _contentChanged;
-
-            handlers?.Invoke(this, args);
-        });
+        _thread.Post(() => _content.Invoke(handler => handler(this, args), _failed));
     }
 
     /// <inheritdoc/>
@@ -338,7 +307,7 @@ internal sealed class FilesService : IStudioFiles
                 hold?.Confirm();
 
             if (done.Change is { } change)
-                _thread.Post(() => Changed?.Invoke(this, change));
+                _thread.Post(() => _changed.Invoke(handler => handler(this, change), _failed));
 
             return done.Result;
         }

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.ExceptionServices;
 using System.Runtime.Loader;
 
 namespace ArxisStudio.Modules.Projects.Delivery;
@@ -6,7 +7,7 @@ namespace ArxisStudio.Modules.Projects.Delivery;
 /// <summary>
 /// Подписчики одного события службы.
 /// </summary>
-/// <typeparam name="TArgs">Что событие несёт.</typeparam>
+/// <typeparam name="THandler">Вид обработчика события.</typeparam>
 /// <remarks>
 /// <para>
 /// <b>Забытая подписка.</b> Выгрузка контекста плагина снимает его обработчики сама: иначе делегат
@@ -22,15 +23,19 @@ namespace ArxisStudio.Modules.Projects.Delivery;
 /// мешает и соседей не теряет.
 /// </para>
 /// </remarks>
-internal sealed class Subscribers<TArgs>
-    where TArgs : EventArgs
+internal sealed class Subscribers<THandler>
+    where THandler : Delegate
 {
     private readonly Lock _gate = new();
     private readonly HashSet<AssemblyLoadContext> _contexts = [];
-    private ImmutableArray<EventHandler<TArgs>> _handlers = [];
+    private ImmutableArray<THandler> _handlers = [];
+
+    /// <summary>Подписчики сменились: пришёл, ушёл или снят с выгрузкой своего контекста.</summary>
+    /// <remarks>Зовётся вне замка — в потоке того, кто подписался, отписался или выгружает.</remarks>
+    public event Action? Changed;
 
     /// <summary>Подписчики сейчас.</summary>
-    public ImmutableArray<EventHandler<TArgs>> Current
+    public ImmutableArray<THandler> Current
     {
         get
         {
@@ -41,7 +46,7 @@ internal sealed class Subscribers<TArgs>
 
     /// <summary>Добавляет подписчика.</summary>
     /// <param name="handler">Обработчик; null ничего не делает, как у обычного события.</param>
-    public void Add(EventHandler<TArgs>? handler)
+    public void Add(THandler? handler)
     {
         if (handler is null)
             return;
@@ -56,11 +61,13 @@ internal sealed class Subscribers<TArgs>
                     context.Unloading += OnUnloading;
             }
         }
+
+        Changed?.Invoke();
     }
 
     /// <summary>Снимает подписчика — последнюю из равных ему подписок, как у обычного события.</summary>
     /// <param name="handler">Обработчик.</param>
-    public void Remove(EventHandler<TArgs>? handler)
+    public void Remove(THandler? handler)
     {
         if (handler is null)
             return;
@@ -69,22 +76,25 @@ internal sealed class Subscribers<TArgs>
         {
             var index = _handlers.LastIndexOf(handler);
 
-            if (index >= 0)
-                _handlers = _handlers.RemoveAt(index);
+            if (index < 0)
+                return;
+
+            _handlers = _handlers.RemoveAt(index);
         }
+
+        Changed?.Invoke();
     }
 
     /// <summary>Зовёт подписчиков по порядку; упавший не мешает следующим.</summary>
-    /// <param name="sender">Отправитель события.</param>
-    /// <param name="args">Событие.</param>
+    /// <param name="call">Как позвать одного: с отправителем и событием.</param>
     /// <param name="failed">Куда девать исключение подписчика.</param>
-    public void Invoke(object sender, TArgs args, Action<Exception> failed)
+    public void Invoke(Action<THandler> call, Action<Exception> failed)
     {
         foreach (var handler in Current)
         {
             try
             {
-                handler(sender, args);
+                call(handler);
             }
             catch (Exception e) when (e is not OutOfMemoryException)
             {
@@ -95,15 +105,24 @@ internal sealed class Subscribers<TArgs>
 
     private void OnUnloading(AssemblyLoadContext context)
     {
+        bool removed;
+
         lock (_gate)
         {
             _contexts.Remove(context);
+
+            var before = _handlers.Length;
+
             _handlers = _handlers.RemoveAll(handler => Contexts(handler).Contains(context));
+            removed = _handlers.Length != before;
         }
+
+        if (removed)
+            Changed?.Invoke();
     }
 
     /// <summary>Выгружаемые контексты, чей код держит обработчик.</summary>
-    private static HashSet<AssemblyLoadContext> Contexts(EventHandler<TArgs> handler)
+    private static HashSet<AssemblyLoadContext> Contexts(THandler handler)
     {
         var found = new HashSet<AssemblyLoadContext>();
 
@@ -123,4 +142,18 @@ internal sealed class Subscribers<TArgs>
 
         return found;
     }
+}
+
+/// <summary>Куда уходит сбой подписчика, если службе не назвали иного.</summary>
+internal static class Subscribers
+{
+    /// <summary>Бросает исключение подписчика заново в потоке интерфейса — отдельной работой.</summary>
+    /// <param name="thread">Поток интерфейса.</param>
+    /// <remarks>
+    /// Стек сохраняется захватом, поэтому студия находит в нём кадр того, кто бросил, и приписывает
+    /// сбой ему, а не модулю, в чьём цикле он случился. Отложено, а не брошено на месте: остальные
+    /// подписчики своё событие получают.
+    /// </remarks>
+    public static Action<Exception> Rethrown(IProjectsThread thread) =>
+        error => thread.Post(ExceptionDispatchInfo.Capture(error).Throw);
 }

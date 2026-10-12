@@ -761,6 +761,37 @@ public sealed class ProjectsFilesTests() : ProjectsOnDisk("projects-files")
         Assert.Equal(store.Capture(At("Greeter.cs"))!.Content, store.Known(At("Greeter.cs"))?.Content);
     }
 
+    /// <summary>
+    /// Упавший подписчик служб файлов и истории не глушит соседей: событие слышат все, а исключение уходит туда же,
+    /// куда исключения подписчиков модели.
+    /// </summary>
+    /// <remarks>
+    /// Обе службы звали подписчиков простым событием: первый бросивший обрывал рассылку, и окно проекта или дизайнер
+    /// после него о переезде не узнавали (запись 405).
+    /// </remarks>
+    [Fact]
+    public async Task A_failing_subscriber_of_files_and_history_does_not_silence_the_others()
+    {
+        using var studio = await OpenAsync();
+        var files = 0;
+        var history = 0;
+
+        studio.Files.Changed += (_, _) => throw new InvalidOperationException("окно файлов сломалось");
+        studio.Files.Changed += (_, _) => files++;
+        studio.History.Changed += (_, _) => throw new InvalidOperationException("окно истории сломалось");
+        studio.History.Changed += (_, _) => history++;
+
+        var result = await studio.Files.MoveAsync([Pair("Greeter.cs", "Hello.cs")], "Переименование Greeter.cs", Token);
+
+        await studio.SettleHistoryAsync();
+        await studio.Thread.IdleAsync();
+
+        Assert.False(result.HasErrors, Said(result));
+        Assert.Equal(1, files);
+        Assert.True(history > 0, "история записала переезд, а сосед упавшего об этом не узнал");
+        Assert.Equal(files + history, studio.Failures.Count);
+    }
+
     /// <summary>Решение раскладывается с заметкой рядом — файлом, который не входит ни в один проект.</summary>
     private protected override void Lay()
     {

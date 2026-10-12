@@ -85,8 +85,8 @@ internal sealed class ProjectsHost : IStudioProjects, IStudioBuild, IStudioPacka
 
         _watching = ProjectsSettings.Read(context.Settings).WatchFiles ? 1 : 0;
         _history = new HistoryRecorder(context, HistoryRecorder.Root(options.HistoryRoot), options.HistoryCoalescing);
-        Files = new FilesService(this, context, _thread);
-        HistoryService = new HistoryService(this, context, _thread);
+        Files = new FilesService(this, context, _thread, options.SubscriberFailed);
+        HistoryService = new HistoryService(this, context, _thread, options.SubscriberFailed);
         context.Settings.Changed += OnSettingsChanged;
     }
 

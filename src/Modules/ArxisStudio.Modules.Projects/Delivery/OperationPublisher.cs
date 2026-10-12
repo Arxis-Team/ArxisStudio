@@ -1,4 +1,3 @@
-using System.Runtime.ExceptionServices;
 using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
 
@@ -30,10 +29,10 @@ internal sealed class OperationPublisher(
     IProjectsThread thread,
     Action<Exception>? failed)
 {
-    private readonly Action<Exception> _failed = failed ?? (error => thread.Post(ExceptionDispatchInfo.Capture(error).Throw));
+    private readonly Action<Exception> _failed = failed ?? Subscribers.Rethrown(thread);
 
-    private readonly Subscribers<ProjectOperationEventArgs> _started = new();
-    private readonly Subscribers<ProjectOperationEventArgs> _completed = new();
+    private readonly Subscribers<EventHandler<ProjectOperationEventArgs>> _started = new();
+    private readonly Subscribers<EventHandler<ProjectOperationEventArgs>> _completed = new();
 
     /// <summary>Подписывает на начало операций.</summary>
     /// <param name="handler">Обработчик.</param>
@@ -57,7 +56,7 @@ internal sealed class OperationPublisher(
     {
         var change = new ProjectOperationEventArgs(operation);
 
-        thread.Post(() => _started.Invoke(sender, change, _failed));
+        thread.Post(() => _started.Invoke(handler => handler(sender, change), _failed));
     }
 
     /// <summary>Говорит, что операция кончилась.</summary>
@@ -68,6 +67,6 @@ internal sealed class OperationPublisher(
     {
         var change = new ProjectOperationEventArgs(operation, result, isCancelled);
 
-        thread.Post(() => _completed.Invoke(sender, change, _failed));
+        thread.Post(() => _completed.Invoke(handler => handler(sender, change), _failed));
     }
 }
