@@ -63,9 +63,28 @@ internal sealed class FormGestures : IDisposable
 
     /// <remarks>
     /// Жест, задевший несколько форм, — по правке на каждую: у каждой своя история, и Ctrl+Z во вкладке формы
-    /// отменяет только её.
+    /// отменяет только её. В истории хозяина — доски — жест один шаг: сбор держит его правки вместе, пока они не
+    /// легли (<see cref="IFormCanvasHost.Gesture"/>).
     /// </remarks>
     private void OnEditCompleted(object? sender, SurfaceEditCompletedEventArgs e)
+    {
+        var gesture = _canvas.Host.Gesture(e);
+        var landed = new List<Task>();
+
+        try
+        {
+            Edit(e, landed);
+        }
+        finally
+        {
+            _ = LandAsync(gesture, landed);
+        }
+    }
+
+    /// <summary>Пишет в текст форм то, что жест сделал на холсте, — по правке на форму.</summary>
+    /// <param name="e">Конец жеста.</param>
+    /// <param name="landed">Куда сложить правки: сбор жеста ждёт их.</param>
+    private void Edit(SurfaceEditCompletedEventArgs e, List<Task> landed)
     {
         if (e.Kind is not (SurfaceEditKind.Move or SurfaceEditKind.Resize))
             return;
@@ -126,7 +145,7 @@ internal sealed class FormGestures : IDisposable
                 _strings[e.Kind == SurfaceEditKind.Move ? "form.edit.position" : "form.edit.size"],
                 edits.NameOf(writes[0].Path));
 
-            _ = edits.EditAsync(label, editor =>
+            landed.Add(edits.EditAsync(label, editor =>
             {
                 foreach (var write in writes)
                 {
@@ -138,7 +157,20 @@ internal sealed class FormGestures : IDisposable
                     else
                         FormEdits.Size(editor, element, write.Name, write.Value);
                 }
-            }, select: null);
+            }, select: null));
+        }
+    }
+
+    /// <summary>Отпускает сбор жеста, когда его правки легли.</summary>
+    private static async Task LandAsync(IDisposable gesture, List<Task> landed)
+    {
+        try
+        {
+            await Task.WhenAll(landed);
+        }
+        finally
+        {
+            gesture.Dispose();
         }
     }
 
@@ -172,13 +204,24 @@ internal sealed class FormGestures : IDisposable
         // Ответ на просьбу и есть удаление: без него ядро не сделало бы ничего, а клавиша ушла бы дальше.
         e.Handled = true;
 
-        foreach (var (slot, paths) in parts)
-        {
-            if (slot.Session.Edits is { } edits)
-                _ = edits.DeleteAsync(paths);
-        }
+        // Элементы одних форм и другие формы целиком — один шаг в истории хозяина.
+        var gesture = _canvas.Host.Gesture(null);
+        var landed = new List<Task>();
 
-        _canvas.Host.Remove(e);
+        try
+        {
+            foreach (var (slot, paths) in parts)
+            {
+                if (slot.Session.Edits is { } edits)
+                    landed.Add(edits.DeleteAsync(paths));
+            }
+
+            _canvas.Host.Remove(e);
+        }
+        finally
+        {
+            _ = LandAsync(gesture, landed);
+        }
     }
 
     private void OnReorderRequested(object? sender, UiDesignerReorderRequestedEventArgs e)

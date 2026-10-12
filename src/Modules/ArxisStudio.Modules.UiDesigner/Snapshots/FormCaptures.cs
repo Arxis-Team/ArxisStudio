@@ -441,14 +441,4 @@ internal sealed class FormCaptures : IXamlRootLender, IXamlDesignParticipant, ID
 
         public void Dispose() => _cancel.Dispose();
     }
-
-    /// <summary>Аренда, которой одалживать нечего.</summary>
-    private sealed class Nothing : IDisposable
-    {
-        public static readonly Nothing Instance = new();
-
-        public void Dispose()
-        {
-        }
-    }
 }

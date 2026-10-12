@@ -154,7 +154,6 @@ public sealed partial class BoardPanel : ToolWindow, IFormCanvasHost
         if (_view is { } view)
         {
             view.Sheet.RemoveHandler(InputElement.PointerPressedEvent, OnSheetPressed);
-            view.Sheet.EditCompleted -= OnEditCompleted;
             view.ReturnAll.Click -= OnReturnAll;
             view.ArrangeAll.Click -= OnArrange;
             view.BoardMode.Click -= OnBoardMode;
@@ -286,6 +285,24 @@ public sealed partial class BoardPanel : ToolWindow, IFormCanvasHost
             _history?.Undo();
         else
             _history?.Redo();
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Места форм, сдвинутых жестом целиком, — запись доски, и она ложится в сбор первой; правки внутри форм кладут
+    /// свои шаги через сессии, когда лягут.
+    /// </remarks>
+    IDisposable IFormCanvasHost.Gesture(SurfaceEditCompletedEventArgs? edited)
+    {
+        if (_history is not { } history)
+            return Nothing.Instance;
+
+        var gathering = history.Gather();
+
+        if (edited is not null && _view?.Sheet is { } sheet && Moves(sheet, edited) is { Count: > 0 } moves)
+            history.Push(new BoardMoves(moves));
+
+        return gathering;
     }
 
     /// <inheritdoc/>
@@ -434,7 +451,6 @@ public sealed partial class BoardPanel : ToolWindow, IFormCanvasHost
     private void Wire(BoardView view, SurfaceView sheet, BoardModel model, BoardHistory history)
     {
         sheet.AddHandler(InputElement.PointerPressedEvent, OnSheetPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
-        sheet.EditCompleted += OnEditCompleted;
         view.ReturnAll.Click += OnReturnAll;
         view.ArrangeAll.Click += OnArrange;
         view.BoardMode.Click += OnBoardMode;
@@ -486,14 +502,11 @@ public sealed partial class BoardPanel : ToolWindow, IFormCanvasHost
     }
 
     /// <summary>
-    /// Жест холста сдвинул формы, выбранные целиком: их места — запись истории доски. Правки внутри форм
-    /// пишет в их текст холст форм, а их шаги ложатся в историю через сессии.
+    /// Формы, которые жест холста сдвинул целиком: их места — запись истории доски. Правки внутри форм пишет в их
+    /// текст холст форм, а их шаги ложатся в историю через сессии.
     /// </summary>
-    private void OnEditCompleted(object? sender, SurfaceEditCompletedEventArgs e)
+    private static List<BoardMove> Moves(SurfaceView sheet, SurfaceEditCompletedEventArgs e)
     {
-        if (_view?.Sheet is not { } sheet || _history is not { } history)
-            return;
-
         var moves = new List<BoardMove>();
 
         foreach (var change in e.Changes.OfType<GeometryChange>())
@@ -513,8 +526,7 @@ public sealed partial class BoardPanel : ToolWindow, IFormCanvasHost
                 moves.Add(new BoardMove(card, change.OldLocation, change.NewLocation));
         }
 
-        if (moves.Count > 0)
-            history.Push(new BoardMoves(moves));
+        return moves;
     }
 
     private void OnArrange(object? sender, RoutedEventArgs e)

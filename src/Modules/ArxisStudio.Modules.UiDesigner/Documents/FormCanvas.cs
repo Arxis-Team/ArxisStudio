@@ -29,6 +29,14 @@ internal interface IFormCanvasHost
     void Step(bool back);
 
     /// <summary>
+    /// Жест холста кончился: правки форм, которые он сделает, и то, что хозяин сделает с ним сам, — один шаг истории
+    /// хозяина, и Ctrl+Z отменяет жест целиком.
+    /// </summary>
+    /// <param name="edited">Конец жеста; null — удаление, у которого своя дорога (<see cref="Remove"/>).</param>
+    /// <returns>Сбор шага: его отпускают, когда правки форм легли.</returns>
+    IDisposable Gesture(SurfaceEditCompletedEventArgs? edited);
+
+    /// <summary>
     /// Delete: элементы форм холст уже убрал из их текста, а корень из документа не удалить — что делать с
     /// формами, выбранными целиком, решает хозяин.
     /// </summary>
@@ -547,15 +555,5 @@ internal sealed partial class FormCanvas : IXamlDesignParticipant, IXamlRootLend
         }
 
         return -1;
-    }
-
-    /// <summary>Отдавать нечего: корень не наш.</summary>
-    private sealed class Nothing : IDisposable
-    {
-        public static Nothing Instance { get; } = new();
-
-        public void Dispose()
-        {
-        }
     }
 }

@@ -265,6 +265,10 @@ internal sealed partial class LiveFormDocument : DocumentView, IFormCanvasHost
     }
 
     /// <inheritdoc/>
+    /// <remarks>История вкладки — история документа, и жест в ней — одна правка формы: собирать нечего.</remarks>
+    IDisposable IFormCanvasHost.Gesture(SurfaceEditCompletedEventArgs? edited) => Nothing.Instance;
+
+    /// <inheritdoc/>
     /// <remarks>Форма вкладки — сама вкладка: убирать её некуда, закрывают вкладку.</remarks>
     void IFormCanvasHost.Remove(SurfaceDeleteRequestedEventArgs request)
     {

@@ -201,6 +201,47 @@ public class UiDesignerLiveBoardTests
     }
 
     /// <summary>
+    /// Форма, которую тянут за левый край, — один шаг истории доски: доска сдвигает карточку, документ пишет ширину, а
+    /// Ctrl+Z возвращает и место, и ширину.
+    /// </summary>
+    /// <remarks>
+    /// Жест клал в историю два шага — место доски и правку документа, — и Ctrl+Z возвращал ширину, оставляя карточку
+    /// сдвинутой (запись 417).
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_form_resized_by_its_left_edge_is_one_step_of_the_board_history()
+    {
+        await using var studio = new LiveFormStudio();
+        var board = await studio.OpenBoardAsync(("MainWindow.axaml", Main), ("Badge.axaml", Badge));
+        var sheet = board.View!.Sheet;
+        var badge = Card(board, "Badge.axaml");
+        var session = board.Forms!.SessionOf(badge)!;
+        var before = badge.Location;
+
+        Press(studio, Caption(Item(board, badge)));
+
+        var item = Item(board, badge);
+        var edge = item.TranslatePoint(new Point(0, item.Bounds.Height / 2), studio.Window)!.Value;
+
+        studio.Window.MouseMove(edge);
+        studio.Window.MouseDown(edge, MouseButton.Left);
+        studio.Window.MouseMove(edge + new Vector(-4, 0));
+        studio.Window.MouseMove(edge + new Vector(-40, 0));
+        studio.Window.MouseUp(edge + new Vector(-40, 0), MouseButton.Left);
+        LiveFormStudio.Frame();
+
+        await XamlStudio.UntilAsync(() => !Text(session).Contains("Width=\"200\"", StringComparison.Ordinal), "ширина не записана");
+
+        Assert.True(badge.Location.X < before.X, $"карточка не сдвинулась влево: {before} → {badge.Location}");
+
+        LiveFormStudio.Press(sheet, Key.Z, KeyModifiers.Control);
+
+        await XamlStudio.UntilAsync(() => Text(session).Contains("Width=\"200\"", StringComparison.Ordinal), "Ctrl+Z не вернул ширину");
+
+        Assert.Equal(before, badge.Location);
+    }
+
+    /// <summary>
     /// Форму тянут за имя: она едет по холсту, её место — запись истории доски, и Ctrl+Z ставит её назад.
     /// </summary>
     [AvaloniaFact]
