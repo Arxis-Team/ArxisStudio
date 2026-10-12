@@ -1,3 +1,4 @@
+using ArxisStudio.Surface.UiDesigner;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -5,6 +6,7 @@ using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Styling;
+using Avalonia.VisualTree;
 
 namespace ArxisStudio.Modules.UiDesigner.Snapshots;
 
@@ -26,6 +28,14 @@ namespace ArxisStudio.Modules.UiDesigner.Snapshots;
 /// </remarks>
 internal static class FormPicture
 {
+    /// <summary>
+    /// Область формы на карточке — её фон и содержимое, без рамки карточки и заголовка окна: то, что снимают.
+    /// </summary>
+    /// <param name="item">Карточка формы.</param>
+    /// <remarks>Часть шаблона карточки Surface: <c>PART_FormBackground</c>.</remarks>
+    public static Border? Face(UiDesignerFormItem item) =>
+        item.GetVisualDescendants().OfType<Border>().FirstOrDefault(border => border.Name == "PART_FormBackground");
+
     /// <summary>Снимает элемент в PNG длинной стороной <paramref name="pixels"/>.</summary>
     /// <param name="face">Что снимать: область формы на карточке.</param>
     /// <param name="root">Корень формы: от него ищется тема окна её приложения.</param>

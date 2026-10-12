@@ -159,9 +159,6 @@ internal sealed class FormSession : IAsyncDisposable
     /// <summary>Сохранять ли самому: настройка модуля.</summary>
     public bool AutoSaves => _context.Settings.Get<bool?>(UiDesignerModule.AutoSaveKey) ?? true;
 
-    /// <summary>Держит ли форму тот, кто старше этой сессии: тогда сессия её не покажет.</summary>
-    public bool IsHeldElsewhere => !_disposed && _hold is null && FormShows.Of(_context).IsHeldAbove(Path.Value, _rank);
-
     /// <summary>Кто показывает форму.</summary>
     /// <remarks>
     /// Вкладка меняет его, уходя с экрана и возвращаясь: заявка сессии встаёт на новое место

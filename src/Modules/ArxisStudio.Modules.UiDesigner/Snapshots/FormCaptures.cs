@@ -209,7 +209,7 @@ internal sealed class FormCaptures : IXamlRootLender, IXamlDesignParticipant, ID
 
         var path = CanonicalPath.Create(formPath);
 
-        if (!InSolution(path))
+        if (!FormFiles.InSolution(_context, path))
             return;
 
         // Файл читается вне потока интерфейса: форма ли это, какого размера и тот ли текст, на котором она
@@ -401,10 +401,6 @@ internal sealed class FormCaptures : IXamlRootLender, IXamlDesignParticipant, ID
 
     /// <summary>Держат ли форму вкладка или доска: снимать будут они.</summary>
     private bool IsClaimed(string formPath) => _shows.IsHeldAbove(formPath, FormShowRank.Capture);
-
-    /// <summary>Файл — часть открытого решения: служба XAML строит только его формы.</summary>
-    private bool InSolution(CanonicalPath path) =>
-        _context.Projects()?.Status.Snapshot is { } snapshot && snapshot.TryGetProjectForFile(path, out _);
 
     /// <summary>Корень формы и отпечаток её текста; текста нет — файл не читается.</summary>
     private static (FormRoot? Declared, string? Text) Inspect(string formPath)

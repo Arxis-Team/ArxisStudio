@@ -282,16 +282,11 @@ public sealed class HierarchyPanel : ToolWindow
         if (_view is not { } view || _canvas is not { } canvas)
             return;
 
-        if (view.GetPlatformSettings()?.HotkeyConfiguration is { } keys)
+        if (e.Step(view) is { } back)
         {
-            var back = keys.Undo.Any(gesture => gesture.Matches(e));
-
-            if (back || keys.Redo.Any(gesture => gesture.Matches(e)))
-            {
-                e.Handled = true;
-                canvas.Host.Step(back);
-                return;
-            }
+            e.Handled = true;
+            canvas.Host.Step(back);
+            return;
         }
 
         if (e.Is(FormKeys.Parent))

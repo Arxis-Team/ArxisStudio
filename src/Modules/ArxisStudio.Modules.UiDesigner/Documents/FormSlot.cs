@@ -245,7 +245,7 @@ internal sealed class FormSlot : IFormTarget
             || Session.Shown is not { Root: { } root } shown
             || !ReferenceEquals(item.Root, root)
             || TopLevel.GetTopLevel(item) is null
-            || Face(item) is not { IsEffectivelyVisible: true } face
+            || FormPicture.Face(item) is not { IsEffectivelyVisible: true } face
             || FormPicture.Take(face, root, FormSnapshots.Pixels) is not { } picture)
         {
             return;
@@ -307,11 +307,4 @@ internal sealed class FormSlot : IFormTarget
         if (!e.TryCancel())
             e.TrySetNewFocusedElement(_canvas.Sheet);
     }
-
-    /// <summary>
-    /// Область формы на карточке — её фон и содержимое, без рамки карточки и заголовка окна.
-    /// </summary>
-    /// <remarks>Часть шаблона карточки Surface: <c>PART_FormBackground</c>.</remarks>
-    private static Border? Face(UiDesignerFormItem item) =>
-        item.GetVisualDescendants().OfType<Border>().FirstOrDefault(border => border.Name == "PART_FormBackground");
 }

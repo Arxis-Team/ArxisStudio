@@ -92,22 +92,6 @@ internal sealed class BoardMenu(IStudioStrings strings, BoardActions actions)
         return items;
     }
 
-    /// <summary>Показывает меню.</summary>
-    /// <param name="anchor">К чему привязать.</param>
-    /// <param name="cards">О каких карточках меню.</param>
-    /// <param name="atPointer">Просили мышью: меню встаёт под указателем.</param>
-    public void Show(Control anchor, IReadOnlyList<FormCard> cards, bool atPointer)
-    {
-        ArgumentNullException.ThrowIfNull(anchor);
-
-        var flyout = new AxMenuFlyout();
-
-        foreach (var item in Items(cards))
-            flyout.Items.Add(item);
-
-        flyout.ShowAt(anchor, atPointer);
-    }
-
     /// <summary>
     /// «Вернуть на доску ▸»: убранные формы по одной и «Вернуть все».
     /// </summary>

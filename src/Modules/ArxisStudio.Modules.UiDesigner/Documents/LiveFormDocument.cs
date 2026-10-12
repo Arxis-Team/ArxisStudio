@@ -384,19 +384,11 @@ internal sealed partial class LiveFormDocument : DocumentView, IFormCanvasHost
     /// </remarks>
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || _session.Edits is not { } edits || _view.GetPlatformSettings()?.HotkeyConfiguration is not { } keys)
+        if (e.Handled || _session.Edits is not { } edits || e.Step(_view) is not { } back)
             return;
 
-        if (keys.Undo.Any(gesture => gesture.Matches(e)))
-        {
-            e.Handled = true;
-            _ = edits.StepAsync(back: true);
-        }
-        else if (keys.Redo.Any(gesture => gesture.Matches(e)))
-        {
-            e.Handled = true;
-            _ = edits.StepAsync(back: false);
-        }
+        e.Handled = true;
+        _ = edits.StepAsync(back);
     }
 
     private void Say(string message) => _context.GetService<IStudioStatus>()?.Show(message);

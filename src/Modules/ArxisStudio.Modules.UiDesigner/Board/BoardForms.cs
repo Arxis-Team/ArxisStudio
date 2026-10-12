@@ -92,7 +92,7 @@ internal sealed class BoardForms : IDisposable
 
         foreach (var container in sheet.GetRealizedContainers())
         {
-            if (container is UiDesignerFormItem item && CardOf(item) is { } card)
+            if (container is UiDesignerFormItem item && FormCard.Of(_sheet, item) is { } card)
                 Prepare(card, item);
         }
     }
@@ -175,13 +175,13 @@ internal sealed class BoardForms : IDisposable
 
     private void OnContainerPrepared(object? sender, ContainerPreparedEventArgs e)
     {
-        if (e.Container is UiDesignerFormItem item && CardOf(item) is { } card)
+        if (e.Container is UiDesignerFormItem item && FormCard.Of(_sheet, item) is { } card)
             Prepare(card, item);
     }
 
     private void OnContainerClearing(object? sender, ContainerClearingEventArgs e)
     {
-        if (e.Container is not UiDesignerFormItem item || CardOf(item) is not { } card || !_realized.Remove(card))
+        if (e.Container is not UiDesignerFormItem item || FormCard.Of(_sheet, item) is not { } card || !_realized.Remove(card))
             return;
 
         card.PropertyChanged -= OnCardChanged;
@@ -500,9 +500,6 @@ internal sealed class BoardForms : IDisposable
 
         await session.DisposeAsync();
     }
-
-    private FormCard? CardOf(UiDesignerFormItem item) =>
-        item.DataContext as FormCard ?? _sheet.ItemFromContainer(item) as FormCard;
 
     /// <summary>Живая форма доски: её сессия, место на холсте и пауза перед отпуском показа.</summary>
     private sealed class LiveForm(FormSession session, FormSlot slot)

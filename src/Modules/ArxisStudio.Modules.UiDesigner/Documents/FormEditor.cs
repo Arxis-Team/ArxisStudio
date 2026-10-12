@@ -42,7 +42,7 @@ public sealed class FormEditor : DocumentEditor
     public override bool CanOpen(string filePath) =>
         IsMarkup(filePath)
         && FormRoot.Read(filePath) is { Kind: not FormKind.Unreadable }
-        && (Tabs() || InSolution(CanonicalPath.Create(filePath)));
+        && (Tabs() || FormFiles.InSolution(Context, CanonicalPath.Create(filePath)));
 
     /// <inheritdoc/>
     /// <remarks>
@@ -58,7 +58,7 @@ public sealed class FormEditor : DocumentEditor
 
         var path = CanonicalPath.Create(filePath);
 
-        if (!InSolution(path))
+        if (!FormFiles.InSolution(Context, path))
             return false;
 
         Context.GetService<IStudioToolWindows>()?.Show(UiDesignerModule.PanelId);
@@ -87,7 +87,7 @@ public sealed class FormEditor : DocumentEditor
 
         var path = CanonicalPath.Create(filePath);
 
-        DocumentView view = Context.XamlDocuments() is { } documents && InSolution(path)
+        DocumentView view = Context.XamlDocuments() is { } documents && FormFiles.InSolution(Context, path)
             ? new LiveFormDocument(Context, documents, path, root, Context.GetService<UiDesignerOptions>() ?? UiDesignerOptions.Default)
             : new FormDocument(Context, filePath, root);
 
@@ -96,10 +96,6 @@ public sealed class FormEditor : DocumentEditor
 
     /// <summary>Режим вкладок: форму открывает вкладка, а не доска.</summary>
     private bool Tabs() => Context.Settings.Get<bool?>(UiDesignerModule.TabsKey) == true;
-
-    /// <summary>Файл — часть открытого решения: служба XAML строит только его формы.</summary>
-    private bool InSolution(CanonicalPath path) =>
-        Context.Projects()?.Status.Snapshot is { } snapshot && snapshot.TryGetProjectForFile(path, out _);
 
     private static bool IsMarkup(string filePath) =>
         Path.GetExtension(filePath).Equals(FormFiles.Extension, StringComparison.OrdinalIgnoreCase);

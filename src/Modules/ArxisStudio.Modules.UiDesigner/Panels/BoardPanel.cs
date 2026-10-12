@@ -513,7 +513,7 @@ public sealed partial class BoardPanel : ToolWindow, IFormCanvasHost
         {
             if (change.Target is UiDesignerFormItem item
                 && sheet.IndexFromContainer(item) >= 0
-                && CardOf(sheet, item) is { } card
+                && FormCard.Of(sheet, item) is { } card
                 && change.OldBounds.Position != change.NewBounds.Position)
             {
                 moves.Add(new BoardMove(card, change.OldBounds.Position, change.NewBounds.Position));
@@ -640,14 +640,11 @@ public sealed partial class BoardPanel : ToolWindow, IFormCanvasHost
 
     private double Length(string key) => _view is { } view ? SheetControls.LengthOf(view, key) : 0;
 
-    private static FormCard? CardOf(SurfaceView sheet, Control container) =>
-        container.DataContext as FormCard ?? sheet.ItemFromContainer(container) as FormCard;
-
     /// <summary>Верхняя форма на виду под точкой холста: место — у формы, размер — у её карточки.</summary>
     private static FormCard? CardAt(SurfaceView sheet, Point world) =>
         sheet.GetRealizedContainers()
             .OfType<UiDesignerFormItem>()
-            .Select(item => (Item: item, Card: CardOf(sheet, item)))
+            .Select(item => (Item: item, Card: FormCard.Of(sheet, item)))
             .LastOrDefault(form => form.Card is { } card && new Rect(card.Location, form.Item.Bounds.Size).Contains(world))
             .Card;
 }

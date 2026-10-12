@@ -1,4 +1,6 @@
+using ArxisStudio.Projects;
 using ArxisStudio.ProjectSystem;
+using ArxisStudio.Sdk;
 
 namespace ArxisStudio.Modules.UiDesigner.Model;
 
@@ -24,6 +26,12 @@ internal static class FormFiles
 {
     /// <summary>Расширение разметки Avalonia.</summary>
     public const string Extension = ".axaml";
+
+    /// <summary>Файл — часть открытого решения: служба XAML строит только его формы.</summary>
+    /// <param name="context">Контекст модуля: служба проектов — его.</param>
+    /// <param name="path">Файл.</param>
+    public static bool InSolution(IStudioContext context, CanonicalPath path) =>
+        context.Projects()?.Status.Snapshot is { } snapshot && snapshot.TryGetProjectForFile(path, out _);
 
     /// <summary>Файлы разметки снимка в порядке решения и пути.</summary>
     /// <param name="snapshot">Снимок решения.</param>

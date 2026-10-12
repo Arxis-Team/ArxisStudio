@@ -56,7 +56,7 @@ internal sealed class BoardSight : IDisposable
 
         foreach (var container in sheet.GetRealizedContainers())
         {
-            if (CardOf(container) is { } card)
+            if (FormCard.Of(_sheet, container) is { } card)
                 Watch(card, container);
         }
 
@@ -166,7 +166,7 @@ internal sealed class BoardSight : IDisposable
 
     private void OnPrepared(object? sender, ContainerPreparedEventArgs e)
     {
-        if (CardOf(e.Container) is not { } card)
+        if (FormCard.Of(_sheet, e.Container) is not { } card)
             return;
 
         Watch(card, e.Container);
@@ -176,7 +176,7 @@ internal sealed class BoardSight : IDisposable
     /// <summary>Форма ушла с доски: с виду она ушла сразу, а не на следующем проходе.</summary>
     private void OnClearing(object? sender, ContainerClearingEventArgs e)
     {
-        if (CardOf(e.Container) is not { } card
+        if (FormCard.Of(_sheet, e.Container) is not { } card
             || !_cards.TryGetValue(card, out var container)
             || !ReferenceEquals(container, e.Container))
         {
@@ -218,7 +218,4 @@ internal sealed class BoardSight : IDisposable
         _queued = true;
         Dispatcher.UIThread.Post(Update, DispatcherPriority.Background);
     }
-
-    private FormCard? CardOf(Control container) =>
-        container.DataContext as FormCard ?? _sheet.ItemFromContainer(container) as FormCard;
 }

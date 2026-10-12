@@ -129,7 +129,7 @@ internal sealed partial class FormCanvas : IXamlDesignParticipant, IXamlRootLend
         sheet.KeyCommands.Remove(SurfaceKeyCommands.ClearSelection);
         sheet.KeyCommands.Insert(
             Math.Max(0, clear),
-            new SurfaceKeyCommand(ParentCommand, new KeyGesture(Key.Escape), _ => SelectParent()));
+            new SurfaceKeyCommand(ParentCommand, FormKeys.Parent, _ => SelectParent()));
 
         WireStructure(sheet);
 

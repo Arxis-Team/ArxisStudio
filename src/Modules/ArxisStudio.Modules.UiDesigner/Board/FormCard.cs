@@ -3,7 +3,9 @@ using ArxisStudio.Icons;
 using ArxisStudio.Modules.UiDesigner.Model;
 using ArxisStudio.ProjectSystem;
 using ArxisStudio.Sdk;
+using ArxisStudio.Surface;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 
@@ -107,6 +109,13 @@ internal sealed class FormCard : INotifyPropertyChanged
             Raise(nameof(IsPreviewStale));
         }
     }
+
+    /// <summary>Карточка, которую показывает контейнер холста; null — контейнер не карточки.</summary>
+    /// <param name="sheet">Холст доски.</param>
+    /// <param name="container">Контейнер холста.</param>
+    /// <remarks>Контекст данных контейнер получает не сразу: пока его нет, карточку называет сам холст.</remarks>
+    public static FormCard? Of(SurfaceView sheet, Control container) =>
+        container.DataContext as FormCard ?? sheet.ItemFromContainer(container) as FormCard;
 
     /// <summary>Значок вида формы — в меню доски и на рамке во вкладке.</summary>
     /// <param name="kind">Вид формы.</param>

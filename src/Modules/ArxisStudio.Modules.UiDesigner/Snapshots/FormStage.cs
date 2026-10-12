@@ -78,7 +78,7 @@ internal sealed class FormStage : IDisposable
         _scene.Measure(room);
         _scene.Arrange(new Rect(room));
 
-        if (Item.FaultMessage is not null || Face() is not { } face || FormPicture.Take(face, root, pixels) is not { } picture)
+        if (Item.FaultMessage is not null || FormPicture.Face(Item) is not { } face || FormPicture.Take(face, root, pixels) is not { } picture)
             return null;
 
         return (picture, face.Bounds.Size);
@@ -102,8 +102,4 @@ internal sealed class FormStage : IDisposable
     /// <summary>Одалживает корень службе, если он на карточке; иначе одалживать нечего.</summary>
     /// <param name="root">Корень сессии.</param>
     public IDisposable? Lend(object root) => ReferenceEquals(Item.Root, root) ? Item.SuspendRoot() : null;
-
-    /// <summary>Область формы на карточке — тот же шаблонный кусок, что снимает вкладка.</summary>
-    private Border? Face() =>
-        Item.GetVisualDescendants().OfType<Border>().FirstOrDefault(border => border.Name == "PART_FormBackground");
 }

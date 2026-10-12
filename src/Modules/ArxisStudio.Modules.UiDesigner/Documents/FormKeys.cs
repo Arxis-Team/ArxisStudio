@@ -1,4 +1,6 @@
+using Avalonia;
 using Avalonia.Input;
+using Avalonia.VisualTree;
 
 namespace ArxisStudio.Modules.UiDesigner.Documents;
 
@@ -39,5 +41,23 @@ internal static class FormKeys
         ArgumentNullException.ThrowIfNull(gesture);
 
         return e.Key == gesture.Key && e.KeyModifiers == gesture.KeyModifiers;
+    }
+
+    /// <summary>Отмена или возврат — сочетаниями платформы, а не таблицы: у macOS они свои.</summary>
+    /// <param name="e">Нажатие.</param>
+    /// <param name="where">Где нажали: сочетания платформы спрашивают у него.</param>
+    /// <returns><c>true</c> — отмена, <c>false</c> — возврат, null — ни то ни другое.</returns>
+    public static bool? Step(this KeyEventArgs e, Visual where)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        ArgumentNullException.ThrowIfNull(where);
+
+        if (where.GetPlatformSettings()?.HotkeyConfiguration is not { } keys)
+            return null;
+
+        if (keys.Undo.Any(gesture => gesture.Matches(e)))
+            return true;
+
+        return keys.Redo.Any(gesture => gesture.Matches(e)) ? false : null;
     }
 }
