@@ -99,9 +99,10 @@ public partial class MainWindow : AxWindow
     /// Свойством с <c>init</c>, а не своим экземпляром: хранилище читает файл
     /// в память при создании и записывает его целиком, и два экземпляра на
     /// процесс потеряли бы правку друг друга. Ставит его приложение, у
-    /// которого хранилище одно.
+    /// которого хранилище одно, — обязательно: запасное, заведённое окном,
+    /// читало бы файл впустую и тут же уступало месту.
     /// </remarks>
-    public ISettingsStore Settings { get; init; } = new JsonSettingsStore();
+    public required ISettingsStore Settings { get; init; }
 
     /// <summary>
     /// Каталог плагинов на диске — тот же, что у экрана Welcome.
@@ -112,7 +113,7 @@ public partial class MainWindow : AxWindow
     /// причине, что и хранилище настроек: два каталога на процесс разошлись бы
     /// в том, кого считать выключенным.
     /// </remarks>
-    public PluginCatalog Catalog { get; init; } = new();
+    public required PluginCatalog Catalog { get; init; }
 
     /// <summary>
     /// Создаёт окно без проекта — состояние каркаса.
