@@ -108,8 +108,18 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     /// Показывает сообщение в строке состояния.
     /// </summary>
     /// <param name="message">Что сказать; пусто — вернуться к «готово».</param>
+    /// <remarks>
+    /// Говорят и из фоновой работы плагина, а привязки читают только в потоке интерфейса: сказанное со стороны
+    /// переносится на него, как объявления задач, — иначе привязка строки падала в потоке пула (запись 412).
+    /// </remarks>
     public void Say(string? message)
     {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => Say(message));
+            return;
+        }
+
         _status = message;
         Notify(nameof(Status));
     }

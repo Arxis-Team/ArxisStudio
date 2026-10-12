@@ -196,6 +196,29 @@ public class MainWindowViewModelTests : IDisposable
     }
 
     /// <summary>
+    /// Сказанное с чужого потока — фоновой работой плагина через строку состояния — доходит до привязок в потоке
+    /// интерфейса, а не объявляется на месте.
+    /// </summary>
+    /// <remarks>Объявление с чужого потока привязка не примет, как и объявление задачи (запись 412).</remarks>
+    [AvaloniaFact]
+    public void Saying_from_another_thread_reaches_the_bindings()
+    {
+        var model = new MainWindowViewModel(new StudioTaskRegistry());
+        var heard = Heard(model);
+        var thread = new Thread(() => model.Say("из фона")) { IsBackground = true };
+
+        thread.Start();
+        thread.Join();
+
+        Assert.Empty(heard);
+
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Contains(nameof(model.Status), heard);
+        Assert.Equal("из фона", model.Status);
+    }
+
+    /// <summary>
     /// Смена языка возвращает строку состояния на новый язык.
     /// </summary>
     /// <remarks>

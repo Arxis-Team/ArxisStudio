@@ -42,6 +42,27 @@ public class StudioDocumentsTests
     }
 
     /// <summary>
+    /// Документ, о котором попросили из фоновой работы, открывается в потоке интерфейса: вкладку ставит только он.
+    /// </summary>
+    /// <remarks>
+    /// Служба документов шла дальше в потоке просившего: будила хозяина типа и ставила вкладку из пула (запись 412).
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task A_file_asked_from_a_worker_thread_opens_on_the_ui_thread()
+    {
+        var (documents, _, _) = Studio();
+        IStudioDocuments service = new MainWindow.DocumentSink(documents);
+        bool? onUi = null;
+
+        documents.Opening += (_, _) => onUi = Dispatcher.UIThread.CheckAccess();
+
+        await Task.Run(() => service.OpenAsync(@"C:\проект\Окно.axaml"), TestContext.Current.CancellationToken);
+
+        Assert.True(onUi, "открытие шло не в потоке интерфейса");
+        Assert.Single(documents.Opened);
+    }
+
+    /// <summary>
     /// Тот же файл второй раз не открывается — показывается открытый.
     /// </summary>
     /// <remarks>

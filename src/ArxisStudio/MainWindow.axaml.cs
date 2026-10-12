@@ -672,9 +672,16 @@ public partial class MainWindow : AxWindow
 
     /// <summary>Открытие документов как служба для модулей и плагинов.</summary>
     /// <param name="documents">Служба, которая ставит вкладки.</param>
-    private sealed class DocumentSink(StudioDocuments documents) : IStudioDocuments
+    /// <remarks>
+    /// Открыть можно из любого потока: открытие будит хозяина типа и ставит вкладку, а это поток интерфейса
+    /// (запись 412).
+    /// </remarks>
+    internal sealed class DocumentSink(StudioDocuments documents) : IStudioDocuments
     {
         /// <inheritdoc/>
-        public Task OpenAsync(string filePath) => documents.OpenAsync(filePath);
+        public Task OpenAsync(string filePath) =>
+            Dispatcher.UIThread.CheckAccess()
+                ? documents.OpenAsync(filePath)
+                : Dispatcher.UIThread.InvokeAsync(() => documents.OpenAsync(filePath));
     }
 }
