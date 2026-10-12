@@ -474,11 +474,20 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
     /// <remarks>
     /// Языковые пакеты перечитываются вместе со списком: пакет — тоже плагин, и
     /// его установка, выключение или удаление меняют список языков студии.
+    /// <para>
+    /// Непринятые галочки переживают перечитывание: удаление и установка идут сразу, мимо «Сохранить»,
+    /// и карточки, собранные заново с диска, молча сбрасывали выбор человека у остальных плагинов
+    /// (запись 388).
+    /// </para>
     /// </remarks>
     public void Refresh()
     {
         var installed = _catalog.Scan();
         var all = installed.Concat(_builtIn).ToList();
+        var staged = Cards.Where(card => card.IsChanged).ToDictionary(card => card.Plugin.Id, card => card.IsOn, PluginIds.Comparer);
+
+        foreach (var card in Cards)
+            card.PropertyChanged -= OnCardChanged;
 
         Cards.Clear();
 
@@ -492,6 +501,9 @@ public sealed class PluginsPage : ISettingsPage, INotifyPropertyChanged
                 PluginGraph.Describe(plugin, all),
                 riseError,
                 _extensions.AwaitingRestart.ContainsKey(plugin.Id));
+
+            if (card.CanToggle && staged.TryGetValue(plugin.Id, out var on))
+                card.IsOn = on;
 
             card.PropertyChanged += OnCardChanged;
             Cards.Add(card);

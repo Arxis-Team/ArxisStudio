@@ -512,6 +512,34 @@ public class PluginsPageTests : IDisposable
         Assert.False(page.HasChanges, "«Вернуть» оставило правку");
     }
 
+    /// <summary>
+    /// Непринятая галочка соседа переживает удаление плагина.
+    /// </summary>
+    /// <remarks>
+    /// Удаление и установка идут сразу, мимо «Сохранить», и список после них перечитывается: карточки
+    /// собирались заново с диска, и выбор, сделанный человеком у остальных плагинов, молча пропадал
+    /// (запись 388).
+    /// </remarks>
+    [Fact]
+    public async Task A_pending_switch_survives_removing_another_plugin()
+    {
+        Plugin("arxis.one", "Первый");
+        Plugin("arxis.two", "Второй");
+
+        _answers.Answer = () => true;
+
+        var page = Page(out _);
+
+        await page.ToggleAsync(page.Cards.Single(card => card.Plugin.Id == "arxis.one"));
+        await page.RemoveAsync(page.Cards.Single(card => card.Plugin.Id == "arxis.two"));
+
+        var kept = Assert.Single(page.Cards);
+
+        Assert.Equal("arxis.one", kept.Plugin.Id);
+        Assert.False(kept.IsOn, "непринятая галочка пропала");
+        Assert.True(page.HasChanges, "страница забыла несохранённое");
+    }
+
     /// <summary>Подпись строки списка: заголовок группы — его подпись, плагин — его имя.</summary>
     private static string Title(object row) => row is PluginGroup group ? group.Title : ((PluginCard)row).Plugin.DisplayName;
 
