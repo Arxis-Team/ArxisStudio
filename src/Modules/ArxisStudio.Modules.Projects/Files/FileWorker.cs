@@ -663,6 +663,10 @@ internal static class FileWorker
     /// <remarks>
     /// Имя кончается на <c>.tmp</c> — его не видят ни слежение за составом, ни локальная история. Не
     /// отложился один — возвращаются отложенные раньше, и правка отказывает до первого переноса.
+    /// <para>
+    /// Смена одного регистра — тот же файл, и заменять в ней нечего, как и считает проверка правки: отложенным
+    /// оказался бы сам источник, перенос не нашёл бы его, а откат вернул бы файл уже под новым именем (запись 410).
+    /// </para>
     /// </remarks>
     private static List<Aside> SetAside(IEnumerable<FileMove> pairs)
     {
@@ -670,7 +674,7 @@ internal static class FileWorker
 
         try
         {
-            foreach (var pair in pairs.Where(pair => pair.Replace && File.Exists(pair.To.Value)))
+            foreach (var pair in pairs.Where(pair => pair.Replace && pair.From != pair.To && File.Exists(pair.To.Value)))
             {
                 var temporary = Temporary(pair.To.Value);
 

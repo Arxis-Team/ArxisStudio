@@ -67,6 +67,25 @@ public sealed class ProjectsFilesTests() : ProjectsOnDisk("projects-files")
     }
 
     /// <summary>
+    /// Смена одного регистра с просьбой заменить — тот же перенос: заменять нечего, и файл встаёт под новым именем.
+    /// </summary>
+    /// <remarks>
+    /// Для Windows место назначения — тот же файл, и откладывание заменяемого уносило сам источник: перенос отказывал,
+    /// а откат возвращал файл уже под новым именем — без действия истории и без ссылок (запись 410).
+    /// </remarks>
+    [Fact]
+    public async Task A_change_of_case_asked_to_replace_is_still_a_rename()
+    {
+        using var studio = await OpenAsync();
+
+        var result = await studio.Files.MoveAsync([Pair("Greeter.cs", "greeter.cs") with { Replace = true }], "Переименование Greeter.cs", Token);
+
+        Assert.False(result.HasErrors, Said(result));
+        Assert.Contains("greeter.cs", Directory.GetFiles(Lib).Select(Path.GetFileName));
+        Assert.Equal("Переименование Greeter.cs", studio.HistoryStore.Actions[^1].Label);
+    }
+
+    /// <summary>
     /// Переехавшая папка уносит ссылки файла проекта, а сам файл проекта остаётся байт в байт — кроме
     /// переписанного.
     /// </summary>
