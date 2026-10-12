@@ -78,23 +78,33 @@ internal sealed class ObjectTarget : InspectorTarget
     public override IReadOnlyList<InspectorProperty> Properties => _properties;
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Текст значения и сравнение с умолчанием читаются там же, где и само значение, — в шве объекта: <c>ToString</c> и
+    /// <c>Equals</c> своего типа плагин вправе переопределить, и бросивший записывался бы на счёт модуля инспектора, а
+    /// третий подряд отключал его (запись 395).
+    /// </remarks>
     public override InspectorValue ValueOf(string id)
     {
         ArgumentNullException.ThrowIfNull(id);
 
         if (!_members.TryGetValue(id, out var member) ||
-            !_instance.TryGet("reads " + id, it => member.Property.GetValue(it), out var value))
+            !_instance.TryGet(
+                "reads " + id,
+                it =>
+                {
+                    var value = member.Property.GetValue(it);
+
+                    return (Value: value, Text: TextOf(value), Written: member.Default is { } fallback && !Equals(value, fallback.Value));
+                },
+                out var read))
         {
             return InspectorValue.Empty;
         }
 
-        var text = TextOf(value);
-        var written = member.Default is { } fallback && !Equals(value, fallback.Value);
-
-        return new InspectorValue(text)
+        return new InspectorValue(read.Text)
         {
-            Source = written ? InspectorValueSource.Local : InspectorValueSource.Default,
-            Shared = value is not null && !value.GetType().Assembly.IsCollectible ? value : null,
+            Source = read.Written ? InspectorValueSource.Local : InspectorValueSource.Default,
+            Shared = read.Value is not null && !read.Value.GetType().Assembly.IsCollectible ? read.Value : null,
         };
     }
 

@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Runtime.CompilerServices;
 using ArxisStudio.Controls;
+using ArxisStudio.Extensibility;
 using ArxisStudio.Inspector;
 using ArxisStudio.Modules.Inspector;
 using ArxisStudio.Modules.Inspector.Panel;
@@ -183,6 +184,52 @@ public class InspectorObjectTests
         }
 
         Assert.False(context.IsAlive, "объект выгруженного плагина держит его контекст загрузки");
+    }
+
+    /// <summary>
+    /// Текст значения и сравнение с умолчанием — код объекта плагина: их сбой — на счёт плагина, а не инспектора.
+    /// </summary>
+    /// <remarks>
+    /// <c>ToString</c> и <c>Equals</c> своего типа плагин вправе переопределить, а звал их инспектор мимо шва объекта:
+    /// бросивший <c>ToString</c> записывался на счёт модуля инспектора, и третий подряд отключал его (запись 395).
+    /// </remarks>
+    [AvaloniaFact]
+    public void Text_and_equality_of_a_plugin_value_are_charged_to_the_plugin()
+    {
+        using var studio = new InspectorStudio();
+        var failures = new List<PluginFailure>();
+
+        studio.Guard.Failed += (_, failure) => failures.Add(failure);
+
+        TestAssembly.EmitPlugin(studio.Plugins, "probe.touchy", "Probe.Touchy", source: """
+            using ArxisStudio.Inspector;
+            using ArxisStudio.Sdk;
+
+            namespace Probe.Touchy;
+
+            public sealed class Grumpy
+            {
+                public override string ToString() => throw new System.InvalidOperationException("не скажу");
+            }
+
+            public sealed class Entry : StudioPlugin
+            {
+                public override void Activate(IStudioContext context) => context.Inspector()!.Inspect(new Options(), "Плагин");
+            }
+
+            public sealed class Options
+            {
+                public Grumpy Mood { get; set; } = new();
+            }
+            """);
+
+        studio.Raise();
+
+        var target = studio.Service.Current!;
+
+        Assert.Null(Record.Exception(() => target.ValueOf("Mood")));
+        Assert.Contains(failures, failure => failure.PluginId == "probe.touchy");
+        Assert.DoesNotContain(failures, failure => failure.PluginId == studio.Module.Installed.Id);
     }
 
     private static InspectorProperty Property(InspectorTarget target, string id) =>
