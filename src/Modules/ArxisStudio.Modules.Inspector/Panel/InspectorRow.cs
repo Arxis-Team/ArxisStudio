@@ -563,12 +563,19 @@ internal sealed class InspectorRow : AxPropertyRow
 
         public override int Count => row._list.Count;
 
+        /// <remarks>
+        /// Сброс незаданного — не запись: снимать нечего, и цель ответила бы «не изменилось», а строка показала бы это
+        /// ошибкой. Удачная запись снимает прежнюю заметку «не записалось»: проверку набранного называют не все поля,
+        /// и у числа, цвета, списка и картинки она висела над записанным значением (запись 394).
+        /// </remarks>
         public override async Task<bool> WriteAsync(string? text)
         {
+            if (text is null && row.Value is { IsWritten: false, IsMixed: false })
+                return true;
+
             var written = await row._list.WriteAsync([new InspectorWrite(row.Property.Id, text)], null).ConfigureAwait(true);
 
-            if (!written)
-                row.Report(InspectorCheck.Invalid(row._list.Words["inspector.notWritten"]));
+            row.Report(written ? InspectorCheck.Valid : InspectorCheck.Invalid(row._list.Words["inspector.notWritten"]));
 
             return written;
         }
@@ -594,8 +601,7 @@ internal sealed class InspectorRow : AxPropertyRow
         {
             var written = await preview.CommitAsync(text).ConfigureAwait(true);
 
-            if (!written)
-                row.Report(InspectorCheck.Invalid(row._list.Words["inspector.notWritten"]));
+            row.Report(written ? InspectorCheck.Valid : InspectorCheck.Invalid(row._list.Words["inspector.notWritten"]));
 
             return written;
         }

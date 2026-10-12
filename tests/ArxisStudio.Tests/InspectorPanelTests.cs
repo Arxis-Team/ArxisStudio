@@ -501,6 +501,80 @@ public class InspectorPanelTests
         Assert.False(Row(panel, "Width").IsOverridden);
     }
 
+    /// <summary>
+    /// Заметка «не записалось» уходит, когда следующая запись прошла.
+    /// </summary>
+    /// <remarks>
+    /// Отказ ставил заметку, а удачная запись её не снимала: проверку набранного называют только поля текста и
+    /// шрифта, и у числа, цвета, списка и картинки «не записалось» висело над записанным значением, пока строку не
+    /// перестроят (запись 394).
+    /// </remarks>
+    [AvaloniaFact]
+    public void A_not_written_note_goes_once_a_write_goes_through()
+    {
+        using var studio = new InspectorStudio();
+        var panel = studio.Panel();
+        var target = Button();
+
+        target.Refusals = 1;
+
+        using var shown = studio.Service.Show(target);
+
+        studio.Frame();
+
+        var row = Row(panel, "Width");
+        var field = Assert.IsType<AxNumberField>(Assert.IsType<PluginSurface>(row.Content).Child);
+
+        field.Focus();
+        field.SelectAll();
+        studio.Window.KeyTextInput("12");
+        Press(studio, Key.Enter);
+        studio.Frame();
+
+        Assert.NotNull(row.Note);
+
+        field.SelectAll();
+        studio.Window.KeyTextInput("13");
+        Press(studio, Key.Enter);
+        studio.Frame();
+
+        Assert.Equal(2, target.Writes.Count);
+        Assert.Null(row.Note);
+    }
+
+    /// <summary>
+    /// Сброс незаданного — не отказ: снимать нечего, запись не идёт, и заметки «не записалось» нет.
+    /// </summary>
+    /// <remarks>
+    /// Форма не пишет ничего, когда снимать нечего, и отвечает «не изменилось», — а строка показывала это ошибкой
+    /// (запись 394). Цель-проба такой отказ и повторяет.
+    /// </remarks>
+    [AvaloniaFact]
+    public void Resetting_an_unset_value_writes_nothing_and_says_nothing()
+    {
+        using var studio = new InspectorStudio();
+        var panel = studio.Panel();
+        var target = new FakeTarget(typeof(Button), FakeTarget.Property("TabIndex", typeof(int)));
+
+        target.Refusals = 1;
+
+        using var shown = studio.Service.Show(target);
+
+        studio.Frame();
+
+        var row = Row(panel, "TabIndex");
+        var field = Assert.IsType<AxNumberField>(Box(row));
+
+        field.Focus();
+        field.SelectAll();
+        studio.Window.KeyTextInput("auto");
+        Press(studio, Key.Enter);
+        studio.Frame();
+
+        Assert.Empty(target.Writes);
+        Assert.Null(row.Note);
+    }
+
     /// <summary>Число из поля пишется одной записью, инвариантным текстом.</summary>
     [AvaloniaFact]
     public void A_number_typed_in_a_field_is_one_write()

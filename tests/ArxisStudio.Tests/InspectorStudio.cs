@@ -220,10 +220,20 @@ internal sealed class FakeTarget : InspectorTarget
         return _values.TryGetValue(id, out var value) ? value : new InspectorValue("0");
     }
 
+    /// <summary>Сколько следующих записей цель отвергнет, ничего не записав.</summary>
+    public int Refusals { get; set; }
+
     /// <inheritdoc/>
     public override Task<bool> WriteAsync(IReadOnlyList<InspectorWrite> writes, string? label = null)
     {
         Writes.Add(writes);
+
+        if (Refusals > 0)
+        {
+            Refusals--;
+
+            return Task.FromResult(false);
+        }
 
         foreach (var write in writes)
         {
