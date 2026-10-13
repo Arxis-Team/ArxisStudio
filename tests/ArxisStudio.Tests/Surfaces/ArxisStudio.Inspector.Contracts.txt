@@ -87,6 +87,20 @@ ArxisStudio.Inspector.InspectorExpression :: System.String? Detail { get; init; 
 ArxisStudio.Inspector.InspectorExpression :: System.Void Deconstruct(out ArxisStudio.Inspector.InspectorExpressionKind Kind, out System.String Summary)
 ArxisStudio.Inspector.InspectorExpression :: static System.Boolean op_Equality(ArxisStudio.Inspector.InspectorExpression? left, ArxisStudio.Inspector.InspectorExpression? right)
 ArxisStudio.Inspector.InspectorExpression :: static System.Boolean op_Inequality(ArxisStudio.Inspector.InspectorExpression? left, ArxisStudio.Inspector.InspectorExpression? right)
+ArxisStudio.Inspector.InspectorExpressionContext : abstract class
+ArxisStudio.Inspector.InspectorExpressionContext :: .ctor()
+ArxisStudio.Inspector.InspectorExpressionContext :: ArxisStudio.Inspector.InspectorProperty Property { get; }
+ArxisStudio.Inspector.InspectorExpressionContext :: System.Int32 Count { get; }
+ArxisStudio.Inspector.InspectorExpressionContext :: abstract System.Void Cancel()
+ArxisStudio.Inspector.InspectorExpressionContext :: abstract System.Void Commit()
+ArxisStudio.Inspector.InspectorExpressionContext :: abstract System.Void Report(ArxisStudio.Inspector.InspectorCheck check)
+ArxisStudio.Inspector.InspectorExpressionEditor : abstract class
+ArxisStudio.Inspector.InspectorExpressionEditor :: .ctor()
+ArxisStudio.Inspector.InspectorExpressionEditor :: Avalonia.Controls.Control View { get; }
+ArxisStudio.Inspector.InspectorExpressionEditor :: Avalonia.Controls.Control? FocusTarget { get; }
+ArxisStudio.Inspector.InspectorExpressionEditor :: System.String Title { get; }
+ArxisStudio.Inspector.InspectorExpressionEditor :: abstract System.Threading.Tasks.Task<System.Boolean> CommitAsync()
+ArxisStudio.Inspector.InspectorExpressionEditor :: virtual System.Void Release()
 ArxisStudio.Inspector.InspectorExpressionKind : enum
 ArxisStudio.Inspector.InspectorExpressionKind :: Binding = 0
 ArxisStudio.Inspector.InspectorExpressionKind :: Other = 4
@@ -274,7 +288,9 @@ ArxisStudio.Inspector.InspectorTarget :: abstract System.Threading.Tasks.Task<Sy
 ArxisStudio.Inspector.InspectorTarget :: event System.EventHandler<ArxisStudio.Inspector.InspectorChangedEventArgs> Changed
 ArxisStudio.Inspector.InspectorTarget :: virtual ArxisStudio.Inspector.IInspectorPreview? BeginPreview(System.String id)
 ArxisStudio.Inspector.InspectorTarget :: virtual ArxisStudio.Inspector.InspectorCheck Check(System.String id, System.String text)
+ArxisStudio.Inspector.InspectorTarget :: virtual ArxisStudio.Inspector.InspectorExpressionEditor? CreateExpressionEditor(System.String id, ArxisStudio.Inspector.InspectorExpressionKind kind, ArxisStudio.Inspector.InspectorExpressionContext context)
 ArxisStudio.Inspector.InspectorTarget :: virtual System.Collections.Generic.IReadOnlyList<ArxisStudio.Inspector.InspectorChoice> Suggest(System.String id, System.String typed)
+ArxisStudio.Inspector.InspectorTarget :: virtual System.Collections.Generic.IReadOnlyList<ArxisStudio.Inspector.InspectorExpressionKind> ExpressionKinds(System.String id)
 ArxisStudio.Inspector.InspectorTarget :: virtual System.IDisposable? Hold(System.String id)
 ArxisStudio.Inspector.InspectorTarget :: virtual System.Threading.Tasks.Task<System.Boolean> StepAsync(System.Boolean back)
 ArxisStudio.Inspector.InspectorTarget :: virtual System.Void FillMenu(ArxisStudio.Inspector.InspectorMenuContext menu)

@@ -187,8 +187,23 @@ internal sealed partial class DesignView
             member.Kind == XamlMemberKind.Content,
             reads,
             XamlMemberMetadata.AttributesOf(member),
-            XamlValueOrigins.Read(shown.Session, shown.Element, shown.Object, member));
+            XamlValueOrigins.Read(shown.Session, shown.Element, shown.Object, member))
+        {
+            DefaultBindingMode = BindingModeOf(member, shown.Object.GetType()),
+        };
     }
+
+    /// <summary>
+    /// Режим привязки к члену, когда он не написан: у свойства Avalonia — его метаданные для этого типа, <c>Default</c> —
+    /// односторонний; у свойства CLR — null: привязку на него не ставят.
+    /// </summary>
+    private static string? BindingModeOf(XamlMemberDescriptor member, Type type) =>
+        member.AvaloniaProperty?.GetMetadata(type).DefaultBindingMode switch
+        {
+            null => null,
+            Avalonia.Data.BindingMode.Default => nameof(Avalonia.Data.BindingMode.OneWay),
+            { } mode => mode.ToString(),
+        };
 
     /// <summary>
     /// Каким свойством член держит значение — по устройству, а не по роли содержимого; присоединённый — тот,

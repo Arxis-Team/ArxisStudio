@@ -34,6 +34,7 @@ public sealed class InspectorPanel : ToolWindow
     private InspectorView? _view;
     private InspectorList? _list;
     private InspectorMenus? _menus;
+    private ExpressionPopover? _expressions;
     private Catalog.InspectorCatalog? _catalog;
     private bool _syncing;
     private bool _showingToggle;
@@ -46,6 +47,9 @@ public sealed class InspectorPanel : ToolWindow
 
     /// <summary>Меню — тестам: пункты собираются той же дорогой, какой их показывает панель.</summary>
     internal InspectorMenus? Menus => _menus;
+
+    /// <summary>Панель выражения под строкой — тестам.</summary>
+    internal ExpressionPopover? Expressions => _expressions;
 
     /// <inheritdoc/>
     /// <remarks>Каретка — у списка: выбранная строка получает её сама.</remarks>
@@ -71,6 +75,11 @@ public sealed class InspectorPanel : ToolWindow
         _catalog = catalog;
         _list = new InspectorList(view.List, _service, catalog, words);
         _menus = new InspectorMenus(_list, catalog, view);
+        _expressions = new ExpressionPopover(_list);
+        _list.Expressions = _expressions;
+
+        // Всплывающее окно открывается от дерева, в котором стоит.
+        view.Body.Children.Add(_expressions.Popup);
 
         _service.CurrentChanged += OnCurrentChanged;
         catalog.Changed += OnCatalogChanged;
@@ -106,8 +115,15 @@ public sealed class InspectorPanel : ToolWindow
         if (_catalog is { } catalog)
             catalog.Changed -= OnCatalogChanged;
 
+        if (_expressions is { } expressions)
+        {
+            expressions.Release();
+            _view?.Body.Children.Remove(expressions.Popup);
+        }
+
         if (_list is { } list)
         {
+            list.Expressions = null;
             list.Rebuilt -= OnRebuilt;
             list.HeaderChanged -= OnHeaderChanged;
             list.Release();
@@ -136,6 +152,7 @@ public sealed class InspectorPanel : ToolWindow
         _catalog = null;
         _list = null;
         _menus = null;
+        _expressions = null;
         _view = null;
     }
 

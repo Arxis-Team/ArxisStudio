@@ -330,6 +330,16 @@ internal sealed class InspectorList
             ? new GuardedHold(guard.Guard(hold))
             : null;
 
+    /// <summary>Панель выражения вида — её открывают строки списка; пусто — вид без панели.</summary>
+    public ExpressionPopover? Expressions { get; set; }
+
+    /// <summary>Какими выражениями свойство задают в панели под строкой.</summary>
+    /// <param name="id">Свойство.</param>
+    public IReadOnlyList<InspectorExpressionKind> ExpressionKinds(string id) =>
+        _guard is { } guard && guard.TryGet("names its expression kinds", it => it.ExpressionKinds(id), out var kinds) && kinds is not null
+            ? kinds
+            : [];
+
     /// <summary>Подсказки к набору.</summary>
     /// <param name="id">Свойство.</param>
     /// <param name="typed">Набранное.</param>

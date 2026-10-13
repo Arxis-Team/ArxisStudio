@@ -21,8 +21,12 @@ public static class StudioSdk
 {
     /// <summary>Версия контракта этой студии.</summary>
     /// <remarks>
+    /// 7.29 — аргумент расширения разметки пишется на месте (<c>XamlMarkupExtensionValue.WithArgument</c>): меняется один
+    /// аргумент, остальные остаются текстом документа. Младший номер: добавлено, снятого нет.
+    /// <para>
     /// 7.28 — поле объекта, как ObjectField у Unity (<c>AxObjectField</c>: миниатюра, имя, заглушка, выбор ⊙ и снятие,
     /// цель броска), и его значок (<c>AxIcons.Target</c>). Младший номер: добавлено, снятого нет.
+    /// </para>
     /// <para>
     /// 7.27 — число в границах, как <c>Range</c> у Unity (<c>AxRangeField</c>), и протяжка ползунка сеансом
     /// (<c>AxSlider.ValueChanging</c>, <c>ValueCommitted</c>, <c>ScrubCancelled</c>, <c>IsScrubbing</c>). Младший
@@ -354,7 +358,7 @@ public static class StudioSdk
     /// 4.1 — добавлены теги манифеста (<c>tags</c>).
     /// </para>
     /// </remarks>
-    public const string Version = "7.28";
+    public const string Version = "7.29";
 
     /// <summary>
     /// Довольна ли эта версия SDK тем, что просит плагин.

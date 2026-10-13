@@ -1,5 +1,6 @@
 using System.Globalization;
 using ArxisStudio.Markup.Xaml;
+using ArxisStudio.ProjectSystem;
 using ArxisStudio.Sdk;
 using ArxisStudio.Xaml;
 using Avalonia.Controls;
@@ -25,6 +26,7 @@ public class XamlExpressionChecksTests
     [InlineData("{Binding #slider.Value}", XamlExpressionKind.Binding, "#slider.Value")]
     [InlineData("{Binding Value, ElementName=slider}", XamlExpressionKind.Binding, "#slider.Value")]
     [InlineData("{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}", XamlExpressionKind.Binding, "$parent[Window].Title")]
+    [InlineData("{Binding Tag, RelativeSource={RelativeSource AncestorType=Border, AncestorLevel=2}}", XamlExpressionKind.Binding, "$parent[Border;1].Tag")]
     [InlineData("{Binding Width, RelativeSource={RelativeSource Self}}", XamlExpressionKind.Binding, "$self.Width")]
     [InlineData("{Binding}", XamlExpressionKind.Binding, "{Binding}")]
     [InlineData("{DynamicResource Accent}", XamlExpressionKind.Resource, "Accent")]
@@ -165,6 +167,94 @@ public class XamlExpressionChecksTests
         Assert.Equal(Strings(studio)["module.xaml.binding.unchecked"], other[1].Message);
     }
 
+    /// <summary>
+    /// Черновик проверяется тем же правилом, что написанное, а путь подсказывает, что назвать дальше: члены данных,
+    /// элемента и шаг вглубь — с отметкой, подходит ли значение члену; где типа данных нет, члены берутся у данных показа.
+    /// Режим привязки по умолчанию — у сведений о члене, и у свойства CLR его нет.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_draft_is_checked_and_its_path_suggests_what_comes_next()
+    {
+        await using var studio = new XamlStudio { CompiledBindings = true };
+
+        DataProject.Emit(studio);
+
+        var typed = studio.Write("Typed.axaml", """
+            <UserControl xmlns="https://github.com/avaloniaui"
+                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                         xmlns:vm="using:App.ViewModels"
+                         x:DataType="vm:MainViewModel">
+              <UserControl.DataContext>
+                <vm:MainViewModel />
+              </UserControl.DataContext>
+              <StackPanel>
+                <Slider x:Name="zoom" />
+                <TextBlock />
+              </StackPanel>
+            </UserControl>
+            """);
+        var untyped = studio.Write("Untyped.axaml", """
+            <UserControl xmlns="https://github.com/avaloniaui"
+                         xmlns:vm="using:App.ViewModels">
+              <Design.DataContext>
+                <vm:MainViewModel />
+              </Design.DataContext>
+              <TextBlock />
+            </UserControl>
+            """);
+
+        await studio.OpenAsync();
+
+        var label = XamlElementPath.Parse("/0/1");
+
+        using (var view = await ShowAsync(studio, typed))
+        {
+            var data = await view.GetBindableMembersAsync(label, "Text", "{Binding}", Token);
+
+            Assert.Equal("App.ViewModels.MainViewModel", data?.Type.FullName);
+
+            var customer = Assert.Single(data!.Members, static member => member.Name == "Customer");
+
+            Assert.True(customer is { HasMembers: true, Fits: true }, "к тексту подходит всё, а в модель путь шагает дальше");
+            Assert.True(Assert.Single(data.Members, static member => member.Name == "Title") is { HasMembers: false, CanWrite: false });
+
+            var deeper = await view.GetBindableMembersAsync(label, "Text", "{Binding Customer}", Token);
+
+            Assert.Equal(["Name"], deeper!.Members.Select(static member => member.Name));
+
+            // К флажку подходит логическое, а число — нет.
+            var zoom = await view.GetBindableMembersAsync(label, "IsEnabled", "{Binding #zoom}", Token);
+
+            Assert.True(Assert.Single(zoom!.Members, static member => member.Name == "IsEnabled").Fits);
+            Assert.False(Assert.Single(zoom.Members, static member => member.Name == "Value").Fits);
+
+            var typo = await view.CheckExpressionAsync(label, "Text", "{Binding Customer.Nmae}", Token);
+
+            Assert.True(typo is { State: XamlExpressionState.Broken, BreaksBuild: true }, $"сломанный черновик не назван сломанным: {typo}");
+            Assert.Equal(XamlExpressionState.Resolved, (await view.CheckExpressionAsync(label, "Text", "{Binding #zoom.Value}", Token))?.State);
+            Assert.Null(await view.CheckExpressionAsync(label, "Text", "Привет", Token));
+
+            Assert.Equal("TwoWay", view.GetMember(XamlElementPath.Parse("/0/0"), "Value")?.DefaultBindingMode);
+            Assert.Equal("OneWay", view.GetMember(label, "Text")?.DefaultBindingMode);
+
+            // Свойство CLR — не свойство Avalonia: привязку на него не поставить, и режима у него нет.
+            var clr = view.GetMember(label, "Resources");
+
+            Assert.NotNull(clr);
+            Assert.Null(clr.DefaultBindingMode);
+        }
+
+        using (var view = await ShowAsync(studio, untyped))
+        {
+            var label2 = XamlElementPath.Parse("/0");
+
+            // Проект компилирует привязки, а x:DataType нет: путь подсказывают данные показа, а проверка говорит, что
+            // сборке нужен тип.
+            Assert.Equal("App.ViewModels.MainViewModel", (await view.GetBindableMembersAsync(label2, "Text", "{Binding}", Token))?.Type.FullName);
+            Assert.True((await view.CheckExpressionAsync(label2, "Text", "{Binding Title}", Token)) is { State: XamlExpressionState.Broken, BreaksBuild: true });
+        }
+    }
+
     private static async Task<IReadOnlyList<XamlExpressionCheck>> Checks(IXamlDesignView view, string path) =>
         await view.CheckExpressionsAsync(XamlElementPath.Parse(path), Token);
 
@@ -181,6 +271,12 @@ public class XamlExpressionChecksTests
 
         await studio.OpenAsync();
 
+        return await ShowAsync(studio, path);
+    }
+
+    /// <summary>Показывает форму решения, которое уже открыто.</summary>
+    private static async Task<IXamlDesignView> ShowAsync(XamlStudio studio, CanonicalPath path)
+    {
         var handle = await studio.Documents.OpenAsync(path, Token);
 
         return await handle.ShowAsync(null, Token);

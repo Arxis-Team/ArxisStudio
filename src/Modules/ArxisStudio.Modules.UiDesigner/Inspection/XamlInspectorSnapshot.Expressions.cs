@@ -21,6 +21,19 @@ internal sealed partial class XamlInspectorSnapshot
             .Distinct(StringComparer.Ordinal),
     ];
 
+    /// <summary>
+    /// Привязывается ли свойство в панели под строкой: член объекта или источник данных, который пишется, — и свойство
+    /// Avalonia: на свойство CLR привязку не ставят.
+    /// </summary>
+    /// <param name="id">Свойство.</param>
+    public bool Binds(string id) =>
+        IsLive && _specs.TryGetValue(id, out var spec) && !spec.Property.IsReadOnly &&
+        spec.Kind is Kind.Member or Kind.Data && spec.Member is { DefaultBindingMode: not null };
+
+    /// <summary>Режим привязки к свойству по умолчанию; пусто — к нему не привязаться.</summary>
+    /// <param name="id">Свойство.</param>
+    public string? BindingModeOf(string id) => _specs.TryGetValue(id, out var spec) ? spec.Member?.DefaultBindingMode : null;
+
     /// <summary>Кладёт проверки выражений выбранных — по номеру выбранного.</summary>
     /// <param name="checks">Проверки; null у выбранного — службе нечего сказать.</param>
     /// <remarks>

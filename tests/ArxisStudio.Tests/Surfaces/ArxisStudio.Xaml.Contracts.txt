@@ -26,7 +26,9 @@ ArxisStudio.Xaml.IXamlDesignView :: Avalonia.Controls.Control? Root { get; }
 ArxisStudio.Xaml.IXamlDesignView :: System.Collections.Generic.IReadOnlyList<ArxisStudio.Xaml.XamlMemberInfo> GetMembers(ArxisStudio.Markup.Xaml.XamlElementPath element)
 ArxisStudio.Xaml.IXamlDesignView :: System.Collections.Generic.IReadOnlyList<System.Object> GetDeclaredObjects()
 ArxisStudio.Xaml.IXamlDesignView :: System.Object? ObjectAt(ArxisStudio.Markup.Xaml.XamlElementPath path)
+ArxisStudio.Xaml.IXamlDesignView :: System.Threading.Tasks.ValueTask<ArxisStudio.Xaml.XamlBindableMembers> GetBindableMembersAsync(ArxisStudio.Markup.Xaml.XamlElementPath element, System.String member, System.String binding, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Xaml.IXamlDesignView :: System.Threading.Tasks.ValueTask<ArxisStudio.Xaml.XamlDataScope> DescribeDataAsync(ArxisStudio.Markup.Xaml.XamlElementPath element, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Xaml.IXamlDesignView :: System.Threading.Tasks.ValueTask<ArxisStudio.Xaml.XamlExpressionCheck> CheckExpressionAsync(ArxisStudio.Markup.Xaml.XamlElementPath element, System.String member, System.String text, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Xaml.IXamlDesignView :: System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<ArxisStudio.Xaml.XamlDataTypeInfo>> GetDataTypesAsync(System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Xaml.IXamlDesignView :: System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<ArxisStudio.Xaml.XamlExpressionCheck>> CheckExpressionsAsync(ArxisStudio.Markup.Xaml.XamlElementPath element, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Xaml.IXamlDesignView :: event System.EventHandler ApplicationChanged
@@ -59,6 +61,27 @@ ArxisStudio.Xaml.IXamlValuePreview :: ArxisStudio.Xaml.XamlValueCheck Show(Syste
 ArxisStudio.Xaml.StudioXamlAccess : static class
 ArxisStudio.Xaml.StudioXamlAccess :: static ArxisStudio.Xaml.IStudioXamlDesign? XamlDesign(ArxisStudio.Sdk.IStudioContext context)
 ArxisStudio.Xaml.StudioXamlAccess :: static ArxisStudio.Xaml.IStudioXamlDocuments? XamlDocuments(ArxisStudio.Sdk.IStudioContext context)
+ArxisStudio.Xaml.XamlBindableMemberInfo : sealed record : System.IEquatable<ArxisStudio.Xaml.XamlBindableMemberInfo>
+ArxisStudio.Xaml.XamlBindableMemberInfo :: .ctor(System.String Name, System.String TypeName, System.Boolean CanWrite, System.Boolean IsCollection, System.Boolean IsCommand, System.Boolean HasMembers, System.Boolean Fits)
+ArxisStudio.Xaml.XamlBindableMemberInfo :: System.Boolean CanWrite { get; init; }
+ArxisStudio.Xaml.XamlBindableMemberInfo :: System.Boolean Equals(ArxisStudio.Xaml.XamlBindableMemberInfo? other)
+ArxisStudio.Xaml.XamlBindableMemberInfo :: System.Boolean Fits { get; init; }
+ArxisStudio.Xaml.XamlBindableMemberInfo :: System.Boolean HasMembers { get; init; }
+ArxisStudio.Xaml.XamlBindableMemberInfo :: System.Boolean IsCollection { get; init; }
+ArxisStudio.Xaml.XamlBindableMemberInfo :: System.Boolean IsCommand { get; init; }
+ArxisStudio.Xaml.XamlBindableMemberInfo :: System.String Name { get; init; }
+ArxisStudio.Xaml.XamlBindableMemberInfo :: System.String TypeName { get; init; }
+ArxisStudio.Xaml.XamlBindableMemberInfo :: System.Void Deconstruct(out System.String Name, out System.String TypeName, out System.Boolean CanWrite, out System.Boolean IsCollection, out System.Boolean IsCommand, out System.Boolean HasMembers, out System.Boolean Fits)
+ArxisStudio.Xaml.XamlBindableMemberInfo :: static System.Boolean op_Equality(ArxisStudio.Xaml.XamlBindableMemberInfo? left, ArxisStudio.Xaml.XamlBindableMemberInfo? right)
+ArxisStudio.Xaml.XamlBindableMemberInfo :: static System.Boolean op_Inequality(ArxisStudio.Xaml.XamlBindableMemberInfo? left, ArxisStudio.Xaml.XamlBindableMemberInfo? right)
+ArxisStudio.Xaml.XamlBindableMembers : sealed record : System.IEquatable<ArxisStudio.Xaml.XamlBindableMembers>
+ArxisStudio.Xaml.XamlBindableMembers :: .ctor(ArxisStudio.Xaml.XamlTypeInfo Type, System.Collections.Generic.IReadOnlyList<ArxisStudio.Xaml.XamlBindableMemberInfo> Members)
+ArxisStudio.Xaml.XamlBindableMembers :: ArxisStudio.Xaml.XamlTypeInfo Type { get; init; }
+ArxisStudio.Xaml.XamlBindableMembers :: System.Boolean Equals(ArxisStudio.Xaml.XamlBindableMembers? other)
+ArxisStudio.Xaml.XamlBindableMembers :: System.Collections.Generic.IReadOnlyList<ArxisStudio.Xaml.XamlBindableMemberInfo> Members { get; init; }
+ArxisStudio.Xaml.XamlBindableMembers :: System.Void Deconstruct(out ArxisStudio.Xaml.XamlTypeInfo Type, out System.Collections.Generic.IReadOnlyList<ArxisStudio.Xaml.XamlBindableMemberInfo> Members)
+ArxisStudio.Xaml.XamlBindableMembers :: static System.Boolean op_Equality(ArxisStudio.Xaml.XamlBindableMembers? left, ArxisStudio.Xaml.XamlBindableMembers? right)
+ArxisStudio.Xaml.XamlBindableMembers :: static System.Boolean op_Inequality(ArxisStudio.Xaml.XamlBindableMembers? left, ArxisStudio.Xaml.XamlBindableMembers? right)
 ArxisStudio.Xaml.XamlBuildOutcome : sealed record : System.IEquatable<ArxisStudio.Xaml.XamlBuildOutcome>
 ArxisStudio.Xaml.XamlBuildOutcome :: .ctor(System.Boolean Succeeded, System.String Reason, System.Collections.Immutable.ImmutableArray<ArxisStudio.ProjectSystem.ProjectDiagnostic> Diagnostics, System.Boolean TypesChanged, System.TimeSpan Duration)
 ArxisStudio.Xaml.XamlBuildOutcome :: System.Boolean Equals(ArxisStudio.Xaml.XamlBuildOutcome? other)
@@ -248,6 +271,7 @@ ArxisStudio.Xaml.XamlMemberInfo :: System.Boolean IsContent { get; init; }
 ArxisStudio.Xaml.XamlMemberInfo :: System.Boolean ParentReads { get; init; }
 ArxisStudio.Xaml.XamlMemberInfo :: System.String Name { get; init; }
 ArxisStudio.Xaml.XamlMemberInfo :: System.String OwnerTypeFullName { get; init; }
+ArxisStudio.Xaml.XamlMemberInfo :: System.String? DefaultBindingMode { get; init; }
 ArxisStudio.Xaml.XamlMemberInfo :: System.String? OwnerPrefix { get; init; }
 ArxisStudio.Xaml.XamlMemberInfo :: System.String? OwnerXmlNamespace { get; init; }
 ArxisStudio.Xaml.XamlMemberInfo :: System.Void Deconstruct(out System.String Name, out ArxisStudio.Xaml.XamlPropertyKind Kind, out System.String OwnerTypeFullName, out System.String? OwnerXmlNamespace, out System.String? OwnerPrefix, out ArxisStudio.Xaml.XamlTypeInfo ValueType, out System.Boolean CanWrite, out System.Boolean AcceptsText, out System.Boolean IsContent, out System.Boolean ParentReads, out ArxisStudio.Xaml.XamlMemberAttributes Attributes, out ArxisStudio.Xaml.XamlMemberValue Value)

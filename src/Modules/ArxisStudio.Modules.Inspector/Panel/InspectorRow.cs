@@ -178,15 +178,34 @@ internal sealed class InspectorRow : AxPropertyRow
         return Value;
     }
 
-    /// <summary>Ставит каретку в поле — Enter и F2 на строке; у выражения — открывает его текстом.</summary>
+    /// <summary>Ставит каретку в поле — Enter и F2 на строке; у выражения — открывает его (<see cref="OpenExpression"/>).</summary>
     /// <returns>Встала ли.</returns>
     public bool Enter()
     {
         if (IsExpression && !_asText)
-            return EditAsText();
+            return OpenExpression();
 
         return FocusTarget?.Focus(NavigationMethod.Tab) == true;
     }
+
+    /// <summary>Вид выражения строки, которое правят в панели под строкой; пусто — панели у него нет, и правят текстом.</summary>
+    public InspectorExpressionKind? PanelKind =>
+        IsExpression && !Property.IsReadOnly && Value?.Expression is { } expression && _list.Expressions is not null &&
+        _list.ExpressionKinds(Property.Id).Contains(expression.Kind)
+            ? expression.Kind
+            : null;
+
+    /// <summary>
+    /// Открывает выражение строки — панелью под строкой, если цель её даёт, иначе текстом: Enter, F2, двойной щелчок и
+    /// карандаш у жетона.
+    /// </summary>
+    /// <returns>Открылось ли.</returns>
+    public bool OpenExpression() => PanelKind is { } kind ? OpenPanel(kind) : EditAsText();
+
+    /// <summary>Открывает панель выражения под строкой — «Привязать…» в меню и выражение, у которого панель есть.</summary>
+    /// <param name="kind">Какое выражение править.</param>
+    /// <returns>Открылась ли.</returns>
+    public bool OpenPanel(InspectorExpressionKind kind) => !Property.IsReadOnly && _list.Expressions?.Open(this, kind) == true;
 
     /// <summary>
     /// Поле строки открывается текстом записи — у преобразования, где поля передают не всякую запись; выражение
@@ -527,8 +546,8 @@ internal sealed class InspectorRow : AxPropertyRow
         ToolTip.SetTip(_token, string.Join(Environment.NewLine, new[] { written, expression?.Detail, now }.Where(static line => !string.IsNullOrEmpty(line))));
     }
 
-    /// <summary>Значок вида выражения.</summary>
-    private static Geometry IconOf(InspectorExpressionKind kind) => kind switch
+    /// <summary>Значок вида выражения: у жетона и в заголовке панели выражения.</summary>
+    internal static Geometry IconOf(InspectorExpressionKind kind) => kind switch
     {
         InspectorExpressionKind.Binding => AxIcons.Binding,
         InspectorExpressionKind.Resource => AxIcons.Palette,
@@ -561,19 +580,19 @@ internal sealed class InspectorRow : AxPropertyRow
         };
         _token.DoubleTapped += (_, e) =>
         {
-            e.Handled = EditAsText();
+            e.Handled = OpenExpression();
         };
 
         return _token;
     }
 
-    /// <summary>Карандаш у жетона — «Изменить как текст» мышью.</summary>
+    /// <summary>Карандаш у жетона — то же, что Enter на строке: панель выражения или его текст.</summary>
     private AxButton Edit()
     {
         if (_edit is not null)
             return _edit;
 
-        var title = _list.Words["inspector.expression.edit"];
+        var title = _list.Words["inspector.expression.change"];
 
         _edit = new AxButton
         {
@@ -582,7 +601,7 @@ internal sealed class InspectorRow : AxPropertyRow
             [AutomationProperties.NameProperty] = title,
             [ToolTip.TipProperty] = title,
         };
-        _edit.Click += (_, _) => EditAsText();
+        _edit.Click += (_, _) => OpenExpression();
 
         return _edit;
     }

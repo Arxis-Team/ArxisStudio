@@ -1,4 +1,4 @@
-# StudioSdk 7.16
+# StudioSdk 7.29
 ArxisStudio.Markup.Xaml.XamlAttribute : class : ArxisStudio.Markup.Xaml.XamlSyntaxNode
 ArxisStudio.Markup.Xaml.XamlAttribute :: ArxisStudio.Markup.TextSpan NameSpan { get; }
 ArxisStudio.Markup.Xaml.XamlAttribute :: ArxisStudio.Markup.TextSpan? ValueSpan { get; }
@@ -199,6 +199,7 @@ ArxisStudio.Markup.Xaml.XamlMarkupExtensionArgument :: static System.Boolean op_
 ArxisStudio.Markup.Xaml.XamlMarkupExtensionValue : sealed record : ArxisStudio.Markup.Xaml.XamlValue, System.IEquatable<ArxisStudio.Markup.Xaml.XamlMarkupExtensionValue>
 ArxisStudio.Markup.Xaml.XamlMarkupExtensionValue :: .ctor(ArxisStudio.Markup.Xaml.XamlQualifiedName TypeName, System.Collections.Immutable.ImmutableArray<ArxisStudio.Markup.Xaml.XamlMarkupExtensionArgument> Arguments)
 ArxisStudio.Markup.Xaml.XamlMarkupExtensionValue :: ArxisStudio.Markup.Xaml.XamlMarkupExtensionArgument? GetArgument(System.String name)
+ArxisStudio.Markup.Xaml.XamlMarkupExtensionValue :: ArxisStudio.Markup.Xaml.XamlMarkupExtensionValue WithArgument(System.String? name, ArxisStudio.Markup.Xaml.XamlValue? value)
 ArxisStudio.Markup.Xaml.XamlMarkupExtensionValue :: ArxisStudio.Markup.Xaml.XamlQualifiedName TypeName { get; init; }
 ArxisStudio.Markup.Xaml.XamlMarkupExtensionValue :: System.Boolean Equals(ArxisStudio.Markup.Xaml.XamlMarkupExtensionValue? other)
 ArxisStudio.Markup.Xaml.XamlMarkupExtensionValue :: System.Collections.Generic.IEnumerable<ArxisStudio.Markup.Xaml.XamlMarkupExtensionArgument> NamedArguments { get; }

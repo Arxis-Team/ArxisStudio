@@ -125,8 +125,13 @@ public static class XamlExpressions
                 _ => null,
             };
 
+            // AncestorLevel считает с единицы, а $parent[T;n] — с нуля, как их читает Avalonia.
+            var level = int.TryParse(Text(relative.GetArgument("AncestorLevel")?.Value), System.Globalization.CultureInfo.InvariantCulture, out var written)
+                ? written
+                : 1;
+
             if (type is not null)
-                return Joined($"$parent[{type}]", path);
+                return Joined(level > 1 ? $"$parent[{type};{level - 1}]" : $"$parent[{type}]", path);
 
             if (string.Equals(mode, "Self", StringComparison.Ordinal))
                 return Joined("$self", path);

@@ -30,15 +30,16 @@
   "id": "arxis.forms",
   "sdk": { "min": "7.15" },
   "dependencies": [
-    { "id": "arxis.xaml", "min": "1.3" }
+    { "id": "arxis.xaml", "min": "1.4" }
   ]
 }
 ```
 
-Границы четыре: **1.0** — документы, показ, поколение; **1.1** — члены элемента, их значения и откуда они,
+Границы пять: **1.0** — документы, показ, поколение; **1.1** — члены элемента, их значения и откуда они,
 проверка и предпросмотр значения; **1.2** — данные элемента: откуда они, их тип и компиляция привязок, модели
-проекта и классы файла кода; **1.3** — выражения элемента: какие они и работают ли. Плагину, которому члены и
-данные не нужны, хватит 1.0. SDK нужен 7.15 — с него
+проекта и классы файла кода; **1.3** — выражения элемента: какие они и работают ли; **1.4** — черновик привязки: его
+проверка, что путь может назвать дальше, и режим привязки члена по умолчанию. Плагину, которому члены и данные не
+нужны, хватит 1.0. SDK нужен 7.15 — с него
 синтаксис разметки общий; обёртка нескольких соседей одной правкой (`WrapElements`) — с 7.16.
 Ссылка при сборке — на контракт:
 
@@ -522,6 +523,42 @@ public sealed class Expressions(IXamlDesignView view)
 показывает её без значения, и молчат оба — приложение же на нём упадёт. Без показа выражение не проверить, но
 выражение, которое называет тип или член, которого нет (`{x:Static Nope.Value}`, `{local:Upper}` без такого типа),
 не даёт форме загрузиться, и `Diagnostics` документа говорит об этом ошибкой с местом в начале его атрибута.
+
+## Черновик привязки
+
+Привязку, которой в документе ещё нет, проверяют тем же правилом, что написанную (`CheckExpressionAsync`), а что её путь
+может назвать дальше, отвечает `GetBindableMembersAsync`: члены типа, к которому привёл путь, — данных, элемента по
+имени, предка или самого элемента. У члена — тип, пишется ли он, команда ли, список ли, можно ли шагнуть в него дальше
+(`HasMembers`) и подходит ли его значение члену, к которому привязывают (`Fits`: тексту и объекту — всё, иначе тот же
+или приводимый тип, число к числу).
+
+```csharp
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using ArxisStudio.Markup.Xaml;
+using ArxisStudio.Xaml;
+
+namespace Guide.Xaml.Drafts;
+
+/// <summary>Подсказывает путь привязки и проверяет её до записи.</summary>
+public sealed class Drafts(IXamlDesignView view)
+{
+    /// <summary>Члены, которые путь <c>Customer.</c> может назвать дальше, — подходящие тексту первыми.</summary>
+    public async Task<string[]> NextAsync(XamlElementPath element, CancellationToken cancellationToken) =>
+        await view.GetBindableMembersAsync(element, "Text", "{Binding Customer}", cancellationToken) is { } members
+            ? [.. members.Members.OrderByDescending(static member => member.Fits).Select(static member => $"{member.Name}: {member.TypeName}")]
+            : [];
+
+    /// <summary>Запишется ли привязка: сломанное не пишут.</summary>
+    public async Task<bool> WorksAsync(XamlElementPath element, string binding, CancellationToken cancellationToken) =>
+        await view.CheckExpressionAsync(element, "Text", binding, cancellationToken) is not { State: XamlExpressionState.Broken };
+}
+```
+
+Где проект компилирует привязки, а типа данных в области нет, члены всё равно подсказываются — по данным показа: путь
+можно набрать и так, а что сборке нужен `x:DataType`, скажет проверка. Режим, которым привязка к члену идёт без
+`Mode`, — `XamlMemberInfo.DefaultBindingMode`; у свойства CLR его нет: привязку ставят только на свойство Avalonia.
 
 ## Замена поколения
 

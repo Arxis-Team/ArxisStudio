@@ -22,6 +22,7 @@
 | своё поле для типа значения | `PropertyEditor` с `[PropertyEditor]` | `PropertyDrawer` |
 | свой интерфейс для типа цели | `InspectorSection` с `[InspectorSection]` | `CustomEditor` |
 | пункты меню строки и ⋮ | `InspectorMenu` | `contextualPropertyMenu` |
+| править выражение панелью под строкой | `ExpressionKinds` и `CreateExpressionEditor` | окно Add Binding |
 | описать свойства своих контролов в проекте | атрибуты .NET у свойства | атрибуты у поля |
 
 ## Объявите модуль зависимостью
@@ -31,15 +32,16 @@
   "id": "arxis.export",
   "sdk": { "min": "7.22" },
   "dependencies": [
-    { "id": "arxis.inspector", "min": "1.3", "optional": true }
+    { "id": "arxis.inspector", "min": "1.4", "optional": true }
   ],
   "activation": [ "onContribution:arxis.inspector" ]
 }
 ```
 
-Границы четыре: **1.0** — цели, вклады и служба показа; **1.1** — показ объекта (`Inspect`); **1.2** — значки
+Границы пять: **1.0** — цели, вклады и служба показа; **1.1** — показ объекта (`Inspect`); **1.2** — значки
 разделов и типов (`Icon` у описаний раздела и типа), раздел меню ⋮ (`InspectorMenuContext.Category`) и подсказка
-подзаголовка шапки (`InspectorHeader.Detail`); **1.3** — жетон выражения (`InspectorValue.Expression`). Плагину, который
+подзаголовка шапки (`InspectorHeader.Detail`); **1.3** — жетон выражения (`InspectorValue.Expression`); **1.4** — панель
+выражения под строкой (`ExpressionKinds`, `CreateExpressionEditor`). Плагину, который
 только дополняет инспектор редакторами и разделами, служба не нужна вовсе: вклады студия найдёт в его сборке
 сама — открытые классы с открытым конструктором, — построит через шов сбоев с контекстом плагина и снимет с
 его выгрузкой. Спящий плагин проснётся событием `onContribution:arxis.inspector`, когда инспектор впервые
@@ -560,6 +562,64 @@ public static class BoundValues
 
 Подсказка жетона — полная запись, `Detail` и значение сейчас (`Text`), если оно не повторяет записанное. Значок
 у каждого вида свой, а `Icon` его подменяет — у выражения, которое придумал ваш плагин.
+
+## Панель выражения
+
+Выражение правят панелью под строкой, как окном привязки у Unity: цель называет, какими выражениями свойство задают
+(`ExpressionKinds`), и строит редактор (`CreateExpressionEditor`) — содержимое панели. Пункт меню строки «Привязать…»,
+«Ресурс…» открывает её для своего вида; Enter, F2, двойной щелчок и карандаш у жетона — для выражения, которое свойство
+уже держит. Без этого выражение правят текстом, как до 1.4, и «Изменить как текст» в меню строки остаётся.
+
+```csharp
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using ArxisStudio.Controls;
+using ArxisStudio.Inspector;
+using Avalonia.Controls;
+
+namespace Guide.Inspector.ExpressionPanel;
+
+// Ресурс по ключу: поле ключа, запись — одной правкой цели.
+public sealed class KeyEditor(InspectorTarget target, string id, InspectorExpressionContext context) : InspectorExpressionEditor
+{
+    private readonly AxTextBox _key = new();
+
+    public override string Title => "Ресурс — " + context.Property.Label;
+
+    public override Control View => _key;
+
+    public override Control? FocusTarget => _key;
+
+    public override Task<bool> CommitAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_key.Text))
+        {
+            // Записать нельзя — панель выключит «Применить» и покажет причину.
+            context.Report(InspectorCheck.Invalid("Ключ не задан"));
+            return Task.FromResult(false);
+        }
+
+        return target.WriteAsync([new InspectorWrite(id, "{DynamicResource " + _key.Text.Trim() + "}")]);
+    }
+}
+
+public abstract class StyledTarget : InspectorTarget
+{
+    public override IReadOnlyList<InspectorExpressionKind> ExpressionKinds(string id) => [InspectorExpressionKind.Resource];
+
+    public override InspectorExpressionEditor? CreateExpressionEditor(string id, InspectorExpressionKind kind, InspectorExpressionContext context) =>
+        kind == InspectorExpressionKind.Resource ? new KeyEditor(this, id, context) : null;
+}
+```
+
+Панель — инспектора, содержимое — ваше. Она держит цель, пока открыта (`Hold`), закрывается по Esc, щелчку мимо,
+«Отмене», показу другой цели и перестройке, снявшей строку, а каретку сразу возвращает в строку. Выпадающий список
+вашего редактора, закрываясь, оставляет каретку в панели, у себя: свою всплывашку Avalonia числит за окном и вернула бы
+каретку туда. «Применить» и Enter зовут `CommitAsync`: записалось — панель закрывается, нет — остаётся с причиной;
+запись, которую панель сама ведёт, её не закрывает. Что записать нельзя, редактор говорит `Report`; `Commit` и
+`Cancel` — его просьбы о том же, что кнопки, и после закрытия панели их никто не слышит. «Снять» снимает выражение у
+всех показанных одной правкой. Редактор — ваш код: панель зовёт его через шов вашего плагина и отпускает `Release`,
+когда закрывается или когда плагин выгружают.
 
 ## Выгрузка
 

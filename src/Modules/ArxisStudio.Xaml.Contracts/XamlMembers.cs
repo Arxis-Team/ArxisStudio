@@ -241,6 +241,13 @@ public sealed record XamlMemberInfo(
 {
     /// <summary>Член присоединён: его даёт владелец, и пишется он с его именем.</summary>
     public bool IsAttached => Kind == XamlPropertyKind.Attached;
+
+    /// <summary>
+    /// Режим, которым привязка к члену идёт, когда он не написан: <c>OneWay</c>, <c>TwoWay</c> — как его назвал тип;
+    /// null — к члену не привязаться: привязку ставят только на свойство Avalonia.
+    /// </summary>
+    /// <remarks>Появилось в контракте 1.4.</remarks>
+    public string? DefaultBindingMode { get; init; }
 }
 
 /// <summary>Ответ на вопрос, прочтётся ли текст значением члена.</summary>

@@ -171,4 +171,36 @@ public interface IXamlDesignView : IDisposable
     /// проверяются. Появилось в контракте 1.3.
     /// </remarks>
     ValueTask<IReadOnlyList<XamlExpressionCheck>> CheckExpressionsAsync(XamlElementPath element, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Проверяет выражение, которого в документе ещё нет, — тем же правилом, что написанное: черновик привязки до
+    /// записи.
+    /// </summary>
+    /// <param name="element">Путь элемента в показанном тексте.</param>
+    /// <param name="member">Член, на котором выражение встанет: <c>Text</c>, <c>Grid.Row</c>, <c>DataContext</c>.</param>
+    /// <param name="text">Выражение текстом: <c>{Binding Customer.Name, Mode=TwoWay}</c>.</param>
+    /// <param name="cancellationToken">Отмена.</param>
+    /// <returns>Проверка; null — элемента нет, текст не выражение или показ отдал объекты.</returns>
+    /// <remarks>Появилось в контракте 1.4.</remarks>
+    ValueTask<XamlExpressionCheck?> CheckExpressionAsync(
+        XamlElementPath element, string member, string text, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Что привязка может назвать дальше: члены типа, к которому привёл её путь, — у данных, элемента, предка или
+    /// самого элемента, по тому, что документ объявляет.
+    /// </summary>
+    /// <param name="element">Путь элемента в показанном тексте.</param>
+    /// <param name="member">Член, к которому привязывают: по нему решается, какие значения ему подходят.</param>
+    /// <param name="binding">
+    /// Привязка до шага, которого ещё нет: <c>{Binding}</c> — члены данных, <c>{Binding Customer}</c> — члены
+    /// <c>Customer</c>, <c>{Binding #slider}</c> — члены элемента <c>slider</c>.
+    /// </param>
+    /// <param name="cancellationToken">Отмена.</param>
+    /// <returns>Тип и его члены; null — путь не привёл ни к какому типу или показ отдал объекты.</returns>
+    /// <remarks>
+    /// Где проект компилирует привязки, а типа данных в области нет, члены — у данных показа: путь подсказывают и
+    /// так, а что сборке нужен тип данных, скажет проверка. Появилось в контракте 1.4.
+    /// </remarks>
+    ValueTask<XamlBindableMembers?> GetBindableMembersAsync(
+        XamlElementPath element, string member, string binding, CancellationToken cancellationToken = default);
 }

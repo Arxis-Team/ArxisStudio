@@ -112,7 +112,8 @@
 
     <AxDivider x:Name="HeaderDivider" a:DockPanel.Dock="Top" IsVisible="False"/>
 
-    <a:Panel>
+    <!-- Тело — список и пустые состояния; в нём же стоит всплывающая панель выражения под строкой. -->
+    <a:Panel x:Name="Body">
 
       <AxListBox x:Name="List" a:KeyboardNavigation.TabNavigation="Continue"
                  a:AutomationProperties.Name="{Text inspector.list}">

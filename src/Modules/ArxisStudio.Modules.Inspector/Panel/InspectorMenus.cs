@@ -53,11 +53,23 @@ internal sealed partial class InspectorMenus(InspectorList list, InspectorCatalo
             Item(words["inspector.pasteValue"], !row.Property.IsReadOnly && row.Property.AcceptsText, () => _ = PasteValueAsync(row)),
         };
 
+        // Выражения, которые цель правит панелью под строкой: F2 открывает ту, что у выражения строки.
+        var panel = row.PanelKind;
+
+        foreach (var kind in list.ExpressionKinds(row.Property.Id))
+        {
+            items.Add(Item(
+                words[KindTitle(kind)],
+                !row.Property.IsReadOnly && list.Expressions is not null,
+                () => row.OpenPanel(kind),
+                panel == kind ? new KeyGesture(Key.F2) : null));
+        }
+
         if (row.IsExpression)
         {
             var writable = !row.Property.IsReadOnly;
 
-            items.Add(Item(words["inspector.expression.edit"], writable, () => row.EditAsText(), new KeyGesture(Key.F2)));
+            items.Add(Item(words["inspector.expression.edit"], writable, () => row.EditAsText(), panel is null ? new KeyGesture(Key.F2) : null));
             items.Add(Item(words["inspector.expression.literal"], writable && row.Value?.Text is not null, row.Replace));
         }
         else if (row.CanEditFieldAsText)
@@ -254,6 +266,14 @@ internal sealed partial class InspectorMenus(InspectorList list, InspectorCatalo
     /// <summary>Атрибут разметки: имя — со строкой владельца или приставкой, — и значение в кавычках.</summary>
     [GeneratedRegex(@"(?<name>[\p{L}_][\p{L}\p{Nd}_.:-]*)\s*=\s*""(?<value>[^""]*)""", RegexOptions.CultureInvariant)]
     private static partial Regex AttributePattern();
+
+    /// <summary>Пункт меню, открывающий панель выражения этого вида.</summary>
+    private static string KindTitle(InspectorExpressionKind kind) => kind switch
+    {
+        InspectorExpressionKind.Binding => "inspector.expression.bind",
+        InspectorExpressionKind.Resource => "inspector.expression.resource",
+        _ => "inspector.expression.other",
+    };
 
     private static AxMenuItem Item(string header, bool enabled, Action act, KeyGesture? gesture = null)
     {

@@ -262,6 +262,68 @@ internal sealed class XamlInspectorTarget : InspectorTarget
     }
 
     /// <inheritdoc/>
+    /// <remarks>Привязка — у свойства Avalonia, которое пишется, пока форма показана: подсказки и проверку даёт показ.</remarks>
+    public override IReadOnlyList<InspectorExpressionKind> ExpressionKinds(string id) =>
+        Snapshot is { } snapshot && Slot.Session.Shown is not null && snapshot.Binds(id) ? [InspectorExpressionKind.Binding] : [];
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Панель привязки (<see cref="BindingEditor"/>) спрашивает показ формы — по первому из выбранных, — а пишет всем
+    /// одной правкой: привязку, имя элементу, к которому она ведёт, и тип данных, если его просили задать.
+    /// </remarks>
+    public override InspectorExpressionEditor? CreateExpressionEditor(string id, InspectorExpressionKind kind, InspectorExpressionContext context)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        ArgumentNullException.ThrowIfNull(context);
+
+        if (kind != InspectorExpressionKind.Binding || Slot.Session.Shown is not { } view || Snapshot is not { } snapshot || !snapshot.Binds(id) ||
+            Slot.Session.Document?.Syntax is not { } document || snapshot.Paths.FirstOrDefault() is not { } path || path.Resolve(document) is not { } element)
+        {
+            return null;
+        }
+
+        var original = XamlValue.Parse(snapshot.WrittenAt(id, 0) ?? string.Empty) is XamlMarkupExtensionValue written &&
+                       XamlExpressions.Classify(written) == XamlExpressionKind.Binding &&
+                       !written.TypeName.LocalName.StartsWith("MultiBinding", StringComparison.Ordinal)
+            ? written
+            : null;
+
+        var setup = new BindingEditor.Setup(
+            view,
+            path,
+            id,
+            original,
+            snapshot.BindingModeOf(id),
+            BindingSources.Elements(
+                document,
+                element,
+                view.GetMembers(XamlElementPath.Root).Select(static member => member.Name),
+                at => view.ObjectAt(at) is Avalonia.Controls.Control),
+            BindingSources.Ancestors(element),
+            SuggestedType(snapshot),
+            (text, name, dataType) => WriteBindingAsync(id, text, name, dataType));
+
+        return new BindingEditor(setup, context, Strings);
+    }
+
+    /// <summary>
+    /// Пишет привязку всем выбранным одной правкой — вместе с именем элементу, к которому она ведёт, и с типом данных,
+    /// если его просили задать.
+    /// </summary>
+    private Task<bool> WriteBindingAsync(string id, string text, (XamlElementPath Path, string Name)? name, string? dataType)
+    {
+        if (Slot.Session.Edits is not { } edits || Snapshot is not { } snapshot || snapshot.Refuses(id))
+            return Task.FromResult(false);
+
+        List<FormWrite> writes = [snapshot.Spell(id, text)];
+
+        if (dataType is not null)
+            writes.Add(snapshot.Spell(FormEdits.DataTypeDirective, dataType));
+
+        return edits.SetAsync([.. snapshot.Paths], writes, label: null, names: name is { } named ? [named] : null);
+    }
+
+    /// <inheritdoc/>
     public override void Include(IReadOnlyCollection<string> ids)
     {
         ArgumentNullException.ThrowIfNull(ids);

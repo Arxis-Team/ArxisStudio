@@ -159,6 +159,27 @@ public abstract class InspectorTarget
     {
     }
 
+    /// <summary>
+    /// Какими выражениями свойство задают в панели под строкой: у привязки — «Привязать…» в меню строки, а Enter, F2 и
+    /// двойной щелчок по жетону такого выражения открывают панель, а не текст.
+    /// </summary>
+    /// <param name="id">Свойство.</param>
+    /// <returns>Виды выражений; пусто — панели нет, и выражение правят текстом.</returns>
+    /// <remarks>Появилось в контракте 1.4.</remarks>
+    public virtual IReadOnlyList<InspectorExpressionKind> ExpressionKinds(string id) => [];
+
+    /// <summary>
+    /// Строит редактор выражения — содержимое панели под строкой, как окно привязки у Unity. Пишет он сам, своей
+    /// правкой, когда панель просит (<see cref="InspectorExpressionEditor.CommitAsync"/>).
+    /// </summary>
+    /// <param name="id">Свойство.</param>
+    /// <param name="kind">Какое выражение правят.</param>
+    /// <param name="context">Дорога к панели: о чём сказать под полем, записать, закрыть.</param>
+    /// <returns>Редактор; пусто — такого выражения у свойства не правят.</returns>
+    /// <remarks>Появилось в контракте 1.4.</remarks>
+    public virtual InspectorExpressionEditor? CreateExpressionEditor(string id, InspectorExpressionKind kind, InspectorExpressionContext context) =>
+        null;
+
     /// <summary>Объявляет перемену.</summary>
     /// <param name="changes">Что сменилось.</param>
     /// <param name="ids">Свойства, чьи значения сменились; пусто — все.</param>

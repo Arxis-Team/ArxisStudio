@@ -62,6 +62,10 @@ internal sealed partial class FormEdits
     /// <param name="paths">Пути элементов.</param>
     /// <param name="writes">Записи.</param>
     /// <param name="label">Имя шага истории; null — по записям.</param>
+    /// <param name="names">
+    /// Имена, которые той же правкой получают другие элементы: привязке к элементу без имени имя нужно, и оно — часть той
+    /// же правки, а не шаг перед ней.
+    /// </param>
     /// <returns>Изменился ли текст.</returns>
     /// <remarks>
     /// <para>
@@ -83,7 +87,11 @@ internal sealed partial class FormEdits
     /// (<see cref="WriteData"/>).
     /// </para>
     /// </remarks>
-    public Task<bool> SetAsync(IReadOnlyList<XamlElementPath> paths, IReadOnlyList<FormWrite> writes, string? label = null)
+    public Task<bool> SetAsync(
+        IReadOnlyList<XamlElementPath> paths,
+        IReadOnlyList<FormWrite> writes,
+        string? label = null,
+        IReadOnlyList<(XamlElementPath Path, string Name)>? names = null)
     {
         ArgumentNullException.ThrowIfNull(paths);
         ArgumentNullException.ThrowIfNull(writes);
@@ -95,6 +103,13 @@ internal sealed partial class FormEdits
 
         return EditAsync(label ?? Label(targets, writes), editor =>
         {
+            // Имя пишется первым: оно не двигает элементов, а запись, которая его называет, встаёт после.
+            foreach (var (path, name) in names ?? [])
+            {
+                if (path.Resolve(editor.Document) is { } named)
+                    Write(editor, named, path.Equals(XamlElementPath.Root), new FormWrite(NameDirective, name));
+            }
+
             foreach (var path in targets)
             {
                 if (path.Resolve(editor.Document) is not { } element)
