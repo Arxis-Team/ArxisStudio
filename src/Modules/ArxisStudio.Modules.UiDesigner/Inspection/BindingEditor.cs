@@ -177,7 +177,9 @@ internal sealed class BindingEditor : InspectorExpressionEditor
             [AutomationProperties.NameProperty] = strings["inspector.binding.members"],
         };
         _members.AddHandler(InputElement.KeyDownEvent, OnMembersKey, RoutingStrategies.Tunnel);
-        _members.DoubleTapped += (_, e) => e.Handled = Choose(_members.SelectedItem as XamlBindableMemberInfo);
+        // Щелчок выбирает член, как Enter: только выделенный, «Применить» обошло бы его, и записалась бы привязка ко всему
+        // источнику. Стрелки лишь выделяют — выбор сузил бы список до выбранного.
+        _members.Tapped += (_, e) => e.Handled = Choose(_members.SelectedItem as XamlBindableMemberInfo);
 
         _noMembers = new TextBlock { Text = strings["inspector.binding.noMembers"], IsVisible = false, TextWrapping = TextWrapping.Wrap };
         AxText.SetTone(_noMembers, AxTextTone.Secondary);

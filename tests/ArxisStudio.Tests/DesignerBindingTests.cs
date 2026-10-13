@@ -69,6 +69,15 @@ public class DesignerBindingTests
         Assert.Contains(Members(editor), static member => member is { Name: "Customer", HasMembers: true });
         Assert.Contains(Members(editor), static member => member.Name == "Title");
 
+        // Щелчок по члену выбирает его, как Enter: член, только выделенный, «Применить» обошло бы, и записалась бы привязка
+        // ко всему источнику.
+        var title = editor.Members.GetVisualDescendants().OfType<ListBoxItem>().Single(static item => item.DataContext is XamlBindableMemberInfo { Name: "Title" });
+
+        DockMouse.Click(studio.Window, title.TranslatePoint(new Point(title.Bounds.Width / 2, title.Bounds.Height / 2), studio.Window)!.Value);
+        LiveFormStudio.Frame();
+
+        Assert.Equal("Title", editor.PathField.Text);
+
         // Набранное после последней точки сужает список.
         editor.PathField.Text = "Ti";
         LiveFormStudio.Frame();
