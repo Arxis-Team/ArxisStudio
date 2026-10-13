@@ -192,6 +192,57 @@ public class DesignerBindingTests
     }
 
     /// <summary>
+    /// Привязка к ползунку, которому та же правка дала имя, сразу показывает на холсте его значение и идёт за ним — у
+    /// окна с классом в проекте, где привязки компилируются. Живой показ не знал имени до перезагрузки формы: подпись
+    /// показывала прежнее «0», а Avalonia писала «NameScope not found» (запись 426).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task A_binding_to_an_element_named_in_the_same_step_shows_its_value_on_the_canvas()
+    {
+        await using var studio = new LiveFormStudio();
+
+        studio.Xaml.CompiledBindings = true;
+        EmitWindow(studio);
+
+        var document = await studio.OpenAsync("MainWindow.axaml", """
+            <Window xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    x:Class="App.Views.MainWindow"
+                    Width="400" Height="300">
+              <StackPanel>
+                <TextBlock Text="0" />
+                <Slider Minimum="0" Maximum="100" Value="30" />
+              </StackPanel>
+            </Window>
+            """);
+        var panel = studio.Inspector();
+
+        document.Select([Label]);
+        LiveFormStudio.Frame();
+
+        var editor = Open(panel, "Text");
+
+        editor.SourceField.SelectedIndex = (int)BindingSourceKind.Element;
+        LiveFormStudio.Frame();
+        editor.ElementField.SelectedItem = Assert.Single(
+            editor.ElementField.Items.OfType<BindingEditor.ElementChoice>(), static choice => choice.Type == "Slider");
+        LiveFormStudio.Frame();
+        editor.PathField.Text = "Value";
+        LiveFormStudio.Frame();
+
+        Assert.True(await panel.Expressions!.CommitAsync());
+        await XamlStudio.UntilAsync(() => Text(document).Contains("Text=\"{Binding #slider.Value}\"", StringComparison.Ordinal), "привязка не записана");
+        Assert.Contains("x:Name=\"slider\"", Text(document), StringComparison.Ordinal);
+
+        await XamlStudio.UntilAsync(() => Shown<TextBlock>(document, Label).Text == "30", "подпись на холсте не показала значение ползунка");
+
+        Shown<Slider>(document, XamlElementPath.Parse("/0/1")).Value = 70;
+        LiveFormStudio.Frame();
+
+        Assert.Equal("70", Shown<TextBlock>(document, Label).Text);
+    }
+
+    /// <summary>
     /// Проект компилирует привязки, а типа данных нет: панель не пишет сломанное, а предлагает задать тип данных той же
     /// правкой — или писать привязку без проверки типа.
     /// </summary>
@@ -285,6 +336,32 @@ public class DesignerBindingTests
 
         return Assert.IsType<BindingEditor>(panel.Expressions!.Editor);
     }
+
+    /// <summary>Кладёт выход проекта: сборку с классом окна <c>App.Views.MainWindow</c>.</summary>
+    private static void EmitWindow(LiveFormStudio studio)
+    {
+        const string Source = """
+            using Avalonia.Controls;
+
+            namespace App.Views;
+
+            public class MainWindow : Window
+            {
+            }
+            """;
+
+        var name = "DesignerBinding" + Guid.NewGuid().ToString("N")[..8];
+        var output = Path.Combine(studio.Xaml.ProjectFolder, "bin", name + ".dll");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(output)!);
+        TestAssembly.EmitFile(output, name, Source);
+        studio.Xaml.AssemblyName = name;
+        studio.Xaml.Output = ArxisStudio.ProjectSystem.CanonicalPath.Create(output);
+    }
+
+    /// <summary>Объект, который элемент формы поставил на холст.</summary>
+    private static T Shown<T>(LiveFormDocument document, XamlElementPath path) =>
+        Assert.IsType<T>(document.Shown!.ObjectAt(path));
 
     private static List<XamlBindableMemberInfo> Members(BindingEditor editor) =>
         editor.Members.ItemsSource?.OfType<XamlBindableMemberInfo>().ToList() ?? [];
