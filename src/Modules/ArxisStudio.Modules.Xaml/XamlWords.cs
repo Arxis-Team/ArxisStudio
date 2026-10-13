@@ -2,6 +2,7 @@ using System.Globalization;
 using ArxisStudio.Markup.Xaml.Loader;
 using ArxisStudio.ProjectSystem.Markup.Xaml;
 using ArxisStudio.Sdk;
+using ArxisStudio.Xaml;
 
 namespace ArxisStudio.Modules.Xaml;
 
@@ -84,6 +85,41 @@ internal sealed class XamlWords(IStudioStrings strings)
     /// <summary>Сломанное, на котором остановится сборка проекта.</summary>
     /// <param name="message">Что сломано.</param>
     public string BreaksBuild(string message) => Format("module.xaml.binding.breaksBuild", message);
+
+    /// <summary>Ключа нет ни у элемента и его предков, ни у приложения формы.</summary>
+    /// <param name="key">Ключ.</param>
+    public string ResourceMissing(string key) => Format("module.xaml.resource.missing", key);
+
+    /// <summary>Статическая ссылка на ключ, который есть только у тем, там, где тема при постройке не известна.</summary>
+    /// <param name="key">Ключ.</param>
+    public string ResourceThemedStatic(string key) => Format("module.xaml.resource.themedStatic", key);
+
+    /// <summary>Где найден ресурс и какого он типа: «Ресурс приложения · SolidColorBrush».</summary>
+    /// <param name="scope">Где объявлен.</param>
+    /// <param name="owner">Элемент-предок, который его держит, — его тип в документе.</param>
+    /// <param name="type">Короткое имя типа значения; null — значения нет.</param>
+    public string ResourceFound(XamlResourceScope scope, string? owner, string? type)
+    {
+        var where = scope switch
+        {
+            XamlResourceScope.Element => strings["module.xaml.resource.own"],
+            XamlResourceScope.Ancestor => Format("module.xaml.resource.ancestor", owner ?? string.Empty),
+            XamlResourceScope.Application => strings["module.xaml.resource.application"],
+            _ => strings["module.xaml.resource.theme"],
+        };
+
+        return type is null ? where : $"{where} · {type}";
+    }
+
+    /// <summary>Найденное статической ссылкой у одной темы: значение застыло на теме, в которой элемент построен.</summary>
+    /// <param name="message">Где найден ресурс.</param>
+    public string ResourceFrozen(string message) => Format("module.xaml.resource.frozen", message);
+
+    /// <summary>Ключ не проверить: приложение формы, у которого он может быть, ещё не построено.</summary>
+    public string ResourcePending => strings["module.xaml.resource.pending"];
+
+    /// <summary>Ключ не проверить: он задан выражением, а не текстом.</summary>
+    public string ResourceUnchecked => strings["module.xaml.resource.unchecked"];
 
     private string Format(string key, string value) =>
         string.Format(CultureInfo.CurrentCulture, strings[key], value);

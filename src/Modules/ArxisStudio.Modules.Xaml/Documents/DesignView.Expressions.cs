@@ -152,6 +152,10 @@ internal sealed partial class DesignView
     {
         var kind = XamlExpressions.Classify(extension);
 
+        // Ключ ресурса ищется тем же поиском, что выбор ресурса: у элемента, предков и приложения формы.
+        if (kind == XamlExpressionKind.Resource)
+            return ReferenceEquals(Shown(), session) ? CheckResource(session, syntax, member, extension) : null;
+
         // Мультипривязка — несколько источников сразу: за ней проверка не следует.
         if (kind != XamlExpressionKind.Binding || extension.TypeName.LocalName.StartsWith("MultiBinding", StringComparison.Ordinal))
             return new XamlExpressionCheck(member, kind, XamlExpressionState.Unchecked, null, false, null, null);

@@ -148,7 +148,7 @@ public class DesignerExpressionTests
         var chip = Chip(panel, id);
         var parts = Assert.IsType<DockPanel>(chip.Content);
 
-        return (chip, Assert.IsType<AxIcon>(parts.Children[0]), Assert.IsType<TextBlock>(parts.Children[1]));
+        return (chip, Assert.Single(parts.Children.OfType<AxIcon>()), Assert.Single(parts.Children.OfType<TextBlock>()));
     }
 
     private static XamlElement ElementAt(XamlDocument document) =>

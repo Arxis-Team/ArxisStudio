@@ -30,6 +30,14 @@ internal sealed partial class XamlInspectorSnapshot
         IsLive && _specs.TryGetValue(id, out var spec) && !spec.Property.IsReadOnly &&
         spec.Kind is Kind.Member or Kind.Data && spec.Member is { DefaultBindingMode: not null };
 
+    /// <summary>
+    /// Берёт ли свойство ресурс в панели под строкой: член объекта или источник данных, который пишется. Статическую ссылку
+    /// берёт и свойство CLR, динамическую — только свойство Avalonia (<see cref="BindingModeOf"/>).
+    /// </summary>
+    /// <param name="id">Свойство.</param>
+    public bool TakesResource(string id) =>
+        IsLive && _specs.TryGetValue(id, out var spec) && !spec.Property.IsReadOnly && spec.Kind is Kind.Member or Kind.Data;
+
     /// <summary>Режим привязки к свойству по умолчанию; пусто — к нему не привязаться.</summary>
     /// <param name="id">Свойство.</param>
     public string? BindingModeOf(string id) => _specs.TryGetValue(id, out var spec) ? spec.Member?.DefaultBindingMode : null;
@@ -111,11 +119,12 @@ internal sealed partial class XamlInspectorSnapshot
             _ => InspectorExpressionState.Unchecked,
         };
 
-        // Найденное — откуда и куда пришёл путь; непроверенное — почему: сломанное говорит заметкой под строкой.
+        // Найденное — откуда и куда пришёл путь, у ресурса — где он объявлен; непроверенное — почему: сломанное говорит
+        // заметкой под строкой.
         var detail = check switch
         {
             { State: XamlExpressionState.Resolved, SourceType: { } source, ResultType: { } result } => $"{source.Name} → {result.Name}",
-            { State: XamlExpressionState.Unchecked } => check.Message,
+            { State: XamlExpressionState.Resolved or XamlExpressionState.Unchecked } => check.Message,
             _ => null,
         };
 

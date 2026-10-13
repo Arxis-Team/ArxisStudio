@@ -31,6 +31,7 @@ ArxisStudio.Xaml.IXamlDesignView :: System.Threading.Tasks.ValueTask<ArxisStudio
 ArxisStudio.Xaml.IXamlDesignView :: System.Threading.Tasks.ValueTask<ArxisStudio.Xaml.XamlExpressionCheck> CheckExpressionAsync(ArxisStudio.Markup.Xaml.XamlElementPath element, System.String member, System.String text, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Xaml.IXamlDesignView :: System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<ArxisStudio.Xaml.XamlDataTypeInfo>> GetDataTypesAsync(System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Xaml.IXamlDesignView :: System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<ArxisStudio.Xaml.XamlExpressionCheck>> CheckExpressionsAsync(ArxisStudio.Markup.Xaml.XamlElementPath element, System.Threading.CancellationToken cancellationToken = null)
+ArxisStudio.Xaml.IXamlDesignView :: System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<ArxisStudio.Xaml.XamlResourceInfo>> GetResourcesAsync(ArxisStudio.Markup.Xaml.XamlElementPath element, System.String member, System.Threading.CancellationToken cancellationToken = null)
 ArxisStudio.Xaml.IXamlDesignView :: event System.EventHandler ApplicationChanged
 ArxisStudio.Xaml.IXamlDesignView :: event System.EventHandler RootChanged
 ArxisStudio.Xaml.IXamlDocumentHandle : interface : System.IAsyncDisposable
@@ -292,6 +293,29 @@ ArxisStudio.Xaml.XamlPropertyKind :: Attached = 2
 ArxisStudio.Xaml.XamlPropertyKind :: Clr = 3
 ArxisStudio.Xaml.XamlPropertyKind :: Direct = 1
 ArxisStudio.Xaml.XamlPropertyKind :: Styled = 0
+ArxisStudio.Xaml.XamlResourceInfo : sealed record : System.IEquatable<ArxisStudio.Xaml.XamlResourceInfo>
+ArxisStudio.Xaml.XamlResourceInfo :: .ctor(System.String Key, ArxisStudio.Xaml.XamlResourceScope Scope)
+ArxisStudio.Xaml.XamlResourceInfo :: ArxisStudio.Markup.TextSpan? KeySpan { get; init; }
+ArxisStudio.Xaml.XamlResourceInfo :: ArxisStudio.Markup.Xaml.XamlElementPath? Element { get; init; }
+ArxisStudio.Xaml.XamlResourceInfo :: ArxisStudio.ProjectSystem.CanonicalPath File { get; init; }
+ArxisStudio.Xaml.XamlResourceInfo :: ArxisStudio.Xaml.XamlResourceScope Scope { get; init; }
+ArxisStudio.Xaml.XamlResourceInfo :: System.Boolean Equals(ArxisStudio.Xaml.XamlResourceInfo? other)
+ArxisStudio.Xaml.XamlResourceInfo :: System.Boolean Fits { get; init; }
+ArxisStudio.Xaml.XamlResourceInfo :: System.Boolean IsConverter { get; init; }
+ArxisStudio.Xaml.XamlResourceInfo :: System.Boolean IsThemed { get; init; }
+ArxisStudio.Xaml.XamlResourceInfo :: System.Boolean StaticReachable { get; init; }
+ArxisStudio.Xaml.XamlResourceInfo :: System.Object? Sample { get; init; }
+ArxisStudio.Xaml.XamlResourceInfo :: System.String Key { get; init; }
+ArxisStudio.Xaml.XamlResourceInfo :: System.String? TypeName { get; init; }
+ArxisStudio.Xaml.XamlResourceInfo :: System.String? ValueText { get; init; }
+ArxisStudio.Xaml.XamlResourceInfo :: System.Void Deconstruct(out System.String Key, out ArxisStudio.Xaml.XamlResourceScope Scope)
+ArxisStudio.Xaml.XamlResourceInfo :: static System.Boolean op_Equality(ArxisStudio.Xaml.XamlResourceInfo? left, ArxisStudio.Xaml.XamlResourceInfo? right)
+ArxisStudio.Xaml.XamlResourceInfo :: static System.Boolean op_Inequality(ArxisStudio.Xaml.XamlResourceInfo? left, ArxisStudio.Xaml.XamlResourceInfo? right)
+ArxisStudio.Xaml.XamlResourceScope : enum
+ArxisStudio.Xaml.XamlResourceScope :: Ancestor = 1
+ArxisStudio.Xaml.XamlResourceScope :: Application = 2
+ArxisStudio.Xaml.XamlResourceScope :: Element = 0
+ArxisStudio.Xaml.XamlResourceScope :: Theme = 3
 ArxisStudio.Xaml.XamlTypeInfo : sealed record : System.IEquatable<ArxisStudio.Xaml.XamlTypeInfo>
 ArxisStudio.Xaml.XamlTypeInfo :: .ctor(System.String FullName, System.Collections.Immutable.ImmutableArray<System.String> BaseTypes, System.Collections.Immutable.ImmutableArray<System.String> Interfaces, System.Collections.Immutable.ImmutableArray<System.String> EnumNames, System.Boolean IsFlags, System.Boolean IsNullable)
 ArxisStudio.Xaml.XamlTypeInfo :: System.Boolean Equals(ArxisStudio.Xaml.XamlTypeInfo? other)

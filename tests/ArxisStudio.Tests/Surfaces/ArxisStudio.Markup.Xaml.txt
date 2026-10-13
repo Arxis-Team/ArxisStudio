@@ -1,4 +1,4 @@
-# StudioSdk 7.29
+# StudioSdk 7.30
 ArxisStudio.Markup.Xaml.XamlAttribute : class : ArxisStudio.Markup.Xaml.XamlSyntaxNode
 ArxisStudio.Markup.Xaml.XamlAttribute :: ArxisStudio.Markup.TextSpan NameSpan { get; }
 ArxisStudio.Markup.Xaml.XamlAttribute :: ArxisStudio.Markup.TextSpan? ValueSpan { get; }
@@ -82,6 +82,7 @@ ArxisStudio.Markup.Xaml.XamlDocument :: ArxisStudio.Markup.Xaml.XamlDocumentEdit
 ArxisStudio.Markup.Xaml.XamlDocument :: ArxisStudio.Markup.Xaml.XamlElement? Root { get; }
 ArxisStudio.Markup.Xaml.XamlDocument :: System.Boolean IsWellFormed { get; }
 ArxisStudio.Markup.Xaml.XamlDocument :: System.Collections.Generic.IEnumerable<ArxisStudio.Markup.MarkupDiagnostic> GetDiagnostics()
+ArxisStudio.Markup.Xaml.XamlDocument :: System.Collections.Immutable.ImmutableArray<ArxisStudio.Markup.Xaml.XamlResourceDeclaration> GetResourceDeclarations()
 ArxisStudio.Markup.Xaml.XamlDocument :: System.Collections.Immutable.ImmutableArray<ArxisStudio.Markup.Xaml.XamlResourceReference> GetResourceReferences()
 ArxisStudio.Markup.Xaml.XamlDocument :: System.Collections.Immutable.ImmutableArray<ArxisStudio.Markup.Xaml.XamlToken> Tokens { get; }
 ArxisStudio.Markup.Xaml.XamlDocument :: System.String GetText(ArxisStudio.Markup.Xaml.XamlWriteMode mode, ArxisStudio.Markup.Xaml.XamlFormattingOptions? options = null)
@@ -276,6 +277,18 @@ ArxisStudio.Markup.Xaml.XamlQualifiedName :: static System.Boolean op_Inequality
 ArxisStudio.Markup.Xaml.XamlResourceAnalyzer : static class
 ArxisStudio.Markup.Xaml.XamlResourceAnalyzer :: static System.Collections.Immutable.ImmutableArray<ArxisStudio.Markup.Xaml.XamlResourceReference> Discover(ArxisStudio.Markup.Xaml.XamlDocument document)
 ArxisStudio.Markup.Xaml.XamlResourceAnalyzer :: static System.Collections.Immutable.ImmutableArray<ArxisStudio.Markup.Xaml.XamlResourceReference> Discover(ArxisStudio.Markup.Xaml.XamlDocument document, out System.Collections.Immutable.ImmutableArray<ArxisStudio.Markup.MarkupDiagnostic> diagnostics)
+ArxisStudio.Markup.Xaml.XamlResourceDeclaration : sealed class
+ArxisStudio.Markup.Xaml.XamlResourceDeclaration :: ArxisStudio.Markup.TextSpan KeySpan { get; }
+ArxisStudio.Markup.Xaml.XamlResourceDeclaration :: ArxisStudio.Markup.Xaml.XamlAttribute KeyAttribute { get; }
+ArxisStudio.Markup.Xaml.XamlResourceDeclaration :: ArxisStudio.Markup.Xaml.XamlElement Element { get; }
+ArxisStudio.Markup.Xaml.XamlResourceDeclaration :: ArxisStudio.Markup.Xaml.XamlElement Owner { get; }
+ArxisStudio.Markup.Xaml.XamlResourceDeclaration :: ArxisStudio.Markup.Xaml.XamlElement? Scope { get; }
+ArxisStudio.Markup.Xaml.XamlResourceDeclaration :: System.Boolean IsTextKey { get; }
+ArxisStudio.Markup.Xaml.XamlResourceDeclaration :: System.String Key { get; }
+ArxisStudio.Markup.Xaml.XamlResourceDeclaration :: System.String? ThemeVariant { get; }
+ArxisStudio.Markup.Xaml.XamlResourceDeclarations : static class
+ArxisStudio.Markup.Xaml.XamlResourceDeclarations :: static System.Collections.Immutable.ImmutableArray<ArxisStudio.Markup.Xaml.XamlResourceDeclaration> Discover(ArxisStudio.Markup.Xaml.XamlDocument document)
+ArxisStudio.Markup.Xaml.XamlResourceDeclarations :: static System.Collections.Immutable.ImmutableArray<ArxisStudio.Markup.Xaml.XamlResourceDeclaration> InScope(ArxisStudio.Markup.Xaml.XamlElement element)
 ArxisStudio.Markup.Xaml.XamlResourceGraph : sealed class
 ArxisStudio.Markup.Xaml.XamlResourceGraph :: .ctor(ArxisStudio.Markup.IMarkupSourceProvider sourceProvider)
 ArxisStudio.Markup.Xaml.XamlResourceGraph :: ArxisStudio.Markup.IMarkupDependencyGraph Dependencies { get; }

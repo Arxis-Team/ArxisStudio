@@ -167,8 +167,9 @@ public interface IXamlDesignView : IDisposable
     /// <remarks>
     /// Источник привязки ищется в документе, а не в дереве, где стоят объекты: форма в дизайнере стоит внутри
     /// контролов студии, и предок или данные, найденные там, были бы студийными. Компилируется ли привязка, решает
-    /// ближайший <c>x:CompileBindings</c>, а без него — свойство проекта. Ресурсы и статические члены пока не
-    /// проверяются. Появилось в контракте 1.3.
+    /// ближайший <c>x:CompileBindings</c>, а без него — свойство проекта. Ключ ресурса ищется так же — у элемента, его
+    /// предков в документе и приложения формы (контракт 1.5); статические члены пока не проверяются. Появилось в
+    /// контракте 1.3.
     /// </remarks>
     ValueTask<IReadOnlyList<XamlExpressionCheck>> CheckExpressionsAsync(XamlElementPath element, CancellationToken cancellationToken = default);
 
@@ -203,4 +204,20 @@ public interface IXamlDesignView : IDisposable
     /// </remarks>
     ValueTask<XamlBindableMembers?> GetBindableMembersAsync(
         XamlElementPath element, string member, string binding, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Ресурсы, которые элемент может назвать по ключу: свои и предков в документе — со стилями, которые те пишут, — и
+    /// приложения формы с его темой.
+    /// </summary>
+    /// <param name="element">Путь элемента в показанном тексте.</param>
+    /// <param name="member">Член, для которого спрашивают: по нему решается, подходит ли значение.</param>
+    /// <param name="cancellationToken">Отмена.</param>
+    /// <returns>Каждый ключ один раз — тот, что найдёт поиск, ближайший первым; пусто — элемента нет или показ отдал объекты.</returns>
+    /// <remarks>
+    /// Ищутся по документу и приложению формы, а не по дереву, где стоят объекты: форма в дизайнере стоит внутри
+    /// студии, и ключ, найденный там, — студийный. Порядок текста не важен: Avalonia находит ключ предка, написанный
+    /// после места, где его назвали, и не находит ключа соседа. Появилось в контракте 1.5.
+    /// </remarks>
+    ValueTask<IReadOnlyList<XamlResourceInfo>> GetResourcesAsync(
+        XamlElementPath element, string member, CancellationToken cancellationToken = default);
 }

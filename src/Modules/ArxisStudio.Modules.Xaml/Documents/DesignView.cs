@@ -6,6 +6,7 @@ using ArxisStudio.Sdk;
 using ArxisStudio.Xaml;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Styling;
 using Avalonia.Threading;
 
 namespace ArxisStudio.Modules.Xaml.Documents;
@@ -30,6 +31,17 @@ internal sealed partial class DesignView : IXamlDesignView
 
     private Control? _root;
     private ProjectDesignApplication? _application;
+
+    /// <summary>
+    /// Стили приложения формы, запомненные, когда его взяли: карточка дизайнера, показывая форму, забирает их у приложения
+    /// себе, и приложение, спрошенное в это время, отвечало бы без своей темы.
+    /// </summary>
+    /// <remarks>
+    /// Список читается через <see cref="IStyleHost"/>: правило ARX0014 стережёт приложение процесса, общее всей студии, а
+    /// это — приложение формы, построенное для её показа, и его стили здесь только читаются.
+    /// </remarks>
+    private IReadOnlyList<IStyle> _applicationStyles = [];
+
     private int _applicationTurn;
     private bool _released;
     private bool _disposed;
@@ -122,6 +134,7 @@ internal sealed partial class DesignView : IXamlDesignView
         _generation.Cancel();
         _root = null;
         _applicationTurn++;
+        _applicationStyles = [];
 
         if (_application is { } application)
         {
@@ -158,6 +171,7 @@ internal sealed partial class DesignView : IXamlDesignView
         Follow(null);
 
         _applicationTurn++;
+        _applicationStyles = [];
 
         if (_application is not null)
         {
@@ -220,6 +234,9 @@ internal sealed partial class DesignView : IXamlDesignView
         var previous = _application;
 
         _application = opened;
+
+        // Раньше, чем о приложении узнает карточка: она заберёт стили себе.
+        _applicationStyles = opened?.Application is IStyleHost host ? [.. host.Styles] : [];
 
         foreach (var diagnostic in opened?.Diagnostics.Where(diagnostic => diagnostic.IsError) ?? [])
             _entry.Owner.Log(StudioLogLevel.Warning, $"{opened!.File.FileName}: {diagnostic.Message}");

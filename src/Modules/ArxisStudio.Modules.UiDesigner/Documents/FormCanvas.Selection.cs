@@ -432,6 +432,25 @@ internal sealed partial class FormCanvas
         return true;
     }
 
+    /// <summary>Ведёт к объявлению ресурса в XAML: его ключ выделен в просмотре, а хозяин его показывает.</summary>
+    /// <param name="slot">Форма.</param>
+    /// <param name="declaration">Элемент, который объявляет ресурс.</param>
+    /// <returns>Нашлось ли место: просмотр показывает эту форму, а элемент в ней есть.</returns>
+    public bool RevealDeclaration(FormSlot slot, XamlElementPath declaration)
+    {
+        ArgumentNullException.ThrowIfNull(slot);
+        ArgumentNullException.ThrowIfNull(declaration);
+
+        if (_code is null || !ReferenceEquals(_codeSlot, slot) || _shownCode is not { } syntax || declaration.Resolve(syntax) is not { } element)
+            return false;
+
+        var span = element.GetDirectiveAttribute(XamlDirectives.Key)?.ValueSpan ?? element.Span;
+
+        _host.ShowInCode(span.Start, span.Length);
+
+        return true;
+    }
+
     /// <summary>
     /// Перечитывает просмотр XAML: роли текста считаются вне потока интерфейса, а текст и роли встают
     /// вместе — роли прежнего текста на новом красили бы мимо.

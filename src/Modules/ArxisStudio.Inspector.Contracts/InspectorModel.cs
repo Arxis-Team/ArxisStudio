@@ -384,6 +384,9 @@ public readonly record struct InspectorCheck(bool IsValid, string? Message)
     public static InspectorCheck Valid => new(true, null);
 
     /// <summary>Не прочтётся.</summary>
-    /// <param name="message">Почему.</param>
+    /// <param name="message">
+    /// Почему. У панели выражения пустая причина — сказать нечего: «Применить» выключено, а заметки нет, как у выбора,
+    /// который ещё не сделан.
+    /// </param>
     public static InspectorCheck Invalid(string message) => new(false, message);
 }

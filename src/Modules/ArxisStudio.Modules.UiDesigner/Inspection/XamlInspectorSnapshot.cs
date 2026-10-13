@@ -510,6 +510,11 @@ internal sealed partial class XamlInspectorSnapshot
             _ => InspectorValueSource.Default,
         };
 
+        // Написанное выражением — жетон, что бы ни поставила загрузка: статическую ссылку на ключ приложения дизайнер при
+        // загрузке не находит — приложение формы не студийное, — и член остаётся незаданным, а написан он выражением.
+        if (written is not null && origin != InspectorValueSource.Design && XamlExpressions.Classify(written) is not null)
+            origin = InspectorValueSource.Expression;
+
         // Написанное — значением, как его написал документ: «Auto», а не «NaN»; выражение показывают выражением.
         if (written is not null && origin is not (InspectorValueSource.Expression or InspectorValueSource.Design))
             origin = InspectorValueSource.Local;

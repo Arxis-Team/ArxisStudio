@@ -106,6 +106,9 @@ internal sealed class XamlDesignSession : IAsyncDisposable
     /// <summary>Решение глазами профиля дизайна; null — профиль ещё не прочёл его.</summary>
     public SolutionSnapshot? Snapshot => _source.Snapshot;
 
+    /// <summary>Словари в файлах решения — ключи, которые формы называют из приложения и включённых словарей.</summary>
+    public ResourceFiles ResourceFiles { get; } = new();
+
     /// <summary>Компилирует ли проект файла привязки по умолчанию (<see cref="CompiledBindingsProperty"/>).</summary>
     /// <param name="file">Файл проекта.</param>
     public bool CompilesBindingsByDefault(CanonicalPath file) =>

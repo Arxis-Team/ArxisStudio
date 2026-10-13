@@ -95,6 +95,7 @@ internal sealed class BindingEditor : InspectorExpressionEditor
     private string? _listedFor;
     private XamlElementPath? _listedAt;
     private XamlExpressionCheck? _check;
+    private IReadOnlyList<string> _resourceConverters = [];
     private InspectorCheck _reported = InspectorCheck.Valid;
     private Task _checked = Task.CompletedTask;
     private bool _filling;
@@ -305,6 +306,7 @@ internal sealed class BindingEditor : InspectorExpressionEditor
         _more.IsChecked = BindingDraft.Options.Skip(1).Any(option => _draft.Value(option) is not null);
         ShowAdvanced();
         Refresh();
+        _ = ConvertersAsync();
     }
 
     /// <inheritdoc/>
@@ -333,6 +335,9 @@ internal sealed class BindingEditor : InspectorExpressionEditor
 
     /// <summary>Режим — тестам.</summary>
     internal AxComboBox ModeField => _mode;
+
+    /// <summary>Конвертер — тестам.</summary>
+    internal AxComboBox ConverterField => _converter;
 
     /// <summary>Что запишется сейчас — тестам.</summary>
     internal string Written => _written.Text ?? string.Empty;
@@ -400,9 +405,7 @@ internal sealed class BindingEditor : InspectorExpressionEditor
             _level.Value = draft.AncestorLevel;
             _path.Text = draft.Path;
             _mode.SelectedIndex = draft.Value("Mode") is { } mode ? Array.IndexOf(Modes, mode) + 1 : 0;
-            _converter.SelectedIndex = draft.Value("Converter") is { } converter
-                ? Math.Max(0, Array.IndexOf(_converter.ItemsSource!.Cast<string>().ToArray(), converter))
-                : 0;
+            _converter.SelectedIndex = ConverterIndex(draft);
             _parameter.Text = draft.Value("ConverterParameter");
             _format.Text = draft.Value("StringFormat");
             _fallback.Text = draft.Value("FallbackValue");
@@ -817,11 +820,62 @@ internal sealed class BindingEditor : InspectorExpressionEditor
         var choices = new List<string> { _strings["inspector.binding.converter.none"] };
 
         choices.AddRange(Converters.Select(static name => "{x:Static " + name + "}"));
+        choices.AddRange(_resourceConverters);
 
         if (written is not null && !choices.Contains(written, StringComparer.Ordinal))
             choices.Add(written);
 
         return [.. choices];
+    }
+
+    /// <summary>Место написанного конвертера в списке; без конвертера — «Нет».</summary>
+    private int ConverterIndex(BindingDraft draft) =>
+        draft.Value("Converter") is { } converter
+            ? Math.Max(0, Array.IndexOf(_converter.ItemsSource!.Cast<string>().ToArray(), converter))
+            : 0;
+
+    /// <summary>
+    /// Конвертеры из ресурсов элемента — в список конвертеров, статической ссылкой: <c>Converter</c> — член привязки, а не
+    /// свойство Avalonia, и динамическая ссылка на нём не встанет.
+    /// </summary>
+    private async Task ConvertersAsync()
+    {
+        IReadOnlyList<XamlResourceInfo> resources;
+
+        try
+        {
+            resources = await _setup.View.GetResourcesAsync(_setup.Element, _setup.Member).ConfigureAwait(true);
+        }
+        catch (Exception e) when (e is OperationCanceledException or ObjectDisposedException)
+        {
+            return;
+        }
+
+        if (_released)
+            return;
+
+        _resourceConverters =
+        [
+            .. resources
+                .Where(static resource => resource is { IsConverter: true, StaticReachable: true })
+                .Select(static resource => ResourceEditor.Reference(resource.Key, dynamic: false))
+                .OfType<string>(),
+        ];
+
+        if (_resourceConverters.Count == 0)
+            return;
+
+        _filling = true;
+
+        try
+        {
+            _converter.ItemsSource = ConverterChoices(_draft.Value("Converter"));
+            _converter.SelectedIndex = ConverterIndex(_draft);
+        }
+        finally
+        {
+            _filling = false;
+        }
     }
 
     private string Titled(ElementChoice choice) =>

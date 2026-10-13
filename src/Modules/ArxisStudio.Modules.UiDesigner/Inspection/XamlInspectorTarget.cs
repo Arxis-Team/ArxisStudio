@@ -246,6 +246,10 @@ internal sealed class XamlInspectorTarget : InspectorTarget
 
         menu.Add(Strings["inspector.menu.reveal"], () => Reveal(snapshot, id), isEnabled: snapshot.Count == 1 && snapshot.WrittenAt(id, 0) is not null);
 
+        // Значение — ссылка на ресурс: к его определению — в форме, в приложении, в словаре.
+        if (snapshot.Count == 1 && ResourceOf(snapshot.WrittenAt(id, 0)).Key is { } key)
+            menu.Add(Strings["inspector.resource.reveal"], () => _ = RevealDefinitionAsync(snapshot, id, key));
+
         if (string.Equals(id, FormEdits.DataTypeDirective, StringComparison.Ordinal) && SuggestedType(snapshot) is { } suggested)
             menu.Add(string.Format(CultureInfo.CurrentCulture, Strings["inspector.data.setType"], suggested.Title), () => _ = WriteAsync([new InspectorWrite(id, suggested.Value)]));
 
@@ -262,19 +266,39 @@ internal sealed class XamlInspectorTarget : InspectorTarget
     }
 
     /// <inheritdoc/>
-    /// <remarks>Привязка — у свойства Avalonia, которое пишется, пока форма показана: подсказки и проверку даёт показ.</remarks>
-    public override IReadOnlyList<InspectorExpressionKind> ExpressionKinds(string id) =>
-        Snapshot is { } snapshot && Slot.Session.Shown is not null && snapshot.Binds(id) ? [InspectorExpressionKind.Binding] : [];
+    /// <remarks>
+    /// Пока форма показана — подсказки и проверку даёт показ: привязка — у свойства Avalonia, которое пишется, ресурс — у
+    /// всякого члена, который пишется.
+    /// </remarks>
+    public override IReadOnlyList<InspectorExpressionKind> ExpressionKinds(string id)
+    {
+        if (Snapshot is not { } snapshot || Slot.Session.Shown is null)
+            return [];
+
+        List<InspectorExpressionKind> kinds = [];
+
+        if (snapshot.Binds(id))
+            kinds.Add(InspectorExpressionKind.Binding);
+
+        if (snapshot.TakesResource(id))
+            kinds.Add(InspectorExpressionKind.Resource);
+
+        return kinds;
+    }
 
     /// <inheritdoc/>
     /// <remarks>
-    /// Панель привязки (<see cref="BindingEditor"/>) спрашивает показ формы — по первому из выбранных, — а пишет всем
-    /// одной правкой: привязку, имя элементу, к которому она ведёт, и тип данных, если его просили задать.
+    /// Панель привязки (<see cref="BindingEditor"/>) и ресурса (<see cref="ResourceEditor"/>) спрашивают показ формы — по
+    /// первому из выбранных, — а пишут всем одной правкой: привязка — вместе с именем элементу, к которому она ведёт, и
+    /// типом данных, если его просили задать.
     /// </remarks>
     public override InspectorExpressionEditor? CreateExpressionEditor(string id, InspectorExpressionKind kind, InspectorExpressionContext context)
     {
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(context);
+
+        if (kind == InspectorExpressionKind.Resource)
+            return CreateResourceEditor(id, context);
 
         if (kind != InspectorExpressionKind.Binding || Slot.Session.Shown is not { } view || Snapshot is not { } snapshot || !snapshot.Binds(id) ||
             Slot.Session.Document?.Syntax is not { } document || snapshot.Paths.FirstOrDefault() is not { } path || path.Resolve(document) is not { } element)
@@ -304,6 +328,67 @@ internal sealed class XamlInspectorTarget : InspectorTarget
             (text, name, dataType) => WriteBindingAsync(id, text, name, dataType));
 
         return new BindingEditor(setup, context, Strings);
+    }
+
+    /// <summary>Панель ресурса: какой ключ и какой ссылкой член уже называет, и берёт ли он динамическую.</summary>
+    private ResourceEditor? CreateResourceEditor(string id, InspectorExpressionContext context)
+    {
+        if (Slot.Session.Shown is not { } view || Snapshot is not { } snapshot || !snapshot.TakesResource(id) ||
+            snapshot.Paths.FirstOrDefault() is not { } path)
+        {
+            return null;
+        }
+
+        var (key, dynamic) = ResourceOf(snapshot.WrittenAt(id, 0));
+        var setup = new ResourceEditor.Setup(
+            view,
+            path,
+            id,
+            key,
+            dynamic,
+            snapshot.BindingModeOf(id) is not null,
+            text => WriteAsync([new InspectorWrite(id, text)]));
+
+        return new ResourceEditor(setup, context, Strings);
+    }
+
+    /// <summary>Ключ и вид ссылки на ресурс, которой написано значение; пусто — значение не ресурс.</summary>
+    private static (string? Key, bool? Dynamic) ResourceOf(string? written)
+    {
+        if (XamlValue.Parse(written ?? string.Empty) is not XamlMarkupExtensionValue extension ||
+            XamlExpressions.Classify(extension) != XamlExpressionKind.Resource ||
+            (extension.PositionalArguments.FirstOrDefault() ?? extension.GetArgument("ResourceKey"))?.Value is not XamlLiteralValue { Text: var key })
+        {
+            return (null, null);
+        }
+
+        return (key.Trim(), extension.TypeName.LocalName.StartsWith("DynamicResource", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Ведёт к определению ключа, которым написано значение: объявленного в форме — в её просмотре XAML, в файле
+    /// приложения или словаря — открывает файл.
+    /// </summary>
+    private async Task RevealDefinitionAsync(XamlInspectorSnapshot snapshot, string id, string key)
+    {
+        if (Slot.Session.Shown is not { } view || snapshot.Paths.FirstOrDefault() is not { } path)
+            return;
+
+        var resources = await view.GetResourcesAsync(path, id).ConfigureAwait(true);
+
+        if (resources.FirstOrDefault(resource => string.Equals(resource.Key, key, StringComparison.Ordinal)) is not { } found)
+            return;
+
+        if (found.Element is { } element)
+        {
+            if (!_canvas.IsDisposed)
+                _canvas.RevealDeclaration(Slot, element);
+
+            return;
+        }
+
+        if (!found.File.IsEmpty && _context.GetService<IStudioDocuments>() is { } documents)
+            await documents.OpenAsync(found.File.Value).ConfigureAwait(true);
     }
 
     /// <summary>

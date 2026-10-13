@@ -24,5 +24,14 @@
   "module.xaml.binding.noType": "Тип «{0}» не найден",
   "module.xaml.binding.noDataType": "Привязка компилируется, а x:DataType в области нет",
   "module.xaml.binding.unchecked": "Не проверено: привязка читает то, что известно только при работе формы",
-  "module.xaml.binding.breaksBuild": "{0} — проект не соберётся"
+  "module.xaml.binding.breaksBuild": "{0} — проект не соберётся",
+  "module.xaml.resource.missing": "Ключа «{0}» нет ни у формы, ни у её приложения",
+  "module.xaml.resource.themedStatic": "«{0}» есть только у тем: статическая ссылка здесь его не найдёт — нужна динамическая",
+  "module.xaml.resource.own": "Свой ресурс",
+  "module.xaml.resource.ancestor": "Ресурс {0}",
+  "module.xaml.resource.application": "Ресурс приложения",
+  "module.xaml.resource.theme": "Тема приложения",
+  "module.xaml.resource.frozen": "{0} · за темой статическая ссылка не идёт",
+  "module.xaml.resource.pending": "Не проверено: приложение формы ещё не построено",
+  "module.xaml.resource.unchecked": "Не проверено: ключ задан выражением"
 }

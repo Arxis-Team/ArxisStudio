@@ -54,8 +54,8 @@ public class XamlExpressionChecksTests
 
     /// <summary>
     /// Привязка к данным читается по их типу, к элементу — по имени в документе, а под элементом, отдавшим содержимому
-    /// другие данные, — по ним: найденное называет, откуда и куда пришёл путь, сломанное — почему, а ресурс служба не
-    /// проверяет.
+    /// другие данные, — по ним: найденное называет, откуда и куда пришёл путь, сломанное — почему, а ключ ресурса,
+    /// которого нет, — сломан.
     /// </summary>
     [AvaloniaFact]
     public async Task Each_expression_of_an_element_is_checked_against_what_the_document_declares()
@@ -106,7 +106,9 @@ public class XamlExpressionChecksTests
         Assert.Equal(Format(studio, "module.xaml.binding.noMember", "MainViewModel", "Nmae"), typo.Message);
         Assert.False(typo.BreaksBuild, "проект привязки не компилирует, а сломанная названа ломающей сборку");
 
-        Assert.Equal((XamlExpressionKind.Resource, XamlExpressionState.Unchecked), (first[2].Kind, first[2].State));
+        // Ключа нет ни у формы, ни у приложения — его у формы и нет: ресурс сломан (контракт 1.5, запись 427).
+        Assert.Equal((XamlExpressionKind.Resource, XamlExpressionState.Broken), (first[2].Kind, first[2].State));
+        Assert.Equal(Format(studio, "module.xaml.resource.missing", "Accent"), first[2].Message);
 
         var named = await Checks(view, "/0/1");
 

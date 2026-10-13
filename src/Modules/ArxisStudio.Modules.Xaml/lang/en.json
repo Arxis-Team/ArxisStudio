@@ -24,5 +24,14 @@
   "module.xaml.binding.noType": "Type “{0}” is not found",
   "module.xaml.binding.noDataType": "The binding compiles and no x:DataType is in scope",
   "module.xaml.binding.unchecked": "Not checked: the binding reads what is known only when the form runs",
-  "module.xaml.binding.breaksBuild": "{0} — the project won’t build"
+  "module.xaml.binding.breaksBuild": "{0} — the project won’t build",
+  "module.xaml.resource.missing": "No key “{0}” in the form or its application",
+  "module.xaml.resource.themedStatic": "“{0}” exists only per theme: a static reference here finds nothing — use a dynamic one",
+  "module.xaml.resource.own": "Own resource",
+  "module.xaml.resource.ancestor": "Resource of {0}",
+  "module.xaml.resource.application": "Application resource",
+  "module.xaml.resource.theme": "Application theme",
+  "module.xaml.resource.frozen": "{0} · a static reference does not follow the theme",
+  "module.xaml.resource.pending": "Not checked: the form’s application is not built yet",
+  "module.xaml.resource.unchecked": "Not checked: the key is an expression"
 }

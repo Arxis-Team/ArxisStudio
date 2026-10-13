@@ -50,6 +50,7 @@ internal sealed class InspectorRow : AxPropertyRow
     private AxChip? _token;
     private TextBlock? _tokenText;
     private AxIcon? _tokenIcon;
+    private AxColorSwatch? _tokenSwatch;
     private AxButton? _edit;
     private bool _built;
     private bool _stale = true;
@@ -535,6 +536,15 @@ internal sealed class InspectorRow : AxPropertyRow
         if (expression is not null)
             _tokenIcon.Data = expression.Icon ?? IconOf(expression.Kind);
 
+        // Ресурс — с образцом значения: цвет и кисть видно сразу, а не подсказкой.
+        var sample = expression?.Kind == InspectorExpressionKind.Resource ? value.Shared : null;
+
+        _tokenSwatch!.IsVisible = sample is Color or IBrush;
+        _tokenSwatch.Brush = sample as IBrush;
+
+        if (sample is Color color)
+            _tokenSwatch.Color = color;
+
         _token!.Kind = expression is null or { State: InspectorExpressionState.Resolved } ? AxChipKind.Accent : AxChipKind.Default;
         AxValidation.SetState(_token, expression?.State == InspectorExpressionState.Broken ? AxValidationState.Error : AxValidationState.None);
 
@@ -571,10 +581,19 @@ internal sealed class InspectorRow : AxPropertyRow
             [!Layoutable.MarginProperty] = new DynamicResourceExtension("AxGapIconTextThickness"),
         };
         DockPanel.SetDock(_tokenIcon, Dock.Left);
+        _tokenSwatch = new AxColorSwatch
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            IsVisible = false,
+            [!Layoutable.WidthProperty] = new DynamicResourceExtension("AxIconSizeSmall"),
+            [!Layoutable.HeightProperty] = new DynamicResourceExtension("AxIconSizeSmall"),
+            [!Layoutable.MarginProperty] = new DynamicResourceExtension("AxGapIconTextThickness"),
+        };
+        DockPanel.SetDock(_tokenSwatch, Dock.Left);
         _token = new AxChip
         {
             Kind = AxChipKind.Accent,
-            Content = new DockPanel { Children = { _tokenIcon, _tokenText } },
+            Content = new DockPanel { Children = { _tokenIcon, _tokenSwatch, _tokenText } },
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,
         };
